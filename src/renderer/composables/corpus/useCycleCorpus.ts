@@ -88,6 +88,7 @@ interface DistantCycleCorpus {
     lectureSeuleForcee?: boolean,
     corpusModifiableForce?: boolean,
     fournisseur?: 'webdav' | 'gitlab',
+    observationIndisponible?: boolean,
   ) => void
   rafraichirOrphelins: () => Promise<void>
   quitter: () => void
@@ -235,6 +236,7 @@ export function useCycleCorpus(deps: {
       consultationSeule,
       resultat.distant.fournisseur !== 'gitlab',
       resultat.distant.fournisseur,
+      resultat.verrousIndisponibles,
     )
     deps.profil.dossierCourantNom.value = resultat.nom
     await appliquerCorpus(resultat.corpus, resultat.dir)

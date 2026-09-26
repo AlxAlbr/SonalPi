@@ -74,6 +74,7 @@ const {
   actualiserDistant,
   lectureSeule,
   ajoutEntretienPossible,
+  verrousIndisponibles,
   // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
   metaEditables,
@@ -279,6 +280,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <span class="dernier-tirage" title="Copie locale synchronisée avec le serveur">
             ☁ dernière synchro {{ heureDe(dernierTirage) }}
           </span>
+          <!-- Aucun badge affiché ne signifie RIEN quand l'observation a échoué :
+               l'interface le dit, et l'ouverture d'un entretien reste vérifiée
+               par le verrou du serveur. -->
+          <span
+            v-if="verrousIndisponibles"
+            class="verrous-indispo"
+            title="Impossible de savoir qui tient un entretien (serveur injoignable ou droits insuffisants). Ouvrir un entretien vérifiera lui-même s'il est tenu."
+          >🔒 détenteurs : indisponible</span>
           <button class="btn-table" :disabled="tirageEnCours" @click="actualiser">
             {{ tirageEnCours ? '…' : '⟳ Actualiser' }}
           </button>
@@ -721,6 +730,13 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .dernier-tirage {
   font-size: 0.8rem;
   color: #555;
+}
+/* information manquante, pas une erreur : elle n'empêche aucun geste */
+.verrous-indispo {
+  font-size: 0.8rem;
+  color: #8a6d3b;
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
 }
 .badge-verrou {
   display: inline-block;

@@ -168,6 +168,39 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.metaEditables('e1')).toBe(false)
   })
 
+  test('une observation des détenteurs en panne est signalée, puis effacée', async () => {
+    const tirer = vi.fn()
+      .mockResolvedValueOnce({
+        telecharges: [],
+        corbeille: [],
+        verrous: [],
+        verrousIndisponibles: true,
+        date: '2026-01-01T10:02:00.000Z',
+      } satisfies ResultatTiragePublic)
+      .mockResolvedValueOnce({
+        telecharges: [],
+        corbeille: [],
+        verrous: [verrou],
+        date: '2026-01-01T10:03:00.000Z',
+      } satisfies ResultatTiragePublic)
+    const contexte = creerContexte(tirer)
+    contexte.distant.activerDistant('d1', [], [], false, true, 'gitlab', true)
+    expect(contexte.distant.verrousIndisponibles.value).toBe(true)
+
+    await expect(contexte.distant.actualiserDistant()).resolves.toBe(true)
+    expect(contexte.distant.verrousIndisponibles.value).toBe(true)
+    // Le drapeau n'accorde rien : l'édition suit l'état du corpus, pas les badges.
+    expect(contexte.distant.tableLigneEditable('e1')).toBe(true)
+
+    await expect(contexte.distant.actualiserDistant()).resolves.toBe(true)
+    expect(contexte.distant.verrousIndisponibles.value).toBe(false)
+    expect(contexte.distant.badgeVerrou('e1')).toEqual(verrou.contenu)
+    expect(contexte.distant.tableLigneEditable('e1')).toBe(false)
+
+    contexte.distant.quitterDistant()
+    expect(contexte.distant.verrousIndisponibles.value).toBe(false)
+  })
+
   test('un échec silencieux conserve le miroir et verrouille les définitions', async () => {
     const tirer = vi.fn(async () => {
       throw new Error('réseau indisponible')

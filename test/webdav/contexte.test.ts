@@ -88,6 +88,36 @@ describe('contexte de corpus distant', () => {
     await expect(preparation.contexte.actualiser()).rejects.toThrow('fermé')
   })
 
+  test('un inventaire de verrous en panne n’empêche pas le tirage', async () => {
+    const b = banc()
+    const client = new ClientWebDAV(
+      { baseUrl: b.serveur.baseUrl, identifiants: b.serveur.identifiants },
+      async (requete, init) => {
+        const methode = init?.method ?? (requete instanceof Request ? requete.method : 'GET')
+        const url = requete instanceof Request ? requete.url : String(requete)
+        return methode === 'PROPFIND' && new URL(url).pathname.endsWith('/verrous')
+          ? new Response(null, { status: 503 })
+          : b.serveur.fetch(requete, init)
+      },
+    )
+    const preparation = await preparerContexteNextcloud({
+      id: 'compte-1',
+      dirLocal: b.dirLocal,
+      client,
+      identite,
+      verrouNatif: false,
+    })
+
+    // Le contenu est consultable, et l'interface est prévenue que les badges
+    // ne disent rien.
+    expect(preparation.verrousIndisponibles).toBe(true)
+    await expect(preparation.contexte.actualiser()).resolves.toMatchObject({
+      verrous: [],
+      verrousIndisponibles: true,
+    })
+    expect(preparation.contexte.store.lireEntretien(ID)).toMatchObject({ ok: true })
+  })
+
   test('porte les intentions de session et de définitions', async () => {
     const b = banc()
     const preparation = await preparerContexteNextcloud({

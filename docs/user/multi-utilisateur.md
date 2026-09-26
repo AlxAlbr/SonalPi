@@ -24,6 +24,13 @@ le partager à l'équipe, voir [corpus-distant.md](corpus-distant.md). Il compl�
 
 Ces indicateurs viennent du serveur, jamais d'une supposition.
 
+Si l'app n'a **pas** pu savoir qui tient quoi (serveur injoignable, droits
+insuffisants, coupure pendant l'actualisation), la barre de synchronisation
+affiche « 🔒 détenteurs : indisponible » : cette fois, l'absence de 🔒 ne veut
+rien dire. Vous pouvez toujours ouvrir un entretien — c'est le serveur, à ce
+moment-là, qui vérifiera si vous êtes le second. Le message disparaît dès
+qu'une actualisation réussit.
+
 ## Si le serveur refuse votre publication (« divergence »)
 
 C'est rare : cela arrive si quelqu'un a modifié le fichier **en contournant l'application**

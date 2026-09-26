@@ -1624,6 +1624,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         corpus: preparation.corpus,
         distant: sansSecret(config),
         verrous: preparation.verrous,
+        verrousIndisponibles: preparation.verrousIndisponibles,
         inaccessibles: preparation.inaccessibles,
       }
     }),

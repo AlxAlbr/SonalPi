@@ -618,7 +618,12 @@ seule fois par tirage : l'observateur des baux lit au même commit que le miroir
 L'inventaire de `.sonal/verrous/` est paginé et seuls les fichiers dont le nom
 est l'empreinte attendue d'un entretien du membership sont lus — le bail du
 corpus, ceux d'autres corpus et les fichiers étrangers ne sont jamais
-demandés. Le coût par actualisation est donc d'une requête d'inventaire plus
+demandés. Un inventaire en échec n'est pas un « personne ne tient rien » : le
+tirage aboutit quand même, et le renderer affiche « 🔒 détenteurs : indisponible »
+pour que l'absence de badge ne soit pas prise pour une absence d'exclusion.
+Les deux fournisseurs sont alignés : sur Nextcloud, une panne du PROPFIND des
+verrous faisait jusqu'ici échouer le pull entier ; elle ne retire plus rien aux
+contenus et se signale de la même façon. Le coût par actualisation est donc d'une requête d'inventaire plus
 une requête par entretien réellement détenu, la résolution de branche étant
 partagée avec le tirage du miroir. Sur l'instance locale du banc, un GET de
 branche, d'inventaire ou de fichier brut répond en 0,09 à 0,17 s : observer un

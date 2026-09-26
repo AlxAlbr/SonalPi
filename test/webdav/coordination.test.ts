@@ -39,21 +39,48 @@ describe('observation de la coordination WebDAV', () => {
     }))
     const observation = new ObservationVerrousWebDAV(b.client, b.sessions, false)
 
-    await expect(observation.observerVerrous()).resolves.toEqual([{
-      chemin: 'verrous/e1.lock.json',
-      etag: b.serveur.etagDe('verrous/e1.lock.json'),
-      contenu: {
-        userId: 'olivier',
-        machineId: 'poste-olivier',
-        acquiredAt: '2026-01-01T10:00:00.000Z',
-      },
-    }])
+    await expect(observation.observerVerrous()).resolves.toEqual({
+      indisponible: false,
+      entrees: [{
+        chemin: 'verrous/e1.lock.json',
+        etag: b.serveur.etagDe('verrous/e1.lock.json'),
+        contenu: {
+          userId: 'olivier',
+          machineId: 'poste-olivier',
+          acquiredAt: '2026-01-01T10:00:00.000Z',
+        },
+      }],
+    })
   })
 
   test('un dossier de verrous absent signifie qu’aucun verrou coopératif n’est observé', async () => {
     const b = banc()
     const observation = new ObservationVerrousWebDAV(b.client, b.sessions, false)
 
-    await expect(observation.observerVerrous()).resolves.toEqual([])
+    await expect(observation.observerVerrous()).resolves.toEqual({
+      entrees: [],
+      indisponible: false,
+    })
+  })
+
+  test('une panne d’inventaire se signale au lieu de ressembler à « personne »', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (requete, init) => {
+        const methode = init?.method ?? (requete instanceof Request ? requete.method : 'GET')
+        return methode === 'PROPFIND'
+          ? new Response(null, { status: 500 })
+          : serveur.fetch(requete, init)
+      },
+    )
+    const sessions = new SessionsDEntretien(client, {} as never, () => ({
+      userId: 'max',
+      machineId: 'poste-max',
+      sessionId: 'session-max',
+    }))
+
+    await expect(new ObservationVerrousWebDAV(client, sessions, false).observerVerrous())
+      .resolves.toEqual({ entrees: [], indisponible: true })
   })
 })

@@ -2,7 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CorpusStore } from '../corpusStore'
 import { MiroirDistant } from '../distant/miroir'
-import type { ObservationCoordinationDistante } from '../distant/coordination'
+import type {
+  ObservationCoordinationDistante,
+  ResultatObservationVerrous,
+} from '../distant/coordination'
 import type { EntreeVerrouPublic, ResultatTiragePublic } from '../../shared/distant'
 import {
   FORMAT_VERSION,
@@ -39,6 +42,7 @@ export interface PreparationContexteGitLabLectureSeule {
   inaccessibles?: { chemin: string; raison: string }[]
   /** Badges d'exclusion relevés au même commit que le tirage d'ouverture. */
   verrous: EntreeVerrouPublic[]
+  verrousIndisponibles?: boolean
 }
 
 /** Contexte GitLab de préversion, avec services de session réservés au main. */
@@ -80,10 +84,12 @@ export class ContexteGitLab {
           .filter(({ protege }) => protege)
           .map(({ chemin }) => chemin),
       )
+      const observation = await this.observerVerrous()
       return {
         telecharges: tirage.telecharges,
         corbeille: tirage.corbeille,
-        verrous: await this.observerVerrous(),
+        verrous: observation.entrees,
+        verrousIndisponibles: observation.indisponible || undefined,
         inaccessibles: tirage.inaccessibles.length > 0
           ? tirage.inaccessibles
           : undefined,
@@ -96,13 +102,14 @@ export class ContexteGitLab {
   }
 
   /** Badges d'exclusion du cycle courant, sans commit.
-   *  Un inventaire de baux raté ne retire aucun contenu déjà tiré : les badges
-   *  restent indicatifs, l'exclusion se vérifie à l'ouverture, par le bail. */
-  async observerVerrous(): Promise<EntreeVerrouPublic[]> {
+   *  Un inventaire de baux raté ne retire aucun contenu déjà tiré : les listes
+   *  le signalent, et l'exclusion se vérifie à l'ouverture, par le bail. */
+  async observerVerrous(): Promise<ResultatObservationVerrous> {
+    if (!this.observation) return { entrees: [], indisponible: false }
     try {
-      return (await this.observation?.observerVerrous()) ?? []
+      return await this.observation.observerVerrous()
     } catch {
-      return []
+      return { entrees: [], indisponible: true }
     }
   }
 
@@ -352,11 +359,12 @@ export async function preparerContexteGitLabLectureSeule(
   try {
     // Badges relevés au commit du tirage d'ouverture : le premier affichage
     // n'attend pas le cycle périodique suivant.
-    const verrous = await contexte.observerVerrous()
+    const observation = await contexte.observerVerrous()
     return {
       contexte,
       corpus,
-      verrous,
+      verrous: observation.entrees,
+      verrousIndisponibles: observation.indisponible || undefined,
       inaccessibles: tirage.inaccessibles.length > 0
         ? tirage.inaccessibles
         : undefined,

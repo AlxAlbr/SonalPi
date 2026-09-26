@@ -400,6 +400,8 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
 - [x] Port d'observation, instantané explicite, inventaire paginé et hash canonique.
 - [x] Filtres v2, sessions réellement détenues, bail corpus et politique legacy.
 - [x] Observation à l'ouverture initiale et à l'actualisation ; infobulles sans date.
+- [x] « Détenteurs indisponibles » distinct de « aucun détenteur », sur GitLab
+      comme sur Nextcloud ; le drapeau n'accorde ni n'interdit quoi que ce soit.
 - [x] Tests : racine imbriquée, branche contenant `/`, plusieurs corpus, expirations,
       bail corrompu, dossier absent, 403, coupure et pagination.
 - [x] E2E deux comptes : badge avant ouverture ; ouverture toujours proposée.

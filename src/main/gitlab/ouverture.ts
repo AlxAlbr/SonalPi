@@ -57,6 +57,7 @@ export interface PreparationOuvertureGitLab {
   corpus: CorpusFichier
   inaccessibles?: { chemin: string; raison: string }[]
   verrous?: EntreeVerrouPublic[]
+  verrousIndisponibles?: boolean
   dirMiroir: string
 }
 
@@ -176,6 +177,7 @@ export class ServiceOuvertureGitLab {
       corpus: preparation.corpus,
       distant: destinationPublique,
       verrous: preparation.verrous ?? [],
+      verrousIndisponibles: preparation.verrousIndisponibles,
       inaccessibles: preparation.inaccessibles,
     }
   }

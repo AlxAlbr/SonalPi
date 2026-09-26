@@ -322,19 +322,22 @@ describe('observation des bails GitLab', () => {
   test('un dossier absent, un refus et une coupure laissent la consultation ouverte', async () => {
     const bail = bailEntretien('e1', { expireLe: VIVANT })
     const depot = corpusDeTest({ [bail.chemin]: bail.contenu })
-    const refus = { status: 403 }
-    const cas: Record<string, () => Response | Error> = {
-      'dossier absent': () => new Response(null, { status: 404 }),
-      'droits refusés': () => new Response(null, refus),
-      'coupure': () => new Error('connexion perdue'),
+    const cas: Record<string, { panne: () => Response | Error; attendu: boolean }> = {
+      // Un dépôt sans bails est un état normal : ce n'est pas une panne.
+      'dossier absent': { panne: () => new Response(null, { status: 404 }), attendu: false },
+      'droits refusés': { panne: () => new Response(null, { status: 403 }), attendu: true },
+      'coupure': { panne: () => new Error('connexion perdue'), attendu: true },
     }
 
-    for (const [nom, panne] of Object.entries(cas)) {
+    for (const [nom, { panne, attendu }] of Object.entries(cas)) {
       const journal: Requete[] = []
       const preparation = await ouvrir(depot, journal, {
         pannes: [(url) => (url.searchParams.get('path') === '.sonal/verrous' ? panne() : undefined)],
       })
       expect(preparation.verrous, nom).toEqual([])
+      // L'interface n'affiche aucun badge dans les deux cas ; seule la panne
+      // est signalée, l'absence de détenteur ne l'est pas.
+      expect(preparation.verrousIndisponibles ?? false, nom).toBe(attendu)
       expect(preparation.corpus.membership, nom).toHaveProperty('e1')
     }
   })
@@ -401,7 +404,10 @@ describe('observation des bails GitLab', () => {
       ressourcesTenues: () => [],
     })
 
-    await expect(observation.observerVerrous()).resolves.toEqual([])
+    await expect(observation.observerVerrous()).resolves.toEqual({
+      entrees: [],
+      indisponible: false,
+    })
     expect(journal).toHaveLength(0)
   })
 })

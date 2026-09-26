@@ -23,6 +23,7 @@ import { profilerServeur } from '../../src/main/webdav/sondes'
 import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
+import { FORMAT_VERSION } from '../../src/shared/format'
 
 const BASE = 'http://localhost:8080' // pile A : NC31 + files_lock
 const BASE_B = 'http://localhost:8081' // pile B : NC29 SANS files_lock
@@ -101,7 +102,9 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const premier = await miroir.tirer()
     expect(premier.telecharges).toContain('corpus.json')
     const contenu = JSON.parse(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8'))
-    expect(contenu.formatVersion).toBe(4)
+    // Le corpus du banc suit la version du format en cours : une constante
+    // en dur ferait échouer ce test à chaque évolution du format.
+    expect(contenu.formatVersion).toBe(FORMAT_VERSION)
     // Deuxième tirage : rien ne bouge (diff ETags).
     const second = await miroir.tirer()
     expect(second.telecharges).toEqual([])

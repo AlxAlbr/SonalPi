@@ -563,7 +563,9 @@ test.describe('Consultation GitLab à deux profils', () => {
       )
       await attendreCorpus(pageB)
       // Le bail du premier poste est vif : le second voit qui tient l'entretien,
-      // et l'ouverture en lecture seule reste proposée.
+      // et l'ouverture en lecture seule reste proposée. L'observation ayant
+      // abouti, aucune mention d'indisponibilité n'est affichée.
+      await expect(pageB.locator('.verrous-indispo')).toHaveCount(0)
       await expect(pageB.locator('.badge-verrou').first())
         .toContainText(configuration.utilisateur as string)
       await pageB.locator('.carte-ent .crayon').click()

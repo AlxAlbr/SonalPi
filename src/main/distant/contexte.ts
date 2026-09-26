@@ -60,10 +60,12 @@ export class ContexteCorpusDistant {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     const exclus = this.sessions.idsTenus().map((id) => `entretiens/${id}.json`)
     const tirage = await this.miroir.tirer(exclus)
+    const observation = await this.coordination.observerVerrous()
     return {
       telecharges: tirage.telecharges,
       corbeille: tirage.corbeille,
-      verrous: await this.coordination.observerVerrous(),
+      verrous: observation.entrees,
+      verrousIndisponibles: observation.indisponible || undefined,
       presences: await this.presence.lister(),
       inaccessibles: tirage.inaccessibles.length > 0 ? tirage.inaccessibles : undefined,
       date: tirage.date,
@@ -237,6 +239,7 @@ export interface PreparationContexteDistant {
   contexte: ContexteCorpusDistant
   corpus: CorpusFichier
   verrous: EntreeVerrouPublic[]
+  verrousIndisponibles?: boolean
   inaccessibles?: { chemin: string; raison: string }[]
 }
 
@@ -303,7 +306,7 @@ export async function preparerContexteNextcloud(
   await transactions.migrerFormatSiNecessaire()
   await transactions.reconcilierFichiersOrphelins()
   const corpus = magasin.ouvrir()
-  const verrous = await coordination.observerVerrous()
+  const observation = await coordination.observerVerrous()
 
   return {
     contexte: new ContexteCorpusDistant(
@@ -316,7 +319,8 @@ export async function preparerContexteNextcloud(
       coordination,
     ),
     corpus,
-    verrous,
+    verrous: observation.entrees,
+    verrousIndisponibles: observation.indisponible || undefined,
     inaccessibles: tirage.inaccessibles.length > 0 ? tirage.inaccessibles : undefined,
   }
 }

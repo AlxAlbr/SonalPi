@@ -28,6 +28,7 @@ import {
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { VerrouProvider } from '../verrous/types'
+import type { ResultatObservationVerrous } from './coordination'
 import type {
   EntreeVerrouPublic,
   EtatSessionPublic,
@@ -872,20 +873,21 @@ export class SessionsDEntretien {
    *  soi-même) ; les autres verrous du même utilisateur (autre session/poste)
    *  restent affichés — c'est une information vraie.
    */
-  async etatVerrousPublicsNatifs(): Promise<EntreeVerrouPublic[]> {
+  async etatVerrousPublicsNatifs(): Promise<ResultatObservationVerrous> {
     const tenus = new Set(this.idsTenus())
     let carte: Record<string, import('../webdav/client').EtatVerrouNatif>
     try {
       carte = await this.client.etatsVerrouxDossier('entretiens')
     } catch {
-      return [] // serveur injoignable : badges absents ce cycle, jamais devinés
+      // Serveur injoignable : badges absents ce cycle, jamais devinés.
+      return { entrees: [], indisponible: true }
     }
-    const out: EntreeVerrouPublic[] = []
+    const entrees: EntreeVerrouPublic[] = []
     for (const [nom, e] of Object.entries(carte)) {
       if (!e.verrouille) continue
       const id = nom.replace(/\.json$/, '')
       if (tenus.has(id)) continue
-      out.push({
+      entrees.push({
         chemin: `entretiens/${nom}`,
         etag: null,
         contenu: {
@@ -895,7 +897,7 @@ export class SessionsDEntretien {
         },
       })
     }
-    return out
+    return { entrees, indisponible: false }
   }
 
   /** Écriture locale atomique d'un contenu serveur fraîchement tiré. */

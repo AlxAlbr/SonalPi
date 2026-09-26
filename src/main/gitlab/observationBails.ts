@@ -1,5 +1,8 @@
 import type { EntreeVerrouPublic } from '../../shared/distant'
-import type { ObservationCoordinationDistante } from '../distant/coordination'
+import type {
+  ObservationCoordinationDistante,
+  ResultatObservationVerrous,
+} from '../distant/coordination'
 import { normaliserRacineGitLab } from '../distant/coffre'
 import {
   cheminBailRessourceGitLab,
@@ -38,9 +41,21 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     this.maintenant = options.maintenant ?? Date.now
   }
 
-  async observerVerrous(): Promise<EntreeVerrouPublic[]> {
+  async observerVerrous(): Promise<ResultatObservationVerrous> {
     const ids = this.options.idsEntretiens()
-    if (ids.length === 0) return []
+    if (ids.length === 0) return { entrees: [], indisponible: false }
+    let badges: EntreeVerrouPublic[]
+    try {
+      badges = await this.relever(ids)
+    } catch {
+      // L'inventaire des bails n'a pas abouti : les listes ne peuvent plus rien
+      // dire des exclusions. Le tirage des contenus, lui, est déjà acquis.
+      return { entrees: [], indisponible: true }
+    }
+    return { entrees: badges, indisponible: false }
+  }
+
+  private async relever(ids: string[]): Promise<EntreeVerrouPublic[]> {
     const lecteur = await this.options.instantane.racineDepot()
     const presents = await this.inventorier(lecteur)
     if (presents.size === 0) return []

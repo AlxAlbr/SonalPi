@@ -43,6 +43,9 @@ export function useDistantCorpus(deps: {
   const consultationSeule = ref(false)
   const fournisseurCourant = ref<'webdav' | 'gitlab' | null>(null)
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
+  /** L'observation des détenteurs a échoué : aucun badge n'est fiable, et
+   *  l'absence de badge ne prouve rien. Ne décide jamais d'une écriture. */
+  const verrousIndisponibles = ref(false)
   const presences = ref<PresencePublic[]>([])
   const orphelinsDistants = ref<OrphelinDistant[]>([])
   const statutSession = ref<EtatSessionPublic>({ etat: 'aucune' })
@@ -110,6 +113,7 @@ export function useDistantCorpus(deps: {
     lectureSeuleForcee = false,
     corpusModifiableForce = true,
     fournisseur: 'webdav' | 'gitlab' = 'webdav',
+    observationIndisponible = false,
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
@@ -117,6 +121,7 @@ export function useDistantCorpus(deps: {
     corpusModifiable.value = corpusModifiableForce
     fournisseurCourant.value = fournisseur
     dernierTirage.value = new Date().toISOString()
+    verrousIndisponibles.value = observationIndisponible
     absorberVerrous(verrous)
     deps.effets.majAudiosInaccessibles(inaccessibles)
   }
@@ -129,6 +134,7 @@ export function useDistantCorpus(deps: {
     idDistantCourant.value = null
     dernierTirage.value = null
     badgesVerrous.value = {}
+    verrousIndisponibles.value = false
     presences.value = []
     orphelinsDistants.value = []
     statutSession.value = { etat: 'aucune' }
@@ -158,6 +164,7 @@ export function useDistantCorpus(deps: {
         return false
       }
       enLigne.value = true
+      verrousIndisponibles.value = tirage.verrousIndisponibles === true
       absorberVerrous(tirage.verrous)
       absorberPresences(tirage.presences)
       deps.effets.majAudiosInaccessibles(tirage.inaccessibles ?? [])
@@ -350,6 +357,7 @@ export function useDistantCorpus(deps: {
     corpusModifiable,
     ajoutEntretienPossible,
     fournisseurCourant,
+    verrousIndisponibles,
     entretienEditable,
     enLigne,
     badgesVerrous,

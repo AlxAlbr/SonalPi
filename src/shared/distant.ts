@@ -22,6 +22,9 @@ export interface ProgressionTransfert {
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: DestinationDistantePublic
   verrous: EntreeVerrouPublic[]
+  /** L'observation des détenteurs a échoué à l'ouverture : les listes ne
+   *  montrent aucun badge, et cela ne prouve rien sur les exclusions. */
+  verrousIndisponibles?: boolean
   /** Audios désignés non rapatriés par le pull d'ouverture (403/404/réseau)
    *  — alimente l'étiquette du lecteur dès l'arrivée.
    *  Champ optionnel : absent si rien à signaler. */
@@ -50,6 +53,11 @@ export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
   verrous: EntreeVerrouPublic[]
+  /** L'observation des détenteurs a échoué (droits, coupure, réponse illisible) :
+   *  les badges de ce cycle manquent, ce qui ne prouve aucune absence
+   *  d'exclusion. L'ouverture d'un entretien, elle, reste vérifiée par le
+   *  verrou lui-même. Absent dès qu'une observation aboutit. */
+  verrousIndisponibles?: boolean
   /** Audios désignés (meta.audioDistant) dont la récupération a échoué (403/404/réseau) —
    *  matière des badges « audio inaccessible ». Non bloquant : le prochain tirage re-tentera.
    *  Absent si corpus local ou rien à signaler. */
