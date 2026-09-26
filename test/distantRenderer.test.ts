@@ -156,13 +156,14 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.pourcentageProgression.value).toBe(25)
   })
 
-  test('un contexte GitLab reste en consultation seule même en ligne', () => {
+  test('un contexte GitLab bloque les définitions mais permet l’ajout', () => {
     const contexte = creerContexte(vi.fn())
 
-    contexte.distant.activerDistant('gitlab-1', [], [], true)
+    contexte.distant.activerDistant('gitlab-1', [], [], false, false, 'gitlab')
 
     expect(contexte.distant.enLigne.value).toBe(true)
     expect(contexte.distant.lectureSeule.value).toBe(true)
+    expect(contexte.distant.ajoutEntretienPossible.value).toBe(true)
     expect(contexte.distant.tableLigneEditable('e1')).toBe(false)
     expect(contexte.distant.metaEditables('e1')).toBe(false)
   })

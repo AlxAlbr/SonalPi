@@ -5,13 +5,18 @@ import { MiroirDistant } from '../distant/miroir'
 import type { ResultatTiragePublic } from '../../shared/distant'
 import {
   FORMAT_VERSION,
+  type Categorie,
   type CorpusFichier,
   type OuvertureEntretienEdition,
+  type PayloadEntretien,
+  type RegleAnon,
+  type Variable,
 } from '../../shared/format'
 import { ClientGitLab } from './client'
 import { LecteurGitLab } from './lecture'
 import type { ResultatPublicationGitLab } from './publication'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
+import type { TransactionsGitLab } from './transactions'
 
 export interface OptionsContexteGitLabLectureSeule {
   id: string
@@ -21,6 +26,7 @@ export interface OptionsContexteGitLabLectureSeule {
   racine?: string
   cheminsRecuperables?: string[]
   creerSession?: (ressource: string, cheminRelatif: string) => SessionGitLab
+  creerTransactions?: (store: CorpusStore) => TransactionsGitLab
 }
 
 export interface PreparationContexteGitLabLectureSeule {
@@ -43,6 +49,7 @@ export class ContexteGitLab {
     public readonly store: CorpusStore,
     public readonly miroir: MiroirDistant,
     private readonly creerSession?: (ressource: string, cheminRelatif: string) => SessionGitLab,
+    public readonly transactions?: TransactionsGitLab,
   ) {}
 
   get dirLocal(): string {
@@ -104,6 +111,28 @@ export class ContexteGitLab {
   /** Ouvre une session d'entretien à partir de son identifiant métier. */
   async ouvrirSessionEntretien(id: string): Promise<EtatSessionGitLab> {
     return this.ouvrirSession(this.ressourceEntretien(id), `entretiens/${id}.json`)
+  }
+
+  creerEntretienVide(titre: string): Promise<{ id: string; corpus: CorpusFichier }> {
+    if (!this.transactions) throw new Error('Ajout GitLab non configuré pour ce contexte.')
+    return this.transactions.creerEntretienVide(titre)
+  }
+
+  importerEntretien(
+    titre: string,
+    payload: PayloadEntretien,
+    codebook: Categorie[],
+    variables: Variable[],
+    reglesAnon: RegleAnon[],
+  ): Promise<{ id: string; corpus: CorpusFichier }> {
+    if (!this.transactions) throw new Error('Import GitLab non configuré pour ce contexte.')
+    return this.transactions.importerEntretien(
+      titre,
+      payload,
+      codebook,
+      variables,
+      reglesAnon,
+    )
   }
 
   async ouvrirEntretienPourEdition(id: string): Promise<OuvertureEntretienEdition> {
@@ -264,6 +293,7 @@ export async function preparerContexteGitLabLectureSeule(
       store,
       miroir,
       options.creerSession,
+      options.creerTransactions?.(store),
     ),
     corpus,
     inaccessibles: tirage.inaccessibles.length > 0

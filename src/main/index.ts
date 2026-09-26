@@ -478,6 +478,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     })
   }
 
+  /** Exécute les ajouts pris en charge par les deux fournisseurs distants. */
+  function executerAjoutDistant<T>(
+    nextcloud: (contexte: ContexteCorpusDistant) => Promise<T>,
+    gitlab: (contexte: ContexteGitLab) => Promise<T>,
+  ): Promise<T> | null {
+    const execution = executerContexteCommun((contexte) =>
+      contexte instanceof ContexteGitLab ? gitlab(contexte) : nextcloud(contexte))
+    if (!execution) return null
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+      return resultat.valeur
+    })
+  }
+
   /** Capture aussi les corpus locaux, qui n'ont pas de façade distante. */
   function capturerCorpusCourant() {
     return {
@@ -798,9 +812,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     },
   )
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
-    executerIntentionDistante((contexte) =>
-      contexte.transactions.creerEntretienVide(titre))
-      ?? store.creerEntretienVide(titre),
+    executerAjoutDistant(
+      (contexte) => contexte.transactions.creerEntretienVide(titre),
+      (contexte) => contexte.creerEntretienVide(titre),
+    ) ?? store.creerEntretienVide(titre),
   )
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     executerDefinitions((cible) => cible.renommerEntretien(id, titre)),
@@ -851,15 +866,22 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:importer',
     (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
-      executerIntentionDistante((contexte) =>
-        contexte.transactions.importerEntretien(
+      executerAjoutDistant(
+        (contexte) => contexte.transactions.importerEntretien(
           titre,
           payload,
           codebook,
           variables,
           reglesAnon,
-        ))
-        ?? store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
+        ),
+        (contexte) => contexte.importerEntretien(
+          titre,
+          payload,
+          codebook,
+          variables,
+          reglesAnon,
+        ),
+      ) ?? store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
   )
 
   // Codebook (thèmes) — définitions : sous transaction en distant.
@@ -1081,7 +1103,25 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // fermé distant, la mutation est une transaction courte construite depuis
   // le GET effectué après acquisition du verrou.
   ipcMain.handle('corpus:assignerAudio', async (_e, id: string, source: string) => {
-    const execution = executerContexteDistant(async (contexte) => {
+    const execution = executerContexteCommun(async (contexte) => {
+      if (contexte instanceof ContexteGitLab) {
+        const ouverture = await contexte.ouvrirEntretienPourEdition(id)
+        if (!ouverture.ok) throw new Error(ouverture.raison)
+        if (ouverture.acces !== 'edition') {
+          throw new Error('Cet entretien GitLab est déjà modifié par un autre utilisateur.')
+        }
+        const resultat = contexte.store.assignerAudio(id, source)
+        if (resultat) {
+          await contexte.marquerSessionSale(contexte.ressourceEntretien(id))
+          const publication = await contexte.publierEntretien(id)
+          if (!publication.ok) {
+            throw new Error(`Assignation audio non publiée : ${publication.raison ?? 'refus GitLab'}.`)
+          }
+        }
+        await contexte.fermerEntretien(id)
+        return resultat
+      }
+
       const gestionnaire = contexte.sessions
       const magasin = contexte.store
       if (gestionnaire.idsTenus().includes(id)) {

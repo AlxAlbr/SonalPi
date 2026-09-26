@@ -41,6 +41,7 @@ export function useDistantCorpus(deps: {
   const progressionDistant = ref<ProgressionTransfert | null>(null)
   const enLigne = ref(true)
   const consultationSeule = ref(false)
+  const fournisseurCourant = ref<'webdav' | 'gitlab' | null>(null)
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
   const presences = ref<PresencePublic[]>([])
   const orphelinsDistants = ref<OrphelinDistant[]>([])
@@ -57,6 +58,16 @@ export function useDistantCorpus(deps: {
   const lectureSeule = computed(
     () => idDistantCourant.value !== null &&
       (!enLigne.value || consultationSeule.value || !corpusModifiable.value),
+  )
+
+  const ajoutEntretienPossible = computed(
+    () =>
+      idDistantCourant.value === null ||
+      (
+        enLigne.value &&
+        !consultationSeule.value &&
+        (corpusModifiable.value || fournisseurCourant.value === 'gitlab')
+      ),
   )
 
   const entretienEditable = computed(
@@ -98,11 +109,13 @@ export function useDistantCorpus(deps: {
     inaccessibles: { chemin: string; raison: string }[] = [],
     lectureSeuleForcee = false,
     corpusModifiableForce = true,
+    fournisseur: 'webdav' | 'gitlab' = 'webdav',
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
     consultationSeule.value = lectureSeuleForcee
     corpusModifiable.value = corpusModifiableForce
+    fournisseurCourant.value = fournisseur
     dernierTirage.value = new Date().toISOString()
     absorberVerrous(verrous)
     deps.effets.majAudiosInaccessibles(inaccessibles)
@@ -124,6 +137,7 @@ export function useDistantCorpus(deps: {
     enLigne.value = true
     consultationSeule.value = false
     corpusModifiable.value = true
+    fournisseurCourant.value = null
   }
 
   function tableLigneEditable(id: string): boolean {
@@ -334,6 +348,8 @@ export function useDistantCorpus(deps: {
     pourcentageProgression,
     lectureSeule,
     corpusModifiable,
+    ajoutEntretienPossible,
+    fournisseurCourant,
     entretienEditable,
     enLigne,
     badgesVerrous,

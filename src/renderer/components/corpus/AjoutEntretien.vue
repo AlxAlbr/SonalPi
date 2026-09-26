@@ -16,7 +16,7 @@ const {
   verifierChargementEtape1,
   verifierChargementEtape2,
   ouvrirApresImport,
-  idDistantCourant,
+  fournisseurCourant,
   creerEntretienVideDistant,
   ouvrirDesignationAudio,
   demandeAjoutEntretien,
@@ -204,9 +204,8 @@ async function valider() {
         </p>
         <p v-if="message" class="msg-ajout">{{ message }}</p>
 
-        <!-- En corpus distant, l'audio peut vivre
-             sur le serveur dès la création — entretien vide puis désignation. -->
-        <div v-if="idDistantCourant" class="bloc-nc">
+        <!-- Sur Nextcloud, l'audio peut vivre sur le serveur dès la création. -->
+        <div v-if="fournisseurCourant === 'webdav'" class="bloc-nc">
           <div class="sep-nc">— ou —</div>
           <div class="ligne-nc">
             <input

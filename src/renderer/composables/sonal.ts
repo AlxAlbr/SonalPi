@@ -221,6 +221,8 @@ export function creerSonal() {
     progressionDistant,
     pourcentageProgression,
     lectureSeule,
+    ajoutEntretienPossible,
+    fournisseurCourant,
     entretienEditable,
     enLigne,
     badgesVerrous,
@@ -547,10 +549,10 @@ export function creerSonal() {
           }
           break
         case 'ajouter-entretien': {
-          if (lectureSeule.value) break
+          if (!ajoutEntretienPossible.value) break
           // La modale vit dans la vue Corpus : on s'y rend d'abord si besoin.
           if (vue.value === 'entretien') await retourCorpus()
-          else if (vue.value === 'accueil' && Object.keys(corpus.membership.value).length > 0) {
+          else if (vue.value === 'accueil' && dossierCourantDir.value) {
             vue.value = 'corpus'
           }
           if (vue.value === 'corpus') demandeAjoutEntretien.value = true
@@ -667,6 +669,8 @@ export function creerSonal() {
     pourcentageProgression,
     actualiserDistant,
     lectureSeule,
+    ajoutEntretienPossible,
+    fournisseurCourant,
     tableLigneEditable,
     metaEditables,
     enLigne,

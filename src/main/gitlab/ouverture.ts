@@ -15,12 +15,18 @@ import {
   type ConfigDestinationGitLab,
 } from '../distant/coffre'
 import type { ClientGitLab } from './client'
-import { DepotCommitsGitLabClient, type IdentiteBailGitLab } from './bailGitLab'
+import {
+  BailGitLab,
+  DepotCommitsGitLabClient,
+  type IdentiteBailGitLab,
+} from './bailGitLab'
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
 import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './journalPublication'
 import { JournalSessionsGitLab } from './journalSession'
 import { assemblerSessionGitLab } from './assemblageSession'
 import type { ServiceAuthentificationGitLab } from './authentification'
+import { PublieurGitLab } from './publication'
+import { TransactionsGitLab } from './transactions'
 
 /** Destination GitLab enregistrée, rendue au renderer sans aucun secret. */
 export function destinationGitLabPublique(
@@ -239,10 +245,8 @@ async function preparerOuvertureDestination(options: {
   )
   const journal = new JournalPublicationGitLab(options.destination.id, journalRepertoire)
   const journalSessions = new JournalSessionsGitLab(options.destination.id, journalRepertoire)
-  const reconciliateur = new ReconciliateurPublicationGitLab(
-    new DepotCommitsGitLabClient(client),
-    journal,
-  )
+  const depot = new DepotCommitsGitLabClient(client)
+  const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
   for (const entree of journal.lister()) {
     const resultat = await reconciliateur.reconcilier(entree)
     if (resultat.statut === 'confirme') {
@@ -278,6 +282,26 @@ async function preparerOuvertureDestination(options: {
       identite: options.identite,
       journalRepertoire,
     }).session,
+    creerTransactions: (store) => {
+      const coordination = new BailGitLab({
+        branche: options.destination.branche,
+        depot,
+        identite: options.identite,
+      })
+      return new TransactionsGitLab({
+        destination: options.destination,
+        dirLocal: dirMiroir,
+        store,
+        depot,
+        coordination,
+        publication: new PublieurGitLab({
+          branche: options.destination.branche,
+          depot,
+          coordination,
+          journal,
+        }),
+      })
+    },
   })
   return { ...preparation, dirMiroir }
 }

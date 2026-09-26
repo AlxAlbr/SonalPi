@@ -333,7 +333,7 @@ async function consulterDansProfil(
 
   await attendreCorpus(page)
   await expect(page.locator('.ent-titre', { hasText: titreEntretien })).toBeVisible()
-  await expect(page.locator('.ajout-ent')).toHaveCount(0)
+  await expect(page.locator('.ajout-ent')).toBeVisible()
   await page.locator('.carte-ent .crayon').click()
   await expect(page.locator('.editeur')).toContainText(texteEntretien)
   await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'true')

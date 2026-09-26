@@ -72,6 +72,7 @@ const {
   tirageEnCours,
   actualiserDistant,
   lectureSeule,
+  ajoutEntretienPossible,
   // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
   metaEditables,
@@ -538,9 +539,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
               </button>
               <!-- UN seul point d'entrée : la modale à deux zones,
-                   couvrant import texte, texte+audio, audio seul et vierge.
-                   Masqué en corpus distant (lecture seule). -->
-              <AjoutEntretien v-if="!lectureSeule" />
+                   couvrant import texte, texte+audio et audio seul.
+                   Masqué quand le fournisseur ne permet pas l'ajout. -->
+              <AjoutEntretien v-if="ajoutEntretienPossible" />
             </span>
           </div>
           <!-- Ancre du message « re-test » du pas-à-pas :
