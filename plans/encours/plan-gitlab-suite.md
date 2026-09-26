@@ -16,8 +16,8 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Consulter les transcriptions, tenir le miroir à jour | Livré et qualifié sur banc | `gitlab/lecture.ts`, `distant/miroir.ts` |
 | Éditer un entretien sous bail, publier, renouveler, fermer | Livré et qualifié sur banc | `gitlab/session.ts`, `gitlab/bailGitLab.ts` |
 | Créer un entretien vide, importer un entretien | Implémenté dans l'arbre de travail ; un commit de données, plus acquisition et libération du bail ; recette à distinguer | `gitlab/transactions.ts`, `test/gitlab/transactions.test.ts` |
-| Savoir qui tient un entretien | Livré, testé en simulation ; à qualifier sur banc | `gitlab/contexte.ts:144` |
-| Badge 🔒 dans les listes | Livré, testé en simulation ; E2E écrit, banc à rejouer | `gitlab/observationBails.ts`, `gitlab/contexte.ts:74` |
+| Savoir qui tient un entretien | Livré et qualifié sur banc | `gitlab/contexte.ts:144` |
+| Badge 🔒 dans les listes | Livré et qualifié sur banc | `gitlab/observationBails.ts` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
 | Modifier les définitions du corpus | **Absent** : lecture seule garantie | `main/corpusStore.ts:254` |
 | Supprimer un entretien | **Absent** | `main/index.ts:842` |
@@ -393,7 +393,7 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
       réutilisation de la session courante, bail expiré repris et détenteur inconnu.
 
 **Sortie :** l'identifiant connu est affiché ; aucun accès n'est accordé sur son nom.
-*Tests simulés uniquement : la lecture du bandeau par l'E2E à deux comptes reste à jouer sur le banc.*
+*Qualifié sur le banc par le scénario E2E à deux comptes.*
 
 ### B — Les badges d'exclusion
 
@@ -402,13 +402,11 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
 - [x] Observation à l'ouverture initiale et à l'actualisation ; infobulles sans date.
 - [x] Tests : racine imbriquée, branche contenant `/`, plusieurs corpus, expirations,
       bail corrompu, dossier absent, 403, coupure et pagination.
-- [ ] E2E deux comptes : badge avant ouverture ; ouverture toujours proposée.
-      *Scénario écrit dans `e2e/gitlab-consultation.e2e.ts`, non rejoué : banc absent.*
+- [x] E2E deux comptes : badge avant ouverture ; ouverture toujours proposée.
 
 **Sortie :** information indicative, aucun commit ajouté, coût des GET mesuré.
-*Coût analytique : une résolution de branche partagée par tirage, un inventaire
-paginé de `.sonal/verrous`, une lecture par entretien réellement détenu. La
-mesure sur banc reste à faire.*
+*Qualifié sur le banc : quatre requêtes pour trois entretiens tenus, 0,09 à 0,17 s
+par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 
 ### C — Les définitions simples
 
