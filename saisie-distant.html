@@ -202,6 +202,59 @@
     }
 
     .btn-toggle-password:hover { color: #555; }
+
+    .gitlab-recents {
+      margin-bottom: 18px;
+      padding: 12px;
+      background: #fffaf6;
+      border: 1px solid #f4d7c5;
+      border-radius: 6px;
+    }
+
+    .gitlab-recents h3 {
+      margin-bottom: 9px;
+      color: #555;
+      font-size: 13px;
+    }
+
+    .gitlab-recent {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-top: 1px solid #f0e1d8;
+    }
+
+    .gitlab-recent:first-child { border-top: none; }
+
+    .gitlab-recent-description {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .gitlab-recent-name,
+    .gitlab-recent-instance {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .gitlab-recent-name { color: #333; font-size: 12px; font-weight: 600; }
+    .gitlab-recent-instance { margin-top: 2px; color: #888; font-size: 10px; }
+
+    .gitlab-recent-open,
+    .gitlab-recent-forget {
+      flex: none;
+      width: auto;
+      padding: 6px 9px;
+      font-size: 11px;
+    }
+
+    .gitlab-recent-open { background: #fc6d26; color: white; }
+    .gitlab-recent-open:hover { background: #e8601f; }
+    .gitlab-recent-forget { background: #e8e8e8; color: #555; }
+    .gitlab-recent-forget:hover { background: #d8d8d8; }
   </style>
 </head>
 <body>
@@ -286,6 +339,11 @@
         ❓ Première connexion ?
         <a href="#" id="help-link">Voir le guide de configuration GitLab</a>
       </p>
+
+      <section class="gitlab-recents" id="gitlab-recents" hidden>
+        <h3>Connexions GitLab récentes</h3>
+        <div id="gitlab-recents-list"></div>
+      </section>
 
       <form id="gitlab-form">
 
@@ -434,6 +492,75 @@
     const fileInput       = document.getElementById('filePath');
     const clientInput     = document.getElementById('clientId');
     const glError         = document.getElementById('gl-error-message');
+    const gitlabRecents   = document.getElementById('gitlab-recents');
+    const gitlabRecentsList = document.getElementById('gitlab-recents-list');
+
+    function estRecentGitLabValide(entree) {
+      const config = entree?.config;
+      return entree?.type === 'gitlab' &&
+        typeof entree.path === 'string' &&
+        typeof config?.instanceUrl === 'string' &&
+        typeof config?.projectPath === 'string' &&
+        typeof config?.filePath === 'string' &&
+        typeof config?.clientId === 'string';
+    }
+
+    function ajouterRecentGitLab(entree) {
+      const ligne = document.createElement('div');
+      ligne.className = 'gitlab-recent';
+
+      const description = document.createElement('div');
+      description.className = 'gitlab-recent-description';
+
+      const nom = document.createElement('span');
+      nom.className = 'gitlab-recent-name';
+      nom.textContent = entree.name || entree.config.projectPath;
+
+      const instance = document.createElement('span');
+      instance.className = 'gitlab-recent-instance';
+      instance.textContent = `${entree.config.instanceUrl} · ${entree.config.projectPath}`;
+
+      const ouvrir = document.createElement('button');
+      ouvrir.type = 'button';
+      ouvrir.className = 'gitlab-recent-open';
+      ouvrir.textContent = 'Ouvrir';
+      ouvrir.title = `Ouvrir ${nom.textContent}`;
+      ouvrir.addEventListener('click', () => {
+        ouvrir.disabled = true;
+        ouvrir.textContent = 'Ouverture…';
+        window.electronAPI.submitGitLab(entree.config);
+      });
+
+      const oublier = document.createElement('button');
+      oublier.type = 'button';
+      oublier.className = 'gitlab-recent-forget';
+      oublier.textContent = 'Oublier';
+      oublier.title = `Retirer ${nom.textContent} des connexions récentes`;
+      oublier.addEventListener('click', async () => {
+        oublier.disabled = true;
+        await window.recentFiles.remove(entree.path);
+        await chargerRecentsGitLab();
+      });
+
+      description.append(nom, instance);
+      ligne.append(description, ouvrir, oublier);
+      gitlabRecentsList.appendChild(ligne);
+    }
+
+    async function chargerRecentsGitLab() {
+      try {
+        const entrees = await window.recentFiles.getAll();
+        const recents = Array.isArray(entrees) ? entrees.filter(estRecentGitLabValide) : [];
+        gitlabRecentsList.replaceChildren();
+        recents.forEach(ajouterRecentGitLab);
+        gitlabRecents.hidden = recents.length === 0;
+      } catch (error) {
+        console.warn('Impossible de charger les connexions GitLab récentes:', error);
+        gitlabRecents.hidden = true;
+      }
+    }
+
+    chargerRecentsGitLab();
 
     // Bouton œil — afficher/masquer le Client ID
     document.getElementById('btn-toggle-clientid').addEventListener('click', () => {
