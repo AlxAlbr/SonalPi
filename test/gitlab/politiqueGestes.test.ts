@@ -216,7 +216,8 @@ describe('portée des gestes du corpus', () => {
       notes: false,
       personnes: false,
       annulationJournal: false,
-      mediasPartages: false,
+      designationMedia: true,
+      televersementMedia: false,
       docsCadre: false,
     })
   })
@@ -228,7 +229,8 @@ describe('portée des gestes du corpus', () => {
     expect(webdav.tableDonnees).toBe(true)
     expect(webdav.pseudonymisationEntretiens).toBe(true)
     expect(webdav.personnes).toBe(true)
-    expect(webdav.mediasPartages).toBe(true)
+    expect(webdav.designationMedia).toBe(true)
+    expect(webdav.televersementMedia).toBe(true)
     const local = matriceCapacites('local')
     expect(local).toMatchObject({
       definitions: true,

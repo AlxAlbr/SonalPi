@@ -94,6 +94,8 @@ import type {
   ProgressionTransfert,
   ResultatFermetureSession,
   ResultatTiragePublic,
+  ResultatListeDossierMedia,
+  ResultatPreparationLectureMedia,
 } from '../shared/distant'
 import type {
   DemandeConnexionWebDAV,
@@ -108,7 +110,7 @@ import type {
   DestinationGitLabPublic,
 } from '../shared/gitlab'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
-import { EXT_MEDIA } from '../shared/media'
+import { EXT_AUDIO, EXT_MEDIA, extensionDe } from '../shared/media'
 import {
   inventaireDocsCadreLocal,
   inventaireExemplesDocsCadre,
@@ -137,7 +139,15 @@ import type {
 } from '../shared/docsCadre'
 import { estListable } from '../shared/docsCadre'
 import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
-import { enregistrerBaseMediaVerifiee } from './medias/baseMedia'
+import { enregistrerBaseMediaVerifiee, resoudreBaseMedia } from './medias/baseMedia'
+import { CapacitePlagesBase } from './medias/capacite'
+import {
+  listerDossierMedia,
+  verifierCheminMediaRelatif,
+  verifierMediaDesignable,
+} from './medias/designation'
+import { RelaisMediaDistant } from './medias/lectureDistante'
+import { ErreurLectureMedia, informationMedia } from './webdav/lectureMedia'
 import { appliquerMenu } from './menuApplication'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
@@ -394,6 +404,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // Il n'est remplacé qu'après fermeture réussie de l'ancien.
   type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLab
   const contextesDistants = new RegistreContexteCourant<ContexteDistantActif>()
+  const relaisMediaDistant = new RelaisMediaDistant(({ id, chemin, motif }) => {
+    try {
+      const contexte = contextesDistants.actuel
+      if (!(contexte instanceof ContexteGitLab)) return
+      const entretien = contexte.store.lireEntretien(id)
+      if (!entretien.ok || entretien.data.meta.audioDistant?.chemin !== chemin) return
+      for (const fenetre of BrowserWindow.getAllWindows()) {
+        if (!fenetre.isDestroyed()) fenetre.webContents.send('distant:etatLectureMedia', id, motif)
+      }
+    } catch {
+      /* Un corpus en cours de fermeture n'a plus d'état média à signaler. */
+    }
+  })
+  const capacitesPlagesMedia = new Map<string, CapacitePlagesBase>()
   const minuteurSessionsGitLab = setInterval(() => {
     const contexte = contextesDistants.actuel
     if (contexte instanceof ContexteGitLab) {
@@ -434,6 +458,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  libération bloquée refuse la transition et conserve le contexte intact. */
   async function fermerContexteActuel(): Promise<void> {
     await contextesDistants.actuel?.fermer()
+    relaisMediaDistant.invaliderTout()
   }
 
   let fileTransitions: Promise<void> = Promise.resolve()
@@ -787,9 +812,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         if (!resultat.courant) {
           throw new Error("Le corpus a changé pendant la fermeture de l'entretien.")
         }
-        return resultat.valeur.fermee
-          ? { fermee: true }
-          : { fermee: false, raison: 'publication', message: resultat.valeur.raison }
+        if (resultat.valeur.fermee) {
+          relaisMediaDistant.invaliderEntretien(id)
+          return { fermee: true }
+        }
+        return { fermee: false, raison: 'publication', message: resultat.valeur.raison }
       }
       const execution = executerContexteDistant((contexte) =>
         contexte.fermerEntretien(id))
@@ -1592,11 +1619,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
   ipcMain.handle(
     'gitlab:configurerBaseMedia',
-    (_e, destinationId: string, demande: { urlBase: string; utilisateur: string; motDePasse: string }) =>
-      enregistrerBaseMediaVerifiee(coffre, destinationId, demande),
+    async (_e, destinationId: string, demande: { urlBase: string; utilisateur: string; motDePasse: string }) => {
+      const resultat = await enregistrerBaseMediaVerifiee(coffre, destinationId, demande)
+      if (resultat.ok && contextesDistants.actuel?.id === destinationId) {
+        relaisMediaDistant.invaliderTout()
+      }
+      return resultat
+    },
   )
   ipcMain.handle('gitlab:oublierBaseMedia', (_e, destinationId: string) => {
     coffre.oublierBaseMedia(destinationId)
+    if (contextesDistants.actuel?.id === destinationId) relaisMediaDistant.invaliderTout()
     return listerDestinationsGitLabPubliques()
   })
   ipcMain.handle('gitlab:detecterInstance', (_e, urlProjet: string) =>
@@ -1826,19 +1859,139 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /* ── Publication manuelle + reprise crash + badges ────────────────────── */
 
-  /** Navigation du sélecteur « Désigner dans Nextcloud… ».
-   *  L'inventaire est borné au corpus et les réponses obsolètes sont ignorées. */
-  ipcMain.handle('distant:listerDossier', async (_e, dossier: string) => {
-    const execution = executerContexteCommun((contexte) => contexte.listerDossier(dossier))
-    if (!execution) return null
+  /** Navigation du sélecteur de médias partagés.
+   *  GitLab inventorie la base WebDAV locale.
+   *  Son adresse et son secret ne quittent jamais le main. */
+  ipcMain.handle(
+    'distant:listerDossier',
+    async (_e, dossier: string): Promise<ResultatListeDossierMedia | null> => {
+      const execution = executerContexteCommun(async (contexte) => {
+        if (contexte instanceof ContexteGitLab) {
+          const resolution = resoudreBaseMedia(coffre, contexte.id)
+          if (!resolution.ok) return { ok: false as const, motif: resolution.motif }
+          return listerDossierMedia(resolution.client, dossier)
+        }
+        try {
+          const entrees = await contexte.listerDossier(dossier)
+          return { ok: true as const, entrees }
+        } catch (erreur) {
+          if (erreur instanceof ErreurHttp) {
+            if (erreur.statut === 401 || erreur.statut === 403) {
+              return { ok: false as const, motif: 'droits' as const }
+            }
+            if (erreur.statut === 404) {
+              return { ok: false as const, motif: 'dossier-absent' as const }
+            }
+          }
+          return { ok: false as const, motif: 'indisponible' as const }
+        }
+      })
+      if (!execution) return null
+      const resultat = await execution
+      return resultat.courant ? resultat.valeur : null
+    },
+  )
+
+  /** Contrôle le fichier choisi sans en lire le contenu. */
+  ipcMain.handle('distant:verifierMedia', async (_e, chemin: string) => {
+    try {
+      verifierCheminMediaRelatif(chemin)
+    } catch {
+      return { ok: false as const, raison: 'chemin-invalide' as const }
+    }
+    const execution = executerContexteCommun(async (contexte) => {
+      if (!(contexte instanceof ContexteGitLab)) return { ok: true as const }
+      const resolution = resoudreBaseMedia(coffre, contexte.id)
+      if (!resolution.ok) return { ok: false as const, raison: resolution.motif }
+      const resultat = await verifierMediaDesignable(resolution.client, chemin)
+      return resultat.ok
+        ? { ok: true as const }
+        : { ok: false as const, raison: resultat.motif }
+    })
+    if (!execution) return { ok: false as const, raison: 'indisponible' as const }
     const resultat = await execution
-    return resultat.courant ? { entrees: resultat.valeur } : null
+    return resultat.courant
+      ? resultat.valeur
+      : { ok: false as const, raison: 'indisponible' as const }
   })
 
-  /** Désignation audio : micro-session si l'entretien est fermé. */
+  /** Prépare une URL opaque après avoir vérifié le média et les plages. */
+  ipcMain.handle(
+    'distant:preparerLectureMedia',
+    async (_e, id: string): Promise<ResultatPreparationLectureMedia> => {
+      const generation = contextesDistants.generationActuelle
+      const execution = executerContexteCommun(async (contexte): Promise<ResultatPreparationLectureMedia> => {
+        if (!(contexte instanceof ContexteGitLab)) {
+          return { ok: false, raison: 'indisponible' }
+        }
+        const entretien = contexte.store.lireEntretien(id)
+        if (!entretien.ok || !contexte.store.ouvrir().membership[id]) {
+          return { ok: false, raison: 'fichier-absent' }
+        }
+        const chemin = entretien.data.meta.audioDistant?.chemin
+        if (!chemin) return { ok: false, raison: 'fichier-absent' }
+        try {
+          verifierCheminMediaRelatif(chemin)
+        } catch {
+          return { ok: false, raison: 'chemin-invalide' }
+        }
+        if (!EXT_AUDIO.includes(extensionDe(chemin))) {
+          return { ok: false, raison: 'format-non-pris-en-charge' }
+        }
+        const resolution = resoudreBaseMedia(coffre, contexte.id)
+        if (!resolution.ok) return { ok: false, raison: resolution.motif }
+        try {
+          const cleBase = `${contexte.id}\u0000${resolution.base.urlBase}\u0000${resolution.base.utilisateur}`
+          let capacite = capacitesPlagesMedia.get(cleBase)
+          if (!capacite) {
+            capacite = new CapacitePlagesBase()
+            capacitesPlagesMedia.set(cleBase, capacite)
+          }
+          const plages = await capacite.mesurer(resolution.client, chemin)
+          if (plages === 'non') return { ok: false, raison: 'plages-non-prises-en-charge' }
+          if (plages === 'inconnue') return { ok: false, raison: 'indisponible' }
+          const information = await informationMedia(resolution.client, chemin)
+          return {
+            ok: true,
+            url: relaisMediaDistant.ouvrir({
+              id,
+              generation,
+              chemin,
+              client: resolution.client,
+              information,
+            }),
+          }
+        } catch (erreur) {
+          if (erreur instanceof ErreurLectureMedia) {
+            if (erreur.motif === 'fichier-absent') return { ok: false, raison: 'fichier-absent' }
+            if (erreur.motif === 'droits') return { ok: false, raison: 'droits' }
+          }
+          return { ok: false, raison: 'indisponible' }
+        }
+      })
+      if (!execution) return { ok: false, raison: 'indisponible' }
+      const resultat = await execution
+      return resultat.courant ? resultat.valeur : { ok: false, raison: 'indisponible' }
+    },
+  )
+
+  /** Désignation audio : transaction courte pour un entretien fermé. */
   ipcMain.handle('distant:designerAudio', async (_e, id: string, cheminAudio: string) => {
-    const execution = executerContexteDistant((contexte) =>
-      contexte.designerAudio(id, cheminAudio))
+    try {
+      verifierCheminMediaRelatif(cheminAudio)
+    } catch {
+      return { ok: false as const, raison: 'chemin-invalide' }
+    }
+    const execution = executerContexteCommun(async (contexte) => {
+      if (contexte instanceof ContexteGitLab) {
+        const resolution = resoudreBaseMedia(coffre, contexte.id)
+        if (!resolution.ok) return { ok: false as const, raison: resolution.motif }
+        const media = await verifierMediaDesignable(resolution.client, cheminAudio)
+        if (!media.ok) return { ok: false as const, raison: media.motif }
+        return contexte.designerAudio(id, cheminAudio)
+      }
+      return contexte.designerAudio(id, cheminAudio)
+    })
     if (!execution) return { ok: false as const, raison: 'corpus-local' }
     const resultat = await execution
     return resultat.courant
@@ -1962,14 +2115,39 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     transitionner(() => transitionsLocales.migrer(req)),
   )
 
-  // Protocole `sonal-media` : deux hôtes par nature de ressource.
+  // Protocole `sonal-media` : ressources locales et relais WebDAV opaque.
   // Le handler capture `store` (réaffecté par changerDossier) ;
   // support des requêtes Range (l'élément <audio> de Chromium en dépend pour le seek).
-  //   sonal-media://waveform/<id>  → PNG dérivé local (résolu par id, pas de traversal possible ; l'id est opaque)
-  //   sonal-media://abs/<encoded>  → audio référencé externe (whitelist stricte sur les audioRef stockées dans le corpus)
+  //   sonal-media://waveform/<id>  → PNG dérivé local.
+  //   sonal-media://abs/<encoded>  → média local présent dans la whitelist du corpus.
+  //   sonal-media://distant/<jeton> → média WebDAV sans chemin ni secret dans l'URL.
   protocol.handle('sonal-media', (req) => {
     const url = new URL(req.url)
     const hote = url.hostname
+    if (hote === 'distant') {
+      const jeton = url.pathname.replace(/^\/+/, '')
+      return relaisMediaDistant.servir(
+        jeton,
+        contextesDistants.generationActuelle,
+        req.method,
+        req.headers.get('range'),
+        req.signal,
+        (id, chemin) => {
+          try {
+            const contexte = contextesDistants.actuel
+            if (!(contexte instanceof ContexteGitLab)) return false
+            const entretien = contexte.store.lireEntretien(id)
+            return Boolean(
+              entretien.ok &&
+              contexte.store.ouvrir().membership[id] &&
+              entretien.data.meta.audioDistant?.chemin === chemin,
+            )
+          } catch {
+            return false
+          }
+        },
+      )
+    }
     let fichier: string | null = null
     if (hote === 'waveform') {
       // L'id est opaque (genId) ; on retire le `/` initial du pathname.
@@ -2192,6 +2370,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     powerMonitor.removeListener('resume', surReveilSysteme)
     const contexte = contextesDistants.actuel
     if (estContexteNextcloud(contexte)) contexte.arreterPresence()
+    relaisMediaDistant.invaliderTout()
     await contexte?.fermer()
   }
 }

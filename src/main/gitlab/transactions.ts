@@ -14,7 +14,7 @@ import type {
   RegleAnon,
   Variable,
 } from '../../shared/format'
-import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
+import { FORMAT_VERSION, referenceMediaDistant, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import { poserValeur } from '../../shared/corpus/requetes'
 import { appliquerRegleAnonEntretien } from '../../shared/entretien/anon'
@@ -481,6 +481,14 @@ export class TransactionsGitLab {
         }
         poserValeur(entretien, item.cible, item.idVar, item.idMod)
       }
+    })
+  }
+
+  /** Désigne un média WebDAV existant dans un entretien fermé. */
+  designerAudio(entretienId: string, chemin: string): Promise<void> {
+    return this.modifierEntretienCourt(entretienId, (entretien) => {
+      entretien.meta ??= { valeursGen: {}, audioRef: null }
+      entretien.meta.audioDistant = referenceMediaDistant(chemin)
     })
   }
 

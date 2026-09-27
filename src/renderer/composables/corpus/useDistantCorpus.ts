@@ -27,7 +27,8 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   notes: true,
   personnes: true,
   annulationJournal: true,
-  mediasPartages: true,
+  designationMedia: true,
+  televersementMedia: false,
   docsCadre: true,
 }
 
@@ -81,6 +82,7 @@ export function useDistantCorpus(deps: {
   const enLigne = ref(true)
   const consultationSeule = ref(false)
   const fournisseurCourant = ref<'webdav' | 'gitlab' | null>(null)
+  const etatBaseMedia = ref<'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible'>('sans-objet')
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
   /** L'observation des détenteurs a échoué : aucun badge n'est fiable, et
    *  l'absence de badge ne prouve rien. Ne décide jamais d'une écriture. */
@@ -157,12 +159,14 @@ export function useDistantCorpus(deps: {
     capacitesCourant: CapacitesCorpus = TOUTES_CAPACITES,
     fournisseur: 'webdav' | 'gitlab' = 'webdav',
     observationIndisponible = false,
+    baseMedia: 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = 'sans-objet',
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
     consultationSeule.value = lectureSeuleForcee
     capacites.value = capacitesCourant
     fournisseurCourant.value = fournisseur
+    etatBaseMedia.value = baseMedia
     dernierTirage.value = new Date().toISOString()
     verrousIndisponibles.value = observationIndisponible
     absorberVerrous(verrous)
@@ -187,6 +191,7 @@ export function useDistantCorpus(deps: {
     consultationSeule.value = false
     capacites.value = TOUTES_CAPACITES
     fournisseurCourant.value = null
+    etatBaseMedia.value = 'sans-objet'
   }
 
   /** Un geste est proposé quand le fournisseur le sait faire et qu'on est en
@@ -207,6 +212,10 @@ export function useDistantCorpus(deps: {
 
   function metaEditables(id: string): boolean {
     return gesteDisponible('metadonneesEntretien') && !badgeVerrou(id)
+  }
+
+  function designationMediaPossible(id: string): boolean {
+    return gesteDisponible('designationMedia') && !badgeVerrou(id)
   }
 
   function renommagePossible(id: string): boolean {
@@ -421,6 +430,7 @@ export function useDistantCorpus(deps: {
     gesteDisponible,
     ajoutEntretienPossible,
     fournisseurCourant,
+    etatBaseMedia,
     verrousIndisponibles,
     entretienEditable,
     enLigne,
@@ -438,6 +448,7 @@ export function useDistantCorpus(deps: {
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
+    designationMediaPossible,
     renommagePossible,
     suppressionPossible,
     reprendreOrphelin,

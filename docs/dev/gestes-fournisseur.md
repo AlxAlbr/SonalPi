@@ -97,15 +97,16 @@ accès.
 | `notes` | oui | non | non | parcours du transport |
 | `personnes` | oui | oui | non | parcours du transport |
 | `annulationJournal` | oui | non | non | parcours du transport |
-| `mediasPartages` | non | oui | non | parcours du transport |
+| `designationMedia` | non | oui | oui | fichier existant dans le stockage partagé |
+| `televersementMedia` | non | oui | non | écriture dans le stockage du corpus |
 | `docsCadre` | oui | oui | non | parcours du transport |
 
 Deux précisions :
 
 - La colonne `local` de cette table n'est pas utilisée par le renderer : hors
   corpus distant, `gesteDisponible` laisse passer (`TOUTES_CAPACITES` dans
-  `useDistantCorpus.ts`), car les parcours purement locaux (médias partagés)
-  n'empruntent pas le main distant. Le dispatch local, lui, classe bien chaque
+  `useDistantCorpus.ts`), car les parcours purement locaux n'empruntent pas le
+  main distant. Le dispatch local, lui, classe bien chaque
   geste.
 - `capacites` ne remplace ni le hors ligne ni le mode consultation seule : ces
   deux blocages s'appliquent **au-dessus** de la matrice.

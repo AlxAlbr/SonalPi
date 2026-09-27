@@ -14,7 +14,7 @@
 
 import { expect, test, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -32,6 +32,7 @@ import {
   type SessionQualification,
 } from './qualification/connexionOAuth'
 import { attendreAccueil, attendreCorpus, lancer, retourCorpus } from './util'
+import { ClientWebDAV } from '../src/main/webdav/client'
 
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
@@ -198,6 +199,7 @@ async function amorcerConsultation(
   jeton: string,
   projetId = configuration.projetId as string,
   racineCourante = racine,
+  mediaDistant?: string,
 ): Promise<void> {
   const corpus = JSON.parse(corpusDistantValide([idEntretien])) as {
     nom: string
@@ -214,7 +216,10 @@ async function amorcerConsultation(
         content: [{ type: 'text', text: texteEntretien }],
       }],
     },
-  })) as unknown
+  })) as { meta: Record<string, unknown> }
+  if (mediaDistant) {
+    entretien.meta.audioDistant = { fournisseur: 'webdav', chemin: mediaDistant }
+  }
   await api(
     `/projects/${projetId}/repository/commits`,
     jeton,
@@ -359,6 +364,102 @@ async function consulterDansProfil(
 test.describe('Consultation GitLab à deux profils', () => {
   test.skip(!configurationPresente, 'variables GITLAB_* absentes')
   test.setTimeout(180_000)
+
+  test('un véritable lecteur audio lit et cherche par plages dans la base WebDAV', async ({ browser }) => {
+    test.setTimeout(300_000)
+    const urlWebDAV = 'http://localhost:8080/remote.php/dav/files/max/MonCorpus'
+    const identifiantsWebDAV = { utilisateur: 'max', motDePasse: 'max-max-1234' }
+    const serveurDisponible = await fetch('http://localhost:8080/status.php', {
+      signal: AbortSignal.timeout(800),
+    }).then((reponse) => reponse.ok).catch(() => false)
+    test.skip(!serveurDisponible, 'pile Nextcloud absente')
+
+    const cheminMedia = `audio-gitlab-${idExecution}.mp3`
+    const racineMedia = `${racine}-media`
+    const clientMedia = new ClientWebDAV({ baseUrl: urlWebDAV, identifiants: identifiantsWebDAV })
+    const octets = new Uint8Array(readFileSync(join(process.cwd(), 'CorpusTest/audio/1Coordinatrice.mp3')))
+    await clientMedia.putBinaire(cheminMedia, octets, { contentType: 'audio/mpeg' })
+    await amorcerConsultation(
+      configuration.token1 as string,
+      configuration.projetId as string,
+      racineMedia,
+      cheminMedia,
+    )
+
+    const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-media-'))
+    const shim = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    const app = await lancerProfil(profil, shim)
+    try {
+      const page = await app.firstWindow()
+      await attendreAccueil(page)
+      await page.locator('.carte-demo.distant-corpus').click()
+      await ouvrirDepuisFormulaireGitLab(
+        page,
+        shim,
+        session,
+        identifiantsDe(configuration.utilisateur as string),
+        racineMedia,
+      )
+      await attendreCorpus(page)
+
+      await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
+      await attendreAccueil(page)
+      await page.locator('.carte-demo.distant-corpus').click()
+      await page.getByRole('tab', { name: 'GitLab' }).click()
+      const destinationGitLab = page.locator('.comptes li', { hasText: racineMedia }).first()
+      await destinationGitLab.getByRole('button', { name: 'Médias…' }).click()
+      const formulaire = destinationGitLab.locator('.base-media-form')
+      await formulaire.locator('input[type=text]').nth(0).fill(urlWebDAV)
+      await formulaire.locator('input[type=text]').nth(1).fill(identifiantsWebDAV.utilisateur)
+      await formulaire.locator('input[type=password]').fill(identifiantsWebDAV.motDePasse)
+      await formulaire.getByRole('button', { name: 'Enregistrer' }).click()
+      await expect(destinationGitLab.locator('.base-media-etat')).toContainText('max')
+      await destinationGitLab.getByRole('button', { name: /^Ouvrir$/ }).click()
+      await attendreCorpus(page)
+
+      await page.locator('.carte-ent .crayon').click()
+      const actionLecture = page.getByRole('button', { name: 'Lire depuis le serveur' })
+      await expect(actionLecture).toBeVisible({ timeout: 20_000 })
+      await actionLecture.click()
+      const audio = page.locator('audio[data-sonal]')
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.duration), {
+        timeout: 30_000,
+      }).toBeGreaterThan(2)
+
+      await page.locator('button.play').click()
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime), {
+        timeout: 20_000,
+      }).toBeGreaterThan(0.2)
+      const duree = await audio.evaluate((element: HTMLAudioElement) => element.duration)
+      for (const ratio of [0.65, 0.2, 0.8]) {
+        await audio.evaluate((element: HTMLAudioElement, temps) => {
+          element.currentTime = temps
+        }, duree * ratio)
+        await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
+          .toBeGreaterThan(duree * ratio - 0.5)
+      }
+
+      const ancienneUrl = await audio.evaluate((element: HTMLAudioElement) => element.currentSrc)
+      await clientMedia.putBinaire(cheminMedia, octets, { contentType: 'audio/mpeg' })
+      const urlVerification = `${ancienneUrl}?verification=${Date.now()}`
+      await audio.evaluate((element: HTMLAudioElement, url) => {
+        element.src = url
+        element.load()
+      }, urlVerification)
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentSrc), {
+        timeout: 30_000,
+      }).not.toBe(urlVerification)
+      expect(await audio.evaluate((element: HTMLAudioElement) => element.currentSrc))
+        .not.toBe(ancienneUrl)
+      await expect(page.locator('.editeur')).toBeVisible()
+    } finally {
+      await Promise.allSettled([app.close(), session.fermer()])
+      shim.nettoyer()
+      rmSync(profil, { recursive: true, force: true })
+      await clientMedia.supprimer(cheminMedia).catch(() => undefined)
+    }
+  })
 
   test('deux postes isolés consultent le même contenu et ouvrent une session contrôlée', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {

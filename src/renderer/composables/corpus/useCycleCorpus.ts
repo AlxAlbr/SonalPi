@@ -90,6 +90,7 @@ interface DistantCycleCorpus {
     capacites?: CapacitesCorpus,
     fournisseur?: 'webdav' | 'gitlab',
     observationIndisponible?: boolean,
+    baseMedia?: 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible',
   ) => void
   rafraichirOrphelins: () => Promise<void>
   quitter: () => void
@@ -238,6 +239,13 @@ export function useCycleCorpus(deps: {
       resultat.capacites,
       resultat.distant.fournisseur,
       resultat.verrousIndisponibles,
+      resultat.distant.fournisseur === 'gitlab'
+        ? resultat.distant.baseMedia === null
+          ? 'non-configuree'
+          : resultat.distant.baseMedia.secretDisponible
+            ? 'configuree'
+            : 'secret-indisponible'
+        : 'sans-objet',
     )
     deps.profil.dossierCourantNom.value = resultat.nom
     await appliquerCorpus(resultat.corpus, resultat.dir)

@@ -24,8 +24,16 @@ const {
   ouvrirDesignationAudio,
   etatAudioOuvert,
   gesteDisponible,
+  entretienEditable,
   rapatrierAudioMaintenant,
+  lireAudioDistant,
+  lireAudioLocal,
+  preparationLectureDistante,
+  lectureDistanteActive,
+  mediaDistantDesigne,
+  audioLocalDisponible,
   idDistantCourant,
+  fournisseurCourant,
   ouvertId,
   tirageEnCours,
   progressionDistant,
@@ -92,6 +100,21 @@ function clicBande(e: MouseEvent) {
       </span>
       <button class="mini-lect" title="Reculer de 5 secondes" @click="decaler(-5)">−5s</button>
       <button class="mini-lect" title="Avancer de 5 secondes" @click="decaler(5)">+5s</button>
+      <button
+        v-if="mediaDistantDesigne && !lectureDistanteActive"
+        class="mini-lect"
+        :disabled="preparationLectureDistante"
+        @click="lireAudioDistant"
+      >
+        Lire depuis le serveur
+      </button>
+      <button
+        v-else-if="lectureDistanteActive && audioLocalDisponible"
+        class="mini-lect"
+        @click="lireAudioLocal"
+      >
+        Lire le fichier local
+      </button>
     </div>
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
@@ -107,12 +130,54 @@ function clicBande(e: MouseEvent) {
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
     </div>
   </div>
-  <div v-else-if="etatAudioOuvert.etat === 'distant' || etatAudioOuvert.etat === 'inaccessible'" class="lecteur-audio lecteur-etat">
+  <div
+    v-else-if="['distant', 'inaccessible', 'distant-gitlab', 'base-non-configuree', 'base-secret-indisponible', 'media-absent', 'media-droits', 'media-indisponible', 'plages-non-prises-en-charge', 'format-non-pris-en-charge'].includes(etatAudioOuvert.etat)"
+    class="lecteur-audio lecteur-etat"
+  >
     <!-- L'état du média DÉSIGNÉ, à côté de la
          barre de lecture — le bon moment UX (on vient ici pour écouter).
          distant = copie pas encore téléchargée ; inaccessible = le serveur
          refuse le GET (droits) — message explicatif + réessai. -->
-    <template v-if="etatAudioOuvert.etat === 'distant'">
+    <template v-if="etatAudioOuvert.etat === 'media-absent'">
+      <span class="msg-etat">
+        🔊 Le média WebDAV désigné est absent ou a été renommé. Vous pouvez en désigner un autre.
+      </span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'media-droits'">
+      <span class="msg-etat">🔒 Le serveur refuse l’accès au média désigné pour ce compte.</span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'media-indisponible'">
+      <span class="msg-etat">⚠️ Le média WebDAV est momentanément indisponible. La transcription reste utilisable.</span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'base-non-configuree'">
+      <span class="msg-etat">
+        🔊 Un média WebDAV est désigné, mais aucune base de médias n’est configurée sur ce poste.
+        Configurez le dossier depuis l’accueil GitLab.
+      </span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'base-secret-indisponible'">
+      <span class="msg-etat">
+        🔊 Un média WebDAV est désigné, mais son mot de passe n’est pas disponible sur ce poste.
+        Enregistrez de nouveau la base depuis l’accueil GitLab.
+      </span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'plages-non-prises-en-charge'">
+      <span class="msg-etat">
+        ⚠️ Ce serveur ne permet pas la lecture par plages. Aucun téléchargement complet n’a été lancé.
+      </span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'format-non-pris-en-charge'">
+      <span class="msg-etat">🔊 La lecture distante de ce format n’est pas encore prise en charge.</span>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'distant-gitlab'">
+      <span class="msg-etat">
+        🔊 Média désigné dans la base WebDAV de ce poste — aucun fichier n’est copié dans GitLab.
+      </span>
+      <button class="mini-lect" :disabled="preparationLectureDistante" @click="lireAudioDistant">
+        {{ preparationLectureDistante ? 'Préparation…' : 'Lire depuis le serveur' }}
+      </button>
+    </template>
+    <template v-else-if="etatAudioOuvert.etat === 'distant'">
       <!-- Pendant le rapatriement, le geste devient progression (octets si
            le serveur n'expose pas la taille). -->
       <span v-if="tirageEnCours && progressionDistant?.sens === 'rapatriement'" class="msg-etat">
@@ -132,30 +197,69 @@ dès que les droits seront ouverts.
       </span>
       <button class="mini-lect" @click="rapatrierAudioMaintenant">Réessayer</button>
     </template>
+    <button
+      v-if="audioLocalDisponible"
+      class="mini-lect"
+      @click="lireAudioLocal"
+    >
+      Lire le fichier local
+    </button>
+    <button
+      v-if="ouvertId && fournisseurCourant === 'gitlab' && gesteDisponible('designationMedia')"
+      class="mini-lect"
+      :disabled="!entretienEditable"
+      @click="ouvrirDesignationAudio(ouvertId)"
+    >
+      Redésigner dans la base WebDAV…
+    </button>
   </div>
   <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
     <!-- En corpus distant, l'audioRef partagée pointe chez le poste qui a
          assigné — chaque poste associe SON fichier local (référence, jamais de
          copie, jamais d'écriture au JSON partagé). En local, le geste reste la
          ré-assignation classique. -->
-    <template v-if="idDistantCourant">
+    <template v-if="idDistantCourant && fournisseurCourant === 'gitlab' && etatAudioOuvert.etat === 'distant-gitlab'">
+      <span class="msg-erreur">
+        ⚠️ La lecture distante a été interrompue ou ce codec n’est pas lisible. La transcription reste utilisable.
+      </span>
+      <button class="mini-lect" :disabled="preparationLectureDistante" @click="lireAudioDistant">
+        Réessayer
+      </button>
+      <button v-if="audioLocalDisponible" class="mini-lect" @click="lireAudioLocal">
+        Lire le fichier local
+      </button>
+    </template>
+    <template v-else-if="idDistantCourant">
       <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
       <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
-      <!-- Ou lier le fichier PARTAGÉ du serveur — la copie miroir
-           arrivera chez tous au prochain tirage. Le geste suit la capacité du
-           fournisseur : un dépôt GitLab n'est pas un magasin de médias. -->
+      <!-- Le fichier partagé peut aussi être désigné : WebDAV le rapatrie,
+           tandis que GitLab ne publie que sa référence. -->
       <button
-        v-if="ouvertId && gesteDisponible('mediasPartages')"
+        v-if="ouvertId && gesteDisponible('designationMedia')"
         class="mini-lect"
+        :disabled="!entretienEditable"
         @click="ouvrirDesignationAudio(ouvertId)"
       >
-        Désigner dans le Nextcloud…
+        {{ fournisseurCourant === 'gitlab' ? 'Désigner dans la base WebDAV…' : 'Désigner dans le Nextcloud…' }}
       </button>
     </template>
     <template v-else>
       <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
       <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
     </template>
+  </div>
+  <div
+    v-else-if="etatAudioOuvert.etat === 'hors-designation' && ouvertId && gesteDisponible('designationMedia')"
+    class="lecteur-audio lecteur-etat"
+  >
+    <span class="msg-etat">🔊 Aucun média partagé n’est désigné pour cet entretien.</span>
+    <button
+      class="mini-lect"
+      :disabled="!entretienEditable"
+      @click="ouvrirDesignationAudio(ouvertId)"
+    >
+      {{ fournisseurCourant === 'gitlab' ? 'Désigner dans la base WebDAV…' : 'Désigner dans le Nextcloud…' }}
+    </button>
   </div>
 </template>
 

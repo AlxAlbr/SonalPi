@@ -40,6 +40,8 @@ export function creerSonal() {
   ) => Promise<void> = async () => {}
   let racineSourcesDemo: () => string | null = () => null
   let distantActifPourMedias: () => boolean = () => false
+  let fournisseurPourMedias: () => 'webdav' | 'gitlab' | null = () => null
+  let etatBasePourMedias: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = () => 'sans-objet'
   let actualiserDistantPourMedias: (silencieux?: boolean) => Promise<boolean> = async () => false
   let reinitialiserFenetresMetier: () => void = () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
@@ -149,6 +151,8 @@ export function creerSonal() {
     perimerScanAnon: corpus.perimerScanAnon,
     choisirSrt: () => window.sonal.dialog.choisirSrt(racineSourcesDemo() ?? undefined),
     distantActif: () => distantActifPourMedias(),
+    fournisseurDistant: () => fournisseurPourMedias(),
+    etatBaseMedia: () => etatBasePourMedias(),
     actualiserDistant: (silencieux) => actualiserDistantPourMedias(silencieux),
   })
   const {
@@ -172,6 +176,12 @@ export function creerSonal() {
     reassignerAudioEntretienOuvert,
     associerAudioEntretienOuvert,
     rapatrierAudioMaintenant,
+    lireAudioDistant,
+    lireAudioLocal,
+    preparationLectureDistante,
+    lectureDistanteActive,
+    mediaDistantDesigne,
+    audioLocalDisponible,
     creerEntretienVideDistant,
     ouvrirDesignationAudio,
     fermerDesignationAudio,
@@ -225,6 +235,7 @@ export function creerSonal() {
     lectureSeule,
     ajoutEntretienPossible,
     fournisseurCourant,
+    etatBaseMedia,
     verrousIndisponibles,
     entretienEditable,
     enLigne,
@@ -244,6 +255,7 @@ export function creerSonal() {
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
+    designationMediaPossible,
     renommagePossible,
     suppressionPossible,
     reprendreOrphelin,
@@ -252,6 +264,8 @@ export function creerSonal() {
     publierMaintenant,
   } = distant
   distantActifPourMedias = () => idDistantCourant.value !== null
+  fournisseurPourMedias = () => fournisseurCourant.value
+  etatBasePourMedias = () => etatBaseMedia.value
   actualiserDistantPourMedias = actualiserDistant
   publierAvantSuppressionDefinition = async () => {
     if (idDistantCourant.value === null) {
@@ -657,6 +671,12 @@ export function creerSonal() {
     confirmerDesignationAudio,
     etatAudioOuvert,
     rapatrierAudioMaintenant,
+    lireAudioDistant,
+    lireAudioLocal,
+    preparationLectureDistante,
+    lectureDistanteActive,
+    mediaDistantDesigne,
+    audioLocalDisponible,
     creerEntretienVideDistant,
     vue,
     themeASupprimer,
@@ -691,6 +711,7 @@ export function creerSonal() {
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
+    designationMediaPossible,
     renommagePossible,
     suppressionPossible,
     enLigne,

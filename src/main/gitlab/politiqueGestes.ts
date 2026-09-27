@@ -267,7 +267,8 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     notes: true,
     personnes: true,
     annulationJournal: true,
-    mediasPartages: false,
+    designationMedia: false,
+    televersementMedia: false,
     docsCadre: true,
   },
   webdav: {
@@ -276,7 +277,8 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     notes: false,
     personnes: true,
     annulationJournal: false,
-    mediasPartages: true,
+    designationMedia: true,
+    televersementMedia: true,
     docsCadre: true,
   },
   gitlab: {
@@ -288,7 +290,8 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     notes: false,
     personnes: false,
     annulationJournal: false,
-    mediasPartages: false,
+    designationMedia: true,
+    televersementMedia: false,
     docsCadre: false,
   },
 }

@@ -608,6 +608,23 @@ export class ContexteGitLab {
     }
   }
 
+  /** Publie une désignation dans un entretien fermé, sous un bail court. */
+  async designerAudio(id: string, chemin: string): Promise<{ ok: boolean; raison?: string }> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    if (!this.transactions) {
+      return { ok: false, raison: 'publication-indisponible' }
+    }
+    if (this.sessions.has(this.ressourceEntretien(id))) {
+      return { ok: false, raison: 'session-active' }
+    }
+    try {
+      await this.transactions.designerAudio(id, chemin)
+      return { ok: true }
+    } catch (erreur) {
+      return { ok: false, raison: messageErreur(erreur) }
+    }
+  }
+
   async publierEntretien(id: string): Promise<{ ok: boolean; raison?: string }> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     const ressource = this.ressourceEntretien(id)

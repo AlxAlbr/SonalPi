@@ -386,6 +386,17 @@ contextBridge.exposeInMainWorld('sonal', {
     stockageSecuriseDisponible: () => invoquer('distant:stockageSecuriseDisponible'),
     tirer: () => invoquer('distant:tirer'),
     listerDossier: (dossier) => invoquer('distant:listerDossier', dossier),
+    verifierMedia: (chemin) => invoquer('distant:verifierMedia', chemin),
+    preparerLectureMedia: (id) => invoquer('distant:preparerLectureMedia', id),
+    surEtatLectureMedia: (cb) => {
+      const ecouteur = (
+        _e: Electron.IpcRendererEvent,
+        id: Parameters<typeof cb>[0],
+        motif: Parameters<typeof cb>[1],
+      ): void => cb(id, motif)
+      ipcRenderer.on('distant:etatLectureMedia', ecouteur)
+      return () => ipcRenderer.removeListener('distant:etatLectureMedia', ecouteur)
+    },
     designerAudio: (id, cheminAudio) => invoquer('distant:designerAudio', id, cheminAudio),
     televerserAudio: (sourceLocale, cheminCible) =>
       invoquer('distant:televerserAudio', sourceLocale, cheminCible),

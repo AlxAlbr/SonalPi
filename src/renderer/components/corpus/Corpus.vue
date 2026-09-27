@@ -78,7 +78,9 @@ const {
   // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
   gesteDisponible,
+  fournisseurCourant,
   metaEditables,
+  designationMediaPossible,
   renommagePossible,
   suppressionPossible,
   presencesSur,
@@ -406,15 +408,16 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 <button @click="srtASurEcrire = null">Annuler</button>
               </div>
             </div>
-            <!-- Distant uniquement : lier un audio qui vit sur le serveur ;
-                 la copie miroir vit chez chaque membre. -->
+            <!-- La désignation d'un média existant est une capacité distincte.
+                 GitLab la publie sous un bail d'entretien court. -->
             <button
-              v-if="gesteDisponible('mediasPartages') && corpusSelId"
+              v-if="gesteDisponible('designationMedia') && corpusSelId"
               class="mini assigner-audio"
-              :disabled="!metaEditables(corpusSelId)"
+              :disabled="!designationMediaPossible(corpusSelId)"
               @click="ouvrirDesignationAudio(corpusSelId)"
             >
-              {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
+              {{ corpusSelMeta?.audio ? 'Redésigner' : 'Désigner' }}
+              {{ fournisseurCourant === 'gitlab' ? 'dans la base WebDAV…' : 'dans le Nextcloud…' }}
             </button>
             <!-- Variables du corpus pour CET entretien, en LECTURE SEULE ;
                  l'édition des valeurs passe par la table de données / l'onglet

@@ -45,8 +45,10 @@ export interface CapacitesCorpus {
   personnes: boolean
   /** Annulation d'une action du journal du corpus. */
   annulationJournal: boolean
-  /** Médias partagés d'une destination. */
-  mediasPartages: boolean
+  /** Désignation d'un média déjà présent dans un stockage partagé. */
+  designationMedia: boolean
+  /** Envoi d'un média vers le stockage du corpus. */
+  televersementMedia: boolean
   /** Documents cadre d'une destination. */
   docsCadre: boolean
 }
@@ -169,11 +171,42 @@ export interface DivergenceDistante {
   date: string // ISO (mtime de la copie — affichage « copie du JJ/MM HH:MM »)
 }
 
+/** Indisponibilité normale d'une base média ou d'un fichier choisi. */
+export type MotifIndisponibiliteMedia =
+  | 'non-configuree'
+  | 'secret-indisponible'
+  | 'adresse-invalide'
+  | 'droits'
+  | 'dossier-absent'
+  | 'fichier-absent'
+  | 'indisponible'
+  | 'chemin-invalide'
+
+export type MotifLectureMediaDistante =
+  | MotifIndisponibiliteMedia
+  | 'plages-non-prises-en-charge'
+  | 'format-non-pris-en-charge'
+
+export type MotifEvenementLectureMedia =
+  | Extract<MotifLectureMediaDistante, 'droits' | 'fichier-absent' | 'indisponible' | 'plages-non-prises-en-charge'>
+  | 'version-changee'
+
+export type ResultatPreparationLectureMedia =
+  | { ok: true; url: string }
+  | { ok: false; raison: MotifLectureMediaDistante }
+
+export type ResultatListeDossierMedia =
+  | { ok: true; entrees: { nom: string; dossier: boolean }[] }
+  | { ok: false; motif: MotifIndisponibiliteMedia }
+
 /** Services du corpus distant courant, selon les capacités de son fournisseur. */
 export interface ApiDistant {
   stockageSecuriseDisponible(): Promise<boolean>
   tirer(): Promise<ResultatTiragePublic | null>
-  listerDossier(dossier: string): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null>
+  listerDossier(dossier: string): Promise<ResultatListeDossierMedia | null>
+  verifierMedia(chemin: string): Promise<{ ok: boolean; raison?: MotifIndisponibiliteMedia }>
+  preparerLectureMedia(id: string): Promise<ResultatPreparationLectureMedia>
+  surEtatLectureMedia(cb: (id: string, motif: MotifEvenementLectureMedia) => void): () => void
   designerAudio(id: string, cheminAudio: string): Promise<{
     ok: boolean
     raison?: string

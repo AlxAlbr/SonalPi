@@ -139,6 +139,7 @@ export function useAudio() {
       elCourant = v
       // L'audio seul caché n'a plus de source en mode vidéo.
       el.removeAttribute('src')
+      el.load()
     } else {
       elCourant = el
       if (u) {
@@ -146,6 +147,7 @@ export function useAudio() {
         el.load()
       } else {
         el.removeAttribute('src')
+        el.load()
       }
       // Nettoyer un éventuel élément vidéo précédent.
       if (elVideo.value) {

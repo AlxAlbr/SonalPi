@@ -7,20 +7,19 @@ transcription. La lecture ne demande ni copie locale préalable, ni empreinte du
 fichier. La vidéo utilise le même mécanisme lorsqu'elle est lisible par Chromium,
 mais reste secondaire par rapport à l'audio.**
 
-**Avancement : M1 et M2 livrés. M3 à M5 restent à faire.**
+**Avancement : M1 à M4 livrés. M5 reste à faire.**
 
 | Lot | État | Où |
 |---|---|---|
 | M1 — modèle et configuration locale | Livré : référence additive `fournisseur`, base média locale par destination GitLab, configuration testée depuis l'ouverture GitLab, résolution des médias retirée au miroir GitLab | `src/shared/format.ts`, `src/shared/gitlab.ts`, `src/main/medias/baseMedia.ts`, `src/main/distant/coffre.ts`, `src/main/distant/miroir.ts`, `src/renderer/components/accueil/CorpusDistant.vue` |
 | M2 — contrat de transport | Livré : information `HEAD` avec repli `PROPFIND`, lecture de plage en flux validée, délai et annulation, sonde de capacité bornée et paresseuse | `src/main/webdav/lectureMedia.ts`, `src/main/webdav/client.ts`, `src/main/medias/capacite.ts` |
-| M3 — désignation et publication GitLab | À faire | — |
-| M4 — lecture distante audio | À faire | — |
+| M3 — désignation et publication GitLab | Livré : navigation dans la base WebDAV locale, contrôle sans lecture du corps, référence publiée sous bail GitLab, états d'indisponibilité et capacités de désignation/téléversement séparées | `src/main/medias/designation.ts`, `src/main/gitlab/transactions.ts`, `src/renderer/components/distant/DesignationAudioDistante.vue` |
+| M4 — lecture distante audio | Livré : URL opaque, relais WebDAV par plages, annulation, rechargement sur remplacement et états non bloquants du lecteur | `src/main/medias/lectureDistante.ts`, `src/main/index.ts`, `src/renderer/composables/corpus/useMediasCorpus.ts`, `src/renderer/components/entretien/LecteurAudio.vue` |
 | M5 — vidéo et validation applicative | À faire | — |
 
-Deux conséquences assumées jusqu'à M3 : un entretien GitLab qui désigne un média
-affiche encore l'état « média désigné sur le Nextcloud » et son bouton de
-rapatriement, devenu sans effet sur ce fournisseur ; même avec une base média
-déclarée, le geste de désignation n'est pas encore proposé sur un corpus GitLab.
+Un média WebDAV désigné dans un entretien GitLab est affiché comme référence
+distante et peut être lu explicitement depuis le serveur. La transcription reste
+utilisable lorsque la base n'est pas configurée ou disponible.
 
 Ce document remplace l'ancien plan média. GitLab reste le magasin du
 corpus ; Nextcloud, Sharedoc ou un autre serveur WebDAV compatible peut devenir le
@@ -487,16 +486,16 @@ parcours audio.
 | `src/main/index.ts` ou module de protocole extrait | hôte `sonal-media://distant/` et réponse streamée |
 | renderer | choix de lecture distante et états du lecteur, sans connaissance de WebDAV |
 
-Points d'intégration existants à traiter explicitement :
+Points d'intégration traités explicitement :
 
-- `src/shared/format.ts` limite actuellement `audioDistant` au chemin Nextcloud ;
-- `src/main/distant/miroir.ts` suppose actuellement que le média vit dans le même
-  backend que le corpus ;
-- `src/main/corpusStore.ts` résout aujourd'hui une désignation distante vers une
-  copie locale du miroir ;
-- `src/main/gitlab/politiqueGestes.ts` annonce actuellement
-  `mediasPartages: false` pour GitLab ;
-- le protocole `sonal-media` ne sert aujourd'hui que des fichiers locaux.
+- `src/shared/format.ts` accepte la référence WebDAV additive ;
+- `src/main/distant/miroir.ts` ne résout plus les médias d'un corpus GitLab dans
+  le dépôt ;
+- `src/main/corpusStore.ts` conserve la résolution locale des désignations d'un
+  corpus Nextcloud ;
+- `src/main/gitlab/politiqueGestes.ts` distingue la désignation d'un fichier
+  existant du téléversement ;
+- le protocole `sonal-media` distingue les fichiers locaux du relais WebDAV opaque.
 
 Les capacités de l'interface doivent distinguer la lecture d'un média référencé,
 la désignation d'un fichier existant et le téléversement. Elles ne peuvent plus
@@ -515,10 +514,8 @@ Décisions retenues :
 - l'authentification réutilise le parcours WebDAV Basic existant ;
 - l'audio est prioritaire et la vidéo est essayée sans bloquer sa livraison.
 
-Deux choix d'interface restent à préciser avant M4 :
+Choix d'interface retenus pour M4 :
 
-1. mémoriser ou non, par entretien et par poste, le choix « média local » ou
-   « lecture depuis le serveur » ;
-2. lorsque le serveur ne sait pas servir les plages, se limiter à un message
-   d'indisponibilité ou proposer aussi une association manuelle avec un fichier
-   déjà présent sur le poste.
+1. le choix « Lire depuis le serveur » reste explicite et n'est pas mémorisé ;
+2. lorsque le serveur ne sait pas servir les plages, le lecteur affiche une
+   indisponibilité sans lancer de téléchargement complet automatique.

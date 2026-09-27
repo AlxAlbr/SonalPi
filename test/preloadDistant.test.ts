@@ -88,6 +88,8 @@ describe('pont IPC des corpus distants', () => {
     { canal: 'distant:stockageSecuriseDisponible', appeler: () => api.distant.stockageSecuriseDisponible(), arguments: [] },
     { canal: 'distant:tirer', appeler: () => api.distant.tirer(), arguments: [] },
     { canal: 'distant:listerDossier', appeler: () => api.distant.listerDossier('audio'), arguments: ['audio'] },
+    { canal: 'distant:verifierMedia', appeler: () => api.distant.verifierMedia('audio/test.wav'), arguments: ['audio/test.wav'] },
+    { canal: 'distant:preparerLectureMedia', appeler: () => api.distant.preparerLectureMedia('entretien'), arguments: ['entretien'] },
     { canal: 'distant:designerAudio', appeler: () => api.distant.designerAudio('entretien', 'audio/test.wav'), arguments: ['entretien', 'audio/test.wav'] },
     { canal: 'distant:televerserAudio', appeler: () => api.distant.televerserAudio('/local/test.wav', 'audio/test.wav'), arguments: ['/local/test.wav', 'audio/test.wav'] },
     { canal: 'distant:orphelins', appeler: () => api.distant.orphelins(), arguments: [] },
@@ -120,6 +122,18 @@ describe('pont IPC des corpus distants', () => {
     electron.ipcRenderer.invoke.mockRejectedValueOnce(erreur)
     await expect(api.webdav.ouvrir('destination')).rejects.toBe(erreur)
     expect(electron.ipcRenderer.invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('abonne et désabonne les états de lecture distante', () => {
+    const recevoir = vi.fn()
+    const arreter = api.distant.surEtatLectureMedia(recevoir)
+    const [canal, ecouteur] = electron.ipcRenderer.on.mock.calls[0]
+    expect(canal).toBe('distant:etatLectureMedia')
+    ecouteur({}, 'entretien', 'version-changee')
+    expect(recevoir).toHaveBeenCalledExactlyOnceWith('entretien', 'version-changee')
+    arreter()
+    expect(electron.ipcRenderer.removeListener)
+      .toHaveBeenCalledExactlyOnceWith('distant:etatLectureMedia', ecouteur)
   })
 
   it('abonne et désabonne la progression commune aux fournisseurs', () => {

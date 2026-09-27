@@ -4,20 +4,27 @@ import { utiliserSonal } from '../../composables/sonal'
 import { estMedia, extensionDe, EXT_VIDEO } from '../../../shared/media'
 
 /**
- *  Modale « Désigner dans le Nextcloud… » : lier un
- *  entretien à un fichier MÉDIA (audio OU vidéo) QUI VIT SUR LE SERVEUR.
- *  Navigation par dossiers (PROPFIND Depth:1 côté main — `distant:listerDossier`),
- *  `audios/` proposé comme point d'entrée quand il existe. Les fichiers hors
- *  périmètre média (`EXT_MEDIA` partagée) sont visibles mais NON sélectionnables
- *  — désigner un PDF ne ferait que remplir les miroirs d'un fichier illisible.
+ *  Modale de désignation d'un média partagé déjà présent sur le serveur.
+ *  Pour GitLab, la navigation porte sur la base WebDAV configurée sur ce poste.
+ *  Son adresse et ses identifiants restent dans le main.
  *
- *  La désignation est une ÉCRITURE PARTAGÉE : elle passe par le protocole de
- *  session (micro-session dédiée si l'entretien est fermé). Un refus
- *  (verrou tenu par autrui) reste affiché dans la modale — jamais d'écrasement
- *  silencieux.
+ *  La désignation est une écriture partagée.
+ *  L'entretien ouvert utilise sa session ; un entretien fermé, un droit court.
+ *  Un refus reste affiché dans la modale, sans écrasement silencieux.
  */
-const { designationAudioId, fermerDesignationAudio, confirmerDesignationAudio, membership, progressionDistant, pourcentageProgression } =
-  utiliserSonal()
+const {
+  designationAudioId,
+  fermerDesignationAudio,
+  confirmerDesignationAudio,
+  membership,
+  progressionDistant,
+  pourcentageProgression,
+  fournisseurCourant,
+  gesteDisponible,
+} = utiliserSonal()
+
+const estGitLab = computed(() => fournisseurCourant.value === 'gitlab')
+const televersementDisponible = computed(() => gesteDisponible('televersementMedia'))
 
 /** Dossier courant (relatif à la racine du corpus ; '' = racine). */
 const dossier = ref('')
@@ -39,7 +46,22 @@ async function lister(d: string): Promise<{ nom: string; dossier: boolean }[] | 
   try {
     const r = await window.sonal.distant.listerDossier(d)
     if (r === null) {
-      erreur.value = 'corpus local'
+      erreur.value = 'Aucun stockage distant n’est ouvert.'
+      entrees.value = []
+      return null
+    }
+    if (!r.ok) {
+      const messages = {
+        'non-configuree': 'Aucune base de médias n’est configurée sur ce poste. Configurez-la depuis l’accueil GitLab.',
+        'secret-indisponible': 'Le mot de passe de la base de médias n’est pas disponible sur ce poste.',
+        'adresse-invalide': 'L’adresse de la base de médias est invalide.',
+        droits: 'Le serveur refuse l’accès à ce dossier pour ce compte.',
+        'dossier-absent': 'Ce dossier n’existe plus sur le serveur.',
+        'fichier-absent': 'Ce dossier n’existe plus sur le serveur.',
+        indisponible: 'La base de médias est momentanément indisponible.',
+        'chemin-invalide': 'Ce chemin ne peut pas être parcouru.',
+      } as const
+      erreur.value = messages[r.motif]
       entrees.value = []
       return null
     }
@@ -47,7 +69,7 @@ async function lister(d: string): Promise<{ nom: string; dossier: boolean }[] | 
     dossier.value = d
     return r.entrees
   } catch {
-    erreur.value = 'dossier inaccessible (droits ?)'
+    erreur.value = 'Dossier inaccessible.'
     entrees.value = []
     return null
   } finally {
@@ -90,12 +112,20 @@ async function confirmer() {
     await confirmerDesignationAudio(selection.value)
   } catch (e) {
     const raison = e instanceof Error ? e.message : 'refus'
-    raisonRefus.value =
-      raison === 'tenu-par-autrui'
-        ? '🔒 Verrou tenu par un autre poste — réessayez plus tard.'
-        : raison === 'divergence'
-          ? 'Le fichier a changé sur le serveur entre-temps — réessayez.'
-          : 'La désignation a été refusée.'
+    const messages: Record<string, string> = {
+      'tenu-par-autrui': '🔒 Verrou tenu par un autre poste — réessayez plus tard.',
+      conflit: 'Le fichier GitLab a changé entre-temps — actualisez puis réessayez.',
+      divergence: 'Le fichier GitLab a changé entre-temps — actualisez puis réessayez.',
+      'fichier-absent': 'Le média a été déplacé ou supprimé depuis l’ouverture du dossier.',
+      droits: 'Le serveur refuse maintenant l’accès à ce média.',
+      indisponible: 'La base de médias est momentanément indisponible.',
+      'non-configuree': 'Aucune base de médias n’est configurée sur ce poste.',
+      'secret-indisponible': 'Le mot de passe de la base de médias n’est pas disponible.',
+      'chemin-invalide': 'Ce chemin de média n’est pas utilisable.',
+      'session-active': 'Cet entretien est déjà ouvert : désignez le média depuis son lecteur.',
+    }
+    raisonRefus.value = messages[raison] ??
+      (raison === 'refus' ? 'La désignation a été refusée.' : raison)
   }
 }
 
@@ -178,12 +208,16 @@ async function choisirEtTeleverser(nomForce?: string) {
   <Teleport to="body">
     <div v-if="designationAudioId" class="voile-designation">
       <div class="modale-designation">
-        <h3>🔗 Désigner le média dans le Nextcloud</h3>
+        <h3>🔗 Désigner un média partagé</h3>
         <p class="intro">
-          Entretien « <b>{{ titre }}</b
-          > » — choisissez le fichier audio ou vidéo partagé. Il sera copié chez chaque
-          membre au prochain Actualiser ; vérifiez qu'il est accessible à tous
-          les membres du corpus.
+          Entretien « <b>{{ titre }}</b> » — choisissez un fichier audio ou vidéo
+          déjà présent {{ estGitLab ? 'dans la base WebDAV configurée sur ce poste' : 'sur le serveur du corpus' }}.
+          <template v-if="estGitLab">
+            Seul son chemin relatif sera publié dans GitLab ; le fichier ne sera ni copié ni lu entièrement.
+          </template>
+          <template v-else>
+            Il sera copié chez chaque membre au prochain Actualiser.
+          </template>
         </p>
 
         <div class="fil">
@@ -216,7 +250,7 @@ async function choisirEtTeleverser(nomForce?: string) {
           </template>
           <!-- Envoyer un fichier LOCAL vers le dossier courant,
                puis désignation automatique. -->
-          <li class="televerser">
+          <li v-if="televersementDisponible" class="televerser">
             <button class="item ajouter" :disabled="enTeleversement" @click="choisirEtTeleverser()">
               {{ libelleTeleverser }}
             </button>

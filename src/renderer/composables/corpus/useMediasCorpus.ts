@@ -6,6 +6,7 @@ import { choisirSrtAvantMutation } from '../../couturesApplication'
 import { texteDuCorps } from '../../../shared/entretien/entretien'
 import { referenceMediaDistant, type EntretienRef, type ReferenceMediaDistant } from '../../../shared/format'
 import type { DetailsSelectionCorpus } from './useSelectionCorpus'
+import type { MotifLectureMediaDistante } from '../../../shared/distant'
 
 type InventaireMedias = Record<string, { audio: string | null; waveform: string | null }>
 type AudiosManquants = Record<string, 'manquant'>
@@ -35,6 +36,8 @@ export function useMediasCorpus(deps: {
   perimerScanAnon: () => void
   choisirSrt: () => Promise<{ nom: string; contenu: string } | null>
   distantActif: () => boolean
+  fournisseurDistant: () => 'webdav' | 'gitlab' | null
+  etatBaseMedia: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible'
   actualiserDistant: (silencieux?: boolean) => Promise<boolean>
 }) {
   const audiosCorpus = ref<InventaireMedias>({})
@@ -43,13 +46,55 @@ export function useMediasCorpus(deps: {
   const srtASurEcrire = ref<string | null>(null)
   const srtMessage = ref<string | null>(null)
   const designationAudioId = ref<string | null>(null)
+  const preparationLectureDistante = ref(false)
+  const lectureDistanteActive = ref(false)
+  const lectureDistanteDemandee = ref(false)
+  const mediaDistantDesigne = computed(() =>
+    deps.fournisseurDistant() === 'gitlab' && Boolean(deps.entretien.meta.audioDistant),
+  )
+  const audioLocalDisponible = computed(() => {
+    const id = deps.entretien.ouvertId.value
+    return Boolean(id && audiosCorpus.value[id]?.audio)
+  })
+  const verificationMediaDistant = ref<{
+    id: string
+    chemin: string
+    motif: MotifLectureMediaDistante | null
+  } | null>(null)
 
   const etatAudioOuvert = computed(() => {
     const id = deps.entretien.ouvertId.value
     if (!id || !deps.distantActif()) return { etat: 'sans-objet' as const }
-    if (audiosCorpus.value[id]?.audio) return { etat: 'ok' as const }
+    if (audiosCorpus.value[id]?.audio && !lectureDistanteDemandee.value) {
+      return { etat: 'ok' as const }
+    }
     const designation = deps.entretien.meta.audioDistant
     if (!designation) return { etat: 'hors-designation' as const }
+    if (deps.fournisseurDistant() === 'gitlab') {
+      const verification = verificationMediaDistant.value?.id === id &&
+        verificationMediaDistant.value.chemin === designation.chemin
+        ? verificationMediaDistant.value
+        : null
+      if (verification?.motif === 'fichier-absent') return { etat: 'media-absent' as const }
+      if (verification?.motif === 'droits') return { etat: 'media-droits' as const }
+      if (verification?.motif === 'indisponible') return { etat: 'media-indisponible' as const }
+      if (verification?.motif === 'plages-non-prises-en-charge') {
+        return { etat: 'plages-non-prises-en-charge' as const }
+      }
+      if (verification?.motif === 'format-non-pris-en-charge') {
+        return { etat: 'format-non-pris-en-charge' as const }
+      }
+      if (verification && verification.motif === null) return { etat: 'distant-gitlab' as const }
+      const base = deps.etatBaseMedia()
+      if (base === 'non-configuree' || verification?.motif === 'non-configuree') {
+        return { etat: 'base-non-configuree' as const }
+      }
+      if (base === 'secret-indisponible' || verification?.motif === 'secret-indisponible') {
+        return { etat: 'base-secret-indisponible' as const }
+      }
+      if (verification?.motif) return { etat: 'media-indisponible' as const }
+      return { etat: 'distant-gitlab' as const }
+    }
     const inaccessible = audiosInaccessibles.value.find(
       (audio) => audio.chemin === designation.chemin,
     )
@@ -100,13 +145,34 @@ export function useMediasCorpus(deps: {
   }
 
   async function majAudioEntretien(id: string): Promise<void> {
+    lectureDistanteActive.value = false
+    lectureDistanteDemandee.value = false
     await rafraichirAudios()
     const audioRef = deps.entretien.meta.audioRef
     const media = audiosCorpus.value[id]
+    verificationMediaDistant.value = null
     if (!audioRef || !media?.audio) {
       deps.chargerLecteur(null, null)
+      const designation = deps.entretien.meta.audioDistant
+      if (designation && deps.fournisseurDistant() === 'gitlab') {
+        const chemin = designation.chemin
+        const resultat = await window.sonal.distant.verifierMedia(chemin)
+        if (
+          deps.entretien.ouvertId.value === id &&
+          deps.entretien.meta.audioDistant?.chemin === chemin
+        ) {
+          verificationMediaDistant.value = {
+            id,
+            chemin,
+            motif: resultat.ok ? null : (resultat.raison ?? 'indisponible'),
+          }
+        }
+      } else {
+        verificationMediaDistant.value = null
+      }
       return
     }
+    verificationMediaDistant.value = null
     if (!media.waveform) {
       const chemin = await genererEtEcrireWaveform(id, audioRef)
       if (chemin) await rafraichirAudios()
@@ -238,6 +304,50 @@ export function useMediasCorpus(deps: {
     if (id) await majAudioEntretien(id)
   }
 
+  async function lireAudioDistant(): Promise<void> {
+    const id = deps.entretien.ouvertId.value
+    const chemin = deps.entretien.meta.audioDistant?.chemin
+    if (!id || !chemin || deps.fournisseurDistant() !== 'gitlab') return
+    lectureDistanteDemandee.value = true
+    preparationLectureDistante.value = true
+    try {
+      const resultat = await window.sonal.distant.preparerLectureMedia(id)
+      if (
+        deps.entretien.ouvertId.value !== id ||
+        deps.entretien.meta.audioDistant?.chemin !== chemin
+      ) return
+      if (!resultat.ok) {
+        verificationMediaDistant.value = { id, chemin, motif: resultat.raison }
+        deps.chargerLecteur(null, null)
+        return
+      }
+      verificationMediaDistant.value = { id, chemin, motif: null }
+      lectureDistanteActive.value = true
+      deps.chargerLecteur(resultat.url, null)
+    } finally {
+      preparationLectureDistante.value = false
+    }
+  }
+
+  async function lireAudioLocal(): Promise<void> {
+    const id = deps.entretien.ouvertId.value
+    if (id) await majAudioEntretien(id)
+  }
+
+  window.sonal.distant.surEtatLectureMedia((id, motif) => {
+    const chemin = deps.entretien.meta.audioDistant?.chemin
+    if (deps.entretien.ouvertId.value !== id || !chemin || !lectureDistanteDemandee.value) return
+    if (motif === 'version-changee') {
+      lectureDistanteActive.value = false
+      deps.chargerLecteur(null, null)
+      void lireAudioDistant()
+      return
+    }
+    lectureDistanteActive.value = false
+    verificationMediaDistant.value = { id, chemin, motif }
+    deps.chargerLecteur(null, null)
+  })
+
   async function creerEntretienVideDistant(titre: string): Promise<string | null> {
     if (!titre.trim()) return null
     const resultat = await window.sonal.corpus.creerEntretienVide(titre.trim())
@@ -258,6 +368,8 @@ export function useMediasCorpus(deps: {
   async function confirmerDesignationAudio(chemin: string): Promise<void> {
     const id = designationAudioId.value
     if (!id) return
+    const verification = await window.sonal.distant.verifierMedia(chemin)
+    if (!verification.ok) throw new Error(verification.raison ?? 'refus')
     if (deps.entretien.ouvertId.value === id) {
       deps.entretien.meta.audioDistant = referenceMediaDistant(chemin)
       await deps.entretien.sauver()
@@ -279,6 +391,10 @@ export function useMediasCorpus(deps: {
     srtASurEcrire,
     srtMessage,
     designationAudioId,
+    preparationLectureDistante,
+    lectureDistanteActive,
+    mediaDistantDesigne,
+    audioLocalDisponible,
     etatAudioOuvert,
     majAudiosInaccessibles,
     rafraichirAudios,
@@ -294,6 +410,8 @@ export function useMediasCorpus(deps: {
     reassignerAudioEntretienOuvert,
     associerAudioEntretienOuvert,
     rapatrierAudioMaintenant,
+    lireAudioDistant,
+    lireAudioLocal,
     creerEntretienVideDistant,
     ouvrirDesignationAudio,
     fermerDesignationAudio,

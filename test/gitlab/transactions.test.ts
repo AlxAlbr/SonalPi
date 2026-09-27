@@ -533,6 +533,27 @@ describe('reprise après coupure', () => {
 })
 
 describe('écritures courtes d’entretien GitLab', () => {
+  test('publie seulement la référence du média WebDAV et l’installe dans le miroir', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+
+    await b.transactions.designerAudio('e1', 'audio/entretien-1.m4a')
+
+    const publie = JSON.parse(
+      b.depot.fichiers.get(`${RACINE}/entretiens/e1.json`)!.contenu,
+    ) as EntretienFichier
+    const local = JSON.parse(
+      readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ) as EntretienFichier
+    expect(publie.meta.audioDistant).toEqual({
+      chemin: 'audio/entretien-1.m4a',
+      fournisseur: 'webdav',
+    })
+    expect(local.meta.audioDistant).toEqual(publie.meta.audioDistant)
+    expect(b.depot.fichiers.has(`${RACINE}/audio/entretien-1.m4a`)).toBe(false)
+  })
+
   test('pose une valeur sous bail entretien et garde le corpus inchangé', async () => {
     const serveur = corpusAvecValeurs()
     const b = banc({ serveur, local: structuredClone(serveur) })
