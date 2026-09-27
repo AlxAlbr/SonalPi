@@ -242,13 +242,32 @@ export interface BrouillonAnon {
   pseudo?: string
 }
 
+/** Référence d'un média qui vit HORS du corpus, dans un magasin WebDAV.
+ *  Elle ne porte qu'un chemin RELATIF au dossier servi : la taille, le type,
+ *  l'ETag et la date sont des observations d'exécution, et le chemin reste
+ *  valable si le fichier est remplacé.
+ *
+ *  `fournisseur` est ADDITIF : les références plus anciennes, qui n'en
+ *  portent pas, restent lisibles. Le dossier visé dépend du fournisseur DU
+ *  CORPUS — le backend du corpus pour un corpus WebDAV, la base média
+ *  déclarée par la personne pour un corpus GitLab. */
+export interface ReferenceMediaDistant {
+  chemin: string
+  fournisseur?: 'webdav'
+}
+
+/** Forme canonique d'une désignation neuve : le transport y est explicite. */
+export function referenceMediaDistant(chemin: string): ReferenceMediaDistant {
+  return { chemin, fournisseur: 'webdav' }
+}
+
 /** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration SonalPi1 — champ ADDITIF optionnel, sans bump de formatVersion. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
-  /** Média désigné DANS le Nextcloud : chemin RELATIF à la racine du corpus serveur — c'est la désignation qui porte l'information, pas un dossier ; le miroir télécharge le fichier à chaque tirage.
+  /** Média désigné hors du corpus : c'est la désignation qui porte l'information, pas un dossier.
    *  Champ ADDITIF optionnel. */
-  audioDistant?: { chemin: string }
+  audioDistant?: ReferenceMediaDistant
   /** Chemin RELATIF du `.sonal` SonalPi1 d'origine au dossier du `.crp` — trace seule, jamais utilisée pour relire. */
   sourceV1?: { rtrPath: string | null }
 }

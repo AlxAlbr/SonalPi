@@ -206,7 +206,9 @@ export class MiroirDistant {
         exclus: horsJeu,
       })
 
-      const designations = this.designationsAudio(candidats, horsJeu, contenusPrepares)
+      const designations = this.resoutDesignationsMedia()
+        ? this.designationsAudio(candidats, horsJeu, contenusPrepares)
+        : []
       for (const chemin of designations) {
         try {
           const entree = await this.entreeDistanteFichier(lecture, chemin)
@@ -267,11 +269,18 @@ export class MiroirDistant {
   }
 
   /* ── Audios désignés ───────────────────────────────────────────────────
-   *  Le miroir lit les entretiens LOCAUX (le pull texte vient de les mettre
-   *  à jour) pour savoir quels fichiers audio rapporter.
-   *  La désignation porte l'information, pas un dossier.
+   *  Un média désigné est cherché dans le BACKEND DU CORPUS, dont le miroir
+   *  est le miroir : c'est le cas d'un corpus WebDAV, où la désignation est
+   *  rapatriée à chaque tirage. Un dépôt GitLab n'est pas le magasin des
+   *  médias : le média y vit dans la base déclarée par la personne, résolue
+   *  par le module média, jamais ici.
    *  Lecture défensive : un JSON illisible ne doit jamais faire échouer le
    *  tirage. */
+
+  /** Le miroir rapporte-t-il lui-même les médias désignés par les entretiens ? */
+  private resoutDesignationsMedia(): boolean {
+    return this.identiteMiroir.fournisseur === 'webdav'
+  }
 
   /** Chemins RELATIFS désignés par les entretiens locaux, dédoublonnés et assainis.
    *  Relatifs purs : pas de remontée `..`, pas d'absolu. */

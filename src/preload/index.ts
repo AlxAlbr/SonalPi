@@ -369,6 +369,10 @@ contextBridge.exposeInMainWorld('sonal', {
     enregistrerEtOuvrir: (demande) => invoquer('gitlab:enregistrerEtOuvrir', demande),
     creerEtOuvrir: (demande) => invoquer('gitlab:creerEtOuvrir', demande),
     ouvrir: (id) => invoquer('gitlab:ouvrir', id),
+    configurerBaseMedia: (destinationId, demande) =>
+      invoquer('gitlab:configurerBaseMedia', destinationId, demande),
+    oublierBaseMedia: (destinationId) =>
+      invoquer('gitlab:oublierBaseMedia', destinationId),
     oublierDestination: (id) => invoquer('gitlab:oublierDestination', id),
   } satisfies ApiGitLab,
   webdav: {

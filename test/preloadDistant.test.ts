@@ -39,6 +39,11 @@ const creationGitLab: DemandeCreationGitLab = {
 }
 const { nomCorpus: _nomCorpus, ...ouvertureGitLab } = creationGitLab
 const { nomCorpus: _nomCorpusWebDAV, ...connexionWebDAV } = creationWebDAV
+const baseMedia = {
+  urlBase: 'https://nuage.example.org/remote.php/dav/files/moi/Medias',
+  utilisateur: 'moi',
+  motDePasse: 'secret-media',
+}
 
 beforeAll(async () => {
   await import('../src/preload/index')
@@ -72,6 +77,8 @@ describe('pont IPC des corpus distants', () => {
     { canal: 'gitlab:enregistrerEtOuvrir', appeler: () => api.gitlab.enregistrerEtOuvrir(ouvertureGitLab), arguments: [ouvertureGitLab] },
     { canal: 'gitlab:creerEtOuvrir', appeler: () => api.gitlab.creerEtOuvrir(creationGitLab), arguments: [creationGitLab] },
     { canal: 'gitlab:ouvrir', appeler: () => api.gitlab.ouvrir('destination-gitlab'), arguments: ['destination-gitlab'] },
+    { canal: 'gitlab:configurerBaseMedia', appeler: () => api.gitlab.configurerBaseMedia('destination-gitlab', baseMedia), arguments: ['destination-gitlab', baseMedia] },
+    { canal: 'gitlab:oublierBaseMedia', appeler: () => api.gitlab.oublierBaseMedia('destination-gitlab'), arguments: ['destination-gitlab'] },
     { canal: 'gitlab:detecterInstance', appeler: () => api.gitlab.detecterInstance(`${accesGitLab.urlInstance}/groupe/corpus`), arguments: [`${accesGitLab.urlInstance}/groupe/corpus`] },
     { canal: 'gitlab:etat', appeler: () => api.gitlab.etat(accesGitLab.urlInstance), arguments: [accesGitLab.urlInstance] },
     { canal: 'gitlab:connecter', appeler: () => api.gitlab.connecter(accesGitLab.urlInstance, 'client-sonal'), arguments: [accesGitLab.urlInstance, 'client-sonal'] },

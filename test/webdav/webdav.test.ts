@@ -890,7 +890,7 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     expect(coffre.motDePasse(nouvelId)).toBe('secret-app')
     expect(existsSync(ancienMiroir)).toBe(true)
     expect(existsSync(join(dir, 'miroirs', nouvelId))).toBe(false)
-    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(4)
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(5)
     expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({
       recents: ['/local'],
       recentsDistant: [nouvelId, 'inconnu'],

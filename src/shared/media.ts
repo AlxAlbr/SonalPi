@@ -16,6 +16,35 @@ export function extensionDe(nom: string): string {
   return base.toLowerCase()
 }
 
+/** Type MIME de confiance par extension : la lecture à distance ne peut pas
+ *  se fier au seul `Content-Type` d'un serveur, et ne doit rien inventer. */
+const TYPE_PAR_EXTENSION: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  webm: 'video/webm',
+  ogv: 'video/ogg',
+  avi: 'video/x-msvideo',
+}
+
+/** Type servi au lecteur : celui qu'annonce le serveur s'il est bien un type
+ *  audio ou vidéo, celui de l'extension sinon. Un type absent, générique ou
+ *  incohérent ne vaut pas mieux qu'un `application/octet-stream`. */
+export function typeMimeMedia(chemin: string, typeAnnonce?: string | null): string {
+  const annonce = (typeAnnonce ?? '').split(';')[0].trim().toLowerCase()
+  if (annonce.startsWith('audio/') || annonce.startsWith('video/')) return annonce
+  return TYPE_PAR_EXTENSION[extensionDe(chemin)] ?? 'application/octet-stream'
+}
+
 /** Le fichier est-il dans le périmètre média assignable ? */
 export function estMedia(nom: string): boolean {
   return EXT_MEDIA.includes(extensionDe(nom))

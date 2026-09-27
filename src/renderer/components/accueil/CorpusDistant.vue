@@ -33,6 +33,10 @@ const enCours = ref(false)
 const erreur = ref<string | null>(null)
 const aideGitLabOuverte = ref(false)
 const profilConnecte = ref<ProfilCapacitesWebDAV | null>(null)
+const baseMediaEdition = ref<string | null>(null)
+const baseMediaUrl = ref('')
+const baseMediaUtilisateur = ref('')
+const baseMediaMotDePasse = ref('')
 const {
   urlProjet: urlProjetGitLab,
   racine: racineGitLab,
@@ -156,6 +160,53 @@ async function deconnecterGitLabOAuth() {
 
 async function oublierGitLab(id: string) {
   destinationsGitLab.value = await window.sonal.gitlab.oublierDestination(id)
+}
+
+function ouvrirBaseMedia(destination: DestinationGitLabPublic) {
+  baseMediaEdition.value = destination.id
+  baseMediaUrl.value = ''
+  baseMediaUtilisateur.value = destination.baseMedia?.utilisateur ?? destination.utilisateur
+  baseMediaMotDePasse.value = ''
+  erreur.value = null
+}
+
+function fermerBaseMedia() {
+  baseMediaEdition.value = null
+  baseMediaUrl.value = ''
+  baseMediaUtilisateur.value = ''
+  baseMediaMotDePasse.value = ''
+}
+
+async function configurerBaseMedia(destinationId: string) {
+  enCours.value = true
+  erreur.value = null
+  try {
+    const resultat = await window.sonal.gitlab.configurerBaseMedia(destinationId, {
+      urlBase: baseMediaUrl.value,
+      utilisateur: baseMediaUtilisateur.value,
+      motDePasse: baseMediaMotDePasse.value,
+    })
+    if (!resultat.ok) {
+      const messages = {
+        droits: 'Le compte WebDAV ou son mot de passe est refusé.',
+        'dossier-absent': 'Le dossier WebDAV indiqué est introuvable.',
+        indisponible: 'Le dossier WebDAV ne répond pas.',
+      }
+      erreur.value = messages[resultat.motif]
+      return
+    }
+    destinationsGitLab.value = await window.sonal.gitlab.lister()
+    fermerBaseMedia()
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Configuration du dossier média impossible.'
+  } finally {
+    enCours.value = false
+  }
+}
+
+async function oublierBaseMedia(destinationId: string) {
+  destinationsGitLab.value = await window.sonal.gitlab.oublierBaseMedia(destinationId)
+  if (baseMediaEdition.value === destinationId) fermerBaseMedia()
 }
 </script>
 
@@ -293,8 +344,18 @@ async function oublierGitLab(id: string) {
                 <span class="compte-url">
                   {{ destination.urlInstance }} · {{ destination.branche }}<template v-if="destination.racine">/{{ destination.racine }}</template>
                 </span>
+                <span class="base-media-etat">
+                  Médias WebDAV :
+                  <template v-if="destination.baseMedia">
+                    {{ destination.baseMedia.utilisateur }}{{ destination.baseMedia.secretDisponible ? '' : ' — mot de passe requis' }}
+                  </template>
+                  <template v-else>non configurés</template>
+                </span>
               </div>
               <div class="compte-actions">
+                <button class="mini" :disabled="enCours" @click="ouvrirBaseMedia(destination)">
+                  Médias…
+                </button>
                 <button
                   class="mini ouvrir"
                   :disabled="enCours"
@@ -304,6 +365,44 @@ async function oublierGitLab(id: string) {
                 </button>
               </div>
               <button class="mini oubli" title="Oublier cette destination" @click="oublierGitLab(destination.id)">✕</button>
+              <div v-if="baseMediaEdition === destination.id" class="base-media-form">
+                <span class="q-lbl secondaire">Dossier WebDAV des médias</span>
+                <input
+                  v-model="baseMediaUrl"
+                  class="champ"
+                  type="text"
+                  placeholder="https://nuage.exemple.org/remote.php/dav/files/moi/Medias"
+                  spellcheck="false"
+                  :disabled="enCours"
+                />
+                <div class="ligne-2">
+                  <label class="question">
+                    <span class="q-lbl secondaire">Identifiant</span>
+                    <input v-model="baseMediaUtilisateur" class="champ" type="text" :disabled="enCours" />
+                  </label>
+                  <label class="question">
+                    <span class="q-lbl secondaire">Mot de passe d'application</span>
+                    <input v-model="baseMediaMotDePasse" class="champ" type="password" :disabled="enCours" />
+                  </label>
+                </div>
+                <span class="aide-champ">
+                  Le dossier est testé avant enregistrement. Son adresse et son mot de passe restent sur ce poste.
+                </span>
+                <div class="base-media-actions">
+                  <button
+                    v-if="destination.baseMedia"
+                    class="mini"
+                    :disabled="enCours"
+                    @click="oublierBaseMedia(destination.id)"
+                  >Oublier la base</button>
+                  <button class="mini" :disabled="enCours" @click="fermerBaseMedia">Annuler</button>
+                  <button
+                    class="valider"
+                    :disabled="enCours || !baseMediaUrl.trim() || !baseMediaUtilisateur.trim() || !baseMediaMotDePasse"
+                    @click="configurerBaseMedia(destination.id)"
+                  >{{ enCours ? 'Vérification…' : 'Enregistrer' }}</button>
+                </div>
+              </div>
             </li>
           </ul>
         </div>
@@ -546,6 +645,7 @@ async function oublierGitLab(id: string) {
 .comptes li {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
@@ -569,6 +669,24 @@ async function oublierGitLab(id: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.base-media-etat {
+  color: #666;
+  font-size: 0.7rem;
+}
+.base-media-form {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-sizing: border-box;
+  padding: 0.65rem;
+  border-top: 1px solid #ddd;
+}
+.base-media-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 .compte-actions {
   display: flex;

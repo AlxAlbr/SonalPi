@@ -139,18 +139,24 @@ describe('Désignation audio distante — micro-session', () => {
 
     const r = await b.sessions.designerAudio(ID, 'audios/e1.mp3')
     expect(r.ok).toBe(true)
-    // Le serveur porte la désignation…
+    // Le serveur porte la désignation, transport explicite…
     const serveur = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!) as {
-      meta?: { audioDistant?: { chemin: string } }
+      meta?: { audioDistant?: { chemin: string; fournisseur?: string } }
     }
-    expect(serveur.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    expect(serveur.meta?.audioDistant).toEqual({
+      chemin: 'audios/e1.mp3',
+      fournisseur: 'webdav',
+    })
     // …et le verrou a bien été LIBÉRÉ (micro-session complète).
     expect(b.verrou()).toBeUndefined()
     // La copie locale du miroir aussi (elle servira au prochain pull audio).
     const local = JSON.parse(readFileSync(b.fichierLocal, 'utf8')) as {
-      meta?: { audioDistant?: { chemin: string } }
+      meta?: { audioDistant?: { chemin: string; fournisseur?: string } }
     }
-    expect(local.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    expect(local.meta?.audioDistant).toEqual({
+      chemin: 'audios/e1.mp3',
+      fournisseur: 'webdav',
+    })
   })
 
   it("refuse la micro-session si l'entretien est déjà ouvert en édition", async () => {
@@ -180,7 +186,10 @@ describe('Désignation audio distante — micro-session', () => {
     const publie = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!)
     expect(publie.texte).toBe('version fraîche')
     expect(publie.meta.valeursGen).toEqual({ ville: 'lyon' })
-    expect(publie.meta.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    expect(publie.meta.audioDistant).toEqual({
+      chemin: 'audios/e1.mp3',
+      fournisseur: 'webdav',
+    })
     expect(b.verrou()).toBeUndefined()
   })
 

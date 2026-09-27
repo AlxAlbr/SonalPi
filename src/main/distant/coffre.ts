@@ -26,6 +26,7 @@ import {
   credentialDepuisJson,
   type CredentialOAuthGitLab,
 } from '../gitlab/oauth/credential'
+import { verifierTransportWebDAV } from '../webdav/client'
 
 /** Destination WebDAV historique, qui porte aussi l'identité du compte. */
 export interface ConfigCorpusDistant {
@@ -67,6 +68,19 @@ export interface ConfigDestinationGitLab {
   racine: string
 }
 
+/** Base de médias WebDAV déclarée par une personne pour UNE destination GitLab.
+ *  Ce n'est pas un compte de corpus : elle n'apparaît ni parmi les comptes
+ *  WebDAV, ni dans les corpus distants récents. Le dossier partagé est visé
+ *  par un chemin relatif, commun à tous les comptes du dossier. */
+export interface ConfigBaseMediaWebDAV {
+  destinationGitLabId: string
+  /** URL du dossier partagé, sans barre finale. */
+  urlBase: string
+  utilisateur: string
+  /** Absent lorsque le poste ne fournit pas de stockage sécurisé. */
+  motDePasseChiffre?: string
+}
+
 type ConfigCompteStocke = ConfigCorpusDistant | ConfigCompteGitLab
 
 type ConfigCorpusDistantV2 = Omit<ConfigCorpusDistant, 'fournisseur'>
@@ -82,15 +96,24 @@ interface FichierComptesV2 {
 }
 
 interface FichierComptes {
-  formatVersion: 4
+  formatVersion: 5
   comptes: Record<string, ConfigCompteStocke>
   destinationsGitLab: Record<string, ConfigDestinationGitLab>
+  /** Clés par destination GitLab : une base média par destination. */
+  basesMedia: Record<string, ConfigBaseMediaWebDAV>
 }
 
 /** Coffre 3 : comptes GitLab porteurs d'un jeton d'accès personnel. */
 interface FichierComptesV3 {
   formatVersion: 3
   comptes: Record<string, ConfigCompteStocke & { jetonChiffre?: string }>
+  destinationsGitLab: Record<string, ConfigDestinationGitLab>
+}
+
+/** Coffre 4 : comptes et destinations GitLab, sans base média déclarée. */
+interface FichierComptesV4 {
+  formatVersion: 4
+  comptes: Record<string, ConfigCompteStocke>
   destinationsGitLab: Record<string, ConfigDestinationGitLab>
 }
 
@@ -132,7 +155,7 @@ export class CoffreComptes {
 
   private lire(): FichierComptes {
     if (!existsSync(this.fichier)) {
-      return { formatVersion: 4, comptes: {}, destinationsGitLab: {} }
+      return { formatVersion: 5, comptes: {}, destinationsGitLab: {}, basesMedia: {} }
     }
     let lu: unknown
     try {
@@ -143,26 +166,42 @@ export class CoffreComptes {
     if (!lu || typeof lu !== 'object' || Array.isArray(lu)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
-    const f = lu as FichierComptes | FichierComptesV3 | FichierComptesV2 | FichierComptesV1
+    const f = lu as FichierComptes | FichierComptesV4 | FichierComptesV3 | FichierComptesV2 | FichierComptesV1
     if (!f.comptes || typeof f.comptes !== 'object' || Array.isArray(f.comptes)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
     const version = Number(f.formatVersion)
-    if (version === 4) {
+    if (version === 5) {
       const courant = f as FichierComptes
       if (
         !courant.destinationsGitLab ||
         typeof courant.destinationsGitLab !== 'object' ||
-        Array.isArray(courant.destinationsGitLab)
+        Array.isArray(courant.destinationsGitLab) ||
+        !courant.basesMedia ||
+        typeof courant.basesMedia !== 'object' ||
+        Array.isArray(courant.basesMedia)
       ) {
         throw new Error('Le coffre des comptes distants est invalide.')
       }
       return courant
     }
+    if (version === 4) return this.migrerV4(f as FichierComptesV4)
     if (version === 3) return this.migrerV3(f as FichierComptesV3)
     if (version === 2) return this.migrerV2(f as FichierComptesV2)
     if (version === 1) return this.migrerV1(f as FichierComptesV1)
     throw new Error(`Version de coffre distant non supportée : ${String(version)}`)
+  }
+
+  /** Les bases média s'ajoutent sans toucher aux comptes ni aux destinations. */
+  private migrerV4(f: FichierComptesV4): FichierComptes {
+    const migre: FichierComptes = {
+      formatVersion: 5,
+      comptes: f.comptes as Record<string, ConfigCompteStocke>,
+      destinationsGitLab: f.destinationsGitLab ?? {},
+      basesMedia: {},
+    }
+    ecrireJsonAtomique(this.fichier, migre)
+    return migre
   }
 
   /**
@@ -183,9 +222,10 @@ export class CoffreComptes {
       comptes[id] = compte
     }
     const migre: FichierComptes = {
-      formatVersion: 4,
+      formatVersion: 5,
       comptes,
       destinationsGitLab: f.destinationsGitLab ?? {},
+      basesMedia: {},
     }
     ecrireJsonAtomique(this.fichier, migre)
     return migre
@@ -212,9 +252,10 @@ export class CoffreComptes {
     }
     this.migrerReferences(migrations)
     const migre: FichierComptes = {
-      formatVersion: 4,
+      formatVersion: 5,
       comptes,
       destinationsGitLab: {},
+      basesMedia: {},
     }
     ecrireJsonAtomique(this.fichier, migre)
     return migre
@@ -228,9 +269,10 @@ export class CoffreComptes {
       }]),
     )
     const migre: FichierComptes = {
-      formatVersion: 4,
+      formatVersion: 5,
       comptes,
       destinationsGitLab: {},
+      basesMedia: {},
     }
     ecrireJsonAtomique(this.fichier, migre)
     return migre
@@ -248,6 +290,84 @@ export class CoffreComptes {
 
   listerDestinationsGitLab(): ConfigDestinationGitLab[] {
     return Object.values(this.lire().destinationsGitLab)
+  }
+
+  /* ── Base média locale ───────────────────────────────────────────────────
+   *  Elle vit à côté des comptes, jamais dedans : une base média n'est pas un
+   *  corpus, et ne doit donc jamais être proposée à l'ouverture d'un corpus
+   *  distant ni remonter dans les récents.
+   *  ────────────────────────────────────────────────────────────────────────*/
+
+  /** Base déclarée pour cette destination GitLab, ou null si le poste n'en a pas. */
+  baseMedia(destinationGitLabId: string): ConfigBaseMediaWebDAV | null {
+    return this.lire().basesMedia[destinationGitLabId] ?? null
+  }
+
+  /** Déclare ou remplace la base d'une destination GitLab existante. */
+  enregistrerBaseMedia(params: {
+    destinationGitLabId: string
+    urlBase: string
+    utilisateur: string
+    motDePasse: string
+  }): ConfigBaseMediaWebDAV {
+    const fichier = this.lire()
+    if (!fichier.destinationsGitLab[params.destinationGitLabId]) {
+      throw new Error('Destination GitLab inconnue.')
+    }
+    const utilisateur = params.utilisateur.trim()
+    if (!utilisateur) throw new Error('Identité du compte média manquante.')
+    if (!params.motDePasse) throw new Error('Mot de passe d’application manquant.')
+    const saisie = params.urlBase.trim()
+    if (!saisie) throw new Error('Adresse du dossier média manquante.')
+    const analysee = new URL(saisie)
+    if (analysee.username || analysee.password) {
+      throw new Error('L’adresse du dossier média ne doit pas contenir d’identifiants.')
+    }
+    if (analysee.hash) {
+      throw new Error('L’adresse du dossier média ne doit pas contenir de fragment.')
+    }
+    const urlBase = canoniserUrlServeur(saisie)
+    verifierTransportWebDAV(urlBase)
+    const config: ConfigBaseMediaWebDAV = {
+      destinationGitLabId: params.destinationGitLabId,
+      urlBase,
+      utilisateur,
+      ...(this.chiffreur.disponible()
+        ? { motDePasseChiffre: this.chiffreur.chiffre(params.motDePasse) }
+        : {}),
+    }
+    this.secretsSession.set(this.cleSecretBaseMedia(params.destinationGitLabId), params.motDePasse)
+    fichier.basesMedia[params.destinationGitLabId] = config
+    ecrireJsonAtomique(this.fichier, fichier)
+    return config
+  }
+
+  oublierBaseMedia(destinationGitLabId: string): void {
+    const fichier = this.lire()
+    delete fichier.basesMedia[destinationGitLabId]
+    this.secretsSession.delete(this.cleSecretBaseMedia(destinationGitLabId))
+    ecrireJsonAtomique(this.fichier, fichier)
+  }
+
+  /** Mot de passe d'application de la base média — process main uniquement.
+   *  Sans stockage sécurisé, il ne reste qu'en mémoire pour la session. */
+  motDePasseBaseMedia(destinationGitLabId: string): string | null {
+    const cle = this.cleSecretBaseMedia(destinationGitLabId)
+    if (this.secretsSession.has(cle)) return this.secretsSession.get(cle) ?? null
+    const base = this.lire().basesMedia[destinationGitLabId]
+    if (!base?.motDePasseChiffre) return null
+    try {
+      const clair = this.chiffreur.dechiffre(base.motDePasseChiffre)
+      this.secretsSession.set(cle, clair)
+      return clair
+    } catch {
+      return null
+    }
+  }
+
+  /** Le secret de session est isolé des comptes par son préfixe. */
+  private cleSecretBaseMedia(destinationGitLabId: string): string {
+    return `base-media\0${destinationGitLabId}`
   }
 
   stockageSecuriseDisponible(): boolean {
@@ -473,6 +593,27 @@ export class CoffreComptes {
         }
       }
     }
+    for (const [destinationGitLabId, base] of Object.entries(comptes.basesMedia)) {
+      const chiffre = base.motDePasseChiffre
+      if (!chiffre) continue
+      const obfusque = chiffre.startsWith('b64:')
+      if (!obfusque && stockageSecurise) continue
+      try {
+        const clair = this.chiffreur.dechiffre(chiffre)
+        this.secretsSession.set(this.cleSecretBaseMedia(destinationGitLabId), clair)
+        if (stockageSecurise) {
+          base.motDePasseChiffre = this.chiffreur.chiffre(clair)
+        } else {
+          delete base.motDePasseChiffre
+        }
+        modifie = true
+      } catch {
+        if (obfusque) {
+          delete base.motDePasseChiffre
+          modifie = true
+        }
+      }
+    }
     if (modifie) ecrireJsonAtomique(this.fichier, comptes)
   }
 
@@ -528,9 +669,13 @@ export class CoffreComptes {
     ecrireJsonAtomique(this.fichier, comptes)
   }
 
+  /** Retirer une destination GitLab emporte sa base média : elle n'a plus de
+   *  corpus auquel se rattacher. Le compte GitLab, lui, est conservé. */
   oublierDestinationGitLab(id: string): void {
     const comptes = this.lire()
     delete comptes.destinationsGitLab[id]
+    delete comptes.basesMedia[id]
+    this.secretsSession.delete(this.cleSecretBaseMedia(id))
     ecrireJsonAtomique(this.fichier, comptes)
   }
 }

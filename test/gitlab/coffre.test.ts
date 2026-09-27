@@ -75,7 +75,7 @@ describe('coffre GitLab', () => {
     const persiste = readFileSync(fichier, 'utf8')
     expect(persiste).not.toContain('access-secret')
     expect(persiste).not.toContain('refresh-secret')
-    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 4 })
+    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 5, basesMedia: {} })
 
     const memeCompte = coffre.enregistrerCompteGitLab({
       urlInstance: 'https://GITLAB.example.org:443/institution',
@@ -119,8 +119,9 @@ describe('coffre GitLab', () => {
     }])
     expect(coffre.motDePasse(id)).toBe('secret-webdav')
     expect(JSON.parse(readFileSync(fichier, 'utf8'))).toMatchObject({
-      formatVersion: 4,
+      formatVersion: 5,
       destinationsGitLab: {},
+      basesMedia: {},
     })
   })
 
@@ -163,12 +164,175 @@ describe('coffre GitLab', () => {
     const persiste = readFileSync(fichier, 'utf8')
     expect(persiste).not.toContain('glpat-heritage')
     expect(persiste).not.toContain('jetonChiffre')
-    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 4 })
+    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 5 })
   })
 
   test('calcule un compte stable sans dépendre du credential', () => {
     expect(idDeCompteGitLab('https://gitlab.example.org/', 'max')).toBe(
       idDeCompteGitLab('https://GITLAB.example.org:443', ' max '),
     )
+  })
+})
+
+describe('coffre — base média locale d\'une destination GitLab', () => {
+  const chiffreur: Chiffreur = {
+    disponible: () => true,
+    chiffre: (clair) => `chiffre:${Buffer.from(clair).toString('base64')}`,
+    dechiffre: (secret) => Buffer.from(secret.slice('chiffre:'.length), 'base64').toString(),
+  }
+
+  function coffreAvecDestination() {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-media-')), 'comptes.json')
+    const coffre = new CoffreComptes(fichier, chiffreur)
+    const compte = coffre.enregistrerCompteGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      utilisateur: 'max',
+      credential: credential(),
+    })
+    const destination = coffre.enregistrerDestinationGitLab({
+      compteId: compte.id,
+      projetId: 42,
+      nomProjet: 'Corpus pilote',
+      branche: 'équipe/pilote',
+      racine: 'donnees/corpus-a',
+    })
+    return { fichier, coffre, destination }
+  }
+
+  test('la base est rattachée à sa destination et chiffrée comme un secret', () => {
+    const { fichier, coffre, destination } = coffreAvecDestination()
+
+    const base = coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/remote.php/dav/files/max/CorpusPartage/',
+      utilisateur: 'max',
+      motDePasse: 'mot-de-passe-application',
+    })
+
+    expect(base).toMatchObject({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/remote.php/dav/files/max/CorpusPartage',
+      utilisateur: 'max',
+    })
+    expect(coffre.motDePasseBaseMedia(destination.id)).toBe('mot-de-passe-application')
+    const persiste = readFileSync(fichier, 'utf8')
+    expect(persiste).not.toContain('mot-de-passe-application')
+    expect(JSON.parse(persiste)).toMatchObject({
+      formatVersion: 5,
+      basesMedia: { [destination.id]: { utilisateur: 'max' } },
+    })
+  })
+
+  test('une base n\'est ni un compte WebDAV ni une destination', () => {
+    const { coffre, destination } = coffreAvecDestination()
+    const base = coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/remote.php/dav/files/max/CorpusPartage',
+      utilisateur: 'max',
+      motDePasse: 'secret',
+    })
+
+    // Le dossier partagé ne doit jamais être proposé à l'ouverture d'un corpus.
+    expect(coffre.lister()).toEqual([])
+    expect(coffre.listerDestinationsGitLab()).toEqual([
+      expect.objectContaining({ id: destination.id, fournisseur: 'gitlab' }),
+    ])
+    expect(base).not.toHaveProperty('fournisseur')
+  })
+
+  test('une destination inconnue ne peut pas recevoir de base', () => {
+    const { coffre } = coffreAvecDestination()
+
+    expect(() =>
+      coffre.enregistrerBaseMedia({
+        destinationGitLabId: 'sha256-destination-inexistante',
+        urlBase: 'https://nuage.example.org/dav',
+        utilisateur: 'max',
+        motDePasse: 'secret',
+      }),
+    ).toThrow('Destination GitLab inconnue')
+    expect(coffre.baseMedia('sha256-destination-inexistante')).toBeNull()
+  })
+
+  test.each([
+    ['une adresse HTTP distante', 'http://nuage.example.org/dav', 'secret'],
+    ['des identifiants dans l’adresse', 'https://max:secret@nuage.example.org/dav', 'secret'],
+    ['un secret vide', 'https://nuage.example.org/dav', ''],
+  ])('refuse directement %s', (_cas, urlBase, motDePasse) => {
+    const { coffre, destination } = coffreAvecDestination()
+
+    expect(() => coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase,
+      utilisateur: 'max',
+      motDePasse,
+    })).toThrow()
+    expect(coffre.baseMedia(destination.id)).toBeNull()
+  })
+
+  test('le secret d\'une base ne se confond pas avec celui d\'un compte', () => {
+    const { coffre, destination } = coffreAvecDestination()
+    const compteWebdav = coffre.enregistrer({
+      urlServeur: 'https://nuage.example.org/remote.php/dav/files/max/MonCorpus',
+      utilisateur: 'max',
+      motDePasse: 'secret-corpus',
+    })
+    coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/remote.php/dav/files/max/CorpusPartage',
+      utilisateur: 'max',
+      motDePasse: 'secret-media',
+    })
+
+    expect(coffre.motDePasseBaseMedia(destination.id)).toBe('secret-media')
+    expect(coffre.motDePasse(compteWebdav.id)).toBe('secret-corpus')
+  })
+
+  test('oublier la destination emporte sa base, pas le compte GitLab', () => {
+    const { coffre, destination } = coffreAvecDestination()
+    coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/remote.php/dav/files/max/CorpusPartage',
+      utilisateur: 'max',
+      motDePasse: 'secret-media',
+    })
+
+    coffre.oublierDestinationGitLab(destination.id)
+
+    expect(coffre.baseMedia(destination.id)).toBeNull()
+    expect(coffre.motDePasseBaseMedia(destination.id)).toBeNull()
+    expect(coffre.listerComptesGitLab()).toHaveLength(1)
+  })
+
+  test('sans stockage sécurisé, le secret reste en session et rien n\'est écrit', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-media-')), 'comptes.json')
+    const faible: Chiffreur = {
+      disponible: () => false,
+      chiffre: (clair) => `chiffre:${Buffer.from(clair).toString('base64')}`,
+      dechiffre: (secret) => Buffer.from(secret.slice('chiffre:'.length), 'base64').toString(),
+    }
+    const coffre = new CoffreComptes(fichier, faible)
+    const compte = coffre.enregistrerCompteGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      utilisateur: 'max',
+      credential: credential(),
+    })
+    const destination = coffre.enregistrerDestinationGitLab({
+      compteId: compte.id,
+      projetId: 42,
+      nomProjet: 'Corpus pilote',
+      branche: 'main',
+    })
+
+    coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/dav',
+      utilisateur: 'max',
+      motDePasse: 'secret-media',
+    })
+
+    expect(coffre.motDePasseBaseMedia(destination.id)).toBe('secret-media')
+    expect(readFileSync(fichier, 'utf8')).not.toContain('secret-media')
+    expect(coffre.baseMedia(destination.id)).not.toHaveProperty('motDePasseChiffre')
   })
 })

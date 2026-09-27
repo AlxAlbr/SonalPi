@@ -25,7 +25,7 @@ import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note } from '../../shared/format'
+import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note, ReferenceMediaDistant } from '../../shared/format'
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { creerReperePassage } from '../../shared/entretien/reperesPassages'
@@ -151,7 +151,7 @@ export function useEntretien(deps: {
   const meta = reactive<{
     valeursGen: Record<string, string>
     audioRef: string | null
-    audioDistant?: { chemin: string } | null // transporté tel quel par payloadCourant
+    audioDistant?: ReferenceMediaDistant | null // transporté tel quel par payloadCourant
   }>({
     valeursGen: {},
     audioRef: null,

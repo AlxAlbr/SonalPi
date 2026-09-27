@@ -9,7 +9,7 @@
  *  réseau, aucune dépendance.
  */
 
-import type { ImplementationFetch } from '../src/main/webdav/client'
+import { ClientWebDAV, type DelaisWebDAV, type ImplementationFetch } from '../../src/main/webdav/client'
 
 interface Entree {
   contenu?: string // absent = fichier binaire ou dossier ; voir `dossier`/`binaire`
@@ -20,6 +20,34 @@ interface Entree {
   /** Octets bruts d'un PUT non décodable en UTF-8 (`putBinaire`).
    *  Quand présent, GET renvoie CES octets et `contenu` est ignoré. */
   binaire?: Uint8Array
+  /** Type MIME servi (défaut : `application/json`, comme un fichier de corpus). */
+  typeMime?: string
+  /** Date de modification servie en `Last-Modified`. */
+  modifieLe?: string
+}
+
+/** Dialectes de serveur, impossibles à provoquer sûrement sur un serveur réel.
+ *  Un banc conforme les laisse tous désactivés. */
+export interface VariantesServeur {
+  /** Le serveur IGNORE la plage et renvoie 200 avec le fichier entier. */
+  plagesIgnorees: boolean
+  /** Annonce un `Content-Range` qui ne décrit pas la demande — le dialecte
+   *  observé sur Sharedoc pour une plage en suffixe. */
+  contentRangeFaux: boolean
+  /** Annonce la bonne longueur et envoie moins d'octets. */
+  corpsTronque: boolean
+  /** Annonce la bonne longueur et envoie plus d'octets. */
+  corpsTropLong: boolean
+  /** `HEAD` refusé, `PROPFIND` disponible. */
+  headRefuse: boolean
+  /** Un ETag différent à chaque lecture : le média semble remplacé. */
+  etagInstable: boolean
+  /** Répond 416 à une plage dans les bornes. */
+  plageHorsBornes: boolean
+  /** Coupe la réponse au milieu du corps. */
+  coupureMilieu: boolean
+  /** Délai avant l'envoi de la réponse. */
+  delaiMs: number
 }
 
 /** Verrou natif posé sur un fichier (émulation files_lock, variante A) :
@@ -57,6 +85,30 @@ export class ServeurWebDAVMemoire {
   poser(cheminRelatif: string, contenu: string): void {
     const etag = this.prochainEtag()
     this.entrees.set(this.absolu(cheminRelatif), { contenu, etag })
+  }
+
+  /** Amorce un média : octets bruts, type MIME et date de modification, comme
+   *  un fichier audio ou vidéo déposé par une personne. */
+  poserMedia(cheminRelatif: string, octets: Uint8Array, typeMime: string): void {
+    const etag = this.prochainEtag()
+    this.entrees.set(this.absolu(cheminRelatif), {
+      binaire: octets,
+      etag,
+      typeMime,
+      modifieLe: 'Tue, 15 Sep 2026 10:00:00 GMT',
+    })
+  }
+
+  /** Dialectes à activer le temps d'un test ; tous désactivés par défaut. */  readonly variantes: VariantesServeur = {
+    plagesIgnorees: false,
+    contentRangeFaux: false,
+    corpsTronque: false,
+    corpsTropLong: false,
+    headRefuse: false,
+    etagInstable: false,
+    plageHorsBornes: false,
+    coupureMilieu: false,
+    delaiMs: 0,
   }
 
   /** Amorce d'un fichier BINAIRE (octets bruts — jamais décodés en texte). */
@@ -129,6 +181,14 @@ export class ServeurWebDAVMemoire {
       : this.erreur(401)
   }
 
+  /** Client WebDAV branché sur ce banc, avec l'identité du serveur par défaut. */
+  client(
+    identifiants: { utilisateur: string; motDePasse: string } = this.identifiants,
+    delais: Partial<DelaisWebDAV> = {},
+  ): ClientWebDAV {
+    return new ClientWebDAV({ baseUrl: this.baseUrl, identifiants }, this.fetch, delais)
+  }
+
   /** Le `fetch` à injecter dans ClientWebDAV. */
   readonly fetch: ImplementationFetch = async (
     entree: RequestInfo | URL,
@@ -137,6 +197,19 @@ export class ServeurWebDAVMemoire {
     const requete = new Request(entree, init)
     const nonAutorise = this.verifierAuth(requete)
     if (nonAutorise) return nonAutorise
+    if (this.variantes.delaiMs > 0) {
+      await new Promise<void>((resoudre, rejeter) => {
+        const minuterie = setTimeout(resoudre, this.variantes.delaiMs)
+        requete.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(minuterie)
+            rejeter(new DOMException('Annulé', 'AbortError'))
+          },
+          { once: true },
+        )
+      })
+    }
 
     const chemin = decodeURIComponent(new URL(requete.url).pathname)
     // Zone autorisée = la branche DAV du compte (`/remote.php/…`) et non plus seulement la racine du corpus :
@@ -146,14 +219,15 @@ export class ServeurWebDAVMemoire {
     }
 
     switch (requete.method) {
-      case 'GET': {
+      case 'GET':
+        return this.get(requete, chemin)
+      case 'HEAD': {
+        if (this.variantes.headRefuse) return this.erreur(405)
         const e = this.entrees.get(chemin)
         if (!e || e.dossier || (e.contenu === undefined && !e.binaire)) return this.erreur(404)
-        const corps = e.binaire ?? e.contenu!
-        const taille = e.binaire ? e.binaire.length : Buffer.byteLength(e.contenu!, 'utf8')
-        return new Response(corps, {
+        return new Response(null, {
           status: 200,
-          headers: { ETag: `"${e.etag}"`, 'Content-Type': 'application/json', 'Content-Length': String(taille) },
+          headers: this.entetesDe(chemin, e, this.octetsDe(e).length),
         })
       }
       case 'PUT': {
@@ -200,6 +274,110 @@ export class ServeurWebDAVMemoire {
   }
 
   /** Le cœur du test-and-set : le serveur tranche. */
+  private octetsDe(e: Entree): Uint8Array {
+    return e.binaire ?? new TextEncoder().encode(e.contenu ?? '')
+  }
+
+  private entetesDe(chemin: string, e: Entree, taille: number): Record<string, string> {
+    return {
+      ETag: `"${this.etagServi(chemin, e)}"`,
+      'Content-Type': e.typeMime ?? 'application/json',
+      'Content-Length': String(taille),
+      ...(e.modifieLe ? { 'Last-Modified': e.modifieLe } : {}),
+    }
+  }
+
+  /** Un média qui change tout seul fait varier l'ETag d'une lecture à l'autre. */
+  private etagServi(chemin: string, e: Entree): string {
+    return this.variantes.etagInstable ? this.prochainEtag() : e.etag
+  }
+
+  /** GET : fichier entier, ou plage si le client en demande une.
+   *  `Accept-Ranges` n'est JAMAIS envoyé — les deux serveurs qualifiés l'omettaient. */
+  private get(requete: Request, chemin: string): Response {
+    const e = this.entrees.get(chemin)
+    if (!e || e.dossier || (e.contenu === undefined && !e.binaire)) return this.erreur(404)
+    const requeteRange = requete.headers.get('Range')
+    const octets = this.octetsDe(e)
+    const entetes = this.entetesDe(chemin, e, octets.length)
+    if (!requeteRange || this.variantes.plagesIgnorees) {
+      return new Response(octets, { status: 200, headers: entetes })
+    }
+    if (this.variantes.plageHorsBornes) return this.erreur(416)
+    const demande = this.analyserRange(requeteRange, octets.length)
+    if (!demande) return this.erreur(416)
+
+    const { debut, fin } = demande
+    const tranche = octets.subarray(debut, fin + 1)
+    const reponse: ResponseInit = {
+      status: 206,
+      headers: {
+        ...entetes,
+        'Content-Range': this.variantes.contentRangeFaux
+          ? `bytes ${debut + 1}-${fin + 1}/${octets.length}`
+          : `bytes ${debut}-${fin}/${octets.length}`,
+        'Content-Length': String(tranche.length),
+      },
+    }
+    if (this.variantes.corpTronque) {
+      return this.reponseSegmentee(tranche.subarray(0, Math.max(1, tranche.length - 1)), reponse)
+    }
+    if (this.variantes.corpsTropLong) {
+      const allongé = new Uint8Array(tranche.length + 8)
+      allongé.set(tranche)
+      return this.reponseSegmentee(allongé, reponse)
+    }
+    if (this.variantes.coupureMilieu) {
+      return new Response(
+        new ReadableStream({
+          start(controleur) {
+            controleur.enqueue(tranche.subarray(0, Math.floor(tranche.length / 2)))
+            controleur.error(new Error('coupure réseau'))
+          },
+        }),
+        reponse,
+      )
+    }
+    return this.reponseSegmentee(tranche, reponse)
+  }
+
+  /** Un vrai réseau ne livre pas un fichier d'un seul bloc : le corps part en
+   *  morceaux, ce qui éprouve le relais bien mieux qu'un envoi unique. */
+  private reponseSegmentee(corps: Uint8Array, reponse: ResponseInit): Response {
+    const TAILLE = 1024
+    return new Response(
+      new ReadableStream({
+        start(controleur) {
+          for (let debut = 0; debut < corps.length; debut += TAILLE) {
+            controleur.enqueue(corps.subarray(debut, debut + TAILLE))
+          }
+          controleur.close()
+        },
+      }),
+      reponse,
+    )
+  }
+
+  /** Plage demandée, bornée au fichier. Une plage en suffixe (`bytes=-N`)
+   *  rend les PREMIERS octets du fichier, avec un 206 syntaxiquement valide :
+   *  c'est le dialecte relevé sur Sharedoc, et la raison de ne jamais accepter
+   *  une plage en suffixe. */
+  private analyserRange(entete: string, taille: number): { debut: number; fin: number } | null {
+    const trouve = /^bytes=(\d*)-(\d*)$/.exec(entete.trim())
+    if (!trouve) return null
+    const debutBrut = trouve[1]
+    const finBrut = trouve[2]
+    if (debutBrut === '' && finBrut === '') return null
+    if (debutBrut === '') {
+      const compte = Number(finBrut)
+      return { debut: 0, fin: Math.min(compte, Math.max(0, taille - 1)) }
+    }
+    const debut = Number(debutBrut)
+    if (!Number.isSafeInteger(debut) || debut >= taille) return null
+    const fin = finBrut === '' ? taille - 1 : Math.min(Number(finBrut), taille - 1)
+    return fin < debut ? null : { debut, fin }
+  }
+
   private put(corps: string | undefined, requete: Request, chemin: string, binaire?: Uint8Array): Response {
     const existante = this.entrees.get(chemin)
     if (requete.headers.get('If-None-Match') === '*' && existante) {
@@ -308,6 +486,8 @@ export class ServeurWebDAVMemoire {
     ${estDossier ? '<d:resourcetype><d:collection/></d:resourcetype>' : '<d:resourcetype/>'}
     ${!estDossier ? `<d:getetag>"${e.etag}"</d:getetag>` : ''}
     ${!estDossier ? `<d:getcontentlength>${e.binaire ? e.binaire.length : e.contenu!.length}</d:getcontentlength>` : ''}
+    ${!estDossier && e.typeMime ? `<d:getcontenttype>${e.typeMime}</d:getcontenttype>` : ''}
+    ${!estDossier && e.modifieLe ? `<d:getlastmodified>${e.modifieLe}</d:getlastmodified>` : ''}
     ${propsVerrou}
   </d:prop></d:propstat>
 </d:response>`

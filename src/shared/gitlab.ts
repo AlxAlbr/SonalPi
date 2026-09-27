@@ -1,5 +1,21 @@
 import type { OuvertureDistante } from './distant'
 
+/** Base média déclarée sur ce poste, sans adresse ni secret. */
+export interface BaseMediaGitLabPublique {
+  utilisateur: string
+  secretDisponible: boolean
+}
+
+export interface DemandeConfigurationBaseMedia {
+  urlBase: string
+  utilisateur: string
+  motDePasse: string
+}
+
+export type ResultatConfigurationBaseMedia =
+  | { ok: true }
+  | { ok: false; motif: 'droits' | 'dossier-absent' | 'indisponible' }
+
 /** Destination GitLab enregistrée, sans secret. */
 export interface DestinationGitLabPublic {
   fournisseur: 'gitlab'
@@ -13,6 +29,8 @@ export interface DestinationGitLabPublic {
   racine: string
   /** Le compte connecté a-t-il un credential utilisable pour cette destination ? */
   connexionDisponible: boolean
+  /** Base média propre à ce poste, ou null si elle n'est pas configurée. */
+  baseMedia: BaseMediaGitLabPublique | null
 }
 
 /** Compte GitLab connu du poste, décrit sans aucun secret. */
@@ -73,5 +91,10 @@ export interface ApiGitLab {
   enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<OuvertureDistante>
   creerEtOuvrir(demande: DemandeCreationGitLab): Promise<OuvertureDistante>
   ouvrir(id: string): Promise<OuvertureDistante>
+  configurerBaseMedia(
+    destinationId: string,
+    demande: DemandeConfigurationBaseMedia,
+  ): Promise<ResultatConfigurationBaseMedia>
+  oublierBaseMedia(destinationId: string): Promise<DestinationGitLabPublic[]>
   oublierDestination(id: string): Promise<DestinationGitLabPublic[]>
 }

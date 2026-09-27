@@ -4,7 +4,7 @@ import type { ResultatImport } from '../../formatSonal/importSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../../audio/waveform'
 import { choisirSrtAvantMutation } from '../../couturesApplication'
 import { texteDuCorps } from '../../../shared/entretien/entretien'
-import type { EntretienRef } from '../../../shared/format'
+import { referenceMediaDistant, type EntretienRef, type ReferenceMediaDistant } from '../../../shared/format'
 import type { DetailsSelectionCorpus } from './useSelectionCorpus'
 
 type InventaireMedias = Record<string, { audio: string | null; waveform: string | null }>
@@ -20,7 +20,7 @@ interface EntretienMediaCorpus {
   ouvertId: Ref<string | null>
   meta: {
     audioRef: string | null
-    audioDistant?: { chemin: string } | null
+    audioDistant?: ReferenceMediaDistant | null
   }
   sauver: () => Promise<void>
   reouvrir: (id: string, sessionExistante?: boolean) => Promise<boolean>
@@ -259,7 +259,7 @@ export function useMediasCorpus(deps: {
     const id = designationAudioId.value
     if (!id) return
     if (deps.entretien.ouvertId.value === id) {
-      deps.entretien.meta.audioDistant = { chemin }
+      deps.entretien.meta.audioDistant = referenceMediaDistant(chemin)
       await deps.entretien.sauver()
       designationAudioId.value = null
       await majAudioEntretien(id)

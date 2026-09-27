@@ -390,8 +390,9 @@ renderer jusqu'à la qualification finale.
   (`distant: listerDivergences`) et pas pour GitLab, où la reprise en conflit est
   aujourd'hui une impasse (`gitlab/session.ts:136`). C'est un chantier de
   récupération, distinct de celui-ci, à traiter après le lot E si le pilote le demande.
-- **Médias partagés et Docs cadre.** Ils demandent un port de transfert branché sur
-  le miroir, et une décision LFS. Voir [plan-media.md](plan-media.md).
+- **Médias partagés et Docs cadre.** Les médias GitLab utilisent un stockage
+  WebDAV secondaire, sans LFS ni résolution par le miroir GitLab. Voir
+  [plan-media2.md](plan-media2.md).
 - **Personnes, lots de valeurs et lots de règles sur GitLab.** Ces transactions
   existent déjà pour Nextcloud (`main/index.ts`, `distant/transactions.ts`). Les
   reporter pour GitLab, sans régresser sur Nextcloud.

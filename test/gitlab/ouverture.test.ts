@@ -305,6 +305,12 @@ describe('ouverture GitLab — orchestration du service', () => {
       preparationFactice(destination, ''))
     const { service, coffre } = bancOuverture({ preparer: observé })
     const destination = enregistrerDestination(coffre)
+    coffre.enregistrerBaseMedia({
+      destinationGitLabId: destination.id,
+      urlBase: 'https://nuage.example.org/dav/medias',
+      utilisateur: 'max-media',
+      motDePasse: 'secret-media',
+    })
 
     const resultat = await service.ouvrir(destination.id)
 
@@ -317,7 +323,10 @@ describe('ouverture GitLab — orchestration du service', () => {
       id: destination.id,
       branche: destination.branche,
       racine: destination.racine,
+      baseMedia: { utilisateur: 'max-media', secretDisponible: true },
     })
+    expect(JSON.stringify(resultat.distant)).not.toContain('nuage.example.org')
+    expect(JSON.stringify(resultat.distant)).not.toContain('secret-media')
     expect(resultat.corpus.membership).toEqual({})
   })
 

@@ -90,6 +90,20 @@ export interface EntreePropfind {
    *  undefined si absente (dossier ou serveur avare) ;
    *  sert à la progression des transferts (voir `compteurProgression`). */
   taille?: number
+  /** Type MIME annoncé (`getcontenttype`), quand le serveur le publie. */
+  typeMime?: string
+  /** Date de dernière modification (`getlastmodified`), au format HTTP. */
+  dernierModifie?: string
+}
+
+/** Observation d'un fichier distant, relue à chaque usage.
+ *  Aucun de ces champs n'est une identité : ils servent à piloter une lecture,
+ *  pas à reconnaître un média. */
+export interface InformationFichier {
+  taille: number | null
+  typeMime: string | null
+  etag: string | null
+  dernierModifie: string | null
 }
 
 /** Erreur HTTP typée par statut ;
@@ -125,6 +139,13 @@ export interface OptionsPut {
 }
 
 export type ImplementationFetch = typeof fetch
+
+/** Plage demandée par le lecteur, exprimable par l'API du contrat de lecture :
+ *  une borne de début, et une borne de fin facultative (jusqu'à la fin). */
+export interface PlageDemandee {
+  debut: number
+  fin?: number
+}
 
 /** État du verrou NATIF d'un fichier (props files_lock) ;
  *  c'est la forme brute du serveur, le provider la traduit en `ContenuVerrou`. */
@@ -200,14 +221,26 @@ export class ClientWebDAV {
       statutsOk?: number[]
       /** Un transfert garde un délai plus long que les échanges JSON. */
       transfert?: boolean
+      /** Annulation décidée par l'appelant (seek, fermeture, remplacement) :
+       *  elle remonte jusqu'au `fetch`, corps compris. */
+      signal?: AbortSignal
       /** Le traitement reste sous le même délai que la réception des en-têtes. */
       traiter?: (reponse: Response) => Promise<T> | T
     } = {},
   ): Promise<T> {
     const delaiMs = options.transfert ? this.delais.transfertMs : this.delais.requeteMs
-    const controleur = new AbortController()
-    const minuterie = setTimeout(() => controleur.abort(), delaiMs)
+    const controleurDelai = new AbortController()
+    let delaiDepasse = false
+    const minuterie = setTimeout(() => {
+      delaiDepasse = true
+      controleurDelai.abort()
+    }, delaiMs)
     ;(minuterie as unknown as { unref?: () => void }).unref?.()
+    // Le signal composé conserve l'annulation de l'appelant après les
+    // en-têtes, pendant que le lecteur consomme encore le corps.
+    const signal = options.signal
+      ? AbortSignal.any([controleurDelai.signal, options.signal])
+      : controleurDelai.signal
     try {
       const reponse = await this.faireRequete(this.url(chemin), {
         method: methode,
@@ -216,7 +249,7 @@ export class ClientWebDAV {
           ...options.entetes,
         },
         body: options.corps ?? undefined,
-        signal: controleur.signal,
+        signal,
         redirect: 'error',
         ...(options.duplex ? { duplex: options.duplex } : {}),
       })
@@ -228,7 +261,7 @@ export class ClientWebDAV {
         ? await options.traiter(reponse)
         : reponse as T
     } catch (e) {
-      if (controleur.signal.aborted) throw new ErreurDelaiWebDAV(methode, chemin, delaiMs)
+      if (delaiDepasse) throw new ErreurDelaiWebDAV(methode, chemin, delaiMs)
       throw e
     } finally {
       clearTimeout(minuterie)
@@ -275,6 +308,81 @@ export class ClientWebDAV {
   async getTexte(chemin: string): Promise<string> {
     return this.requete<string>('GET', chemin, {
       traiter: (reponse) => reponse.text(),
+    })
+  }
+
+  /* ── Lecture d'un média ────────────────────────────────────────────────
+   *  Deux primitives seulement : l'information sur le fichier et la lecture
+   *  d'une plage. Elles rendent la réponse TELLE QUELLE — c'est le contrat
+   *  de lecture (`webdav/lectureMedia.ts`) qui décide si elle est
+   *  acceptable. Aucune ne lit le corps en mémoire.
+   *  ──────────────────────────────────────────────────────────────────────*/
+
+  /** Information sur un fichier : `HEAD` d'abord, `PROPFIND` Depth:0 en repli
+   *  lorsque le serveur refuse le `HEAD` (405/501) ou n'envoie aucun
+   *  en-tête exploitable. Une valeur absente n'est pas une erreur : un champ
+   *  manque, pas le fichier. */
+  async informationFichier(
+    chemin: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<InformationFichier> {
+    const vide: InformationFichier = {
+      taille: null,
+      typeMime: null,
+      etag: null,
+      dernierModifie: null,
+    }
+    let informationHead = vide
+    try {
+      const reponse = await this.requete('HEAD', chemin, {
+        statutsOk: [200],
+        signal: options.signal,
+      })
+      informationHead = informationDeEntetes(reponse.headers)
+      if (Object.values(informationHead).some((valeur) => valeur !== null)) {
+        return informationHead
+      }
+    } catch (e) {
+      if (!(e instanceof ErreurHttp) || (e.statut !== 405 && e.statut !== 501)) throw e
+    }
+    try {
+      const xml = await this.requete<string>('PROPFIND', chemin, {
+        entetes: { Depth: '0', 'Content-Type': 'application/xml' },
+        corps: CORPS_PROPFIND_FICHIER,
+        statutsOk: [207],
+        signal: options.signal,
+        traiter: (reponse) => reponse.text(),
+      })
+      const proprietes = analyserProprietesFichier(xml)
+      return { ...informationHead, ...proprietes }
+    } catch (e) {
+      // Certains serveurs savent répondre à HEAD sans exposer de propriété
+      // DAV. Les autres refus restent des erreurs à présenter à l'appelant.
+      if (e instanceof ErreurHttp && (e.statut === 405 || e.statut === 501)) {
+        return informationHead
+      }
+      throw e
+    }
+  }
+
+  /** GET d'une plage, corps rendu en flux.
+   *  Le `200` d'un serveur qui ignore la plage est volontairement rendu au
+   *  contrat de lecture : c'est lui qui l'annule et qui tranche.
+   *  Le délai porte sur l'obtention des en-têtes, pas sur la lecture du
+   *  média — une vidéo longue n'est pas une requête qui traîne. */
+  async getPlage(
+    chemin: string,
+    plage: PlageDemandee,
+    options: { signal?: AbortSignal; validateur?: string } = {},
+  ): Promise<Response> {
+    const entetes: Record<string, string> = {
+      Range: `bytes=${plage.debut}-${plage.fin ?? ''}`,
+    }
+    if (options.validateur) entetes['If-Range'] = options.validateur
+    return this.requete('GET', chemin, {
+      entetes,
+      statutsOk: [200, 206, 416],
+      signal: options.signal,
     })
   }
 
@@ -581,6 +689,51 @@ export function retirerGuillemets(etag: string): string {
   return etag.replace(/^"|"$/g, '')
 }
 
+/** En-têtes d'un `HEAD` : ce que le serveur dit du fichier, sans le lire. */
+function informationDeEntetes(entetes: Headers): InformationFichier {
+  const tailleTexte = entetes.get('content-length')
+  const tailleBrute = tailleTexte !== null && /^\d+$/.test(tailleTexte.trim())
+    ? Number(tailleTexte.trim())
+    : null
+  const etag = entetes.get('etag')
+  return {
+    taille: tailleBrute !== null && Number.isSafeInteger(tailleBrute) ? tailleBrute : null,
+    typeMime: entetes.get('content-type'),
+    etag: etag ? retirerGuillemets(etag) : null,
+    dernierModifie: entetes.get('last-modified'),
+  }
+}
+
+const CORPS_PROPFIND_FICHIER = `<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:">
+  <d:prop>
+    <d:getetag/>
+    <d:getcontentlength/>
+    <d:getcontenttype/>
+    <d:getlastmodified/>
+  </d:prop>
+</d:propfind>`
+
+/** Propriétés d'un fichier unique, premier bloc `<response>` du 207.
+ *  Un `HEAD` refusé laisse ici le seul chemin possible : c'est pourquoi le
+ *  repli existe, et pourquoi ces quatre propriétés sont les seules demandées. */
+export function analyserProprietesFichier(xml: string): Partial<InformationFichier> {
+  const bloc = /<(?:[\w.-]+:)?response\b[\s\S]*?<\/(?:[\w.-]+:)?response>/i.exec(xml)?.[0]
+  if (!bloc) return {}
+  const tailleBrute = valeurBalise(bloc, 'getcontentlength')
+  const taille = tailleBrute !== null && /^\d+$/.test(tailleBrute.trim())
+    ? Number(tailleBrute.trim())
+    : null
+  return {
+    ...(taille !== null ? { taille } : {}),
+    ...(valeurBalise(bloc, 'getcontenttype') ? { typeMime: valeurBalise(bloc, 'getcontenttype') } : {}),
+    ...(valeurBalise(bloc, 'getlastmodified') ? { dernierModifie: valeurBalise(bloc, 'getlastmodified') } : {}),
+    ...(valeurBalise(bloc, 'getetag')
+      ? { etag: retirerGuillemets(valeurBalise(bloc, 'getetag')!) }
+      : {}),
+  }
+}
+
 /* ── Analyse du multistatus 207 ──────────────────────────────────────────────
  * Un mini-parseur SUFFIT : le contrat est borné (réponses du serveur à nos
  * propres PROPFIND, deux propriétés attendues). Pas de DOM XML ni de
@@ -629,11 +782,15 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
     const etagBrut = valeurBalise(bloc, 'getetag')
     const tailleBrute = valeurBalise(bloc, 'getcontentlength')
     const taille = tailleBrute !== null && /^\d+$/.test(tailleBrute.trim()) ? Number(tailleBrute.trim()) : undefined
+    const typeMime = valeurBalise(bloc, 'getcontenttype')
+    const dernierModifie = valeurBalise(bloc, 'getlastmodified')
     sorties.push({
       chemin,
       etag: etagBrut ? retirerGuillemets(etagBrut) : null,
       dossier,
       ...(taille !== undefined ? { taille } : {}),
+      ...(typeMime ? { typeMime } : {}),
+      ...(dernierModifie ? { dernierModifie } : {}),
     })
   }
   return sorties

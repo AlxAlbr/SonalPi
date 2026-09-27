@@ -33,6 +33,7 @@ import type { ServiceAuthentificationGitLab } from './authentification'
 import { matriceCapacites } from './politiqueGestes'
 import { PublieurGitLab } from './publication'
 import { TransactionsGitLab } from './transactions'
+import { baseMediaLocale } from '../medias/baseMedia'
 
 /** Destination GitLab enregistrée, rendue au renderer sans aucun secret. */
 export function destinationGitLabPublique(
@@ -43,6 +44,7 @@ export function destinationGitLabPublique(
   const compte = coffre.listerComptesGitLab()
     .find((candidat) => candidat.id === destination.compteId)
   if (!compte) return null
+  const baseMedia = baseMediaLocale(coffre, destination.id)
   return {
     fournisseur: 'gitlab',
     id: destination.id,
@@ -54,6 +56,12 @@ export function destinationGitLabPublique(
     branche: destination.branche,
     racine: destination.racine,
     connexionDisponible: connexionDisponible(compte.id),
+    baseMedia: baseMedia
+      ? {
+          utilisateur: baseMedia.utilisateur,
+          secretDisponible: baseMedia.secretDisponible,
+        }
+      : null,
   }
 }
 

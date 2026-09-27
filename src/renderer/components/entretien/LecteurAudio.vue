@@ -23,6 +23,7 @@ const {
   associerAudioEntretienOuvert,
   ouvrirDesignationAudio,
   etatAudioOuvert,
+  gesteDisponible,
   rapatrierAudioMaintenant,
   idDistantCourant,
   ouvertId,
@@ -141,9 +142,10 @@ dès que les droits seront ouverts.
       <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
       <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
       <!-- Ou lier le fichier PARTAGÉ du serveur — la copie miroir
-           arrivera chez tous au prochain tirage. -->
+           arrivera chez tous au prochain tirage. Le geste suit la capacité du
+           fournisseur : un dépôt GitLab n'est pas un magasin de médias. -->
       <button
-        v-if="ouvertId"
+        v-if="ouvertId && gesteDisponible('mediasPartages')"
         class="mini-lect"
         @click="ouvrirDesignationAudio(ouvertId)"
       >

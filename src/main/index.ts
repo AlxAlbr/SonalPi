@@ -137,6 +137,7 @@ import type {
 } from '../shared/docsCadre'
 import { estListable } from '../shared/docsCadre'
 import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
+import { enregistrerBaseMediaVerifiee } from './medias/baseMedia'
 import { appliquerMenu } from './menuApplication'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
@@ -1589,6 +1590,15 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   ipcMain.handle('webdav:lister', () => coffre.lister().map(sansSecret))
   ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
+  ipcMain.handle(
+    'gitlab:configurerBaseMedia',
+    (_e, destinationId: string, demande: { urlBase: string; utilisateur: string; motDePasse: string }) =>
+      enregistrerBaseMediaVerifiee(coffre, destinationId, demande),
+  )
+  ipcMain.handle('gitlab:oublierBaseMedia', (_e, destinationId: string) => {
+    coffre.oublierBaseMedia(destinationId)
+    return listerDestinationsGitLabPubliques()
+  })
   ipcMain.handle('gitlab:detecterInstance', (_e, urlProjet: string) =>
     detecterInstanceGitLab(urlProjet))
   ipcMain.handle('gitlab:etat', (_e, urlInstance: string) =>

@@ -35,7 +35,12 @@ import type {
   ResultatFermetureSession,
   ResultatFermetureToutes,
 } from '../../shared/distant'
-import { FORMAT_VERSION, type EntretienFichier, type PayloadEntretien } from '../../shared/format'
+import {
+  FORMAT_VERSION,
+  referenceMediaDistant,
+  type EntretienFichier,
+  type PayloadEntretien,
+} from '../../shared/format'
 
 export interface IdentiteSession {
   userId: string
@@ -458,7 +463,7 @@ export class SessionsDEntretien {
   ): Promise<{ ok: boolean; raison?: string }> {
     const resultat = await this.modifierEntretienFerme(id, (data) => {
       data.meta ??= { valeursGen: {}, audioRef: null }
-      data.meta.audioDistant = { chemin: cheminAudio }
+      data.meta.audioDistant = referenceMediaDistant(cheminAudio)
     })
     return resultat.ok ? { ok: true } : resultat
   }
