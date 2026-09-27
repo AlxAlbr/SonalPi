@@ -15,7 +15,7 @@ import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublicati
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
-import type { CorpusFichier, PayloadEntretien } from '../../src/shared/format'
+import type { CorpusFichier, EntretienFichier, PayloadEntretien } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
 
 const destination: ConfigDestinationGitLab = {
@@ -48,6 +48,46 @@ const ID_THEME = 'cat_theme'
 
 function nomDuTheme(corpus: CorpusFichier): string {
   return corpus.codebook[ID_THEME]?.nom
+}
+
+function entretien(texte = 'Alice'): EntretienFichier {
+  return {
+    formatVersion: 8,
+    lastModified: '2026-01-01T00:00:00.000Z',
+    corpsTexte: {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: { loc: null },
+        content: [{ type: 'text', text: texte }],
+      }],
+    },
+    annotations: [],
+    ancres: [],
+    locuteurs: [],
+    meta: { valeursGen: {}, audioRef: null },
+  }
+}
+
+function corpusAvecValeurs(): CorpusFichier {
+  const corpus = squeletteCorpus('Corpus partagé')
+  corpus.membership.e1 = {
+    titre: 'Entretien un',
+    date: null,
+    lastModified: '2026-01-01T00:00:00.000Z',
+  }
+  corpus.ordreEntretiens = ['e1']
+  corpus.variables.v1 = {
+    id: 'v1',
+    lib: 'Statut',
+    portee: 'entretien',
+    priv: false,
+    ordre: 0,
+    vExport: 1,
+    modalites: [{ id: 'm1', lib: 'Oui', mExport: 1 }],
+  }
+  corpus.reglesAnon.r1 = { id: 'r1', entite: ['Alice'], pseudos: ['A.'] }
+  return corpus
 }
 
 function payload(texte: string): PayloadEntretien {
@@ -395,9 +435,7 @@ describe('reprise après coupure', () => {
       operationId: 'operation-indetermine',
       nature: 'transaction-corpus',
       branche: destination.branche,
-      resourceHash: hashRessourceCorpus(),
-      generation: 'generation-test',
-      leaseCommitId: 'a'.repeat(40),
+      droits: [{ resourceHash: hashRessourceCorpus(), generation: 'generation-test', leaseCommitId: 'a'.repeat(40) }],
       etat: 'indetermine',
       actions: [{
         action: 'update',
@@ -491,6 +529,135 @@ describe('reprise après coupure', () => {
     expect(store.reprendreTransactionFichiers()).toBe(true)
     expect(lireLocal().nom).toBe('Renommé après coup')
     expect(existsSync(join(dirLocal, '.transaction-fichiers.json'))).toBe(false)
+  })
+})
+
+describe('écritures courtes d’entretien GitLab', () => {
+  test('pose une valeur sous bail entretien et garde le corpus inchangé', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+
+    await b.transactions.poserValeursEntretien('e1', [{
+      entretienId: 'e1',
+      cible: { type: 'entretien' },
+      idVar: 'v1',
+      idMod: 'm1',
+    }])
+
+    const publie = JSON.parse(
+      b.depot.fichiers.get(`${RACINE}/entretiens/e1.json`)!.contenu,
+    ) as EntretienFichier
+    const local = JSON.parse(
+      readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ) as EntretienFichier
+    expect(publie.meta.valeursGen).toEqual({ v1: 'm1' })
+    expect(local.meta.valeursGen).toEqual({ v1: 'm1' })
+    const actions = b.depot.commits.find((commit) =>
+      commit.actions.some((action) => action.file_path === `${RACINE}/entretiens/e1.json`))!.actions
+    expect(actions.map((action) => action.file_path)).toContain(`${RACINE}/corpus.json`)
+    expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu)).toEqual(serveur)
+    expect(b.journal.lister()).toHaveLength(0)
+  })
+
+  test('relit le corpus et refuse une modalité supprimée pendant la préparation', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+    let suppressionFaite = false
+    b.depot.avantCommit = (actions) => {
+      if (
+        suppressionFaite
+        || !actions.some((action) => action.file_path === `${RACINE}/entretiens/e1.json`)
+      ) return
+      suppressionFaite = true
+      const concurrent = corpusAvecValeurs()
+      concurrent.variables.v1.modalites = []
+      b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(concurrent, null, 2))
+    }
+
+    await expect(b.transactions.poserValeursEntretien('e1', [{
+      entretienId: 'e1',
+      cible: { type: 'entretien' },
+      idVar: 'v1',
+      idMod: 'm1',
+    }])).rejects.toThrow(/modalité.*n’existe plus/)
+
+    const publie = JSON.parse(
+      b.depot.fichiers.get(`${RACINE}/entretiens/e1.json`)!.contenu,
+    ) as EntretienFichier
+    expect(publie.meta.valeursGen).toEqual({})
+    expect(existsSync(join(b.dirLocal, 'entretiens/e1.json'))).toBe(false)
+  })
+
+  test('retrouve une réponse perdue et n’envoie pas une seconde fois le candidat', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+    b.depot.avantCommit = (actions) => {
+      if (actions.some((action) => action.file_path === `${RACINE}/entretiens/e1.json`)) {
+        b.depot.echouerApresAccepter(new Error('réponse perdue'))
+      }
+    }
+
+    await b.transactions.poserValeursEntretien('e1', [{
+      entretienId: 'e1',
+      cible: { type: 'entretien' },
+      idVar: 'v1',
+      idMod: 'm1',
+    }])
+
+    expect(actionsDeDonnees(b.depot).filter(
+      (action) => action.file_path === `${RACINE}/entretiens/e1.json`,
+    )).toHaveLength(1)
+    expect(b.journal.lister()).toHaveLength(0)
+    expect(JSON.parse(
+      readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ).meta.valeursGen).toEqual({ v1: 'm1' })
+  })
+
+  test('garde une réponse indéterminée sans bloquer les transactions de corpus', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+    b.depot.rendreCommitsIllisibles()
+    b.depot.avantCommit = (actions) => {
+      if (actions.some((action) => action.file_path === `${RACINE}/entretiens/e1.json`)) {
+        b.depot.echouerApresAccepter(new Error('réponse perdue'))
+      }
+    }
+
+    await expect(b.transactions.poserValeursEntretien('e1', [{
+      entretienId: 'e1',
+      cible: { type: 'entretien' },
+      idVar: 'v1',
+      idMod: 'm1',
+    }])).rejects.toThrow(/n’a pas été confirmée/)
+
+    expect(b.journal.lister()).toHaveLength(1)
+    expect(b.journal.lister()[0].nature).toBe('transaction-entretien')
+    expect(b.journal.transactionsCorpusJournalisees()).toHaveLength(0)
+    expect(existsSync(join(b.dirLocal, 'entretiens/e1.json'))).toBe(false)
+  })
+
+  test('applique une règle et installe seulement le candidat confirmé', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien(), null, 2))
+
+    const resultat = await b.transactions.appliquerRegleEntretien('e1', {
+      entretienId: 'e1',
+      regleId: 'r1',
+      exception: [{ from: 1, to: 2 }],
+    })
+
+    expect(resultat).toMatchObject({ nb: 1, titre: 'Entretien un' })
+    const local = JSON.parse(
+      readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ) as EntretienFichier
+    expect(local.annotations).toEqual([
+      expect.objectContaining({ type: 'anon', regle: 'r1', etat: 'exception' }),
+    ])
   })
 })
 

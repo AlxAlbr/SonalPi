@@ -17,9 +17,10 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Renommer un entretien, le trier par ordre d'ajout ou alphabétiquement | oui | oui |
 | Tri par dernière modification ou par longueur | oui | oui, quand aucun entretien n'est tenu |
 | Suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note, d'une règle | oui | oui, après décompte des usages publiés |
-| Supprimer un entretien | oui | non |
+| Supprimer un entretien | oui | oui |
 | Créer ou importer un entretien, l'éditer sous session | oui | oui |
-| L'audio ou le SRT d'un entretien fermé, les valeurs dans la table de données | oui | non |
+| Valeurs dans la table de données, application de la pseudonymisation | oui | oui |
+| Audio ou SRT d'un entretien fermé | oui | non |
 | Notes du corpus, corrections de personnes, annulation d'une action du journal | non | non |
 | Médias partagés, Docs cadre | oui | non |
 
@@ -35,6 +36,31 @@ Sur GitLab, une suppression vérifie toutes les versions publiées des entretien
 Une session déjà ouverte ne peut pas republier ensuite une référence supprimée :
 la publication est refusée, mais le candidat local reste éditable afin de retirer
 la référence et de publier à nouveau.
+
+Sur les deux fournisseurs, une valeur ou une pseudonymisation saisie depuis une vue
+corpus prend un verrou bref sur chaque entretien fermé, un par entretien. Sur
+GitLab, le même commit garde aussi les définitions sans les modifier : une
+variable, une modalité ou une règle supprimée pendant l'opération fait refuser cet
+entretien, sans bloquer les suivants. Si l'entretien est déjà ouvert par vous, sa
+session existante est réutilisée et c'est elle qui publie.
+
+Un entretien fermé suivi par un autre poste s'affiche avec 🔒, et sa ligne n'est
+pas modifiable. Le badge est indicatif : c'est la tentative d'écriture qui vérifie
+le verrou, et une ligne sans badge est réellement essayée. Un entretien indisponible
+n'empêche pas les autres entretiens du même lot d'être modifiés.
+
+Sur GitLab, supprimer un entretien ferme d'abord votre session sur lui — le
+travail non publié est d'abord enregistré — puis prend deux verrous, celui du
+corpus et celui de l'entretien. Un seul commit retire l'entretien du corpus et
+déplace son fichier JSON dans le dossier `corbeille/` **du dépôt**, d'où il reste
+consultable dans l'historique. Vos sauvegardes et vos images de forme d'onde sont
+archivées **sur votre poste**, dans sa corbeille locale ; les audios référencés ne
+bougent pas. La suppression **n'est pas annulable** depuis le Journal du corpus, ni
+locale ni distante.
+
+Si un collègue tient l'entretien, la suppression est refusée en le nommant, et
+rien n'est modifié. Si l'entretien est repris entre-temps par un autre poste, la
+suppression s'arrête également sans rien modifier.
 
 ## Le principe en trois phrases
 
@@ -55,6 +81,10 @@ la référence et de publier à nouveau.
 | « publié à HH:MM » / « ● non publiées » | état de VOS modifications dans l'entretien ouvert | « Publier maintenant » pour forcer l'envoi |
 
 Ces indicateurs viennent du serveur, jamais d'une supposition.
+
+Le badge 👁 n'existe que sur Nextcloud : sur GitLab, un écrit par poste
+représenterait des milliers de commits par jour. Le badge 🔒, lui, est présent sur
+les deux, et il reste informatif partout.
 
 Si l'app n'a **pas** pu savoir qui tient quoi (serveur injoignable, droits
 insuffisants, coupure pendant l'actualisation), la barre de synchronisation
@@ -134,6 +164,19 @@ aucun entretien n'est ouvert chez vous :
 En lot, la portée **locuteur** n'est pas proposée : les locuteurs diffèrent d'un entretien à
 l'autre — utilisez le bouton de ligne pour ces cas. Si une divergence survient pendant un lot
 (rare), l'entretien concerné apparaît dans les refus : rien n'a été écrasé, relancez le lot.
+
+## Ce qui diffère sur GitLab
+
+- **Pas de 👁.** Le badge d'écriture 🔒 est là ; la simple consultation d'un
+  entretien par un collègue ne se voit pas.
+- **La fusion après divergence n'existe pas encore.** Si quelqu'un a modifié un
+  entretien hors de l'application, la réouverture est bloquée et votre copie est
+  mise de côté : comparez avec l'historique du projet et reprenez à la main.
+- **La suppression d'un entretien** range son fichier dans `corbeille/` **du
+  dépôt**, où il reste consultable dans l'historique du projet. Vos sauvegardes
+  et vos images de forme d'onde sont rangées dans la corbeille **de votre poste**.
+- **Médias partagés et Docs cadre** ne sont pas encore pris en charge sur
+  GitLab ; ils le restent sur Nextcloud.
 
 ## Résumé des bonnes pratiques
 

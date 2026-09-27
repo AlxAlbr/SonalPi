@@ -37,6 +37,8 @@ export interface CapacitesCorpus {
   metadonneesEntretien: boolean
   /** Saisie de valeurs dans la table de données d'un entretien. */
   tableDonnees: boolean
+  /** Application des règles de pseudonymisation dans les entretiens. */
+  pseudonymisationEntretiens: boolean
   /** Notes du corpus, par entretien. */
   notes: boolean
   /** Corrections de personnes. */

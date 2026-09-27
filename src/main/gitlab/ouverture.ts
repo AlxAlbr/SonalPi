@@ -25,11 +25,8 @@ import {
   type IdentiteBailGitLab,
 } from './bailGitLab'
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
-import {
-  JournalPublicationGitLab,
-  ReconciliateurPublicationGitLab,
-  type EntreeJournalPublication,
-} from './journalPublication'
+import { JournalPublicationGitLab } from './journalPublication'
+import { reprendreOperationsGitLab } from './reprise'
 import { JournalSessionsGitLab } from './journalSession'
 import { assemblerSessionGitLab } from './assemblageSession'
 import type { ServiceAuthentificationGitLab } from './authentification'
@@ -280,10 +277,14 @@ async function preparerOuvertureDestination(options: {
     identite: options.identite,
     fileCommits,
   })
-  const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
-  for (const entree of journal.lister()) {
-    await reconcilierPublication(entree, reconciliateur, journal, journalSessions, coordination)
-  }
+  await reprendreOperationsGitLab({
+    depot,
+    coordination,
+    journal,
+    journalSessions,
+    dirMiroir,
+    trace: (message) => console.info(message),
+  })
   const preparation = await preparerContexteGitLabLectureSeule({
     id: options.destination.id,
     dirLocal: dirMiroir,
@@ -322,51 +323,4 @@ async function preparerOuvertureDestination(options: {
     },
   })
   return { ...preparation, dirMiroir }
-}
-
-/** Réconcilie une publication retrouvée au démarrage, selon sa nature.
- *
- *  Une session d'entretien confirme son journal de session. Une transaction de
- *  corpus ne confirme JAMAIS un journal de session : son état publié sera
- *  installé par le tirage normal, qui remplace le miroir d'un seul tenant. Une
- *  opération certainement absente peut être abandonnée ; une opération encore
- *  indéterminée reste journalisée et bloque sa ressource. */
-async function reconcilierPublication(
-  entree: EntreeJournalPublication,
-  reconciliateur: ReconciliateurPublicationGitLab,
-  journal: JournalPublicationGitLab,
-  journalSessions: JournalSessionsGitLab,
-  coordination: BailGitLab,
-): Promise<void> {
-  const resultat = await reconciliateur.reconcilier(entree)
-  if (resultat.statut === 'indetermine') return
-  if (resultat.statut === 'confirme' && entree.nature === 'session-entretien') {
-    const actions = journal.chargerActions(entree)
-    const action = actions.find(
-      (candidate) => candidate.action === 'update' || candidate.action === 'create')
-    if (action?.content !== undefined) {
-      journalSessions.confirmerPublication(
-        entree.resourceHash,
-        resultat.commitId,
-        action.content,
-      )
-    }
-  }
-  // Une transaction de corpus laisse un bail derrière elle quand l'opération
-  // a abouti sans que l'application puisse le rendre. Le bail porte encore notre
-  // compte et la génération de l'opération : il est donc le nôtre, et le rendre
-  // évite quinze minutes de refus sur nos propres gestes.
-  if (entree.nature === 'transaction-corpus') {
-    const rendu = await coordination.rendreBailNotre(
-      cheminBailDepuisEmpreinteGitLab(entree.resourceHash),
-      entree.generation,
-    )
-    if (rendu === 'libere') {
-      console.info(
-        `[GitLab] bail de ${entree.resourceHash.slice(0, 12)} rendu au démarrage `
-        + `(${entree.operationId}).`,
-      )
-    }
-  }
-  journal.supprimer(entree.operationId)
 }

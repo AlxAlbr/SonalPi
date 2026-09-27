@@ -551,6 +551,16 @@ export class BailGitLab {
     if (etat) etat.invalide = true
   }
 
+  /** Le droit est-il encore le nôtre ?
+   *
+   *  Un refus de commit ne marque invalide que le droit dont la génération a
+   *  bougé. L'appelant qui en porte plusieurs peut ainsi nommer celui qu'il a
+   *  perdu, au lieu de présenter les deux comme intacts ou perdus. */
+  droitPerdu(droit: DroitsEditionGitLab): boolean {
+    const etat = états.get(droit)
+    return !etat || etat.invalide
+  }
+
   /** Adopte l'état de bail d'une publication dont on connaît le commit.
    *
    *  Une publication dont la réponse s'est perdue a pourtant bien pu aboutir.

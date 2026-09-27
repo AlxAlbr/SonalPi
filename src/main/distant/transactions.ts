@@ -34,7 +34,7 @@ import type { IdentiteSession } from './sessions'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
-import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../../shared/entretien/anon'
+import { appliquerRegleAnonEntretien } from '../../shared/entretien/anon'
 import type {
   CorpusFichier,
   EntretienFichier,
@@ -934,28 +934,8 @@ export class TransactionsCorpus {
       else
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir.
       const data = JSON.parse(brut) as EntretienFichier
-      const instr = instructionsAppliquerRegle(data, regle, () => 'a-' + Math.random().toString(36).slice(2, 9))
-      const poser = poserDansPlages(instr.poser, cible.plages)
-      const nbDiff = appliquerDiffAnon(
-        data.annotations,
-        regle.id,
-        cible.retirer,
-        cible.exception,
-        cible.retirerException,
-      )
-      if (poser.length === 0 && nbDiff === 0) return 0
-      for (const o of poser) {
-        data.annotations.push({
-          id: o.id,
-          type: 'anon',
-          from: o.from,
-          to: o.to,
-          auteur: 'corpus',
-          etat: 'anonymise',
-          pseudo: o.pseudo,
-          regle: o.regle,
-        })
-      }
+      const nb = appliquerRegleAnonEntretien(data, regle, cible)
+      if (nb === 0) return 0
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
@@ -968,7 +948,7 @@ export class TransactionsCorpus {
       writeFileSync(tmp, contenu, 'utf8')
       renameSync(tmp, abs)
       if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
-      return poser.length + nbDiff
+      return nb
     } finally {
       await provider.liberer(cheminVerrou).catch(() => {})
     }

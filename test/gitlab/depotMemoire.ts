@@ -21,6 +21,9 @@ export class DepotMemoire implements DepotCommitsGitLab {
   readonly plusGrandEnvol = { valeur: 0 }
   private compteur = 0
   private commitsIllisibles = false
+  /** Rappel exécuté avant la validation d'un commit : un banc peut y faire
+   *  bouger une garde sans passer par le protocole, comme le ferait un autre poste. */
+  avantCommit: (actions: readonly ActionCommitGitLab[]) => void = () => {}
   private enVol = 0
   private tete = this.sha()
   private echecAvant: unknown = null
@@ -74,6 +77,11 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.commitsIllisibles = true
   }
 
+  /** L'historique redevient lisible : c'est le redémarrage de l'application. */
+  rendreCommits(): void {
+    this.commitsIllisibles = false
+  }
+
   async rechercherCommits(_ref: string, recherche: string): Promise<Array<{ id: string; title: string }>> {
     if (this.commitsIllisibles) throw new Error('historique indisponible')
     return this.commits
@@ -100,6 +108,7 @@ export class DepotMemoire implements DepotCommitsGitLab {
       this.echecAvant = null
       throw erreur
     }
+    this.avantCommit(actions)
     if (this.statutRefus) {
       const statut = this.statutRefus
       this.statutRefus = null
@@ -124,22 +133,33 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.fichiers.set(chemin, { contenu, commitId: this.nouvelId() })
   }
 
+  /** Dépose un fichier sans passer par un commit : c'est ainsi qu'un banc met
+   *  en place l'état d'un autre poste (un bail repris, une archive existante). */
+  deposerHorsProtocole(chemin: string, contenu: string): void {
+    this.fichiers.set(chemin, { contenu, commitId: this.nouvelId() })
+  }
+
+  /** Trace les refus : un banc doit dire quelle garde a été trouvée périmée. */
+  /** Un déplacement est gardé par son chemin d'origine, et sa destination
+   *  doit être libre : GitLab ne weighs jamais une archive existante. */
   private validerActions(actions: ActionCommitGitLab[]): void {
     for (const action of actions) {
-      const fichier = this.fichiers.get(action.file_path)
-      if (action.action === 'create' && fichier) {
-        throw new ErreurEcritureGitLab(400, 'create existant')
-      }
-      if (action.action !== 'create') {
-        if (!fichier || action.last_commit_id !== fichier.commitId) {
-          throw new ErreurEcritureGitLab(400, 'garde périmée')
-        }
-      }
       if (action.action === 'move') {
         const precedent = this.fichiers.get(action.previous_path as string)
         if (!precedent || action.last_commit_id !== precedent.commitId) {
           throw new ErreurEcritureGitLab(400, 'déplacement périmé')
         }
+        if (this.fichiers.has(action.file_path)) {
+          throw new ErreurEcritureGitLab(400, 'archive déjà occupée')
+        }
+        continue
+      }
+      const fichier = this.fichiers.get(action.file_path)
+      if (action.action === 'create' && fichier) {
+        throw new ErreurEcritureGitLab(400, 'create existant')
+      }
+      if (action.action !== 'create' && (!fichier || action.last_commit_id !== fichier.commitId)) {
+        throw new ErreurEcritureGitLab(400, 'garde périmée')
       }
     }
   }

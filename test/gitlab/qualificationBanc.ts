@@ -7,7 +7,14 @@
  *  Le miroir est toujours en retard : il ne doit rien prouver.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../../src/main/corpusStore'
@@ -19,7 +26,7 @@ import {
   cleRessourceBailGitLab,
   cheminBailRessourceGitLab,
 } from '../../src/main/gitlab/bailGitLab'
-import { ClientGitLab, ErreurGitLab } from '../../src/main/gitlab/client'
+import { ClientGitLab, ErreurEcritureGitLab, ErreurGitLab } from '../../src/main/gitlab/client'
 import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
@@ -100,7 +107,11 @@ export function contenuDe(reponse: { corps: FichierGitLab }): string {
 }
 
 /** Commits ayant touché un chemin : le comptage d'un geste ne dépend ainsi
- *  d'aucun autre trafic sur le projet du banc. */
+ *  d'aucun autre trafic sur le projet du banc.
+ *
+ *  Le filtre `path` de l'API est un **préfixe** : compter un fichier revient à
+ *  compter son dossier. Un nom de fichier ne donne donc pas un compte fiable,
+ *  et `…/corbeille` est la seule façon de compter les archives d'un entretien. */
 export async function commitsTouchant(chemin: string): Promise<number> {
   let total = 0
   for (let page = 1; page <= 100; page += 1) {
@@ -131,8 +142,10 @@ export async function creerRacine(
       content: JSON.stringify(corpus, null, 2),
     }])
   } catch (erreur) {
-    // Une racine déjà déposée n'est pas un échec de qualification.
-    if (!(erreur instanceof ErreurGitLab && erreur.statut === 400)) throw erreur
+    // Une racine déjà déposée n'est pas un échec de qualification : c'est un
+    // refus d'écriture, pas un refus de lecture.
+    const refuse = erreur instanceof ErreurEcritureGitLab || erreur instanceof ErreurGitLab
+    if (!refuse || erreur.statut !== 400) throw erreur
   }
   return racine
 }
@@ -163,6 +176,18 @@ export interface Pile {
   dossier: string
   racine: string
   lireLocal(): CorpusFichier
+  /** Le commit de données partira, sa réponse ne reviendra pas : c'est la
+   *  fenêtre de panne que la réconciliation doit savoir fermer. */
+  perdreReponseDuCommitDeDonnees(course?: (p: Pile) => Promise<void>): void
+  /** Le commit de données n'atteindra pas le serveur : son absence est
+   *  certaine, ce que la réplication doit savoir reconnaître. */
+  nePasEnvoyerLeProchainCommitDeDonnees(course?: (p: Pile) => Promise<void>): void
+  /** Exécute une course juste avant l'envoi du prochain commit de données. */
+  avantCommitDeDonnees(course: (p: Pile) => Promise<void>): void
+  /** Exécute une course après la prochaine acquisition de bail. */
+  apresProchaineAcquisition(course: (p: Pile) => Promise<void>): void
+  rendreHistoriqueIndisponible(): void
+  rendreHistorique(): void
 }
 
 /** Pile de production sur l'instance réelle, dans un dossier local neuf.
@@ -176,24 +201,66 @@ export function pile(options: {
   fetchImpl?: typeof fetch
   /** Dossier de journal partagé : une pile relancée le relit tel quel. */
   journalRepertoire?: string
+  /** Dossier du miroir existant, réutilisé lors d'un redémarrage. */
+  dossier?: string
+  /** Identifiant stable de destination, indépendant de la session du processus. */
+  destinationId?: string
   /** Membres du corpus déjà connus, pour un miroir qui ne les ignore pas. */
   corpusLocal?: CorpusFichier
+  /** Identifiant d'opération stable : une collision d'archive se prédit. */
+  operation?: string
 }): Pile {
-  const dossier = mkdtempSync(join(tmpdir(), `sonal-banc-${prefixe}-`))
+  const dossier = options.dossier ?? mkdtempSync(join(tmpdir(), `sonal-banc-${prefixe}-`))
   mkdirSync(join(dossier, 'entretiens'), { recursive: true })
-  writeFileSync(
-    join(dossier, 'corpus.json'),
-    JSON.stringify(options.corpusLocal ?? squeletteCorpus('Miroir périmé'), null, 2),
-    'utf8',
-  )
+  const cheminCorpusLocal = join(dossier, 'corpus.json')
+  if (options.corpusLocal || !existsSync(cheminCorpusLocal)) {
+    writeFileSync(
+      cheminCorpusLocal,
+      JSON.stringify(options.corpusLocal ?? squeletteCorpus('Miroir périmé'), null, 2),
+      'utf8',
+    )
+  }
   const store = new CorpusStore(dossier)
   store.lectureSeule = true
   const requetes: string[] = []
+  // Pannes et courses, commandées par le scénario de qualification.
+  const pannes = { commitDeDonnees: false, avantEnvoiDonnees: false, historique: false }
+  const avantDonnees: Array<(p: Pile) => Promise<void>> = []
+  const apresAcquisition: Array<(p: Pile) => Promise<void>> = []
   const fetchCompte: typeof fetch = async (entree, init) => {
     const url = new URL(String(entree))
     requetes.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`)
-    return fetch(entree as never, init)
+    const corps = String(init?.body ?? '')
+    const estCommit = url.pathname.endsWith('/repository/commits')
+      && (init?.method ?? 'GET') === 'POST'
+    const estDonnees = estCommit
+      && corps.includes(`"${options.racine}/entretiens/`)
+      && corps.includes(`"${options.racine}/corpus.json"`)
+    if (pannes.historique && url.searchParams.has('search')) {
+      throw new Error('historique indisponible')
+    }
+    if (estDonnees) {
+      const pile = pieges.pile as Pile
+      while (avantDonnees.length > 0) await avantDonnees.shift()!(pile)
+      if (pannes.avantEnvoiDonnees) {
+        pannes.avantEnvoiDonnees = false
+        throw new TypeError('fetch failed')
+      }
+      if (pannes.commitDeDonnees) {
+        pannes.commitDeDonnees = false
+        // La requête aboutit : le serveur a bien accepté le commit. Seule la
+        // réponse ne revient pas, et c'est ce que l'application doit conclure.
+        await fetch(entree as never, init).catch(() => undefined)
+        throw new Error('réponse perdue')
+      }
+    }
+    const reponse = await fetch(entree as never, init)
+    if (estCommit && corps.includes(' acquisition') && apresAcquisition.length > 0) {
+      await apresAcquisition.shift()!(pieges.pile as Pile)
+    }
+    return reponse
   }
+  const pieges = { pile: null as Pile | null }
   const client = new ClientGitLab({
     urlInstance: options.instance ?? (configuration.url as string),
     projetId: Number(configuration.projetId),
@@ -202,7 +269,7 @@ export function pile(options: {
   const depot = new DepotCommitsGitLabClient(client)
   const destination: ConfigDestinationGitLab = {
     fournisseur: 'gitlab',
-    id: `qualification-${options.sessionId}`,
+    id: `qualification-${options.destinationId ?? options.sessionId}`,
     compteId: options.userId,
     projetId: Number(configuration.projetId),
     nomProjet: 'Qualification',
@@ -237,9 +304,10 @@ export function pile(options: {
     publication,
     file: new FileOperationsContexte(),
     journal,
-    nouvelleOperation: () => `op-${options.sessionId}-${Math.random().toString(36).slice(2, 8)}`,
+    nouvelleOperation: () => options.operation
+      ?? `op-${options.sessionId}-${Math.random().toString(36).slice(2, 8)}`,
   })
-  return {
+  const pile: Pile = {
     store,
     depot,
     coordination,
@@ -250,7 +318,31 @@ export function pile(options: {
     dossier,
     racine: options.racine,
     lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier,
+    /** Le commit de données partira, sa réponse ne reviendra pas. */
+    perdreReponseDuCommitDeDonnees(course?: (p: Pile) => Promise<void>): void {
+      if (course) avantDonnees.push(course)
+      pannes.commitDeDonnees = true
+    },
+    nePasEnvoyerLeProchainCommitDeDonnees(course?: (p: Pile) => Promise<void>): void {
+      if (course) avantDonnees.push(course)
+      pannes.avantEnvoiDonnees = true
+    },
+    avantCommitDeDonnees(course: (p: Pile) => Promise<void>): void {
+      avantDonnees.push(course)
+    },
+    apresProchaineAcquisition(course: (p: Pile) => Promise<void>): void {
+      apresAcquisition.push(course)
+    },
+    /** L'historique devient illisible : personne ne peut conclure. */
+    rendreHistoriqueIndisponible(): void {
+      pannes.historique = true
+    },
+    rendreHistorique(): void {
+      pannes.historique = false
+    },
   }
+  pieges.pile = pile
+  return pile
 }
 
 /** Session réelle d'un entretien de qualification, avec son stockage local. */
@@ -259,7 +351,11 @@ export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
   const cheminCorpus = p.racine ? `${p.racine}/corpus.json` : 'corpus.json'
   const session = new SessionGitLab({
     id: suffixe,
-    ressource: `entretien:qualification:${suffixe}`,
+    ressource: `entretien:qualification:${p.racine}:${suffixe}`,
+    // Le bail se prend sur le chemin distant, jamais sur l'identifiant de la
+    // session : c'est ce qui rend une session et une suppression concurrentes
+    // exclusifs l'un de l'autre, exactement comme en application.
+    ressourcePartagee: cleRessourceBailGitLab('main', cheminDistant),
     cheminRelatif: `entretiens/${suffixe}.json`,
     cheminDistant,
     branche: 'main',
@@ -320,7 +416,7 @@ export function corpusAvecEntretiens(titres: Record<string, string>): CorpusFich
   const corpus = squeletteCorpus('Qualification sources')
   corpus.membership = Object.fromEntries(Object.entries(titres).map(([id, titre], index) => [
     id,
-    { titre, date: null, lastModified: null, rangAjout: index },
+    { titre, date: null, lastModified: '2026-01-01T10:00:00.000Z', rangAjout: index },
   ]))
   corpus.ordreEntretiens = Object.keys(titres)
   return corpus

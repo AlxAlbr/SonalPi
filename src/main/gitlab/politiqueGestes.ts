@@ -30,21 +30,27 @@ export type PorteeGesteCorpus =
   | 'suppression-definition'
   /** Retrait et archivage d'un entretien. */
   | 'suppression-entretien'
+  /** Affectation de modalités aux variables d'un entretien. */
+  | 'valeurs-entretien'
+  /** Application d'une règle de pseudonymisation à un entretien. */
+  | 'pseudonymisation-entretiens'
   /** Parcours non pris en charge sur un corpus distant. */
   | 'indisponible'
 
 export type GesteCorpus = string
 
-/** Portées que GitLab ouvre à l'interface.
+/** Portées accordées à GitLab.
  *
  *  C'est cette liste, et elle seule, qui décide de ce que l'interface propose
- *  et de ce que le dispatch accepte. La suppression d'un entretien attend
- *  encore son archivage atomique. */
+ *  et de ce que le dispatch accepte. */
 export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = [
   'definitions-corpus',
   'definitions-avec-sources',
   'tri-contenus',
   'suppression-definition',
+  'suppression-entretien',
+  'valeurs-entretien',
+  'pseudonymisation-entretiens',
 ]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
@@ -56,6 +62,8 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'tri-contenus',
     'suppression-definition',
     'suppression-entretien',
+    'valeurs-entretien',
+    'pseudonymisation-entretiens',
     'indisponible',
   ],
   webdav: [
@@ -64,6 +72,8 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'tri-contenus',
     'suppression-definition',
     'suppression-entretien',
+    'valeurs-entretien',
+    'pseudonymisation-entretiens',
   ],
   gitlab: PORTEEES_OVERTES_GITLAB,
 }
@@ -148,12 +158,14 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
   'entretien.analyser-suppression': 'suppression-entretien',
   'entretien.supprimer': 'suppression-entretien',
 
+  // Écritures ciblées dans les entretiens depuis les vues corpus.
+  'valeurs.lot': 'valeurs-entretien',
+  'regles.lot': 'pseudonymisation-entretiens',
+
   // Parcours refusés sur un corpus distant, quel que soit le fournisseur.
   'note.editer': 'indisponible',
   'personnes.commande': 'indisponible',
   'journal.annuler': 'indisponible',
-  'valeurs.lot': 'indisponible',
-  'regles.lot': 'indisponible',
   'corpus.marquer-demo': 'indisponible',
 }
 
@@ -193,12 +205,8 @@ export function exigerGeste(fournisseur: FournisseurCorpus, geste: GesteCorpus):
 }
 
 function messageRefusPortee(portee: PorteeGesteCorpus): string {
-  if (portee === 'suppression-entretien') {
-    return 'La suppression d’un entretien n’est pas encore disponible sur un corpus GitLab.'
-  }
   return 'Cette opération n’est pas disponible sur un corpus distant.'
 }
-
 /** Geste d'une commande CAS : un rattachement de passage et une dérivation
  *  demandent la version publiée de l'entretien qui les porte. */
 export function gestureCas(commande: CommandeCas): GesteCorpus {
@@ -250,11 +258,12 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   | 'ajoutEntretien'
   | 'editionEntretien'
   | 'suppressionEntretien'
+  | 'tableDonnees'
+  | 'pseudonymisationEntretiens'
 >> = {
   local: {
     renommageEntretien: true,
     metadonneesEntretien: true,
-    tableDonnees: true,
     notes: true,
     personnes: true,
     annulationJournal: true,
@@ -264,7 +273,6 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   webdav: {
     renommageEntretien: true,
     metadonneesEntretien: true,
-    tableDonnees: true,
     notes: false,
     personnes: true,
     annulationJournal: false,
@@ -277,7 +285,6 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     // ouverte pour ce geste.
     renommageEntretien: true,
     metadonneesEntretien: false,
-    tableDonnees: false,
     notes: false,
     personnes: false,
     annulationJournal: false,
@@ -297,6 +304,8 @@ export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpu
     ajoutEntretien: portees.has('definitions-corpus'),
     editionEntretien: true,
     suppressionEntretien: portees.has('suppression-entretien'),
+    tableDonnees: portees.has('valeurs-entretien'),
+    pseudonymisationEntretiens: portees.has('pseudonymisation-entretiens'),
     ...PARCOURS_PAR_FOURNISSEUR[fournisseur],
   }
 }

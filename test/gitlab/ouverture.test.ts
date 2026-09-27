@@ -673,9 +673,7 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
       operationId: 'op-crash',
       nature: 'session-entretien',
       branche: banc.destination.branche,
-      resourceHash: banc.resourceHash,
-      generation: 'generation-test',
-      leaseCommitId: 'd'.repeat(40),
+      droits: [{ resourceHash: banc.resourceHash, generation: 'generation-test', leaseCommitId: 'd'.repeat(40) }],
       etat: 'prepare',
       actions: [{
         action: 'update',

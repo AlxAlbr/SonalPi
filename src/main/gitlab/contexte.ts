@@ -10,14 +10,20 @@ import type { EntreeVerrouPublic, ResultatTiragePublic } from '../../shared/dist
 import {
   FORMAT_VERSION,
   type Categorie,
+  type CibleRegleAnon,
   type CorpusFichier,
+  type ItemLotValeur,
   type ModeTriEntretiens,
   type OuvertureEntretienEdition,
   type PayloadEntretien,
   type RegleAnon,
+  type ResultatLotAnon,
+  type ResultatLotValeur,
   type Variable,
   type VerrouTenuParAutrui,
 } from '../../shared/format'
+import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
+import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
 import { FileOperationsContexte } from './fileOperations'
@@ -61,6 +67,10 @@ export class ContexteGitLab {
     chemin: string
     protege: boolean
   }>()
+  /** Entretiens dont la suppression est engagée. Une ouverture locale arrivée
+   *  pendant l'attente du second bail serait une session de plus à perdre :
+   *  elle est refusée jusqu'à la fin ou à l'abandon de l'opération. */
+  private readonly suppressions = new Set<string>()
 
   /** File unique du contexte : transactions de corpus, tirages et fermeture. */
   readonly file = new FileOperationsContexte()
@@ -161,7 +171,53 @@ export class ContexteGitLab {
 
   /** Ouvre une session d'entretien à partir de son identifiant métier. */
   async ouvrirSessionEntretien(id: string): Promise<EtatSessionGitLab> {
+    if (this.suppressions.has(id)) {
+      throw new Error(
+        `Une suppression de « ${id} » est en cours : attendez sa fin avant d’ouvrir cet entretien.`,
+      )
+    }
     return this.ouvrirSession(this.ressourceEntretien(id), `entretiens/${id}.json`)
+  }
+
+  /** Impact d'un retrait, lu sur le corpus publié. Un aperçu, jamais un droit. */
+  async analyserSuppressionEntretien(id: string): Promise<ImpactSuppressionEntretien> {
+    if (!this.transactions) {
+      throw new Error('Suppression GitLab non configurée pour ce contexte.')
+    }
+    return this.transactions.analyserSuppressionEntretien(id)
+  }
+
+  /** Supprime un entretien : notre session est d'abord fermée, puis les deux
+   *  droits sont pris dans l'ordre, et le commit porte le retrait du
+   *  membership comme le déplacement du JSON vers son archive.
+   *
+   *  Fermer notre session ne réserve rien. Un candidat qu'elle ne peut plus
+   *  publier reste récupérable : la suppression s'arrête, elle ne l'écrase
+   *  jamais pour avancer. */
+  async supprimerEntretien(
+    id: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+  ): Promise<CorpusFichier> {
+    if (!this.transactions) {
+      throw new Error('Suppression GitLab non configurée pour ce contexte.')
+    }
+    if (this.suppressions.has(id)) {
+      throw new Error(`Une suppression de « ${id} » est déjà en cours.`)
+    }
+    this.suppressions.add(id)
+    try {
+      const fermeture = await this.fermerEntretien(id)
+      if (!fermeture.fermee) {
+        throw new Error(
+          `Suppression impossible : la session de « ${id} » n’a pas pu être fermée`
+          + `${fermeture.raison ? ` (${raisonLisible(fermeture.raison)})` : ''}. `
+          + 'Son candidat reste récupérable.',
+        )
+      }
+      return await this.transactions.supprimerEntretien(id, impactAttendu)
+    } finally {
+      this.suppressions.delete(id)
+    }
   }
 
   creerEntretienVide(titre: string): Promise<{ id: string; corpus: CorpusFichier }> {
@@ -186,6 +242,166 @@ export class ContexteGitLab {
     )
   }
 
+  /** Modifie les valeurs entretien par entretien, sans atomicité globale. */
+  async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
+    exigerGeste('gitlab', 'valeurs.lot')
+    if (!this.transactions) throw new Error('Valeurs GitLab non configurées pour ce contexte.')
+    const succes: string[] = []
+    const echecs: ResultatLotValeur['echecs'] = []
+    const groupes = new Map<string, ItemLotValeur[]>()
+    for (const item of items) {
+      const groupe = groupes.get(item.entretienId) ?? []
+      groupe.push(item)
+      groupes.set(item.entretienId, groupe)
+    }
+    for (const [id, groupe] of groupes) {
+      try {
+        if (this.sessions.has(this.ressourceEntretien(id))) {
+          await this.poserValeursDansSession(id, groupe)
+        } else {
+          await this.transactions.poserValeursEntretien(id, groupe)
+        }
+        succes.push(id)
+      } catch (erreur) {
+        echecs.push({ id, raison: messageErreur(erreur) })
+      }
+    }
+    return { succes, echecs }
+  }
+
+  /** Applique les diffs de pseudonymisation entretien par entretien. */
+  async appliquerRegleLot(cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> {
+    exigerGeste('gitlab', 'regles.lot')
+    if (!this.transactions) {
+      throw new Error('Pseudonymisation GitLab non configurée pour ce contexte.')
+    }
+    const succes: ResultatLotAnon['succes'] = []
+    const echecs: ResultatLotAnon['echecs'] = []
+    const groupes = new Map<string, CibleRegleAnon>()
+    for (const cible of cibles) {
+      const existante = groupes.get(cible.entretienId)
+      if (!existante) {
+        groupes.set(cible.entretienId, { ...cible })
+        continue
+      }
+      if (existante.regleId !== cible.regleId) {
+        echecs.push({
+          id: cible.entretienId,
+          raison: 'Un même entretien ne peut pas recevoir deux règles dans cette validation.',
+        })
+        continue
+      }
+      for (const cle of ['plages', 'retirer', 'exception', 'retirerException'] as const) {
+        if (cible[cle]?.length) existante[cle] = [...(existante[cle] ?? []), ...cible[cle]!]
+      }
+    }
+    const dejaEnEchec = new Set(echecs.map((echec) => echec.id))
+    for (const [id, cible] of groupes) {
+      if (dejaEnEchec.has(id)) continue
+      try {
+        const resultat = this.sessions.has(this.ressourceEntretien(id))
+          ? await this.appliquerRegleDansSession(id, cible)
+          : await this.transactions.appliquerRegleEntretien(id, cible)
+        succes.push({ id, ...resultat })
+      } catch (erreur) {
+        echecs.push({ id, raison: messageErreur(erreur) })
+      }
+    }
+    return { succes, echecs }
+  }
+
+  private async poserValeursDansSession(
+    entretienId: string,
+    items: readonly ItemLotValeur[],
+  ): Promise<void> {
+    await this.file.executer(async () => {
+      const entree = this.sessionEditable(entretienId)
+      const corpus = this.store.ouvrir()
+      const lecture = this.store.lireEntretien(entretienId)
+      if (!lecture.ok) throw new Error(`L’entretien « ${entretienId} » est introuvable.`)
+      for (const item of items) {
+        const variable = corpus.variables[item.idVar]
+        if (item.idMod) {
+          if (!variable) throw new Error(`La variable « ${item.idVar} » n’existe plus.`)
+          if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
+            throw new Error(`La modalité « ${item.idMod} » n’existe plus.`)
+          }
+          if (variable.portee !== item.cible.type) {
+            throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
+          }
+        }
+        if (item.cible.type === 'locuteur') {
+          const index = item.cible.index
+          if (!lecture.data.locuteurs.some((locuteur) => locuteur.index === index)) {
+            throw new Error(`Le locuteur ${index} n’existe plus dans cet entretien.`)
+          }
+        }
+      }
+      for (const item of items) {
+        if (!this.store.poserValeur(
+          entretienId,
+          item.cible,
+          item.idVar,
+          item.idMod,
+        )) {
+          throw new Error(`L’entretien « ${entretienId} » est introuvable.`)
+        }
+      }
+      await entree.session.marquerSale()
+      this.verifierPublicationEntretien(await entree.session.publier(), entretienId)
+    })
+  }
+
+  private async appliquerRegleDansSession(
+    entretienId: string,
+    cible: CibleRegleAnon,
+  ): Promise<{ nb: number; titre: string }> {
+    return this.file.executer(async () => {
+      const entree = this.sessionEditable(entretienId)
+      if (!this.store.ouvrir().reglesAnon[cible.regleId]) {
+        throw new Error(`La règle d’anonymisation « ${cible.regleId} » n’existe plus.`)
+      }
+      const resultat = this.store.appliquerRegleAnon(entretienId, cible.regleId, cible)
+      await entree.session.marquerSale()
+      this.verifierPublicationEntretien(await entree.session.publier(), entretienId)
+      return resultat
+    })
+  }
+
+  private sessionEditable(entretienId: string): {
+    session: SessionGitLab
+    chemin: string
+    protege: boolean
+  } {
+    const entree = this.sessions.get(this.ressourceEntretien(entretienId))
+    if (!entree || entree.session.etat().etat !== 'edition') {
+      throw new Error(
+        `La session de « ${entretienId} » ne peut plus publier. Fermez-la ou réparez-la avant de réessayer.`,
+      )
+    }
+    return entree
+  }
+
+  private verifierPublicationEntretien(
+    resultat: ResultatPublicationGitLab,
+    entretienId: string,
+  ): void {
+    if (resultat.statut === 'confirme') return
+    if (resultat.statut === 'indetermine') {
+      throw new Error(
+        `La publication de « ${entretienId} » n’a pas pu être confirmée. Actualisez avant de réessayer.`,
+      )
+    }
+    if (resultat.raison === 'references') throw new Error(resultat.message)
+    const raisons = {
+      conflit: 'le fichier a changé',
+      'droit-perdu': 'le droit d’édition a été perdu',
+      droits: 'GitLab refuse les droits de ce compte',
+      limite: 'GitLab refuse la taille de la publication',
+    } as const
+    throw new Error(`La publication de « ${entretienId} » a échoué : ${raisons[resultat.raison]}.`)
+  }
+
   /** Mutation de définitions sous bail de `corpus.json`.
    *  Le geste est nommé : le dispatch refuse ici tout ce que GitLab ne sait
    *  pas garder cohérent, avant même de construire la préparation. */
@@ -194,10 +410,16 @@ export class ContexteGitLab {
     preparer: (store: CorpusStore) => T,
   ): Promise<ResultatTransactionDefinitions<T>> {
     exigerGeste('gitlab', geste)
+    // Ce point d'entrée ne sert qu'aux définitions : un geste d'une autre
+    // famille ne doit pas pouvoir s'y glisser sous couvert d'une capacité.
+    const portee = porteeGeste(geste)
+    if (portee !== 'definitions-corpus' && portee !== 'suppression-definition') {
+      throw new RefusGesteError(geste, 'Ce geste ne modifie pas les définitions du corpus.')
+    }
     if (!this.transactions) {
       throw new Error('Définitions GitLab non configurées pour ce contexte.')
     }
-    if (porteeGeste(geste) === 'suppression-definition') {
+    if (portee === 'suppression-definition') {
       return this.transactions.executerSuppressionDefinitions(preparer, {
         publierSource: (id) => this.publierSourceDetenue(id),
       })
@@ -440,6 +662,21 @@ export class ContexteGitLab {
 function nommerDetenteur(tenupar: PartieBailGitLab | null): VerrouTenuParAutrui | null {
   if (!tenupar) return null
   return { userId: tenupar.userId, machineId: '', acquiredAt: '' }
+}
+
+/** Motif de fermeture, en mots d'utilisateur : `degrade` ne veut rien dire
+ *  dans une bannière. */
+function messageErreur(erreur: unknown): string {
+  return erreur instanceof Error ? erreur.message : String(erreur)
+}
+
+function raisonLisible(raison: string): string {
+  const messages: Record<string, string> = {
+    degrade: 'session dégradée',
+    'bail-perdu': 'droit GitLab perdu',
+    publication: 'candidat non publiable',
+  }
+  return messages[raison] ?? raison
 }
 
 /** Prépare une consultation GitLab sans sonde ni mutation du projet. */

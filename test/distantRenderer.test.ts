@@ -160,7 +160,7 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.pourcentageProgression.value).toBe(25)
   })
 
-  test('un contexte GitLab ouvre les définitions, les sources gardées et le tri', () => {
+  test('un contexte GitLab ouvre les définitions, les sources gardées, le tri, le retrait et les écritures d’entretien', () => {
     const contexte = creerContexte(vi.fn())
 
     contexte.distant.activerDistant('gitlab-1', [], [], false, matriceCapacites('gitlab'), 'gitlab')
@@ -172,9 +172,10 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.gesteDisponible('triContenu')).toBe(true)
     expect(contexte.distant.ajoutEntretienPossible.value).toBe(true)
     expect(contexte.distant.renommagePossible('e1')).toBe(true)
-    expect(contexte.distant.tableLigneEditable('e1')).toBe(false)
+    expect(contexte.distant.tableLigneEditable('e1')).toBe(true)
+    expect(contexte.distant.pseudonymisationLigneEditable('e1')).toBe(true)
     expect(contexte.distant.metaEditables('e1')).toBe(false)
-    expect(contexte.distant.suppressionPossible('e1')).toBe(false)
+    expect(contexte.distant.suppressionPossible('e1')).toBe(true)
   })
 
   test('un corpus Nextcloud garde toutes ses capacités', () => {

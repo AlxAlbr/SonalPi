@@ -107,20 +107,25 @@ describe('portée des gestes du corpus', () => {
     expect(porteeGeste('entretien.trier-contenus')).toBe('tri-contenus')
   })
 
-  test('GitLab ouvre les suppressions de définitions, pas celle d’un entretien', () => {
+  test('GitLab ouvre les suppressions de définitions et le retrait d’un entretien', () => {
     for (const geste of [
       'theme.supprimer',
       'note.supprimer-categorie',
       'variable.supprimer',
       'modalite.supprimer',
       'anon.supprimer-regle',
+      'entretien.supprimer',
+      'entretien.analyser-suppression',
     ]) {
       expect(gesteAutorise('gitlab', geste), geste).toBe(true)
       expect(() => exigerGeste('gitlab', geste), geste).not.toThrow()
     }
-    for (const geste of ['entretien.supprimer', 'entretien.analyser-suppression']) {
-      expect(gesteAutorise('gitlab', geste), geste).toBe(false)
-      expect(() => exigerGeste('gitlab', geste), geste).toThrow(/GitLab/)
+  })
+
+  test('les écritures ciblées sont rétablies sur WebDAV et qualifications sur GitLab', () => {
+    for (const geste of ['valeurs.lot', 'regles.lot']) {
+      expect(gesteAutorise('webdav', geste), geste).toBe(true)
+      expect(gesteAutorise('gitlab', geste), geste).toBe(true)
     }
   })
 
@@ -129,8 +134,6 @@ describe('portée des gestes du corpus', () => {
       'note.editer',
       'personnes.commande',
       'journal.annuler',
-      'valeurs.lot',
-      'regles.lot',
       'corpus.marquer-demo',
     ]) {
       expect(gesteAutorise('local', geste), geste).toBe(true)
@@ -146,44 +149,70 @@ describe('portée des gestes du corpus', () => {
     }
   })
 
-  test('le refus de GitLab nomme la suppression d’entretien', () => {
-    expect(() => exigerGeste('gitlab', 'entretien.supprimer')).toThrow(/suppression d’un entretien/)
+  test('les deux capacités d’entretien s’ouvrent séparément', () => {
+    const ouvertes = [...PORTEEES_OVERTES_GITLAB]
+    PORTEEES_OVERTES_GITLAB.length = 0
+    try {
+      PORTEEES_OVERTES_GITLAB.push('valeurs-entretien')
+      expect(matriceCapacites('gitlab')).toMatchObject({
+        tableDonnees: true,
+        pseudonymisationEntretiens: false,
+      })
+      expect(gesteAutorise('gitlab', 'valeurs.lot')).toBe(true)
+      expect(gesteAutorise('gitlab', 'regles.lot')).toBe(false)
+
+      PORTEEES_OVERTES_GITLAB.length = 0
+      PORTEEES_OVERTES_GITLAB.push('pseudonymisation-entretiens')
+      expect(matriceCapacites('gitlab')).toMatchObject({
+        tableDonnees: false,
+        pseudonymisationEntretiens: true,
+      })
+      expect(gesteAutorise('gitlab', 'valeurs.lot')).toBe(false)
+      expect(gesteAutorise('gitlab', 'regles.lot')).toBe(true)
+    } finally {
+      PORTEEES_OVERTES_GITLAB.length = 0
+      PORTEEES_OVERTES_GITLAB.push(...ouvertes)
+    }
   })
 
   test('fermer une portée de GitLab ferme la capacité qui en dépend', () => {
     expect(matriceCapacites('gitlab')).toMatchObject({
       definitionsAvecSources: true,
       triContenu: true,
+      suppressionEntretien: true,
+      tableDonnees: true,
+      pseudonymisationEntretiens: true,
     })
+    const ouvertes = [...PORTEEES_OVERTES_GITLAB]
     PORTEEES_OVERTES_GITLAB.length = 0
     try {
       expect(matriceCapacites('gitlab')).toMatchObject({
         definitionsAvecSources: false,
         triContenu: false,
+        suppressionEntretien: false,
+        tableDonnees: false,
+        pseudonymisationEntretiens: false,
       })
       expect(gesteAutorise('gitlab', 'cas.ajouter-rattachement')).toBe(false)
+      expect(gesteAutorise('gitlab', 'entretien.supprimer')).toBe(false)
       expect(() => exigerGeste('gitlab', 'entretien.trier-contenus')).toThrow(/n’est pas disponible/)
     } finally {
-      PORTEEES_OVERTES_GITLAB.push(
-        'definitions-corpus',
-        'definitions-avec-sources',
-        'tri-contenus',
-        'suppression-definition',
-      )
+      PORTEEES_OVERTES_GITLAB.push(...ouvertes)
     }
   })
 
-  test('la matrice de GitLab ouvre les définitions et le tri, pas la suppression d’entretien', () => {
+  test('la matrice de GitLab ouvre les définitions, le tri, le retrait et les écritures d’entretien', () => {
     expect(matriceCapacites('gitlab')).toEqual({
       definitions: true,
       definitionsAvecSources: true,
       triContenu: true,
       ajoutEntretien: true,
       editionEntretien: true,
-      suppressionEntretien: false,
+      suppressionEntretien: true,
       renommageEntretien: true,
       metadonneesEntretien: false,
-      tableDonnees: false,
+      tableDonnees: true,
+      pseudonymisationEntretiens: true,
       notes: false,
       personnes: false,
       annulationJournal: false,
@@ -196,6 +225,8 @@ describe('portée des gestes du corpus', () => {
     const webdav = matriceCapacites('webdav')
     expect(webdav.definitionsAvecSources).toBe(true)
     expect(webdav.suppressionEntretien).toBe(true)
+    expect(webdav.tableDonnees).toBe(true)
+    expect(webdav.pseudonymisationEntretiens).toBe(true)
     expect(webdav.personnes).toBe(true)
     expect(webdav.mediasPartages).toBe(true)
     const local = matriceCapacites('local')

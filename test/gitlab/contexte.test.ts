@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
@@ -9,6 +9,7 @@ import {
   preparerContexteGitLabLectureSeule,
 } from '../../src/main/gitlab/contexte'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
+import { PORTEEES_OVERTES_GITLAB } from '../../src/main/gitlab/politiqueGestes'
 import { SessionGitLab } from '../../src/main/gitlab/session'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { CorpusStore } from '../../src/main/corpusStore'
@@ -16,6 +17,7 @@ import type { ObservationCoordinationDistante } from '../../src/main/distant/coo
 import type { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { preparerDefinitions } from '../../src/main/gitlab/preparationDefinitions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
+import type { EntretienFichier } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
 import {
   corpusDistantValide,
@@ -44,6 +46,17 @@ function sessionFactice() {
     renouveler: vi.fn(async () => true),
     fermer: vi.fn(async () => ({ fermee: true })),
     etat: vi.fn(() => ({ etat: 'edition', revision: 1, revisionPubliee: 1 })),
+  }
+}
+
+async function avecEcrituresEntretienGitLab<T>(operation: () => Promise<T>): Promise<T> {
+  const ouvertes = [...PORTEEES_OVERTES_GITLAB]
+  PORTEEES_OVERTES_GITLAB.push('valeurs-entretien', 'pseudonymisation-entretiens')
+  try {
+    return await operation()
+  } finally {
+    PORTEEES_OVERTES_GITLAB.length = 0
+    PORTEEES_OVERTES_GITLAB.push(...ouvertes)
   }
 }
 
@@ -181,6 +194,86 @@ describe('contexte GitLab en lecture seule', () => {
     await expect(contexte.fermerSession(ressource)).resolves.toBe(true)
     expect(session.ouvrir).toHaveBeenCalledTimes(1)
     expect(session.fermer).toHaveBeenCalledTimes(1)
+  })
+
+  test('réutilise une session locale pour poser une valeur sans prendre un second bail', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-gitlab-session-valeur-'))
+    mkdirSync(join(dir, 'entretiens'), { recursive: true })
+    const corpus = squeletteCorpus('Corpus')
+    corpus.membership.e1 = {
+      titre: 'Entretien un',
+      date: null,
+      lastModified: '2026-01-01T00:00:00.000Z',
+    }
+    corpus.ordreEntretiens = ['e1']
+    corpus.variables.v1 = {
+      id: 'v1', lib: 'Statut', portee: 'entretien', priv: false, ordre: 0, vExport: 1,
+      modalites: [{ id: 'm1', lib: 'Oui', mExport: 1 }],
+    }
+    const entretien: EntretienFichier = {
+      formatVersion: 8,
+      lastModified: '2026-01-01T00:00:00.000Z',
+      corpsTexte: { type: 'doc', content: [] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [],
+      meta: { valeursGen: {}, audioRef: null },
+    }
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+    writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(entretien, null, 2))
+    const store = new CorpusStore(dir)
+    store.lectureSeule = true
+    const session = sessionFactice()
+    const transactions = {
+      poserValeursEntretien: vi.fn(async () => undefined),
+    } as unknown as TransactionsGitLab
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      store,
+      { dirLocal: dir } as never,
+      () => session as unknown as SessionGitLab,
+      transactions,
+    )
+    await expect(contexte.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      ok: true,
+      acces: 'edition',
+    })
+
+    await expect(avecEcrituresEntretienGitLab(() => contexte.poserValeurLot([{
+      entretienId: 'e1',
+      cible: { type: 'entretien' },
+      idVar: 'v1',
+      idMod: 'm1',
+    }]))).resolves.toEqual({ succes: ['e1'], echecs: [] })
+
+    const local = JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
+    expect(local.meta.valeursGen).toEqual({ v1: 'm1' })
+    expect(transactions.poserValeursEntretien).not.toHaveBeenCalled()
+    expect(session.marquerSale).toHaveBeenCalledOnce()
+    expect(session.publier).toHaveBeenCalledOnce()
+  })
+
+  test('conserve les succès quand un entretien fermé est refusé', async () => {
+    const transactions = {
+      poserValeursEntretien: vi.fn(async (id: string) => {
+        if (id === 'e2') throw new Error('tenu par bob')
+      }),
+    } as unknown as TransactionsGitLab
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      {} as never,
+      {} as never,
+      undefined,
+      transactions,
+    )
+
+    await expect(avecEcrituresEntretienGitLab(() => contexte.poserValeurLot([
+      { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'v1', idMod: 'm1' },
+      { entretienId: 'e2', cible: { type: 'entretien' }, idVar: 'v1', idMod: 'm1' },
+    ]))).resolves.toEqual({
+      succes: ['e1'],
+      echecs: [{ id: 'e2', raison: 'tenu par bob' }],
+    })
   })
 
   test('protège le tirage pendant l’ouverture et ne retient pas une session en lecture seule', async () => {
@@ -426,7 +519,7 @@ describe('façade des définitions du contexte GitLab', () => {
   test('un geste hors portée est refusé par son nom, avant toute préparation', () => {
     const { contexte, transactions } = contexteAvecTransactions()
     expect(() => contexte.executerDefinitions('entretien.supprimer', () => 1))
-      .toThrow(/suppression d’un entretien/)
+      .toThrow(/ne modifie pas les définitions/)
     expect(transactions.executerDefinitions).not.toHaveBeenCalled()
     expect(transactions.executerSuppressionDefinitions).not.toHaveBeenCalled()
   })

@@ -13,14 +13,16 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import type { PlanSuppressionEntretien } from '../transactionsFichiers'
 import {
   verifierCheminGitLab,
   type ActionCommitGitLab,
   type DepotCommitsGitLab,
 } from './bailGitLab'
 
-const VERSION_JOURNAL = 2
-const VERSION_JOURNAL_ANCIENNE = 1
+const VERSION_JOURNAL = 3
+const VERSION_JOURNAL_A_UN_DROIT = 2
+const VERSION_JOURNAL_SANS_NATURE = 1
 const TAILLE_MAX_ENTREE = 3 * 1024 * 1024
 const SHA_COMMIT = /^[a-f0-9]{40,64}$/
 const SHA256 = /^[a-f0-9]{64}$/
@@ -28,27 +30,60 @@ const CANDIDAT = /^[a-f0-9]{64}\.bin$/
 const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
 const PREFIXE_VERROUS = '.sonal/verrous'
 
-export type EtatJournalPublication = 'prepare' | 'indetermine'
+export type EtatJournalPublication = 'prepare' | 'indetermine' | 'confirme-a-installer'
 
-/** Ce qu'une publication transportait : une session d'entretien, ou une
- *  transaction de corpus (définitions, création, import). Les deux se
- *  réconcilient différemment, jamais par la forme de leur première action. */
-export type NaturePublicationGitLab = 'session-entretien' | 'transaction-corpus'
+/** Ce qu'une publication transportait. La nature décide de sa reprise,
+ *  jamais la forme de sa première action. */
+export type NaturePublicationGitLab =
+  | 'session-entretien'
+  | 'transaction-entretien'
+  | 'transaction-corpus'
+  | 'suppression-entretien'
 
-const NATURES: readonly NaturePublicationGitLab[] = ['session-entretien', 'transaction-corpus']
+const NATURES: readonly NaturePublicationGitLab[] = [
+  'session-entretien',
+  'transaction-entretien',
+  'transaction-corpus',
+  'suppression-entretien',
+]
 
 /** Une entrée dont la nature n'a pas pu être établie avec certitude : elle
  *  reste récupérable, bloque sa ressource, et n'est jamais rejouée. */
 export type NatureEntreeJournal = NaturePublicationGitLab | 'inconnue'
+
+/** Une entrée d'avant les natures : elle porte un seul droit, au format plat. */
+type EntreeAncienneJournal = Omit<Partial<EntreeJournalPublication>, 'droits'>
+  & { resourceHash?: string }
 
 type ActionJournalGitLab = Omit<ActionCommitGitLab, 'content'> & {
   contentSha256?: string
   contentOctets?: number
 }
 
+/** Un droit porté par la publication : sa ressource, la génération de bail qui
+ *  le protège et la garde que la transition va remplacer. */
+export interface DroitJournalGitLab {
+  resourceHash: string
+  generation: string
+  leaseCommitId: string
+}
+
+/** Ce qu'une suppression doit pouvoir finir, même après un arrêt : le chemin
+ *  d'archives choisi, l'empreinte du JSON déplacé et le plan local complet. */
+export interface SuppressionJournalGitLab {
+  entretienId: string
+  cheminSource: string
+  cheminArchive: string
+  empreinteArchive: string
+  octetsArchive: number
+  planLocal: PlanSuppressionEntretien
+  /** Renseigné quand le retrait distant est confirmé et qu'il reste à installer. */
+  commitId?: string
+}
+
 /** Ce que l'appelant fournit au journal : la version, la destination et
  *  l'horodatage sont ajoutés par le journal lui-même. */
-type EntreeJournalNue = Omit<
+export type EntreeJournalNue = Omit<
   EntreeJournalPublication,
   'version' | 'destinationId' | 'ecritLe' | 'actions' | 'candidat' | 'nature'
 > & {
@@ -57,18 +92,19 @@ type EntreeJournalNue = Omit<
 }
 
 export interface EntreeJournalPublication {
-  version: 2
+  version: 3
   destinationId: string
   operationId: string
   nature: NatureEntreeJournal
   branche: string
-  resourceHash: string
-  generation: string
-  leaseCommitId: string
+  /** Un ou deux droits, toujours dans l'ordre canonique d'acquisition. */
+  droits: DroitJournalGitLab[]
   etat: EtatJournalPublication
   ecritLe: string
   actions: ActionJournalGitLab[]
   candidat: string
+  /** Présent pour une suppression : ce que la reprise locale devra appliquer. */
+  suppression?: SuppressionJournalGitLab
 }
 
 /** La ressource canonique de `corpus.json`, seule à même de reconnaître une
@@ -103,13 +139,34 @@ export class JournalPublicationGitLab {
     chmodSync(this.candidates, 0o700)
   }
 
-  /** Entrées de publication de corpus encore journalisées : elles bloquent
-   *  toute nouvelle transaction sur `corpus.json` tant qu'elles ne sont pas
-   *  réconciliées. Une entrée de nature inconnue bloque aussi. */
+  /** Entrées qui écrivent `corpus.json` et sont encore journalisées : elles
+   *  bloquent toute nouvelle transaction sur le corpus, et toute nouvelle
+   *  suppression, tant qu'elles ne sont pas réconciliées. Une entrée de nature
+   *  inconnue bloque aussi. */
   transactionsCorpusJournalisees(): EntreeJournalPublication[] {
     return this.lister().filter(
-      (entree) => entree.nature === 'transaction-corpus' || entree.nature === 'inconnue',
+      (entree) => entree.nature === 'transaction-corpus'
+        || entree.nature === 'suppression-entretien'
+        || entree.nature === 'inconnue',
     )
+  }
+
+  /** Suppressions confirmées dont l'archivage local reste à finir. */
+  suppressionsAInstaller(): EntreeJournalPublication[] {
+    return this.lister().filter(
+      (entree) => entree.nature === 'suppression-entretien'
+        && entree.etat === 'confirme-a-installer'
+        && Boolean(entree.suppression),
+    )
+  }
+
+  /** Une suppression déjà journalisée pour cet entretien : elle interdit d'en
+   *  commencer une autre, et force la reprise de celle-là. */
+  suppressionDe(entretienId: string): EntreeJournalPublication | null {
+    return this.lister().find(
+      (entree) => entree.nature === 'suppression-entretien'
+        && entree.suppression?.entretienId === entretienId,
+    ) ?? null
   }
 
   preparer(entree: EntreeJournalNue): void {
@@ -121,6 +178,14 @@ export class JournalPublicationGitLab {
     }
     const actions = entree.actions
     validerActions(actions)
+    if (entree.droits.length === 0 || entree.droits.length > 2) {
+      throw new Error('Droits de publication GitLab invalides.')
+    }
+    if (new Set(entree.droits.map((droit) => droit.resourceHash)).size
+      !== entree.droits.length) {
+      throw new Error('Droits de publication GitLab invalides.')
+    }
+    if (entree.suppression) validerSuppression(entree.suppression, actions)
     const candidat = this.nomCandidat(entree.operationId)
     this.ecrireCandidate(candidat, actions)
     const journal: EntreeJournalPublication = {
@@ -128,7 +193,7 @@ export class JournalPublicationGitLab {
       version: VERSION_JOURNAL,
       destinationId: this.destinationId,
       ecritLe: this.maintenant().toISOString(),
-      actions: actions.map(metadonneeAction),
+      actions: actions.map((action) => metadonneeAction(action, entree.suppression)),
       candidat,
     }
     try {
@@ -162,6 +227,9 @@ export class JournalPublicationGitLab {
       if (action.action !== metadata.action || action.file_path !== metadata.file_path) {
         throw new Error('Candidat de publication GitLab incohérent.')
       }
+      // Un déplacement ne transporte aucun contenu : son empreinte attendue
+      // reste celle du journal, seule trace de ce que l'archive doit contenir.
+      if (action.action === 'move') return
       if (
         metadata.contentSha256 &&
         (createHash('sha256').update(action.content ?? '').digest('hex') !== metadata.contentSha256 ||
@@ -176,6 +244,20 @@ export class JournalPublicationGitLab {
   marquerIndetermine(operationId: string): void {
     const entree = this.lire(operationId)
     this.ecrire({ ...entree, etat: 'indetermine' })
+  }
+
+  /** Le retrait distant est confirmé : il reste l'archivage local à faire.
+   *  L'entrée n'est retirée qu'après cet archivage. */
+  marquerConfirmeAInstaller(operationId: string, commitId: string): void {
+    const entree = this.lire(operationId)
+    if (entree.nature !== 'suppression-entretien' || !entree.suppression) {
+      throw new Error('Opération GitLab sans suppression à installer.')
+    }
+    this.ecrire({
+      ...entree,
+      etat: 'confirme-a-installer',
+      suppression: { ...entree.suppression, commitId },
+    })
   }
 
   supprimer(operationId: string): void {
@@ -298,7 +380,11 @@ export class ReconciliateurPublicationGitLab {
       return { statut: 'indetermine' }
     }
     try {
-      for (const action of actions) {
+      for (const action of entree.actions) {
+        const compiled = actions.find(
+          (candidat) => candidat.action === action.action
+            && candidat.file_path === action.file_path,
+        )
         if (action.action === 'delete') {
           if (await this.depot.lireFichier(action.file_path, exacts[0].id)) {
             return { statut: 'indetermine' }
@@ -306,13 +392,18 @@ export class ReconciliateurPublicationGitLab {
           continue
         }
         const observe = await this.depot.lireFichier(action.file_path, exacts[0].id)
-        if (!observe || observe.contenu !== action.content) {
-          return { statut: 'indetermine' }
+        if (action.action === 'move') {
+          const verdict = await this.verifierDeplacement(
+            action,
+            compiled,
+            observe,
+            exacts[0].id,
+            entree.suppression,
+          )
+          if (verdict) return { statut: 'indetermine' }
+          continue
         }
-        if (action.action === 'move' && await this.depot.lireFichier(
-          action.previous_path as string,
-          exacts[0].id,
-        )) {
+        if (!observe || observe.contenu !== compiled?.content) {
           return { statut: 'indetermine' }
         }
       }
@@ -321,9 +412,53 @@ export class ReconciliateurPublicationGitLab {
     }
     return { statut: 'confirme', commitId: exacts[0].id }
   }
+
+  /** Un déplacement GitLab ne transporte aucun `content` : comparer la
+   *  destination à `action.content` laisserait toute suppression indéterminée.
+   *  Ce qui est vérifié ici, c'est l'absence de l'ancien chemin, la présence
+   *  de l'archive, et l'empreinte du JSON que la préparation avait lu. */
+  private async verifierDeplacement(
+    action: { file_path: string; previous_path?: string; contentSha256?: string },
+    compiled: ActionCommitGitLab | undefined,
+    observe: { contenu: string } | null,
+    commitId: string,
+    suppression?: SuppressionJournalGitLab,
+  ): Promise<boolean> {
+    if (await this.depot.lireFichier(action.previous_path as string, commitId)) return true
+    if (!observe) return true
+    if (suppression && action.previous_path === suppression.cheminSource) {
+      if (suppression.empreinteArchive !== action.contentSha256) return true
+      if (createHash('sha256').update(observe.contenu).digest('hex')
+        !== suppression.empreinteArchive) {
+        return true
+      }
+      if (Buffer.byteLength(observe.contenu, 'utf8') !== suppression.octetsArchive) return true
+      return false
+    }
+    if (action.contentSha256) {
+      return createHash('sha256').update(observe.contenu).digest('hex')
+        !== action.contentSha256
+    }
+    // Sans empreinte journalisée, la présence de l'archive et le départ de la
+    // source suffisent : c'est déjà plus qu'un déplacement non vérifiable.
+    return !compiled || compiled.action !== 'move'
+  }
 }
 
-function metadonneeAction(action: ActionCommitGitLab): ActionJournalGitLab {
+function metadonneeAction(
+  action: ActionCommitGitLab,
+  suppression?: SuppressionJournalGitLab,
+): ActionJournalGitLab {
+  if (action.action === 'move' && suppression
+    && action.previous_path === suppression.cheminSource) {
+    // L'archive n'est vérifiable que par son contenu : l'empreinte du JSON
+    // déplacé est portée par l'action, puis relue à la réconciliation.
+    return {
+      ...action,
+      contentSha256: suppression.empreinteArchive,
+      contentOctets: suppression.octetsArchive,
+    }
+  }
   if (action.action === 'create' || action.action === 'update') {
     const { content, ...metadata } = action
     return {
@@ -335,6 +470,32 @@ function metadonneeAction(action: ActionCommitGitLab): ActionJournalGitLab {
   return { ...action }
 }
 
+/** Une suppression journalisée doit pouvoir finir seule : son archive est
+ *  choisie, son JSON est identifié, et son plan local est complet. */
+function validerSuppression(
+  suppression: SuppressionJournalGitLab,
+  actions: ReadonlyArray<{ action?: string; file_path: string; previous_path?: string }>,
+): void {
+  const deplacement = actions.find(
+    (action) => action.action === 'move' && action.previous_path === suppression.cheminSource,
+  )
+  if (!deplacement || deplacement.file_path !== suppression.cheminArchive) {
+    throw new Error('Journal de suppression GitLab incohérent.')
+  }
+  if (
+    !suppression.entretienId ||
+    !SHA256.test(suppression.empreinteArchive) ||
+    !Number.isSafeInteger(suppression.octetsArchive)
+    || (suppression.octetsArchive as number) < 0
+    || !suppression.planLocal
+    || suppression.planLocal.operation !== 'suppression'
+    || suppression.planLocal.id !== suppression.entretienId
+    || !Array.isArray(suppression.planLocal.deplacements)
+  ) {
+    throw new Error('Journal de suppression GitLab invalide.')
+  }
+}
+
 function validerEntree(
   valeur: unknown,
   destinationId: string,
@@ -344,25 +505,26 @@ function validerEntree(
   if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) {
     throw new Error('Entrée de journal GitLab invalide.')
   }
-  const entree = valeur as Partial<EntreeJournalPublication>
-  const version = (valeur as { version?: unknown }).version
+  const brut = valeur as Record<string, unknown>
+  const entree = brut as unknown as Partial<EntreeJournalPublication>
+  const version = brut.version
   if (
-    (version !== VERSION_JOURNAL && version !== VERSION_JOURNAL_ANCIENNE) ||
+    (version !== VERSION_JOURNAL
+      && version !== VERSION_JOURNAL_A_UN_DROIT
+      && version !== VERSION_JOURNAL_SANS_NATURE) ||
     entree.destinationId !== destinationId ||
     entree.operationId !== operationIdAttendu ||
     !IDENT_OPERATION.test(entree.operationId) ||
     typeof entree.branche !== 'string' ||
     !entree.branche.trim() ||
-    !SHA256.test(entree.resourceHash ?? '') ||
-    typeof entree.generation !== 'string' ||
-    !entree.generation ||
-    !SHA_COMMIT.test(entree.leaseCommitId ?? '') ||
-    (entree.etat !== 'prepare' && entree.etat !== 'indetermine') ||
+    (entree.etat !== 'prepare'
+      && entree.etat !== 'indetermine'
+      && entree.etat !== 'confirme-a-installer') ||
     typeof entree.ecritLe !== 'string' ||
     !Number.isFinite(Date.parse(entree.ecritLe)) ||
     !Array.isArray(entree.actions) ||
     entree.actions.length === 0 ||
-    entree.actions.length > 101 ||
+    entree.actions.length > 102 ||
     typeof entree.candidat !== 'string' ||
     !CANDIDAT.test(entree.candidat)
   ) {
@@ -372,13 +534,57 @@ function validerEntree(
     if ('content' in action) throw new Error('Le journal ne doit pas contenir le contenu.')
     validerActionJournal(action)
   }
-  const nature = version === VERSION_JOURNAL_ANCIENNE
-    ? classerAncienne(entree, ressourceCorpus)
-    : entree.nature
+  const droits = projeterDroits(brut, version)
+  const nature = version === VERSION_JOURNAL_SANS_NATURE
+    ? classerAncienne(
+      { ...entree, resourceHash: droits[0].resourceHash } as EntreeAncienneJournal,
+      ressourceCorpus,
+    )
+    : (brut.nature as NatureEntreeJournal)
   if (nature !== 'inconnue' && !NATURES.includes(nature as NaturePublicationGitLab)) {
     throw new Error('Nature de publication GitLab inconnue.')
   }
-  return { ...entree, version: VERSION_JOURNAL, nature } as EntreeJournalPublication
+  if (nature === 'suppression-entretien' && version === VERSION_JOURNAL) {
+    if (!entree.suppression) throw new Error('Journal de suppression GitLab incomplet.')
+    validerSuppression(entree.suppression, entree.actions)
+  }
+  return {
+    ...entree,
+    version: VERSION_JOURNAL,
+    nature,
+    droits,
+  } as EntreeJournalPublication
+}
+
+/** Les trois versions d'un droit se lisent de la même façon : une entrée
+ *  ancienne à un droit est simplement projetée vers une liste d'un élément. */
+function projeterDroits(
+  brut: Record<string, unknown>,
+  version: unknown,
+): DroitJournalGitLab[] {
+  if (version === VERSION_JOURNAL) {
+    const droits = brut.droits
+    if (!Array.isArray(droits) || droits.length === 0 || droits.length > 2) {
+      throw new Error('Entrée de journal GitLab invalide.')
+    }
+    return droits.map((droit) => verifierDroitJournal(droit))
+  }
+  return [verifierDroitJournal(brut)]
+}
+
+function verifierDroitJournal(valeur: unknown): DroitJournalGitLab {
+  if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) {
+    throw new Error('Entrée de journal GitLab invalide.')
+  }
+  const { resourceHash, generation, leaseCommitId } = valeur as Partial<DroitJournalGitLab>
+  if (
+    typeof resourceHash !== 'string' || !SHA256.test(resourceHash) ||
+    typeof generation !== 'string' || !generation ||
+    typeof leaseCommitId !== 'string' || !SHA_COMMIT.test(leaseCommitId)
+  ) {
+    throw new Error('Entrée de journal GitLab invalide.')
+  }
+  return { resourceHash, generation, leaseCommitId }
 }
 
 /** Reconnaît une entrée écrite avant l'existence des natures.
@@ -389,7 +595,7 @@ function validerEntree(
  *  transaction de corpus, autorise cette lecture. Le reste reste « inconnue »,
  *  donc récupérable et bloquant. */
 function classerAncienne(
-  entree: Partial<EntreeJournalPublication>,
+  entree: EntreeAncienneJournal,
   ressourceCorpus?: RessourceCorpusJournal,
 ): NatureEntreeJournal {
   if (!ressourceCorpus) return 'inconnue'
@@ -407,7 +613,7 @@ function classerAncienne(
 }
 
 function validerActions(actions: ActionCommitGitLab[]): void {
-  if (actions.length === 0 || actions.length > 101) {
+  if (actions.length === 0 || actions.length > 102) {
     throw new Error('Actions de publication GitLab invalides.')
   }
   for (const action of actions) validerAction(action)
@@ -434,22 +640,27 @@ function validerActionJournal(valeur: unknown): asserts valeur is ActionJournalG
     if (action.previous_path === action.file_path) {
       throw new Error('Action de journal GitLab invalide.')
     }
+    if (action.contentSha256 !== undefined && !SHA256.test(action.contentSha256)) {
+      throw new Error('Action de journal GitLab invalide.')
+    }
   }
 }
 
 function validerAction(valeur: unknown): asserts valeur is ActionCommitGitLab {
   if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) {
-    throw new Error('Action de journal GitLab invalide.')
+    throw new Error('Action de publication GitLab invalide.')
   }
   const action = valeur as Partial<ActionCommitGitLab>
   if (!['create', 'update', 'delete', 'move'].includes(action.action ?? '')) {
-    throw new Error('Action de journal GitLab invalide.')
+    throw new Error('Action de publication GitLab invalide.')
   }
   verifierCheminGitLab(action.file_path ?? '')
   if (action.action === 'create' || action.action === 'update') {
-    if (typeof action.content !== 'string') throw new Error('Action de journal GitLab invalide.')
+    if (typeof action.content !== 'string') {
+      throw new Error('Action de publication GitLab invalide.')
+    }
   } else if (!SHA_COMMIT.test(action.last_commit_id ?? '')) {
-    throw new Error('Action de journal GitLab invalide.')
+    throw new Error('Action de publication GitLab invalide.')
   }
   if (action.action === 'move') {
     verifierCheminGitLab(action.previous_path ?? '')

@@ -23,9 +23,10 @@ entretiens publiés.
 | `definitions-avec-sources` | des entretiens **publiés et gardés** | passage inséré dans un recueil, rattachement et dérivation CAS |
 | `tri-contenus` | tous les entretiens publiés, sans garde | tri par dernière modification ou par longueur |
 | `suppression-definition` | tous les entretiens publiés et gardés, avec validation réciproque des sessions | suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note ou d'une règle |
-| `suppression-entretien` | retrait puis archivage d'un entretien | analyse de suppression, suppression |
-| `indisponible` | rien — parcours refusés sur **tout** corpus distant | édition d'une note du corpus, personnes, annulation d'une action du journal, lots de valeurs et de règles, marqueur de démonstration |
-
+| `suppression-entretien` | retrait du membership, déplacement du JSON sous **deux** baux, archivage local séparé | analyse de suppression, suppression |
+| `valeurs-entretien` | un entretien protégé et les définitions qu'il référence | saisie directe et lot de valeurs |
+| `pseudonymisation-entretiens` | un entretien protégé et la règle appliquée | poses, retraits et exceptions de pseudonymisation |
+| `indisponible` | rien — parcours refusés sur **tout** corpus distant | édition d'une note du corpus, personnes, annulation d'une action du journal, marqueur de démonstration |
 Le classement se fait par commande, et par variante pour les commandes qui en ont
 plusieurs : insérer un passage se distingue d'insérer un texte, un tri
 alphabétique se distingue d'un tri par contenu (`gestureCas`, `gestureRecueil`,
@@ -41,13 +42,24 @@ Un fournisseur n'accorde jamais une portée qu'aucun de ses gestes ne partage.
 | `definitions-avec-sources` | oui | oui | oui |
 | `tri-contenus` | oui | oui | oui |
 | `suppression-definition` | oui | oui | oui |
-| `suppression-entretien` | oui | oui | non |
+| `suppression-entretien` | oui | oui | oui |
+| `valeurs-entretien` | oui | oui | oui |
+| `pseudonymisation-entretiens` | oui | oui | oui |
 | `indisponible` | oui | non | non |
 
 GitLab accorde toutes les opérations de définitions qualifiées. Les gestes à
 sources gardent les versions publiées dans le commit, les tris exigent un corpus
 calme et les suppressions ajoutent une garde croisée avec les publications de
-session. Seule la suppression d'un entretien reste absente dans cette famille.
+session.
+
+La suppression d'un entretien est ouverte elle aussi, depuis sa qualification à
+deux comptes : retrait et archive dans un seul commit, exclusion effective par
+les deux baux, réconciliation sans rejeu et récupération locale après un arrêt.
+
+Les écritures d'entretien depuis les vues corpus sont ouvertes sur les deux
+fournisseurs. Elles se distinguent des définitions : le gesture prend un bail
+court sur **chaque entretien** du lot, et garde les définitions sans les modifier.
+Le détail est dans `docs/dev/gitlab.md` §12.
 
 ## 3. Les gardes, dans l'ordre
 
@@ -76,11 +88,12 @@ accès.
 | `definitionsAvecSources` | oui | oui | oui | idem |
 | `triContenu` | oui | oui | oui | idem |
 | `ajoutEntretien` | oui | oui | oui | idem |
-| `suppressionEntretien` | oui | oui | non | portée `suppression-entretien` |
+| `suppressionEntretien` | oui | oui | oui | portée `suppression-entretien` |
 | `editionEntretien` | oui | oui | oui | toujours vraie : la garde de session s'applique par-dessus |
 | `renommageEntretien` | oui | oui | oui | parcours du transport |
 | `metadonneesEntretien` | oui | oui | non | parcours du transport |
-| `tableDonnees` | oui | oui | non | parcours du transport |
+| `tableDonnees` | oui | oui | oui | portée `valeurs-entretien` |
+| `pseudonymisationEntretiens` | oui | oui | oui | portée `pseudonymisation-entretiens` |
 | `notes` | oui | non | non | parcours du transport |
 | `personnes` | oui | oui | non | parcours du transport |
 | `annulationJournal` | oui | non | non | parcours du transport |

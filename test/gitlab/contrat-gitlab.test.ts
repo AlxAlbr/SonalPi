@@ -509,6 +509,36 @@ decrire('Contrat GitLab réel', () => {
     expect(Buffer.from(fichierDeplace.corps.content, 'base64').toString('utf8')).toBe('déplacement v2')
   })
 
+  it('refuse un déplacement vers une archive déjà occupée, sans l’écraser', { timeout: 45_000 }, async () => {
+    const projet = configuration.projetLfsId as string
+    const token1 = configuration.token1 as string
+    const source = `qualification/${idExecution}-source-archive.txt`
+    const archive = `qualification/${idExecution}-corbeille/source-archive.txt`
+
+    const creation = await publierCommit(projet, token1, `qualification ${idExecution}: source et archive occupée`, [
+      { action: 'create', file_path: source, content: 'contenu de l’entretien' },
+      { action: 'create', file_path: archive, content: 'archive déjà présente' },
+    ])
+    expect(creation.statut, detail(creation)).toBe(201)
+    const garde = (await lireFichier(projet, source, token1)).corps.last_commit_id
+
+    const deplacement = await publierCommit(projet, token1, `qualification ${idExecution}: move sur archive occupée`, [
+      { action: 'move', previous_path: source, file_path: archive, last_commit_id: garde },
+    ])
+
+    // Le code ne compte pas sur un écrasement pour résoudre une collision :
+    // si l'instance acceptait le move, il faudrait le savoir avant d'écrire.
+    expect(deplacement.statut, detail(deplacement)).toBe(400)
+    const archiveIntacte = await lireFichier(projet, archive, token1)
+    expect(archiveIntacte.statut, detail(archiveIntacte)).toBe(200)
+    expect(Buffer.from(archiveIntacte.corps.content, 'base64').toString('utf8'))
+      .toBe('archive déjà présente')
+    const sourceIntacte = await lireFichier(projet, source, token1)
+    expect(sourceIntacte.statut, detail(sourceIntacte)).toBe(200)
+    expect(Buffer.from(sourceIntacte.corps.content, 'base64').toString('utf8'))
+      .toBe('contenu de l’entretien')
+  })
+
   it('réconcilie un commit accepté dont la réponse réseau est perdue', { timeout: 45_000 }, async () => {
     const projet = configuration.projetLfsId as string
     const token = configuration.token1 as string

@@ -488,8 +488,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     })
   }
 
-  /** Exécute les ajouts pris en charge par les deux fournisseurs distants. */
-  function executerAjoutDistant<T>(
+  /** Exécute une opération prise en charge par les deux fournisseurs distants. */
+  function executerSelonFournisseur<T>(
     nextcloud: (contexte: ContexteCorpusDistant) => Promise<T>,
     gitlab: (contexte: ContexteGitLab) => Promise<T>,
   ): Promise<T> | null {
@@ -875,7 +875,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     },
   )
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
-    executerAjoutDistant(
+    executerSelonFournisseur(
       (contexte) => contexte.transactions.creerEntretienVide(titre),
       (contexte) => {
         exigerGeste('gitlab', 'entretien.creer')
@@ -910,6 +910,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  sinon, ce serait notre propre verrou qui bloquerait la suppression. */
   ipcMain.handle('corpus:analyserSuppressionEntretien', (_e, id: string) => {
     exigerGeste(fournisseurCourant(), 'entretien.analyser-suppression')
+    // GitLab calcule l'aperçu sur le corpus publié, pas sur le miroir.
+    if (fournisseurCourant() === 'gitlab') {
+      return executerGitLab((contexte) => contexte.analyserSuppressionEntretien(id))
+    }
     return store.analyserSuppressionEntretien(id)
   })
   ipcMain.handle('corpus:supprimerEntretien', async (
@@ -919,6 +923,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ) => {
     const magasin = store
     exigerGeste(fournisseurCourant(), 'entretien.supprimer')
+    if (fournisseurCourant() === 'gitlab') {
+      return executerGitLab((contexte) => contexte.supprimerEntretien(id, impactAttendu))
+    }
     const execution = executerContexteDistant(async (contexte) => {
       magasin.revoquerEcritureEntretien(id)
       const fermeture = await contexte.sessions.fermer(id)
@@ -940,7 +947,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:importer',
     (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
-      executerAjoutDistant(
+      executerSelonFournisseur(
         (contexte) => contexte.transactions.importerEntretien(
           titre,
           payload,
@@ -1189,9 +1196,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
   ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) => {
     exigerGeste(fournisseurCourant(), 'regles.lot')
-    return executerIntentionDistante((contexte) =>
-      contexte.transactions.appliquerRegleLot(cibles))
-      ?? appliquerRegleLotLocal(store, cibles)
+    return executerSelonFournisseur(
+      (contexte) => contexte.transactions.appliquerRegleLot(cibles),
+      (contexte) => contexte.appliquerRegleLot(cibles),
+    ) ?? appliquerRegleLotLocal(store, cibles)
   })
   ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
     store.compterUsagesCategorie(code, exceptId),
@@ -1997,9 +2005,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // échecs nommés) ; local → boucle directe du store. Mêmes résultats dans les deux modes.
   ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) => {
     exigerGeste(fournisseurCourant(), 'valeurs.lot')
-    return executerIntentionDistante((contexte) =>
-      contexte.transactions.poserValeurLot(items))
-      ?? poserValeurLotLocal(store, items)
+    return executerSelonFournisseur(
+      (contexte) => contexte.transactions.poserValeurLot(items),
+      (contexte) => contexte.poserValeurLot(items),
+    ) ?? poserValeurLotLocal(store, items)
   })
 
   // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) ;

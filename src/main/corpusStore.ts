@@ -26,7 +26,7 @@ import {
   type InventaireNotes,
 } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
-import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
+import { appliquerRegleAnonEntretien } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import {
@@ -64,6 +64,8 @@ import {
 } from '../shared/corpus/observationsAttributs'
 import {
   TransactionsFichiersCorpus,
+  DOSSIER_ARCHIVE_LOCAL,
+  choisirDestinationArchiveLocale,
   type PlanAjoutEntretien,
   type PlanSuppressionEntretien,
   type PlanTransactionFichiers,
@@ -956,12 +958,16 @@ export class CorpusStore {
     return analyserImpactSuppressionEntretien(corpus, id)
   }
 
-  /** Prépare le retrait du membership et l'archivage des fichiers sans écriture. */
-  preparerSuppressionEntretien(
+  /** Prépare le retrait métier du membership, sans toucher aux fichiers.
+   *
+   *  C'est la moitié de la suppression qui décide d'un commit : elle se calcule
+   *  sur la base réellement publiée, dans le store qui la porte. L'autre moitié,
+   *  l'archivage des sauvegardes et des PNG, est un inventaire local et ne
+   *  décide jamais du dépôt distant. */
+  preparerRetraitEntretien(
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
-  ): PlanSuppressionEntretien {
-    this.verifierEntretienLisible(id)
+  ): { corpusAvant: CorpusFichier; corpusApres: CorpusFichier; impact: ImpactSuppressionEntretien } {
     const corpusAvant = this.ouvrir()
     if (!corpusAvant.membership[id]) throw new Error("Cet entretien n'existe plus.")
     const impactCourant = analyserImpactSuppressionEntretien(corpusAvant, id)
@@ -983,13 +989,44 @@ export class CorpusStore {
       throw new Error("L'impact de la suppression n'a pas pu être vérifié.")
     }
     retirerEntretienOrdre(corpusApres, id)
+    return { corpusAvant, corpusApres, impact: impactCourant }
+  }
+
+  /** Prépare le retrait du membership et l'archivage des fichiers sans écriture.
+   *
+   *  `choisirDestination` permet de fixer les noms d'archive avant l'envoi
+   *  distant : un redémarrage ne les tire plus au hasard, et une collision
+   *  constatée plus tard se signale au lieu d'écraser. */
+  preparerSuppressionEntretien(
+    id: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+    choisirDestination: (nom: string) => string = (nom) => this.destinationCorbeille(nom),
+  ): PlanSuppressionEntretien {
+    this.verifierEntretienLisible(id)
+    const { corpusAvant, corpusApres } = this.preparerRetraitEntretien(id, impactAttendu)
+    return {
+      operation: 'suppression',
+      id,
+      corpusAvant,
+      corpusApres,
+      deplacements: this.inventorierFichiersSuppression(id, choisirDestination),
+    }
+  }
+
+  /** Fichiers locaux à archiver : l'entretien, ses deux sauvegardes et les PNG
+   *  qui portent son identifiant. Les médias référencés ne sont pas touchés :
+   *  ils vivent hors du corpus et restent en place. */
+  inventorierFichiersSuppression(
+    id: string,
+    choisirDestination: (nom: string) => string = (nom) => this.destinationCorbeille(nom),
+  ): PlanSuppressionEntretien['deplacements'] {
     const deplacements: PlanSuppressionEntretien['deplacements'] = []
     for (const suffixe of ['.json', '.json.bak1', '.json.bak2']) {
       const nom = id + suffixe
       if (existsSync(join(this.entretiensDir, nom))) {
         deplacements.push({
           source: join('entretiens', nom),
-          destination: this.destinationCorbeille(nom),
+          destination: choisirDestination(nom),
         })
       }
     }
@@ -998,12 +1035,12 @@ export class CorpusStore {
         if (nom.startsWith(id + '.')) {
           deplacements.push({
             source: join('png', nom),
-            destination: this.destinationCorbeille(nom),
+            destination: choisirDestination(nom),
           })
         }
       }
     }
-    return { operation: 'suppression', id, corpusAvant, corpusApres, deplacements }
+    return deplacements
   }
 
   /** Retire le membership avant d'archiver les fichiers, sous journal récupérable.
@@ -1034,9 +1071,20 @@ export class CorpusStore {
   }
 
   private destinationCorbeille(nom: string): string {
-    const destination = join('corbeille', nom)
+    const destination = join(DOSSIER_ARCHIVE_LOCAL, nom)
     if (!existsSync(join(this.dir, destination))) return destination
-    return join('corbeille', `${nom}.copie-${Math.random().toString(36).slice(2, 10)}`)
+    return join(DOSSIER_ARCHIVE_LOCAL, `${nom}.copie-${Math.random().toString(36).slice(2, 10)}`)
+  }
+
+  /** Archive locale d'un fichier, avec un nom stable et sans écrasement.
+   *  Une suppression distante s'en sert pour que son plan, rejoué après un
+   *  arrêt, retrouve exactement les mêmes destinations. */
+  destinationArchive(nomFichier: string, suffixe: string): string {
+    return choisirDestinationArchiveLocale(
+      nomFichier,
+      suffixe,
+      (chemin) => existsSync(join(this.dir, chemin)),
+    )
   }
 
   /** Lit sur disque les fichiers dont les ids sont dans le membership.
@@ -1844,29 +1892,18 @@ export class CorpusStore {
       retirerException?: { from: number; to: number }[]
     },
   ): { nb: number; titre: string } {
-    this.verifierEcriture()
+    this.verifierEcritureEntretien(entretienId)
     const corpus = this.ouvrir()
     const titre = corpus.membership[entretienId]?.titre ?? entretienId
     const regle = corpus.reglesAnon[regleId]
     const file = this.entretienFile(entretienId)
     if (!regle || !existsSync(file)) return { nb: 0, titre }
     const data = JSON.parse(readFileSync(file, 'utf8')) as EntretienFichier
-    const instr = instructionsAppliquerRegle(data, regle, () =>
-      'a-' + Math.random().toString(36).slice(2, 9),
-    )
-    const poser = poserDansPlages(instr.poser, cible?.plages)
-    const nbDiff = appliquerDiffAnon(
-      data.annotations,
-      regle.id,
-      cible?.retirer,
-      cible?.exception,
-      cible?.retirerException,
-    )
-    for (const o of poser) {
-      data.annotations.push({ id: o.id, type: 'anon', from: o.from, to: o.to, auteur: 'corpus', etat: 'anonymise', pseudo: o.pseudo, regle: o.regle })
+    const nb = appliquerRegleAnonEntretien(data, regle, cible ?? {})
+    if (nb > 0) {
+      data.lastModified = new Date().toISOString()
+      this.ecrireJsonAtomique(file, data)
     }
-    const nb = nbDiff + poser.length
-    if (nb > 0) this.ecrireJsonAtomique(file, data)
     return { nb, titre }
   }
 
@@ -1950,6 +1987,12 @@ export class CorpusStore {
    *  mécanique détaillée dans shared/corpus/requetes.ts. */
   matriceCorpus(): MatriceCorpus {
     return corpusModel.matriceCorpus(this.chargerEntretiens())
+  }
+
+  /** Installe un entretien confirmé par le fournisseur distant.
+   *  L'orchestrateur garantit qu'aucune session locale ne possède ce fichier. */
+  installerEntretienDistant(entretienId: string, entretien: EntretienFichier): void {
+    this.ecrireJsonAtomique(this.entretienFile(entretienId), entretien)
   }
 
   /** Pose une valeur EAV dans un entretien (table de données).

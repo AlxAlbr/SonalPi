@@ -420,9 +420,10 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
 
       // Le bail laissé par la session morte appartient toujours au même poste :
       // l'ouverture le rend, et les définitions repartent sans attendre.
+      const droit = entree.droits[0]
       expect(await apres.coordination.rendreBailNotre(
-        cheminBailDepuisEmpreinteGitLab(entree.resourceHash),
-        entree.generation,
+        cheminBailDepuisEmpreinteGitLab(droit.resourceHash),
+        droit.generation,
       )).toBe('libere')
       await expect(apres.transactions.executerDefinitions(
         (store) => store.ajouterCategorie('Thème suivant', null),

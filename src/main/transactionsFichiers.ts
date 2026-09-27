@@ -45,6 +45,25 @@ export interface PlanRemplacementEntretiens {
 
 export type PlanTransactionFichiers = PlanAjoutEntretien | PlanSuppressionEntretien | PlanRemplacementEntretiens
 
+/** Assemble un plan de retrait à partir d'un retrait métier déjà calculé et
+ *  d'un inventaire de fichiers déjà choisi. Un dépôt distant prépare les deux
+ *  moitiés séparément : le retrait sur la base publiée, l'inventaire dans le
+ *  miroir local. */
+export function planSuppressionLocal(
+  id: string,
+  corpusAvant: CorpusFichier,
+  corpusApres: CorpusFichier,
+  deplacements: readonly DeplacementTransactionFichiers[],
+): PlanSuppressionEntretien {
+  return {
+    operation: 'suppression',
+    id,
+    corpusAvant: structuredClone(corpusAvant),
+    corpusApres: structuredClone(corpusApres),
+    deplacements: deplacements.map((deplacement) => ({ ...deplacement })),
+  }
+}
+
 interface JournalTransactionFichiers {
   readonly formatVersion: 1
   readonly plan: PlanTransactionFichiers
@@ -52,8 +71,48 @@ interface JournalTransactionFichiers {
 
 const NOM_JOURNAL = '.transaction-fichiers.json'
 
+/** Dossier d'archive du miroir. Le dépôt GitLab porte son propre dossier du
+ *  même nom : celui-ci ne contient que des fichiers locaux. */
+export const DOSSIER_ARCHIVE_LOCAL = 'corbeille'
+
+/** Archive locale d'un fichier retiré, sans jamais écraser.
+ *
+ *  Le nom est choisi une fois et conservé par le plan qui l'archive : un
+ *  redémarrage ne le rejoue pas, et une collision constatée plus tard
+ *  suspend l'application au lieu de détruire une archive existante. */
+export function choisirDestinationArchiveLocale(
+  nomFichier: string,
+  suffixe: string,
+  existe: (chemin: string) => boolean,
+): string {
+  const prefere = join(DOSSIER_ARCHIVE_LOCAL, nomFichier)
+  if (!existe(prefere)) return prefere
+  const alternatif = join(DOSSIER_ARCHIVE_LOCAL, `${nomFichier}.${suffixe}`)
+  if (!existe(alternatif)) return alternatif
+  throw new Error(
+    `Deux archives de « ${nomFichier} » sont déjà prises dans ce corpus. `
+    + 'Videz la corbeille locale avant de supprimer cet entretien.',
+  )
+}
+
 function contenuJson(valeur: unknown): string {
   return JSON.stringify(valeur, null, 2)
+}
+
+/** Un déplacement archivé est un couple de chemins relatifs au corpus, jamais
+ *  identique : le plan doit rester applicable après un redémarrage. */
+function validerDeplacement(valeur: unknown): valeur is DeplacementTransactionFichiers {
+  if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) return false
+  const deplacement = valeur as Partial<DeplacementTransactionFichiers>
+  if (typeof deplacement.source !== 'string' || typeof deplacement.destination !== 'string') {
+    return false
+  }
+  if (deplacement.source === deplacement.destination) return false
+  return [deplacement.source, deplacement.destination].every((chemin) => {
+    if (!chemin || isAbsolute(chemin) || chemin.includes('\0')) return false
+    const normalise = normalize(chemin)
+    return normalise !== '..' && !normalise.startsWith(`..${sep}`) && !normalise.startsWith('/')
+  })
 }
 
 function correspondAuJson(contenu: string | null, attendu: string): boolean {
@@ -261,6 +320,9 @@ export class TransactionsFichiersCorpus {
     }
     if (plan.operation === 'suppression' && !Array.isArray(plan.deplacements)) {
       throw new Error('Le journal de suppression est incomplet.')
+    }
+    if (plan.operation === 'suppression' && !plan.deplacements!.every(validerDeplacement)) {
+      throw new Error('Le journal de suppression est invalide.')
     }
     if (plan.operation === 'remplacement' && (!Array.isArray(plan.entretiens)
       || (plan.ordre !== undefined && plan.ordre !== 'entretiens-puis-corpus' && plan.ordre !== 'corpus-puis-entretiens')

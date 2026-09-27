@@ -73,9 +73,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-1',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: 'a'.repeat(64),
-        generation: 'generation-1',
-        leaseCommitId: 'b'.repeat(40),
+        droits: [{ resourceHash: 'a'.repeat(64), generation: 'generation-1', leaseCommitId: 'b'.repeat(40) }],
         etat: 'prepare',
         actions: [action],
       })
@@ -105,9 +103,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-2',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: 'c'.repeat(64),
-        generation: 'generation-2',
-        leaseCommitId: 'd'.repeat(40),
+        droits: [{ resourceHash: 'c'.repeat(64), generation: 'generation-2', leaseCommitId: 'd'.repeat(40) }],
         etat: 'prepare',
         actions: [actionCreate('candidat')],
       })
@@ -130,9 +126,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-3',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: 'e'.repeat(64),
-        generation: 'generation-3',
-        leaseCommitId: 'f'.repeat(40),
+        droits: [{ resourceHash: 'e'.repeat(64), generation: 'generation-3', leaseCommitId: 'f'.repeat(40) }],
         etat: 'indetermine',
         actions: [action],
       })
@@ -161,9 +155,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-6',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: '5'.repeat(64),
-        generation: 'generation-6',
-        leaseCommitId: '6'.repeat(40),
+        droits: [{ resourceHash: '5'.repeat(64), generation: 'generation-6', leaseCommitId: '6'.repeat(40) }],
         etat: 'indetermine',
         actions: [action],
       })
@@ -200,9 +192,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-4',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: '1'.repeat(64),
-        generation: 'generation-4',
-        leaseCommitId: '2'.repeat(40),
+        droits: [{ resourceHash: '1'.repeat(64), generation: 'generation-4', leaseCommitId: '2'.repeat(40) }],
         etat: 'prepare',
         actions: [action],
       })
@@ -226,9 +216,7 @@ describe('journal de publication GitLab', () => {
         operationId: 'operation-journal-5',
         nature: 'session-entretien',
         branche: 'main',
-        resourceHash: '3'.repeat(64),
-        generation: 'generation-5',
-        leaseCommitId: '4'.repeat(40),
+        droits: [{ resourceHash: '3'.repeat(64), generation: 'generation-5', leaseCommitId: '4'.repeat(40) }],
         etat: 'indetermine',
         actions: [action],
       })
@@ -274,9 +262,7 @@ describe('nature des entrées de publication', () => {
       operationId,
       nature: 'session-entretien',
       branche: 'main',
-      resourceHash,
-      generation: 'generation-1',
-      leaseCommitId: 'a'.repeat(40),
+      droits: [{ resourceHash, generation: 'generation-1', leaseCommitId: 'a'.repeat(40) }],
       etat: 'indetermine',
       actions,
     })
@@ -285,7 +271,11 @@ describe('nature des entrées de publication', () => {
       createHash('sha256').update(operationId).digest('hex') + '.json')
     const entree = JSON.parse(readFileSync(fichier, 'utf8'))
     delete entree.nature
+    // La version 2 portait un seul droit, en champs plats.
+    const [droit] = entree.droits
+    delete entree.droits
     entree.version = 1
+    Object.assign(entree, droit)
     writeFileSync(fichier, JSON.stringify(entree, null, 2), 'utf8')
   }
 
@@ -353,6 +343,28 @@ describe('nature des entrées de publication', () => {
     }
   })
 
+  test('une transaction courte d’entretien ne bloque pas les transactions de corpus', () => {
+    const { root, journal } = banc(true)
+    try {
+      journal.preparer({
+        operationId: 'entretien-court',
+        nature: 'transaction-entretien',
+        branche: 'main',
+        droits: [{
+          resourceHash: HACHAGE_BAIL,
+          generation: 'generation-1',
+          leaseCommitId: 'a'.repeat(40),
+        }],
+        etat: 'prepare',
+        actions: [actionCorpus],
+      })
+      expect(journal.lister()[0].nature).toBe('transaction-entretien')
+      expect(journal.transactionsCorpusJournalisees()).toHaveLength(0)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test('une nature déclarée est conservée telle quelle', () => {
     const { root, journal } = banc(true)
     try {
@@ -360,9 +372,7 @@ describe('nature des entrées de publication', () => {
         operationId: 'declaree',
         nature: 'transaction-corpus',
         branche: 'main',
-        resourceHash: HACHAGE_BAIL,
-        generation: 'generation-1',
-        leaseCommitId: 'a'.repeat(40),
+        droits: [{ resourceHash: HACHAGE_BAIL, generation: 'generation-1', leaseCommitId: 'a'.repeat(40) }],
         etat: 'prepare',
         actions: [actionCorpus],
       })

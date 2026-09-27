@@ -14,7 +14,8 @@ const emit = defineEmits<{ ouvrirOccurrence: [id: string, pos: number] }>()
 const {
   membership, reglesAnon, scanAnon, rafraichirScanAnon, perimerScanAnon,
   scanAnonCharge, scanAnonPerime, scanAnonEnCours, scanAnonErreur,
-  paramsAnon, majParamsAnon, lectureSeule, badgeVerrou, vue, dernierTirage,
+  paramsAnon, majParamsAnon, lectureSeule, badgeVerrou,
+  pseudonymisationLigneEditable, vue, dernierTirage,
 } = utiliserSonal()
 const selectedRegleId = ref<string | null>(null)
 const messagePseudo = ref<string | null>(null)
@@ -101,6 +102,7 @@ function estCochee(id: string, o: OccurrenceScan): boolean {
   return etatOcc(id, o) === 'anon'
 }
 function basculerCoche(id: string, o: OccurrenceScan) {
+  if (!pseudonymisationLigneEditable(id)) return
   const c = (cochees.value[id] ??= {})
   const k = cleOcc(o)
   c[k] = !c[k]
@@ -110,13 +112,13 @@ function enException(id: string, o: OccurrenceScan): boolean {
 }
 /** 🚫 droit : demande l'exception (la case se décoche). */
 function demanderException(id: string, o: OccurrenceScan) {
-  if (lectureSeule.value || badgeVerrou(id)) return
+  if (!pseudonymisationLigneEditable(id)) return
   ;(exceptions.value[id] ??= {})[cleOcc(o)] = true
   ;(cochees.value[id] ??= {})[cleOcc(o)] = false
 }
 /** 🚫 gauche : retire l'exception → l'occurrence redevient « à traiter ». */
 function retirerException(id: string, o: OccurrenceScan) {
-  if (lectureSeule.value || badgeVerrou(id)) return
+  if (!pseudonymisationLigneEditable(id)) return
   ;(exceptions.value[id] ??= {})[cleOcc(o)] = false
 }
 /** Case-tout de l'en-tête ;
@@ -129,6 +131,7 @@ function entToutCoche(id: string): boolean {
   return ks.length > 0 && ks.every((k) => c[k])
 }
 function toutCocherEnt(id: string) {
+  if (!pseudonymisationLigneEditable(id)) return
   const c = cochees.value[id]
   if (!c) return
   const cible = !entToutCoche(id)
@@ -266,6 +269,10 @@ function etatRegle(s: { total: { anon: number; exc: number; incl: number; non: n
  *  autrui est refusé nommément, sans bloquer les autres. Scan et détails sont
  *  rechargés après coup (le diff peut retirer autant que poser). */
 async function valider(): Promise<boolean> {
+  if (!pseudonymisationLigneEditable('')) {
+    messagePseudo.value = 'La modification des entretiens n’est pas disponible sur ce corpus.'
+    return false
+  }
   const s = scanPourRegle.value
   if (!s) return true
   const diff = construireDiff(s.regle.id, details.value, cochees.value, exceptions.value)
@@ -538,12 +545,8 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
                       <input
                         type="checkbox"
                         :checked="entToutCoche(e.id)"
-                        :disabled="lectureSeule || !!badgeVerrou(e.id)"
-                        :title="
-                          badgeVerrou(e.id)
-                            ? `Verrou tenu par ${badgeVerrou(e.id)!.userId} — validation impossible tant que cette session tient`
-                            : 'Cocher / décocher toutes les occurrences de cet entretien'
-                        "
+                        :disabled="!pseudonymisationLigneEditable(e.id)"
+                        title="Cocher / décocher toutes les occurrences de cet entretien"
                         @click.stop
                         @change="toutCocherEnt(e.id)"
                       />
@@ -579,8 +582,8 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
                         <span
                           v-else-if="enException(e.id, o)"
                           class="occ-exc-toggle"
-                          :class="{ verrouille: lectureSeule || !!badgeVerrou(e.id) }"
-                          :title="lectureSeule || badgeVerrou(e.id) ? 'Modification impossible actuellement' : 'Retirer l’exception — redevient à traiter'"
+                          :class="{ verrouille: !pseudonymisationLigneEditable(e.id) }"
+                          :title="!pseudonymisationLigneEditable(e.id) ? 'Modification impossible actuellement' : 'Retirer l’exception — redevient à traiter'"
                           @click.stop="retirerException(e.id, o)"
                         >🚫</span>
                         <!-- Sinon la case d'ÉTAT : cochée = anonymisée, décochée = à traiter. -->
@@ -588,7 +591,7 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
                           v-else
                           type="checkbox"
                           :checked="estCochee(e.id, o)"
-                          :disabled="lectureSeule || !!badgeVerrou(e.id)"
+                          :disabled="!pseudonymisationLigneEditable(e.id)"
                           title="Cochée = anonymiser cette occurrence"
                           @click.stop
                           @change="basculerCoche(e.id, o)"
@@ -600,7 +603,7 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
                         <button
                           v-if="o.etat !== 'incl' && estCochee(e.id, o)"
                           class="occ-exc-btn"
-                          :disabled="lectureSeule || !!badgeVerrou(e.id)"
+                          :disabled="!pseudonymisationLigneEditable(e.id)"
                           title="Marquer comme exception (ne pas anonymiser)"
                           @click.stop="demanderException(e.id, o)"
                         >🚫</button>
@@ -612,8 +615,8 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
                 <div class="pseudo-actions">
                   <button
                     class="pseudo-appliquer"
-                    :disabled="lectureSeule"
-                    :title="lectureSeule ? 'Nécessite une connexion au corpus partagé' : 'Enregistre les changements cochés : poses, retraits et exceptions'"
+                    :disabled="!pseudonymisationLigneEditable('')"
+                    :title="!pseudonymisationLigneEditable('') ? 'Modification des entretiens indisponible' : 'Enregistre les changements cochés : poses, retraits et exceptions'"
                     @click="valider"
                   >Valider</button>
                 </div>

@@ -23,6 +23,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   renommageEntretien: true,
   metadonneesEntretien: true,
   tableDonnees: true,
+  pseudonymisationEntretiens: true,
   notes: true,
   personnes: true,
   annulationJournal: true,
@@ -198,6 +199,10 @@ export function useDistantCorpus(deps: {
 
   function tableLigneEditable(id: string): boolean {
     return gesteDisponible('tableDonnees') && !badgeVerrou(id)
+  }
+
+  function pseudonymisationLigneEditable(id: string): boolean {
+    return gesteDisponible('pseudonymisationEntretiens') && !badgeVerrou(id)
   }
 
   function metaEditables(id: string): boolean {
@@ -431,6 +436,7 @@ export function useDistantCorpus(deps: {
     quitterDistant,
     actualiserDistant,
     tableLigneEditable,
+    pseudonymisationLigneEditable,
     metaEditables,
     renommagePossible,
     suppressionPossible,

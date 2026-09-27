@@ -9,9 +9,11 @@ import {
 import { ErreurEcritureGitLab, TAILLE_MAX_DOCUMENT_GITLAB } from './client'
 import {
   ReconciliateurPublicationGitLab,
+  type DroitJournalGitLab,
   type EntreeJournalPublication,
   type JournalPublicationGitLab,
   type NaturePublicationGitLab,
+  type SuppressionJournalGitLab,
 } from './journalPublication'
 
 export type ActionPlanGitLab =
@@ -27,10 +29,14 @@ export type ActionPlanGitLab =
 
 export interface PlanPublicationGitLab {
   operationId: string
-  /** Ce que la publication transporte : une session d'entretien ou une
-   *  transaction de corpus. La réconciliation en dépend. */
+  /** Ce que la publication transporte : une session d'entretien, une
+   *  transaction de corpus ou la suppression d'un entretien. La
+   *  réconciliation en dépend. */
   nature: NaturePublicationGitLab
   actions: ActionPlanGitLab[]
+  /** Ce qu'une suppression doit pouvoir finir après un arrêt : l'archive
+   *  choisie, son empreinte et le plan local complet. */
+  suppression?: SuppressionJournalGitLab
 }
 
 export type ResultatPublicationGitLab =
@@ -163,46 +169,84 @@ export class PublieurGitLab {
     plan: PlanPublicationGitLab,
     droit: DroitsEditionGitLab,
   ): Promise<ResultatPublicationGitLab> {
-    return this.options.coordination.serierCommit(() => this.publierInterne(plan, droit))
+    return this.publierSousDroits(plan, [droit])
+  }
+
+  /** Publie sous plusieurs droits, dans la même file et le même commit.
+   *
+   *  Une suppression d'entretien détient le corpus et son entretien : les deux
+   *  baux sont renouvelés par le commit de données, ou aucun ne l'est. Le
+   *  cas à un droit délègue ici, pour qu'un seul protocole existe. */
+  publierSousDroits(
+    plan: PlanPublicationGitLab,
+    droits: readonly DroitsEditionGitLab[],
+  ): Promise<ResultatPublicationGitLab> {
+    verifierDroitsPublication(droits)
+    const ressources = droits.map(
+      (droit) => this.options.coordination.snapshot(droit).resourceHash,
+    )
+    if (new Set(ressources).size !== ressources.length) {
+      throw new Error('Deux droits de publication désignent le même bail.')
+    }
+    return this.options.coordination.serierCommit(() => this.publierInterne(plan, droits))
   }
 
   private async publierInterne(
     plan: PlanPublicationGitLab,
-    droit: DroitsEditionGitLab,
+    droits: readonly DroitsEditionGitLab[],
   ): Promise<ResultatPublicationGitLab> {
     const actions = compilerPlan(plan)
-    const avant = this.options.coordination.snapshot(droit)
-    let transition: ReturnType<BailGitLab['preparerPublication']>
-    try {
-      transition = this.options.coordination.preparerPublication(droit)
-    } catch (erreur) {
-      if (erreur instanceof Error && erreur.message === 'Le droit d’édition GitLab est expiré.') {
-        return { statut: 'refuse', raison: 'droit-perdu' }
+    const avant = droits.map((droit) => this.options.coordination.snapshot(droit))
+    const transitions: Array<{
+      droit: DroitsEditionGitLab
+      action: ActionCommitGitLab
+      expireLe: number
+      compteur: number
+    }> = []
+    for (const droit of droits) {
+      try {
+        const transition = this.options.coordination.preparerPublication(droit)
+        transitions.push({ droit, ...transition })
+      } catch (erreur) {
+        // Un droit expiré annule toutes les transitions déjà préparées :
+        // aucun commit ne portera la moitié des renouvellements.
+        this.annulerTransitions(transitions)
+        if (erreur instanceof Error && erreur.message === 'Le droit d’édition GitLab est expiré.') {
+          return { statut: 'refuse', raison: 'droit-perdu' }
+        }
+        throw erreur
       }
-      throw erreur
     }
-    const actionsComplete = [...actions, transition.action]
+    const actionsComplete = [
+      ...actions,
+      ...transitions.map((transition) => transition.action),
+    ]
     const message = `Sonal ${plan.operationId}`
     try {
-      // Le bail vient d'être posé : un dépassement doit le laisser intact.
-      verifierBornesPublication(this.options.branche, message, actionsComplete)    } catch (erreur) {
-      this.options.coordination.annulerPreparation(droit)
+      // Les baux viennent d'être posés : un dépassement doit les laisser intacts.
+      verifierBornesPublication(this.options.branche, message, actionsComplete)
+    } catch (erreur) {
+      this.annulerTransitions(transitions)
       throw erreur
     }
     if (this.options.journal) {
+      const droitsJournal: DroitJournalGitLab[] = avant.map((snapshot, index) => ({
+        resourceHash: snapshot.resourceHash,
+        generation: snapshot.generation,
+        leaseCommitId: transitions[index].action.last_commit_id as string,
+      }))
       try {
         this.options.journal.preparer({
           operationId: plan.operationId,
           nature: plan.nature,
           branche: this.options.branche,
-          resourceHash: avant.resourceHash,
-          generation: avant.generation,
-          leaseCommitId: transition.action.last_commit_id as string,
+          droits: droitsJournal,
           etat: 'prepare',
           actions: actionsComplete,
+          suppression: plan.suppression,
         })
       } catch (erreur) {
-        this.options.coordination.annulerPreparation(droit)
+        this.annulerTransitions(transitions)
         throw erreur
       }
     }
@@ -216,19 +260,23 @@ export class PublieurGitLab {
             actionsComplete,
           )
           if (!SHA_COMMIT.test(commit.id)) {
-            return this.reconcilierPerdu(plan, droit, transition)
+            return this.reconcilierPerdu(plan, transitions)
           }
-          this.options.coordination.confirmerPublication(
-            droit,
-            commit.id,
-            transition.expireLe,
-            transition.compteur,
-          )
-          this.supprimerJournal(plan.operationId)
+          // Un seul identifiant de commit pour tous les droits : leurs
+          // transitions ne peuvent pas diverger après coup.
+          for (const transition of transitions) {
+            this.options.coordination.confirmerPublication(
+              transition.droit,
+              commit.id,
+              transition.expireLe,
+              transition.compteur,
+            )
+          }
+          this.cloturerConfirmation(plan, commit.id)
           return {
             statut: 'confirme',
             commitId: commit.id,
-            compteurBail: transition.compteur,
+            compteurBail: transitions[0].compteur,
           }
         } catch (erreur) {
           // Un refus alors que toutes les gardes tiennent encore ne parle pas
@@ -246,33 +294,65 @@ export class PublieurGitLab {
     } catch (erreur) {
       if (erreur instanceof ErreurEcritureGitLab) {
         if (erreur.statut === 400 || erreur.statut === 409) {
-          const generationCourante = await this.generationCourante(avant.chemin)
-          const droitPerdu = generationCourante !== avant.generation
-          this.options.coordination.refuserPublication(droit, droitPerdu)
+          // Chaque droit est jugé sur sa propre garde : les autres ne sont
+          // pas présentés comme intacts par supposition.
+          const perdus: boolean[] = []
+          for (const snapshot of avant) {
+            perdus.push(await this.generationCourante(snapshot.chemin) !== snapshot.generation)
+          }
+          transitions.forEach((transition, index) =>
+            this.options.coordination.refuserPublication(transition.droit, perdus[index]))
           this.supprimerJournal(plan.operationId)
           return {
             statut: 'refuse',
-            raison: droitPerdu ? 'droit-perdu' : 'conflit',
+            raison: perdus.some(Boolean) ? 'droit-perdu' : 'conflit',
           }
         }
         if (erreur.statut === 404) {
-          this.options.coordination.refuserPublication(droit, true)
+          this.refuserTous(transitions, true)
           this.supprimerJournal(plan.operationId)
           return { statut: 'refuse', raison: 'droit-perdu' }
         }
         if (erreur.statut === 401 || erreur.statut === 403) {
-          this.options.coordination.refuserPublication(droit, false)
+          this.refuserTous(transitions, false)
           this.supprimerJournal(plan.operationId)
           return { statut: 'refuse', raison: 'droits' }
         }
         if (erreur.statut === 413 || erreur.statut === 429) {
-          this.options.coordination.refuserPublication(droit, false)
+          this.refuserTous(transitions, false)
           this.supprimerJournal(plan.operationId)
           return { statut: 'refuse', raison: 'limite' }
         }
       }
-      this.options.coordination.suspendrePublicationIndeterminee(droit)
-      return this.reconcilierPerdu(plan, droit, transition)
+      for (const transition of transitions) {
+        this.options.coordination.suspendrePublicationIndeterminee(transition.droit)
+      }
+      return this.reconcilierPerdu(plan, transitions)
+    }
+  }
+
+  /** Annule des transitions avant tout envoi : rien n'a été publié, et chaque
+   *  droit reste utilisable par son appelant. */
+  private annulerTransitions(
+    transitions: ReadonlyArray<{ droit: DroitsEditionGitLab }>,
+  ): void {
+    for (const transition of transitions) {
+      try {
+        this.options.coordination.annulerPreparation(transition.droit)
+      } catch {
+        /* Une transition déjà annulée ne gêne pas les autres. */
+      }
+    }
+  }
+
+  /** Un refus porte sur tous les droits du commit : aucun n'est présenté comme
+   *  intact, et chacun est suspendu selon ce que le refus implique. */
+  private refuserTous(
+    transitions: ReadonlyArray<{ droit: DroitsEditionGitLab }>,
+    droitPerdu: boolean,
+  ): void {
+    for (const transition of transitions) {
+      this.options.coordination.refuserPublication(transition.droit, droitPerdu)
     }
   }
 
@@ -286,8 +366,11 @@ export class PublieurGitLab {
    *  d'un résultat indéterminé, comme avant. */
   private async reconcilierPerdu(
     plan: PlanPublicationGitLab,
-    droit: DroitsEditionGitLab,
-    transition: { expireLe: number; compteur: number },
+    transitions: ReadonlyArray<{
+      droit: DroitsEditionGitLab
+      expireLe: number
+      compteur: number
+    }>,
   ): Promise<ResultatPublicationGitLab> {
     this.marquerIndetermine(plan.operationId)
     if (!this.options.journal) return { statut: 'indetermine', operationId: plan.operationId }
@@ -312,13 +395,32 @@ export class PublieurGitLab {
       this.supprimerJournal(plan.operationId)
       return { statut: 'refuse', raison: 'conflit' }
     }
-    this.adopterBailReconcilie(droit, resultat.commitId, entree)
-    this.supprimerJournal(plan.operationId)
+    for (const transition of transitions) {
+      this.adopterBailReconcilie(transition.droit, resultat.commitId, entree)
+    }
+    this.cloturerConfirmation(plan, resultat.commitId)
     return {
       statut: 'confirme',
       commitId: resultat.commitId,
-      compteurBail: transition.compteur,
+      compteurBail: transitions[0].compteur,
     }
+  }
+
+  /** Un commit reçu ou retrouvé clôt la partie distante.
+   *
+   *  Une suppression garde son entrée : elle porte le plan local, et celui-ci
+   *  n'est appliqué qu'après coup. Les autres natures sont réparables par un
+   *  tirage et n'ont plus rien à prouver. */
+  private cloturerConfirmation(plan: PlanPublicationGitLab, commitId: string): void {
+    if (plan.nature === 'suppression-entretien') {
+      try {
+        this.options.journal?.marquerConfirmeAInstaller(plan.operationId, commitId)
+      } catch {
+        /* Sans journal, l'appelant installe tout de même et le tirage suit. */
+      }
+      return
+    }
+    this.supprimerJournal(plan.operationId)
   }
 
   /** Reprend l'état de bail que la publication reconciliée portait. */
@@ -367,7 +469,12 @@ export class PublieurGitLab {
     try {
       for (const action of actions) {
         if (action.action === 'create') continue
-        const observe = await this.options.depot.lireFichier(action.file_path, this.options.branche)
+        // Un déplacement est gardé par son chemin d'origine : c'est là qu'il
+        // faut relire, la destination n'existe pas encore.
+        const chemin = action.action === 'move'
+          ? (action.previous_path as string)
+          : action.file_path
+        const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
         if (!observe || observe.commitId !== action.last_commit_id) return false
       }
       return true
@@ -402,6 +509,21 @@ export class PublieurGitLab {
     } catch {
       return null
     }
+  }
+}
+
+/** Une publication porte au moins un droit, et jamais deux fois le même :
+ *  acquérir le même droit deux fois donnerait deux transitions concurrentes
+ *  sur un seul fichier de bail. */
+export function verifierDroitsPublication(
+  droits: readonly DroitsEditionGitLab[],
+): void {
+  if (droits.length === 0 || droits.length > 2) {
+    throw new Error('Droits de publication GitLab invalides.')
+  }
+  const generations = new Set(droits.map((droit) => droit.generation))
+  if (generations.size !== droits.length) {
+    throw new Error('Deux droits de publication désignent le même bail.')
   }
 }
 

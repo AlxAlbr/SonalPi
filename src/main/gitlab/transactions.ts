@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto'
 import type { CorpusStore } from '../corpusStore'
 import type { ConfigDestinationGitLab } from '../distant/coffre'
 import { normaliserRacineGitLab } from '../distant/coffre'
-import type { PlanAjoutEntretien } from '../transactionsFichiers'
+import { planSuppressionLocal, type PlanAjoutEntretien } from '../transactionsFichiers'
 import type {
   Categorie,
+  CibleRegleAnon,
   CorpusFichier,
   EntretienFichier,
+  ItemLotValeur,
   ModeTriEntretiens,
   PayloadEntretien,
   RegleAnon,
@@ -14,6 +16,10 @@ import type {
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
+import { poserValeur } from '../../shared/corpus/requetes'
+import { appliquerRegleAnonEntretien } from '../../shared/entretien/anon'
+import { analyserImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
+import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import {
   cleRessourceBailGitLab,
   type BailGitLab,
@@ -24,6 +30,7 @@ import {
 import type { FileOperationsContexte } from './fileOperations'
 import { ErreurReponseTropVolumineuseGitLab } from './client'
 import type { JournalPublicationGitLab } from './journalPublication'
+import { verifierReferencesDefinitions } from './referencesDefinitions'
 import {
   preparerDefinitions,
   type ResultatPreparationDefinitions,
@@ -36,6 +43,12 @@ import {
   type ActionPlanGitLab,
   type ResultatPublicationGitLab,
 } from './publication'
+import {
+  choisirDestinationArchive,
+  empreinteArchive,
+  suffixeArchive,
+  type PlanSuppressionDistant,
+} from './suppressionEntretien'
 
 /** Entretiens qu'un geste peut garder dans un seul commit : le corpus, les
  *  sources et la mutation du bail partagent la même borne d'actions. */
@@ -287,6 +300,145 @@ export class TransactionsGitLab {
     return this.ajouterEntretien((store) => store.preparerCreationEntretienVide(titre))
   }
 
+  /** Impact d'un retrait, lu sur le corpus publié à un instantané immuable.
+   *
+   *  Aucun droit n'est pris : cet aperçu peut périmer avant la confirmation, et
+   *  la commande le recalcule sous ses deux baux. Le miroir ne sert à rien
+   *  ici — il serait peut-être en retard. */
+  async analyserSuppressionEntretien(
+    entretienId: string,
+  ): Promise<ImpactSuppressionEntretien> {
+    return this.options.file.executer(async () => {
+      const sha = await this.options.depot.resoudreTete(this.branche)
+      const base = await this.lireBase(sha)
+      if (!base.corpus.membership[entretienId]) {
+        throw new Error("Cet entretien n'existe plus.")
+      }
+      return analyserImpactSuppressionEntretien(base.corpus, entretienId)
+    })
+  }
+
+  /** Retrait et archivage d'un entretien, sous deux droits et dans un seul
+   *  commit.
+   *
+   *  L'ordre est global et immuable : le droit du corpus, puis celui de
+   *  l'entretien, puis la publication — et la libération en ordre inverse. Le
+   *  commit porte le retrait du membership, le déplacement du JSON vers son
+   *  archive, et le renouvellement des deux baux ; ou il ne porte rien du
+   *  tout. Les sauvegardes et les PNG restent hors du dépôt : leur archivage
+   *  est un plan local, durable, et idempotent. */
+  supprimerEntretien(
+    entretienId: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+  ): Promise<CorpusFichier> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      this.verifierSuppressionRejouable(entretienId)
+      const droitCorpus = await this.acquerirBailCorpus()
+      try {
+        const droitEntretien = await this.acquerirBailEntretien(entretienId)
+        try {
+          return await this.publierSuppression(
+            entretienId,
+            impactAttendu,
+            droitCorpus,
+            droitEntretien,
+          )
+        } finally {
+          await this.libererBail(droitEntretien)
+        }
+      } finally {
+        await this.libererBail(droitCorpus)
+      }
+    })
+  }
+
+  private async publierSuppression(
+    entretienId: string,
+    impactAttendu: ImpactSuppressionEntretien | undefined,
+    droitCorpus: DroitsEditionGitLab,
+    droitEntretien: DroitsEditionGitLab,
+  ): Promise<CorpusFichier> {
+    const operationId = this.nouvelleOperation()
+    // Un seul instantané pour le corpus, l'entretien et l'archive : la décision
+    // porte sur des versions cohérentes entre elles.
+    const sha = await this.options.depot.resoudreTete(this.branche)
+    const frais = await this.lireBase(sha)
+    if (!frais.corpus.membership[entretienId]) {
+      throw new Error(`L’entretien « ${this.titreDe(entretienId, frais.corpus)} » `
+        + 'n’existe plus sur GitLab.')
+    }
+    const cheminSource = this.cheminDistant(`entretiens/${entretienId}.json`)
+    const source = await this.lireSource(entretienId, sha, frais.corpus)
+    const archive = await choisirDestinationArchive(
+      entretienId,
+      operationId,
+      async (chemin) => Boolean(
+        await this.options.depot.lireFichier(this.cheminDistant(chemin), sha),
+      ),
+    )
+    // Le retrait se calcule sur la base fraîche protégée ; l'inventaire des
+    // fichiers locaux ne décide jamais de ce que GitLab reçoit.
+    const preparation = preparerDefinitions(frais.fichier.contenu, (store) =>
+      store.preparerRetraitEntretien(entretienId, impactAttendu))
+    const suffixe = suffixeArchive(operationId)
+    const plan: PlanSuppressionDistant = {
+      operationId,
+      entretienId,
+      cheminSource,
+      cheminArchive: this.cheminDistant(archive),
+      empreinteArchive: empreinteArchive(source.contenu),
+      corpusApres: preparation.valeur.corpusApres,
+      planLocal: planSuppressionLocal(
+        entretienId,
+        this.options.store.ouvrir(),
+        preparation.valeur.corpusApres,
+        this.options.store.inventorierFichiersSuppression(entretienId, (nom) =>
+          this.options.store.destinationArchive(nom, suffixe)),
+      ),
+    }
+    const actions: ActionPlanGitLab[] = [
+      this.actionCorpus(frais, preparation.valeur),
+      {
+        action: 'move',
+        chemin: plan.cheminArchive,
+        cheminPrecedent: plan.cheminSource,
+        commitId: source.commitId,
+      },
+    ]
+    this.verifierBornes(operationId, actions)
+    const resultat = await this.options.publication.publierSousDroits({
+      operationId,
+      nature: 'suppression-entretien',
+      actions,
+      suppression: {
+        entretienId: plan.entretienId,
+        cheminSource: plan.cheminSource,
+        cheminArchive: plan.cheminArchive,
+        empreinteArchive: plan.empreinteArchive,
+        octetsArchive: Buffer.byteLength(source.contenu, 'utf8'),
+        planLocal: plan.planLocal,
+      },
+    }, [droitCorpus, droitEntretien])
+    this.verifierSuppression(resultat, entretienId, frais.corpus, droitCorpus, droitEntretien)
+    // Le commit est reçu : l'entrée reste journalisée jusqu'à ce que l'archive
+    // locale soit en place. Un échec ici se reprend au prochain démarrage.
+    this.options.store.appliquerTransactionFichiers(plan.planLocal)
+    this.options.journal?.supprimer(operationId)
+    return plan.corpusApres
+  }
+
+  /** Une suppression déjà journalisée ne se recommence pas : elle se reprend.
+   *  Rendre le geste idempotent nuirait à sa lecture et à son journal. */
+  private verifierSuppressionRejouable(entretienId: string): void {
+    const entree = this.options.journal?.suppressionDe(entretienId)
+    if (!entree || entree.etat === 'confirme-a-installer') return
+    throw new Error(
+      `La suppression de l’entretien « ${entretienId} » a déjà été tentée `
+      + 'sans résultat connu. Actualisez le corpus avant de réessayer.',
+    )
+  }
+
   importerEntretien(
     titre: string,
     payload: PayloadEntretien,
@@ -297,6 +449,146 @@ export class TransactionsGitLab {
     return this.ajouterEntretien((store) =>
       store.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon),
     )
+  }
+
+  /** Pose plusieurs valeurs dans un entretien fermé sous un seul bail court. */
+  poserValeursEntretien(
+    entretienId: string,
+    items: readonly ItemLotValeur[],
+  ): Promise<void> {
+    if (items.some((item) => item.entretienId !== entretienId)) {
+      throw new Error('Le lot de valeurs mélange plusieurs entretiens.')
+    }
+    return this.modifierEntretienCourt(entretienId, (entretien, corpus) => {
+      for (const item of items) {
+        const variable = corpus.variables[item.idVar]
+        if (item.idMod) {
+          if (!variable) {
+            throw new Error(`La variable « ${item.idVar} » n’existe plus sur GitLab.`)
+          }
+          if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
+            throw new Error(`La modalité « ${item.idMod} » n’existe plus sur GitLab.`)
+          }
+          if (variable.portee !== item.cible.type) {
+            throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
+          }
+        }
+        if (item.cible.type === 'locuteur') {
+          const index = item.cible.index
+          if (!entretien.locuteurs.some((locuteur) => locuteur.index === index)) {
+            throw new Error(`Le locuteur ${index} n’existe plus dans cet entretien.`)
+          }
+        }
+        poserValeur(entretien, item.cible, item.idVar, item.idMod)
+      }
+    })
+  }
+
+  /** Applique une règle dans un entretien fermé sous un bail court. */
+  appliquerRegleEntretien(
+    entretienId: string,
+    cible: CibleRegleAnon,
+  ): Promise<{ nb: number; titre: string }> {
+    if (cible.entretienId !== entretienId) {
+      throw new Error('La cible de pseudonymisation ne correspond pas à l’entretien.')
+    }
+    return this.modifierEntretienCourt(entretienId, (entretien, corpus) => {
+      const titre = corpus.membership[entretienId]?.titre ?? entretienId
+      const regle = corpus.reglesAnon[cible.regleId]
+      if (!regle) {
+        throw new Error(`La règle d’anonymisation « ${cible.regleId} » n’existe plus sur GitLab.`)
+      }
+      return {
+        nb: appliquerRegleAnonEntretien(entretien, regle, cible),
+        titre,
+      }
+    })
+  }
+
+  /** Transaction courte sur un entretien fermé.
+   *
+   *  Le corpus est une garde inchangée, pas une ressource verrouillée. Si une
+   *  définition indépendante bouge, la préparation est reprise une fois sur
+   *  un nouvel instantané. */
+  private modifierEntretienCourt<T>(
+    entretienId: string,
+    appliquer: (entretien: EntretienFichier, corpus: CorpusFichier) => T,
+  ): Promise<T> {
+    return this.options.file.executer(async () => {
+      const droit = await this.acquerirBailEntretien(entretienId)
+      try {
+        for (let tentative = 0; tentative < 2; tentative++) {
+          const sha = await this.options.depot.resoudreTete(this.branche)
+          const frais = await this.lireBase(sha)
+          if (!frais.corpus.membership[entretienId]) {
+            throw this.entretienIntrouvable(entretienId, frais.corpus)
+          }
+          const source = await this.lireSource(entretienId, sha, frais.corpus)
+          const entretien = JSON.parse(source.contenu) as EntretienFichier
+          const avant = JSON.stringify(entretien)
+          const valeur = appliquer(entretien, frais.corpus)
+          const modifie = JSON.stringify(entretien) !== avant
+          if (!modifie) {
+            this.options.store.installerEntretienDistant(entretienId, entretien)
+            return valeur
+          }
+          entretien.lastModified = new Date().toISOString()
+          verifierReferencesDefinitions(entretien, frais.corpus)
+          const contenu = JSON.stringify(entretien, null, 2)
+          const operationId = this.nouvelleOperation()
+          const resultat = await this.options.publication.publierSousDroit({
+            operationId,
+            nature: 'transaction-entretien',
+            actions: [
+              {
+                action: 'update',
+                chemin: this.cheminDistant(`entretiens/${entretienId}.json`),
+                contenu,
+                commitId: source.commitId,
+              },
+              {
+                action: 'update',
+                chemin: this.cheminCorpus,
+                contenu: frais.fichier.contenu,
+                commitId: frais.fichier.commitId,
+              },
+            ],
+          }, droit)
+          if (resultat.statut === 'confirme') {
+            this.options.store.installerEntretienDistant(entretienId, entretien)
+            return valeur
+          }
+          if (
+            tentative === 0
+            && resultat.statut === 'refuse'
+            && resultat.raison === 'conflit'
+            && await this.reprendreTransactionEntretien(source.commitId, entretienId, droit)
+          ) {
+            continue
+          }
+          this.verifierPublication(resultat, `La modification de « ${this.titreDe(entretienId, frais.corpus)} »`)
+        }
+        throw new Error('La modification GitLab a été refusée après une nouvelle lecture.')
+      } finally {
+        await this.libererBail(droit)
+      }
+    })
+  }
+
+  /** Réactive un bail suspendu seulement si l'entretien et le bail tiennent. */
+  private async reprendreTransactionEntretien(
+    commitId: string,
+    entretienId: string,
+    droit: DroitsEditionGitLab,
+  ): Promise<boolean> {
+    const courant = await this.options.depot.lireFichier(
+      this.cheminDistant(`entretiens/${entretienId}.json`),
+      this.branche,
+    )
+    if (!courant || courant.commitId !== commitId) return false
+    if (!await this.options.coordination.revalider(droit)) return false
+    this.options.coordination.reprendreApresConflitNeutre(droit)
+    return true
   }
 
   /** Une transaction de corpus au résultat inconnu est encore journalisée :
@@ -356,29 +648,55 @@ export class TransactionsGitLab {
   private async acquerirBailCorpus(): Promise<DroitsEditionGitLab> {
     const acquisition = await this.options.coordination.acquireRessource(this.ressourceCorpus)
     if (!acquisition.ok) {
-      throw new Error(this.messageBailTenu(acquisition.tenupar))
+      throw new Error(this.messageBailTenu(acquisition.tenupar, 'Le corpus GitLab'))
     }
     return acquisition.droit
   }
 
+  /** Droit d'un entretien, pris après celui du corpus et dans le même ordre
+   *  partout : fermer notre session ne réserve rien, et un autre poste peut
+   *  gagner entre les deux acquisitions. Il est alors nommé. */
+  private async acquerirBailEntretien(entretienId: string): Promise<DroitsEditionGitLab> {
+    const ressource = this.ressourceEntretien(entretienId)
+    const acquisition = await this.options.coordination.acquireRessource(ressource)
+    if (!acquisition.ok) {
+      throw new Error(this.messageBailTenu(
+        acquisition.tenupar,
+        `L’entretien « ${entretienId} »`,
+      ))
+    }
+    return acquisition.droit
+  }
+
+  private ressourceEntretien(entretienId: string): string {
+    return cleRessourceBailGitLab(
+      this.options.destination.branche,
+      this.cheminDistant(`entretiens/${entretienId}.json`),
+    )
+  }
+
   /** Un bail de corpus n'a pas d'entretien à rouvrir : dire « en cours de
    *  modification par nous » ne donne rien à faire. On nomme l'échéance,
-   *  qui est la seule issue cuando personne ne le rend. */
-  private messageBailTenu(tenupar: { userId: string; expireLe: string } | null): string {
-    if (!tenupar) return 'Le corpus GitLab est en cours de modification par un poste inconnu.'
+   *  qui est la seule issue quand personne ne le rend. */
+  private messageBailTenu(tenupar: { userId: string; expireLe: string } | null, sujet: string): string {
+    if (!tenupar) return `${sujet} est en cours de modification par un poste inconnu.`
     if (tenupar.userId === this.options.coordination.compteCourant()) {
       const echeance = Date.parse(tenupar.expireLe)
       const quand = Number.isFinite(echeance)
         ? ` Il est rendable jusqu'à ${new Date(echeance).toLocaleTimeString('fr-FR')}, `
         : ''
-      return `Le corpus GitLab est retenu par ce poste, qui a peut-être déjà terminé.${quand}`
+      return `${sujet} est retenu par ce poste, qui a peut-être déjà terminé.${quand}`
         + 'Actualisez le corpus, puis réessayez.'
     }
-    return `Le corpus GitLab est en cours de modification par ${tenupar.userId}.`
+    return `${sujet} est en cours de modification par ${tenupar.userId}.`
   }
 
+  /** Un droit suspendu attend sa réconciliation : le rendre avec une garde
+   *  périmée ne ferait que constater un refus, et le bail expirerait de toute
+   *  façon. Seul un droit encore le nôtre est rendu. */
   private async libererBail(droit: DroitsEditionGitLab): Promise<void> {
     try {
+      if (this.options.coordination.snapshot(droit).suspendu) return
       await this.options.coordination.liberer(droit)
     } catch {
       /* Un bail laissé en place expire : il ne vaut pas un refus. */
@@ -567,7 +885,8 @@ export class TransactionsGitLab {
     }
   }
 
-  private verifierPublication(resultat: ResultatPublicationGitLab, sujet: string): void {    if (resultat.statut === 'confirme') return
+  private verifierPublication(resultat: ResultatPublicationGitLab, sujet: string): void {
+    if (resultat.statut === 'confirme') return
     if (resultat.statut === 'indetermine') {
       throw new Error(
         `${sujet} GitLab n’a pas été confirmée. Actualisez le corpus avant de réessayer.`,
@@ -579,6 +898,51 @@ export class TransactionsGitLab {
       'droit-perdu': `${sujet} a été refusée : le droit de modification GitLab a été perdu.`,
       droits: `GitLab refuse ${sujet.toLowerCase()} avec les droits de ce compte.`,
       limite: `GitLab refuse ${sujet.toLowerCase()} à cause d’une limite de service.`,
+    } as const
+    throw new Error(messages[resultat.raison])
+  }
+
+  /** Un refus de suppression nomme le droit réellement perdu : les deux baux ne
+   *  sont jamais présentés comme intacts, ni l'un comme perdu par supposition
+   *  quand l'autre a bougé. */
+  private verifierSuppression(
+    resultat: ResultatPublicationGitLab,
+    entretienId: string,
+    corpus: CorpusFichier,
+    droitCorpus: DroitsEditionGitLab,
+    droitEntretien: DroitsEditionGitLab,
+  ): void {
+    if (resultat.statut === 'confirme') return
+    const titre = this.titreDe(entretienId, corpus)
+    if (resultat.statut === 'indetermine') {
+      throw new Error(
+        `La suppression de « ${titre} » n’a pas pu être confirmée. `
+        + 'Actualisez le corpus avant de réessayer.',
+      )
+    }
+    if (resultat.raison === 'references') throw new Error(resultat.message)
+    if (resultat.raison === 'droit-perdu') {
+      if (this.options.coordination.droitPerdu(droitEntretien)) {
+        throw new Error(
+          `« ${titre} » a été repris par un autre poste pendant la suppression. `
+          + 'Aucun entretien ni archive n’a été modifié.',
+        )
+      }
+      if (this.options.coordination.droitPerdu(droitCorpus)) {
+        throw new Error(
+          'Le droit de modification du corpus GitLab a été perdu pendant la suppression. '
+          + 'Aucun entretien ni archive n’a été modifié.',
+        )
+      }
+      throw new Error(
+        `Un des deux droits de la suppression de « ${titre} » a été perdu. `
+        + 'Actualisez le corpus avant de réessayer.',
+      )
+    }
+    const messages = {
+      conflit: `La suppression de « ${titre} » a été refusée : le corpus GitLab a changé pendant l’opération. Actualisez puis réessayez.`,
+      droits: `GitLab refuse la suppression de « ${titre} » avec les droits de ce compte.`,
+      limite: `GitLab refuse la suppression de « ${titre} » à cause d’une limite de service.`,
     } as const
     throw new Error(messages[resultat.raison])
   }

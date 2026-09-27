@@ -1,6 +1,6 @@
 # GitLab — exclusion visible et opérations de corpus
 
-**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les jalons D1 (§17) et D2 (§18) sont qualifiés sur banc et leurs capacités sont ouvertes. Reste le lot E, la suppression d'un entretien.**
+**Statut : lots A à D livrés et qualifiés sur banc (§16 à §18), capacités ouvertes. Le lot E est livré et qualifié à deux comptes (§20 et §21) ; sa capacité est ouverte. Le lot F est livré et qualifié à deux comptes (§22 et §24) ; ses deux capacités sont ouvertes.**
 **Priorité : rendre le corpus GitLab utilisable au quotidien — savoir qui tient un entretien, puis pouvoir définir et supprimer.**
 
 Ce document prolonge [plan-gitlab4.md](plan-gitlab4.md), qui fixe le bail versionné,
@@ -20,7 +20,8 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Badge 🔒 dans les listes | Livré et qualifié sur banc | `gitlab/observationBails.ts` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
 | Modifier les définitions du corpus | **D1 et D2 qualifiés sur banc** : définitions simples, gestes à sources gardées, tri de contenu et suppressions de définitions ouverts | `gitlab/transactions.ts`, `gitlab/referencesDefinitions.ts`, `gitlab/politiqueGestes.ts` |
-| Supprimer un entretien | **Absent** | `main/index.ts:842` |
+| Supprimer un entretien | Livré et qualifié sur banc | `gitlab/transactions.ts`, `gitlab/suppressionEntretien.ts` |
+| Modifier les valeurs et la pseudonymisation depuis les vues corpus | **Qualifié sur banc** : lots partiels entretien par entretien, garde croisée du corpus, réutilisation de la session locale | `gitlab/transactions.ts`, `gitlab/contexte.ts:245` |
 | Médias partagés, Docs cadre, notes du corpus, lots, personnes | **Absent** | `main/index.ts:1261`, `main/index.ts:984` |
 
 Les chemins abrégés de cette section sont relatifs à `src/main/`. Les numéros de
@@ -480,19 +481,19 @@ contenu ni au bail d'aucun entretien.
 
 ### E — La suppression
 
-- [ ] Fermer notre session ; acquérir corpus puis entretien, avec refus nommé.
-- [ ] Étendre publication et journal pour garder les deux droits dans le même commit.
-- [ ] `update` + `move` gardés ; impact revérifié et collision d'archive traitée.
-- [ ] Plans distant/local séparés ; sauvegardes et PNG archivés seulement localement.
-- [ ] Réconciliation réelle du `move`, avec contenu attendu vérifiable.
-- [ ] Course ouverture/suppression, perte de l'un des droits, réponse perdue et crash
+- [x] Fermer notre session ; acquérir corpus puis entretien, avec refus nommé.
+- [x] Étendre publication et journal pour garder les deux droits dans le même commit.
+- [x] `update` + `move` gardés ; impact revérifié et collision d'archive traitée.
+- [x] Plans distant/local séparés ; sauvegardes et PNG archivés seulement localement.
+- [x] Réconciliation réelle du `move`, avec contenu attendu vérifiable.
+- [x] Course ouverture/suppression, perte de l'un des droits, réponse perdue et crash
       avant application locale ; aucun rejeu de commit ni écrasement de candidat.
-- [ ] E2E : archive distante, miroir réouvert et miroir neuf ; aucun retour de
+- [x] E2E : archive distante, miroir réouvert et miroir neuf ; aucun retour de
       l'entretien dans le membership, médias référencés conservés.
 
 **Sortie :** retrait et archive distants atomiques, exclusion garantie par les deux
 baux, application locale récupérable.
-*Découpage de mise en œuvre et critères d'arrêt : §19.*
+*Qualifié sur banc à deux comptes : §21.*
 
 ## 11. Matrice minimale de recette
 
@@ -526,17 +527,17 @@ volumes Docker existants, sans téléchargement ni reprovisionnement.
 
 ## 12. Définition de terminé
 
-- [ ] Détenteur connu affiché dans les listes et à l'ouverture, sans fausse date.
-- [ ] Commandes C activées et classées ; opérations D activées seulement avec leur
+- [x] Détenteur connu affiché dans les listes et à l'ouverture, sans fausse date.
+- [x] Commandes C activées et classées ; opérations D activées seulement avec leur
       politique de dépendances qualifiée, sinon explicitement reportées.
-- [ ] Aucun geste non pris en charge proposé par l'interface ni accepté par IPC.
-- [ ] Suppression distante atomique et protégée par les deux droits ; archive et
+- [x] Aucun geste non pris en charge proposé par l'interface ni accepté par IPC.
+- [x] Suppression distante atomique et protégée par les deux droits ; archive et
       reprise locale vérifiables, y compris après perte de réponse ou crash.
-- [ ] Observation sans commit ; coût en requêtes, commits métier et coordination
+- [x] Observation sans commit ; coût en requêtes, commits métier et coordination
       mesuré sur le banc et consigné dans `docs/dev/gitlab.md`.
-- [ ] Tests de concurrence, limites et non-régression documentés sans assimiler
+- [x] Tests de concurrence, limites et non-régression documentés sans assimiler
       les suites simulées à une recette serveur.
-- [ ] Documentation utilisateur distinguant GitLab et Nextcloud : badges indicatifs,
+- [x] Documentation utilisateur distinguant GitLab et Nextcloud : badges indicatifs,
       présence, définitions disponibles, tris publiés, suppression non annulable,
       reprise après crash, fusion de divergence et médias.
 
@@ -1788,3 +1789,409 @@ La capacité n'est ouverte qu'après vérification des quatre preuves suivantes 
 et archive dans un même commit, exclusion effective par les deux baux, réconciliation
 sans rejeu et récupération locale après crash. Un scénario sauté faute de banc laisse
 la capacité fermée.
+
+## 20. Ce que le lot E a trouvé — jalons E1 à E4
+
+Les quatre premiers jalons de §19 sont faits. À ce stade — avant le jalon E5 — la
+suppression n'était pas proposée par l'interface et le main refusait
+`entretien.analyser-suppression` comme `entretien.supprimer` sur un corpus GitLab.
+Le jalon E5 a ouvert la capacité ; voir §21.
+
+### Le contrat du geste a été séparé en deux
+
+`CorpusStore` expose désormais deux méthodes distinctes.
+`preparerRetraitEntretien` calcule le retrait métier — le membership et ses
+références — et ne touche à aucun fichier. `inventorierFichiersSuppression`
+relève ce qui doit être archivé dans le miroir. La suppression locale et
+Nextcloud continuent d'appeler les deux d'affilée ; GitLab appelle la première
+dans le store de préparation, sur la base fraîche protégée, et la seconde dans
+le miroir. C'est la traduction directe de « l'inventaire local ne décide jamais
+du commit distant », et cela évite qu'une préparation soit calculée sur un miroir
+périmé.
+
+### L'archive porte un nom choisi une fois
+
+`corbeille/<id>.json` est la première destination. Occupée, elle reçoit un
+suffixe dérivé de l'identifiant d'opération, et ce chemin exact est journalisé :
+un redémarrage retrouve la même archive, et deux tentatives ne s'échangent pas
+leurs fichiers. Deux noms pris sont un refus. La règle locale est identique, et
+`destinationCorbeille` n'est plus employée par ce chemin : son aléa aurait été
+rejoué à chaque reprise.
+
+Une sonde de contrat a été ajoutée à `contrat-gitlab.test.ts` pour vérifier sur
+l'instance réelle qu'un `move` vers une archive occupée est refusé sans
+l'écraser. Elle est écrite, pas encore jouée.
+
+### La publication multi-droits est une primitive, pas un second protocole
+
+`publierSousDroits` tient la file de commits une fois, prépare **toutes** les
+transitions avant d'envoyer quoi que ce soit, n'en confirme aucune si la
+préparation ou le journal échoue, et n'en annule aucune si un seul droit est
+expiré. Le cas à un droit délègue à cette primitive. Sur un refus 400/409, chaque
+droit est jugé sur sa propre garde : le message nomme celui qui a bougé au lieu
+de présenter les deux comme intacts. `BailGitLab.droitPerdu` rend cette
+information au transactionneur au lieu de la lui faire deviner.
+
+### Le journal porte une liste de droits, et survit à la confirmation
+
+La version 3 remplace `resourceHash`/`generation`/`leaseCommitId` par une liste
+de droits, et ajoute l'état `confirme-a-installer` ainsi que le bloc de
+suppression : chemin source, chemin d'archive, empreinte du JSON déplacé et plan
+local complet. Les entrées à un droit, anciennes ou de la version précédente,
+restent lisibles et sont projetées vers une liste d'un élément.
+
+L'empreinte de l'archive est portée par l'action de déplacement elle-même. La
+réconciliation ne compare donc plus la destination à un `content` inexistant :
+elle vérifie le départ de l'ancien chemin, la présence de la destination et
+l'empreinte. C'est une correction du réconciliateur, pas une branche
+particulière : tout déplacement journalisé devient vérifiable.
+
+### La reprise est sortie de l'ouverture
+
+`reprendreOperationsGitLab` porte l'ordre imposé : la transaction locale déjà
+commencée, puis les publications composites, puis — pour le miroir — le tirage
+normal. Une suppression confirmée est installée avant le tirage, faute de quoi
+`corpus.json` sans son entretien deviendrait un orphelin de `corbeille-miroir`
+alors que ses sauvegardes et ses PNG n'auraient nulle part où aller.
+
+### Ce qui a été vérifié, et comment
+
+`test/gitlab/suppressionEntretien.test.ts` couvre le parcours nominal (un
+commit de données, quatre actions, cinq commits au total, archive distante et
+archive locale complètes, médias et autres entretiens intacts), l'aperçu lu sur
+le corpus publié plutôt que sur le miroir, l'impact qui change entre l'aperçu et
+la commande, les deux droits (détenteur nommé, marqueur historique expiré, droit
+d'entretien perdu pendant l'envoi), les gardes de données périmées, les
+collisions d'archive distantes et locales, la réponse perdue retrouvée, la
+réconciliation impossible qui bloque tout, l'arrêt après le commit, l'arrêt au
+milieu de l'application locale, la panne avant envoi, et la façade du contexte
+avec sa fermeture de session et sa barrière d'ouverture.
+
+Le double de dépôt a été corrigé au passage : il traitait un `move` comme une
+mise à jour de sa destination, et refusait donc toute suppression. Il vérifie
+maintenant la garde sur le chemin d'origine et refuse une destination occupée —
+ce qui est précisément le contrat que la sonde réelle doit confirmer.
+
+### Ce qui reste : le jalon E5
+
+`test/gitlab/qualificationSuppressionEntretien.test.ts` écrit les scénarios
+de la recette de §19.11, avec le harnais étendu pour les deux pannes utiles —
+perte de la réponse du commit de données, historique illisible — et pour des
+courses déterministes sur le corpus comme sur l'entretien. Le harnais a été
+étendu, pas contourné : les courses passent par l'API, pas par un double.
+
+Le fichier reste sauté sans les variables du banc. Trois choses en dépendent :
+le coût réel des cinq commits nominaux, la confirmation que le `move` gardé et
+la destination occupée se comportent comme le suppose le double, et la reprise
+après un arrêt sur une instance réelle. La capacité reste fermée tant qu'un seul
+scénario est sauté.
+
+## 21. Ce que la qualification E5 a trouvé
+
+Le jalon E5 a été joué le 26 septembre 2026 puis complété le 27 septembre sur
+GitLab CE 18.11, à deux comptes, dans
+`test/gitlab/qualificationSuppressionEntretien.test.ts`. Les huit scénarios ont
+réussi, et la capacité `suppression-entretien` est ouverte.
+
+| Scénario | Résultat mesuré |
+|---|---|
+| Suppression nominale | 1 commit de données, 5 commits au total, 9 requêtes, ≈ 2,2 s |
+| Entretien tenu par l'autre compte | refus nommant `user2`, 0 commit de données, aucune archive |
+| Ouverture entre les deux acquisitions | le second compte gagne le bail entretien, refus nommé, aucune archive |
+| Réponse du commit de données perdue | commit retrouvé, 1 commit de données, deux baux rendus, plan local appliqué une fois |
+| Arrêt après commit, nouvelle pile applicative | archive locale terminée, aucun commit supplémentaire |
+| Collision d'archive, dépôt et miroir | suffixe stable des deux côtés, aucune archive écrasée |
+| Entretien modifié entre la lecture et l'envoi | commit refusé, version concurrente et membership intacts |
+| Corpus modifié entre la lecture et l'envoi | commit refusé, entretien et archive intacts |
+
+Le coût nominal est bien celui qu'annonçait le §8 : cinq commits hors incident,
+dont un seul de données, et neuf requêtes. Une suppression est donc plus chère
+qu'une transaction de définitions (trois commits), et c'est le prix de la
+protection par les deux baux.
+
+Les quatre preuves d'activation sont réunies. La capacité est ouverte.
+
+### Le banc a trouvé trois erreurs de harnais
+
+Aucune ne venait du code de production ; toutes trois étaient des contrats que
+les tests simulés ne vérifiaient pas, et qu'un seul banc pouvait révéler.
+
+1. **Le bail d'une session de qualification n'était pas celui de son fichier.**
+   Le harnais passait un identifiant de session (`entretien:qualification:e1`) là
+   où la production passe `ressourcePartagee`, calculé sur le chemin distant. Les
+   deux ressources étant distinctes, une suppression concurrente ne rencontrait
+   jamais le bail de la session : le scénario « entretien tenu par l'autre
+   compte » passait sans rien tester, et l'exclusion par les deux baux n'était
+   prouvée que par le double. Le harnais utilise désormais le chemin distant.
+
+   Ce point est plus large que le harnais : il rappelle qu'un test de banc ne
+   vaut que s'il emprunte le même chemin de production. Une session de
+   qualification doit être bâtie comme `assemblageSession.ts` la construit.
+
+2. **Le filtre `path` de l'API des commits est un préfixe.** Compter les commits
+   d'un fichier revient à compter ceux de son dossier, et l'API répond même pour
+   un nom qui n'existe pas — en renvoyant les commits du répertoire parent. Le
+   compte obtenu pour une archive était treize au lieu d'un. Les archives se
+   comptent désormais par `…/corbeille`, et le harnais le dit.
+
+3. **Le corpus de qualification n'était pas tirable.** Son entrée de `membership`
+   portait un `lastModified` nul, ce que `validerCandidatsMiroir` refuse. Le corpus
+   était donc acceptable pour une transaction et refusé pour un tirage : le
+   scénario du miroir neuf ne pouvait pas aboutir. Le fixture porte désormais une
+   date ISO.
+
+### La sonde de contrat confirme le double
+
+`contrat-gitlab.test.ts` vérifie désormais qu'un `move` gardé vers une archive
+déjà occupée est **refusé sans écrasement**. GitLab CE 18.11 se comporte bien
+comme le suppose le double, et la collision d'archive se règle donc par un nom
+non conflictuel, jamais par un écrasement.
+
+Le double de dépôt avait au passage le bug qui rendait la sonde nécessaire : il
+traitait un `move` comme une mise à jour de sa destination et refusait donc tout
+déplacement. Aucun test ne l'employait avant la suppression.
+
+### Ce qui reste ouvert
+
+Rien ne bloque la livraison. Deux relevés méritent d'être faits sur un
+corpus pilote, comme ceux déjà signalés au §17.3 :
+
+- **la taille réelle d'un entretien de travail.** Le `move` ne transporte pas de
+  contenu, mais la préparation lit le JSON avec sa garde pour valider sa version
+  et calculer l'empreinte de l'archive. La borne de lecture s'applique donc au
+  retrait, soit environ 1,5 Mio de contenu avec la limite actuelle de 2 Mio sur
+  la réponse base64.
+- **la réconciliation face à un `move` réellement joué sur une autre révision.**
+  Le double ne connaît pas les arbres intermédiaires, et le test de contrat ne
+  rejoue pas une réconciliation complète. Sur l'instance réelle, la qualification
+  a retrouvé le commit exact ; elle ne prouve pas le cas où l'archive aurait été
+  réécrite entre le commit et la reprise.
+
+## 22. Lot F — Écritures d'entretien depuis les vues corpus
+
+Les vues **Variables** et **Pseudonymisation** ne modifient pas toutes la même
+ressource. Cette distinction décide du verrou nécessaire :
+
+- créer ou modifier la définition d'une variable ou d'une modalité, ainsi qu'une
+  règle d'anonymisation ou ses paramètres, écrit `corpus.json` ; GitLab sait déjà
+  le faire sous bail corpus ;
+- affecter, remplacer ou retirer une valeur — la modalité choisie pour une variable —,
+  poser ou retirer une anonymisation, ou modifier une exception écrit
+  `entretiens/<id>.json` ; chaque entretien visé doit donc être protégé par son
+  propre bail.
+
+Une garde Git `last_commit_id` ne remplace pas ce bail. Un collègue peut détenir
+une session sans avoir encore publié de nouveau contenu : la garde du fichier
+reste alors fraîche, mais une écriture extérieure empiéterait sur son travail.
+Le badge observé n'est pas davantage une autorisation ; il informe l'interface,
+tandis que l'acquisition du bail décide au moment de l'écriture.
+
+### 22.1 État actuel
+
+La partie informative existe déjà sur GitLab : `ObservationBailsGitLab` relève
+les baux à l'ouverture et à l'actualisation, `absorberVerrous` les associe aux
+entretiens, et les vues affichent ou consomment `badgeVerrou`. Les lignes tenues
+par un tiers apparaissent donc verrouillées.
+
+La capacité d'écriture n'est toutefois pas livrée :
+
+- `tableDonnees` vaut `false` pour GitLab ; les cellules de valeurs sont toutes
+  non éditables, indépendamment des badges ;
+- `valeurs.lot` et `regles.lot` ont la portée `indisponible` et sont refusés par
+  le main ;
+- `TransactionsGitLab` n'a pas d'équivalent de `poserValeurLot` ni
+  d'`appliquerRegleLot` ;
+- la vue Pseudonymisation permet encore de préparer certains changements sur les
+  entretiens libres avant que leur validation soit refusée par le main. Elle doit
+  recevoir une capacité propre, distincte de l'édition des définitions de règles.
+
+Le chemin WebDAV existe déjà dans `distant/transactions.ts` : verrou court par
+entretien, GET frais, PUT conditionnel, écriture locale après succès et échecs
+nommés par entretien. La politique des gestes classe pourtant actuellement
+`valeurs.lot` et `regles.lot` comme indisponibles pour **tous** les fournisseurs
+distants. Ce routage rend les transactions WebDAV inaccessibles et constitue une
+régression à corriger avant de prendre leur comportement comme référence pour
+GitLab.
+
+### 22.2 Garanties retenues pour GitLab
+
+Une opération issue d'une vue corpus est une suite de transactions courtes, une
+par entretien. Un lot n'est pas atomique dans son ensemble : chaque succès est
+conservé, chaque refus est nommé, et un entretien indisponible ne bloque pas les
+suivants.
+
+Pour un entretien fermé, chaque transaction suit cet ordre :
+
+1. acquérir le bail canonique de `entretiens/<id>.json` ;
+2. résoudre un SHA et y lire l'entretien ainsi que `corpus.json` ;
+3. vérifier que la variable, la modalité ou la règle référencée existe encore,
+   puis calculer le candidat sans modifier le miroir ;
+4. publier dans un seul commit la mise à jour gardée de l'entretien, une garde
+   inchangée de `corpus.json` et la transition du bail entretien ;
+5. installer localement seulement après confirmation, puis libérer le bail.
+
+La garde inchangée de `corpus.json` reprend la politique des publications de
+session du jalon D2 : une définition supprimée entre la lecture et le commit fait
+refuser le candidat. Une collision de branche sans garde périmée conserve le
+réessai vérifié existant. Aucun commit n'est découpé et aucune garde n'est retirée
+pour faire passer un lot.
+
+Si notre application détient déjà la session de l'entretien, elle réutilise cette
+session, modifie son candidat, le marque sale et publie par son chemin normal ;
+elle ne prend jamais un second bail sur le même fichier. Une session dégradée ou
+un candidat non publiable produit un échec récupérable. Une session tierce, y
+compris du même compte ou du même poste avec une autre génération, est refusée
+par l'acquisition et nommée lorsque son identité est connue.
+
+Une réponse perdue n'autorise aucun rejeu automatique. Le journal distingue ces
+transactions courtes des publications de session et des transactions de corpus,
+ou démontre explicitement qu'une nature existante porte toutes les informations
+nécessaires sans ambiguïté. La réconciliation vérifie l'entretien, la garde de
+corpus et le bail au commit exact. Un crash après confirmation mais avant
+l'écriture locale est réparé par la réconciliation puis le tirage, sans réappliquer
+le geste métier.
+
+### 22.3 Capacités et interface
+
+La matrice publique sépare au minimum :
+
+- l'édition des définitions de variables et de pseudonymisation, déjà disponible ;
+- la saisie des valeurs dans les entretiens ;
+- l'application de pseudonymisation dans les entretiens.
+
+GitLab ne reçoit pas une capacité générale d'écriture d'entretien. Les contrôles
+de chaque vue sont activés uniquement par leur capacité propre. Sur la vue
+Pseudonymisation, les règles et paramètres peuvent donc rester éditables pendant
+que les cases qui modifieraient les entretiens sont désactivées.
+
+Les badges restent indicatifs et peuvent être périmés jusqu'au tirage suivant.
+Une ligne sans badge tente toujours l'acquisition réelle ; une ligne avec badge
+peut redevenir disponible lors de cette tentative si le bail a expiré. Une panne
+d'observation ne crée jamais un droit : l'opération peut tenter les acquisitions
+et restitue les refus réels entretien par entretien.
+
+### 22.4 Découpage
+
+| Jalon | Contenu | Arrêt avant de continuer |
+|---|---|---|
+| F1 | Corriger la portée de `valeurs.lot` et `regles.lot` pour rétablir le chemin WebDAV ; ajouter les capacités séparées et aligner l'interface | franchi : non-régression WebDAV et appels IPC directs couverts |
+| F2 | Ajouter les transactions GitLab courtes à un entretien, la garde croisée de `corpus.json`, le chemin des sessions locales et le journal de réponse perdue | franchi : capacités GitLab restées fermées |
+| F3 | Brancher Variables et Pseudonymisation, afficher les échecs par entretien et empêcher toute préparation trompeuse quand la capacité manque | franchi : tests renderer et main complets |
+| F4 | Qualifier sur GitLab réel à deux comptes, mesurer coût et reprise, puis ouvrir séparément les deux capacités | franchi : §24 |
+
+Les noms du code décrivent les capacités métier et les ressources protégées ; ils
+ne reprennent ni la lettre du lot ni les numéros de jalon.
+
+### 22.5 Tests bloquants
+
+Les tests simulés et les bancs réels couvrent séparément les valeurs et la
+pseudonymisation :
+
+- entretien tenu avant le geste, puis acquisition concurrente après un badge
+  absent ou périmé ; refus nommé et aucun contenu écrasé ;
+- même compte sur une autre session, session locale réutilisée et session locale
+  dégradée ; aucun second bail pris ;
+- entretien ou `corpus.json` modifié entre la lecture et le commit ; refus
+  atomique et candidat local intact ;
+- variable, modalité ou règle supprimée pendant la préparation ; aucune référence
+  invalide publiée ;
+- lot mêlant succès et refus ; résultat stable, ordre explicite et miroir mis à
+  jour seulement pour les succès ;
+- réponse perdue retrouvée, commit certainement absent et résultat toujours
+  indéterminé ; aucun second envoi ;
+- crash après commit avant installation locale, nouveau processus et tirage ;
+  aucune double application ;
+- observation des baux indisponible ; aucun faux droit déduit, acquisition réelle
+  toujours décisive ;
+- interface GitLab à capacité fermée puis ouverte, badges dans les deux vues et
+  refus conservé pour les appels IPC directs ;
+- non-régression locale et WebDAV, notamment accès effectif aux transactions déjà
+  présentes dans `distant/transactions.ts`.
+
+**Sortie attendue :** les vues corpus peuvent modifier les entretiens GitLab sans
+empiéter sur une session, avec un bail court par fichier, une garde croisée des
+définitions, des résultats partiels explicites et une reprise sans rejeu. Les
+transactions WebDAV existantes sont de nouveau accessibles et protégées par leur
+politique de gestes.
+
+## 23. Mise en œuvre du lot F
+
+F1 à F4 sont réalisés :
+
+- `valeurs.lot` et `regles.lot` ont des portées séparées, accordées à WebDAV ;
+- la matrice publique distingue la table de données de l'application de la
+  pseudonymisation ;
+- GitLab prépare une transaction courte par entretien fermé, lit l'entretien et
+  le corpus au même SHA, valide les références et publie le candidat avec une
+  garde inchangée de `corpus.json` ;
+- un changement indépendant du corpus peut être relu une fois, tandis qu'une
+  variable, une modalité ou une règle supprimée produit un refus ;
+- une session locale est réutilisée, marquée sale et publiée par son chemin
+  ordinaire ;
+- le journal distingue `transaction-entretien`, sans la rattacher à une session
+  ni bloquer les transactions de corpus ;
+- Variables restitue les erreurs par cellule et Pseudonymisation conserve les
+  échecs par entretien ; aucune modification ne se prépare quand sa capacité
+  manque.
+
+Les tests simulés couvrent la valeur confirmée, la pseudonymisation, la suppression
+concurrente d'une modalité, la réutilisation d'une session, les succès partiels,
+le routage WebDAV et les capacités du renderer. La suite complète passe ; les
+diagnostics réseau de Happy DOM à la fermeture ne correspondent à aucun échec.
+
+Les portées `valeurs-entretien` et `pseudonymisation-entretiens` sont dans
+`PORTEEES_OVERTES_GITLAB` depuis la qualification à deux comptes du §24.
+
+## 24. Ce que la qualification du lot F a trouvé
+
+Les douze scénarios sont dans
+`test/gitlab/qualificationEcrituresEntretien.test.ts`. Ils ont réussi sur GitLab
+CE 18.11, à deux comptes, le 27 septembre 2026 ; les mesures sont dans
+[docs/dev/gitlab.md](../../docs/dev/gitlab.md) §12.
+
+| Scénario | Ce qui a été observé |
+|---|---|
+| Valeur dans un entretien fermé | 1 commit de données, 3 commits au total, 6 requêtes, 1,3 s |
+| Pseudonymisation d'un entretien fermé | 1 commit de données, un seul commit sur le dossier des entretiens |
+| Entretien tenu par l'autre compte | refus nommant le détenteur, aucun commit de données, miroir non écrit |
+| Même compte, autre session | refus « retenu par ce poste » avec son échéance, aucun commit de données |
+| Session locale déjà ouverte | un seul envoi de commit, celui du candidat ; l'entretien suivant en prend trois |
+| Lot mêlé, un succès et un refus | 16 requêtes, 8 envois de commit, succès conservés et refus nommé |
+| Entretien modifié entre lecture et envoi | commit refusé, version concurrente et miroir intacts |
+| Modalité retirée pendant la préparation | refus après une relecture, aucune référence invalide publiée |
+| Corpus modifié indépendamment | une relecture, 4 envois de commit, 1 commit de données, thème concurrent conservé |
+| Réponse du commit de données perdue | commit retrouvé, 3 envois de commit, un seul commit de données |
+| Arrêt après envoi, historique illisible, nouveau processus | entrée conservée puis réconciliée sans rejeu, miroir réparé par le tirage |
+| Requête jamais partie | absence reconnue, une relecture, un seul commit de données dans le dépôt |
+
+Quatre points se confirment, et deux se nuancent.
+
+1. **La garde croisée n'est pas un bail.** Un thème ajouté entre la lecture et
+   l'envoi ne coûte qu'une relecture et aboutit ; seule une définition supprimée
+   fait échouer l'entretien. C'est exactement la politique du jalon D2, et elle
+   tient sur des transactions courtes.
+2. **Le badge n'accorde rien.** Aucun de ces scénarios ne consulte d'observation :
+   un entretien tenu est refusé même sans badge, et un entretien sans badge est
+   réellement tenté. L'interface peut donc afficher ses lignes sans risque.
+3. **Une session locale n'est jamais doublée.** Le lot passe par la publication de
+   la session quand nous détenons l'entretien, et par un bail court sinon. Le
+   main continue de refuser tout ce que GitLab ne sait pas garder.
+4. **Une entrée `transaction-entretien` ne bloque rien d'autre.** Après un arrêt,
+   elle est réconciliée au redémarrage, le miroir se répare par le tirage, et les
+   transactions de corpus n'ont jamais été bloquées par elle.
+
+Les deux nuances :
+
+- **Un envoi qui n'est jamais parti est un refus, pas un indéterminé.** La
+  réconciliation le reconnaît, et le geste relit une fois puis aboutit : quatre
+  envois de commit pour un seul commit de données dans le dépôt. La reprise
+  existante des collisions de branche suffit donc, sans fenêtre supplémentaire.
+- **Le refus du même compte sur une autre session ne nomme pas d'utilisateur.**
+  Il dit « retenu par ce poste » et donne l'échéance du bail, parce que
+  l'identifiant ne distingue pas deux postes du même compte. C'est le comportement
+  attendu du lot A ; il ne faut pas le lire comme une régression.
+
+Ce que la qualification **n'a pas** mesuré : le coût d'un lot de grande taille,
+la borne de taille d'un entretien écrit par ce chemin, et la coexistence de
+nombreuses transactions courtes sur une même branche. Le banc ne possède ni
+configuration CI ni runner : le coût de pipeline de ces commits reste inconnu.

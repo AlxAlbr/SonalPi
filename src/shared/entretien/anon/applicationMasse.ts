@@ -12,7 +12,7 @@
  * PURE : lit `EntretienFichier` + `RegleAnon`, ne mute rien — testable headless.
  */
 
-import type { EntretienFichier, RegleAnon } from '../../format'
+import type { CibleRegleAnon, EntretienFichier, RegleAnon } from '../../format'
 import { aplatir, occurrencesDe, plageVersPM } from './anonymisation'
 import { parserAliases } from './alias'
 import { estOrpheline, type Annotation } from '../annotation'
@@ -137,4 +137,38 @@ export function appliquerDiffAnon(
     }
   }
   return n
+}
+
+/** Applique le diff complet d'une règle à un entretien en mémoire. */
+export function appliquerRegleAnonEntretien(
+  entretien: EntretienFichier,
+  regle: RegleAnon,
+  cible: Pick<
+    CibleRegleAnon,
+    'plages' | 'retirer' | 'exception' | 'retirerException'
+  >,
+  genId: () => string = () => 'a-' + Math.random().toString(36).slice(2, 9),
+): number {
+  const instructions = instructionsAppliquerRegle(entretien, regle, genId)
+  const poser = poserDansPlages(instructions.poser, cible.plages)
+  const nbDiff = appliquerDiffAnon(
+    entretien.annotations,
+    regle.id,
+    cible.retirer,
+    cible.exception,
+    cible.retirerException,
+  )
+  for (const occurrence of poser) {
+    entretien.annotations.push({
+      id: occurrence.id,
+      type: 'anon',
+      from: occurrence.from,
+      to: occurrence.to,
+      auteur: 'corpus',
+      etat: 'anonymise',
+      pseudo: occurrence.pseudo,
+      regle: occurrence.regle,
+    })
+  }
+  return nbDiff + poser.length
 }
