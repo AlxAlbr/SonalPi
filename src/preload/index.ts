@@ -361,6 +361,8 @@ contextBridge.exposeInMainWorld('sonal', {
     detecterInstance: (urlProjet) => invoquer('gitlab:detecterInstance', urlProjet),
     etat: (urlInstance) => invoquer('gitlab:etat', urlInstance),
     connecter: (urlInstance, clientId) => invoquer('gitlab:connecter', urlInstance, clientId),
+    connecterAvecJeton: (urlInstance, jeton) =>
+      invoquer('gitlab:connecterAvecJeton', urlInstance, jeton),
     deconnecter: (urlInstance, utilisateur) =>
       invoquer('gitlab:deconnecter', urlInstance, utilisateur),
     oublierCompte: (urlInstance, utilisateur) =>

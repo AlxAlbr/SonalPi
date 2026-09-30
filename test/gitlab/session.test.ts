@@ -21,7 +21,11 @@ import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSess
 import { JournalSessionsGitLab } from '../../src/main/gitlab/journalSession'
 
 class DepotSession implements DepotCommitsGitLab {
-  readonly fichiers = new Map<string, { contenu: string; commitId: string }>()
+  readonly fichiers = new Map<string, {
+    contenu: string
+    commitId: string
+    executable: boolean
+  }>()
   readonly commits: Array<{ id: string; title: string; actions: ActionCommitGitLab[] }> = []
   private compteur = 0
   private echecApresProchainCommit = false
@@ -31,12 +35,20 @@ class DepotSession implements DepotCommitsGitLab {
     this.fichiers.set('entretiens/e1.json', {
       contenu: '{"formatVersion":8}',
       commitId: '1'.repeat(40),
+      executable: false,
     })
   }
 
   async lireFichier(chemin: string): Promise<FichierGitLab | null> {
     const fichier = this.fichiers.get(chemin)
     return fichier ? { chemin, ...fichier } : null
+  }
+
+  async lireGardeFichier(chemin: string) {
+    const fichier = this.fichiers.get(chemin)
+    return fichier
+      ? { commitId: fichier.commitId, executable: fichier.executable }
+      : null
   }
 
   /** L'historique devient illisible : la réconciliation immédiate ne peut pas
@@ -66,8 +78,25 @@ class DepotSession implements DepotCommitsGitLab {
     }
     const id = (++this.compteur).toString(16).padStart(40, '0')
     for (const action of actions) {
-      if (action.action === 'delete') this.fichiers.delete(action.file_path)
-      else this.fichiers.set(action.file_path, { contenu: action.content ?? '', commitId: id })
+      if (action.action === 'delete') {
+        this.fichiers.delete(action.file_path)
+      } else if (action.action === 'chmod') {
+        const precedent = this.fichiers.get(action.file_path)
+        if (precedent && precedent.executable !== action.execute_filemode) {
+          this.fichiers.set(action.file_path, {
+            ...precedent,
+            executable: action.execute_filemode as boolean,
+            commitId: id,
+          })
+        }
+      } else {
+        const precedent = this.fichiers.get(action.file_path)
+        this.fichiers.set(action.file_path, {
+          contenu: action.content ?? '',
+          commitId: id,
+          executable: precedent?.executable ?? false,
+        })
+      }
     }
     this.commits.push({ id, title: message, actions })
     if (this.echecApresProchainCommit) {

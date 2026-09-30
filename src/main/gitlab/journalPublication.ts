@@ -15,12 +15,17 @@ import {
 import { dirname, join } from 'node:path'
 import type { PlanSuppressionEntretien } from '../transactionsFichiers'
 import {
+  MAX_ACTIONS_JOURNAL_HISTORIQUE,
+  MAX_ACTIONS_PUBLICATION,
+} from './limitesPublication'
+import {
   verifierCheminGitLab,
   type ActionCommitGitLab,
   type DepotCommitsGitLab,
 } from './bailGitLab'
 
-const VERSION_JOURNAL = 3
+const VERSION_JOURNAL = 4
+const VERSION_JOURNAL_DEUX_DROITS = 3
 const VERSION_JOURNAL_A_UN_DROIT = 2
 const VERSION_JOURNAL_SANS_NATURE = 1
 const TAILLE_MAX_ENTREE = 3 * 1024 * 1024
@@ -92,7 +97,7 @@ export type EntreeJournalNue = Omit<
 }
 
 export interface EntreeJournalPublication {
-  version: 3
+  version: 4
   destinationId: string
   operationId: string
   nature: NatureEntreeJournal
@@ -391,6 +396,17 @@ export class ReconciliateurPublicationGitLab {
           }
           continue
         }
+        if (action.action === 'chmod') {
+          const garde = await this.depot.lireGardeFichier(action.file_path, exacts[0].id)
+          if (
+            !garde ||
+            garde.commitId !== compiled?.last_commit_id ||
+            garde.executable !== compiled.execute_filemode
+          ) {
+            return { statut: 'indetermine' }
+          }
+          continue
+        }
         const observe = await this.depot.lireFichier(action.file_path, exacts[0].id)
         if (action.action === 'move') {
           const verdict = await this.verifierDeplacement(
@@ -508,8 +524,12 @@ function validerEntree(
   const brut = valeur as Record<string, unknown>
   const entree = brut as unknown as Partial<EntreeJournalPublication>
   const version = brut.version
+  const limiteActions = version === VERSION_JOURNAL
+    ? MAX_ACTIONS_PUBLICATION
+    : MAX_ACTIONS_JOURNAL_HISTORIQUE
   if (
     (version !== VERSION_JOURNAL
+      && version !== VERSION_JOURNAL_DEUX_DROITS
       && version !== VERSION_JOURNAL_A_UN_DROIT
       && version !== VERSION_JOURNAL_SANS_NATURE) ||
     entree.destinationId !== destinationId ||
@@ -524,7 +544,7 @@ function validerEntree(
     !Number.isFinite(Date.parse(entree.ecritLe)) ||
     !Array.isArray(entree.actions) ||
     entree.actions.length === 0 ||
-    entree.actions.length > 102 ||
+    entree.actions.length > limiteActions ||
     typeof entree.candidat !== 'string' ||
     !CANDIDAT.test(entree.candidat)
   ) {
@@ -544,7 +564,10 @@ function validerEntree(
   if (nature !== 'inconnue' && !NATURES.includes(nature as NaturePublicationGitLab)) {
     throw new Error('Nature de publication GitLab inconnue.')
   }
-  if (nature === 'suppression-entretien' && version === VERSION_JOURNAL) {
+  if (
+    nature === 'suppression-entretien' &&
+    (version === VERSION_JOURNAL || version === VERSION_JOURNAL_DEUX_DROITS)
+  ) {
     if (!entree.suppression) throw new Error('Journal de suppression GitLab incomplet.')
     validerSuppression(entree.suppression, entree.actions)
   }
@@ -556,13 +579,12 @@ function validerEntree(
   } as EntreeJournalPublication
 }
 
-/** Les trois versions d'un droit se lisent de la même façon : une entrée
- *  ancienne à un droit est simplement projetée vers une liste d'un élément. */
+/** Les versions à plusieurs droits les portent déjà sous forme de liste. */
 function projeterDroits(
   brut: Record<string, unknown>,
   version: unknown,
 ): DroitJournalGitLab[] {
-  if (version === VERSION_JOURNAL) {
+  if (version === VERSION_JOURNAL || version === VERSION_JOURNAL_DEUX_DROITS) {
     const droits = brut.droits
     if (!Array.isArray(droits) || droits.length === 0 || droits.length > 2) {
       throw new Error('Entrée de journal GitLab invalide.')
@@ -613,7 +635,7 @@ function classerAncienne(
 }
 
 function validerActions(actions: ActionCommitGitLab[]): void {
-  if (actions.length === 0 || actions.length > 102) {
+  if (actions.length === 0 || actions.length > MAX_ACTIONS_PUBLICATION) {
     throw new Error('Actions de publication GitLab invalides.')
   }
   for (const action of actions) validerAction(action)
@@ -624,7 +646,7 @@ function validerActionJournal(valeur: unknown): asserts valeur is ActionJournalG
     throw new Error('Action de journal GitLab invalide.')
   }
   const action = valeur as Partial<ActionJournalGitLab>
-  if (!['create', 'update', 'delete', 'move'].includes(action.action ?? '')) {
+  if (!['create', 'update', 'delete', 'move', 'chmod'].includes(action.action ?? '')) {
     throw new Error('Action de journal GitLab invalide.')
   }
   verifierCheminGitLab(action.file_path ?? '')
@@ -633,6 +655,9 @@ function validerActionJournal(valeur: unknown): asserts valeur is ActionJournalG
       throw new Error('Action de journal GitLab invalide.')
     }
   } else if (!SHA_COMMIT.test(action.last_commit_id ?? '')) {
+    throw new Error('Action de journal GitLab invalide.')
+  }
+  if (action.action === 'chmod' && typeof action.execute_filemode !== 'boolean') {
     throw new Error('Action de journal GitLab invalide.')
   }
   if (action.action === 'move') {
@@ -651,7 +676,7 @@ function validerAction(valeur: unknown): asserts valeur is ActionCommitGitLab {
     throw new Error('Action de publication GitLab invalide.')
   }
   const action = valeur as Partial<ActionCommitGitLab>
-  if (!['create', 'update', 'delete', 'move'].includes(action.action ?? '')) {
+  if (!['create', 'update', 'delete', 'move', 'chmod'].includes(action.action ?? '')) {
     throw new Error('Action de publication GitLab invalide.')
   }
   verifierCheminGitLab(action.file_path ?? '')
@@ -660,6 +685,9 @@ function validerAction(valeur: unknown): asserts valeur is ActionCommitGitLab {
       throw new Error('Action de publication GitLab invalide.')
     }
   } else if (!SHA_COMMIT.test(action.last_commit_id ?? '')) {
+    throw new Error('Action de publication GitLab invalide.')
+  }
+  if (action.action === 'chmod' && typeof action.execute_filemode !== 'boolean') {
     throw new Error('Action de publication GitLab invalide.')
   }
   if (action.action === 'move') {

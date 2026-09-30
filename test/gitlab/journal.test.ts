@@ -14,13 +14,27 @@ import type {
 } from '../../src/main/gitlab/bailGitLab'
 
 class DepotJournal implements DepotCommitsGitLab {
-  readonly fichiers = new Map<string, { contenu: string; commitId: string }>()
+  readonly fichiers = new Map<string, {
+    contenu: string
+    commitId: string
+    executable: boolean
+  }>()
   readonly commits: Array<{ id: string; title: string }> = []
   private compteur = 0
 
   async lireFichier(chemin: string): Promise<FichierGitLab | null> {
     const fichier = this.fichiers.get(chemin)
     return fichier ? { chemin, ...fichier } : null
+  }
+
+  async lireGardeFichier(chemin: string): Promise<{
+    commitId: string
+    executable: boolean
+  } | null> {
+    const fichier = this.fichiers.get(chemin)
+    return fichier
+      ? { commitId: fichier.commitId, executable: fichier.executable }
+      : null
   }
 
   async rechercherCommits(_ref: string, recherche: string): Promise<Array<{ id: string; title: string }>> {
@@ -41,11 +55,25 @@ class DepotJournal implements DepotCommitsGitLab {
     }
     const id = (++this.compteur).toString(16).padStart(40, '0')
     for (const action of actions) {
-      if (action.action === 'delete') this.fichiers.delete(action.file_path)
-      else this.fichiers.set(action.file_path, {
-        contenu: action.content ?? '',
-        commitId: id,
-      })
+      if (action.action === 'delete') {
+        this.fichiers.delete(action.file_path)
+      } else if (action.action === 'chmod') {
+        const precedent = this.fichiers.get(action.file_path)
+        if (precedent && precedent.executable !== action.execute_filemode) {
+          this.fichiers.set(action.file_path, {
+            ...precedent,
+            executable: action.execute_filemode as boolean,
+            commitId: id,
+          })
+        }
+      } else {
+        const precedent = this.fichiers.get(action.file_path)
+        this.fichiers.set(action.file_path, {
+          contenu: action.content ?? '',
+          commitId: id,
+          executable: precedent?.executable ?? false,
+        })
+      }
     }
     this.commits.push({ id, title: message })
     return { id }
@@ -91,6 +119,58 @@ describe('journal de publication GitLab', () => {
 
       journal.supprimer('operation-journal-1')
       expect(journal.lister()).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('conserve et réconcilie une garde légère sans contenu', async () => {
+    const { root, journal } = creerJournal()
+    const depot = new DepotJournal()
+    const gardeCommit = 'a'.repeat(40)
+    depot.fichiers.set('entretiens/e1.json', {
+      contenu: '{"formatVersion":8}',
+      commitId: gardeCommit,
+      executable: false,
+    })
+    const actions: ActionCommitGitLab[] = [
+      {
+        action: 'create',
+        file_path: 'corpus.json',
+        content: '{"formatVersion":8}',
+      },
+      {
+        action: 'chmod',
+        file_path: 'entretiens/e1.json',
+        execute_filemode: false,
+        last_commit_id: gardeCommit,
+      },
+    ]
+    try {
+      journal.preparer({
+        operationId: 'operation-garde-legere',
+        nature: 'transaction-corpus',
+        branche: 'main',
+        droits: [{ resourceHash: '9'.repeat(64), generation: 'generation-garde', leaseCommitId: '8'.repeat(40) }],
+        etat: 'indetermine',
+        actions,
+      })
+      const [entree] = journal.lister()
+      expect(entree.actions[1]).toMatchObject({
+        action: 'chmod',
+        execute_filemode: false,
+        last_commit_id: gardeCommit,
+      })
+      expect(entree.actions[1]).not.toHaveProperty('contentSha256')
+
+      const commit = await depot.publierCommit('main', 'Sonal operation-garde-legere', actions)
+      await expect(new ReconciliateurPublicationGitLab(depot, journal).reconcilier(entree))
+        .resolves.toEqual({ statut: 'confirme', commitId: commit.id })
+      expect(depot.fichiers.get('entretiens/e1.json')).toMatchObject({
+        contenu: '{"formatVersion":8}',
+        commitId: gardeCommit,
+        executable: false,
+      })
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

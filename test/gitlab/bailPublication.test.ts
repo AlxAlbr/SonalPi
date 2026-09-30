@@ -34,6 +34,7 @@ async function lireFichierAvecTaille(contenu: string): Promise<{ depot: DepotCom
     content: Buffer.from(contenu, 'utf8').toString('base64'),
     encoding: 'base64',
     last_commit_id: 'a'.repeat(40),
+    execute_filemode: false,
   })
   const fetchImpl: typeof fetch = async () => new Response(reponse, {
     status: 200,
@@ -139,6 +140,7 @@ describe('bail GitLab versionné', () => {
         compteur: 3,
       }),
       commitId: '1'.repeat(40),
+      executable: false,
     })
 
     const nouveau = new BailGitLab({
@@ -178,6 +180,47 @@ describe('bail GitLab versionné', () => {
 })
 
 describe('publication GitLab sous droit', () => {
+  test('lit le mode et revalide une garde sans télécharger le contenu', async () => {
+    const methodes: string[] = []
+    const fetchImpl: typeof fetch = async (_entree, init) => {
+      methodes.push(init?.method ?? 'GET')
+      if (init?.method === 'HEAD') {
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'x-gitlab-last-commit-id': 'a'.repeat(40),
+            'x-gitlab-execute-filemode': 'true',
+          },
+        })
+      }
+      return new Response(JSON.stringify({
+        file_path: 'entretiens/e1.json',
+        content: Buffer.from('{}').toString('base64'),
+        encoding: 'base64',
+        last_commit_id: 'a'.repeat(40),
+        execute_filemode: true,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    const depot = new DepotCommitsGitLabClient(new ClientGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      projetId: 42,
+      autorisation: { type: 'jeton-prive', jeton: 'jeton-test' },
+    }, fetchImpl))
+
+    await expect(depot.lireFichier('entretiens/e1.json', 'main')).resolves.toMatchObject({
+      contenu: '{}',
+      executable: true,
+    })
+    await expect(depot.lireGardeFichier('entretiens/e1.json', 'main')).resolves.toEqual({
+      commitId: 'a'.repeat(40),
+      executable: true,
+    })
+    expect(methodes).toEqual(['GET', 'HEAD'])
+  })
+
   test('inclut la mutation du bail dans le commit des données', async () => {
     const depot = new DepotMemoire()
     const maintenant = () => Date.UTC(2026, 0, 1)
@@ -219,12 +262,14 @@ describe('publication GitLab sous droit', () => {
       commitId: 'a'.repeat(40),
     }))
 
-    // Cent actions métier plus le bail dépassent la borne du commit.
+    // La limite d'actions métier plus le bail dépasse la borne du commit.
     await expect(publieur.publierSousDroit({
       operationId: 'operation-borne',
       nature: 'transaction-corpus',
       actions,
-    }, droit.droit)).rejects.toThrow(/101 actions/)
+    }, droit.droit)).rejects.toThrow(
+      new RegExp(`${MAX_ACTIONS_PUBLICATION + 1} actions`),
+    )
     expect(depot.commits).toHaveLength(1)
     // Le droit reste utilisable : la préparation de bail a été annulée.
     expect(() => coordination.preparerPublication(droit.droit)).not.toThrow()

@@ -7,6 +7,7 @@ import {
   type DroitsEditionGitLab,
 } from './bailGitLab'
 import { ErreurEcritureGitLab, TAILLE_MAX_DOCUMENT_GITLAB } from './client'
+import { MAX_ACTIONS_PUBLICATION } from './limitesPublication'
 import {
   ReconciliateurPublicationGitLab,
   type DroitJournalGitLab,
@@ -20,6 +21,7 @@ export type ActionPlanGitLab =
   | { action: 'create'; chemin: string; contenu: string }
   | { action: 'update'; chemin: string; contenu: string; commitId: string }
   | { action: 'delete'; chemin: string; commitId: string }
+  | { action: 'garde'; chemin: string; commitId: string; executable: boolean }
   | {
       action: 'move'
       chemin: string
@@ -78,8 +80,7 @@ const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
 /** Le plan sérialisé vaut la lecture d'un fichier : ce qui s'ouvre doit
  *  pouvoir s'enregistrer. */
 const TAILLE_MAX_PLAN = TAILLE_MAX_DOCUMENT_GITLAB
-/** GitLab refuse au-delà de cent actions dans un même commit, bail compris. */
-export const MAX_ACTIONS_PUBLICATION = 100
+export { MAX_ACTIONS_PUBLICATION } from './limitesPublication'
 /** Taille du corps HTTP de publication, bail et échappement compris. */
 export const MAX_CORPS_PUBLICATION = TAILLE_MAX_DOCUMENT_GITLAB
 /** Marge réservée pour l'enveloppe et l'action de bail lors d'un contrôle
@@ -126,9 +127,13 @@ export function verifierBornesAnticipees(
   branche: string,
   message: string,
   actions: readonly unknown[],
+  nombreDroits = 1,
 ): void {
-  if (actions.length + 1 > MAX_ACTIONS_PUBLICATION) {
-    throw refusActions(actions.length + 1)
+  if (!Number.isSafeInteger(nombreDroits) || nombreDroits < 1 || nombreDroits > 2) {
+    throw new Error('Nombre de droits GitLab invalide.')
+  }
+  if (actions.length + nombreDroits > MAX_ACTIONS_PUBLICATION) {
+    throw refusActions(actions.length + nombreDroits)
   }
   const octets = mesurerCorpsPublication(branche, message, actions, RESERVE_ENVELOPPE_PUBLICATION)
   if (octets > MAX_CORPS_PUBLICATION) throw refusTaille(octets)
@@ -137,7 +142,7 @@ export function verifierBornesAnticipees(
 function refusActions(total: number): RefusLimitePublicationGitLab {
   return new RefusLimitePublicationGitLab(
     `Ce geste porterait ${total} actions dans un seul commit, `
-    + `au-delà des ${MAX_ACTIONS_PUBLICATION} acceptées par GitLab. `
+    + `au-delà de la limite de sécurité de ${MAX_ACTIONS_PUBLICATION} actions de Sonal. `
     + 'Réduisez le nombre d’entretiens concernés.',
   )
 }
@@ -474,8 +479,9 @@ export class PublieurGitLab {
         const chemin = action.action === 'move'
           ? (action.previous_path as string)
           : action.file_path
-        const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
+        const observe = await this.options.depot.lireGardeFichier(chemin, this.options.branche)
         if (!observe || observe.commitId !== action.last_commit_id) return false
+        if (action.action === 'chmod' && observe.executable !== action.execute_filemode) return false
       }
       return true
     } catch {
@@ -561,6 +567,17 @@ function compilerPlan(plan: PlanPublicationGitLab): ActionCommitGitLab[] {
     }
     if (vus.has(action.chemin)) throw new Error('Action GitLab dupliquée.')
     vus.add(action.chemin)
+    if (action.action === 'garde') {
+      if (!SHA_COMMIT.test(action.commitId) || typeof action.executable !== 'boolean') {
+        throw new Error('Garde GitLab invalide.')
+      }
+      return {
+        action: 'chmod',
+        file_path: action.chemin,
+        execute_filemode: action.executable,
+        last_commit_id: action.commitId,
+      }
+    }
     if (action.action === 'delete') {
       if (!SHA_COMMIT.test(action.commitId)) throw new Error('Garde GitLab invalide.')
       return {

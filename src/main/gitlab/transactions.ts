@@ -151,8 +151,8 @@ export class TransactionsGitLab {
   /** Mutation de définitions qui écrit une référence ou une recette.
    *
    *  Chaque source nécessaire est lue sur un même instantané Git que
-   *  `corpus.json`, et entre dans le commit sous son contenu inchangé et sa
-   *  garde : si une source a bougé depuis la lecture, tout le commit est refusé
+   *  `corpus.json`, et entre dans le commit sous une garde sans contenu : si
+   *  une source a bougé depuis la lecture, tout le commit est refusé
    *  et le corpus publié reste intact. Les copies sous session ne sont jamais
    *  remplacées, et le miroir n'est écrit qu'après confirmation. */
   executerDefinitionsAvecSources<T>(
@@ -740,7 +740,7 @@ export class TransactionsGitLab {
     if (retenues.size > MAX_SOURCES_GARDEES) {
       throw new Error(
         `Cette opération garderait ${retenues.size} entretiens dans un seul commit, `
-        + `au-delà des ${MAX_SOURCES_GARDEES} acceptés. Réduisez le nombre d’entretiens concernés.`,
+        + `au-delà de la limite de ${MAX_SOURCES_GARDEES}. Réduisez le nombre d’entretiens concernés.`,
       )
     }
     return [...retenues]
@@ -751,11 +751,22 @@ export class TransactionsGitLab {
     ids: readonly string[],
     sha: string,
     corpus: CorpusFichier,
-  ): Promise<Array<SourcePreparation & { readonly commitId: string }>> {
-    const sources: Array<SourcePreparation & { readonly commitId: string }> = []
+  ): Promise<Array<SourcePreparation & {
+    readonly commitId: string
+    readonly executable: boolean
+  }>> {
+    const sources: Array<SourcePreparation & {
+      readonly commitId: string
+      readonly executable: boolean
+    }> = []
     for (const id of ids) {
       const fichier = await this.lireSource(id, sha, corpus)
-      sources.push({ id, contenu: fichier.contenu, commitId: fichier.commitId })
+      sources.push({
+        id,
+        contenu: fichier.contenu,
+        commitId: fichier.commitId,
+        executable: fichier.executable,
+      })
     }
     return sources
   }
@@ -829,21 +840,25 @@ export class TransactionsGitLab {
     }
   }
 
-  /** Le corpus d'abord, puis chaque source gardée sous son contenu inchangé :
-   *  le commit est atomique, donc une source bâtarde n'atteint jamais le
-   *  corpus. */
+  /** Le corpus d'abord, puis chaque source sous une garde légère : le commit
+   *  est atomique, donc une source périmée n'atteint jamais le corpus. */
   private actionsGardees(
     frais: BaseFraiche,
     preparation: ResultatPreparationDefinitions<unknown>,
-    sources: ReadonlyArray<{ id: string; contenu: string; commitId: string }>,
+    sources: ReadonlyArray<{
+      id: string
+      contenu: string
+      commitId: string
+      executable: boolean
+    }>,
   ): ActionPlanGitLab[] {
     return [
       this.actionCorpus(frais, preparation),
       ...sources.map((source) => ({
-        action: 'update' as const,
+        action: 'garde' as const,
         chemin: this.cheminDistant(`entretiens/${source.id}.json`),
-        contenu: source.contenu,
         commitId: source.commitId,
+        executable: source.executable,
       })),
     ]
   }

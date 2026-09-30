@@ -7,8 +7,8 @@
  *  mémorisée sur le poste. Un `client_id` n'est jamais un secret : il n'a pas
  *  à être chiffré, et n'est jamais demandé en même temps qu'un mot de passe.
  *
- *  Une instance sans application connue n'est pas compatible avec Sonal : le
- *  message l'explique et n'ouvre aucun autre mécanisme de connexion.
+ *  Une instance sans application connue ne peut pas utiliser OAuth.
+ *  Le parcours principal peut toutefois proposer un jeton d'accès personnel.
  */
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'

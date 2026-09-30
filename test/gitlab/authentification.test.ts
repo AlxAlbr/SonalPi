@@ -245,6 +245,7 @@ describe('service d’authentification GitLab', () => {
       id: expect.any(String),
       urlInstance: 'https://gitlab.example.org',
       utilisateur: 'max',
+      authentification: 'oauth',
       connecte: true,
       aRafraichir: false,
       scopes: ['api'],
@@ -279,6 +280,43 @@ describe('service d’authentification GitLab', () => {
       applicationConnue: true,
     })
     expect(etat.comptes[0]).toMatchObject({ utilisateur: 'max', connecte: true })
+  })
+
+  test('un jeton personnel identifie le compte et autorise les clients REST', async () => {
+    const { service, coffre } = banc(await portLibre())
+
+    const etat = await service.connecterAvecJeton(
+      'https://gitlab.example.org',
+      'glpat-secret',
+    )
+    const compte = etat.comptes[0]
+
+    expect(compte).toMatchObject({
+      utilisateur: 'max',
+      authentification: 'jeton-personnel',
+      connecte: true,
+      aRafraichir: false,
+      scopes: [],
+    })
+    expect(coffre.jetonPersonnelGitLab(compte.id)).toBe('glpat-secret')
+    expect(JSON.stringify(etat)).not.toContain('glpat-secret')
+    await expect(service.client(compte.id)).resolves.toBeDefined()
+  })
+
+  test('la déconnexion d’un jeton personnel ne supprime pas le compte', async () => {
+    const { service, coffre } = banc(await portLibre())
+    const connecte = await service.connecterAvecJeton(
+      'https://gitlab.example.org',
+      'glpat-secret',
+    )
+
+    const deconnecte = await service.deconnecter('https://gitlab.example.org', 'max')
+
+    expect(deconnecte.comptes[0]).toMatchObject({
+      authentification: 'jeton-personnel',
+      connecte: false,
+    })
+    expect(coffre.jetonPersonnelGitLab(connecte.comptes[0].id)).toBeNull()
   })
 
   test('un compte connecté puis déconnecté reste connu, sans credential', async () => {
@@ -343,12 +381,13 @@ describe('service d’authentification GitLab', () => {
     expect(coffre.listerComptesGitLab()).toEqual([])
   })
 
-  test('le coffre ne conserve aucun jeton d’accès personnel', async () => {
+  test('une connexion OAuth n’ajoute aucun jeton personnel', async () => {
     const { service, coffre } = banc(await portLibre())
     await service.connecter('https://gitlab.example.org')
 
     const compte = coffre.listerComptesGitLab()[0]
-    expect(compte).not.toHaveProperty('jetonChiffre')
-    expect(coffre).not.toHaveProperty('jetonGitLab')
+    expect(compte.authentification).toBe('oauth')
+    expect(compte).not.toHaveProperty('jetonPersonnelChiffre')
+    expect(coffre.jetonPersonnelGitLab(compte.id)).toBeNull()
   })
 })

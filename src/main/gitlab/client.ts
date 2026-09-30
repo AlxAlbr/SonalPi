@@ -1,8 +1,4 @@
-/**
- *  Secret présenté à l'instance, sans origine ni stockage.
- *  `bearer` est le mode OAuth ; `jeton-prive` ne sert que le temps de la
- *  transition des comptes existants vers OAuth.
- */
+/** Secret présenté à l'instance, sans origine ni stockage. */
 export type AutorisationGitLab =
   | { type: 'bearer'; accessToken: string }
   | { type: 'jeton-prive'; jeton: string }
@@ -21,6 +17,10 @@ export const TAILLE_MAX_DOCUMENT_GITLAB = 2 * 1024 * 1024
 /** Autorisation OAuth ; un compte connecté n'a pas à fournir son jeton. */
 export function autorisationOAuth(accessToken: string): AutorisationGitLab {
   return { type: 'bearer', accessToken }
+}
+
+export function autorisationJetonPersonnel(jeton: string): AutorisationGitLab {
+  return { type: 'jeton-prive', jeton }
 }
 
 export interface ConfigurationClientGitLab {
@@ -180,13 +180,14 @@ export class ClientGitLab {
     chemin: string,
     parametres: Record<string, string | undefined> | undefined,
     options: OptionsLectureGitLab,
+    methode: 'GET' | 'HEAD' = 'GET',
   ): Promise<Response> {
     for (let tentative = 0; ; tentative += 1) {
       const signal = options.signal
         ? AbortSignal.any([options.signal, AbortSignal.timeout(this.delaiMs)])
         : AbortSignal.timeout(this.delaiMs)
       const reponse = await this.fetchImpl(this.url(chemin, parametres), {
-        method: 'GET',
+        method: methode,
         headers: this.entetesAutorisation,
         signal,
         redirect: 'error',
@@ -224,6 +225,17 @@ export class ClientGitLab {
   ): Promise<string> {
     const reponse = await this.lireReponse(chemin, parametres, options)
     return this.lireCorpsBorne(reponse, options.tailleMaxOctets)
+  }
+
+  /** Lit seulement les métadonnées HTTP d'une ressource GitLab. */
+  async lireEntetes(
+    chemin: string,
+    parametres?: Record<string, string | undefined>,
+    options: OptionsLectureGitLab = {},
+  ): Promise<Headers> {
+    const reponse = await this.lireReponse(chemin, parametres, options, 'HEAD')
+    await reponse.body?.cancel()
+    return reponse.headers
   }
 
   /** Envoie exactement une mutation JSON. Un transport ambigu reste une erreur réseau. */

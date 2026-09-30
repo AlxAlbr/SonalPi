@@ -73,12 +73,16 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
           <article class="etape">
             <div class="numero">4</div>
             <div>
-              <h4>Obtenir un Client ID OAuth</h4>
+              <h4>Choisir l’authentification</h4>
               <p>
-                Si votre institution fournit déjà un Client ID Sonal, utilisez-le directement.
-                Sinon, une personne crée une application OAuth GitLab, puis partage son
-                <b>Application ID</b> avec l’équipe. Ce Client ID est public et ne constitue pas
-                un mot de passe.
+                Utilisez OAuth par défaut. Si l’instance ne permet pas de créer une application
+                OAuth, choisissez <b>Jeton d’accès personnel</b> dans Sonal et créez ce jeton dans
+                vos préférences GitLab avec le scope <code>api</code>.
+              </p>
+              <p>
+                Pour OAuth, utilisez le Client ID Sonal fourni par votre institution. Sinon, une
+                personne crée une application OAuth GitLab, puis partage son <b>Application ID</b>
+                avec l’équipe. Ce Client ID est public et ne constitue pas un mot de passe.
               </p>
               <ul>
                 <li><b>Name :</b> <code>Sonal</code>.</li>
@@ -96,36 +100,29 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
           <article class="etape">
             <div class="numero">5</div>
             <div>
-              <h4>Copier les deux informations utiles</h4>
+              <h4>Copier les informations utiles</h4>
               <div class="recapitulatif">
                 <div>
                   <b>URL du projet</b>
                   <code>https://gitlab.exemple.fr/equipe/mon-corpus</code>
                 </div>
                 <div>
-                  <b>Client ID</b>
-                  <span>Application OAuth → Application ID.</span>
+                  <b>Accès</b>
+                  <span>Client ID OAuth, ou jeton personnel si OAuth est indisponible.</span>
                 </div>
               </div>
               <p>
                 Dans Sonal, renseignez ces valeurs puis utilisez le bouton unique de création
-                ou d’ouverture. Le navigateur s’ouvrira pour la connexion et le consentement.
+                ou d’ouverture. Avec OAuth, le navigateur s’ouvrira pour la connexion et le
+                consentement. Un jeton personnel est vérifié directement par Sonal.
               </p>
             </div>
           </article>
 
-          <details class="options">
-            <summary>À quoi sert la « racine du corpus » ?</summary>
-            <p>
-              Laissez-la vide pour stocker le corpus à la racine du projet. Indiquez un dossier,
-              par exemple <code>donnees/terrain-a</code>, seulement si le projet doit contenir
-              plusieurs corpus ou d’autres fichiers.
-            </p>
-          </details>
-
           <p class="information finale">
-            Les fichiers audio ne sont pas envoyés dans GitLab. Ils restent sur les postes qui
-            les utilisent. Aucun réglage Git LFS n’est nécessaire.
+            Sonal place toujours le corpus à la racine du projet. Les fichiers audio ne sont pas
+            envoyés dans GitLab : un dossier Nextcloud/WebDAV distinct peut être configuré pendant
+            la création du corpus ou plus tard. Aucun réglage Git LFS n’est nécessaire.
           </p>
         </div>
 
@@ -185,8 +182,7 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
   padding: 1.25rem 1.5rem;
 }
 .introduction,
-.etape,
-.options {
+.etape {
   border: 1px solid #d0d7de;
   border-radius: 8px;
   background: #fff;
@@ -285,15 +281,6 @@ code {
   border: 1px solid #d8dee4;
   border-radius: 5px;
   font-size: 0.78rem;
-}
-.options {
-  margin-top: 1rem;
-  padding: 0.8rem 1rem;
-}
-.options summary {
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
 }
 .finale {
   margin-top: 1rem;

@@ -24,22 +24,31 @@ export interface IdentiteBailGitLab {
 }
 
 export interface ActionCommitGitLab {
-  action: 'create' | 'update' | 'delete' | 'move'
+  action: 'create' | 'update' | 'delete' | 'move' | 'chmod'
   file_path: string
   previous_path?: string
   content?: string
   encoding?: 'text' | 'base64'
   last_commit_id?: string
+  execute_filemode?: boolean
 }
 
 export interface FichierGitLab {
   chemin: string
   commitId: string
   contenu: string
+  executable: boolean
+}
+
+export interface GardeFichierGitLab {
+  commitId: string
+  executable: boolean
 }
 
 export interface DepotCommitsGitLab {
   lireFichier(chemin: string, ref: string): Promise<FichierGitLab | null>
+  /** Métadonnées nécessaires à une garde, sans télécharger le contenu. */
+  lireGardeFichier(chemin: string, ref: string): Promise<GardeFichierGitLab | null>
   /** Résout la tête d'une branche en SHA : toutes les lectures d'un même geste
    *  se font alors sur un instantané unique du dépôt. */
   resoudreTete(branche: string): Promise<string>
@@ -170,6 +179,7 @@ export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
         content: string
         encoding: string
         last_commit_id: string
+        execute_filemode: boolean
       }>(
         this.client.cheminProjet(`/repository/files/${encodeURIComponent(chemin)}`),
         { ref },
@@ -178,7 +188,8 @@ export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
       if (
         reponse.corps.file_path !== chemin ||
         reponse.corps.encoding !== 'base64' ||
-        !reponse.corps.last_commit_id
+        !reponse.corps.last_commit_id ||
+        typeof reponse.corps.execute_filemode !== 'boolean'
       ) {
         throw new Error('Réponse de fichier GitLab invalide.')
       }
@@ -187,7 +198,27 @@ export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
         chemin,
         commitId: reponse.corps.last_commit_id,
         contenu,
+        executable: reponse.corps.execute_filemode,
       }
+    } catch (erreur) {
+      if (erreur instanceof ErreurGitLab && erreur.statut === 404) return null
+      throw erreur
+    }
+  }
+
+  async lireGardeFichier(chemin: string, ref: string): Promise<GardeFichierGitLab | null> {
+    verifierCheminGitLab(chemin)
+    try {
+      const entetes = await this.client.lireEntetes(
+        this.client.cheminProjet(`/repository/files/${encodeURIComponent(chemin)}`),
+        { ref },
+      )
+      const commitId = entetes.get('x-gitlab-last-commit-id')
+      const mode = entetes.get('x-gitlab-execute-filemode')
+      if (!commitId || !/^[a-f0-9]{40,64}$/.test(commitId) || (mode !== 'true' && mode !== 'false')) {
+        throw new Error('Métadonnées de fichier GitLab invalides.')
+      }
+      return { commitId, executable: mode === 'true' }
     } catch (erreur) {
       if (erreur instanceof ErreurGitLab && erreur.statut === 404) return null
       throw erreur

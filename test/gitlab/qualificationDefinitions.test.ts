@@ -572,6 +572,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     const localAvant = JSON.stringify(p.lireLocal())
     const depotQuiTombe: DepotCommitsGitLab = {
       lireFichier: async () => { throw new ErreurGitLab(403, 'acces', 'droits insuffisants') },
+      lireGardeFichier: async () => { throw new ErreurGitLab(403, 'acces', 'droits insuffisants') },
       resoudreTete: async () => { throw new Error('injoignable') },
       lireContenuBrut: async () => null,
       rechercherCommits: async () => [],

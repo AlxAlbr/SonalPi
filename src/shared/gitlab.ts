@@ -1,5 +1,7 @@
 import type { OuvertureDistante } from './distant'
 
+export type AuthentificationGitLab = 'oauth' | 'jeton-personnel'
+
 /** Base média déclarée sur ce poste, sans adresse ni secret. */
 export interface BaseMediaGitLabPublique {
   utilisateur: string
@@ -23,6 +25,7 @@ export interface DestinationGitLabPublic {
   compteId: string
   urlInstance: string
   utilisateur: string
+  authentification: AuthentificationGitLab
   projetId: number
   nomProjet: string
   branche: string
@@ -38,6 +41,7 @@ export interface CompteGitLabPublic {
   id: string
   urlInstance: string
   utilisateur: string
+  authentification: AuthentificationGitLab
   connecte: boolean
   /** Le credential existe mais son échéance est proche : un renouvellement va avoir lieu. */
   aRafraichir: boolean
@@ -70,21 +74,22 @@ export interface ProjetGitLabPrepare {
   branche: string
 }
 
-export interface DemandeOuvertureGitLab extends ProjetGitLabPrepare {
-  racine?: string
-}
+export type DemandeOuvertureGitLab = ProjetGitLabPrepare
 
 export interface DemandeCreationGitLab extends DemandeOuvertureGitLab {
   nomCorpus: string
+  baseMedia?: DemandeConfigurationBaseMedia
 }
 
-/** Authentification, destinations GitLab : aucun secret ne franchit l'IPC. */
+/** Authentification et destinations GitLab.
+ *  Un secret saisi franchit l'IPC une fois vers le main et n'en revient jamais. */
 export interface ApiGitLab {
   lister(): Promise<DestinationGitLabPublic[]>
   /** Instance GitLab qui héberge ce projet, détectée depuis son adresse. */
   detecterInstance(urlProjet: string): Promise<string | null>
   etat(urlInstance: string): Promise<ConnexionGitLabPublique>
   connecter(urlInstance: string, clientId?: string): Promise<ConnexionGitLabPublique>
+  connecterAvecJeton(urlInstance: string, jeton: string): Promise<ConnexionGitLabPublique>
   deconnecter(urlInstance: string, utilisateur: string): Promise<ConnexionGitLabPublique>
   oublierCompte(urlInstance: string, utilisateur: string): Promise<DestinationGitLabPublic[]>
   preparerProjet(demande: DemandePreparationProjetGitLab): Promise<ProjetGitLabPrepare>

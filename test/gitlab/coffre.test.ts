@@ -75,7 +75,7 @@ describe('coffre GitLab', () => {
     const persiste = readFileSync(fichier, 'utf8')
     expect(persiste).not.toContain('access-secret')
     expect(persiste).not.toContain('refresh-secret')
-    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 5, basesMedia: {} })
+    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 6, basesMedia: {} })
 
     const memeCompte = coffre.enregistrerCompteGitLab({
       urlInstance: 'https://GITLAB.example.org:443/institution',
@@ -91,6 +91,43 @@ describe('coffre GitLab', () => {
     expect(coffre.listerDestinationsGitLab()).toHaveLength(2)
     coffre.oublierDestinationGitLab(destinationA.id)
     expect(coffre.listerDestinationsGitLab()).toEqual([destinationB])
+  })
+
+  test('chiffre un jeton personnel et le relit sans l’exposer', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-pat-')), 'comptes.json')
+    const coffre = new CoffreComptes(fichier, chiffreur)
+    const compte = coffre.enregistrerCompteGitLabAvecJeton({
+      urlInstance: 'https://gitlab.example.org',
+      utilisateur: 'max',
+      jeton: 'glpat-secret',
+    })
+
+    expect(compte.authentification).toBe('jeton-personnel')
+    expect(coffre.jetonPersonnelGitLab(compte.id)).toBe('glpat-secret')
+    expect(readFileSync(fichier, 'utf8')).not.toContain('glpat-secret')
+
+    const relu = new CoffreComptes(fichier, chiffreur)
+    expect(relu.jetonPersonnelGitLab(compte.id)).toBe('glpat-secret')
+    expect(relu.credentialOAuthGitLab(compte.id)).toBeNull()
+  })
+
+  test('garde un jeton personnel en mémoire sans stockage sécurisé', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-pat-session-')), 'comptes.json')
+    const faible: Chiffreur = {
+      disponible: () => false,
+      chiffre: () => { throw new Error('stockage indisponible') },
+      dechiffre: () => { throw new Error('stockage indisponible') },
+    }
+    const coffre = new CoffreComptes(fichier, faible)
+    const compte = coffre.enregistrerCompteGitLabAvecJeton({
+      urlInstance: 'https://gitlab.example.org',
+      utilisateur: 'max',
+      jeton: 'glpat-session',
+    })
+
+    expect(coffre.jetonPersonnelGitLab(compte.id)).toBe('glpat-session')
+    expect(readFileSync(fichier, 'utf8')).not.toContain('glpat-session')
+    expect(new CoffreComptes(fichier, faible).jetonPersonnelGitLab(compte.id)).toBeNull()
   })
 
   test('migre un coffre WebDAV v2 sans changer ses identifiants', () => {
@@ -119,13 +156,45 @@ describe('coffre GitLab', () => {
     }])
     expect(coffre.motDePasse(id)).toBe('secret-webdav')
     expect(JSON.parse(readFileSync(fichier, 'utf8'))).toMatchObject({
-      formatVersion: 5,
+      formatVersion: 6,
       destinationsGitLab: {},
       basesMedia: {},
     })
   })
 
-  test('purge le jeton d’accès personnel sans perdre comptes ni destinations', () => {
+  test('migre les comptes OAuth du format 5', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-v5-')), 'comptes.json')
+    const idCompte = idDeCompteGitLab('https://gitlab.example.org', 'max')
+    const acces = credential()
+    writeFileSync(fichier, JSON.stringify({
+      formatVersion: 5,
+      comptes: {
+        [idCompte]: {
+          fournisseur: 'gitlab',
+          id: idCompte,
+          urlInstance: 'https://gitlab.example.org',
+          utilisateur: 'max',
+          oauth: {
+            accessTokenChiffre: chiffreur.chiffre(acces.accessToken),
+            refreshTokenChiffre: chiffreur.chiffre(acces.refreshToken),
+            expiresAt: acces.expiresAt,
+            scopes: acces.scopes,
+            rotationneeLe: acces.rotationneeLe,
+          },
+        },
+      },
+      destinationsGitLab: {},
+      basesMedia: {},
+    }))
+
+    const coffre = new CoffreComptes(fichier, chiffreur)
+
+    expect(coffre.listerComptesGitLab()[0].authentification).toBe('oauth')
+    expect(coffre.credentialOAuthGitLab(idCompte)?.accessToken).toBe('access-secret')
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(6)
+  })
+
+  test('migre un ancien jeton d’accès personnel sans perdre ses destinations', () => {
     const fichier = join(mkdtempSync(join(tmpdir(), 'sonal-coffre-pat-')), 'comptes.json')
     const idCompte = idDeCompteGitLab('https://gitlab.example.org', 'max')
     const idDestination = 'sha256-destination-historique'
@@ -156,15 +225,22 @@ describe('coffre GitLab', () => {
     const coffre = new CoffreComptes(fichier, chiffreur)
 
     const compte = coffre.listerComptesGitLab()[0]
-    expect(compte.id).toBe(idCompte)
+    expect(compte).toMatchObject({
+      id: idCompte,
+      authentification: 'jeton-personnel',
+    })
     expect(compte).not.toHaveProperty('jetonChiffre')
     expect(coffre.listerDestinationsGitLab()).toHaveLength(1)
     expect(coffre.credentialOAuthGitLab(compte.id)).toBeNull()
+    expect(coffre.jetonPersonnelGitLab(compte.id)).toBe('glpat-heritage')
 
     const persiste = readFileSync(fichier, 'utf8')
     expect(persiste).not.toContain('glpat-heritage')
-    expect(persiste).not.toContain('jetonChiffre')
-    expect(JSON.parse(persiste)).toMatchObject({ formatVersion: 5 })
+    expect(persiste).not.toContain('"jetonChiffre"')
+    expect(JSON.parse(persiste)).toMatchObject({
+      formatVersion: 6,
+      comptes: { [idCompte]: { jetonPersonnelChiffre: expect.any(String) } },
+    })
   })
 
   test('calcule un compte stable sans dépendre du credential', () => {
@@ -218,7 +294,7 @@ describe('coffre — base média locale d\'une destination GitLab', () => {
     const persiste = readFileSync(fichier, 'utf8')
     expect(persiste).not.toContain('mot-de-passe-application')
     expect(JSON.parse(persiste)).toMatchObject({
-      formatVersion: 5,
+      formatVersion: 6,
       basesMedia: { [destination.id]: { utilisateur: 'max' } },
     })
   })

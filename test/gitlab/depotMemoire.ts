@@ -8,6 +8,7 @@ import { ErreurEcritureGitLab } from '../../src/main/gitlab/client'
 interface Fichier {
   contenu: string
   commitId: string
+  executable: boolean
 }
 /** Dépôt GitLab de test : garde `last_commit_id` vérifiée, actions appliquées
  *  dans l'ordre, et pannes injectables (avant envoi, après acceptation, refus). */
@@ -36,7 +37,7 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.compteur = 1
     this.lectures.clear()
     for (const [chemin, contenu] of fichiers) {
-      this.fichiers.set(chemin, { contenu, commitId: this.sha() })
+      this.fichiers.set(chemin, { contenu, commitId: this.sha(), executable: false })
     }
     this.tete = this.sha()
   }
@@ -61,6 +62,13 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.lectures.set(chemin, (this.lectures.get(chemin) ?? 0) + 1)
     const fichier = this.fichiers.get(chemin)
     return fichier ? { chemin, ...fichier } : null
+  }
+
+  async lireGardeFichier(chemin: string, _ref?: string) {
+    const fichier = this.fichiers.get(chemin)
+    return fichier
+      ? { commitId: fichier.commitId, executable: fichier.executable }
+      : null
   }
 
   async lireContenuBrut(chemin: string, _ref?: string): Promise<string | null> {
@@ -130,13 +138,17 @@ export class DepotMemoire implements DepotCommitsGitLab {
   modifierHorsProtocole(chemin: string, contenu: string): void {
     const fichier = this.fichiers.get(chemin)
     if (!fichier) throw new Error('Fichier de test absent.')
-    this.fichiers.set(chemin, { contenu, commitId: this.nouvelId() })
+    this.fichiers.set(chemin, {
+      contenu,
+      commitId: this.nouvelId(),
+      executable: fichier.executable,
+    })
   }
 
   /** Dépose un fichier sans passer par un commit : c'est ainsi qu'un banc met
    *  en place l'état d'un autre poste (un bail repris, une archive existante). */
-  deposerHorsProtocole(chemin: string, contenu: string): void {
-    this.fichiers.set(chemin, { contenu, commitId: this.nouvelId() })
+  deposerHorsProtocole(chemin: string, contenu: string, executable = false): void {
+    this.fichiers.set(chemin, { contenu, commitId: this.nouvelId(), executable })
   }
 
   /** Trace les refus : un banc doit dire quelle garde a été trouvée périmée. */
@@ -172,10 +184,21 @@ export class DepotMemoire implements DepotCommitsGitLab {
         const precedent = this.fichiers.get(action.previous_path as string) as Fichier
         this.fichiers.delete(action.previous_path as string)
         this.fichiers.set(action.file_path, { ...precedent, commitId })
+      } else if (action.action === 'chmod') {
+        const precedent = this.fichiers.get(action.file_path) as Fichier
+        if (precedent.executable !== action.execute_filemode) {
+          this.fichiers.set(action.file_path, {
+            ...precedent,
+            executable: action.execute_filemode as boolean,
+            commitId,
+          })
+        }
       } else {
+        const precedent = this.fichiers.get(action.file_path)
         this.fichiers.set(action.file_path, {
           contenu: action.content as string,
           commitId,
+          executable: precedent?.executable ?? false,
         })
       }
     }

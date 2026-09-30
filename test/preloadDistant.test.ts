@@ -28,22 +28,22 @@ const connexionGitLab: ConnexionGitLabPublique = {
 const preparationGitLab = {
   urlProjet: `${accesGitLab.urlInstance}/groupe/corpus`, compteId: accesGitLab.compteId,
 }
+const baseMedia = {
+  urlBase: 'https://nuage.example.org/remote.php/dav/files/moi/Medias',
+  utilisateur: 'moi',
+  motDePasse: 'secret-media',
+}
 const creationGitLab: DemandeCreationGitLab = {
   ...accesGitLab,
   projetId: 42,
   utilisateur: 'moi',
   nomProjet: 'Dépôt GitLab',
   branche: 'equipe/terrain',
-  racine: 'donnees/corpus',
   nomCorpus: 'Mon corpus',
+  baseMedia,
 }
-const { nomCorpus: _nomCorpus, ...ouvertureGitLab } = creationGitLab
+const { nomCorpus: _nomCorpus, baseMedia: _baseMedia, ...ouvertureGitLab } = creationGitLab
 const { nomCorpus: _nomCorpusWebDAV, ...connexionWebDAV } = creationWebDAV
-const baseMedia = {
-  urlBase: 'https://nuage.example.org/remote.php/dav/files/moi/Medias',
-  utilisateur: 'moi',
-  motDePasse: 'secret-media',
-}
 
 beforeAll(async () => {
   await import('../src/preload/index')
@@ -82,6 +82,7 @@ describe('pont IPC des corpus distants', () => {
     { canal: 'gitlab:detecterInstance', appeler: () => api.gitlab.detecterInstance(`${accesGitLab.urlInstance}/groupe/corpus`), arguments: [`${accesGitLab.urlInstance}/groupe/corpus`] },
     { canal: 'gitlab:etat', appeler: () => api.gitlab.etat(accesGitLab.urlInstance), arguments: [accesGitLab.urlInstance] },
     { canal: 'gitlab:connecter', appeler: () => api.gitlab.connecter(accesGitLab.urlInstance, 'client-sonal'), arguments: [accesGitLab.urlInstance, 'client-sonal'] },
+    { canal: 'gitlab:connecterAvecJeton', appeler: () => api.gitlab.connecterAvecJeton(accesGitLab.urlInstance, 'glpat-secret'), arguments: [accesGitLab.urlInstance, 'glpat-secret'] },
     { canal: 'gitlab:deconnecter', appeler: () => api.gitlab.deconnecter(accesGitLab.urlInstance, 'moi'), arguments: [accesGitLab.urlInstance, 'moi'] },
     { canal: 'gitlab:oublierCompte', appeler: () => api.gitlab.oublierCompte(accesGitLab.urlInstance, 'moi'), arguments: [accesGitLab.urlInstance, 'moi'] },
     { canal: 'gitlab:oublierDestination', appeler: () => api.gitlab.oublierDestination('destination-gitlab'), arguments: ['destination-gitlab'] },

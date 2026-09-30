@@ -18,13 +18,17 @@ const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
 const nomCorpus = ref('')
+const baseMediaUrl = ref('')
+const baseMediaUtilisateur = ref('')
+const baseMediaMotDePasse = ref('')
 
 const {
   urlProjet: urlProjetGitLab,
-  racine: racineGitLab,
   demande: demandeGitLab,
   chargement: chargementGitLab,
   clientId: clientIdGitLab,
+  authentification: authentificationGitLab,
+  jetonPersonnel: jetonPersonnelGitLab,
   comptes: comptesGitLab,
   compteChoisi: compteChoisiGitLab,
   compteCourant: compteCourantGitLab,
@@ -58,13 +62,29 @@ const pretNextcloud = computed(
     motDePasse.value.length > 0 &&
     nomCorpus.value.trim().length > 0,
 )
+const baseMediaDemandee = computed(
+  () => baseMediaUrl.value.trim().length > 0 ||
+    baseMediaUtilisateur.value.trim().length > 0 ||
+    baseMediaMotDePasse.value.length > 0,
+)
+const baseMediaPrete = computed(
+  () => !baseMediaDemandee.value || (
+    baseMediaUrl.value.trim().length > 0 &&
+    baseMediaUtilisateur.value.trim().length > 0 &&
+    baseMediaMotDePasse.value.length > 0
+  ),
+)
 const pretGitLab = computed(
   () => stockageSecuriseDisponible.value !== null &&
     !enCours.value &&
     !chargementGitLab.value &&
     !connexionEnCoursGitLab.value &&
     urlProjetGitLab.value.trim().length > 0 &&
-    nomCorpus.value.trim().length > 0,
+    nomCorpus.value.trim().length > 0 &&
+    baseMediaPrete.value &&
+    (authentificationGitLab.value === 'oauth' ||
+      compteCourantGitLab.value?.connecte === true ||
+      jetonPersonnelGitLab.value.trim().length > 0),
 )
 const pret = computed(() => fournisseur.value === 'nextcloud' ? pretNextcloud.value : pretGitLab.value)
 
@@ -88,6 +108,15 @@ async function creer(): Promise<void> {
       await creerEtOuvrirGitLab({
         ...demandeGitLab.value,
         nomCorpus: nomCorpus.value.trim(),
+        ...(baseMediaDemandee.value
+          ? {
+              baseMedia: {
+                urlBase: baseMediaUrl.value.trim(),
+                utilisateur: baseMediaUtilisateur.value.trim(),
+                motDePasse: baseMediaMotDePasse.value,
+              },
+            }
+          : {}),
       })
     }
     emit('fermer')
@@ -133,8 +162,8 @@ async function creer(): Promise<void> {
             redémarrage.
           </span>
           <span v-else>
-            Sonal ne conservera pas votre connexion GitLab. Vous devrez vous reconnecter dans
-            le navigateur après chaque redémarrage.
+            Sonal ne conservera pas votre accès GitLab ni un éventuel mot de passe média.
+            Après chaque redémarrage, vous devrez les saisir de nouveau.
           </span>
         </div>
 
@@ -194,6 +223,13 @@ async function creer(): Promise<void> {
             <span class="aide-champ">Copiez l’adresse de la page du projet.</span>
           </div>
           <div class="question">
+            <span class="q-lbl">Authentification</span>
+            <select v-model="authentificationGitLab" class="champ" :disabled="enCours || connexionEnCoursGitLab">
+              <option value="oauth">OAuth (recommandé)</option>
+              <option value="jeton-personnel">Jeton d’accès personnel</option>
+            </select>
+          </div>
+          <div v-if="authentificationGitLab === 'oauth'" class="question">
             <span class="q-lbl">Client ID OAuth</span>
             <input
               v-model="clientIdGitLab"
@@ -206,6 +242,18 @@ async function creer(): Promise<void> {
             <span class="aide-champ">
               Public et non secret. Laissez vide si Sonal connaît déjà cette instance.
             </span>
+          </div>
+          <div v-else class="question">
+            <span class="q-lbl">Jeton d’accès personnel</span>
+            <input
+              v-model="jetonPersonnelGitLab"
+              class="champ"
+              type="password"
+              placeholder="glpat-…"
+              autocomplete="off"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+            />
+            <span class="aide-champ">Le jeton doit disposer du scope <code>api</code>.</span>
           </div>
           <div v-if="comptesGitLab.length > 1" class="question">
             <span class="q-lbl">Compte GitLab</span>
@@ -221,27 +269,54 @@ async function creer(): Promise<void> {
               Se déconnecter
             </button>
           </div>
-          <details class="options-gitlab">
-            <summary>Options avancées</summary>
-            <div class="question">
-              <span class="q-lbl">Dossier du corpus dans le projet</span>
-              <input
-                v-model="racineGitLab"
-                class="champ racine-gitlab"
-                type="text"
-                placeholder="donnees/mon-corpus"
-                spellcheck="false"
-                :disabled="enCours"
-              />
-              <span class="aide-champ">Laissez vide pour utiliser la racine du projet.</span>
-            </div>
-          </details>
         </template>
 
         <div class="question">
           <span class="q-lbl">Nom du corpus</span>
           <input v-model="nomCorpus" class="champ-nom" :disabled="enCours" type="text" placeholder="Nom du corpus" @keyup.enter="creer" />
         </div>
+
+        <details v-if="fournisseur === 'gitlab'" class="options-gitlab">
+          <summary>Médias partagés (facultatif)</summary>
+          <div class="base-media-form">
+            <label class="question">
+              <span class="q-lbl">Dossier WebDAV des médias</span>
+              <input
+                v-model="baseMediaUrl"
+                class="champ"
+                type="text"
+                placeholder="https://nuage.exemple.org/remote.php/dav/files/moi/Medias"
+                spellcheck="false"
+                :disabled="enCours"
+              />
+            </label>
+            <div class="ligne-2">
+              <label class="question">
+                <span class="q-lbl">Identifiant WebDAV</span>
+                <input
+                  v-model="baseMediaUtilisateur"
+                  class="champ"
+                  type="text"
+                  spellcheck="false"
+                  :disabled="enCours"
+                />
+              </label>
+              <label class="question">
+                <span class="q-lbl">Mot de passe d’application</span>
+                <input
+                  v-model="baseMediaMotDePasse"
+                  class="champ"
+                  type="password"
+                  :disabled="enCours"
+                />
+              </label>
+            </div>
+            <span class="aide-champ">
+              Les médias restent hors de GitLab. L’adresse et le mot de passe restent
+              uniquement sur ce poste. Cette configuration pourra aussi être ajoutée plus tard.
+            </span>
+          </div>
+        </details>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
 
@@ -327,8 +402,14 @@ async function creer(): Promise<void> {
   font-size: 0.78rem;
   font-weight: 600;
 }
-.options-gitlab .question {
+.base-media-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
   margin-top: 0.65rem;
+}
+.options-gitlab .base-media-form .question {
+  margin-top: 0;
 }
 .connexion-compacte {
   display: flex;

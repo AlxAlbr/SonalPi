@@ -60,6 +60,7 @@ interface FichierGitLab {
   file_path: string
   content: string
   last_commit_id: string
+  execute_filemode: boolean
 }
 
 interface VerrouLfs {
@@ -443,6 +444,58 @@ decrire('Contrat GitLab réel', () => {
     expect(perimee.statut, detail(perimee)).toBe(400)
     const final = await lireFichier(projet, chemin, token1)
     expect(Buffer.from(final.corps.content, 'base64').toString('utf8')).toBe('version fraîche')
+  })
+
+  it('garde un fichier par chmod sans transporter ni modifier son contenu', { timeout: 45_000 }, async () => {
+    const projet = configuration.projetLfsId as string
+    const token1 = configuration.token1 as string
+    const token2 = configuration.token2 as string
+    const source = `qualification/${idExecution}-garde-chmod.json`
+    const marqueurValide = `qualification/${idExecution}-chmod-valide.txt`
+    const marqueurRefuse = `qualification/${idExecution}-chmod-refuse.txt`
+
+    const creation = await publierCommit(projet, token1, `qualification ${idExecution}: base chmod`, [
+      { action: 'create', file_path: source, content: '{"version":1}' },
+    ])
+    expect(creation.statut, detail(creation)).toBe(201)
+    const base = await lireFichier(projet, source, token1)
+    expect(base.statut, detail(base)).toBe(200)
+    expect(base.corps.execute_filemode).toBe(false)
+
+    const gardee = await publierCommit(projet, token1, `qualification ${idExecution}: garde chmod`, [
+      { action: 'create', file_path: marqueurValide, content: 'ok' },
+      {
+        action: 'chmod',
+        file_path: source,
+        execute_filemode: base.corps.execute_filemode,
+        last_commit_id: base.corps.last_commit_id,
+      },
+    ])
+    expect(gardee.statut, detail(gardee)).toBe(201)
+    const apresGarde = await lireFichier(projet, source, token1)
+    expect(Buffer.from(apresGarde.corps.content, 'base64').toString('utf8'))
+      .toBe('{"version":1}')
+    expect(apresGarde.corps.last_commit_id).toBe(base.corps.last_commit_id)
+
+    const concurrence = await publierCommit(projet, token2, `qualification ${idExecution}: périme chmod`, [{
+      action: 'update',
+      file_path: source,
+      content: '{"version":2}',
+      last_commit_id: base.corps.last_commit_id,
+    }])
+    expect(concurrence.statut, detail(concurrence)).toBe(201)
+
+    const refusee = await publierCommit(projet, token1, `qualification ${idExecution}: ancien chmod`, [
+      { action: 'create', file_path: marqueurRefuse, content: 'ne doit pas exister' },
+      {
+        action: 'chmod',
+        file_path: source,
+        execute_filemode: false,
+        last_commit_id: base.corps.last_commit_id,
+      },
+    ])
+    expect(refusee.statut, detail(refusee)).toBe(400)
+    expect((await lireFichier(projet, marqueurRefuse, token1)).statut).toBe(404)
   })
 
   it('applique les gardes périmées aux suppressions et déplacements', { timeout: 45_000 }, async () => {

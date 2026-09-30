@@ -120,6 +120,17 @@ export type TestAccesBase =
   | { ok: true }
   | { ok: false; motif: MotifIndisponibiliteBase }
 
+/** Déclaration canonique dont l'accès a été contrôlé. */
+export interface BaseMediaVerifiee {
+  urlBase: string
+  utilisateur: string
+  motDePasse: string
+}
+
+export type ResultatPreparationBaseMedia =
+  | { ok: true; base: BaseMediaVerifiee }
+  | { ok: false; motif: MotifIndisponibiliteBase }
+
 /** Le dossier partagé est-il accessible avec ces identifiants ?
  *  Un inventaire du dossier suffit : il ne lit aucun média. */
 export async function testerAccesBase(client: ClientWebDAV): Promise<TestAccesBase> {
@@ -136,6 +147,29 @@ export async function testerAccesBase(client: ClientWebDAV): Promise<TestAccesBa
   }
 }
 
+/** Valide une déclaration et contrôle son accès sans encore la persister. */
+export async function preparerBaseMediaVerifiee(
+  params: { urlBase: string; utilisateur: string; motDePasse: string },
+  creerClient: (
+    config: { baseUrl: string; identifiants: { utilisateur: string; motDePasse: string } },
+  ) => ClientWebDAV = (config) => new ClientWebDAV(config),
+): Promise<ResultatPreparationBaseMedia> {
+  const declaration = verifierDeclarationBaseMedia(params)
+  const client = creerClient({
+    baseUrl: declaration.urlBase,
+    identifiants: {
+      utilisateur: declaration.utilisateur,
+      motDePasse: params.motDePasse,
+    },
+  })
+  const acces = await testerAccesBase(client)
+  if (!acces.ok) return acces
+  return {
+    ok: true,
+    base: { ...declaration, motDePasse: params.motDePasse },
+  }
+}
+
 /** Valide et teste une base avant de la persister dans le coffre. */
 export async function enregistrerBaseMediaVerifiee(
   coffre: CoffreComptes,
@@ -148,21 +182,11 @@ export async function enregistrerBaseMediaVerifiee(
   if (!coffre.listerDestinationsGitLab().some((destination) => destination.id === destinationGitLabId)) {
     throw new Error('Destination GitLab inconnue.')
   }
-  const declaration = verifierDeclarationBaseMedia(params)
-  const client = creerClient(clientConfig(
-    {
-      destinationGitLabId,
-      ...declaration,
-      secretDisponible: true,
-    },
-    params.motDePasse,
-  ))
-  const acces = await testerAccesBase(client)
-  if (!acces.ok) return acces
+  const preparation = await preparerBaseMediaVerifiee(params, creerClient)
+  if (!preparation.ok) return preparation
   coffre.enregistrerBaseMedia({
     destinationGitLabId,
-    ...declaration,
-    motDePasse: params.motDePasse,
+    ...preparation.base,
   })
   return { ok: true }
 }

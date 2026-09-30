@@ -1,6 +1,7 @@
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type {
   ApiGitLab,
+  AuthentificationGitLab,
   ConnexionGitLabPublique,
   DemandeOuvertureGitLab,
   ProjetGitLabPrepare,
@@ -11,6 +12,7 @@ export interface ApiGitLabTestable {
   detecterInstance: ApiGitLab['detecterInstance']
   etat: ApiGitLab['etat']
   connecter: ApiGitLab['connecter']
+  connecterAvecJeton: ApiGitLab['connecterAvecJeton']
   deconnecter: ApiGitLab['deconnecter']
 }
 
@@ -19,15 +21,17 @@ function apiReelle(): ApiGitLabTestable {
     detecterInstance: (urlProjet) => window.sonal.gitlab.detecterInstance(urlProjet),
     etat: (urlInstance) => window.sonal.gitlab.etat(urlInstance),
     connecter: (urlInstance, clientId) => window.sonal.gitlab.connecter(urlInstance, clientId),
+    connecterAvecJeton: (urlInstance, jeton) =>
+      window.sonal.gitlab.connecterAvecJeton(urlInstance, jeton),
     deconnecter: (urlInstance, utilisateur) =>
       window.sonal.gitlab.deconnecter(urlInstance, utilisateur),
   }
 }
 
 /**
- *  Parcours GitLab d'un formulaire : détection de l'instance, connexion OAuth,
- *  choix du compte, puis chargement du projet. Aucun secret n'est saisi ni
- *  détenu par le renderer : la connexion se fait dans le navigateur GitLab.
+ *  Parcours GitLab d'un formulaire : détection de l'instance, authentification,
+ *  choix du compte, puis chargement du projet.
+ *  Un jeton personnel reste dans le formulaire jusqu'à son transfert vers le main.
  */
 export function useProjetGitLab(
   etat: { enCours: Ref<boolean>; erreur: Ref<string | null> },
@@ -36,18 +40,20 @@ export function useProjetGitLab(
     window.sonal.gitlab.preparerProjet(demande),
 ) {
   const urlProjet = ref('')
-  const racine = ref('')
   const projet = ref<ProjetGitLabPrepare | null>(null)
   const chargement = ref(false)
   const connexion = ref<ConnexionGitLabPublique | null>(null)
   const instance = ref('')
   const clientId = ref('')
+  const authentification = ref<AuthentificationGitLab>('oauth')
+  const jetonPersonnel = ref('')
   const connexionEnCours = ref(false)
   const compteChoisi = ref<string | null>(null)
   let generation = 0
   let actif = true
 
-  const comptes = computed(() => connexion.value?.comptes ?? [])
+  const comptes = computed(() => (connexion.value?.comptes ?? [])
+    .filter((compte) => compte.authentification === authentification.value))
   const compteCourant = computed(
     () => comptes.value.find((compte) => compte.id === compteChoisi.value) ?? null,
   )
@@ -71,6 +77,12 @@ export function useProjetGitLab(
   }
 
   watch(connexion, () => choisirCompteParDefaut())
+  watch(authentification, () => {
+    projet.value = null
+    compteChoisi.value = null
+    choisirCompteParDefaut()
+    etat.erreur.value = null
+  })
 
   onScopeDispose(() => {
     actif = false
@@ -79,7 +91,7 @@ export function useProjetGitLab(
 
   const demande = computed<DemandeOuvertureGitLab | null>(() => (
     projet.value && compteChoisi.value
-      ? { ...projet.value, compteId: compteChoisi.value, racine: racine.value.trim() }
+      ? { ...projet.value, compteId: compteChoisi.value }
       : null
   ))
 
@@ -122,12 +134,12 @@ export function useProjetGitLab(
     connexionEnCours.value = true
     etat.erreur.value = null
     try {
-      const resultat = await api.connecter(
-        instance.value,
-        clientId.value.trim() || undefined,
-      )
+      const resultat = authentification.value === 'oauth'
+        ? await api.connecter(instance.value, clientId.value.trim() || undefined)
+        : await api.connecterAvecJeton(instance.value, jetonPersonnel.value)
       connexion.value = resultat
-      clientId.value = ''
+      if (authentification.value === 'oauth') clientId.value = ''
+      else jetonPersonnel.value = ''
       choisirCompteParDefaut()
       await rafraichirEtat()
       return compteCourant.value?.connecte === true
@@ -170,7 +182,12 @@ export function useProjetGitLab(
       return false
     }
     if (!compteCourant.value?.connecte) {
-      if (connexion.value && !connexion.value.applicationConnue && !clientId.value.trim()) {
+      if (
+        authentification.value === 'oauth' &&
+        connexion.value &&
+        !connexion.value.applicationConnue &&
+        !clientId.value.trim()
+      ) {
         etat.erreur.value =
           'Saisissez le Client ID de l’application Sonal configurée sur cette instance.'
         return false
@@ -211,12 +228,13 @@ export function useProjetGitLab(
 
   return {
     urlProjet,
-    racine,
     projet,
     demande,
     chargement,
     instance,
     clientId,
+    authentification,
+    jetonPersonnel,
     connexion,
     comptes,
     compteChoisi,

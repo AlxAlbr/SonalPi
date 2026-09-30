@@ -59,11 +59,11 @@ projet en sont déduits.
 
 1. Créez ou faites créer un projet GitLab privé pour le corpus. Initialisez le dépôt,
    par exemple en ajoutant un README dans GitLab, pour disposer d'une branche par défaut.
-2. Vérifiez que votre compte et votre jeton peuvent lire le projet et écrire dans la
-   branche par défaut. Si la branche est protégée, autorisez les développeurs à y pousser.
-3. Utilisez un jeton d’accès personnel GitLab adapté à votre instance. Dans Humanum,
-   il peut être créé après une connexion avec HumanID. Pour une autre instance,
-   suivez la procédure de votre administrateur GitLab.
+2. Vérifiez que votre compte peut lire le projet et écrire dans la branche par défaut.
+   Si la branche est protégée, autorisez les développeurs à y pousser.
+3. Utilisez OAuth lorsque l’instance le permet. Si OAuth n’est pas disponible, créez
+   un jeton d’accès personnel GitLab avec le scope `api` depuis les préférences de
+   votre compte.
 
 Sonal ne crée aucun projet pendant cette étape. Il vérifie l’URL et les accès,
 puis utilise automatiquement la branche par défaut du projet, à la création comme
@@ -76,24 +76,28 @@ Dans « ☁️ Nouveau corpus distant » :
 
 1. saisissez l’adresse du projet GitLab, par exemple
    `https://gitlab.exemple.org/mon-groupe/mon-corpus` ;
-2. renseignez votre jeton d’accès personnel ;
-3. cliquez sur « Charger le projet » ;
-4. vérifiez le projet chargé (sa branche par défaut est affichée à titre informatif) ;
-5. indiquez la racine du corpus si elle n’est pas à la racine du dépôt ;
-6. donnez un nom au corpus Sonal ;
-7. cliquez sur « Créer le corpus et l’ouvrir ».
+2. choisissez l’authentification OAuth (par défaut) ou « Jeton d’accès personnel » ;
+3. renseignez le Client ID OAuth s’il n’est pas déjà connu, ou votre jeton personnel ;
+4. ouvrez « Médias partagés » si vous souhaitez utiliser un dossier
+   Nextcloud/WebDAV distinct, puis saisissez son adresse, votre identifiant et un mot
+   de passe d’application ;
+5. donnez un nom au corpus Sonal ;
+6. cliquez sur « Créer le corpus et l’ouvrir ».
 
-La création ajoute le squelette du corpus dans le projet sélectionné. Le projet GitLab
-et son historique ne sont pas supprimés. Si le projet contient déjà un corpus, utilisez
-« Ouvrir un corpus distant » plutôt que la création.
+La création ajoute le squelette du corpus à la racine du projet sélectionné. Le projet
+GitLab et son historique ne sont pas supprimés. Si le projet contient déjà un corpus,
+utilisez « Ouvrir un corpus distant » plutôt que la création.
 
-Le jeton n’est jamais renvoyé au renderer, affiché dans l’interface ou inscrit dans
-les logs et messages d’erreur. Il est conservé dans le coffre chiffré du poste
-lorsqu’il est disponible, sinon seulement en mémoire.
+Le jeton personnel est transmis au processus principal pour être vérifié, puis effacé
+du formulaire. Il n’est jamais renvoyé à l’interface ni inscrit dans les logs ou les
+messages d’erreur. Il est conservé dans le coffre chiffré du poste lorsqu’il est
+disponible, sinon seulement en mémoire jusqu’à la fermeture de Sonal.
 
-Pour le premier parcours des transcriptions, Git LFS n’est pas nécessaire. Les médias
-partagés GitLab et les Docs cadre ne sont pas encore pris en charge. Les corpus
-Nextcloud conservent leur fonctionnement éditable actuel.
+Les médias partagés restent hors de GitLab : Sonal vérifie le dossier WebDAV avant de
+créer le corpus, mais son adresse et son mot de passe restent sur le poste. Chaque
+collaborateur configure donc son propre accès au même dossier depuis le bouton
+« Médias… » de l’accueil GitLab. Cette configuration peut aussi être ajoutée après la
+création. Git LFS n’est pas nécessaire.
 
 ## Au quotidien
 

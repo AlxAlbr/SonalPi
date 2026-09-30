@@ -1,7 +1,7 @@
 /**
  *  Service d'authentification GitLab du main.
  *
- *  Il est le seul détenteur des credentials : le renderer ne reçoit que des
+ *  Il est le seul à conserver les credentials : le renderer ne reçoit que des
  *  états publics. Il fournit aussi le client REST associé à un compte, avec un
  *  credential à jour, pour que le reste du code GitLab ignore tout du flux
  *  d'authentification.
@@ -10,7 +10,11 @@
 import type { CoffreComptes, ConfigCompteGitLab } from '../distant/coffre'
 import { canoniserUrlInstanceGitLab, idDeCompteGitLab } from '../distant/coffre'
 import type { ConnexionGitLabPublique, CompteGitLabPublic } from '../../shared/gitlab'
-import { ClientGitLab, autorisationOAuth } from './client'
+import {
+  ClientGitLab,
+  autorisationJetonPersonnel,
+  autorisationOAuth,
+} from './client'
 import { ClientOAuthGitLab } from './oauth/clientOAuth'
 import { credentialExpire, credentialExpireLe } from './oauth/credential'
 import { GestionnaireCredentialsGitLab } from './oauth/credentialProvider'
@@ -87,10 +91,39 @@ export class ServiceAuthentificationGitLab {
     return this.etat(instance.urlInstance)
   }
 
-  /** Déconnexion : révocation chez GitLab si elle est acceptée, puis effacement. */
+  /** Valide et mémorise un jeton d'accès personnel sans passer par OAuth. */
+  async connecterAvecJeton(
+    urlInstance: string,
+    jetonSaisi: string,
+  ): Promise<ConnexionGitLabPublique> {
+    const urlCanonique = canoniserUrlInstanceGitLab(urlInstance)
+    const jeton = jetonSaisi.trim()
+    if (!jeton) throw new Error('Jeton d’accès personnel GitLab manquant.')
+    const client = new ClientGitLab({
+      urlInstance: urlCanonique,
+      autorisation: autorisationJetonPersonnel(jeton),
+    }, this.options.fetchImpl)
+    const reponse = await client.lireJson<{ username?: unknown }>('/user')
+    const utilisateur = typeof reponse.corps.username === 'string'
+      ? reponse.corps.username.trim()
+      : ''
+    if (!utilisateur) throw new Error('Le compte associé au jeton GitLab est invalide.')
+    this.options.coffre.enregistrerCompteGitLabAvecJeton({
+      urlInstance: urlCanonique,
+      utilisateur,
+      jeton,
+    })
+    return this.etat(urlCanonique)
+  }
+
+  /** Déconnexion locale, avec révocation distante pour OAuth uniquement. */
   async deconnecter(urlInstance: string, utilisateur: string): Promise<ConnexionGitLabPublique> {
     const compte = this.compte(urlInstance, utilisateur)
-    await this.credentials.deconnecter(compte.id)
+    if (compte.authentification === 'oauth') {
+      await this.credentials.deconnecter(compte.id)
+    } else {
+      this.options.coffre.oublierJetonPersonnelGitLab(compte.id)
+    }
     return this.etat(compte.urlInstance)
   }
 
@@ -107,28 +140,30 @@ export class ServiceAuthentificationGitLab {
    */
   async client(compteId: string, projetId?: number): Promise<ClientGitLab> {
     const compte = this.compteParId(compteId)
-    const credential = await this.credentials.credential(compteId)
-    if (!credential) {
-      throw new ErreurInstanceGitLabOAuth(
-        'Votre connexion GitLab a expiré ou a été révoquée. Reconnectez-vous.',
-      )
-    }
+    const autorisation = compte.authentification === 'oauth'
+      ? await this.autorisationOAuth(compteId)
+      : this.autorisationJetonPersonnel(compteId)
     return new ClientGitLab({
       urlInstance: compte.urlInstance,
       ...(projetId === undefined ? {} : { projetId }),
-      autorisation: autorisationOAuth(credential.accessToken),
+      autorisation,
     }, this.options.fetchImpl)
   }
 
   /** True quand le credential existe mais demande un renouvellement. */
   aRafraichir(compteId: string): boolean {
+    const compte = this.compteParId(compteId)
+    if (compte.authentification !== 'oauth') return false
     const credential = this.credentials.actuel(compteId)
     return credential !== null && credentialExpire(credential)
   }
 
-  /** Le compte a-t-il encore un credential utilisable ? */
+  /** Le compte a-t-il encore un accès utilisable ? */
   aConnecte(compteId: string): boolean {
-    return this.credentials.actuel(compteId) !== null
+    const compte = this.compteParId(compteId)
+    return compte.authentification === 'oauth'
+      ? this.credentials.actuel(compteId) !== null
+      : this.options.coffre.jetonPersonnelGitLabDisponible(compteId)
   }
 
   /** Description publique d'un compte, sans secret. */
@@ -137,15 +172,40 @@ export class ServiceAuthentificationGitLab {
   }
 
   private comptePublicDepuisConfig(compte: ConfigCompteGitLab): CompteGitLabPublic {
-    const credential = this.credentials.actuel(compte.id)
+    const credential = compte.authentification === 'oauth'
+      ? this.credentials.actuel(compte.id)
+      : null
     return {
       id: compte.id,
       urlInstance: compte.urlInstance,
       utilisateur: compte.utilisateur,
-      connecte: credential !== null,
+      authentification: compte.authentification,
+      connecte: compte.authentification === 'oauth'
+        ? credential !== null
+        : this.options.coffre.jetonPersonnelGitLabDisponible(compte.id),
       aRafraichir: credential ? credentialExpireLe(credential.expiresAt) : false,
       scopes: credential?.scopes ?? [],
     }
+  }
+
+  private async autorisationOAuth(compteId: string) {
+    const credential = await this.credentials.credential(compteId)
+    if (!credential) {
+      throw new ErreurInstanceGitLabOAuth(
+        'Votre connexion GitLab a expiré ou a été révoquée. Reconnectez-vous.',
+      )
+    }
+    return autorisationOAuth(credential.accessToken)
+  }
+
+  private autorisationJetonPersonnel(compteId: string) {
+    const jeton = this.options.coffre.jetonPersonnelGitLab(compteId)
+    if (!jeton) {
+      throw new ErreurInstanceGitLabOAuth(
+        'Votre jeton d’accès personnel GitLab est absent. Saisissez-le à nouveau.',
+      )
+    }
+    return autorisationJetonPersonnel(jeton)
   }
 
   /** Port déclaré pour l'instance, ou le port standard de Sonal. */

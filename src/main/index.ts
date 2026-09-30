@@ -1638,6 +1638,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     authentificationGitLab.etat(urlInstance))
   ipcMain.handle('gitlab:connecter', (_e, urlInstance: string, clientId?: string) =>
     authentificationGitLab.connecter(urlInstance, clientId))
+  ipcMain.handle('gitlab:connecterAvecJeton', (_e, urlInstance: string, jeton: string) =>
+    authentificationGitLab.connecterAvecJeton(urlInstance, jeton))
   ipcMain.handle(
     'gitlab:deconnecter',
     (_e, urlInstance: string, utilisateur: string) =>

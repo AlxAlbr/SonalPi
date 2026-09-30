@@ -51,7 +51,6 @@ const demande: DemandeOuvertureGitLab = {
   projetId: 42,
   nomProjet: 'Corpus pilote',
   branche: 'equipe/terrain',
-  racine: 'donnees',
 }
 const demandeCreation: DemandeCreationGitLab = {
   ...demande,
@@ -163,6 +162,7 @@ function bancOuverture(
 function enregistrerDestination(
   coffre: CoffreComptes,
   demandeLocale: DemandeOuvertureGitLab = demande,
+  racine = '',
 ): ConfigDestinationGitLab {
   const compteId = connecterCompte(coffre, demandeLocale.utilisateur)
   return coffre.enregistrerDestinationGitLab({
@@ -170,7 +170,7 @@ function enregistrerDestination(
     projetId: demandeLocale.projetId,
     nomProjet: demandeLocale.nomProjet,
     branche: demandeLocale.branche,
-    racine: demandeLocale.racine,
+    racine,
   })
 }
 
@@ -243,11 +243,21 @@ function fetchGitLabFactice(depot: DepotFactice): typeof fetch {
       const contenu = depot.fichiers[fichier]
       if (contenu === undefined) return new Response(null, { status: 404 })
       if (url.pathname.includes('/raw')) return new Response(contenu)
+      if (init?.method === 'HEAD') {
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'x-gitlab-last-commit-id': depot.commit,
+            'x-gitlab-execute-filemode': 'false',
+          },
+        })
+      }
       return reponseJson({
         file_path: fichier,
         content: Buffer.from(contenu).toString('base64'),
         encoding: 'base64',
         last_commit_id: depot.commit,
+        execute_filemode: false,
       })
     }
     return new Response(null, { status: 404 })
@@ -291,7 +301,7 @@ describe('ouverture GitLab — orchestration du service', () => {
         projetId: 42,
         nomProjet: 'Corpus pilote',
         branche: 'equipe/terrain',
-        racine: 'donnees',
+        racine: '',
         connexionDisponible: true,
       },
       verrous: [],
@@ -383,7 +393,7 @@ describe('ouverture GitLab — orchestration du service', () => {
       projetId: demande.projetId,
       nomProjet: demande.nomProjet,
       branche: demande.branche,
-      racine: demande.racine,
+      racine: '',
     })
     coffreSansConnexion.oublierCredentialOAuthGitLab(compteId)
     const refus = vi.fn(async () => {
@@ -480,8 +490,8 @@ describe('ouverture GitLab — orchestration du service', () => {
 
   test('deux ouvertures rapprochées restent sérialisées par la file de transitions', async () => {
     const { coffre, dirProfil } = bancOuverture()
-    const destinationA = enregistrerDestination(coffre, { ...demande, projetId: 42, racine: 'donnees' })
-    const destinationB = enregistrerDestination(coffre, { ...demande, projetId: 43, racine: 'archives' })
+    const destinationA = enregistrerDestination(coffre, { ...demande, projetId: 42 }, 'donnees')
+    const destinationB = enregistrerDestination(coffre, { ...demande, projetId: 43 }, 'archives')
     let enCours = 0
     let auPlus = 0
     const service = new ServiceOuvertureGitLab({
@@ -555,10 +565,10 @@ describe('ouverture GitLab — création du squelette distant', () => {
       actions: { action: string; file_path: string; content: string }[]
     }
     expect(corps.branch).toBe('equipe/terrain')
-    expect(corps.commit_message).toBe('Sonal création donnees')
+    expect(corps.commit_message).toBe('Sonal création racine')
     expect(corps.actions).toHaveLength(1)
     expect(corps.actions[0].action).toBe('create')
-    expect(corps.actions[0].file_path).toBe('donnees/corpus.json')
+    expect(corps.actions[0].file_path).toBe('corpus.json')
     expect(JSON.parse(corps.actions[0].content).nom).toBe('Enquête 2026')
     expect(observé).toHaveBeenCalledTimes(1)
     expect(traces).toEqual(['fermer', 'installer'])
@@ -567,13 +577,75 @@ describe('ouverture GitLab — création du squelette distant', () => {
     expect(resultat.distant).toMatchObject({
       fournisseur: 'gitlab',
       branche: 'equipe/terrain',
-      racine: 'donnees',
+      racine: '',
       connexionDisponible: true,
     })
   })
 
+  test('la base média facultative est vérifiée avant la création puis liée à la destination', async () => {
+    const depot = depotFactice()
+    const demandeBaseMedia = {
+      urlBase: 'https://nuage.example.org/dav/medias/',
+      utilisateur: 'max-media',
+      motDePasse: 'secret-media',
+    }
+    const preparerBaseMedia = vi.fn(async () => ({
+      ok: true as const,
+      base: {
+        ...demandeBaseMedia,
+        urlBase: 'https://nuage.example.org/dav/medias',
+      },
+    }))
+    const { service, coffre } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: preparerFactice(''),
+      preparerBaseMedia,
+    })
+    connecterCompte(coffre)
+
+    const resultat = await service.creerEtOuvrir({
+      ...demandeCreation,
+      baseMedia: demandeBaseMedia,
+    })
+
+    expect(preparerBaseMedia).toHaveBeenCalledExactlyOnceWith(demandeBaseMedia)
+    expect(coffre.baseMedia(resultat.distant.id)).toMatchObject({
+      urlBase: 'https://nuage.example.org/dav/medias',
+      utilisateur: 'max-media',
+    })
+    expect(coffre.motDePasseBaseMedia(resultat.distant.id)).toBe('secret-media')
+    expect(resultat.distant.baseMedia).toEqual({
+      utilisateur: 'max-media',
+      secretDisponible: true,
+    })
+  })
+
+  test('base média inaccessible : aucun corpus n’est créé', async () => {
+    const depot = depotFactice()
+    const { service, coffre, traces, installées } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: preparerFactice(''),
+      preparerBaseMedia: async () => ({ ok: false, motif: 'droits' }),
+    })
+    connecterCompte(coffre)
+
+    await expect(service.creerEtOuvrir({
+      ...demandeCreation,
+      baseMedia: {
+        urlBase: 'https://nuage.example.org/dav/medias',
+        utilisateur: 'max-media',
+        motDePasse: 'refuse',
+      },
+    })).rejects.toThrow('Le compte WebDAV ou son mot de passe est refusé.')
+
+    expect(depot.requetes.filter(({ init }) => init?.method === 'POST')).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+    expect(traces).toEqual([])
+    expect(installées).toHaveLength(0)
+  })
+
   test('corpus déjà présent : aucun commit, aucune destination ni installation', async () => {
-    const depot = depotFactice({ 'donnees/corpus.json': corpusDistantValide([]) })
+    const depot = depotFactice({ 'corpus.json': corpusDistantValide([]) })
     const { service, coffre, traces, installées } = bancOuverture({
       fetchImpl: fetchGitLabFactice(depot),
       preparer: preparerFactice(''),
@@ -581,7 +653,7 @@ describe('ouverture GitLab — création du squelette distant', () => {
 
     connecterCompte(coffre)
     await expect(service.creerEtOuvrir(demandeCreation))
-      .rejects.toThrow('Un corpus existe déjà à cet emplacement GitLab.')
+      .rejects.toThrow('Un corpus existe déjà à la racine du projet GitLab.')
 
     expect(depot.requetes.filter(({ init }) => init?.method === 'POST')).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
@@ -631,7 +703,7 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
   function bancReel() {
     const dirProfil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
     const coffre = new CoffreComptes(join(dirProfil, 'comptes-distant.json'), chiffreur)
-    const destination = enregistrerDestination(coffre)
+    const destination = enregistrerDestination(coffre, demande, 'donnees')
     const journalRepertoire = join(dirProfil, 'operations-gitlab', destination.id)
     const ressource = `entretien:${destination.id}:e1`
     const resourceHash = createHash('sha256').update(ressource).digest('hex')

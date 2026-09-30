@@ -3,8 +3,8 @@
  *
  *  Ce que ces gestes promettent tient dans trois propriétés : la décision se
  *  prend sur un instantané Git unique, chaque source nécessaire entre dans le
- *  commit sous son contenu et sa garde, et rien de ce que le miroir contenait
- *  n'est consulté pour valider.
+ *  commit sous une garde légère, et rien de ce que le miroir contenait n'est
+ *  consulté pour valider.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -177,13 +177,63 @@ describe('définitions qui lisent les entretiens publiés', () => {
       CHEMIN_CORPUS,
       `${RACINE}/entretiens/e1.json`,
     ])
-    // La source est republiée telle quelle : elle sert de garde, pas de copie.
+    // La source est gardée sans transporter à nouveau sa transcription.
     const garde = actions.find((action) => action.file_path.endsWith('e1.json'))
-    expect(garde?.content).toBe(source)
-    expect(garde?.last_commit_id).toBeTruthy()
+    expect(garde).toMatchObject({
+      action: 'chmod',
+      execute_filemode: false,
+      last_commit_id: expect.stringMatching(/^[a-f0-9]{40}$/),
+    })
+    expect(garde).not.toHaveProperty('content')
     // Le miroir n'a reçu que le corpus, jamais une copie de l'entretien.
     expect(lireLocal().cas).toHaveProperty('cas-1')
     expect(existsSync(join(dirLocal, 'entretiens', 'e1.json'))).toBe(false)
+  })
+
+  test('les contenus cumulés ne pèsent plus dans le corps de publication', async () => {
+    const membres: Record<string, string> = {}
+    const fichiers = new Map<string, string>()
+    let octetsSources = 0
+    for (let index = 0; index < 4; index += 1) {
+      const id = `e${index}`
+      membres[id] = `Entretien ${index}`
+      const source = JSON.stringify(entretien('x'.repeat(600 * 1024)), null, 2)
+      octetsSources += Buffer.byteLength(source)
+      fichiers.set(`${RACINE}/entretiens/${id}.json`, source)
+    }
+    fichiers.set(CHEMIN_CORPUS, JSON.stringify(corpusAvec(membres), null, 2))
+    const { transactions, depot } = banc(fichiers)
+
+    await transactions.executerDefinitionsAvecSources(
+      (store) => store.ajouterCategorie('Thème ajouté', null),
+      { deduire: (corpus) => Object.keys(corpus.membership) },
+    )
+
+    expect(octetsSources).toBeGreaterThan(2 * 1024 * 1024)
+    const commit = commitsDeDonnees(depot).at(-1)
+    const gardes = commit?.actions.filter((action) => action.action === 'chmod') ?? []
+    expect(gardes).toHaveLength(4)
+    expect(gardes.every((action) => action.content === undefined)).toBe(true)
+    expect(Buffer.byteLength(JSON.stringify(commit?.actions))).toBeLessThan(32 * 1024)
+  })
+
+  test('une garde conserve le mode exécutable observé', async () => {
+    const source = JSON.stringify(entretien('Texte'), null, 2)
+    const chemin = `${RACINE}/entretiens/e1.json`
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpusAvec({ e1: 'Entretien 1' }), null, 2)],
+      [chemin, source],
+    ]))
+    depot.deposerHorsProtocole(chemin, source, true)
+
+    await transactions.executerDefinitionsAvecSources(
+      (store) => store.ajouterCategorie('Thème ajouté', null),
+      { deduire: () => ['e1'] },
+    )
+
+    const garde = publicationDeDonnees(depot).find((action) => action.file_path === chemin)
+    expect(garde).toMatchObject({ action: 'chmod', execute_filemode: true })
+    expect(depot.fichiers.get(chemin)?.executable).toBe(true)
   })
 
   test('une source lue deux fois ne l’est qu’une fois', async () => {
@@ -387,7 +437,11 @@ describe('définitions qui lisent les entretiens publiés', () => {
 
     expect(publierSource).toHaveBeenCalledExactlyOnceWith('e1')
     const garde = publicationDeDonnees(depot).find((action) => action.file_path.endsWith('e1.json'))
-    expect(garde?.content).toContain('Candidat publié')
+    expect(garde).toMatchObject({
+      action: 'chmod',
+      last_commit_id: depot.fichiers.get(`${RACINE}/entretiens/e1.json`)?.commitId,
+    })
+    expect(garde).not.toHaveProperty('content')
   })
 
   test('un refus de publication de notre source arrête la commande', async () => {

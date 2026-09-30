@@ -33,7 +33,13 @@ import type { ServiceAuthentificationGitLab } from './authentification'
 import { matriceCapacites } from './politiqueGestes'
 import { PublieurGitLab } from './publication'
 import { TransactionsGitLab } from './transactions'
-import { baseMediaLocale } from '../medias/baseMedia'
+import {
+  baseMediaLocale,
+  preparerBaseMediaVerifiee,
+  type BaseMediaVerifiee,
+  type MotifIndisponibiliteBase,
+  type ResultatPreparationBaseMedia,
+} from '../medias/baseMedia'
 
 /** Destination GitLab enregistrée, rendue au renderer sans aucun secret. */
 export function destinationGitLabPublique(
@@ -51,6 +57,7 @@ export function destinationGitLabPublique(
     compteId: compte.id,
     urlInstance: compte.urlInstance,
     utilisateur: compte.utilisateur,
+    authentification: compte.authentification,
     projetId: destination.projetId,
     nomProjet: destination.nomProjet,
     branche: destination.branche,
@@ -98,6 +105,10 @@ export interface OptionsServiceOuvertureGitLab {
   ) => Promise<PreparationOuvertureGitLab>
   /** Transport injectable pour les tests ; le fetch global sinon. */
   fetchImpl?: typeof fetch
+  /** Couture de test pour la validation du dossier média facultatif. */
+  preparerBaseMedia?: (
+    demande: NonNullable<DemandeCreationGitLab['baseMedia']>,
+  ) => Promise<ResultatPreparationBaseMedia>
 }
 
 /** Création, enregistrement et ouverture des destinations GitLab. */
@@ -108,34 +119,39 @@ export class ServiceOuvertureGitLab {
    *  d'ouverture d'une destination nouvelle. */
   async creerEtOuvrir(demande: DemandeCreationGitLab): Promise<OuvertureDistante> {
     if (!demande.nomCorpus.trim()) throw new Error('Nom du corpus GitLab manquant.')
-    const racine = normaliserRacineGitLab(demande.racine ?? '')
-    const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
     const compte = this.compte(demande.compteId)
     const client = await this.options.authentification.client(compte.id, demande.projetId)
     const depot = new DepotCommitsGitLabClient(client)
-    if (await depot.lireFichier(cheminCorpus, demande.branche)) {
-      throw new Error('Un corpus existe déjà à cet emplacement GitLab.')
+    if (await depot.lireFichier('corpus.json', demande.branche)) {
+      throw new Error('Un corpus existe déjà à la racine du projet GitLab.')
     }
+
+    let baseMedia: BaseMediaVerifiee | undefined
+    if (demande.baseMedia) {
+      const preparation = await (
+        this.options.preparerBaseMedia ?? preparerBaseMediaVerifiee
+      )(demande.baseMedia)
+      if (!preparation.ok) throw erreurPreparationBaseMedia(preparation.motif)
+      baseMedia = preparation.base
+    }
+
     const squelette = squeletteCorpus()
     squelette.nom = demande.nomCorpus.trim()
     await depot.publierCommit(
       demande.branche,
-      `Sonal création ${racine || 'racine'}`,
+      'Sonal création racine',
       [{
         action: 'create',
-        file_path: cheminCorpus,
+        file_path: 'corpus.json',
         content: JSON.stringify(squelette, null, 2),
       }],
     )
-    return this.ouvrirNouvelleDestination(demande, racine)
+    return this.ouvrirNouvelleDestination(demande, baseMedia)
   }
 
-  /** Enregistre une destination inconnue, puis l'ouvre. */
+  /** Enregistre une destination inconnue à la racine du projet, puis l'ouvre. */
   async enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> {
-    return this.ouvrirNouvelleDestination(
-      demande,
-      normaliserRacineGitLab(demande.racine ?? ''),
-    )
+    return this.ouvrirNouvelleDestination(demande)
   }
 
   /** Ouvre une destination enregistrée avec le credential du compte connecté. */
@@ -155,10 +171,10 @@ export class ServiceOuvertureGitLab {
    *  un échec d'enregistrement peut laisser le compte seul au coffre. */
   private async ouvrirNouvelleDestination(
     demande: DemandeOuvertureGitLab,
-    racine: string,
+    baseMedia?: BaseMediaVerifiee,
   ): Promise<OuvertureDistante> {
     const compte = this.compte(demande.compteId)
-    const destination = this.candidatDestination(demande, racine, compte.id)
+    const destination = this.candidatDestination(demande, compte.id)
     const client = await this.options.authentification.client(compte.id, demande.projetId)
     const preparation = await this.preparer(compte, destination, client)
     const destinationEnregistree = this.options.coffre.enregistrerDestinationGitLab({
@@ -166,8 +182,14 @@ export class ServiceOuvertureGitLab {
       projetId: demande.projetId,
       nomProjet: demande.nomProjet,
       branche: demande.branche,
-      racine,
+      racine: '',
     })
+    if (baseMedia) {
+      this.options.coffre.enregistrerBaseMedia({
+        destinationGitLabId: destinationEnregistree.id,
+        ...baseMedia,
+      })
+    }
     return this.installer(destinationEnregistree, preparation)
   }
 
@@ -226,7 +248,6 @@ export class ServiceOuvertureGitLab {
 
   private candidatDestination(
     demande: DemandeOuvertureGitLab,
-    racine: string,
     compteId: string,
   ): ConfigDestinationGitLab {
     return {
@@ -235,15 +256,24 @@ export class ServiceOuvertureGitLab {
         compteId,
         projetId: demande.projetId,
         branche: demande.branche,
-        racine,
+        racine: '',
       }),
       compteId,
       projetId: demande.projetId,
       nomProjet: demande.nomProjet.trim(),
       branche: demande.branche.trim(),
-      racine,
+      racine: '',
     }
   }
+}
+
+function erreurPreparationBaseMedia(motif: MotifIndisponibiliteBase): Error {
+  const messages: Record<MotifIndisponibiliteBase, string> = {
+    droits: 'Le compte WebDAV ou son mot de passe est refusé.',
+    'dossier-absent': 'Le dossier WebDAV indiqué est introuvable.',
+    indisponible: 'Le dossier WebDAV ne répond pas.',
+  }
+  return new Error(messages[motif])
 }
 
 /** Préparation réelle d'une destination : journaux et leur réconciliation,

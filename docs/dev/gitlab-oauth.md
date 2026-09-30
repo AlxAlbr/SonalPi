@@ -1,9 +1,9 @@
-# GitLab — connexion OAuth
+# GitLab — authentification OAuth ou par jeton personnel
 
-Sonal s'authentifie auprès d'une instance GitLab avec le flux
-Authorization Code + PKCE, sans secret manipulé par l'utilisateur.
-Ce document décrit ce qu'un exploitant d'instance doit enregistrer, et ce que
-Sonal exige de cette application.
+Sonal privilégie le flux Authorization Code + PKCE auprès des instances GitLab.
+Un jeton d’accès personnel est aussi accepté lorsque l’instance ne propose pas
+OAuth. Ce document décrit ce qu'un exploitant d'instance doit enregistrer, et ce
+que Sonal exige de cette application.
 
 ## Instance choisie par l'utilisateur
 
@@ -21,8 +21,8 @@ sont acceptées :
 | `poste` | saisi une fois par l'utilisateur, mémorisé dans `instances-gitlab.json` | l'utilisateur crée sa propre application sur son instance. |
 
 Le `client_id` est une valeur publique : il n'a pas à être chiffré, et n'est
-jamais demandé en même temps qu'un mot de passe. Une instance sans application
-connue est déclarée incompatible : aucun autre mécanisme n'est proposé.
+jamais demandé en même temps qu'un mot de passe. Sur une instance sans application
+connue, l’utilisateur peut choisir un jeton d’accès personnel avec le scope `api`.
 
 ## Ce que Sonal attend de l'application
 
@@ -82,8 +82,12 @@ le compte connecté — et cette limite est celle de l'instance, pas de Sonal.
   partagent un seul échange, car GitLab ne réémet qu'un refresh token.
 - Un refresh refusé retire le credential : le compte est déclaré déconnecté,
   les destinations, miroirs et candidats locaux sont conservés.
-- « Se déconnecter » révoque le token chez GitLab s'il l'accepte, puis efface
-  le credential local. Cela ne supprime ni le projet GitLab, ni le miroir local.
+- « Se déconnecter » révoque le token OAuth chez GitLab s'il l'accepte, puis
+  efface le credential local. Cela ne supprime ni le projet GitLab, ni le miroir local.
+- Un jeton personnel est vérifié avec `GET /user`, puis chiffré dans le même coffre.
+  Sans stockage sécurisé, il reste seulement en mémoire pour la session.
+- Déconnecter un compte à jeton personnel efface sa copie locale sans révoquer le
+  jeton dans GitLab.
 
 ## Diagnostic
 

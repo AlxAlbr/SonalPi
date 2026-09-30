@@ -413,7 +413,12 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
           }
         }
         const texte = await reponse.text()
-        sortie.writeHead(reponse.status, { 'Content-Type': 'application/json' })
+        const entetes: Record<string, string> = { 'Content-Type': 'application/json' }
+        for (const nom of ['x-gitlab-last-commit-id', 'x-gitlab-execute-filemode']) {
+          const valeur = reponse.headers.get(nom)
+          if (valeur) entetes[nom] = valeur
+        }
+        sortie.writeHead(reponse.status, entetes)
         sortie.end(texte)
       } catch {
         sortie.destroy()

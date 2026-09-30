@@ -43,6 +43,7 @@ describe('assemblage de session GitLab', () => {
           content: Buffer.from('{"formatVersion":8}').toString('base64'),
           encoding: 'base64',
           last_commit_id: '2'.repeat(40),
+          execute_filemode: false,
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },

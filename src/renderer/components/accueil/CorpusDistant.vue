@@ -26,6 +26,7 @@ const comptes = ref<DestinationWebDAVPublic[]>([])
 const destinationsGitLab = ref<DestinationGitLabPublic[]>([])
 const stockageSecuriseDisponible = ref<boolean | null>(null)
 const motsDePasseSession = ref<Record<string, string>>({})
+const jetonsGitLabSession = ref<Record<string, string>>({})
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
@@ -39,10 +40,11 @@ const baseMediaUtilisateur = ref('')
 const baseMediaMotDePasse = ref('')
 const {
   urlProjet: urlProjetGitLab,
-  racine: racineGitLab,
   demande: demandeGitLab,
   chargement: chargementGitLab,
   clientId: clientIdGitLab,
+  authentification: authentificationGitLab,
+  jetonPersonnel: jetonPersonnelGitLab,
   comptes: comptesGitLab,
   compteChoisi: compteChoisiGitLab,
   compteCourant: compteCourantGitLab,
@@ -122,7 +124,14 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
   erreur.value = null
   try {
     if (!destination.connexionDisponible) {
-      await window.sonal.gitlab.connecter(destination.urlInstance)
+      if (destination.authentification === 'oauth') {
+        await window.sonal.gitlab.connecter(destination.urlInstance)
+      } else {
+        const jeton = jetonsGitLabSession.value[destination.compteId]
+        if (!jeton) throw new Error('Saisissez votre jeton d’accès personnel GitLab.')
+        await window.sonal.gitlab.connecterAvecJeton(destination.urlInstance, jeton)
+        jetonsGitLabSession.value[destination.compteId] = ''
+      }
       destinationsGitLab.value = await window.sonal.gitlab.lister()
       destination = destinationsGitLab.value.find((candidate) => candidate.id === destination.id)
         ?? destination
@@ -153,7 +162,7 @@ async function connecterGitLab() {
   }
 }
 
-async function deconnecterGitLabOAuth() {
+async function deconnecterGitLab() {
   await deconnecterCompteGitLabOAuth()
   destinationsGitLab.value = await window.sonal.gitlab.lister()
 }
@@ -247,8 +256,8 @@ async function oublierBaseMedia(destinationId: string) {
             configurez GNOME Keyring/KWallet.
           </span>
           <span v-else>
-            Sonal ne conservera pas votre connexion GitLab : vous devrez vous reconnecter
-            dans le navigateur après chaque redémarrage.
+            Sonal ne conservera pas votre accès GitLab : après chaque redémarrage, vous devrez
+            vous reconnecter avec OAuth ou saisir de nouveau votre jeton personnel.
           </span>
         </div>
 
@@ -328,7 +337,7 @@ async function oublierBaseMedia(destinationId: string) {
           <div>
             <span class="q-lbl">Projets GitLab</span>
             <p class="note-secret">
-              Aucun jeton à créer : la connexion se fait dans votre navigateur.
+              OAuth est recommandé ; un jeton personnel reste disponible pour les instances incompatibles.
             </p>
           </div>
           <button class="lien-aide-gitlab" type="button" @click="aideGitLabOuverte = true">
@@ -342,7 +351,7 @@ async function oublierBaseMedia(destinationId: string) {
               <div class="compte-info">
                 <span class="compte-user">{{ destination.nomProjet || destination.projetId }}</span>
                 <span class="compte-url">
-                  {{ destination.urlInstance }} · {{ destination.branche }}<template v-if="destination.racine">/{{ destination.racine }}</template>
+                  {{ destination.urlInstance }} · {{ destination.branche }}
                 </span>
                 <span class="base-media-etat">
                   Médias WebDAV :
@@ -353,12 +362,21 @@ async function oublierBaseMedia(destinationId: string) {
                 </span>
               </div>
               <div class="compte-actions">
+                <input
+                  v-if="!destination.connexionDisponible && destination.authentification === 'jeton-personnel'"
+                  v-model="jetonsGitLabSession[destination.compteId]"
+                  class="secret-compte"
+                  type="password"
+                  placeholder="Jeton personnel pour cette session"
+                  autocomplete="off"
+                  :disabled="enCours"
+                />
                 <button class="mini" :disabled="enCours" @click="ouvrirBaseMedia(destination)">
                   Médias…
                 </button>
                 <button
                   class="mini ouvrir"
-                  :disabled="enCours"
+                  :disabled="enCours || (!destination.connexionDisponible && destination.authentification === 'jeton-personnel' && !jetonsGitLabSession[destination.compteId])"
                   @click="ouvrirGitLab(destination)"
                 >
                   {{ destination.connexionDisponible ? 'Ouvrir' : 'Se reconnecter et ouvrir' }}
@@ -423,6 +441,13 @@ async function oublierBaseMedia(destinationId: string) {
             <span class="aide-champ">Copiez l’adresse de la page du projet.</span>
           </div>
           <div class="question">
+            <span class="q-lbl secondaire">Authentification</span>
+            <select v-model="authentificationGitLab" class="champ" :disabled="enCours || connexionEnCoursGitLab">
+              <option value="oauth">OAuth (recommandé)</option>
+              <option value="jeton-personnel">Jeton d’accès personnel</option>
+            </select>
+          </div>
+          <div v-if="authentificationGitLab === 'oauth'" class="question">
             <span class="q-lbl secondaire">Client ID OAuth</span>
             <input
               v-model="clientIdGitLab"
@@ -436,6 +461,18 @@ async function oublierBaseMedia(destinationId: string) {
               Public et non secret. Laissez vide si Sonal connaît déjà cette instance.
             </span>
           </div>
+          <div v-else class="question">
+            <span class="q-lbl secondaire">Jeton d’accès personnel</span>
+            <input
+              v-model="jetonPersonnelGitLab"
+              class="champ"
+              type="password"
+              placeholder="glpat-…"
+              autocomplete="off"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+            />
+            <span class="aide-champ">Le jeton doit disposer du scope <code>api</code>.</span>
+          </div>
           <div v-if="comptesGitLab.length > 1" class="question">
             <span class="q-lbl secondaire">Compte GitLab</span>
             <select v-model="compteChoisiGitLab" class="champ" :disabled="enCours">
@@ -446,28 +483,13 @@ async function oublierBaseMedia(destinationId: string) {
           </div>
           <div v-if="compteCourantGitLab?.connecte" class="connexion-compacte">
             <span>Connecté avec {{ compteCourantGitLab.utilisateur }}.</span>
-            <button class="mini deconnecter-gitlab" type="button" @click="deconnecterGitLabOAuth">
+            <button class="mini deconnecter-gitlab" type="button" @click="deconnecterGitLab">
               Se déconnecter
             </button>
           </div>
-          <details class="options-gitlab">
-            <summary>Options avancées</summary>
-            <div class="question">
-              <span class="q-lbl secondaire">Dossier du corpus dans le projet</span>
-              <input
-                v-model="racineGitLab"
-                class="champ racine-gitlab"
-                type="text"
-                placeholder="donnees/mon-corpus"
-                spellcheck="false"
-                :disabled="enCours"
-              />
-              <span class="aide-champ">Laissez vide pour utiliser la racine du projet.</span>
-            </div>
-          </details>
           <button
             class="valider action-gitlab"
-            :disabled="enCours || chargementGitLab || connexionEnCoursGitLab || !urlProjetGitLab.trim()"
+            :disabled="enCours || chargementGitLab || connexionEnCoursGitLab || !urlProjetGitLab.trim() || (authentificationGitLab === 'jeton-personnel' && !compteCourantGitLab?.connecte && !jetonPersonnelGitLab.trim())"
             @click="connecterGitLab"
           >
             {{ chargementGitLab || connexionEnCoursGitLab
@@ -583,21 +605,6 @@ async function oublierBaseMedia(destinationId: string) {
 .q-lbl.secondaire {
   color: #555;
   font-size: 0.76rem;
-}
-.options-gitlab {
-  padding: 0.55rem 0.7rem;
-  border: 1px solid #d7e3ec;
-  border-radius: 6px;
-  background: #f7fafc;
-}
-.options-gitlab summary {
-  cursor: pointer;
-  color: #555;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-.options-gitlab .question {
-  margin-top: 0.65rem;
 }
 .connexion-compacte {
   display: flex;

@@ -28,6 +28,7 @@ function connexion(etat: Partial<ConnexionGitLabPublique> = {}): ConnexionGitLab
       id: 'compte-1',
       urlInstance: 'https://gitlab.example.org',
       utilisateur: 'moi',
+      authentification: 'oauth',
       connecte: true,
       aRafraichir: false,
       scopes: ['read_api'],
@@ -48,6 +49,7 @@ function api(
     detecterInstance: vi.fn(async () => 'https://gitlab.example.org'),
     etat: vi.fn(async () => connexion()),
     connecter: vi.fn(async () => connexion()),
+    connecterAvecJeton: vi.fn(async () => connexion()),
     deconnecter: vi.fn(async () => connexion({
       comptes: [{ ...connexion().comptes[0], connecte: false }],
     })),
@@ -84,11 +86,9 @@ describe('formulaire partagé de projet GitLab', () => {
       compteId: 'compte-1',
     })
     expect(f.projet.value).toEqual(projet)
-    expect(f.demande.value).toEqual({ ...projet, racine: '' })
+    expect(f.demande.value).toEqual(projet)
     expect(f.erreur.value).toBeNull()
     expect(f.enCours.value).toBe(false)
-    f.racine.value = ' donnees/corpus '
-    expect(f.demande.value?.racine).toBe('donnees/corpus')
     expect(f.preparerProjet).toHaveBeenCalledTimes(1)
   })
 
@@ -113,7 +113,7 @@ describe('formulaire partagé de projet GitLab', () => {
       urlProjet: 'https://gitlab.example.org/groupe/corpus',
       compteId: 'compte-1',
     })
-    expect(f.demande.value).toEqual({ ...projet, racine: '' })
+    expect(f.demande.value).toEqual(projet)
   })
 
   it('connecte dans le navigateur avec le client id saisi, sans jamais de jeton', async () => {
@@ -128,6 +128,34 @@ describe('formulaire partagé de projet GitLab', () => {
       'client-sonal',
     )
     expect(f.clientId.value).toBe('')
+    expect(f.compteChoisi.value).toBe('compte-1')
+  })
+
+  it('utilise un jeton personnel sans exiger d’application OAuth', async () => {
+    const compteJeton = {
+      ...connexion().comptes[0],
+      authentification: 'jeton-personnel' as const,
+      scopes: [],
+    }
+    const avecJeton = connexion({ applicationConnue: false, comptes: [compteJeton] })
+    const connecterAvecJeton = vi.fn(async () => avecJeton)
+    const f = formulaire(api({
+      etat: vi.fn()
+        .mockResolvedValueOnce(connexion({ applicationConnue: false, comptes: [] }))
+        .mockResolvedValueOnce(avecJeton),
+      connecterAvecJeton,
+    }))
+    f.authentification.value = 'jeton-personnel'
+    f.jetonPersonnel.value = ' glpat-secret '
+
+    await expect(f.charger()).resolves.toBe(true)
+
+    expect(connecterAvecJeton).toHaveBeenCalledExactlyOnceWith(
+      'https://gitlab.example.org',
+      ' glpat-secret ',
+    )
+    expect(f.api.connecter).not.toHaveBeenCalled()
+    expect(f.jetonPersonnel.value).toBe('')
     expect(f.compteChoisi.value).toBe('compte-1')
   })
 

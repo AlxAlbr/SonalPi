@@ -221,7 +221,7 @@ une génération. Le fichier de bail vit sous `.sonal/verrous/`, porte un chemin
 haché et ne peut pas être fourni directement par un plan de publication. Il
 enregistre l'identité de session, une génération, une échéance et un compteur.
 L'acquisition, la reprise, le renouvellement et la libération restent sérialisés
-par ce port. `gitlab/publication.ts` compile au plus cent actions, refuse les
+par ce port. `gitlab/publication.ts` compile au plus 250 actions, refuse les
 chemins de bail, les doublons et les gardes mal formées, puis ajoute au même
 commit la mutation conditionnelle du bail. Une réponse réseau perdue suspend le
 droit et interdit tout rejeu automatique.
@@ -420,7 +420,7 @@ nécessaire pour les droits, quotas, OAuth et certificats de la cible réelle.
 | Locks V1 et REST | Commit sous verrou détenu par autrui, même compte sur deux postes, reprise puis ancien détenteur. | LFS Lock imposé aux commits REST d'un autre compte ; après reprise par `user2`, l'ancien `user1` est refusé. Deux jetons de `user1` restent toutefois le même détenteur : le second poste peut publier sous le verrou du premier. |
 | Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue, série longue. | Acquisition concurrente : un seul create réussit. Après reprise par une nouvelle génération du même compte, publication et mutation périmée de l'ancien sont refusées atomiquement ; la génération courante publie. Deux renouvellements concurrents donnent un succès et un refus. Deux campagnes de 480 renouvellements simulés à 60 s ont pris 182,3 s et 174,5 s, soit environ 380 et 363 ms par commit sur le banc local. La série est accélérée et ne mesure pas une pause réelle de 60 s. |
 | Résultat indéterminé | Couper la réponse après acceptation, retrouver l'opération au bon commit et vérifier son contenu. | Un proxy local laisse GitLab répondre 201 puis détruit la connexion avant toute réponse au client. L'opération est retrouvée par son identifiant dans l'historique et son fichier est vérifié. |
-| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action update renvoyant le contenu inchangé avec `last_commit_id` protège la source dans le même commit : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Sans cette action, la cible est publiée malgré la source modifiée. Mesuré ensuite sur les deux projets du banc, avec et sans LFS : cette action ne fait pas avancer le `last_commit_id` de la source, et une session longue garde ensuite revalider, publier son candidat, renouveler son bail et se fermer. Reste à borner selon taille et matrice métier. |
+| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action `chmod` sans changement de mode protège la source par `last_commit_id` sans transporter son contenu : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Le contenu, le mode et le `last_commit_id` de la source restent inchangés. |
 | LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Parcours complet validé avec un binaire de 1 048 833 octets. Un objet de 32 MiB a ensuite été produit et relu en flux depuis un fichier, sans Keep-Alive mémoire proportionnel : envoi 286 ms, lecture 190 ms, pic de heap du banc 15,2 MiB puis 18,2 MiB, SHA-256 et taille vérifiés. Un upload de 8 MiB annulé après 524 288 octets a été repris avec le même OID puis relu intégralement. Le projet sans LFS refuse le batch. Le refus pour quota réel reste à qualifier. |
 | Détection | Réglage projet actif/inactif, 403, timeout, lecteur sans droit d'envoi, revérification. | Deux projets réels exposent correctement `lfs_enabled=true/false` aux comptes de test ; erreurs et revérification restent à implémenter. |
 | OAuth institutionnel | Configuration disponible, scopes REST/LFS, renouvellement et certificat. | Parcours V1 inspecté ; instance non testée. |
@@ -471,11 +471,11 @@ commit et produit sa réponse, puis la connexion est détruite avant que le clie
 ne reçoive le statut. L'identifiant d'opération permet de retrouver le bon commit
 et d'en vérifier le contenu sans rejouer la mutation.
 
-Pour une dépendance métier lue, GitLab accepte une action update qui renvoie son
-contenu inchangé sous `last_commit_id`. Si cette source change avant le commit,
-toute la publication est refusée ; sans cette action, la cible seule est acceptée.
-Cette technique place volontairement la source dans les actions du commit et doit
-rester bornée aux dépendances et tailles validées.
+Pour une dépendance métier lue, GitLab accepte une action `chmod` qui renvoie le
+mode déjà observé sous `last_commit_id`. Si cette source change avant le commit,
+toute la publication est refusée ; son contenu n'est jamais inclus dans le corps
+de publication. La qualification vérifie aussi qu'une garde fraîche ne change ni
+le mode ni le `last_commit_id` de la source.
 
 Le transfert LFS complet sans push Git est validé avec un binaire de
 1 048 833 octets, puis avec un objet de 32 MiB produit et relu en flux sur disque.
@@ -804,11 +804,12 @@ savoir trier, ou l'inverse.
 
 ### Sources publiées et gardées
 
-Une source nécessaire entre dans le commit sous son **contenu inchangé** et son
-`last_commit_id`. Le gesture se déroule ainsi :
+Une source nécessaire entre dans le commit sous une garde `chmod` sans effet,
+avec son mode courant et son `last_commit_id`, mais sans son contenu. Le geste se
+déroule ainsi :
 
 1. un aperçu sans droit, sur la tête de branche, compte les sources et refuse
-   named le dépassement avant tout commit de coordination ;
+   le dépassement avant tout commit de coordination ;
 2. les sources que nous détenons sont publiées, et un résultat incertain arrête la
    commande ; une source tenue par un tiers n'est jamais publiée en son nom, et son
    travail non publié n'est ni lu ni remplacé ;
@@ -833,8 +834,8 @@ fausse validation.
 Une suppression de thème, catégorie de note, règle d'anonymisation, variable ou
 modalité relit **tous** les entretiens du membership frais au même SHA. Les
 sessions locales sont publiées avant ce décompte. Si aucun usage ne subsiste, le
-commit retire la définition et garde chaque entretien sous son contenu inchangé
-et son `last_commit_id`. Une publication concurrente périme donc une garde et
+commit retire la définition et garde chaque entretien par un `chmod` sans effet
+sous son `last_commit_id`. Une publication concurrente périme donc une garde et
 fait refuser tout le retrait.
 
 La protection réciproque se trouve dans chaque publication de session. Avant le
@@ -852,9 +853,10 @@ remplace pas : deux postes ont deux files. Ce sont les gardes croisées — tous
 entretiens dans le commit de suppression, `corpus.json` dans le commit de session
 — qui ferment la course distribuée.
 
-Les limites de D1 s'appliquent sans dérogation : 98 sources au plus et 2 Mio pour
-le corps final. Une suppression trop grande est refusée ; elle n'est ni découpée
-ni publiée avec moins de gardes. Les tests simulés sont dans
+La limite interne autorise 248 sources au plus dans les 250 actions du commit.
+La limite de 2 Mio porte toujours sur le corps final, mais les contenus des
+sources n'y sont plus recopiés. Une suppression trop grande est refusée ; elle
+n'est ni découpée ni publiée avec moins de gardes. Les tests simulés sont dans
 `definitionsSources.test.ts`, `referencesDefinitions.test.ts` et
 `session.test.ts`. La recette réelle de `qualificationSuppressions.test.ts` a
 réussi le 26 septembre 2026 sur GitLab CE 18.11, à deux comptes :
@@ -906,7 +908,7 @@ Quatre limites existent et ne se confondent plus :
 
 | Limite | Valeur | Périmètre |
 |---|---|---|
-| Actions du commit | 100 | le plan complet, **bail compris** ; 98 sources au maximum |
+| Actions du commit | 250 | le plan complet, **bail compris** ; 248 sources au maximum |
 | Plan sérialisé | 2 Mio | actions métier, échappement compris |
 | Corps HTTP | 2 Mio | corps exact, bail compris |
 | Réponse de lecture | 2 Mio | réponse JSON base64 d'un fichier avec garde, soit **1,5 Mio de fichier** |
@@ -918,11 +920,11 @@ mesuré sur un entretien réel), donc à bornes égales le plus grand fichier li
 tient nécessairement sous le plan. L'invariant « ce qui s'ouvre s'enregistre » est
 vérifié par un test sur un entretien de la taille maximale lisible.
 
-La lecture reste la borne la plus étroite : 1,5 Mio de fichier, là où le plan en
-admettrait 1,77 Mio. La capacité annoncée est toujours la plus petite des bornes,
-jamais celle d'une borne isolée. De même, « 98 sources » est un compte d'actions :
-avec des entretiens de 2 h 30 (567 Kio), le plan de 2 Mio n'en accepte que
-**trois**.
+La lecture reste bornée à environ 1,5 Mio par fichier. La taille des sources ne
+se cumule toutefois plus dans le plan : seules les petites actions `chmod`, le
+candidat de `corpus.json` et le bail occupent le corps de publication. La borne
+de 248 sources est donc désormais un véritable compte d'actions, indépendant de
+la taille cumulée des transcriptions.
 
 `verifierBornesPublication` mesure le corps final au moment de l'envoi ;
 `verifierBornesAnticipees` fait le même calcul avant l'acquisition du droit, bail
@@ -931,30 +933,26 @@ commits ni par la suppression d'une garde. Un entretien trop gros pour la lectur
 avec garde est refusé en nommant l'entretien et la limite franchie : il reste
 consultable et éditable, mais ne peut plus porter de référence ni de recette.
 
-### Une garde inchangée ne périme personne
+### Une garde légère ne périme personne
 
-Le fait décisif a été mesuré sur le banc : un `update` au contenu inchangé sous son
-`last_commit_id` est une garde **pure**. Le `last_commit_id` du fichier ne bouge
-pas, et une session longue garde ensuite revalider, publier son candidat, renouveler
-son bail et se fermer sans conflit. Le chemin de réadoption de garde n'a donc pas
-été écrit : il n'aurait coûté une lecture et une écriture de journal par source que
-pour réparer un risque écarté. Le scénario qui l'établit est dans
-`test/gitlab/contrat-gitlab.test.ts` ; il affiche son résultat :
+Le fait décisif a été mesuré sur le banc : un `chmod` demandant le mode déjà
+observé contrôle `last_commit_id` sans modifier le fichier. Son contenu, son mode
+et son propre `last_commit_id` restent inchangés. Une garde périmée renvoie HTTP
+400 et fait refuser atomiquement les autres actions du commit.
 
-```text
-[banc] garde inchangée (avec LFS) — last_commit_id abc4db7a → abc4db7a (avancé : false)
-[banc] garde inchangée (sans LFS) — last_commit_id a4e9e04d → a4e9e04d (avancé : false)
-```
-
-Le scénario est joué sur les deux projets du banc, LFS activé et LFS désactivé :
-seule l'API Repository entre en jeu, et le résultat est identique.
+Le mode n'est jamais supposé : le GET du fichier fournit `execute_filemode`, et
+la garde renvoie exactement cette valeur. Les revalidations après conflit et la
+réconciliation après perte de réponse relisent seulement les métadonnées par
+HEAD, sans télécharger la transcription. Les scénarios simulés et réels se
+trouvent dans `bailPublication.test.ts`, `journal.test.ts`,
+`contrat-gitlab.test.ts` et `qualificationSources.test.ts`.
 
 ### Couverture
 
 `test/gitlab/definitionsSources.test.ts` couvre la garde des sources dans le
 commit, l'absence de double lecture, le refus atomique quand une source change
 pendant la préparation, un repère absent de la version publiée, une source
-disparue, la borne de 98 sources refusée avant le bail, la publication préalable
+disparue, la borne de 248 sources refusée avant le bail, la publication préalable
 d'une source détenue et son échec, puis le tri : corpus publié sans aucune source
 gardée, refus avant acquisition, entretien illisible, tri sans changement.
 `test/gitlab/contexte.test.ts` couvre le refus de tri sur un entretien local, sur un
@@ -975,9 +973,9 @@ dans le plan (`test/gitlab/qualificationDefinitions.test.ts`,
 
 **Non qualifié sur banc.** Le volume du corpus pilote : nombre d'entretiens,
 taille brute et réponse base64 du plus gros fichier, nombre réel de sources
-d'un rattachement et d'une dérivation, mémoire pendant un geste à sources. Les
-bornes de 100 actions et de 2 Mio restent celles du §15.6, et un fichier
-exceptionnel est refusé par son nom tant que ce relevé n'a pas été fait.
+d'un rattachement et d'une dérivation, mémoire pendant un geste à sources. La borne interne reste de 250 actions et celle du corps HTTP de 2 Mio. Un fichier
+individuel exceptionnel est refusé par son nom tant que ce relevé n'a pas été
+fait.
 
 ## 11. Retrait d'un entretien : deux droits, une archive
 
