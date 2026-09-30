@@ -604,7 +604,7 @@ export class CoffreComptes {
     const utilisateur = params.utilisateur.trim()
     const jeton = params.jeton.trim()
     if (!utilisateur) throw new Error('Identité GitLab manquante.')
-    if (!jeton) throw new Error('Jeton d’accès personnel GitLab manquant.')
+    if (!jeton) throw new Error('Jeton d’accès GitLab manquant.')
     const id = idDeCompteGitLab(urlInstance, utilisateur)
     const fichier = this.lire()
     const config: ConfigCompteGitLab = {

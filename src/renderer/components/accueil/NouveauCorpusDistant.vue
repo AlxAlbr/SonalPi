@@ -226,7 +226,7 @@ async function creer(): Promise<void> {
             <span class="q-lbl">Authentification</span>
             <select v-model="authentificationGitLab" class="champ" :disabled="enCours || connexionEnCoursGitLab">
               <option value="oauth">OAuth (recommandé)</option>
-              <option value="jeton-personnel">Jeton d’accès personnel</option>
+              <option value="jeton-personnel">Jeton d’accès GitLab</option>
             </select>
           </div>
           <div v-if="authentificationGitLab === 'oauth'" class="question">
@@ -244,7 +244,7 @@ async function creer(): Promise<void> {
             </span>
           </div>
           <div v-else class="question">
-            <span class="q-lbl">Jeton d’accès personnel</span>
+            <span class="q-lbl">Jeton d’accès GitLab</span>
             <input
               v-model="jetonPersonnelGitLab"
               class="champ"

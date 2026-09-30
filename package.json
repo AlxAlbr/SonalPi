@@ -80,6 +80,13 @@
       "target": "nsis",
       "icon": "build/icon.ico"
     },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png"
+    },
     "linux": {
       "target": [
         "AppImage",

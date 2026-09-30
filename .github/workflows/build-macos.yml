@@ -1,0 +1,14 @@
+name: Build SonalPi — macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/_package.yml
+    with:
+      matrix: >-
+        [{"os":"macos-latest","artifact":"sonalpi-macos","fichiers":"dist/*.dmg\ndist/*.zip"}]

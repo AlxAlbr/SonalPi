@@ -1,20 +1,19 @@
-# Empaquetage Windows et CI — carte développeur
+# Empaquetage multiplateforme et CI — carte développeur
 
 ## Chaîne de fabrication
 
 ```text
 npm run build   (electron-vite → out/)
         │
-npm run pack    (electron-builder → dist/ + installeur NSIS Windows sur
-                 un runner Windows ; en local Linux, ne produit que le
-                 dossier de test via npm run pack:dir)
+npm run pack    (electron-builder → dist/ + paquet natif de la plateforme)
 ```
 
 - `npm run pack:dir` : package local sans installeur (`dist/<plateforme>-unpacked`),
   utile pour valider la config sous WSL avant de pousser en CI.
-- La vraie cible est **GitHub Actions** (matrix `windows-latest` + `ubuntu-latest`) : voir
-  `.github/workflows/build.yml` (job `test` + job `package`, artefacts `dist/*.exe` et
-  `dist/*.AppImage` + `*.deb`, Release sur tags `v*.*.*`, déclenchement manuel possible).
+- La vraie cible est **GitHub Actions**. Quatre actions manuelles sont proposées :
+  Linux, Windows, macOS, ou les trois plateformes en parallèle. Le workflow
+  `.github/workflows/build.yml` lance aussi les trois builds sur `main` et sur les tags
+  `v*.*.*`. La logique commune se trouve dans `.github/workflows/_package.yml`.
 
 ## Config electron-builder (champ `build` de package.json)
 
@@ -26,11 +25,12 @@ npm run pack    (electron-builder → dist/ + installeur NSIS Windows sur
 - `extraResources` : `ressources/docsCadreExemples` → `resources/docsCadreExemples`
   et `CorpusTest` → `resources/CorpusTest`. C'est ce que lisent `cheminExemplesDocsCadre()`
   et `cheminCorpusTest()` quand `app.isPackaged` (jamais de chemin dans l'asar).
-- Icône : `build/icon.ico` (Windows) + `build/icon.png` (Linux), reprise de l'icône v1
-  badgee « 2 » (distinction V1/V2).
+- Icône : `build/icon.ico` (Windows) et `build/icon.png` (Linux et macOS), reprise de
+  l'icône v1 badgée « 2 » (distinction V1/V2).
 - Linux : cibles AppImage + deb (catégorie AudioVideo) ; Windows : NSIS avec choix du
-  dossier (`oneClick: false`) et raccourcis bureau/démarrer.
-- Pas de signature de code : installeur « éditeur inconnu » au premier lancement.
+  dossier (`oneClick: false`) et raccourcis bureau/démarrer ; macOS : DMG + ZIP.
+- Pas de signature de code : Windows indique « éditeur inconnu » et macOS peut bloquer
+  le premier lancement.
 
 ## Validation locale (WSL)
 

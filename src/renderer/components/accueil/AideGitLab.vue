@@ -20,8 +20,9 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
 
         <div class="contenu-aide">
           <p class="introduction">
-            Ces opérations se font dans l’interface web de votre instance GitLab.
-            Le responsable du projet les réalise une seule fois pour toute l’équipe.
+            La configuration du projet se fait une seule fois dans l’interface web de GitLab.
+            Chaque collaborateur configure ensuite sa propre authentification et, si nécessaire,
+            son accès WebDAV dans Sonal.
           </p>
 
           <h3>Configuration du projet</h3>
@@ -75,14 +76,16 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
             <div>
               <h4>Choisir l’authentification</h4>
               <p>
-                Utilisez OAuth par défaut. Si l’instance ne permet pas de créer une application
-                OAuth, choisissez <b>Jeton d’accès personnel</b> dans Sonal et créez ce jeton dans
-                vos préférences GitLab avec le scope <code>api</code>.
+                Utilisez OAuth par défaut. Si OAuth n’est pas disponible, Sonal accepte également
+                un jeton d’accès GitLab. Pour limiter ce jeton au corpus concerné, créez de
+                préférence un <b>Project Access Token</b> depuis le projet.
               </p>
+
+              <p><b>Option A — OAuth</b></p>
               <p>
-                Pour OAuth, utilisez le Client ID Sonal fourni par votre institution. Sinon, une
-                personne crée une application OAuth GitLab, puis partage son <b>Application ID</b>
-                avec l’équipe. Ce Client ID est public et ne constitue pas un mot de passe.
+                Utilisez le Client ID Sonal fourni par votre institution. Sinon, une personne
+                crée une application OAuth GitLab, puis partage son <b>Application ID</b> avec
+                l’équipe. Ce Client ID est public et ne constitue pas un mot de passe.
               </p>
               <ul>
                 <li><b>Name :</b> <code>Sonal</code>.</li>
@@ -93,6 +96,45 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
               </ul>
               <p class="information">
                 Le secret client éventuellement affiché par GitLab n’est pas utilisé par Sonal.
+              </p>
+
+              <p><b>Option B — Project Access Token</b></p>
+              <ol>
+                <li>
+                  Ouvrez le projet du corpus, puis <b>Settings → Access Tokens</b>. Selon la version
+                  de GitLab, l’entrée peut se trouver dans <b>Settings → General → Access Tokens</b>.
+                </li>
+                <li>
+                  Choisissez <b>Add new token</b>, puis donnez-lui un nom, par exemple
+                  <code>Sonal</code> ou <code>Sonal – poste de Marie</code>.
+                </li>
+                <li>
+                  Choisissez une date d’expiration conforme aux règles de votre institution.
+                </li>
+                <li>
+                  Attribuez au minimum le rôle <b>Developer</b>. Si la branche principale est
+                  protégée, vérifiez aussi que ce rôle est autorisé à y pousser.
+                </li>
+                <li>
+                  Cochez uniquement le scope <code>api</code>, puis créez le jeton.
+                </li>
+                <li>
+                  Copiez immédiatement la valeur affichée : GitLab ne la montrera plus ensuite.
+                </li>
+                <li>
+                  Dans Sonal, choisissez <b>Jeton d’accès GitLab</b>, puis collez cette valeur
+                  dans le champ prévu.
+                </li>
+              </ol>
+              <p class="information">
+                GitLab associe ce jeton à un compte technique dont le nom ressemble à
+                <code>project_123_bot_456</code>. C’est normal : ce nom identifie l’accès GitLab et
+                ne doit jamais être utilisé comme identifiant WebDAV.
+              </p>
+              <p class="avertissement">
+                Un jeton donne accès au projet avec les droits choisis. Transmettez-le uniquement
+                par un canal sûr et révoquez-le depuis le projet en cas de perte. Des jetons séparés
+                permettent de révoquer l’accès d’un poste sans interrompre les autres.
               </p>
             </div>
           </article>
@@ -108,21 +150,70 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
                 </div>
                 <div>
                   <b>Accès</b>
-                  <span>Client ID OAuth, ou jeton personnel si OAuth est indisponible.</span>
+                  <span>Client ID OAuth, ou jeton d’accès du projet si OAuth est indisponible.</span>
                 </div>
               </div>
               <p>
                 Dans Sonal, renseignez ces valeurs puis utilisez le bouton unique de création
                 ou d’ouverture. Avec OAuth, le navigateur s’ouvrira pour la connexion et le
-                consentement. Un jeton personnel est vérifié directement par Sonal.
+                consentement. Un jeton d’accès GitLab est vérifié directement par Sonal.
+              </p>
+            </div>
+          </article>
+
+          <h3>Option médias</h3>
+
+          <article class="etape">
+            <div class="numero optionnel">6</div>
+            <div>
+              <h4>Associer un dossier WebDAV <span>Optionnel</span></h4>
+              <p>
+                Les fichiers audio et vidéo restent hors de GitLab. Sonal peut les lire directement
+                dans un dossier WebDAV, notamment sur Sharedoc ou Nextcloud. Cette configuration
+                reste sur chaque poste : seuls les chemins relatifs des médias sont publiés dans GitLab.
+              </p>
+
+              <p><b>Exemple avec Sharedoc d’Huma-Num</b></p>
+              <ol>
+                <li>
+                  Dans Sharedoc, créez un sous-dosssier dans le dossier "Share" qui contiendra les médias du corpus.
+                  Partagez-le avec les collaborateurs qui doivent écouter ces fichiers.
+                </li>
+                <li>
+                  Dans l'application Sharedoc, cliquez en bas à gauche sur votre nom, puis "Connect app"
+                  Acceptez la demande d’autorisation. Vous pourrez ensuite récupérer votre identifiant et mot de passe WebDAV.
+                  Ce sont des identifiants Sharedoc, indépendants de votre compte GitLab.
+                </li>
+                <li>
+                  Relevez l’adresse WebDAV exacte du dossier, et non l’adresse de navigation affichée
+                  par l’interface web. Elle peut par exemple prendre la forme
+                  <code>https://sharedocs.huma-num.fr/dav.php/@Home/Share/MonCorpus</code>.
+                </li>
+                <li>
+                  Lors de la création d’un corpus GitLab dans Sonal, ouvrez
+                  <b>Médias partagés (facultatif)</b>. Pour un corpus déjà enregistré, utilisez
+                  <b>Ouvrir un corpus distant → GitLab → Médias…</b>.
+                </li>
+                <li>
+                  Renseignez l’adresse du dossier, l’identifiant WebDAV et le mot de passe WebDAV,
+                  puis enregistrez. Sonal vérifie l’accès au dossier avant de conserver la configuration.
+                </li>
+                <li>
+                  Déposez les médias dans Sharedoc. Dans Sonal, choisissez
+                  <b>Ajouter un entretien → Choisir dans les médias WebDAV…</b> pour sélectionner
+                  directement un fichier distant.
+                </li>
+              </ol>
+              <p class="information">
+                Chaque collaborateur configure sur son poste son propre accès au même dossier partagé.
+                L’adresse et le mot de passe WebDAV ne sont jamais ajoutés au projet GitLab.
               </p>
             </div>
           </article>
 
           <p class="information finale">
-            Sonal place toujours le corpus à la racine du projet. Les fichiers audio ne sont pas
-            envoyés dans GitLab : un dossier Nextcloud/WebDAV distinct peut être configuré pendant
-            la création du corpus ou plus tard. Aucun réglage Git LFS n’est nécessaire.
+            Sonal place toujours le corpus à la racine du projet. Les médias ne sont pas envoyés
+            dans GitLab et aucun réglage Git LFS n’est nécessaire.
           </p>
         </div>
 
@@ -236,12 +327,14 @@ h4 span {
   text-transform: uppercase;
 }
 p,
-ul {
+ul,
+ol {
   margin: 0.35rem 0;
   color: #57606a;
   font-size: 0.82rem;
 }
-ul {
+ul,
+ol {
   padding-left: 1.2rem;
 }
 li {

@@ -716,6 +716,7 @@ export function creerSonal() {
     lectureSeule,
     ajoutEntretienPossible,
     fournisseurCourant,
+    etatBaseMedia,
     verrousIndisponibles,
     capacites,
     gesteDisponible,

@@ -1,0 +1,14 @@
+name: Build SonalPi — Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/_package.yml
+    with:
+      matrix: >-
+        [{"os":"windows-latest","artifact":"sonalpi-windows","fichiers":"dist/*.exe"}]

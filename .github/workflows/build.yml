@@ -1,96 +1,19 @@
-name: Build SonalPi (Windows + Linux)
+name: Build SonalPi — toutes les plateformes
 
-# Empaquetage de SonalPi2, sur le modèle du v1 (AlxAlbr/SonalPi) :
-# job test (garde-fou) + job package en matrix (Windows natif → installeur
-# NSIS ; Linux → AppImage + deb). Pas de signature : installeur non signé,
-# donc SmartScreen à la première installation sous Windows.
 on:
   push:
     tags:
       - 'v*.*.*'
     branches:
-      - main # artefacts de branche uniquement (rétention courte)
-  workflow_dispatch: # déclenchement manuel depuis l'interface GitHub
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write # requis pour créer des Releases et déposer les assets
+  contents: write
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Installer les dépendances
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Tests unitaires
-        run: npm test
-
-  package:
-    needs: test
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact: sonalpi-windows
-            fichiers: dist/*.exe
-          - os: ubuntu-latest
-            artifact: sonalpi-linux
-            fichiers: |
-              dist/*.AppImage
-              dist/*.deb
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Installer les dépendances
-        run: npm ci
-
-      - name: Compiler puis empaqueter
-        run: npm run pack
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false # pas de signature de code
-
-      - name: Lister les artefacts (Windows)
-        if: runner.os == 'Windows'
-        run: Get-ChildItem -Path "dist\*.exe"
-
-      - name: Lister les artefacts (Linux)
-        if: runner.os == 'Linux'
-        run: ls -la dist/*.AppImage dist/*.deb
-
-      - name: Uploader les artefacts (branche/manuel)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.fichiers }}
-          retention-days: 7
-
-      - name: Publier la Release (tags uniquement)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ matrix.fichiers }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+  build:
+    uses: ./.github/workflows/_package.yml
+    with:
+      matrix: >-
+        [{"os":"windows-latest","artifact":"sonalpi-windows","fichiers":"dist/*.exe"},{"os":"ubuntu-latest","artifact":"sonalpi-linux","fichiers":"dist/*.AppImage\ndist/*.deb"},{"os":"macos-latest","artifact":"sonalpi-macos","fichiers":"dist/*.dmg\ndist/*.zip"}]

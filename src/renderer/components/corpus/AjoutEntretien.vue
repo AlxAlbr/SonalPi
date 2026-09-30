@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { EXT_MEDIA } from '../../../shared/media'
 
@@ -17,6 +17,7 @@ const {
   verifierChargementEtape2,
   ouvrirApresImport,
   fournisseurCourant,
+  etatBaseMedia,
   creerEntretienVideDistant,
   ouvrirDesignationAudio,
   demandeAjoutEntretien,
@@ -48,17 +49,30 @@ const message = ref<string | null>(null)
 const survolTexte = ref(false)
 const survolAudio = ref(false)
 const enCours = ref(false)
-/** Titre du nouvel entretien distant créé pour désigner son média NC. */
-const titreNc = ref('')
+/** Titre du nouvel entretien créé avant le choix de son média distant. */
+const titreDistant = ref('')
 
-/** Créer un entretien VIDE dont l'audio vivra sur le Nextcloud : la création
- *  passe par la transaction définitions ; la modale de désignation s'ouvre
- *  ensuite (choisir un fichier serveur OU téléverser depuis ce poste). */
-async function creerAvecAudioNc() {
-  if (enCours.value || !titreNc.value.trim()) return
+const creationAvecMediaDistantDisponible = computed(() =>
+  fournisseurCourant.value === 'webdav' ||
+  (fournisseurCourant.value === 'gitlab' && etatBaseMedia.value === 'configuree'),
+)
+const libelleChoixDistant = computed(() =>
+  fournisseurCourant.value === 'gitlab'
+    ? 'Choisir dans les médias WebDAV…'
+    : 'Audio sur le serveur…',
+)
+const aideChoixDistant = computed(() =>
+  fournisseurCourant.value === 'gitlab'
+    ? 'Crée un entretien au texte vide, puis choisissez son audio dans la base WebDAV associée au projet GitLab.'
+    : 'Crée un entretien au texte vide, puis choisissez ou téléversez son audio sur le serveur.',
+)
+
+/** Crée l'entretien vide, puis ouvre directement sa base de médias. */
+async function creerAvecMediaDistant() {
+  if (enCours.value || !titreDistant.value.trim()) return
   enCours.value = true
   try {
-    const id = await creerEntretienVideDistant(titreNc.value)
+    const id = await creerEntretienVideDistant(titreDistant.value)
     if (!id) return
     fermer()
     ouvrirDesignationAudio(id)
@@ -74,7 +88,7 @@ function ouvrir() {
   audioChemin.value = null
   audioNom.value = null
   message.value = null
-  titreNc.value = ''
+  titreDistant.value = ''
   enCours.value = false
   ouverte.value = true
 }
@@ -204,21 +218,25 @@ async function valider() {
         </p>
         <p v-if="message" class="msg-ajout">{{ message }}</p>
 
-        <!-- Sur Nextcloud, l'audio peut vivre sur le serveur dès la création. -->
-        <div v-if="fournisseurCourant === 'webdav'" class="bloc-nc">
-          <div class="sep-nc">— ou —</div>
-          <div class="ligne-nc">
+        <!-- Un média distant peut être choisi dès la création de l'entretien. -->
+        <div v-if="creationAvecMediaDistantDisponible" class="bloc-distant">
+          <div class="sep-distant">— ou —</div>
+          <div class="ligne-distante">
             <input
-              v-model="titreNc"
+              v-model="titreDistant"
               class="champ-titre"
               placeholder="Titre du nouvel entretien"
-              @keyup.enter="creerAvecAudioNc"
+              @keyup.enter="creerAvecMediaDistant"
             />
-            <button class="valider secondaire" :disabled="!titreNc.trim() || enCours" @click="creerAvecAudioNc">
-              Audio sur le Nextcloud…
+            <button
+              class="valider secondaire"
+              :disabled="!titreDistant.trim() || enCours"
+              @click="creerAvecMediaDistant"
+            >
+              {{ libelleChoixDistant }}
             </button>
           </div>
-          <p class="aide-nc">Crée un entretien au texte vide, puis choisissez (ou téléversez) son audio dans le Nextcloud.</p>
+          <p class="aide-distante">{{ aideChoixDistant }}</p>
         </div>
 
         <div class="pied-modale">
@@ -306,19 +324,19 @@ async function valider() {
   font-size: 0.72rem;
   color: #999;
 }
-/* Bloc « Audio sur le Nextcloud » (corpus distant uniquement). */
-.bloc-nc {
+/* Choix d'un média déjà présent sur le stockage distant. */
+.bloc-distant {
   margin-top: 0.75rem;
   padding-top: 0.5rem;
   border-top: 1px dashed #ddd;
 }
-.sep-nc {
+.sep-distant {
   text-align: center;
   font-size: 0.72rem;
   color: #999;
   margin-bottom: 0.4rem;
 }
-.ligne-nc {
+.ligne-distante {
   display: flex;
   gap: 0.5rem;
 }
@@ -334,7 +352,7 @@ async function valider() {
   color: #2b4a75;
   border: 1px solid #c9d8ef;
 }
-.aide-nc {
+.aide-distante {
   margin: 0.3rem 0 0;
   font-size: 0.72rem;
   color: #2b4a75;

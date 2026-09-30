@@ -128,7 +128,7 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
         await window.sonal.gitlab.connecter(destination.urlInstance)
       } else {
         const jeton = jetonsGitLabSession.value[destination.compteId]
-        if (!jeton) throw new Error('Saisissez votre jeton d’accès personnel GitLab.')
+        if (!jeton) throw new Error('Saisissez votre jeton d’accès GitLab.')
         await window.sonal.gitlab.connecterAvecJeton(destination.urlInstance, jeton)
         jetonsGitLabSession.value[destination.compteId] = ''
       }
@@ -174,7 +174,7 @@ async function oublierGitLab(id: string) {
 function ouvrirBaseMedia(destination: DestinationGitLabPublic) {
   baseMediaEdition.value = destination.id
   baseMediaUrl.value = ''
-  baseMediaUtilisateur.value = destination.baseMedia?.utilisateur ?? destination.utilisateur
+  baseMediaUtilisateur.value = destination.baseMedia?.utilisateur ?? ''
   baseMediaMotDePasse.value = ''
   erreur.value = null
 }
@@ -257,7 +257,7 @@ async function oublierBaseMedia(destinationId: string) {
           </span>
           <span v-else>
             Sonal ne conservera pas votre accès GitLab : après chaque redémarrage, vous devrez
-            vous reconnecter avec OAuth ou saisir de nouveau votre jeton personnel.
+            vous reconnecter avec OAuth ou saisir de nouveau votre jeton d’accès GitLab.
           </span>
         </div>
 
@@ -337,7 +337,7 @@ async function oublierBaseMedia(destinationId: string) {
           <div>
             <span class="q-lbl">Projets GitLab</span>
             <p class="note-secret">
-              OAuth est recommandé ; un jeton personnel reste disponible pour les instances incompatibles.
+              OAuth est recommandé ; un jeton d’accès de projet reste disponible pour les instances incompatibles.
             </p>
           </div>
           <button class="lien-aide-gitlab" type="button" @click="aideGitLabOuverte = true">
@@ -367,7 +367,7 @@ async function oublierBaseMedia(destinationId: string) {
                   v-model="jetonsGitLabSession[destination.compteId]"
                   class="secret-compte"
                   type="password"
-                  placeholder="Jeton personnel pour cette session"
+                  placeholder="Jeton GitLab pour cette session"
                   autocomplete="off"
                   :disabled="enCours"
                 />
@@ -395,7 +395,7 @@ async function oublierBaseMedia(destinationId: string) {
                 />
                 <div class="ligne-2">
                   <label class="question">
-                    <span class="q-lbl secondaire">Identifiant</span>
+                    <span class="q-lbl secondaire">Identifiant WebDAV</span>
                     <input v-model="baseMediaUtilisateur" class="champ" type="text" :disabled="enCours" />
                   </label>
                   <label class="question">
@@ -404,6 +404,7 @@ async function oublierBaseMedia(destinationId: string) {
                   </label>
                 </div>
                 <span class="aide-champ">
+                  Utilisez l’identifiant fourni par le service WebDAV, indépendamment du compte GitLab.
                   Le dossier est testé avant enregistrement. Son adresse et son mot de passe restent sur ce poste.
                 </span>
                 <div class="base-media-actions">
@@ -444,7 +445,7 @@ async function oublierBaseMedia(destinationId: string) {
             <span class="q-lbl secondaire">Authentification</span>
             <select v-model="authentificationGitLab" class="champ" :disabled="enCours || connexionEnCoursGitLab">
               <option value="oauth">OAuth (recommandé)</option>
-              <option value="jeton-personnel">Jeton d’accès personnel</option>
+              <option value="jeton-personnel">Jeton d’accès GitLab</option>
             </select>
           </div>
           <div v-if="authentificationGitLab === 'oauth'" class="question">
@@ -462,7 +463,7 @@ async function oublierBaseMedia(destinationId: string) {
             </span>
           </div>
           <div v-else class="question">
-            <span class="q-lbl secondaire">Jeton d’accès personnel</span>
+            <span class="q-lbl secondaire">Jeton d’accès GitLab</span>
             <input
               v-model="jetonPersonnelGitLab"
               class="champ"

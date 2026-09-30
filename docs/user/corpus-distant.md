@@ -61,9 +61,9 @@ projet en sont déduits.
    par exemple en ajoutant un README dans GitLab, pour disposer d'une branche par défaut.
 2. Vérifiez que votre compte peut lire le projet et écrire dans la branche par défaut.
    Si la branche est protégée, autorisez les développeurs à y pousser.
-3. Utilisez OAuth lorsque l’instance le permet. Si OAuth n’est pas disponible, créez
-   un jeton d’accès personnel GitLab avec le scope `api` depuis les préférences de
-   votre compte.
+3. Utilisez OAuth lorsque l’instance le permet. Si OAuth n’est pas disponible, ouvrez
+   « Settings → Access Tokens » dans le projet et créez un Project Access Token avec
+   le rôle Developer et le scope `api`. Copiez sa valeur dès sa création.
 
 Sonal ne crée aucun projet pendant cette étape. Il vérifie l’URL et les accès,
 puis utilise automatiquement la branche par défaut du projet, à la création comme
@@ -76,8 +76,8 @@ Dans « ☁️ Nouveau corpus distant » :
 
 1. saisissez l’adresse du projet GitLab, par exemple
    `https://gitlab.exemple.org/mon-groupe/mon-corpus` ;
-2. choisissez l’authentification OAuth (par défaut) ou « Jeton d’accès personnel » ;
-3. renseignez le Client ID OAuth s’il n’est pas déjà connu, ou votre jeton personnel ;
+2. choisissez l’authentification OAuth (par défaut) ou « Jeton d’accès GitLab » ;
+3. renseignez le Client ID OAuth s’il n’est pas déjà connu, ou le jeton du projet ;
 4. ouvrez « Médias partagés » si vous souhaitez utiliser un dossier
    Nextcloud/WebDAV distinct, puis saisissez son adresse, votre identifiant et un mot
    de passe d’application ;
@@ -88,10 +88,12 @@ La création ajoute le squelette du corpus à la racine du projet sélectionné.
 GitLab et son historique ne sont pas supprimés. Si le projet contient déjà un corpus,
 utilisez « Ouvrir un corpus distant » plutôt que la création.
 
-Le jeton personnel est transmis au processus principal pour être vérifié, puis effacé
+Le jeton GitLab est transmis au processus principal pour être vérifié, puis effacé
 du formulaire. Il n’est jamais renvoyé à l’interface ni inscrit dans les logs ou les
 messages d’erreur. Il est conservé dans le coffre chiffré du poste lorsqu’il est
-disponible, sinon seulement en mémoire jusqu’à la fermeture de Sonal.
+disponible, sinon seulement en mémoire jusqu’à la fermeture de Sonal. GitLab associe
+un Project Access Token à un compte technique dont le nom ressemble à
+`project_123_bot_456`.
 
 Les médias partagés restent hors de GitLab : Sonal vérifie le dossier WebDAV avant de
 créer le corpus, mais son adresse et son mot de passe restent sur le poste. Chaque

@@ -91,14 +91,14 @@ export class ServiceAuthentificationGitLab {
     return this.etat(instance.urlInstance)
   }
 
-  /** Valide et mémorise un jeton d'accès personnel sans passer par OAuth. */
+  /** Valide et mémorise un jeton d'accès GitLab sans passer par OAuth. */
   async connecterAvecJeton(
     urlInstance: string,
     jetonSaisi: string,
   ): Promise<ConnexionGitLabPublique> {
     const urlCanonique = canoniserUrlInstanceGitLab(urlInstance)
     const jeton = jetonSaisi.trim()
-    if (!jeton) throw new Error('Jeton d’accès personnel GitLab manquant.')
+    if (!jeton) throw new Error('Jeton d’accès GitLab manquant.')
     const client = new ClientGitLab({
       urlInstance: urlCanonique,
       autorisation: autorisationJetonPersonnel(jeton),
@@ -202,7 +202,7 @@ export class ServiceAuthentificationGitLab {
     const jeton = this.options.coffre.jetonPersonnelGitLab(compteId)
     if (!jeton) {
       throw new ErreurInstanceGitLabOAuth(
-        'Votre jeton d’accès personnel GitLab est absent. Saisissez-le à nouveau.',
+        'Votre jeton d’accès GitLab est absent. Saisissez-le à nouveau.',
       )
     }
     return autorisationJetonPersonnel(jeton)
