@@ -34,6 +34,7 @@ import {
   type ModeMateriauxCas,
 } from '../../editor/cas'
 import { preparerSourcesPassages, type ModeTextePassage } from '../../editor/passages'
+import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 const nouvelId = (prefixe: string): string => `${prefixe}-${globalThis.crypto.randomUUID()}`
 
@@ -766,7 +767,7 @@ export function useCasCorpus(deps: {
       attributExistantId?: string
       nouvelleDefinition?: { lib: string; priv: boolean }
     },
-  ): Promise<void> {
+  ): Promise<boolean> {
     exigerSources()
     const famille = famillesCas.value[familleId]
     if (!famille) throw new Error('La famille n’existe plus.')
@@ -779,11 +780,11 @@ export function useCasCorpus(deps: {
     )
     const membresAttendus = Object.values(deps.cas.value)
       .filter((courant) => courant.familleId === familleId).map((courant) => courant.id).sort()
-    await commanderCas({
+    return lancerOperationGlobale(() => commanderCas({
       type: 'ajouter-derivation-famille', familleId,
       membresAttendus, derivation,
       ...(definition ? { definition } : {}),
-    })
+    }))
   }
 
   async function retirerDerivationFamille(familleId: string, attributId: string): Promise<void> {
@@ -861,17 +862,17 @@ export function useCasCorpus(deps: {
       attributExistantId?: string
       nouvelleDefinition?: { lib: string; priv: boolean }
     },
-  ): Promise<void> {
+  ): Promise<boolean> {
     exigerSources()
     const courant = deps.cas.value[casId]
     if (!courant) throw new Error('Ce cas n’existe plus.')
     const portee = porteeObservationsCas(courant)
     if (!portee) throw new Error('Un cas manuel ne peut pas recevoir d’attribut dérivé.')
     const { derivation, definition } = construireRecette(params, portee)
-    await commanderCas({
+    return lancerOperationGlobale(() => commanderCas({
       type: 'ajouter-derivation-cas', casId, derivation,
       ...(definition ? { definition } : {}),
-    })
+    }))
   }
 
   async function retirerDerivationPropre(casId: string, attributId: string): Promise<void> {

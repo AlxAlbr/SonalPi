@@ -221,6 +221,65 @@ describe('publication GitLab sous droit', () => {
     expect(methodes).toEqual(['GET', 'HEAD'])
   })
 
+  test('refuse un GET dont le mode exécutable est absent ou invalide', async () => {
+    async function depotRepondant(corps: Record<string, unknown>): Promise<DepotCommitsGitLabClient> {
+      const reponse = JSON.stringify(corps)
+      const fetchImpl: typeof fetch = async () => new Response(reponse, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+      return new DepotCommitsGitLabClient(new ClientGitLab({
+        urlInstance: 'https://gitlab.example.org',
+        projetId: 42,
+        autorisation: { type: 'jeton-prive', jeton: 'jeton-test' },
+      }, fetchImpl))
+    }
+    const base = {
+      file_path: 'entretiens/e1.json',
+      content: Buffer.from('{}').toString('base64'),
+      encoding: 'base64',
+      last_commit_id: 'a'.repeat(40),
+    }
+
+    // Une valeur absente n'est jamais remplacée par false : une instance
+    // GitLab qui ne dit pas le mode est incompatible, pas silencieusement lue.
+    const sansMode = await depotRepondant(base)
+    await expect(sansMode.lireFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow('Réponse de fichier GitLab invalide.')
+    const modeInvalide = await depotRepondant({ ...base, execute_filemode: 'peut-être' })
+    await expect(modeInvalide.lireFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow('Réponse de fichier GitLab invalide.')
+  })
+
+  test('refuse un HEAD dont le mode exécutable est absent ou invalide', async () => {
+    async function depotRepondant(entetes: Record<string, string>): Promise<DepotCommitsGitLabClient> {
+      const fetchImpl: typeof fetch = async (_entree, init) => {
+        if (init?.method === 'HEAD') return new Response(null, { status: 200, headers: entetes })
+        throw new Error('requête inattendue')
+      }
+      return new DepotCommitsGitLabClient(new ClientGitLab({
+        urlInstance: 'https://gitlab.example.org',
+        projetId: 42,
+        autorisation: { type: 'jeton-prive', jeton: 'jeton-test' },
+      }, fetchImpl))
+    }
+
+    // Sans en-tête de mode, la lecture légère ne devine pas un JSON non
+    // exécutable : une garde fausse serait publiée sans le savoir.
+    const sansMode = await depotRepondant({ 'x-gitlab-last-commit-id': 'a'.repeat(40) })
+    await expect(sansMode.lireGardeFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow('Métadonnées de fichier GitLab invalides.')
+    const modeInvalide = await depotRepondant({
+      'x-gitlab-last-commit-id': 'a'.repeat(40),
+      'x-gitlab-execute-filemode': 'peut-être',
+    })
+    await expect(modeInvalide.lireGardeFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow('Métadonnées de fichier GitLab invalides.')
+    const sansCommit = await depotRepondant({ 'x-gitlab-execute-filemode': 'false' })
+    await expect(sansCommit.lireGardeFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow('Métadonnées de fichier GitLab invalides.')
+  })
+
   test('inclut la mutation du bail dans le commit des données', async () => {
     const depot = new DepotMemoire()
     const maintenant = () => Date.UTC(2026, 0, 1)

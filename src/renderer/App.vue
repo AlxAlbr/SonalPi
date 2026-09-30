@@ -14,6 +14,7 @@ import DocsCadreModale from './components/app/DocsCadreModale.vue'
 import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
 import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
+import { messageOperationGlobale } from './operationGlobaleCorpus'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ;
@@ -60,6 +61,11 @@ const {
     </header>
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
+
+    <div v-if="messageOperationGlobale" class="banniere attente" role="status">
+      <span class="indicateur-attente" aria-hidden="true"></span>
+      <span>{{ messageOperationGlobale }}</span>
+    </div>
 
     <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
          hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
@@ -177,6 +183,26 @@ h1 small {
   background: #e3f2fd;
   color: #0d47a1;
   border: 1px solid #c3dbf5;
+}
+.banniere.attente {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: #f3f0ff;
+  color: #4527a0;
+  border: 1px solid #d8cff5;
+}
+.indicateur-attente {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
+  border: 2px solid #b7a9e8;
+  border-top-color: #4527a0;
+  border-radius: 50%;
+  animation: tourner-attente 0.8s linear infinite;
+}
+@keyframes tourner-attente {
+  to { transform: rotate(360deg); }
 }
 .banniere .fermer {
   float: right;

@@ -21,6 +21,7 @@ import { retirerAnnotation, type Entretien } from '../../../shared/entretien/ent
 import { detecterDivergencesPortee } from '../../../shared/entretien/anon/reconciliation'
 import { suggestionCoeur } from '../../../shared/entretien/anon/motsLiaison'
 import type { BrouillonAnon, RegleAnon, MotsLiaisonParams } from '../../../shared/format'
+import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 type LireEditeur = () => Editor | null
 
@@ -440,30 +441,34 @@ export function useAnonymisationEntretien(deps: {
         return
       }
     }
-    const ids = entretien.annotations
-      .filter(
-        (a) =>
-          a.type === 'anon' &&
-          !estOrpheline(a) &&
-          clesLigne.has(cleEntite(deps.lireEditeur()!.state.doc.textBetween(a.from, a.to, ' '))),
-      )
-      .map((a) => a.id)
-    for (const id of ids) retirerAnnotation(entretien, id)
-    retirerBrouillon(brouillonsAnon.value, entite)
-    delete pseudosDeclares.value[cle]
-    deps.planifierSauvegarde()
-    if (
-      ligne.etat === 'corpus' &&
-      ligne.regle &&
-      await publierRetraitAvantSuppression()
-    ) {
-      await window.sonal.corpus.regleAnonSupprimer(ligne.regle)
-      await deps.rafraichirReglesCorpus?.()
+    const supprimer = async () => {
+      const ids = entretien.annotations
+        .filter(
+          (a) =>
+            a.type === 'anon' &&
+            !estOrpheline(a) &&
+            clesLigne.has(cleEntite(deps.lireEditeur()!.state.doc.textBetween(a.from, a.to, ' '))),
+        )
+        .map((a) => a.id)
+      for (const id of ids) retirerAnnotation(entretien, id)
+      retirerBrouillon(brouillonsAnon.value, entite)
+      delete pseudosDeclares.value[cle]
+      deps.planifierSauvegarde()
+      if (
+        ligne.etat === 'corpus' &&
+        ligne.regle &&
+        await publierRetraitAvantSuppression()
+      ) {
+        await window.sonal.corpus.regleAnonSupprimer(ligne.regle)
+        await deps.rafraichirReglesCorpus?.()
+      }
+      deps.rafraichirProjections()
+      deps.rafraichirDecorations()
+      rafraichirCompteursAAAnonymiser()
+      rafraichirReperage()
     }
-    deps.rafraichirProjections()
-    deps.rafraichirDecorations()
-    rafraichirCompteursAAAnonymiser()
-    rafraichirReperage()
+    if (ligne.etat === 'corpus' && ligne.regle) await lancerOperationGlobale(supprimer)
+    else await supprimer()
   }
 
   /** Le réglage de portée change l'état d'une ligne sur trois crans.
@@ -729,18 +734,22 @@ export function useAnonymisationEntretien(deps: {
   async function delierCorpus(ligne: LigneAnon) {
     const regleId = ligne.regle!
     const ailleurs = await window.sonal.corpus.regleAnonUtiliseeAilleurs(regleId, deps.ouvertId.value ?? undefined)
-    for (const a of entretien.annotations) {
-      if (a.type === 'anon' && annotationDeLigne(a, ligne)) delete a.regle
+    const delier = async () => {
+      for (const a of entretien.annotations) {
+        if (a.type === 'anon' && annotationDeLigne(a, ligne)) delete a.regle
+      }
+      deps.planifierSauvegarde()
+      if (!ailleurs && await publierRetraitAvantSuppression()) {
+        await window.sonal.corpus.regleAnonSupprimer(regleId)
+      }
+      await deps.rafraichirReglesCorpus?.()
+      deps.rafraichirProjections()
+      deps.rafraichirDecorations()
+      rafraichirCompteursAAAnonymiser()
+      rafraichirReperage()
     }
-    deps.planifierSauvegarde()
-    if (!ailleurs && await publierRetraitAvantSuppression()) {
-      await window.sonal.corpus.regleAnonSupprimer(regleId)
-    }
-    await deps.rafraichirReglesCorpus?.()
-    deps.rafraichirProjections()
-    deps.rafraichirDecorations()
-    rafraichirCompteursAAAnonymiser()
-    rafraichirReperage()
+    if (ailleurs) await delier()
+    else await lancerOperationGlobale(delier)
   }
 
   /** Corpus → Brouillon : retire les occurrences + recrée un brouillon. BLOQUÉ
@@ -752,17 +761,19 @@ export function useAnonymisationEntretien(deps: {
       hintAnon.value = "Vous ne pouvez pas supprimer cette règle car elle est utilisée dans d'autres entretiens."
       return
     }
-    for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
-    ajouterBrouillon(brouillonsAnon.value, ligne.entite, ligne.pseudo)
-    deps.planifierSauvegarde()
-    if (await publierRetraitAvantSuppression()) {
-      await window.sonal.corpus.regleAnonSupprimer(regleId)
-      await deps.rafraichirReglesCorpus?.()
-    }
-    deps.rafraichirProjections()
-    deps.rafraichirDecorations()
-    rafraichirCompteursAAAnonymiser()
-    rafraichirReperage()
+    await lancerOperationGlobale(async () => {
+      for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
+      ajouterBrouillon(brouillonsAnon.value, ligne.entite, ligne.pseudo)
+      deps.planifierSauvegarde()
+      if (await publierRetraitAvantSuppression()) {
+        await window.sonal.corpus.regleAnonSupprimer(regleId)
+        await deps.rafraichirReglesCorpus?.()
+      }
+      deps.rafraichirProjections()
+      deps.rafraichirDecorations()
+      rafraichirCompteursAAAnonymiser()
+      rafraichirReperage()
+    })
   }
 
   async function publierRetraitAvantSuppression(): Promise<boolean> {

@@ -971,11 +971,24 @@ dans le plan (`test/gitlab/qualificationDefinitions.test.ts`,
 `test/gitlab/qualificationSources.test.ts`,
 `test/gitlab/qualificationSuppressions.test.ts`).
 
-**Non qualifié sur banc.** Le volume du corpus pilote : nombre d'entretiens,
-taille brute et réponse base64 du plus gros fichier, nombre réel de sources
-d'un rattachement et d'une dérivation, mémoire pendant un geste à sources. La borne interne reste de 250 actions et celle du corps HTTP de 2 Mio. Un fichier
-individuel exceptionnel est refusé par son nom tant que ce relevé n'a pas été
-fait.
+**Qualification de capacité sur GitLab CE 18.11.0-ce.0.** Le GET et le HEAD
+rapportent le mode exécutable, et les gardes sans effet ont réussi pour les modes
+`false` et `true`. La pile complète a accepté le commit maximal de 250 actions :
+`corpus.json`, 248 gardes et le bail. Quatre sources totalisant 2,4 Mio ont aussi
+été contrôlées dans une publication de 5 944 octets.
+
+| Sources | Corps du commit | Lecture | Commit | Total |
+|---|---:|---:|---:|---:|
+| 50 | 22 229 octets | 3 269 ms | 915 ms | 4 607 ms |
+| 100 | 40 037 octets | 5 647 ms | 1 437 ms | 7 443 ms |
+| 248 | 93 317 octets | 12 523 ms | 2 747 ms | 15 620 ms |
+
+Ces mesures gardent la lecture séquentielle : même à 248 sources, la marge reste
+large sous le bail de 120 s du banc. Elles ne justifient ni concurrence de
+lecture supplémentaire, ni progression chiffrée. L'interface affiche une attente
+indéterminée. Un fichier individuel exceptionnel reste refusé par son nom s'il
+dépasse sa limite de lecture ; la taille cumulée des transcriptions n'entre plus
+dans le corps du commit.
 
 ## 11. Retrait d'un entretien : deux droits, une archive
 

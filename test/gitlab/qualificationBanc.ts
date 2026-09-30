@@ -173,6 +173,10 @@ export interface Pile {
   transactions: TransactionsGitLab
   /** Une requête = une ligne « METHOLE /chemin », dans l'ordre. */
   requetes: string[]
+  /** Début et fin de chaque requête, pour mesurer les phases d'un geste. */
+  instants: Array<{ debut: number; fin: number }>
+  /** Commits envoyés : message, nombre d'actions et octets du corps. */
+  commitsEnvoyes: Array<{ message: string; actions: number; octets: number; indexRequete: number }>
   dossier: string
   racine: string
   lireLocal(): CorpusFichier
@@ -223,6 +227,8 @@ export function pile(options: {
   const store = new CorpusStore(dossier)
   store.lectureSeule = true
   const requetes: string[] = []
+  const instants: Array<{ debut: number; fin: number }> = []
+  const commitsEnvoyes: Array<{ message: string; actions: number; octets: number; indexRequete: number }> = []
   // Pannes et courses, commandées par le scénario de qualification.
   const pannes = { commitDeDonnees: false, avantEnvoiDonnees: false, historique: false }
   const avantDonnees: Array<(p: Pile) => Promise<void>> = []
@@ -230,35 +236,53 @@ export function pile(options: {
   const fetchCompte: typeof fetch = async (entree, init) => {
     const url = new URL(String(entree))
     requetes.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`)
+    const debutRequete = performance.now()
     const corps = String(init?.body ?? '')
     const estCommit = url.pathname.endsWith('/repository/commits')
       && (init?.method ?? 'GET') === 'POST'
+    if (estCommit) {
+      try {
+        const commit = JSON.parse(corps) as { commit_message?: string; actions?: unknown[] }
+        commitsEnvoyes.push({
+          message: commit.commit_message ?? '',
+          actions: Array.isArray(commit.actions) ? commit.actions.length : 0,
+          octets: Buffer.byteLength(corps),
+          indexRequete: requetes.length - 1,
+        })
+      } catch {
+        /* Un corps de commit illisible n'est pas une mesure à conserver. */
+      }
+    }
     const estDonnees = estCommit
       && corps.includes(`"${options.racine}/entretiens/`)
       && corps.includes(`"${options.racine}/corpus.json"`)
-    if (pannes.historique && url.searchParams.has('search')) {
-      throw new Error('historique indisponible')
-    }
-    if (estDonnees) {
-      const pile = pieges.pile as Pile
-      while (avantDonnees.length > 0) await avantDonnees.shift()!(pile)
-      if (pannes.avantEnvoiDonnees) {
-        pannes.avantEnvoiDonnees = false
-        throw new TypeError('fetch failed')
+    try {
+      if (pannes.historique && url.searchParams.has('search')) {
+        throw new Error('historique indisponible')
       }
-      if (pannes.commitDeDonnees) {
-        pannes.commitDeDonnees = false
-        // La requête aboutit : le serveur a bien accepté le commit. Seule la
-        // réponse ne revient pas, et c'est ce que l'application doit conclure.
-        await fetch(entree as never, init).catch(() => undefined)
-        throw new Error('réponse perdue')
+      if (estDonnees) {
+        const pile = pieges.pile as Pile
+        while (avantDonnees.length > 0) await avantDonnees.shift()!(pile)
+        if (pannes.avantEnvoiDonnees) {
+          pannes.avantEnvoiDonnees = false
+          throw new TypeError('fetch failed')
+        }
+        if (pannes.commitDeDonnees) {
+          pannes.commitDeDonnees = false
+          // La requête aboutit : le serveur a bien accepté le commit. Seule la
+          // réponse ne revient pas, et c'est ce que l'application doit conclure.
+          await fetch(entree as never, init).catch(() => undefined)
+          throw new Error('réponse perdue')
+        }
       }
+      const reponse = await fetch(entree as never, init)
+      if (estCommit && corps.includes(' acquisition') && apresAcquisition.length > 0) {
+        await apresAcquisition.shift()!(pieges.pile as Pile)
+      }
+      return reponse
+    } finally {
+      instants.push({ debut: debutRequete, fin: performance.now() })
     }
-    const reponse = await fetch(entree as never, init)
-    if (estCommit && corps.includes(' acquisition') && apresAcquisition.length > 0) {
-      await apresAcquisition.shift()!(pieges.pile as Pile)
-    }
-    return reponse
   }
   const pieges = { pile: null as Pile | null }
   const client = new ClientGitLab({
@@ -315,6 +339,8 @@ export function pile(options: {
     journal,
     transactions,
     requetes,
+    instants,
+    commitsEnvoyes,
     dossier,
     racine: options.racine,
     lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier,

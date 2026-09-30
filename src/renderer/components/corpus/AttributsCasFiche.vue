@@ -4,6 +4,7 @@ import { utiliserSonal } from '../../composables/sonal'
 import { porteeObservationsCas, type DefinitionAttributCas } from '../../../shared/corpus/cas'
 import type { AttributCasProjete, DiagnosticAttributCas } from '../../../shared/corpus/observationsAttributs'
 import type { Variable } from '../../../shared/format'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
 const {
   casOuvert,
@@ -163,12 +164,13 @@ async function ajouterDerivation() {
   enregistrementEnCours.value = true
   erreurDerivation.value = null
   try {
-    await ajouterDerivationPropre(casOuvertId.value, {
+    const ajoutee = await ajouterDerivationPropre(casOuvertId.value, {
       variableSourceId: variableDerivation.value,
       ...(cibleDerivation.value === 'existante' && attributExistant.value
         ? { attributExistantId: attributExistant.value }
         : { nouvelleDefinition: { lib: libNouvelAttribut.value || variableChoisie.value?.lib || '', priv: privNouvelAttribut.value } }),
     })
+    if (!ajoutee) return
     variableDerivation.value = ''
     annulerApercuDerivation()
   } catch {
@@ -306,7 +308,7 @@ function modalitesDe(definition: DefinitionAttributCas) {
 
     <details v-if="peutDeriver" class="ajout-attribut">
       <summary>Dériver un attribut des membres de la règle</summary>
-      <fieldset :disabled="lectureSeule || enregistrementEnCours">
+      <fieldset :disabled="lectureSeule || enregistrementEnCours || operationGlobaleEnCours">
         <label>
           Variable source — même portée que les observations du cas
           <select v-model="variableDerivation">

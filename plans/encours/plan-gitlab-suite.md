@@ -27,6 +27,12 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 Les chemins abrégés de cette section sont relatifs à `src/main/`. Les numéros de
 ligne sont des repères de lecture, pas des contrats stables.
 
+> **Mise à jour des bornes.** Les passages ci-dessous qui décrivent les anciennes
+> gardes `update`, les limites de 100/102 actions ou le maximum de 98 sources
+> conservent l'historique de ce chantier. L'état courant est une garde légère
+> sans contenu, une limite Sonal de 250 actions et 248 sources au maximum ; voir
+> [le plan dédié](plan-gitlab-gardes-legeres.md) et la documentation technique.
+
 Trois acquis sont réutilisables, sans rendre les nouveaux lots automatiques :
 
 1. **Le bail du corpus existe déjà.** L'ajout acquiert un droit sur `corpus.json`

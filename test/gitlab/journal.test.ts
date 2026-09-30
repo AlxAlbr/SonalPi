@@ -197,6 +197,142 @@ describe('journal de publication GitLab', () => {
     }
   })
 
+  test('accepte une nouvelle entrée de 250 actions et refuse la 251e', () => {
+    const { root, journal } = creerJournal()
+    try {
+      // Un commit de transactions complet : corpus, 248 gardes et une
+      // mutation témoin, à la borne exacte de la limite de sécurité Sonal.
+      const actions: ActionCommitGitLab[] = [
+        {
+          action: 'update',
+          file_path: 'donnees/corpus.json',
+          content: '{}',
+          last_commit_id: 'a'.repeat(40),
+        },
+        { action: 'create', file_path: 'donnees/entretiens/e999.json', content: '{}' },
+      ]
+      for (let index = 0; index < 248; index += 1) {
+        actions.push({
+          action: 'chmod',
+          file_path: `donnees/entretiens/e${index}.json`,
+          execute_filemode: false,
+          last_commit_id: `${index.toString(16).padStart(2, '0')}${'a'.repeat(38)}`,
+        })
+      }
+      journal.preparer({
+        operationId: 'operation-250-actions',
+        nature: 'transaction-corpus',
+        branche: 'main',
+        droits: [{
+          resourceHash: '7'.repeat(64),
+          generation: 'generation-250',
+          leaseCommitId: '6'.repeat(40),
+        }],
+        etat: 'prepare',
+        actions,
+      })
+
+      const [entree] = journal.lister()
+      expect(entree.actions).toHaveLength(250)
+      expect(entree.actions.filter((action) => action.action === 'chmod')).toHaveLength(248)
+      expect(journal.chargerActions(entree)).toEqual(actions)
+
+      // La 251e action est refusée dès la préparation : aucune entrée
+      // n'y correspond, même après l'écriture du candidat.
+      expect(() => journal.preparer({
+        operationId: 'operation-251-actions',
+        nature: 'transaction-corpus',
+        branche: 'main',
+        droits: [{
+          resourceHash: '7'.repeat(64),
+          generation: 'generation-251',
+          leaseCommitId: '6'.repeat(40),
+        }],
+        etat: 'prepare',
+        actions: [...actions, {
+          action: 'chmod',
+          file_path: 'donnees/entretiens/e-excedent.json',
+          execute_filemode: false,
+          last_commit_id: 'a'.repeat(40),
+        }],
+      })).toThrow('Actions de publication GitLab invalides.')
+      expect(() => journal.lire('operation-251-actions'))
+        .toThrow('Opération GitLab absente du journal.')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('lit une vraie entrée de journal version 3 avec sa borne historique', () => {
+    const { root, journal } = creerJournal()
+    const droit = {
+      resourceHash: '7'.repeat(64),
+      generation: 'generation-v3',
+      leaseCommitId: '6'.repeat(40),
+    }
+    /** Écrit une entrée authentique de version 3 : mêmes champs que la
+     *  version courante, mais version et borne historiques de 102 actions. */
+    function semerVersion3(operationId: string, actions: ActionCommitGitLab[]): void {
+      journal.preparer({
+        operationId,
+        nature: 'transaction-corpus',
+        branche: 'main',
+        droits: [droit],
+        etat: 'indetermine',
+        actions,
+      })
+      const fichier = join(root, 'operations',
+        createHash('sha256').update(operationId).digest('hex') + '.json')
+      const entree = JSON.parse(readFileSync(fichier, 'utf8'))
+      entree.version = 3
+      writeFileSync(fichier, JSON.stringify(entree, null, 2), 'utf8')
+    }
+    try {
+      semerVersion3('operation-v3-lisible', [
+        {
+          action: 'update',
+          file_path: 'donnees/corpus.json',
+          content: '{}',
+          last_commit_id: 'a'.repeat(40),
+        },
+        {
+          action: 'chmod',
+          file_path: 'donnees/entretiens/e1.json',
+          execute_filemode: true,
+          last_commit_id: 'b'.repeat(40),
+        },
+      ])
+      const [entree] = journal.lister()
+      expect(entree.version).toBe(4)
+      expect(entree.nature).toBe('transaction-corpus')
+      expect(entree.actions[1]).toMatchObject({ action: 'chmod', execute_filemode: true })
+      expect(journal.chargerActions(entree)).toHaveLength(2)
+      expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
+
+      // La version 3 garde sa borne historique : une entrée de 250 actions
+      // n'y est pas lisible, alors que la même écriture passe en version 4.
+      const corpus = {
+        action: 'update',
+        file_path: 'donnees/corpus.json',
+        content: '{}',
+        last_commit_id: 'a'.repeat(40),
+      } as const
+      const gardes = Array.from({ length: 249 }, (_vide, index) => ({
+        action: 'chmod',
+        file_path: `donnees/entretiens/v3-${index}.json`,
+        execute_filemode: false,
+        last_commit_id: `${index.toString(16).padStart(2, '0')}${'a'.repeat(38)}`,
+      }))
+      semerVersion3('operation-v3-102', [corpus, ...gardes.slice(0, 101)])
+      expect(() => journal.lire('operation-v3-102')).not.toThrow()
+      semerVersion3('operation-v3-trop-large', [corpus, ...gardes])
+      expect(() => journal.lire('operation-v3-trop-large'))
+        .toThrow('Entrée de journal GitLab invalide.')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test('retrouve et vérifie un commit sans rejouer l’opération', async () => {
     const { root, journal } = creerJournal()
     const depot = new DepotJournal()

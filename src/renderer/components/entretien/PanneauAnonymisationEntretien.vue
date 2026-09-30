@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
 const props = defineProps<{
   actif: boolean
@@ -421,7 +422,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="portee-cran"
                 :class="{ actif: l.etat === 'brouillon' }"
-                :disabled="lectureSeuleContenu || l.etat === 'brouillon'"
+                :disabled="lectureSeuleContenu || l.etat === 'brouillon' || operationGlobaleEnCours"
                 title="Brouillon — pas encore appliqué"
                 @click="changerPorteeAnon(l.entite, 'brouillon')"
               >🚧</button>
@@ -429,7 +430,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="portee-cran"
                 :class="{ actif: l.etat === 'entretien' }"
-                :disabled="lectureSeuleContenu || l.etat === 'entretien' || l.etat === 'corpus'"
+                :disabled="lectureSeuleContenu || l.etat === 'entretien' || l.etat === 'corpus' || operationGlobaleEnCours"
                 title="Entretien — occurrences posées"
                 @click="changerPorteeAnon(l.entite, 'entretien')"
               >📄</button>
@@ -514,7 +515,7 @@ onBeforeUnmount(() => {
                 :title="tooltipIncluses(l.cle)"
               >+{{ l.nbIncluse }}</span>
               <!-- Emplacement réservé : exposant « +N incluse(s) » (chevauchements de règles). -->
-              <button v-if="!lectureSeuleContenu && reperageAnon?.cle !== l.cle" class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
+              <button v-if="!lectureSeuleContenu && reperageAnon?.cle !== l.cle" class="x-anon" title="Supprimer cette ligne" :disabled="operationGlobaleEnCours" @click="supprimerLigneAnon(l.entite)">✕</button>
             </div>
           </div>
         </td>

@@ -410,7 +410,7 @@ describe('définitions qui lisent les entretiens publiés', () => {
     await expect(transactions.executerDefinitionsAvecSources(
       (store) => store.ajouterCategorie('Thème ajouté', null),
       { deduire: (corpus) => [...Object.keys(corpus.membership), 'e0'] },
-    )).rejects.toThrow(new RegExp(`${MAX_SOURCES_GARDEES} acceptés`))
+    )).rejects.toThrow(new RegExp(`limite de ${MAX_SOURCES_GARDEES}`))
 
     // Le refus tombe avant le bail : aucun commit, de coordination compris.
     expect(depot.commits).toHaveLength(0)

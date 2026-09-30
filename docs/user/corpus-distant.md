@@ -99,6 +99,21 @@ collaborateur configure donc son propre accès au même dossier depuis le bouton
 « Médias… » de l’accueil GitLab. Cette configuration peut aussi être ajoutée après la
 création. Git LFS n’est pas nécessaire.
 
+## Opérations portant sur tout un corpus GitLab
+
+Certaines suppressions de définitions et certaines dérivations doivent vérifier
+les versions publiées de tous les entretiens. Sonal affiche alors leur nombre
+avant de commencer. Si des entretiens sont ouverts par d'autres utilisateurs,
+le message le signale comme un risque, sans interdire l'opération : une édition
+ouverte ne devient concurrente que si elle est publiée pendant la vérification.
+
+Après votre confirmation, une bannière animée indique que la vérification est en
+cours. Il n'y a pas de faux pourcentage et le geste ne peut pas être lancé une
+seconde fois pendant l'attente. Les transcriptions sont lues pour contrôler
+l'opération, mais ne sont pas recopiées dans `corpus.json` ni dans la publication.
+Si une publication concurrente est détectée, aucune partie de la modification
+n'est appliquée ; attendez la fin des autres publications puis réessayez.
+
 ## Au quotidien
 
 - Vos corpus d'équipe portent l'icône 🌐 dans « Récents » : un clic les rouvre.

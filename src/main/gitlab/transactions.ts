@@ -917,7 +917,7 @@ export class TransactionsGitLab {
     }
     if (resultat.raison === 'references') throw new Error(resultat.message)
     const messages = {
-      conflit: `${sujet} a été refusée : le corpus GitLab a changé pendant l’opération. Actualisez puis réessayez.`,
+      conflit: `${sujet} a été refusée : le corpus GitLab a changé pendant l’opération. Aucune modification n’a été appliquée. Réessayez lorsque les autres publications sont terminées.`,
       'droit-perdu': `${sujet} a été refusée : le droit de modification GitLab a été perdu.`,
       droits: `GitLab refuse ${sujet.toLowerCase()} avec les droits de ce compte.`,
       limite: `GitLab refuse ${sujet.toLowerCase()} à cause d’une limite de service.`,
@@ -963,7 +963,7 @@ export class TransactionsGitLab {
       )
     }
     const messages = {
-      conflit: `La suppression de « ${titre} » a été refusée : le corpus GitLab a changé pendant l’opération. Actualisez puis réessayez.`,
+      conflit: `La suppression de « ${titre} » a été refusée : le corpus GitLab a changé pendant l’opération. Aucune modification n’a été appliquée. Réessayez lorsque les autres publications sont terminées.`,
       droits: `GitLab refuse la suppression de « ${titre} » avec les droits de ce compte.`,
       limite: `GitLab refuse la suppression de « ${titre} » à cause d’une limite de service.`,
     } as const

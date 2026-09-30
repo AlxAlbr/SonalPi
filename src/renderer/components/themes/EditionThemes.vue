@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { visiblesThemes } from '../../../shared/corpus/categories'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
 /**
  *  Fenêtre d'ÉDITION des thèmes : le crayon ouvre une modale, la consultation
@@ -146,7 +147,7 @@ onMounted(() => {
         Supprimer « {{ themeASupprimer.nom }} » ? Cela retire
         <b>{{ themeASupprimer.n }} codage(s)</b> de cet entretien — <b>irréversible</b>.
         <div class="confirm-actions">
-          <button class="danger" @click="confirmerSuppressionTheme">Supprimer</button>
+          <button class="danger" :disabled="operationGlobaleEnCours" @click="confirmerSuppressionTheme">Supprimer</button>
           <button @click="themeASupprimer = null">Annuler</button>
         </div>
       </div>
@@ -248,7 +249,7 @@ onMounted(() => {
           >
             ⤵
           </button>
-          <button class="x" title="Supprimer" @click="supprimer(n.cat.id)">✕</button>
+          <button class="x" title="Supprimer" :disabled="operationGlobaleEnCours" @click="supprimer(n.cat.id)">✕</button>
         </li>
       </ul>
     </div>

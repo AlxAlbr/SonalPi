@@ -15,20 +15,21 @@
 
 ---
 
-## 0. État de réalisation au point d’interruption
+## 0. État final de réalisation
 
-**Statut général : socle backend réalisé et qualifié sur GitLab CE 18.11 ; UX et
-mesures de charge complètes restant à faire. Le dernier `npm test` n’est pas vert
-à cause d’une seule attente textuelle devenue obsolète.**
+**Statut général : chantier réalisé. Le backend est qualifié sur GitLab CE 18.11,
+y compris le mode exécutable, la cardinalité 248 et les mesures de charge. L’UX,
+les tests renderer et la documentation sont terminés.**
 
-Le conteneur `gitlab-qualification` a été arrêté après les qualifications. Aucune
-image n’a été téléchargée.
+Le conteneur `gitlab-qualification` a été redémarré tel quel pour les
+qualifications de cette session, puis laissé en marche. Aucune image n’a été
+téléchargée (`pull_policy: never`).
 
 ### 0.1 Réalisé dans le code de production
 
 | Élément | État | Fichiers |
 |---|---|---|
-| Limite commune à 250 actions | Réalisé | nouveau `src/main/gitlab/limitesPublication.ts`, `publication.ts`, `journalPublication.ts` |
+| Limite commune à 250 actions | Réalisé | `limitesPublication.ts`, `publication.ts`, `journalPublication.ts` |
 | Maximum dérivé à 248 sources | Réalisé | `transactions.ts` |
 | Action REST `chmod` | Réalisé par extension du type existant ; l’union discriminée plus stricte reste facultative | `bailGitLab.ts` |
 | Action métier `garde` | Réalisé ; compilation vers `chmod` sans `content` | `publication.ts` |
@@ -39,7 +40,8 @@ image n’a été téléchargée.
 | Journal version 4 | Réalisé ; action `chmod`, limite 250 et lecture des versions 1 à 3 | `journalPublication.ts` |
 | Réconciliation d’un `chmod` no-op | Réalisée par HEAD au SHA exact du commit retrouvé | `journalPublication.ts` |
 | Contrôle anticipé à un ou deux droits | Réalisé par le paramètre `nombreDroits` | `publication.ts` |
-| Message de limite | Réalisé ; il parle désormais de limite de sécurité Sonal | `publication.ts`, `transactions.ts` |
+| Message de limite | Réalisé ; il parle de limite de sécurité Sonal | `publication.ts`, `transactions.ts` |
+| Gestes globaux dans le renderer | Réalisé : confirmation GitLab, attente indéterminée, garde anti-double-lancement et désactivation des commandes | `operationGlobaleCorpus.ts`, composables et composants concernés, `App.vue` |
 
 Les modifications locales préexistantes sur OAuth, le coffre et les écrans
 GitLab ont été conservées. `src/main/gitlab/client.ts` contenait notamment des
@@ -48,114 +50,147 @@ changements avant ce chantier ; les ajouts HEAD ont été appliqués sans les
 
 ### 0.2 Doubles et tests ajoutés ou adaptés
 
-Les doubles de dépôt conservent désormais le mode exécutable et appliquent un
-`chmod` no-op sans faire avancer le commit propre du fichier :
+Les doubles de dépôt conservent le mode exécutable et appliquent un `chmod`
+no-op sans faire avancer le commit propre du fichier :
 
 - `test/gitlab/depotMemoire.ts` ;
 - `test/gitlab/session.test.ts` ;
 - `test/gitlab/journal.test.ts`.
 
-Les preuves ajoutées couvrent :
+Ajouts de cette session :
 
-- GET du contenu avec `execute_filemode` puis HEAD sans contenu ;
-- compilation d’une garde en `chmod` sans `content` ;
-- quatre sources totalisant plus de 2 Mio avec une publication inférieure à
-  32 Kio dans le dépôt mémoire ;
-- conservation d’un mode exécutable dans le dépôt mémoire ;
-- journalisation et réconciliation d’une garde légère ;
-- borne d’actions dérivée de la constante, sans attente littérale à 101 ;
-- contrat réel `chmod` frais puis périmé, avec refus atomique ;
-- réponse perdue réelle puis réconciliation des gardes par HEAD.
-
-Le proxy du test de réponse perdue a été corrigé pour transmettre les en-têtes
-`x-gitlab-last-commit-id` et `x-gitlab-execute-filemode` sur les requêtes HEAD.
+- les deux attentes textuelles obsolètes `MAX_SOURCES_GARDEES + " acceptés"`
+  sont devenues `limite de ${MAX_SOURCES_GARDEES}` dans
+  `definitionsSources.test.ts` et `qualificationSources.test.ts` ;
+- `journal.test.ts` : une entrée de journal neuve de 250 actions exactement
+  (corpus + 248 gardes + mutation témoin, relue par `chargerActions`), refus de
+  la 251e dès `preparer()` (l’entrée n’existe pas, même après écriture du
+  candidat) ; une vraie entrée version 3 semée en réécrivant la version d’une
+  entrée préparée — lecture correcte, nature conservée, borne historique de
+  102 vérifiée dans les deux sens (102 actions lues, 250 refusées) ;
+- `bailPublication.test.ts` : GET sans `execute_filemode` ou à valeur non
+  booléenne refusé (« Réponse de fichier GitLab invalide. ») ; HEAD sans
+  en-tête de mode, à mode non `true`/`false`, ou sans identifiant de commit
+  refusé (« Métadonnées de fichier GitLab invalides. ») — une valeur absente
+  n’est jamais silencieusement remplacée par `false` ;
+- `contrat-gitlab.test.ts` : qualification réelle d’un fichier **initialement
+  exécutable** — création avec `execute_filemode: true`, garde `chmod` du mode
+  observé (201, contenu, mode et dernier commit inchangés), concurrence puis
+  garde périmée (400, marqueur absent, mode toujours exécutable) ;
+- `qualificationBanc.ts` : le harnais mesure désormais chaque course — `Pile`
+  expose `instants` (début/fin par requête, pour séparer lecture et commit) et
+  `commitsEnvoyes` (message, nombre d’actions, octets du corps, index de
+  requête) ; `fetchCompte` enregistre dans un `finally` pour rester parallèle
+  à `requetes`, pannes comprises ;
+- `qualificationSources.test.ts` : preuve de volume réelle (quatre sources de
+  600 Kio chacune, 2,4 Mio cumulés, déposées une par une pour rester sous la
+  limite de requête) et preuve de cardinalité réelle (50, 100 puis 248 petites
+  sources par la pile complète, avec mesures) ;
+- `operationGlobaleCorpus.test.ts` : confirmation limitée à GitLab, textes de
+  volume et de verrous, refus de confirmation, anti-double-lancement, état
+  d’attente pendant la promesse et remise à zéro après succès ou erreur.
 
 ### 0.3 Validations obtenues
 
 | Commande | Résultat obtenu |
 |---|---|
-| `npm run typecheck` | réussi après les changements backend |
-| `npm run test:gitlab` | 351 réussis, 66 sautés, avant la dernière reformulation du message de limite |
-| tests ciblés publication/sources/journal/ouverture/assemblage | 86 réussis |
-| banc réel `contrat-gitlab.test.ts -t 'garde un fichier par chmod'` | 1 réussi, 19 sautés |
-| banc réel `qualificationSources.test.ts` | 9 réussis ; garde légère, conflit et réponse perdue compris |
-| dernier `npm test` | 1 échec, 1 657 réussis, 101 sautés |
+| `npm run test:gitlab` final | 355 réussis, 69 sautés |
+| `npm run typecheck` final | réussi après le câblage renderer |
+| tests ciblés `journal.test.ts` + `bailPublication.test.ts` | 48 réussis |
+| tests ciblés renderer et CAS | 21 réussis |
+| banc réel `contrat-gitlab.test.ts -t 'chmod'` | 2 réussis, 19 sautés (mode non exécutable et exécutable) |
+| banc réel `qualificationSources.test.ts` complet | 11 réussis (dont volume et cardinalité) |
+| `npm test` final | 1 667 réussis, 104 sautés |
 
-Le dernier échec ne concerne pas le protocole. Le message de production est
-maintenant :
+Les `AbortError` et `NetworkError` Happy DOM pendant le nettoyage de ressources
+CSS externes demeurent un bruit connu sans échec associé.
 
-```text
-Cette opération garderait 249 entretiens dans un seul commit,
-au-delà de la limite de 248.
-```
+### 0.4 Mesures de charge obtenues et décision (lot G5)
 
-mais `test/gitlab/definitionsSources.test.ts:413` attend encore
-`/248 acceptés/`.
+Toutes par la pile de production sur GitLab CE 18.11, avec 57 à 255 requêtes
+par geste (une lecture GET par source, plus résolution de tête, corpus, bail
+et commit) :
 
-Le même motif obsolète existe dans le test réel sauté sans configuration :
-`test/gitlab/qualificationSources.test.ts:371`.
+| Sources | Corps du commit | Requêtes | Lecture | Commit | Total |
+|---|---|---|---|---|---|
+| 4 × 600 Kio (2,4 Mio) | 5 944 octets | 14 | — | — | 1 760 ms |
+| 50 | 22 229 octets | 57 | 3 269 ms | 915 ms | 4 607 ms |
+| 100 | 40 037 octets | 107 | 5 647 ms | 1 437 ms | 7 443 ms |
+| 248 | 93 317 octets | 255 | 12 523 ms | 2 747 ms | 15 620 ms |
 
-Le `npm test` complet a aussi affiché des `AbortError` Happy DOM pendant le
-nettoyage de ressources CSS externes. Ils n’ont provoqué aucun autre échec.
+Analyse et décision :
 
-### 0.4 Première reprise à effectuer
+- le pire cas mesuré (248 sources) reste **huit fois sous** le bail corpus du
+  harnais (120 s) et le test borne lui-même le total à 120 s ;
+- la **concurrence bornée de lecture n’est pas justifiée** (évolution à peu
+  près linéaire, marge très large) : la boucle séquentielle est conservée ;
+- la **progression réelle `X / N` n’est pas justifiée** (attente maximale
+  observée ≈ 16 s) : la première version d’attente indéterminée suffit ;
+- la réconciliation après réponse perdue est qualifiée en réel (d9, garde
+  vérifiée au SHA du commit, sans rejeu) ; la revalidation de collision par
+  HEAD n’est prouvée qu’en mémoire et sur une garde (`bailPublication.test.ts`,
+  méthodes `['GET', 'HEAD']`) — une mesure réelle de collision à 248 gardes
+  n’a pas été faite et reste optionnelle : ce chemin ne survient que sur un
+  refus 400/409 et ne télécharge jamais de contenu.
 
-La prochaine session doit commencer exactement par :
+### 0.5 Périmètre retenu pour l’UX
 
-1. remplacer les deux attentes `MAX_SOURCES_GARDEES + " acceptés"` par une
-   attente sur `limite de ${MAX_SOURCES_GARDEES}` dans :
-   - `test/gitlab/definitionsSources.test.ts` ;
-   - `test/gitlab/qualificationSources.test.ts` ;
-2. lancer :
+Gestes réellement globaux, identifiés par la portée sémantique
+(`politiqueGestes.ts`) et confirmés dans le code du main :
 
-   ```sh
-   npm run test:gitlab
-   npm run typecheck
-   npm test
-   ```
+- portée `suppression-definition` (relit tout le membership avec
+  `inventaireComplet` via `executerSuppressionDefinitions`) :
+  `theme.supprimer`, `note.supprimer-categorie`, `anon.supprimer-regle`,
+  `variable.supprimer`, `modalite.supprimer` ;
+- `cas.ajouter-derivation-famille` et `cas.ajouter-derivation-cas`
+  (`deduireSourcesCas` retourne tout le membership).
 
-3. seulement après ce retour au vert, poursuivre les compléments ci-dessous.
+Ne sont **pas** globaux, sans avertissement donc :
 
-### 0.5 Compléments backend encore attendus
+- `cas.supprimer-attribut` (portée `definitions-corpus`, ne relit aucune
+  source ; la confirmation d’usages existante suffit) ;
+- le tri de contenus (lit tout mais ne garde aucun entretien : aucun refus de
+  publication concurrente ne peut en sortir) ;
+- les rattachements et recueils de passage (une ou quelques sources).
 
-- Ajouter un test explicite d’une nouvelle entrée de journal contenant 250
-  actions.
-- Ajouter un test explicite de lecture d’une vraie entrée de journal version 3,
-  en plus des tests historiques déjà présents.
-- Ajouter les tests négatifs de GET/HEAD lorsque `execute_filemode` est absent ou
-  invalide.
-- Qualifier sur le banc réel un fichier initialement exécutable ; le mode `false`
-  est qualifié en réel, les modes `true` et `false` sont couverts en mémoire.
-- Ajouter à la pile réelle un scénario automatisé de cardinalité à 248 petites
-  sources. Un essai direct de l’API a déjà accepté 248 `chmod` plus corpus et
-  bail dans un corps de 36 219 octets, mais ce n’est pas encore une preuve par
-  la pile de production.
-- Mesurer 50, 100 puis 248 lectures avec la pile complète avant de décider si une
-  concurrence bornée est utile.
+Périmètre de la confirmation : **corpus GitLab uniquement** (`fournisseurCourant
+=== 'gitlab'`). Sur un corpus local il n’y a ni gardes ni concurrence ; sur
+WebDAV, la mutation ne garde que `corpus.json` — le message « échouera si un
+entretien est publié » n’y serait pas exact. Le module créé applique déjà ce
+périmètre par `estCorpusGitLab()`.
 
-### 0.6 UX non commencée
+Verrous déjà visibles : `badgesVerrous` de `useDistantCorpus` est rempli pour
+GitLab par le tirage (chemins `entretiens/<id>.json`), filtré de nos propres
+sessions côté main. C’est la source du compte « ouverts par d’autres » du
+message de confirmation.
 
-Aucun changement renderer relatif à ce plan n’a encore été réalisé. Il reste à
-implémenter :
+### 0.6 Câblage UX réalisé (lot G4)
 
-- la confirmation des gestes qui contrôlent tout le membership ;
-- le texte annonçant le nombre d’entretiens et le risque de publication
-  concurrente ;
-- la mention informative des verrous déjà visibles ;
-- l’indicateur indéterminé pendant la promesse IPC existante ;
-- la désactivation du bouton et la prévention d’un double lancement ;
-- les tests renderer correspondants.
+`operationGlobaleCorpus.ts` reçoit le nombre d’entretiens, le fournisseur et
+les verrous observés depuis `creerSonal()`. Les suppressions de définitions et
+les deux ajouts de dérivation globale passent par son lanceur. Les retraits de
+règles d’anonymisation sont enveloppés avant toute mutation locale lorsqu’ils
+suppriment effectivement une règle corpus.
 
-Ne pas ajouter de progression IPC ni de concurrence de lecture à cette étape.
-Ces deux optimisations restent conditionnées aux mesures.
+Sur GitLab, le lanceur confirme le geste, refuse un second lancement, expose
+l’attente à `App.vue` et rétablit toujours son état. Sur un corpus local ou
+WebDAV, il conserve la garde anti-double-lancement mais n’affiche ni confirmation
+ni bannière « Vérification de N entretiens », qui y serait inexacte puisque ces
+fournisseurs n’emploient pas ces gardes. Les boutons concernés sont désactivés
+pendant l’attente. Le refus de concurrence précise désormais qu’aucune
+modification n’a été appliquée et invite à réessayer après les autres
+publications.
 
-### 0.7 Documentation
+Aucune progression IPC ni concurrence de lecture n’a été ajoutée, conformément
+aux mesures de §0.4.
 
-`docs/dev/gitlab.md` a été partiellement actualisé : gardes `chmod`, 250 actions,
-248 sources, corps sans transcriptions et réconciliation HEAD. Une relecture reste
-nécessaire, notamment des paragraphes historiques qui décrivent encore l’ancien
-`update` à contenu inchangé et de `plans/encours/plan-gitlab-suite.md`, qui conserve
-les anciennes bornes comme historique du chantier précédent.
+### 0.7 Documentation réalisée
+
+`docs/dev/gitlab.md` décrit les gardes légères, les bornes, la matrice GitLab CE
+18.11 et les mesures 50/100/248. `docs/user/corpus-distant.md` explique les
+opérations globales sans exposer la primitive de transport. L’ancien
+`plan-gitlab-suite.md` porte un avertissement indiquant que ses passages à
+100/102 actions, 98 sources et gardes `update` sont historiques.
 
 ---
 
@@ -831,8 +866,8 @@ ou refus.
 
 ### Lot G1 — Contrat de garde
 
-**État : réalisé pour GitLab CE 18.11 avec un fichier non exécutable ; compléter
-la qualification réelle du mode exécutable et les réponses invalides.**
+**État : réalisé et qualifié sur GitLab CE 18.11 pour les modes exécutable et
+non exécutable ; les réponses GET et HEAD invalides sont couvertes.**
 
 1. Qualifier GET, HEAD et `chmod` sur le banc réel.
 2. Ajouter le mode à `FichierGitLab`.
@@ -859,8 +894,8 @@ corpus.
 
 ### Lot G3 — Journal et reprise
 
-**État : réalisé ; réponse perdue qualifiée en réel. Ajouter encore les tests
-explicites de journal version 3 et de 250 actions.**
+**État : réalisé ; réponse perdue qualifiée en réel, journal version 3 et borne
+de 250 actions couverts explicitement.**
 
 1. Versionner le nouveau format du journal.
 2. Valider et recharger les actions `chmod`.
@@ -873,8 +908,8 @@ les actions existantes.
 
 ### Lot G4 — Relèvement à 250 et attente utilisateur
 
-**État : relèvement backend réalisé ; deux attentes textuelles de tests restent à
-corriger. Confirmation et attente renderer non commencées.**
+**État : réalisé ; relèvement backend, confirmation, attente renderer, messages,
+tests et documentation sont terminés.**
 
 1. Centraliser la limite.
 2. Passer la valeur à 250.
@@ -889,8 +924,10 @@ l’utilisateur est averti de l’attente et du risque de publication concurrent
 
 ### Lot G5 — Mesures de charge
 
-**État : non commencé avec la pile complète. Seule la mesure directe de 248
-gardes, 36 219 octets et 3,76 s sur le banc local est disponible.**
+**État : réalisé avec la pile complète pour 50, 100 et 248 sources. La mesure à
+248 donne 12,5 s de lecture, 2,7 s de commit et un corps de 93 317 octets. La
+mesure d’une collision réelle à 248 gardes reste facultative ; ses lectures HEAD
+sans contenu sont couvertes en mémoire.**
 
 1. Mesurer 50, 100 puis 248 sources avec la pile complète.
 2. Vérifier la marge par rapport à la durée du bail.
@@ -912,30 +949,30 @@ démontré.
 Le chantier est accepté lorsque :
 
 - [x] une source gardée est représentée par `chmod`, sans `content` ;
-- [ ] le mode observé est conservé pour les fichiers exécutables et non
-      exécutables ; couvert en mémoire, mode non exécutable qualifié en réel ;
+- [x] le mode observé est conservé pour les fichiers exécutables et non
+      exécutables, en mémoire comme sur GitLab réel ;
 - [x] une garde périmée refuse atomiquement corpus et bail ;
 - [x] les contenus restent lus pour toutes les validations métier ;
 - [x] une transaction dont les sources cumulent plus de 2 Mio réussit si son
-      corps réel reste sous 2 Mio dans le banc mémoire ;
-- [ ] 248 sources passent dans un commit total de 250 actions ;
-- [ ] 249 sources sont refusées avant acquisition du bail ;
+      corps réel reste sous 2 Mio sur le banc réel ;
+- [x] 248 sources passent dans un commit total de 250 actions ;
+- [x] 249 sources sont refusées avant acquisition du bail ;
 - [x] une réponse perdue est réconciliée sans rejeu ;
-- [ ] les journaux antérieurs restent lisibles ; versions 1 et 2 déjà couvertes,
-      ajouter une fixture explicite de version 3 ;
+- [x] les journaux antérieurs, y compris une entrée explicite de version 3,
+      restent lisibles ;
 - [x] les revalidations et réconciliations de gardes ne téléchargent pas les
       transcriptions ;
-- [ ] une opération globale annonce le nombre d’entretiens et le risque de
+- [x] une opération globale annonce le nombre d’entretiens et le risque de
       publication concurrente avant son lancement ;
-- [ ] son attente utilise un indicateur indéterminé, sans faux pourcentage ni
+- [x] son attente utilise un indicateur indéterminé, sans faux pourcentage ni
       nouveau canal IPC ;
-- [ ] le bouton reste désactivé pendant l’opération et aucun double lancement
+- [x] le bouton reste désactivé pendant l’opération et aucun double lancement
       n’est possible ;
-- [ ] les tests mémoire, de contexte, du renderer et du banc GitLab réel
+- [x] les tests mémoire, de contexte, du renderer et du banc GitLab réel
       réussissent ;
-- [x] `npm run typecheck` réussit au dernier passage backend ;
-- [ ] `npm run test:gitlab` réussit ;
-- [ ] `docs/dev/gitlab.md` reflète la garantie réellement qualifiée ;
+- [x] `npm run typecheck` réussit après le câblage renderer ;
+- [x] `npm run test:gitlab` réussit ;
+- [x] `docs/dev/gitlab.md` reflète la garantie réellement qualifiée ;
 - [x] aucun format de corpus ni dépôt existant ne demande de migration.
 
 ---

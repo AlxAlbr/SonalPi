@@ -368,13 +368,110 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     await expect(p.transactions.executerDefinitionsAvecSources(
       (store) => store.casCommander(commande),
       { deduire: (corpus) => Object.keys(corpus.membership) },
-    )).rejects.toThrow(new RegExp(`${MAX_SOURCES_GARDEES} acceptés`))
+    )).rejects.toThrow(new RegExp(`limite de ${MAX_SOURCES_GARDEES}`))
 
-    // Le refus tombe avant l'acquisition : même pas de commit de coordination.
+    // Le refus tombe avant l’acquisition : même pas de commit de coordination.
     expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(bailAvant)
     console.log(`[banc D1] ${MAX_SOURCES_GARDEES + 1} sources — refus avant le bail, aucun commit`)
     nettoyer(p)
   })
+  it('mesure un volume : des sources cumulant plus de 2 Mio, corps de publication léger', { timeout: 240_000 }, async () => {
+    const racine = await creerRacine('d10', {
+      corpus: corpusAvecCas({ e1: 'Grand un', e2: 'Grand deux', e3: 'Grand trois', e4: 'Grand quatre' }),
+    })
+    const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'd10' })
+    // Quatre sources de 600 Kio chacune : 2,4 Mio cumulés, au-delà de la
+    // limite du corps d'un commit. Chacune part dans son propre commit de
+    // dépôt, sinon la mise en place dépasserait la même limite.
+    for (const id of ['e1', 'e2', 'e3', 'e4']) {
+      await p.depot.publierCommit('main', `qualification D1: source volumineuse ${id}`, [{
+        action: 'create',
+        file_path: `${racine}/entretiens/${id}.json`,
+        content: entretienPublie('v'.repeat(600 * 1024), ['p1']),
+      }])
+    }
+    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const debut = performance.now()
+
+    const commande = commandeRattachement('e1', 'p1')
+    const resultat = await p.transactions.executerDefinitionsAvecSources(
+      (store) => store.casCommander(commande),
+      { deduire: (corpus) => Object.keys(corpus.membership) },
+    )
+    const duree = performance.now() - debut
+
+    // Le commit de données est unique et emporte corpus, quatre gardes et bail.
+    expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+    const envoye = p.commitsEnvoyes.find((commit) => commit.message.startsWith('Sonal op-'))
+    expect(envoye?.actions).toBe(6)
+    // Aucune transcription n'a traversé le corps : six fois moins d'octets
+    // que la plus petite des sources gardées.
+    expect((envoye?.octets ?? 0)).toBeLessThan(128 * 1024)
+    expect(resultat.corpus.cas?.['cas-1']?.rattachements).toHaveLength(1)
+    console.log(
+      `[banc D1] volume — 4 sources de 2,4 Mio cumulés, corps de ${envoye?.octets} octets, `
+      + `${p.requetes.length} requêtes, ${Math.round(duree)} ms`,
+    )
+    nettoyer(p)
+  })
+
+  it('mesure 50, 100 puis 248 sources : cardinalité, temps et taille du corps', { timeout: 600_000 }, async () => {
+    for (const nombre of [50, 100, MAX_SOURCES_GARDEES]) {
+      const suffixe = `d11-${nombre}`
+      const titres: Record<string, string> = {}
+      for (let index = 1; index <= nombre; index += 1) {
+        titres[`e${index}`] = `Entretien ${index}`
+      }
+      const racine = await creerRacine(suffixe, { corpus: corpusAvecCas(titres) })
+      const p = pile({
+        racine,
+        jeton: configuration.token1 as string,
+        userId: 'user1',
+        sessionId: suffixe,
+      })
+      // De petites sources suffisent : la cardinalité porte sur les actions,
+      // pas sur le volume, déjà couvert par la preuve de volume.
+      await p.depot.publierCommit('main', `qualification D1: sources ${suffixe}`, Array.from(
+        { length: nombre },
+        (_vide, index) => ({
+          action: 'create' as const,
+          file_path: `${racine}/entretiens/e${index + 1}.json`,
+          content: entretienPublie(`Texte ${index}`, ['p1']),
+        }),
+      ))
+      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const debut = performance.now()
+
+      const commande = commandeRattachement('e1', 'p1')
+      const resultat = await p.transactions.executerDefinitionsAvecSources(
+        (store) => store.casCommander(commande),
+        { deduire: (corpus) => Object.keys(corpus.membership) },
+      )
+      const duree = performance.now() - debut
+
+      // Un commit unique de données : corpus, autant de gardes que de sources,
+      // et la mutation du bail — à la borne exacte pour 248.
+      expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+      const envoye = p.commitsEnvoyes.find((commit) => commit.message.startsWith('Sonal op-'))
+      expect(envoye?.actions).toBe(nombre + 2)
+      expect((envoye?.octets ?? 0)).toBeLessThan(2 * 1024 * 1024)
+      expect(resultat.corpus.cas?.['cas-1']?.rattachements).toHaveLength(1)
+
+      // Le temps se sépare en lecture (jusqu'à l'envoi du commit) et commit.
+      const requete = p.instants[envoye?.indexRequete ?? 0]
+      const lecture = (requete?.debut ?? duree) - debut
+      const envoi = (requete?.fin ?? duree) - (requete?.debut ?? duree)
+      console.log(
+        `[banc D1] cardinalité ${nombre} — corps de ${envoye?.octets} octets, `
+        + `${p.requetes.length} requêtes, lecture ${Math.round(lecture)} ms, `
+        + `commit ${Math.round(envoi)} ms, total ${Math.round(duree)} ms`,
+      )
+      // Le total reste nettement sous la durée du bail corpus du harnais.
+      expect(duree).toBeLessThan(120_000)
+      nettoyer(p)
+    }
+  })
+
   it('une coupure après l’envoi reste indéterminée, puis se réconcilie sans rejeu', { timeout: 120_000 }, async () => {
     const racine = await creerRacine('d9', { corpus: corpusAvecCas({ e1: 'Entretien 1' }) })
     const journalRepertoire = mkdtempSync(join(tmpdir(), 'sonal-banc-d9-journal-'))

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
 /**
  * Fenêtre d'ÉDITION des variables : « Ajouter/modifier une variable » — le
@@ -250,7 +251,7 @@ onMounted(() => {
             >
               {{ v.priv ? '🔒 privée' : '🔓 publique' }}
             </button>
-            <button class="x" title="Supprimer la variable" @click="supprimerVariable(v.id)">✕</button>
+            <button class="x" title="Supprimer la variable" :disabled="operationGlobaleEnCours" @click="supprimerVariable(v.id)">✕</button>
           </div>
           <p v-if="v.modalites.length === 0" class="note-libre">
             Aucune modalité — saisie en <b>texte libre</b> dans la table (chaque valeur saisie crée sa
@@ -265,7 +266,7 @@ onMounted(() => {
                 @keyup.enter="($event.target as HTMLInputElement).blur()"
                 @change="renommerModalite(v.id, m.id, $event)"
               />
-              <button class="x-mod" title="Supprimer la modalité" @click="supprimerModalite(v.id, m.id)">✕</button>
+              <button class="x-mod" title="Supprimer la modalité" :disabled="operationGlobaleEnCours" @click="supprimerModalite(v.id, m.id)">✕</button>
             </li>
           </ul>
           <div class="actions-mod">

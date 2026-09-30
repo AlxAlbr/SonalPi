@@ -4,6 +4,7 @@ import { utiliserSonal } from '../../composables/sonal'
 import type { Variable } from '../../../shared/format'
 import type { AttributCasProjete, DiagnosticAttributCas } from '../../../shared/corpus/observationsAttributs'
 import type { FamilleCas } from '../../../shared/corpus/cas'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
 const props = defineProps<{ familleId: string }>()
 const emit = defineEmits<{ fermer: [] }>()
@@ -118,12 +119,13 @@ async function ajouter() {
   enregistrementEnCours.value = true
   erreur.value = null
   try {
-    await ajouterDerivationFamille(props.familleId, {
+    const ajoutee = await ajouterDerivationFamille(props.familleId, {
       variableSourceId: variableChoisieId.value,
       ...(cible.value === 'existante'
         ? { attributExistantId: attributExistant.value }
         : { nouvelleDefinition: { lib: libNouvelAttribut.value || variableChoisie.value?.lib || '', priv: privNouvelAttribut.value } }),
     })
+    if (!ajoutee) return
     variableChoisieId.value = ''
     apercuChoisi.value = null
   } catch (e) {
@@ -196,7 +198,7 @@ async function retirer(attributId: string) {
 
     <details class="ajout-recette" :open="!recettes.length">
       <summary>Ajouter un attribut à la famille</summary>
-      <fieldset :disabled="lectureSeule || chargementVariables || enregistrementEnCours">
+      <fieldset :disabled="lectureSeule || chargementVariables || enregistrementEnCours || operationGlobaleEnCours">
         <p v-if="chargementVariables" role="status">Évaluation des variables disponibles…</p>
         <template v-else>
           <p v-if="!variablesCandidates.length" class="vide">Aucune variable de la portée de la famille. Créez d’abord une variable de portée « {{ famille.origine.portee }} ».</p>

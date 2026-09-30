@@ -16,6 +16,10 @@ import { useTableauBordCorpus } from './corpus/useTableauBordCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
+import {
+  installerOperationGlobaleCorpus,
+  lancerOperationGlobale,
+} from '../operationGlobaleCorpus'
 
 /**
  *  ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
@@ -263,6 +267,11 @@ export function creerSonal() {
     appliquerStatutSession,
     publierMaintenant,
   } = distant
+  installerOperationGlobaleCorpus({
+    compterEntretiens: () => Object.keys(corpus.membership.value).length,
+    estCorpusGitLab: () => fournisseurCourant.value === 'gitlab',
+    compterVerrousAutrui: () => Object.keys(badgesVerrous.value).length,
+  })
   distantActifPourMedias = () => idDistantCourant.value !== null
   fournisseurPourMedias = () => fournisseurCourant.value
   etatBasePourMedias = () => etatBaseMedia.value
@@ -502,11 +511,13 @@ export function creerSonal() {
   async function confirmerSuppressionTheme() {
     const cible = themeASupprimer.value
     if (!cible) return
-    ent.retirerCodagesDuCode(cible.id)
-    if (!await publierAvantSuppressionDefinition()) return
-    const r = await window.sonal.corpus.supprimerCategorie(cible.id, ent.ouvertId.value ?? undefined)
-    if (r.ok) corpus.majCodebook(r.corpus.codebook)
-    themeASupprimer.value = null
+    await lancerOperationGlobale(async () => {
+      ent.retirerCodagesDuCode(cible.id)
+      if (!await publierAvantSuppressionDefinition()) return
+      const r = await window.sonal.corpus.supprimerCategorie(cible.id, ent.ouvertId.value ?? undefined)
+      if (r.ok) corpus.majCodebook(r.corpus.codebook)
+      themeASupprimer.value = null
+    })
   }
 
   const listeEntretiens = () =>
