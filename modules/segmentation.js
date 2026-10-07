@@ -827,6 +827,10 @@ function updateSegmentPositionInputs(segIndex, deb, fin) {
     
     let infos = infoSeg(seg); // récupération des infos sur le segment
 
+    if (!infos || !infos[0]) {
+        return;
+    }
+
     
 
     // retrait des sélecteurs partout
@@ -855,6 +859,9 @@ function updateSegmentPositionInputs(segIndex, deb, fin) {
 
     
     const conteneur = getSeg(seg) 
+    if (!conteneur) {
+        return;
+    }
     let locuteur = conteneur.dataset.loc;
     let rksg = Number(conteneur.dataset.rksg) +1 ;
  
@@ -959,10 +966,13 @@ function updateSegmentPositionInputs(segIndex, deb, fin) {
 }
 function infoSeg(seg){
  
-  
-  if (!seg){return}
+    if (seg === null || seg === undefined){return}
+
+        seg = Number(seg);
+        if (Number.isNaN(seg)) {return}
 
     const sg = getSeg(seg)
+        if (!sg) {return}
 
     var posdeb = Number(sg?.dataset?.deb ?? 0);
     var posfin = Number(sg?.dataset?.fin ?? 0);
