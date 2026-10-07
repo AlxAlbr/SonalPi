@@ -3138,7 +3138,7 @@ app.on('ready', () => {
  
       ]
     },
-     /*
+     
     {
       label: 'Édition',
       submenu: [
@@ -3149,7 +3149,7 @@ app.on('ready', () => {
         { role: 'paste', label: 'Coller' }
       ]
     }
-      */
+      
   ]
 
   const menu = Menu.buildFromTemplate(menuParDefaut)
