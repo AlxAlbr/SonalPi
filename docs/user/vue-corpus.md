@@ -7,14 +7,17 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 - **Pseudonymisation**, pour contrôler et appliquer les règles partagées ;
 - **Thèmes**, pour consulter le codebook et réorganiser ses codages ;
 - **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
-- **Journal**, pour annuler les actions récentes prises en charge dans le corpus ;
-- **Pas à pas**, lorsque le parcours de démonstration est actif.
+- **Journal**, pour annuler les actions récentes prises en charge dans le corpus.
 
-La recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
+Lorsque la découverte pas à pas est active, son parcours apparaît directement en tête de l’Accueil du corpus. Il indique la progression, les prérequis et l’étape en cours, et permet de commencer, continuer ou réessayer une étape. Dans ce mode, le rappel de recherche laisse sa place au parcours ; **Ctrl + F** reste disponible.
+
+Hors découverte pas à pas, la recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
 La barre d’outils supérieure donne aussi accès à **Docs cadre projet**, l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
 
-Les cartes d’entretiens restent visibles dans Accueil, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+Les cartes d’entretiens restent visibles dans Accueil et Journal. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+
+Dans un entretien du parcours, l’Accueil rappelle la progression et propose de revenir au parcours dans le corpus. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées.
 
 ## Chargement et actualisation
 

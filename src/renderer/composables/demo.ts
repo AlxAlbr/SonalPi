@@ -4,6 +4,7 @@ import type { CorpusFichier, EntretienRef, Locuteur, MarqueurDemo, Variable, Not
 import type { ModeDemo, EtatDemo } from '../../shared/format'
 export type { ModeDemo, EtatDemo }
 import type { Annotation } from '../../shared/entretien/annotation'
+import { etatPresentationParcours } from './parcoursPasAPas'
 
 /**
  *  Scope DÉMO « Mini Corpus Test » : construit puis ouvre des corpus de test,
@@ -52,6 +53,8 @@ export interface EtapePasAPas {
   cible: () => string | null
   fait: () => boolean
   texte: () => string
+  /** Contexte facultatif, repliable sans masquer l'instruction immédiate. */
+  explication?: () => string
   panneau?: boolean
   panneauAvecTrou?: boolean
   numCle?: string
@@ -61,13 +64,13 @@ export interface EtapePasAPas {
    *  ex. « Charger un entretien ») ; pas dans l'entretien comme les étapes d'édition. */
   retestCorpus?: boolean
   /** Message de FIN d'étape : après validation,
-   *  un petit texte de félicitation + la proposition d'enchaîner sur l'étape suivante (elle commence souvent par rouvrir le même entretien)
-   *  ; par défaut, la validation RENVOIE à l'écran Corpus, où le message s'affiche (sous les cartes). */
+   *  un petit texte de félicitation et la proposition d'enchaîner sur l'étape suivante.
+   *  Par défaut, la validation revient au parcours dans l'Accueil du corpus. */
   fini?: () => string
   /** `finiEnEntretien` : après validation d'une étape d'ÉDITION,
    *  on RESTE dans l'entretien (on ne renvoie pas au Corpus)
    *  et le message de fin s'affiche SOUS les onglets,
-   *  avec un bouton pour revenir à la liste « Pas à pas ».
+   *  avec un bouton pour voir le parcours dans le corpus.
    *  L'utilisateur peut ainsi continuer s'il le souhaite (ex. ré-écouter l'audio)
    *  plutôt que d'être ramené brutalement à l'écran Corpus. */
   finiEnEntretien?: boolean
@@ -77,11 +80,8 @@ export interface DepsDemo {
   appliquerCorpus: (c: CorpusFichier, dir?: string) => Promise<void>
   majDossierCourant: () => Promise<void>
   rafraichirRecents: () => Promise<void>
-  /** Retour à l'écran Corpus (ferme l'entretien, sauvegardé),
-   *  appelé après validation d'une étape :
-   *  on revient à la liste « Pas à pas » pour lancer la suivante,
-   *  sans l'enchaîner automatiquement. */
-  retourCorpus: () => Promise<void>
+  /** Affiche le parcours dans l'Accueil du corpus après une fermeture sécurisée. */
+  retourParcours: () => Promise<boolean>
   preparerBascule: () => Promise<void>
   vue: Ref<'accueil' | 'corpus' | 'entretien'>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
@@ -177,7 +177,7 @@ export function utiliserDemo(deps: DepsDemo) {
         ),
       texte: () => {
         if (!document.querySelector('.modale-ajout')) {
-          return `Vos sources sont dans « ${racineSources.value} ». Cliquez sur le bouton ci-dessus et suivez le guide.`
+          return `Cliquez sur « + Ajouter un entretien ». Les sources se trouvent dans « ${racineSources.value} ».`
         }
         if (!document.querySelector('.zone-texte .zone-fichier')) {
           return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/1Coordinatrice.srt"
@@ -185,7 +185,7 @@ export function utiliserDemo(deps: DepsDemo) {
         if (!document.querySelector('.zone-audio .zone-fichier')) {
           return "Bien ! Maintenant le fichier media : cliquez sur cette zone et sélectionnez audio/1Coordinatrice.mp3."
         }
-        return "Tout est prêt : cliquze sur « Valider » pour créer l'entretien."
+        return "Tout est prêt : cliquez sur « Valider » pour créer l'entretien."
       },
       retest: () => "charger d'autres entretiens",
       // L'action de cette étape vit dans le CORPUS (ajouter un entretien) :
@@ -264,20 +264,20 @@ export function utiliserDemo(deps: DepsDemo) {
         // Au Corpus : le geste est la modale d'ajout (zone son seule).
         if (deps.vue.value !== 'entretien') {
           if (!document.querySelector('.modale-ajout')) {
-            return "Vous rentrez d'un entretien dont la transcription (le SRT) n'est pas encore prête — l'audio, lui, est déjà là. Créez l'entretien audio seul : « + Ajouter un entretien », la zone transcription reste vide (elle se liera plus tard, étape 2b)."
+            return "Cliquez sur « + Ajouter un entretien » pour créer un entretien avec son audio seul."
           }
           if (!document.querySelector('.zone-audio .zone-fichier')) {
-            return "Dans la zone « Fichier son / vidéo » uniquement, choisissez audio/2RetraiteAnticipee.mp3 — aucun fichier de texte : la transcription arrive plus tard."
+            return "Dans « Fichier son / vidéo », choisissez audio/2RetraiteAnticipee.mp3 et laissez la zone de texte vide."
           }
-          return "Parfait : cliquez sur « Valider » — l'entretien se crée au texte vide, son audio est référencé, et on notera vos impressions à chaud dans la foulée."
+          return "Cliquez sur « Valider » pour créer l'entretien, puis ouvrez ses Notes."
         }
         // Dans l'entretien : la note à chaud, champ par champ.
         const modale = document.querySelector('.modale-note')
         if (!modale) {
           if (deps.ongletDroite.value !== 'notes') {
-            return "L'entretien « 2RetraiteAnticipee » est ouvert, créé avec l'audio seul : c'est votre retour d'entretien, la transcription (le SRT) n'est pas encore prête. Notez à chaud ce que vous avez en tête tant que c'est frais : ouvrez l'onglet Notes (icône note), indiqué ci-dessous. Quand le SRT sera prêt, vous le lierez à cet entretien depuis le panneau métadonnées de sa carte : « Assigner un srt… »."
+            return "Ouvrez l'onglet Notes pour consigner vos impressions à chaud."
           }
-          return 'Cliquez le bouton « + Note » pour créer la note à chaud.'
+          return 'Cliquez sur « + Note » pour créer la note à chaud.'
         }
         const titre = (modale.querySelector('.champ-titre-note input') as HTMLInputElement | null)
           ?.value?.trim()
@@ -288,8 +288,12 @@ export function utiliserDemo(deps: DepsDemo) {
         if (!corps) {
           return "Écrivez maintenant vos impressions à chaud dans le corps de la note : une hypothèse, un point à vérifier, l'ambiance du moment…"
         }
-        return "La note est complète : cliquez « Valider » pour l'enregistrer sur l'entretien."
+        return "La note est complète : cliquez sur « Valider » pour l'enregistrer."
       },
+      explication: () =>
+        deps.vue.value === 'entretien'
+          ? "Cet entretien a été créé avec l'audio seul. Vous lierez sa transcription depuis les métadonnées de sa carte à l'étape suivante."
+          : "Ce scénario représente un retour d'entretien : l'audio est disponible, mais la transcription n'est pas encore prête.",
       retest: () =>
         "ajouter un autre entretien audio seul et écrire une nouvelle note à chaud " +
         '(le retour d’entretien est déjà consigné)',
@@ -299,7 +303,7 @@ export function utiliserDemo(deps: DepsDemo) {
         'transcription. Prochaine étape : lier la transcription (SRT) à cet entretien.',
       // On RESTE dans l'entretien après la note (pas de retour brutal au Corpus) :
       // l'utilisateur peut continuer à écrire s'il le veut ;
-      // le message de fin s'affiche sous les onglets avec un bouton pour revenir à la liste « Pas à pas ».
+      // le message de fin s'affiche sous les onglets avec un bouton pour revoir le parcours.
       finiEnEntretien: true,
     },
     {
@@ -342,21 +346,23 @@ export function utiliserDemo(deps: DepsDemo) {
       },
       texte: () => {
         if (deps.vue.value === 'entretien') {
-          return "Votre note à chaud est enregistrée. Revenez au Corpus (bouton « ← Corpus ») pour lier la transcription : c'est dans le panneau métadonnées de l'entretien que vit « Assigner un srt… »."
+          return "Revenez au Corpus, puis sélectionnez la carte de l'entretien pour lier sa transcription."
         }
         const id2 = Object.entries(deps.membership.value).find(
           ([, r]) => r.titre === '2RetraiteAnticipee',
         )?.[0]
         if (deps.corpusSelId.value !== id2) {
-          return "Sélectionnez la carte « 2RetraiteAnticipee » : son panneau métadonnées s'ouvre à droite."
+          return "Sélectionnez la carte « 2RetraiteAnticipee » pour ouvrir son panneau de métadonnées."
         }
-        return "Cliquez « Assigner un srt… » puis choisissez srt/2RetraiteAnticipee.srt : la transcription et son découpage horodaté entrent dans l'entretien — vos notes et vos données sont préservées."
+        return "Cliquez sur « Assigner un srt… », puis choisissez srt/2RetraiteAnticipee.srt."
       },
+      explication: () =>
+        "La transcription et son découpage horodaté seront ajoutés sans modifier les notes ni les données de l'entretien.",
       retest: () => "lier la transcription d'un autre entretien (celle de 2RetraiteAnticipee est déjà posée)",
       retestCorpus: true,
       // L'action de cette étape vit dans le CORPUS (panneau métadonnées) ;
       // après validation on y est déjà,
-      // le message de fin s'affiche sous les cartes avec la proposition d'enchaîner.
+      // le message de fin s'affiche dans le parcours avec la proposition d'enchaîner.
       fini: () =>
         "La transcription est liée : le texte de « 2RetraiteAnticipee » et son découpage " +
         "horodaté sont en place, notes et données conservées. Prochaine étape : " +
@@ -379,8 +385,8 @@ export function utiliserDemo(deps: DepsDemo) {
         deps.locuteurs.value.every((l) => !l.nom.startsWith('Speaker')),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Clique l'onglet Locuteurs (icône locuteur), puis renomme dans ce panneau : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » — clique dans le nom, saisis, puis clique ailleurs (ou Entrée)."
-          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
+          ? "Ouvrez l'onglet Locuteurs, puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
+          : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
       fini: () =>
         "Les locuteurs ont un vrai nom — Fatima et l'enquêteur·rice sont identifiables, " +
@@ -404,8 +410,8 @@ export function utiliserDemo(deps: DepsDemo) {
       fait: () => deps.entretien.annotations.some((a) => a.type === 'codage'),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Clique l'onglet Thématiques (icône thème), sélectionne un passage du texte, puis clique un thème pour le coder (✏️ pour en créer un)."
-          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
+          ? "Ouvrez l'onglet Thématiques, sélectionnez un passage du texte, puis cliquez sur un thème pour le coder."
+          : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "ajouter ou retirer des annotations",
       fini: () =>
         "Première annotation posée : le passage est codé avec une thématique. " +
@@ -427,8 +433,8 @@ export function utiliserDemo(deps: DepsDemo) {
         deps.locuteurs.value.some((l) => Object.keys(l.valeursLoc).length > 0),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Clique l'onglet Données (icône données), puis remplis une valeur (ex. le lieu de l'entretien, en texte libre)."
-          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
+          ? "Ouvrez l'onglet Données, puis renseignez une valeur, par exemple le lieu de l'entretien."
+          : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "modifier ou compléter les valeurs saisies",
       fini: () =>
         "Variable saisie ! Vous avez parcouru tout le circuit — importer, noter, " +
@@ -441,6 +447,8 @@ export function utiliserDemo(deps: DepsDemo) {
   const etapeCouranteId = ref<string | null>(null)
   /** Ids des étapes déjà validées (cochées dans la liste). */
   const validees = ref<Set<string>>(new Set())
+  /** Progression partagée par les deux accueils et la liste du parcours. */
+  const etatParcours = computed(() => etatPresentationParcours(etapes, validees.value))
   /** Message « re-test » : une étape déjà validée est rouverte ;
    *  on l'annonce (texte propre à chaque étape) dans la vue où vit son action —
    *  l'entretien (étapes d'édition) ou le corpus (étapes de corpus, ex. « Charger un entretien ») —
@@ -522,8 +530,7 @@ export function utiliserDemo(deps: DepsDemo) {
   }
 
   // Validation automatique : quand l'étape courante devient `fait()`,
-  // on la coche et on revient à la liste « Pas à pas » (sans enchaîner sur l'étape suivante,
-  // l'utilisateur clique lui-même la suivante).
+  // on la coche et on revient au parcours du corpus sans lancer automatiquement la suite.
   // L'historique est mémorisé à chaque validation (il voyage avec le corpus).
   watch(
     () => etapeCourante.value?.fait() ?? false,
@@ -538,7 +545,7 @@ export function utiliserDemo(deps: DepsDemo) {
         const e = etapeCourante.value
         etapeCouranteId.value = null
         if (e?.retest) {
-          if (e.retestCorpus) await deps.retourCorpus()
+          if (e.retestCorpus && !(await deps.retourParcours())) return
           retestInfo.value = {
             titre: e.titre,
             suite: e.retest(),
@@ -558,11 +565,10 @@ export function utiliserDemo(deps: DepsDemo) {
       // Une étape d'ÉDITION (`finiEnEntretien`, ex. « Prendre des notes à chaud »)
       // ne renvoie PAS au Corpus ; on reste dans l'entretien,
       // où l'utilisateur peut continuer s'il le souhaite.
-      // Le message de fin s'y affiche (sous les onglets)
-      // avec un bouton pour revenir à la liste « Pas à pas ». Les autres (étapes de corpus)
-      // reviennent à l'écran Corpus comme avant.
+      // Le message de fin s'y affiche sous les onglets avec un bouton pour voir le parcours.
+      // Les autres étapes reviennent directement au parcours dans l'Accueil du corpus.
       const resterEnEntretien = !!e?.finiEnEntretien
-      if (!resterEnEntretien) await deps.retourCorpus()
+      if (!resterEnEntretien && !(await deps.retourParcours())) return
       // Fin d'étape : on félicite et on propose la suite, « ouvrir l'entretien (crayon)
       // ou enchaîner sur l'étape suivante »,
       // pour que l'utilisateur ne reste jamais sans savoir quoi faire.
@@ -703,8 +709,8 @@ export function utiliserDemo(deps: DepsDemo) {
         validees: historique,
       })
 
-      // 5. Appliquer le corpus (marqué) au modèle : restaure le mode (panneau « Pas à pas »)
-      // et l'historique des étapes.
+      // 5. Appliquer le corpus marqué au modèle.
+      // Cette opération restaure le parcours dans l'Accueil et son historique.
       const c = await window.sonal.corpus.ouvrir()
       await deps.appliquerCorpus(c, dossierCorpus)
       deps.vue.value = 'corpus'
@@ -764,6 +770,11 @@ export function utiliserDemo(deps: DepsDemo) {
     marqueur: MarqueurDemo | undefined,
     dir: string | null,
   ): Promise<void> {
+    // Aucun guidage ni message ne traverse un changement de corpus.
+    etapeCouranteId.value = null
+    retestInfo.value = null
+    finiInfo.value = null
+    validees.value = new Set()
     if (!marqueur || !dir) {
       pasAPas.value = false
       return
@@ -797,6 +808,7 @@ export function utiliserDemo(deps: DepsDemo) {
     etapeCouranteId,
     etapeCourante,
     validees,
+    etatParcours,
     retestInfo,
     finiInfo,
     activer,

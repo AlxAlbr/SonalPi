@@ -236,9 +236,10 @@ export function useOperationsCorpus(deps: {
   async function ajouterEntretien(
     texte: { nom: string; contenu: string } | null,
     audioChemin: string | null,
-    options: { ouvrir?: boolean } = {},
+    options: { ouvrir?: boolean; titreVide?: string } = {},
   ): Promise<void> {
-    if (!texte && !audioChemin) return
+    const titreVide = options.titreVide?.trim()
+    if (!texte && !audioChemin && !titreVide) return
     let id: string
     if (texte) {
       const importe = importerFichier(texte.nom, texte.contenu, (html) =>
@@ -261,7 +262,9 @@ export function useOperationsCorpus(deps: {
       id = resultat.id
     } else {
       await deps.entretien.sauver()
-      const titre = audioChemin!.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
+      const titre = audioChemin
+        ? audioChemin.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
+        : titreVide!
       const resultat = await window.sonal.corpus.creerEntretienVide(titre)
       deps.corpus.membership.value = resultat.corpus.membership
       deps.corpus.perimerScanAnon()

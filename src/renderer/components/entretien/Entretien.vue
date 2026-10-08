@@ -163,6 +163,9 @@ function ouvrirRecueilsDepuisSelection() {
             </button>
           </nav>
 
+          <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
+          <div data-tour="ancre-guide-pp"></div>
+
           <PanneauAccueilEntretien v-show="ongletDroite === 'maison'" />
 
           <PanneauThemesEntretien
@@ -196,11 +199,6 @@ function ouvrirRecueilsDepuisSelection() {
             :actif="ongletDroite === 'anon'"
             :lecture-seule-contenu="roContenu"
           />
-
-          <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de l'étape (ex. « Prendre des notes à chaud »)
-               s'affiche EN BAS de la colonne de gauche, sous le panneau de l'onglet actif.
-               Pas en haut, ni en bulle flottante sur le texte. -->
-          <div data-tour="ancre-guide-pp"></div>
         </div>
 
         <!-- Colonne DROITE : en audio, lecteur (barre d'écoute + waveform)

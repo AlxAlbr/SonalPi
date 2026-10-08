@@ -14,8 +14,8 @@ En mode découverte pas à pas, afficher dans cet ordre :
 
 1. Le titre et la courte introduction du corpus.
 2. Un bloc « Découverte pas à pas », à l’emplacement actuel du rappel Ctrl+F / Cmd+F.
-3. Le rappel du raccourci de recherche, conservé mais visuellement secondaire.
-4. La présentation des outils existants.
+     Le rappel du raccourci de recherche est alors enlevé
+3. La présentation des outils existants.
 
 Le bloc du parcours contient :
 

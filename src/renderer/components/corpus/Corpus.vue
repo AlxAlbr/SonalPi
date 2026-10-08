@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from '../themes/EditionThemes.vue'
 import MenuTheme from '../themes/MenuTheme.vue'
-import PasAPas from './PasAPas.vue'
+import ParcoursPasAPas from './ParcoursPasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
@@ -26,10 +26,11 @@ import icoJournal from '../../assets/icones/journal.png'
 // Icônes des onglets, spécifiques au Corpus.
 import icoPersonnes from '../../assets/icones/personnes.png'
 import icoNotes from '../../assets/icones/notes.png'
-import icoPasAPas from '../../assets/icones/pas-a-pas.svg'
 
 const {
   vue,
+  revisionCorpus,
+  enregistrerNavigationParcours,
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
   codebook,
   usages,
@@ -150,8 +151,9 @@ function basculerRepli(id: string) {
   repliesThemes.value = s
 }
 
-type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon' | 'journal' | 'pas-a-pas'
+type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon' | 'journal'
 const ongletCorpus = ref<OngletCorpus>('accueil')
+const parcours = ref<InstanceType<typeof ParcoursPasAPas> | null>(null)
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
 async function choisirOnglet(onglet: OngletCorpus) {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return
@@ -161,9 +163,21 @@ async function choisirOnglet(onglet: OngletCorpus) {
   ongletCorpus.value = onglet
   if (onglet === 'donnees') await rafraichirMatrice()
 }
-watch(pasAPas, (v) => {
-  if (v) void choisirOnglet('pas-a-pas')
+// Un changement de corpus doit aussi ramener l'Accueil.
+// Cela couvre deux corpus de découverte ouverts successivement.
+watch([pasAPas, revisionCorpus], ([actif]) => {
+  if (actif) void choisirOnglet('accueil')
 })
+
+async function afficherParcours(): Promise<boolean> {
+  await choisirOnglet('accueil')
+  if (ongletCorpus.value !== 'accueil') return false
+  deselectionnerCorpus()
+  extraitAffiche.value = null
+  await nextTick()
+  await parcours.value?.mettreEnVue()
+  return true
+}
 
 // Recherche plein texte du corpus, accessible au clavier.
 const champRecherche = ref<HTMLInputElement | null>(null)
@@ -191,8 +205,15 @@ function raccourciRecherche(event: KeyboardEvent) {
     fermerRecherche()
   }
 }
-onMounted(() => window.addEventListener('keydown', raccourciRecherche))
-onUnmounted(() => window.removeEventListener('keydown', raccourciRecherche))
+let arreterNavigationParcours: (() => void) | null = null
+onMounted(() => {
+  window.addEventListener('keydown', raccourciRecherche)
+  arreterNavigationParcours = enregistrerNavigationParcours(afficherParcours)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', raccourciRecherche)
+  arreterNavigationParcours?.()
+})
 const requete = ref('')
 const motEntier = ref(false)
 const resultats = ref<ResultatRecherche[]>([])
@@ -258,9 +279,7 @@ const libelleOnglet = computed(() =>
     ? 'Recherche'
     : ongletCorpus.value === 'journal'
       ? 'Journal'
-      : ongletCorpus.value === 'pas-a-pas'
-        ? 'Pas à pas'
-        : 'Thèmes',
+      : 'Thèmes',
 )
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE,
@@ -309,18 +328,15 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button data-onglet="journal" :class="{ actif: ongletCorpus === 'journal' }" title="Journal" aria-label="Journal" :aria-current="ongletCorpus === 'journal' ? 'page' : undefined" @click="choisirOnglet('journal')"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
-        <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" title="Pas à pas" aria-label="Pas à pas" :aria-current="ongletCorpus === 'pas-a-pas' ? 'page' : undefined" @click="choisirOnglet('pas-a-pas')"><img class="ico-onglet-corpus" :src="icoPasAPas" alt="" /></button>
         <button class="btn-export-corpus" title="Exporter ce corpus" aria-label="Exporter ce corpus" @click="ouvrirExportCorpus">Exporter ce corpus</button>
       </nav>
 
+      <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
+      <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
+
       <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes' }">
-        <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas,
-             puis bascule Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
+        <!-- Colonne gauche : accueil, outils ou métadonnées de l'entretien sélectionné. -->
         <aside class="colonne-g-corpus">
-          <!-- Onglets de la colonne gauche : Thèmes / Recherche,
-               + Pas à pas en mode démo, toujours visibles. -->
-
-
           <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
                reste en vue Corpus, affiche le contexte de l'occurrence ;
                bouton pour ouvrir l'entretien si besoin.
@@ -342,9 +358,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           </div>
 
           <!-- Entretien sélectionné → ses métadonnées (nom éditable + infos).
-               Indépendant de l'onglet actif : visible sur Thèmes, Recherche et
-               Pas à pas ; le bouton retour referme la sélection et rend son
-               panneau à l'onglet en cours. -->
+               Le bouton retour referme la sélection et rend son panneau à
+               l'onglet en cours. -->
           <div v-if="corpusSelId" class="panneau meta-ent">
             <div class="corpus-tete">
               <h3>Entretien</h3>
@@ -448,8 +463,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <div class="corpus-tete">
               <h3>Corpus</h3>
             </div>
-            <p class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
-            <p class="raccourci">
+            <p v-if="!pasAPas" class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
+            <ParcoursPasAPas v-if="pasAPas" ref="parcours" />
+            <p v-else class="raccourci">
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
             <ul class="accueil-outils">
@@ -459,7 +475,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></li>
               <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoJournal" alt="" /><span><b>Journal</b> — annuler les actions récentes prises en charge depuis les outils du corpus.</span></li>
-              <li v-if="pasAPas"><img :src="icoPasAPas" alt="" /><span><b>Pas à pas</b> — suivre le parcours guidé.</span></li>
             </ul>
           </div>
 
@@ -541,11 +556,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           </div>
 
           <PanneauJournalCorpus v-else-if="ongletCorpus === 'journal'" :actif="ongletCorpus === 'journal'" />
-
-          <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global,
-               téléporté en body → visible dans n'importe quelle vue.
-               La liste est masquée selon l'onglet, le spotlight reste actif. -->
-          <PasAPas v-if="pasAPas" :montre-liste="ongletCorpus === 'pas-a-pas'" />
         </aside>
 
         <ThemesOpsCorpus v-show="ongletCorpus === 'themes'" :actif="ongletCorpus === 'themes'" />
@@ -566,11 +576,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <AjoutEntretien v-if="ajoutEntretienPossible" />
             </span>
           </div>
-          <!-- Ancre du message « re-test » du pas-à-pas :
-               pour une étape de niveau CORPUS (ex. « Charger un entretien »),
-               le message « déjà réalisée » s'affiche ici, à côté des cartes,
-               et non dans l'éditeur. -->
-          <div data-tour="ancre-retest-pp"></div>
           <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
                même idiome de bannière que thèmes et locuteurs). -->
           <div v-if="entretienASupprimer" class="confirm-suppr">
@@ -1346,6 +1351,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #666;
   font-size: 0.82rem;
   line-height: 1.35;
+}
+.accueil-corpus :deep(.pas-a-pas) {
+  border-color: #a9c5e8;
+  background: #f8fbff;
+  margin-top: 0.7rem;
 }
 .raccourci {
   background: #fff8e1;

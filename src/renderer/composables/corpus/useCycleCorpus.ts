@@ -142,6 +142,8 @@ export function useCycleCorpus(deps: {
 
   async function appliquerCorpus(corpus: CorpusFichier, dir?: string): Promise<void> {
     revisionCorpus.value++
+    // Le guidage de l'ancien corpus s'arrête avant les relectures asynchrones.
+    await deps.effets.raccrocherModeCorpus(undefined, null)
     deps.entretien.reinitialiser()
     deps.audio.charger(null, null)
     if (dir) dossierCourantDir.value = dir

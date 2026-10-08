@@ -35,7 +35,7 @@ export function creerSonal() {
   let sauverEntretien: () => Promise<void> = async () => {}
   let publierAvantSuppressionDefinition: () => Promise<boolean> = async () => true
   // Indirection pour casser un cycle de dépendances :
-  //     `appliquerCorpus` doit restaurer le mode démo (panneau « Pas à pas ») quand le corpus ouvert porte un marqueur `demo`,
+  //     `appliquerCorpus` doit restaurer le parcours quand le corpus ouvert porte un marqueur `demo`,
   //     mais le scope demo est créé APRÈS (il injecte `appliquerCorpus`).
   //     Même patron que `sauverEntretien` : holder réaffecté.
   let raccrocherModeCorpus: (
@@ -122,6 +122,17 @@ export function creerSonal() {
 
   // --- Navigation : Accueil → Corpus → Entretien. ---
   const vue = ref<'accueil' | 'corpus' | 'entretien'>('corpus')
+
+  // La vue Corpus enregistre le gestionnaire de cette navigation.
+  // Lui seul sélectionne son Accueil en respectant les gardes locales.
+  type GestionnaireParcours = () => Promise<boolean>
+  let gestionnaireParcours: GestionnaireParcours | null = null
+  function enregistrerNavigationParcours(gestionnaire: GestionnaireParcours): () => void {
+    gestionnaireParcours = gestionnaire
+    return () => {
+      if (gestionnaireParcours === gestionnaire) gestionnaireParcours = null
+    }
+  }
 
   const selectionCorpus = useSelectionCorpus({
     variables: corpus.variables,
@@ -524,6 +535,20 @@ export function creerSonal() {
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
+  // La navigation dédiée ferme d'abord l'entretien avec le chemin sécurisé.
+  // La vue Corpus applique ensuite sa garde et met le parcours en vue.
+  async function voirParcours(): Promise<boolean> {
+    if (vue.value === 'entretien') {
+      try {
+        await retourCorpus()
+      } catch {
+        return false
+      }
+    }
+    if (vue.value !== 'corpus' || !gestionnaireParcours) return false
+    return gestionnaireParcours()
+  }
+
   // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un dossier choisi
   // via le vrai pipeline d'import.
   // Dépendances injectées pour casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
@@ -531,7 +556,7 @@ export function creerSonal() {
     appliquerCorpus,
     majDossierCourant: profil.majDossierCourant,
     rafraichirRecents: profil.rafraichirRecents,
-    retourCorpus,
+    retourParcours: voirParcours,
     preparerBascule,
     vue,
     membership: corpus.membership,
@@ -546,8 +571,7 @@ export function creerSonal() {
     corpusSelId,
     corpusSelMeta,
   })
-  // Branche le holder : `appliquerCorpus` restaure désormais le mode démo
-  // (panneau « Pas à pas ») quand le corpus ouvert est un corpus démo.
+  // Le holder restaure le mode démo des corpus qui portent son marqueur.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
   racineSourcesDemo = () => demo.racineSources.value
 
@@ -743,6 +767,8 @@ export function creerSonal() {
     retourCorpus,
     allerAccueil,
     ouvrirEntretien,
+    voirParcours,
+    enregistrerNavigationParcours,
     entretienEditable,
     divergenceProposee,
     confirmerFusion,

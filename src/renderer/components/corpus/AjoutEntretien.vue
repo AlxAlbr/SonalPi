@@ -6,12 +6,13 @@ import { EXT_MEDIA } from '../../../shared/media'
 /**
  * « + Ajouter un entretien » — LE point d'entrée unique : une modale à DEUX
  * zones (fichier d'entretien / fichier son), chacune cliquable (dialogue
- * filtré) ou en glisser-déposer ; Valider actif dès qu'UNE zone est remplie.
- * Texte seul = import ; texte+audio = import + assignation ; audio seul =
- * entretien au texte vide à taper (pas de création « vierge » sans fichier).
+ * filtré) ou en glisser-déposer. Texte seul = import ; texte+audio = import
+ * avec assignation ; audio seul = entretien à transcrire ; sans fichier =
+ * entretien vide pour commencer à prendre des notes.
  */
 const {
   ajouterEntretien,
+  membership,
   racineSources,
   verifierChargementEtape1,
   verifierChargementEtape2,
@@ -27,7 +28,7 @@ const {
 // le signal partagé est consommé puis remis à zéro.
 watch(demandeAjoutEntretien, (demande) => {
   if (demande) {
-    ouverte.value = true
+    ouvrir()
     demandeAjoutEntretien.value = false
   }
 })
@@ -49,6 +50,7 @@ const message = ref<string | null>(null)
 const survolTexte = ref(false)
 const survolAudio = ref(false)
 const enCours = ref(false)
+const titreVide = ref('Nouvel entretien')
 /** Titre du nouvel entretien créé avant le choix de son média distant. */
 const titreDistant = ref('')
 
@@ -83,11 +85,20 @@ async function creerAvecMediaDistant() {
   }
 }
 
+function titreVideParDefaut(): string {
+  const titres = new Set(Object.values(membership.value).map((entretien) => entretien.titre))
+  if (!titres.has('Nouvel entretien')) return 'Nouvel entretien'
+  let numero = 2
+  while (titres.has(`Nouvel entretien ${numero}`)) numero++
+  return `Nouvel entretien ${numero}`
+}
+
 function ouvrir() {
   texte.value = null
   audioChemin.value = null
   audioNom.value = null
   message.value = null
+  titreVide.value = titreVideParDefaut()
   titreDistant.value = ''
   enCours.value = false
   ouverte.value = true
@@ -162,7 +173,10 @@ async function valider() {
     // Pendant le geste guidé de l'étape 1 du pas-à-pas, on n'ouvre PAS
     // l'entretien : la validation affiche « étape terminée » au Corpus (c'est
     // l'étape suivante qui ouvrira l'entretien).
-    await ajouterEntretien(texte.value, audioChemin.value, { ouvrir: ouvrirApresImport() })
+    await ajouterEntretien(texte.value, audioChemin.value, {
+      ouvrir: ouvrirApresImport(),
+      titreVide: titreVide.value.trim(),
+    })
     fermer()
   } catch (err) {
     message.value = err instanceof Error ? err.message : String(err)
@@ -210,8 +224,12 @@ async function valider() {
           <div v-if="audioNom" class="zone-fichier">{{ audioNom }}</div>
         </div>
 
+        <label v-if="!texte && !audioChemin" class="titre-vide">
+          <span>Titre du nouvel entretien</span>
+          <input v-model="titreVide" autofocus @keyup.enter="valider" />
+        </label>
         <p class="aide-ajout">
-          Audio seul : crée un entretien au texte vide, à transcrire dans l'éditeur.
+          Sans fichier : commencez par les notes. Vous pourrez assigner l'audio et la transcription plus tard.
         </p>
         <p v-if="audioChemin" class="note-ref-audio">
           L'audio est <strong>référencé, pas copié</strong> : le fichier d'origine doit rester à cet endroit.
@@ -244,7 +262,7 @@ async function valider() {
           <button
             class="valider"
             data-tour="valider"
-            :disabled="(!texte && !audioChemin) || enCours"
+            :disabled="(!texte && !audioChemin && !titreVide.trim()) || enCours"
             @click="valider"
           >
             {{ enCours ? 'Ajout…' : 'Valider' }}
@@ -319,10 +337,23 @@ async function valider() {
   border-radius: 5px;
   padding: 0.25rem 0.4rem;
 }
+.titre-vide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #555;
+  font-size: 0.78rem;
+}
+.titre-vide input {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+}
 .aide-ajout {
   margin: 0;
   font-size: 0.72rem;
-  color: #999;
+  color: #777;
 }
 /* Choix d'un média déjà présent sur le stockage distant. */
 .bloc-distant {

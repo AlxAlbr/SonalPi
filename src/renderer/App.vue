@@ -14,6 +14,7 @@ import DocsCadreModale from './components/app/DocsCadreModale.vue'
 import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
 import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
+import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -86,6 +87,9 @@ const {
     <Corpus v-show="vue === 'corpus'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
+
+    <!-- Une seule instance accompagne le parcours dans les vues qui fournissent ses ancres. -->
+    <GuidagePasAPas />
 
     <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
          téléporté, ne s'affiche QUE si la liste est non vide. -->

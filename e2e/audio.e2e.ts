@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readdirSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus } from './util'
+import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus, retourCorpus } from './util'
 
 /**
  *  Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
@@ -222,9 +222,9 @@ test('S6 rev. : AUDIO SEUL dans la modale → entretien au texte vide (à taper)
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [args.wav] })
   }, { wav })
 
-  // La modale n'autorise pas Valider à vide ; l'audio seul suffit.
+  // L'audio seul suffit et masque le titre proposé pour un entretien sans fichier.
   await page.locator('.ajout-ent').click()
-  await expect(page.locator('.modale-ajout .valider')).toBeDisabled()
+  await expect(page.locator('.modale-ajout .valider')).toBeEnabled()
   await page.locator('.zone-audio').click()
   await expect(page.locator('.zone-audio .zone-fichier')).toContainText('a-transcrire.wav')
   await page.locator('.modale-ajout .valider').click()
@@ -239,6 +239,34 @@ test('S6 rev. : AUDIO SEUL dans la modale → entretien au texte vide (à taper)
   await page.locator('.editeur').click()
   await page.keyboard.type('Début de transcription.')
   await expect(page.locator('.editeur')).toContainText('Début de transcription.')
+
+  await app.close()
+})
+
+test('entretien sans fichier : création immédiate pour prendre des notes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-vide-'))
+  const app = await lancer(dir)
+  const page = await app.firstWindow()
+  await entrerCorpus(page)
+
+  await page.locator('.ajout-ent').click()
+  const titre = page.locator('.titre-vide input')
+  await expect(titre).toHaveValue('Nouvel entretien')
+  await titre.fill('Notes avant collecte')
+  await expect(page.locator('.modale-ajout .valider')).toBeEnabled()
+  await page.locator('.modale-ajout .valider').click()
+
+  await expect(page.locator('.editeur')).toBeVisible()
+  await expect(page.locator('.fil .lien-nav.courant')).toContainText('Notes avant collecte')
+  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await expect(page.locator('[data-tour="creer-note"]')).toBeVisible()
+
+  await retourCorpus(page)
+  await page.locator('.carte-ent', { hasText: 'Notes avant collecte' }).click()
+  await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('—')
+  await expect(page.locator('.meta-infos li', { hasText: 'Srt' })).toContainText('—')
+  await expect(page.getByRole('button', { name: 'Assigner un audio…', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Assigner un srt…', exact: true })).toBeVisible()
 
   await app.close()
 })

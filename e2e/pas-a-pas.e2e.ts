@@ -6,8 +6,8 @@ import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, retourCorpus
 
 /**
  *  Pas-à-pas : depuis l'Accueil, « Découverte pas à pas » passe par la modale à
- *  deux dossiers puis démarre sur un corpus vide + active l'onglet « Pas à pas »
- *  avec un spotlight. Les 5 étapes se valident en observant le modèle réactif.
+ *  deux dossiers puis démarre sur un corpus vide, dans l'Accueil du corpus,
+ *  avec un spotlight. Les six étapes se valident en observant le modèle réactif.
  *
  *  L'étape 1 pointe le VRAI bouton « + Ajouter un entretien » (attribut
  *  data-tour posé sur le bouton lui-même) : la bulle se cale à côté. Le geste
@@ -48,6 +48,8 @@ async function preparerPasAPas(
   await page.locator('.modale-demo .valider').click()
   await attendreCorpus(page)
   await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
+  await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
 }
 
@@ -119,7 +121,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // le guidage s'ARRÊTE (pas d'enchaînement automatique).
   // Nouveau comportement (retour utilisateur) : l'import guidé n'ouvre PAS l'entretien ;
   // on reste au Corpus.
-  // Le message « étape terminée ✓ » s'affiche sous les cartes.
+  // Le message « étape terminée ✓ » s'affiche dans le parcours.
   // L'étape 2 ouvrira l'entretien (elle commence par le crayon de la carte).
   await expect(page.locator('.carte-ent')).toHaveCount(1)
   await expect(page.locator('.corpus-ecran')).toBeVisible()
@@ -166,7 +168,10 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 5_000 })
   await expect(page.locator('.guide-pp')).toBeVisible()
   await expect(page.locator('.guide-pp')).toContainText('à chaud')
-  await expect(page.locator('.guide-pp')).toContainText('Assigner un srt')
+  await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('.guide-pp .details-pp').click()
+  await expect(page.locator('.guide-pp')).toContainText('transcription')
+  await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'true')
   await spotlightSur(page, '[data-tour="onglet-notes"]')
   // Le geste réel, guidé champ par champ : onglet Notes, « + Note », titre,
   // corps, puis Valider — le trou suit chaque cible.
@@ -184,7 +189,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // Le second entretien est en place (audio référencé) et une note existe →
   // étape 2 cochée, la consigne-panneau disparaît. On RESTE dans l'entretien —
   // pas de retour automatique à l'écran Corpus : le message « terminé »
-  // s'affiche SOUS les onglets, avec un bouton pour revenir à la liste « Pas à pas ».
+  // s'affiche sous les onglets, avec un bouton pour revoir le parcours dans le corpus.
   await expect(page.locator('.liste-pp li').nth(1)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.guide-pp')).toHaveCount(0)
   await expect(page.locator('.fini-pp')).toBeVisible()
@@ -208,15 +213,17 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   }, join(dirSources, 'srt', '2RetraiteAnticipee.srt'))
   await page.locator('.panneau.meta-ent .assigner-srt').click()
   // Le SRT est importé (le panneau signale « Srt : lié ») → étape 3 cochée,
-  // message de fin sous les cartes.
+  // message de fin dans le parcours.
   await expect(page.locator('.liste-pp li').nth(2)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
   await expect(page.locator('.fini-pp')).toBeVisible()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.panneau.meta-ent')).toHaveCount(0)
+  await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
 
   // --- Étape 4 : Renommer les locuteurs (lancée AU CLIC) ---
   // L'entretien s'ouvre sur l'ACCUEIL (vue d'ensemble + conseils).
-  // La consigne devient un PANNEAU en bas de la colonne (la bulle recouvrait le 2ᵉ champ).
+  // La consigne devient un panneau sous les onglets, avant le panneau métier.
   // Aucun trou : les deux champs de nom restent accessibles.
   // Le geste commence par l'onglet Locuteurs (icone) : on le clique pour afficher la liste.
   await page.locator('.liste-pp li').nth(3).locator('.ligne-pp').click()
@@ -226,8 +233,28 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp')).toBeVisible()
   await expect(page.locator('.guide-pp')).toContainText('Renommer les locuteurs')
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
+
+  // L'Accueil de l'entretien ne duplique pas la liste.
+  // Son bouton ferme l'entretien et remet le parcours au premier plan avec le focus clavier.
+  await page.locator('.onglets button[data-onglet="maison"]').click()
+  await expect(page.locator('.rappel-parcours')).toContainText('Renommer les locuteurs')
+  await page.getByRole('button', { name: 'Voir le parcours dans le corpus' }).click()
+  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.getByTestId('parcours-pas-a-pas')).toBeFocused()
+  await expect(page.locator('.liste-pp li').nth(3)).toHaveClass(/actif/)
+  await page.locator('.carte-ent .crayon').first().click()
+  await expect(page.locator('.guide-pp')).toBeVisible()
+
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+  await expect(page.locator('.guide-pp')).toBeVisible()
   await expect(page.locator('.liste-loc')).toBeVisible()
+  await expect.poll(async () =>
+    page.locator('[data-tour="ancre-guide-pp"]').evaluate((ancre) => {
+      const guide = ancre.querySelector('.guide-pp')
+      const liste = document.querySelector('.liste-loc')
+      return !!guide && !!liste && Boolean(guide.compareDocumentPosition(liste) & Node.DOCUMENT_POSITION_FOLLOWING)
+    }),
+  ).toBe(true)
   // Ordre d'affichage = ordre d'apparition dans le SRT : Speaker 1 (l'ingénieure,
   // qui pose les questions) est la 1re ligne, Speaker 0 (Fatima) la 2ᵉ.
   const champs = page.locator('.nom-loc')
@@ -237,7 +264,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await champs.nth(1).fill('Fatima')
   await champs.nth(1).blur()
   // Plus aucun « Speaker N » → étape 4 cochée (guidage de nouveau arrêté).
-  // Retour AUTOMATIQUE à la liste « Pas à pas ».
+  // Retour automatique au parcours dans l'Accueil du corpus.
   await expect(page.locator('.liste-pp li').nth(3)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
   await expect(page.locator('.corpus-ecran')).toBeVisible()
@@ -256,7 +283,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await page.locator('.onglets button[data-onglet="themes"]').click()
   await page.locator('.theme-coder').first().click()
   // Une annotation de codage existe → étape 5 cochée (guidage de nouveau arrêté)
-  // et retour AUTOMATIQUE à la liste « Pas à pas ».
+  // et retour automatique au parcours dans l'Accueil du corpus.
   await expect(page.locator('.liste-pp li').nth(4)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
   await expect(page.locator('.corpus-ecran')).toBeVisible()
@@ -294,7 +321,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp.retest')).toBeVisible()
   await expect(page.locator('.guide-pp.retest')).toContainText('déjà')
   await expect(page.locator('.guide-pp.retest')).toContainText('re-renommer les locuteurs')
-  // Le bouton du message ramène à la liste « Pas à pas » (et l'efface).
+  // Le bouton du message ramène au parcours dans le corpus et efface le message.
   await page.locator('.guide-pp.retest button').click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.guide-pp.retest')).toHaveCount(0)
@@ -342,7 +369,7 @@ test('pas-à-pas : l’étape 1 par le geste RÉEL — la vraie modale « + Ajou
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
   // On RESTE au Corpus (l'import guidé n'ouvre pas l'entretien).
   // C'est l'étape suivante qui l'ouvrira : le message « étape terminée ✓ »
-  // s'affiche sous les cartes, avec un bouton pour enchaîner.
+  // s'affiche dans le parcours, avec un bouton pour enchaîner.
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.editeur')).not.toBeVisible()
   await expect(page.locator('.fini-pp')).toBeVisible()
@@ -357,7 +384,7 @@ test('pas-à-pas : l’étape 1 par le geste RÉEL — la vraie modale « + Ajou
   await app.close()
 })
 
-test('réouverture par « Récents » : le panneau ET l\'historique des étapes sont restaurés', async () => {
+test('réouverture par « Récents » : le parcours et l\'historique des étapes sont restaurés', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-'))
   const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-sources-'))
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-corpus-'))
@@ -403,7 +430,9 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
   await attendreCorpus(page)
   await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
   await expect(page.locator('.onglets-corpus')).toBeVisible()
+  await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
   await expect(page.locator('.liste-pp li')).toHaveCount(6)
+  await expect(page.getByTestId('continuer-parcours')).toContainText('Continuer')
   // Étape 1 cochée (mémorisée + re-dérivée du modèle — un entretien existe) ;
   // les étapes 2 à 6 ne sont pas faites. Le spotlight reste inactif.
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })

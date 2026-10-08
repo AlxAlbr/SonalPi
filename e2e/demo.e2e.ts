@@ -85,6 +85,8 @@ test('« En autonomie » : corpus créé dans le dossier choisi, sources copiée
     '3Cuisinier',
     '4Etudiants',
   ])
+  await expect(page.getByTestId('parcours-pas-a-pas')).toHaveCount(0)
+  await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F')
 
   // (i) Les sources sont COPIÉES dans le dossier choisi (srt/ + audio/ intacts).
   await expect
@@ -135,7 +137,10 @@ test('« Découverte pas à pas » démarre sur un corpus VIDE, marqué pas-a-pa
 
   // Mode pas-à-pas : corpus amorcé VIDE (les étapes rempliront) — 0 entretien.
   await expect(page.locator('.carte-ent')).toHaveCount(0)
-  // Marqué pas-a-pas (le panneau sera restauré à la réouverture).
+  await expect(page.getByTestId('parcours-pas-a-pas')).toBeVisible()
+  await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
+  await expect(page.locator('.accueil-corpus .raccourci')).toHaveCount(0)
+  // Marqué pas-a-pas (le parcours sera restauré à la réouverture).
   const marqueur = marqueurDemo(dirCorpus)
   expect(marqueur?.mode).toBe('pas-a-pas')
   expect(marqueur?.racineSources).toBe(dirSources)
