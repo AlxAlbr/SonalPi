@@ -2475,12 +2475,12 @@ function cheminExemplesDocsCadre(): string {
 const CLEFS_SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants']
 
 /** Présence RÉELLE des sources de démo : les 8 fichiers (4 SRT + 4 MP3)
- *  doivent exister, jamais seulement le dossier ; invariant « présence ≠
- *  existence » (docs/dev/ouverture-corpus.md §4). */
+ *  ainsi que le guide d'entretien du parcours de préparation doivent exister. */
 function sourcesCompletes(racine: string): boolean {
   return (
     CLEFS_SOURCES.every((k) => existsSync(join(racine, 'srt', `${k}.srt`))) &&
-    CLEFS_SOURCES.every((k) => existsSync(join(racine, 'audio', `${k}.mp3`)))
+    CLEFS_SOURCES.every((k) => existsSync(join(racine, 'audio', `${k}.mp3`))) &&
+    existsSync(join(racine, 'docs', 'Guide-entretien-demo.txt'))
   )
 }
 
@@ -2522,7 +2522,7 @@ function enregistrerIpcDemo(): void {
 
   /** Mémoire démo persistée dans `settings.json` (niveau profil).
    *  Lit les dossiers mémorisés et leur présence réelle sur disque, par contenu :
-   *  sources = les 8 fichiers ; corpus de test = marqueur `demo` du mode attendu.
+   *  sources = les 9 fichiers ; corpus de test = marqueur `demo` du mode attendu.
    *  `null` = jamais préparé (ou enregistrement corrompu).
    *  La modale adapte ses questions : une réponse déjà en place est sautée. */
   ipcMain.handle('demo:etat', (): EtatDemoComplet | null => {

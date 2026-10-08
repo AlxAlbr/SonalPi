@@ -16,6 +16,7 @@ import { useTableauBordCorpus } from './corpus/useTableauBordCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
+import type { DestinationGuide } from './parcours/types'
 import {
   installerOperationGlobaleCorpus,
   lancerOperationGlobale,
@@ -125,7 +126,10 @@ export function creerSonal() {
 
   // La vue Corpus enregistre le gestionnaire de cette navigation.
   // Lui seul sélectionne son Accueil en respectant les gardes locales.
-  type GestionnaireParcours = () => Promise<boolean>
+  type GestionnaireParcours = (
+    parcoursId?: import('../../shared/format').ParcoursId,
+    afficherCatalogue?: boolean,
+  ) => Promise<boolean>
   let gestionnaireParcours: GestionnaireParcours | null = null
   function enregistrerNavigationParcours(gestionnaire: GestionnaireParcours): () => void {
     gestionnaireParcours = gestionnaire
@@ -537,7 +541,7 @@ export function creerSonal() {
 
   // La navigation dédiée ferme d'abord l'entretien avec le chemin sécurisé.
   // La vue Corpus applique ensuite sa garde et met le parcours en vue.
-  async function voirParcours(): Promise<boolean> {
+  async function voirParcours(parcoursId?: import('../../shared/format').ParcoursId): Promise<boolean> {
     if (vue.value === 'entretien') {
       try {
         await retourCorpus()
@@ -546,7 +550,21 @@ export function creerSonal() {
       }
     }
     if (vue.value !== 'corpus' || !gestionnaireParcours) return false
-    return gestionnaireParcours()
+    return gestionnaireParcours(parcoursId, true)
+  }
+
+  async function retourAccueilParcours(
+    parcoursId?: import('../../shared/format').ParcoursId,
+  ): Promise<boolean> {
+    if (vue.value === 'entretien') {
+      try {
+        await retourCorpus()
+      } catch {
+        return false
+      }
+    }
+    if (vue.value !== 'corpus' || !gestionnaireParcours) return false
+    return gestionnaireParcours(parcoursId, false)
   }
 
   // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un dossier choisi
@@ -556,7 +574,7 @@ export function creerSonal() {
     appliquerCorpus,
     majDossierCourant: profil.majDossierCourant,
     rafraichirRecents: profil.rafraichirRecents,
-    retourParcours: voirParcours,
+    retourParcours: retourAccueilParcours,
     preparerBascule,
     vue,
     membership: corpus.membership,
@@ -570,10 +588,37 @@ export function creerSonal() {
     audiosCorpus,
     corpusSelId,
     corpusSelMeta,
+    tableaubord: corpus.tableaubord,
+    tableauBordOuverts: tableauBordCorpus.tableauBordOuverts,
+    docsCadreOuverts: docsCadre.docsCadreOuverts,
+    documentsProjet: docsCadre.documentsProjet,
+    fermerTableauBord: tableauBordCorpus.fermerTableauBord,
+    fermerDocsCadre: docsCadre.fermerDocsCadre,
   })
   // Le holder restaure le mode démo des corpus qui portent son marqueur.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
   racineSourcesDemo = () => demo.racineSources.value
+
+  /** Navigation typée utilisée par les retours du guidage, sans clic DOM. */
+  async function naviguerGuide(destination: DestinationGuide): Promise<boolean> {
+    if (destination.surface === 'tableau-bord') {
+      await tableauBordCorpus.afficherTableauBord()
+      return true
+    }
+    if (destination.surface === 'docs-cadre') {
+      await docsCadre.afficherDocsCadre()
+      return true
+    }
+    if (destination.surface === 'entretien') {
+      await ouvrirEntretien(destination.entretienId)
+      if (destination.onglet) ent.ongletDroite.value = destination.onglet
+      return true
+    }
+    if (destination.surface === 'corpus-accueil') {
+      return retourAccueilParcours(destination.parcoursId)
+    }
+    return voirParcours(destination.surface === 'catalogue' ? undefined : destination.parcoursId)
+  }
 
   // --- Menu applicatif : routage des items vers les actions existantes. ---
   // Le main construit le menu et émet ; ICI on route vers les modales et les
@@ -768,6 +813,7 @@ export function creerSonal() {
     allerAccueil,
     ouvrirEntretien,
     voirParcours,
+    naviguerGuide,
     enregistrerNavigationParcours,
     entretienEditable,
     divergenceProposee,

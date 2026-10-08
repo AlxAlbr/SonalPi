@@ -582,7 +582,7 @@ export class CorpusStore {
   }
 
   /** Marque le corpus courant comme corpus de TEST (démo) : `corpus.json:
-   *  { demo: { mode, racineSources, validees } }`.
+   *  { demo: { mode, racineSources, parcours } }`.
    *  Champ ADDITIF optionnel, donc pas de bump de version ;
    *  un corpus normal n'a pas de marqueur, la démo n'y touche jamais.
    *  Posé par le builder à la création, mis à jour à chaque étape validée,

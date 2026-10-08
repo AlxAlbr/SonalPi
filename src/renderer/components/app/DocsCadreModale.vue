@@ -21,6 +21,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           <h2>🖼️ Docs cadre projet</h2>
           <button title="Fermer les docs cadre" @click="fermerDocsCadre">Quitter ✕</button>
         </header>
+        <div class="ancre-guide" data-tour="ancre-guide-docs-cadre"></div>
         <div class="corps"><DocsCadre /></div>
       </section>
     </div>
@@ -31,6 +32,8 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
 .fond-docs-cadre { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, .45); padding: 2vh 2vw; box-sizing: border-box; }
 .modale-docs-cadre { height: 96vh; display: flex; flex-direction: column; background: #f6f7fa; border-radius: 10px; box-shadow: 0 8px 35px rgba(0, 0, 0, .3); overflow: hidden; }
 .modale-docs-cadre > header { display: flex; align-items: center; justify-content: space-between; flex: none; height: 52px; padding: 0 1rem; border-bottom: 1px solid #ccc; background: #fff; }
+.ancre-guide { flex: none; padding: 0.35rem 0.6rem 0; background: #f6f7fa; }
+.ancre-guide:empty { padding: 0; }
 h2 { margin: 0; font-size: 1.1rem; }
 .corps { flex: 1; overflow: hidden; display: flex; }
 button { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .4rem .8rem; cursor: pointer; }

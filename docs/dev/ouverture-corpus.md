@@ -82,7 +82,7 @@ La règle actuelle (`src/main/index.ts`, handler `demo:etat`) :
 
 | Élément | « Présent » ssi… |
 |---|---|
-| Sources | les **8 fichiers** existent (4 SRT + 4 MP3, cf. `CLEFS_SOURCES` / `sourcesCompletes()`) |
+| Sources | les **9 fichiers** existent (4 SRT, 4 MP3 et `docs/Guide-entretien-demo.txt`, cf. `CLEFS_SOURCES` / `sourcesCompletes()`) |
 | Corpus d'un mode | `corpus.json` existe ET porte le **marqueur `demo` DU MODE** (`corpusTestPresent()`) |
 
 Pourquoi le marqueur ? Un vrai corpus démo en porte toujours un (`marquerDemo`, étape 4
@@ -96,15 +96,19 @@ dossier que l app vient de vider de sa substance.
 Déclenché par un clic de carte, soit direct (« un clic » si mémoire + présence OK,
 cf. `pretUnClic`), soit via la modale adaptative (`ModaleDemo.vue`). Cinq étapes :
 
-1. **Copier les sources** (`demo:copierSources`) — idempotent : no-op si les 8 fichiers
+1. **Copier les sources** (`demo:copierSources`) — idempotent : no-op si les 9 fichiers
    sont là ; sinon recopie complète depuis les sources bundled `CorpusTest/`
    (dev : racine du projet ; prod : `extraResources`).
 2. **Ouvrir le dossier du mode** (`corpus:ouvrirDossier`) — amorce si neuf.
 3. **Importer les entretiens** (mode autonomie) — idempotent PAR TITRE : un titre
    déjà présent dans `membership` n'est jamais réimporté. L'audio est *référencé*
    (chemin absolu vers la racine des sources), jamais copié.
-4. **Marquer** (`corpus:marquerDemo`) — pose `{ demo: { mode, racineSources, validees } }`
-   en CONSERVANT l'historique du même mode (une re-préparation ne remet pas le pas-à-pas à zéro).
+4. **Marquer** (`corpus:marquerDemo`) — pose `{ demo: { mode, racineSources, parcours } }`.
+   Chaque parcours possède ses `validees` et un petit `contexte` d’identifiants.
+   `dernierParcoursId` restaure le bandeau compact lors d’une ouverture par Récents, sans
+   persister ni relancer l’étape active. L’ancien champ racine `validees` reste lu comme
+   progression du traitement, puis l’écriture adopte le nouveau format sans changer
+   `FORMAT_VERSION`.
 5. **Mémoriser** (`demo:memoriser`) — persiste les dossiers, l'autre mode préservé.
 
 ### Les gardes de la modale (`ModaleDemo.vue` + `demo:verifierCorpus`)
@@ -146,7 +150,7 @@ Quand vous modifiez l'ouverture, la démo ou les settings, ne cassez pas :
    — c'est voulu (flux « Nouveau corpus… », dossier de démo), mais ensuite c'est une
    suppression, pas un amorçage : ne jamais réintroduire d'amorçage implicite après coup.
 2. **Présence ≠ existence du dossier** : côté démo, toujours tester le contenu
-   (8 fichiers, marqueur du mode), jamais seulement `existsSync(dir)`. Sinon retour du
+   (9 fichiers, marqueur du mode), jamais seulement `existsSync(dir)`. Sinon retour du
    bug « je vide, ça ressuscite ».
 3. **Idempotence de `preparer()`** : par complétude des fichiers (sources), par titre
    (entretiens), par conservation de l'historique (marqueur). Une re-préparation ne doit

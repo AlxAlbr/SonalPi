@@ -6,6 +6,8 @@ const {
   pasAPas,
   etapeCouranteId,
   etapeCourante,
+  parcoursActif,
+  surfaceGuide,
   retestInfo,
   finiInfo,
   activer,
@@ -95,9 +97,25 @@ const styleTrou = computed(() => {
   }
 })
 
-const modePanneau = computed(
-  () => etapeCourante.value?.panneau === true && vue.value === 'entretien',
-)
+const modePanneau = computed(() => {
+  const etape = etapeCourante.value
+  if (!etape?.panneau) return false
+  return etape.panneauSur
+    ? etape.panneauSur.includes(surfaceGuide.value)
+    : surfaceGuide.value === 'entretien'
+})
+
+const ciblePanneau = computed(() => {
+  // Le recalcul de cible à chaque frame permet de suivre l'apparition d'un formulaire.
+  void cible.value
+  if (surfaceGuide.value === 'tableau-bord') {
+    return document.querySelector('[data-tour="ancre-guide-tableau-form"]')
+      ? '[data-tour="ancre-guide-tableau-form"]'
+      : '[data-tour="ancre-guide-tableau"]'
+  }
+  if (surfaceGuide.value === 'docs-cadre') return '[data-tour="ancre-guide-docs-cadre"]'
+  return '[data-tour="ancre-guide-pp"]'
+})
 
 async function revenirRetest() {
   if (await voirParcours()) retestInfo.value = null
@@ -109,9 +127,9 @@ function fermerRetest() {
 }
 
 function enchainFini() {
-  const id = finiInfo.value?.prochaineId
+  const info = finiInfo.value
   finiInfo.value = null
-  if (id) activer(id)
+  if (info?.prochaineId) activer(info.parcoursId, info.prochaineId)
 }
 
 async function revenirFini() {
@@ -139,6 +157,7 @@ const cibleFini = computed(() =>
       <div v-if="cible.etat === 'absente' && !modePanneau" class="spotlight-voile"></div>
       <div v-else class="spotlight-trou" :style="styleTrou"></div>
       <div v-if="!modePanneau" class="spotlight-bulle" :style="styleBulle">
+        <div class="guide-pp-parcours">{{ parcoursActif.titre }}</div>
         <div class="bulle-titre">{{ etapeCourante.titre }}</div>
         <p class="bulle-texte">{{ etapeCourante.texte() }}</p>
         <button
@@ -160,10 +179,11 @@ const cibleFini = computed(() =>
   </Teleport>
 
   <Teleport
-    v-if="pasAPas && modePanneau && etapeCourante && vue === 'entretien'"
-    to='[data-tour="ancre-guide-pp"]'
+    v-if="pasAPas && modePanneau && etapeCourante"
+    :to="ciblePanneau"
   >
     <div class="guide-pp" data-testid="consigne-pas-a-pas">
+      <div class="guide-pp-parcours">{{ parcoursActif.titre }}</div>
       <div class="guide-pp-titre">{{ etapeCourante.titre }}</div>
       <p class="guide-pp-texte">{{ etapeCourante.texte() }}</p>
       <button
@@ -203,6 +223,11 @@ const cibleFini = computed(() =>
         <button v-if="finiInfo.prochaineId" class="fini-pp-btn" @click="enchainFini">
           Étape suivante : {{ finiInfo.prochaineTitre }} →
         </button>
+        <button
+          v-if="!finiInfo.prochaineId && finiInfo.parcoursSuivantId"
+          class="fini-pp-btn revenir"
+          @click="voirParcours(finiInfo.parcoursSuivantId!); finiInfo = null"
+        >Découvrir le parcours suivant</button>
         <template v-if="finiInfo.vue === 'entretien'">
           <button class="fini-pp-btn revenir" @click="revenirFini">Voir le parcours dans le corpus</button>
           <button class="fini-pp-btn discret" title="Continuer dans l’entretien" @click="finiInfo = null">OK</button>
@@ -226,7 +251,7 @@ const cibleFini = computed(() =>
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
   border: 2px solid #2e73d8;
   pointer-events: none;
-  z-index: 100;
+  z-index: 1001;
   transition: all 0.12s ease-out;
 }
 .spotlight-bulle {
@@ -239,7 +264,14 @@ const cibleFini = computed(() =>
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
   padding: 0.7rem 0.9rem;
-  z-index: 101;
+  z-index: 1002;
+}
+.guide-pp-parcours {
+  color: #596579;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-bottom: 0.1rem;
+  text-transform: uppercase;
 }
 .bulle-titre,
 .guide-pp-titre {

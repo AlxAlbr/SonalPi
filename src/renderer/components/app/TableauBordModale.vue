@@ -20,6 +20,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           <h2>📊 Tableau de bord</h2>
           <button title="Fermer le tableau de bord" @click="fermerTableauBord">Quitter ✕</button>
         </header>
+        <div class="ancre-guide" data-tour="ancre-guide-tableau"></div>
         <div class="corps"><TableauBord /></div>
       </section>
     </div>
@@ -30,6 +31,8 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
 .fond-tableau { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, .45); padding: 1vh 0.8vw; box-sizing: border-box; }
 .modale-tableau { height: 98vh; display: flex; flex-direction: column; background: #f6f7fa; border-radius: 10px; box-shadow: 0 8px 35px rgba(0, 0, 0, .3); overflow: hidden; }
 .modale-tableau > header { display: flex; align-items: center; justify-content: space-between; flex: none; height: 52px; padding: 0 1rem; border-bottom: 1px solid #ccc; background: #fff; }
+.ancre-guide { flex: none; padding: 0.35rem 0.6rem 0; }
+.ancre-guide:empty { padding: 0; }
 h2 { margin: 0; font-size: 1.1rem; }
 .corps { flex: 1; overflow: auto; padding: 0.6rem; }
 button { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .4rem .8rem; cursor: pointer; }

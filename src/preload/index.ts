@@ -543,7 +543,7 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('migrer:lireSonal', cheminCrp, rtrPath),
   },
   demo: {
-    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/) ;
+    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/ + docs/) ;
      *  elles arrivent dans le dossier choisi par l'utilisateur,
      *  puis le corpus les RÉFÉRENCE. */
     copierSources: (racine: string): Promise<void> =>

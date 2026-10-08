@@ -17,6 +17,7 @@ const {
   verifierChargementEtape1,
   verifierChargementEtape2,
   ouvrirApresImport,
+  enregistrerEntretienCree,
   fournisseurCourant,
   etatBaseMedia,
   creerEntretienVideDistant,
@@ -173,10 +174,16 @@ async function valider() {
     // Pendant le geste guidé de l'étape 1 du pas-à-pas, on n'ouvre PAS
     // l'entretien : la validation affiche « étape terminée » au Corpus (c'est
     // l'étape suivante qui ouvrira l'entretien).
-    await ajouterEntretien(texte.value, audioChemin.value, {
+    const titre = texte.value
+      ? texte.value.nom.replace(/\.[^.]+$/, '')
+      : audioChemin.value
+        ? audioChemin.value.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
+        : titreVide.value.trim()
+    const id = await ajouterEntretien(texte.value, audioChemin.value, {
       ouvrir: ouvrirApresImport(),
       titreVide: titreVide.value.trim(),
     })
+    if (id) enregistrerEntretienCree(id, titre)
     fermer()
   } catch (err) {
     message.value = err instanceof Error ? err.message : String(err)
@@ -226,7 +233,7 @@ async function valider() {
 
         <label v-if="!texte && !audioChemin" class="titre-vide">
           <span>Titre du nouvel entretien</span>
-          <input v-model="titreVide" autofocus @keyup.enter="valider" />
+          <input v-model="titreVide" data-tour="titre-entretien-vide" autofocus @keyup.enter="valider" />
         </label>
         <p class="aide-ajout">
           Sans fichier : commencez par les notes. Vous pourrez assigner l'audio et la transcription plus tard.

@@ -21,9 +21,11 @@ Le parcours d’analyse ne doit pas être construit tout de suite. Les fonctions
 
 ### Accueil général
 
-Conserver une seule entrée **Découverte pas à pas**. Elle prépare ou rouvre le corpus d’apprentissage, puis conduit au catalogue des parcours dans l’Accueil du corpus.
+Conserver une seule entrée **Découverte pas à pas**. La carte actuelle reste volontairement petite : c’est une porte d’entrée, pas le catalogue lui-même. Elle affiche seulement son titre et un sous-titre court, par exemple **« Préparer et traiter un corpus, étape par étape »**. Elle ne porte ni les listes d’étapes ni les progressions détaillées.
 
-Pour une nouvelle découverte, ne plus lancer automatiquement la première étape du traitement. L’utilisateur choisit d’abord son objectif :
+Un clic prépare ou rouvre le corpus d’apprentissage, puis conduit au catalogue des parcours dans l’Accueil du corpus. La carte peut être renommée **Découverte guidée** si plusieurs parcours rendent le singulier « pas à pas » ambigu, mais elle garde le même gabarit que la carte **En autonomie**.
+
+Pour une nouvelle découverte, ne plus lancer automatiquement la première étape du traitement. L’utilisateur choisit ensuite son objectif :
 
 1. **Préparer son terrain** — tableau de bord, documents cadre, entretien planifié et notes préparatoires ;
 2. **Traiter ses entretiens** — le parcours actuel, conservé avec ses six étapes ;
@@ -33,14 +35,27 @@ Pour une nouvelle découverte, ne plus lancer automatiquement la première étap
 
 ### Accueil du corpus
 
-Le bloc **Découverte pas à pas** présente d’abord des cartes compactes :
+Le catalogue ne doit pas être comprimé dans l’actuelle colonne gauche d’environ 300 px. En mode découverte, placer le bloc **Découverte pas à pas** sur toute la largeur, immédiatement sous la barre d’onglets du corpus et avant la grille Accueil/Entretiens. La grille métier habituelle reste en dessous.
 
-- titre et objectif du parcours ;
-- progression `X étapes sur N` ;
-- état `À commencer`, `En cours` ou `Terminé` ;
-- action `Découvrir`, `Continuer` ou `Revoir`.
+Le haut du bloc contient un sélecteur permanent de parcours. Sur une fenêtre confortable, deux cartes compactes tiennent côte à côte :
 
-Une seule liste détaillée est affichée à la fois, sous les cartes. Un bouton **Tous les parcours** revient au catalogue. Il ne faut pas afficher simultanément dix étapes ou davantage.
+- **Préparer son terrain** — objectif, progression et action `Découvrir`, `Continuer` ou `Revoir` ;
+- **Traiter ses entretiens** — objectif, progression et même vocabulaire d’action.
+
+Le parcours Analyse n’occupe pas une troisième grande carte tant qu’il n’est pas disponible. Au besoin, une simple mention discrète **Analyse — à venir** apparaît sous le sélecteur. Dans une fenêtre étroite, les deux cartes s’empilent.
+
+Sous ce sélecteur, afficher la liste détaillée d’un seul parcours. Les cartes restent toujours visibles : il n’est donc pas nécessaire d’ajouter un écran ou un bouton **Tous les parcours**. Six étapes peuvent être présentées en une colonne, ou en deux colonnes sur une largeur suffisante si l’ordre de lecture reste explicite et accessible.
+
+Une maquette textuelle du bloc est :
+
+```text
+Découverte pas à pas
+┌ Préparer son terrain ─ 2/4 ─ Continuer ┐  ┌ Traiter ses entretiens ─ 1/6 ─ Continuer ┐
+
+Préparer son terrain
+[✓ Organiser le suivi] [✓ Documents cadre]
+[3 Créer l’entretien] [4 Écrire une note]
+```
 
 Lorsqu’une étape est active, le bloc identifie à la fois le parcours et l’étape :
 
@@ -59,7 +74,7 @@ Le rappel compact indique le parcours actif en plus de l’étape :
 - `Préparer son terrain — 3 étapes sur 4` ;
 - ou `Traiter ses entretiens — 2 étapes sur 6` ;
 - bouton **Voir ce parcours dans le corpus** ;
-- lien secondaire **Voir tous les parcours**.
+- lien secondaire **Voir les parcours**, qui ramène au sélecteur pleine largeur.
 
 Il ne recopie jamais la liste détaillée.
 
@@ -297,11 +312,12 @@ Exposer au moteur les données réactives nécessaires, notamment l’inventaire
 
 ### Étape B — Catalogue dans les accueils
 
-1. Remplacer la liste unique par les cartes de parcours et une liste détaillée sélectionnée.
-2. Adapter les actions Commencer, Continuer, Revoir et Tous les parcours.
-3. Enrichir le rappel de l’Accueil de l’entretien avec le titre du parcours.
-4. Modifier la nouvelle découverte pour arriver sur le catalogue sans étape active.
-5. Restaurer directement le traitement pour les anciens marqueurs ayant une progression.
+1. Déplacer le bloc de découverte au-dessus de la grille du corpus afin qu’il dispose de toute la largeur.
+2. Remplacer la liste unique par le sélecteur permanent et une liste détaillée sélectionnée.
+3. Adapter les actions Commencer, Continuer et Revoir.
+4. Enrichir le rappel de l’Accueil de l’entretien avec le titre du parcours.
+5. Modifier la nouvelle découverte pour arriver sur le catalogue sans étape active.
+6. Restaurer directement le traitement pour les anciens marqueurs ayant une progression.
 
 ### Étape C — Surfaces Tableau de bord et Docs cadre
 

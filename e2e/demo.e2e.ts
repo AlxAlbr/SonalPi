@@ -15,7 +15,7 @@ import { lancer, attendreAccueil, attendreCorpus } from './util'
  *  Les deux corpus ne se mélangent JAMAIS (gardes de la modale : pas déjà un
  *  corpus, pas le dossier de l'autre mode, pas les sources) ; seules les SOURCES
  *  sont partagées (copiées une fois). Le marqueur `corpus.json: { demo: { mode,
- *  racineSources, validees } }` identifie un corpus de test (absent = corpus normal).
+ *  racineSources, parcours } }` identifie un corpus de test (absent = corpus normal).
  *
  *  Modèle par RÉFÉRENCE : les sources sont copiées UNE fois dans le dossier
  *  choisi (demo:copierSources) ; le corpus RÉFÉRENCE leurs fichiers — aucune
@@ -139,7 +139,7 @@ test('« Découverte pas à pas » démarre sur un corpus VIDE, marqué pas-a-pa
   await expect(page.locator('.carte-ent')).toHaveCount(0)
   await expect(page.getByTestId('parcours-pas-a-pas')).toBeVisible()
   await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
-  await expect(page.locator('.accueil-corpus .raccourci')).toHaveCount(0)
+  await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F')
   // Marqué pas-a-pas (le parcours sera restauré à la réouverture).
   const marqueur = marqueurDemo(dirCorpus)
   expect(marqueur?.mode).toBe('pas-a-pas')

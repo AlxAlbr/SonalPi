@@ -237,9 +237,9 @@ export function useOperationsCorpus(deps: {
     texte: { nom: string; contenu: string } | null,
     audioChemin: string | null,
     options: { ouvrir?: boolean; titreVide?: string } = {},
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const titreVide = options.titreVide?.trim()
-    if (!texte && !audioChemin && !titreVide) return
+    if (!texte && !audioChemin && !titreVide) return undefined
     let id: string
     if (texte) {
       const importe = importerFichier(texte.nom, texte.contenu, (html) =>
@@ -276,6 +276,7 @@ export function useOperationsCorpus(deps: {
       await deps.medias.rafraichirAudios()
     }
     if (options.ouvrir !== false) await deps.cycle.ouvrirEntretien(id)
+    return id
   }
 
   /** Fenêtre d'export de l'entretien : le bouton ouvre la fenêtre ; l'export

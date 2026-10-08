@@ -7,7 +7,14 @@ import icoLocuteurs from '../../assets/icones/locuteurs.png'
 import icoNotes from '../../assets/icones/notes.png'
 import icoThemes from '../../assets/icones/themes.png'
 
-const { pasAPas, etapes, etapeCourante, etatParcours, voirParcours } = utiliserSonal()
+const {
+  pasAPas,
+  parcoursActif,
+  parcoursActifId,
+  etapeCourante,
+  etatsParcours,
+  voirParcours,
+} = utiliserSonal()
 </script>
 
 <template>
@@ -17,11 +24,18 @@ const { pasAPas, etapes, etapeCourante, etatParcours, voirParcours } = utiliserS
     </div>
     <section v-if="pasAPas" class="rappel-parcours" aria-labelledby="rappel-parcours-titre">
       <div id="rappel-parcours-titre" class="rappel-titre">Découverte pas à pas</div>
-      <p class="rappel-progression">{{ etatParcours.nombreRealisees }} étapes sur {{ etapes.length }} réalisées</p>
+      <p class="rappel-progression">
+        {{ parcoursActif.titre }} —
+        {{ etatsParcours.find((parcours) => parcours.id === parcoursActifId)?.nombreRealisees ?? 0 }} étapes sur
+        {{ etatsParcours.find((parcours) => parcours.id === parcoursActifId)?.total ?? 0 }}
+      </p>
       <p v-if="etapeCourante" class="rappel-etat">Étape en cours : <b>{{ etapeCourante.titre }}</b></p>
-      <p v-else-if="etatParcours.termine" class="rappel-etat">Parcours terminé.</p>
+      <p v-else-if="etatsParcours.find((parcours) => parcours.id === parcoursActifId)?.termine" class="rappel-etat">Parcours terminé.</p>
       <p v-else class="rappel-etat">Continuez le parcours depuis l’Accueil du corpus.</p>
-      <button class="voir-parcours" @click="voirParcours">Voir le parcours dans le corpus</button>
+      <div class="actions-parcours">
+        <button class="voir-parcours" @click="voirParcours(parcoursActifId)">Voir ce parcours dans le corpus</button>
+        <button class="voir-parcours secondaire" @click="voirParcours()">Voir les parcours</button>
+      </div>
     </section>
     <p class="raccourci">
       🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
@@ -83,6 +97,7 @@ const { pasAPas, etapes, etapeCourante, etatParcours, voirParcours } = utiliserS
 .rappel-progression {
   color: #596579;
 }
+.actions-parcours { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .voir-parcours {
   border: 1px solid #2e73d8;
   border-radius: 5px;
@@ -93,9 +108,8 @@ const { pasAPas, etapes, etapeCourante, etatParcours, voirParcours } = utiliserS
   margin-top: 0.4rem;
   padding: 0.3rem 0.55rem;
 }
-.voir-parcours:hover {
-  background: #e4effd;
-}
+.voir-parcours:hover { background: #e4effd; }
+.voir-parcours.secondaire { border: 0; background: transparent; color: #596579; text-decoration: underline; }
 .raccourci {
   background: #fff8e1;
   border: 1px solid #e0b93a;

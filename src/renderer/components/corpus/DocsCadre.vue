@@ -119,7 +119,7 @@ const aideOuverte = ref(true)
     <aside class="cote">
       <div class="actions-liste">
         <template v-if="!estDistant">
-          <button class="primaire" @click="ajouterFichier()">＋ Ajouter un fichier</button>
+          <button class="primaire" data-tour="ajouter-document-cadre" @click="ajouterFichier()">＋ Ajouter un fichier</button>
           <button title="Ouvrir DocsCadre/ dans le gestionnaire de fichiers" @click="ouvrirDossierLocal()">Ouvrir le dossier</button>
         </template>
         <button v-else title="Ouvrir le corpus dans l'application Fichiers de Nextcloud" @click="ouvrirDansNextcloud()">Ouvrir dans Nextcloud</button>
@@ -129,7 +129,7 @@ const aideOuverte = ref(true)
       <div v-if="erreurListe" class="erreur-reseau">{{ erreurListe }}</div>
 
       <h3>Vos Documents</h3>
-      <div class="liste">
+      <div class="liste" data-tour="documents-projet">
         <p v-if="documentsProjet.length === 0" class="vide">Vous n’avez pas encore de document.</p>
         <button
           v-for="doc in documentsProjet"

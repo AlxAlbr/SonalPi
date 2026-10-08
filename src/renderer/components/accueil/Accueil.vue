@@ -92,7 +92,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
             @click="lancerPreparer('pas-a-pas')"
           >
             <div class="carte-titre">Découverte pas à pas</div>
-            <div class="carte-sous">Guidée, étape par étape</div>
+            <div class="carte-sous">Préparer et traiter un corpus, étape par étape</div>
           </button>
           <button
             class="carte-demo autonomie"

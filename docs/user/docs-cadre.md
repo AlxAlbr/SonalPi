@@ -9,6 +9,11 @@ déclaration de traitement DPO, notice de consentement DPO, guide de correction,
 pseudonymisation, consignes internes, fichiers Word ou PDF. Ces documents sont propres au
 corpus courant ; ils ne sont ni des notes d’entretien ni des réglages du profil.
 
+Le parcours **Préparer son terrain** de la découverte guidée fait ajouter un petit guide
+d’entretien depuis les sources du Mini Corpus Test. Il utilise le véritable sélecteur de
+fichier et place le guide dans **Vos Documents**. Le fichier ajouté devient donc bien un
+document du projet ; il n’est jamais confondu avec les modèles de **Documents exemples**.
+
 ## Un principe : jamais de modification du contenu
 
 SonalPi conserve les documents dans leur format d’origine et ne modifie jamais leur contenu,

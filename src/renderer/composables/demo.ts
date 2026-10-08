@@ -1,10 +1,26 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import { importerFichier } from '../formatSonal/sas'
-import type { CorpusFichier, EntretienRef, Locuteur, MarqueurDemo, Variable, Note } from '../../shared/format'
+import type {
+  CorpusFichier,
+  EntretienRef,
+  Locuteur,
+  MarqueurDemo,
+  Variable,
+  Note,
+  ParcoursId,
+  ProgressionParcoursDemo,
+} from '../../shared/format'
 import type { ModeDemo, EtatDemo } from '../../shared/format'
 export type { ModeDemo, EtatDemo }
 import type { Annotation } from '../../shared/entretien/annotation'
-import { etatPresentationParcours } from './parcoursPasAPas'
+import type { TableauBord } from '../../shared/corpus/tableaubord'
+import type { ResumeDocumentCadre } from '../../shared/docsCadre'
+import { etatPresentationParcours, etatsCatalogue, recommanderParcoursSuivant } from './parcours/presentation'
+import { creerCatalogue } from './parcours/catalogue'
+import { normaliserProgressionsDemo, serialiserProgressionsDemo } from './parcours/marqueur'
+import { creerParcoursPreparation } from './parcours/preparation'
+import type { DefinitionParcours, EtapeActive, EtapePasAPas, SurfaceGuide } from './parcours/types'
+export type { EtapePasAPas } from './parcours/types'
 
 /**
  *  Scope DÉMO « Mini Corpus Test » : construit puis ouvre des corpus de test,
@@ -20,7 +36,7 @@ import { etatPresentationParcours } from './parcoursPasAPas'
  *    via `importerSource`, guidé par un spotlight global.
  *  Seules les sources sont partagées (copiées une seule fois).
  *  L'identité d'un corpus de test vit dans `corpus.json` :
- *  `{ demo: { mode, racineSources, validees } }` ; absent = corpus normal,
+ *  `{ demo: { mode, racineSources, parcours } }` ; absent = corpus normal,
  *  la démo n'y touche jamais.
  *
  *  Dépendances injectées (patron `useCorpus({ flush })`),
@@ -36,45 +52,6 @@ import { etatPresentationParcours } from './parcoursPasAPas'
 // (b) montrer des prénoms dans une démo qui TRAITE de pseudonymisation,
 // car cela enseignerait le mauvais réflexe.
 const SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants'] as const
-
-/** Une étape du pas-à-pas : titre dans la liste, prédicat de validation du modèle,
- *  cible `data-tour` (qui peut dépendre de l'état courant), guide dans la bulle. `panneau` :
- *  la consigne s'affiche en panneau sous les onglets de l'entretien, plutôt qu'en bulle flottante.
- *  `panneauAvecTrou` (avec `panneau`) :
- *  le TROU du spotlight reste affiché pour pointer la cible (ex. un champ de modale) — sans bulle,
- *  qui la masquerait — le texte vivant dans le panneau. `numCle` :
- *  numéro affiché dans la liste à la place de l'ordinal — les étapes 2a/2b partagent le « 2 »
- *  pour montrer qu'elles sont liées. `requiere` :
- *  id d'une autre étape dont la validation est nécessaire AVANT de pouvoir lancer celle-ci (bouton désactivé tant qu'elle n'est pas faite).
- *  `retest` : message affiché quand une étape déjà validée est rouverte. */
-export interface EtapePasAPas {
-  id: string
-  titre: string
-  cible: () => string | null
-  fait: () => boolean
-  texte: () => string
-  /** Contexte facultatif, repliable sans masquer l'instruction immédiate. */
-  explication?: () => string
-  panneau?: boolean
-  panneauAvecTrou?: boolean
-  numCle?: string
-  requiere?: string
-  retest?: () => string
-  /** Message « déjà réalisée » s'affiche dans la vue CORPUS (l'action de l'étape vit dans le corpus,
-   *  ex. « Charger un entretien ») ; pas dans l'entretien comme les étapes d'édition. */
-  retestCorpus?: boolean
-  /** Message de FIN d'étape : après validation,
-   *  un petit texte de félicitation et la proposition d'enchaîner sur l'étape suivante.
-   *  Par défaut, la validation revient au parcours dans l'Accueil du corpus. */
-  fini?: () => string
-  /** `finiEnEntretien` : après validation d'une étape d'ÉDITION,
-   *  on RESTE dans l'entretien (on ne renvoie pas au Corpus)
-   *  et le message de fin s'affiche SOUS les onglets,
-   *  avec un bouton pour voir le parcours dans le corpus.
-   *  L'utilisateur peut ainsi continuer s'il le souhaite (ex. ré-écouter l'audio)
-   *  plutôt que d'être ramené brutalement à l'écran Corpus. */
-  finiEnEntretien?: boolean
-}
 
 export interface DepsDemo {
   appliquerCorpus: (c: CorpusFichier, dir?: string) => Promise<void>
@@ -108,10 +85,16 @@ export interface DepsDemo {
    *  vrai dès que la transcription est importée (« Assigner un srt… »). */
   corpusSelId: Ref<string | null>
   corpusSelMeta: Ref<{ srt: boolean } | null>
+  tableaubord: Ref<TableauBord | null>
+  tableauBordOuverts: Ref<boolean>
+  docsCadreOuverts: Ref<boolean>
+  documentsProjet: Ref<ResumeDocumentCadre[]>
+  fermerTableauBord: () => void
+  fermerDocsCadre: () => void
 }
 
 export function utiliserDemo(deps: DepsDemo) {
-  /** Onglet « Pas à pas » monté ? (uniquement en mode 'pas-a-pas'). */
+  /** Catalogue de découverte affiché uniquement en mode `pas-a-pas`. */
   const pasAPas = ref(false)
   /** Build en cours (désactive les cartes pendant la préparation). */
   const enPreparation = ref(false)
@@ -144,12 +127,14 @@ export function utiliserDemo(deps: DepsDemo) {
     return imp.id
   }
 
-  // --- Le pas-à-pas : étapes, étape courante, validation --- 6 étapes auto-validées (charger →
+  const contextesParcours = ref<Partial<Record<ParcoursId, Record<string, string>>>>({})
+
+  // --- Parcours de traitement : six étapes auto-validées (charger →
   // noter → lier le SRT → renommer → coder → saisir une variable).
   // Les cibles `data-tour` peuvent dépendre de l'état (ex. « crayon »
   // tant qu'aucun entretien ouvert, puis « lecture »/« onglet thèmes ») —
   // le spotlight recalcule en live.
-  const etapes: EtapePasAPas[] = [
+  const etapesTraitement: EtapePasAPas[] = [
     {
       id: 'charger',
       titre: 'Charger un entretien',
@@ -257,7 +242,10 @@ export function utiliserDemo(deps: DepsDemo) {
           ([, r]) => r.titre === '2RetraiteAnticipee',
         )?.[0]
         return (
-          !!id2 && deps.audiosCorpus.value[id2]?.audio != null && deps.notes.value.length > 0
+          !!id2 &&
+          deps.ouvertId.value === id2 &&
+          deps.audiosCorpus.value[id2]?.audio != null &&
+          deps.notes.value.length > 0
         )
       },
       texte: () => {
@@ -377,12 +365,16 @@ export function utiliserDemo(deps: DepsDemo) {
       // Depuis la liste, le crayon de la carte guide vers l'entretien ;
       // la consigne y devient un panneau (la bulle recouvrait le champ d'un locuteur).
       // L'étape se coche quand plus aucun locuteur de l'entretien ouvert ne s'appelle « Speaker N ».
-      cible: () => (deps.vue.value === 'entretien' ? null : '[data-tour="crayon-entretien"]'),
+      cible: () => deps.vue.value === 'entretien'
+        ? null
+        : '[data-tour="carte-1Coordinatrice"] .crayon',
       panneau: true,
-      fait: () =>
-        !!deps.ouvertId.value &&
-        deps.locuteurs.value.length > 0 &&
-        deps.locuteurs.value.every((l) => !l.nom.startsWith('Speaker')),
+      fait: () => {
+        const id = Object.entries(deps.membership.value).find(([, r]) => r.titre === '1Coordinatrice')?.[0]
+        return deps.ouvertId.value === id &&
+          deps.locuteurs.value.length > 0 &&
+          deps.locuteurs.value.every((l) => !l.nom.startsWith('Speaker'))
+      },
       texte: () =>
         deps.vue.value === 'entretien'
           ? "Ouvrez l'onglet Locuteurs, puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
@@ -398,16 +390,17 @@ export function utiliserDemo(deps: DepsDemo) {
       titre: 'Créer une thématique et annoter',
       // Idem étape 3 : l'annotation se pose sur le texte d'1Coordinatrice.
       requiere: 'charger',
-      // Depuis la liste, on guide vers le crayon de la carte ; dans l'entretien,
-      // le spotlight pointe d'abord l'onglet Thématique ;
-      // puis se déplace sur le panneau des thèmes une fois l'onglet ouvert (la bulle ne bloque plus le clic sur un thème).
+      // Depuis la liste, on guide vers la carte déterministe de 1Coordinatrice.
       cible: () => {
-        if (deps.vue.value !== 'entretien') return '[data-tour="crayon-entretien"]'
+        if (deps.vue.value !== 'entretien') return '[data-tour="carte-1Coordinatrice"] .crayon'
         return deps.ongletDroite.value === 'themes'
           ? '.panneau.themes-coder'
           : '[data-tour="onglet-themes"]'
       },
-      fait: () => deps.entretien.annotations.some((a) => a.type === 'codage'),
+      fait: () => {
+        const id = Object.entries(deps.membership.value).find(([, r]) => r.titre === '1Coordinatrice')?.[0]
+        return deps.ouvertId.value === id && deps.entretien.annotations.some((a) => a.type === 'codage')
+      },
       texte: () =>
         deps.vue.value === 'entretien'
           ? "Ouvrez l'onglet Thématiques, sélectionnez un passage du texte, puis cliquez sur un thème pour le coder."
@@ -423,14 +416,18 @@ export function utiliserDemo(deps: DepsDemo) {
       // Idem : le geste guidé ouvre 1Coordinatrice.
       requiere: 'charger',
       cible: () => {
-        if (deps.vue.value !== 'entretien') return '[data-tour="crayon-entretien"]'
+        if (deps.vue.value !== 'entretien') return '[data-tour="carte-1Coordinatrice"] .crayon'
         return deps.ongletDroite.value === 'donnees'
           ? '.panneau.donnees'
           : '[data-tour="onglet-donnees"]'
       },
-      fait: () =>
-        Object.keys(deps.meta.valeursGen).length > 0 ||
-        deps.locuteurs.value.some((l) => Object.keys(l.valeursLoc).length > 0),
+      fait: () => {
+        const id = Object.entries(deps.membership.value).find(([, r]) => r.titre === '1Coordinatrice')?.[0]
+        return deps.ouvertId.value === id && (
+          Object.keys(deps.meta.valeursGen).length > 0 ||
+          deps.locuteurs.value.some((l) => Object.keys(l.valeursLoc).length > 0)
+        )
+      },
       texte: () =>
         deps.vue.value === 'entretien'
           ? "Ouvrez l'onglet Données, puis renseignez une valeur, par exemple le lieu de l'entretien."
@@ -443,146 +440,218 @@ export function utiliserDemo(deps: DepsDemo) {
     },
   ]
 
-  /** Id de l'étape couramment guidée (spotlight actif) ; null = inactif. */
-  const etapeCouranteId = ref<string | null>(null)
-  /** Ids des étapes déjà validées (cochées dans la liste). */
-  const validees = ref<Set<string>>(new Set())
-  /** Progression partagée par les deux accueils et la liste du parcours. */
-  const etatParcours = computed(() => etatPresentationParcours(etapes, validees.value))
-  /** Message « re-test » : une étape déjà validée est rouverte ;
-   *  on l'annonce (texte propre à chaque étape) dans la vue où vit son action —
-   *  l'entretien (étapes d'édition) ou le corpus (étapes de corpus, ex. « Charger un entretien ») —
-   *  avec un bouton pour revenir à la liste. */
-  const retestInfo = ref<{ titre: string; suite: string; vue: 'corpus' | 'entretien' } | null>(null)
-  /** Message « fin d'étape » : après validation d'une étape,
-   *  on est revenu à l'écran Corpus et on affiche un petit texte de félicitation + la proposition d'enchaîner sur l'étape suivante (ou de fermer si c'était la dernière).
-   *  `prochaineId`/`prochaineTitre` alimentent le bouton du message. */
+  const idEntretienPreparation = () => contextesParcours.value.preparation?.entretienId ?? null
+  const definitionPreparation = creerParcoursPreparation({
+    vue: deps.vue,
+    ongletDroite: deps.ongletDroite,
+    ouvertId: deps.ouvertId,
+    membership: deps.membership,
+    notes: deps.notes,
+    tableaubord: deps.tableaubord,
+    tableauBordOuverts: deps.tableauBordOuverts,
+    docsCadreOuverts: deps.docsCadreOuverts,
+    documentsProjet: deps.documentsProjet,
+    idEntretien: idEntretienPreparation,
+  })
+  const definitionTraitement: DefinitionParcours = {
+    id: 'traitement',
+    titre: 'Traiter ses entretiens',
+    resume: 'Importer, documenter, transcrire, pseudonymiser, coder et qualifier.',
+    disponible: () => true,
+    etapes: etapesTraitement,
+  }
+  const catalogueParcours = creerCatalogue(definitionPreparation, definitionTraitement)
+  const parcoursSelectionneId = ref<ParcoursId>('preparation')
+  const dernierParcoursId = ref<ParcoursId | null>(null)
+  const catalogueParcoursOuvert = ref(false)
+  const valideesParParcours = ref<Record<ParcoursId, Set<string>>>(
+    { preparation: new Set(), traitement: new Set(), analyse: new Set() },
+  )
+  const etapeActive = ref<EtapeActive>(null)
+  const definitionSelectionnee = computed(() =>
+    catalogueParcours.find((parcours) => parcours.id === parcoursSelectionneId.value) ?? definitionPreparation,
+  )
+  const etapes = computed(() => definitionSelectionnee.value.etapes)
+  const validees = computed({
+    get: () => valideesParParcours.value[parcoursSelectionneId.value],
+    set: (valeur: Set<string>) => {
+      valideesParParcours.value = {
+        ...valideesParParcours.value,
+        [parcoursSelectionneId.value]: valeur,
+      }
+    },
+  })
+  const etapeCouranteId = computed({
+    get: () => etapeActive.value?.etapeId ?? null,
+    set: (id: string | null) => {
+      etapeActive.value = id ? { parcoursId: parcoursSelectionneId.value, etapeId: id } : null
+    },
+  })
+  const parcoursActifId = computed(() => etapeActive.value?.parcoursId ?? parcoursSelectionneId.value)
+  const parcoursActif = computed(() => catalogueParcours.find((p) => p.id === parcoursActifId.value) ?? definitionPreparation)
+  const etapeCourante = computed(() =>
+    parcoursActif.value.etapes.find((etape) => etape.id === etapeActive.value?.etapeId) ?? null,
+  )
+  const etatParcours = computed(() => etatPresentationParcours(etapes.value, validees.value))
+  const etatsParcours = computed(() => etatsCatalogue(catalogueParcours, valideesParParcours.value))
+  const surfaceGuide = computed<SurfaceGuide>(() => {
+    if (deps.tableauBordOuverts.value) return 'tableau-bord'
+    if (deps.docsCadreOuverts.value) return 'docs-cadre'
+    return deps.vue.value === 'entretien' ? 'entretien' : 'corpus'
+  })
+  const retestInfo = ref<{
+    parcoursId: ParcoursId
+    titre: string
+    suite: string
+    vue: 'corpus' | 'entretien'
+  } | null>(null)
   const finiInfo = ref<{
+    parcoursId: ParcoursId
     titre: string
     suite: string
     prochaineId: string | null
     prochaineTitre: string | null
-    /** Vue où afficher le message : 'corpus' pour les étapes de corpus (on y est déjà revenu) ;
-     *  'entretien' pour les étapes d'édition qui y RESTENT (ex. « Prendre des notes à chaud »).
-     *  L'utilisateur peut continuer puis revenir à la liste via le bouton du message. */
     vue: 'corpus' | 'entretien'
+    parcoursSuivantId?: ParcoursId | null
   } | null>(null)
 
-  // Au changement de vue : si l'étape active est déjà validée, c'est un re-test —
-  // on affiche le message d'emblée (sans attendre le prédicat,
-  // qui peut repartir à faux à chaque ouverture) dans la vue de l'étape.
-  // Un message affiché survit tant qu'on reste dans sa vue ; il s'efface dès qu'on en sort.
-  watch(deps.vue, (v) => {
-    if (retestInfo.value && v !== retestInfo.value.vue) retestInfo.value = null
-    // Le message de fin d'étape, lui,
-    // SURVIT aux changements de vue (la visibilité est pilotée par le v-if du Teleport au Corpus) ;
-    // il peut y avoir une course asynchrone (ex.
-    // la vraie modale qui ouvre l'entretien après l'import), on ne veut pas perdre les félicitations.
-    // Il s'efface quand on enchaîne sur l'étape suivante ou qu'on le ferme.
-    const e = etapes.find((x) => x.id === etapeCouranteId.value)
-    if (!e || !e.retest || !validees.value.has(e.id)) return
-    const vueRetest: 'corpus' | 'entretien' = e.retestCorpus ? 'corpus' : 'entretien'
-    if (v !== vueRetest) return
-    etapeCouranteId.value = null
-    retestInfo.value = { titre: e.titre, suite: e.retest(), vue: vueRetest }
+  watch(deps.vue, (vue) => {
+    if (retestInfo.value && vue !== retestInfo.value.vue) retestInfo.value = null
+    const etape = etapeCourante.value
+    if (!etape || !etape.retest || !validees.value.has(etape.id)) return
+    const vueRetest: 'corpus' | 'entretien' = etape.retestCorpus ? 'corpus' : 'entretien'
+    if (vue !== vueRetest) return
+    etapeActive.value = null
+    retestInfo.value = {
+      parcoursId: parcoursSelectionneId.value,
+      titre: etape.titre,
+      suite: etape.retest(),
+      vue: vueRetest,
+    }
   })
 
-  const etapeCourante = computed(() => etapes.find((e) => e.id === etapeCouranteId.value) ?? null)
+  function progressionsPersistantes(): Partial<Record<ParcoursId, ProgressionParcoursDemo>> {
+    return serialiserProgressionsDemo(valideesParParcours.value, contextesParcours.value)
+  }
 
-  /** Écrit le marqueur démo du corpus courant (`corpus.json: { demo }`) : mode, racine des sources,
-   *  étapes validées. L'historique du pas-à-pas voyage ainsi avec le corpus,
-   *  restauré à la réouverture. */
+  /** Persiste séparément les acquis et le contexte minimal de chaque parcours. */
   async function ecrireMarqueur(mode: ModeDemo): Promise<void> {
     if (!racineSources.value) return
     await window.sonal.corpus.marquerDemo({
       mode,
       racineSources: racineSources.value,
-      validees: [...validees.value],
+      parcours: progressionsPersistantes(),
+      ...(dernierParcoursId.value ? { dernierParcoursId: dernierParcoursId.value } : {}),
     })
   }
 
-  /** Redérive les étapes validées depuis le modèle (prédicats `fait()`) :
-   *  à la réouverture d'un corpus pas-à-pas, le watch de validation n'a rien détecté,
-   *  puisqu'aucun état n'a changé ;
-   *  on évalue donc toutes les étapes une fois pour retrouver l'historique réel, ex. « charger »
-   *  re-cochée si un entretien existe déjà. Monotone : on ne décoche jamais,
-   *  une étape faite le reste. */
+  /** Redérive les acquis observables sans retirer les acquis déjà mémorisés. */
   function revaliderEtapes() {
-    const v = new Set(validees.value)
-    for (const e of etapes) if (e.fait()) v.add(e.id)
-    if (v.size !== validees.value.size) {
-      validees.value = v
+    let change = false
+    const suivantes = { ...valideesParParcours.value }
+    for (const definition of catalogueParcours) {
+      const cle = definition.id
+      const progression = new Set(suivantes[cle])
+      for (const etape of definition.etapes) if (etape.fait()) progression.add(etape.id)
+      if (progression.size !== suivantes[cle].size) {
+        suivantes[cle] = progression
+        change = true
+      }
+    }
+    if (change) {
+      valideesParParcours.value = suivantes
       void ecrireMarqueur(pasAPas.value ? 'pas-a-pas' : 'autonomie')
     }
   }
 
-  /** Active une étape (clic dans la liste) : démarre son spotlight.
-   *  Une étape dont le prérequis n'est pas validé ne démarre pas ;
-   *  les boutons de la liste sont déjà désactivés,
-   *  la garde couvre aussi les enchaînements « Étape suivante » du message de fin. */
-  function activer(id: string) {
-    const e = etapes.find((x) => x.id === id)
-    if (!e) return
-    if (e.requiere && !validees.value.has(e.requiere)) return
-    retestInfo.value = null // une activation neuve efface l'éventuel message re-test
-    finiInfo.value = null // … ainsi que le message de fin d'étape affiché au corpus
-    etapeCouranteId.value = id
+  function selectionnerParcours(parcoursId: ParcoursId) {
+    if (!catalogueParcours.some((parcours) => parcours.id === parcoursId && parcours.disponible())) return
+    parcoursSelectionneId.value = parcoursId
   }
 
-  // Validation automatique : quand l'étape courante devient `fait()`,
-  // on la coche et on revient au parcours du corpus sans lancer automatiquement la suite.
-  // L'historique est mémorisé à chaque validation (il voyage avec le corpus).
+  function ouvrirCatalogueParcours(parcoursId?: ParcoursId) {
+    if (parcoursId) selectionnerParcours(parcoursId)
+    catalogueParcoursOuvert.value = true
+  }
+
+  function fermerCatalogueParcours() {
+    catalogueParcoursOuvert.value = false
+  }
+
+  /** Active une étape dans son parcours ; les prérequis restent locaux à ce parcours. */
+  function activer(parcoursOuEtape: ParcoursId | string, etapeId?: string) {
+    const parcoursId = etapeId ? parcoursOuEtape as ParcoursId : parcoursSelectionneId.value
+    const id = etapeId ?? parcoursOuEtape
+    const definition = catalogueParcours.find((parcours) => parcours.id === parcoursId)
+    if (!definition?.disponible()) return
+    const etape = definition.etapes.find((candidate) => candidate.id === id)
+    if (!etape) return
+    const progression = valideesParParcours.value[parcoursId]
+    if (etape.requiere && !progression.has(etape.requiere)) return
+    selectionnerParcours(parcoursId)
+    dernierParcoursId.value = parcoursId
+    catalogueParcoursOuvert.value = false
+    void ecrireMarqueur('pas-a-pas')
+    retestInfo.value = null
+    finiInfo.value = null
+    etapeActive.value = { parcoursId, etapeId: id }
+  }
+
   watch(
     () => etapeCourante.value?.fait() ?? false,
     async (faite) => {
-      if (!faite || !etapeCourante.value) return
-      const id = etapeCourante.value.id
-      if (validees.value.has(id)) {
-        // DÉJÀ validée, c'est un re-test : on éteint le guidage,
-        // on garde l'entretien ouvert (étapes d'édition) et on affiche le message « étape déjà réalisée »
-        // dans la vue de l'étape. Une étape de CORPUS (ex. « Charger un entretien ») se revoit au corpus ;
-        // si l'import vient d'ouvrir un entretien, on y retourne d'abord.
-        const e = etapeCourante.value
-        etapeCouranteId.value = null
-        if (e?.retest) {
-          if (e.retestCorpus && !(await deps.retourParcours())) return
+      const active = etapeActive.value
+      const etape = etapeCourante.value
+      if (!faite || !active || !etape) return
+      const cle = active.parcoursId
+      const progression = valideesParParcours.value[cle]
+      if (progression.has(etape.id)) {
+        etapeActive.value = null
+        if (etape.retest) {
+          if (etape.retestCorpus && !(await deps.retourParcours())) return
           retestInfo.value = {
-            titre: e.titre,
-            suite: e.retest(),
-            vue: e.retestCorpus ? 'corpus' : 'entretien',
+            parcoursId: active.parcoursId,
+            titre: etape.titre,
+            suite: etape.retest(),
+            vue: etape.retestCorpus ? 'corpus' : 'entretien',
           }
         }
         return
       }
-      validees.value = new Set(validees.value).add(id)
-      etapeCouranteId.value = null // guidage arrêté ; l'utilisateur relance la suite
+
+      valideesParParcours.value = {
+        ...valideesParParcours.value,
+        [cle]: new Set(progression).add(etape.id),
+      }
+      etapeActive.value = null
       await ecrireMarqueur(pasAPas.value ? 'pas-a-pas' : 'autonomie')
-      const e = etapes.find((x) => x.id === id)
-      const s = etapes[etapes.findIndex((x) => x.id === id) + 1]
-      // On ne propose l'étape suivante que si elle est accessible (son prérequis est validé) ;
-      // sinon le bouton « Étape suivante » disparaît.
-      const suite = s && (!s.requiere || validees.value.has(s.requiere)) ? s : null
-      // Une étape d'ÉDITION (`finiEnEntretien`, ex. « Prendre des notes à chaud »)
-      // ne renvoie PAS au Corpus ; on reste dans l'entretien,
-      // où l'utilisateur peut continuer s'il le souhaite.
-      // Le message de fin s'y affiche sous les onglets avec un bouton pour voir le parcours.
-      // Les autres étapes reviennent directement au parcours dans l'Accueil du corpus.
-      const resterEnEntretien = !!e?.finiEnEntretien
-      if (!resterEnEntretien && !(await deps.retourParcours())) return
-      // Fin d'étape : on félicite et on propose la suite, « ouvrir l'entretien (crayon)
-      // ou enchaîner sur l'étape suivante »,
-      // pour que l'utilisateur ne reste jamais sans savoir quoi faire.
-      if (e?.fini) {
+      const definition = catalogueParcours.find((parcours) => parcours.id === active.parcoursId)!
+      const index = definition.etapes.findIndex((candidate) => candidate.id === etape.id)
+      const candidate = definition.etapes[index + 1]
+      const progressionApres = valideesParParcours.value[cle]
+      const suite = candidate && (!candidate.requiere || progressionApres.has(candidate.requiere))
+        ? candidate
+        : null
+      const resterEnEntretien = !!etape.finiEnEntretien
+      if (!resterEnEntretien) {
+        if (deps.tableauBordOuverts.value) deps.fermerTableauBord()
+        if (deps.docsCadreOuverts.value) deps.fermerDocsCadre()
+        if (!(await deps.retourParcours())) return
+      }
+      if (etape.fini) {
+        const etat = etatPresentationParcours(definition.etapes, progressionApres)
         finiInfo.value = {
-          titre: `« ${e.titre} » : terminé ✓`,
-          suite: e.fini(),
+          parcoursId: active.parcoursId,
+          titre: `« ${etape.titre} » : terminé ✓`,
+          suite: etape.fini(),
           prochaineId: suite?.id ?? null,
           prochaineTitre: suite?.titre ?? null,
           vue: resterEnEntretien ? 'entretien' : 'corpus',
+          parcoursSuivantId: etat.termine
+            ? recommanderParcoursSuivant(catalogueParcours, active.parcoursId, valideesParParcours.value)
+            : null,
         }
-      } else {
-        finiInfo.value = null
-      }
+      } else finiInfo.value = null
     },
   )
 
@@ -602,8 +671,11 @@ export function utiliserDemo(deps: DepsDemo) {
     // un 1Coordinatrice sans audio ne doit jamais pouvoir satisfaire l'étape.
     // SAUF si une AUTRE étape est activement guidée (ex. 2a « Prendre des notes à chaud »
     // mène son propre import audio seul AVANT l'étape 1 ; c'est elle qui garde, pas 1).
-    if (!pasAPas.value || validees.value.has('charger')) return null
-    if (etapeCouranteId.value && etapeCouranteId.value !== 'charger') return null
+    if (!pasAPas.value || valideesParParcours.value.traitement.has('charger')) return null
+    if (parcoursSelectionneId.value !== 'traitement') return null
+    if (etapeActive.value && (
+      etapeActive.value.parcoursId !== 'traitement' || etapeCouranteId.value !== 'charger'
+    )) return null
     const base = (p: string | null) => p?.replace(/^.*[\\/]/, '') ?? null
     if (base(nomTexte) !== '1Coordinatrice.srt' || base(cheminAudio) !== '1Coordinatrice.mp3') {
       return (
@@ -627,8 +699,8 @@ export function utiliserDemo(deps: DepsDemo) {
     // tant que 2a n'est pas validée,
     // la modale n'accepte que `audio/2RetraiteAnticipee.mp3` sans fichier de texte.
     // Hors de cette étape (ou une fois 2a faite), la garde se lève ; on charge librement.
-    if (!pasAPas.value || validees.value.has('noter')) return null
-    if (etapeCouranteId.value !== 'noter') return null
+    if (!pasAPas.value || valideesParParcours.value.traitement.has('noter')) return null
+    if (etapeActive.value?.parcoursId !== 'traitement' || etapeCouranteId.value !== 'noter') return null
     const base = (p: string | null) => p?.replace(/^.*[\/]/, '') ?? null
     if (base(cheminAudio) === '2RetraiteAnticipee.mp3' && nomTexte === null) return null
     if (nomTexte !== null) {
@@ -652,7 +724,24 @@ export function utiliserDemo(deps: DepsDemo) {
    *  c'est l'étape suivante qui ouvrira l'entretien. Partout ailleurs, oui : comportement SonalPi1,
    *  l'import ouvre l'entretien. */
   function ouvrirApresImport(): boolean {
-    return etapeCouranteId.value !== 'charger'
+    return !(
+      etapeActive.value?.parcoursId === 'traitement' && etapeCouranteId.value === 'charger'
+    ) && !(
+      etapeActive.value?.parcoursId === 'preparation' && etapeCouranteId.value === 'entretien-preparatoire'
+    )
+  }
+
+  /** Mémorise l'identité de l'entretien créé pendant le parcours de préparation. */
+  function enregistrerEntretienCree(id: string, titre: string): void {
+    if (
+      etapeActive.value?.parcoursId !== 'preparation' ||
+      etapeCouranteId.value !== 'entretien-preparatoire' ||
+      titre !== 'Entretien préparatoire'
+    ) return
+    contextesParcours.value = {
+      ...contextesParcours.value,
+      preparation: { ...contextesParcours.value.preparation, entretienId: id },
+    }
   }
 
   /** Prépare le corpus de test du mode demandé puis l'ouvre.
@@ -702,11 +791,18 @@ export function utiliserDemo(deps: DepsDemo) {
       // On CONSERVE l'historique existant du même mode ; une re-préparation « un clic »
       // ne doit pas effacer les étapes faites.
       const histo = res.corpus.demo
-      const historique = histo?.mode === mode ? (histo.validees ?? []) : []
+      const parcours = histo?.mode === mode
+        ? (histo.parcours ?? (histo.validees
+          ? { traitement: { validees: histo.validees } }
+          : {}))
+        : {}
       await window.sonal.corpus.marquerDemo({
         mode,
         racineSources: racineSources.value,
-        validees: historique,
+        parcours,
+        ...(histo?.mode === mode && histo.dernierParcoursId
+          ? { dernierParcoursId: histo.dernierParcoursId }
+          : {}),
       })
 
       // 5. Appliquer le corpus marqué au modèle.
@@ -722,7 +818,9 @@ export function utiliserDemo(deps: DepsDemo) {
           await window.sonal.corpus.ajouterVariable('Ville', 'locuteur')
           await deps.appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCorpus)
         }
-        etapeCouranteId.value = etapes[0].id // démarre la 1re étape (les suivantes se lancent au clic)
+        // L'entrée générale ouvre le choix des parcours, sans lancer d'étape.
+        etapeActive.value = null
+        catalogueParcoursOuvert.value = true
       }
       // Mémoire démo PERSISTÉE (settings.json) : sources + dossier de CE mode (l'autre mode,
       // s'il existe, est préservé). Les cartes de l'Accueil restent « un clic »
@@ -771,10 +869,17 @@ export function utiliserDemo(deps: DepsDemo) {
     dir: string | null,
   ): Promise<void> {
     // Aucun guidage ni message ne traverse un changement de corpus.
-    etapeCouranteId.value = null
+    etapeActive.value = null
+    catalogueParcoursOuvert.value = false
+    dernierParcoursId.value = null
     retestInfo.value = null
     finiInfo.value = null
-    validees.value = new Set()
+    valideesParParcours.value = {
+      preparation: new Set(),
+      traitement: new Set(),
+      analyse: new Set(),
+    }
+    contextesParcours.value = {}
     if (!marqueur || !dir) {
       pasAPas.value = false
       return
@@ -782,10 +887,11 @@ export function utiliserDemo(deps: DepsDemo) {
     racineSources.value = marqueur.racineSources
     pasAPas.value = marqueur.mode === 'pas-a-pas'
     if (pasAPas.value) {
-      // Historique restauré depuis le marqueur + re-dérivé du modèle (monotone —
-      // on ne décoche pas). Le spotlight reste inactif (aucune étape forcée) :
-      // l'utilisateur clique une étape pour reprendre le guidage.
-      validees.value = new Set(marqueur.validees ?? [])
+      const normalise = normaliserProgressionsDemo(marqueur)
+      valideesParParcours.value = normalise.progressions
+      contextesParcours.value = normalise.contextes
+      parcoursSelectionneId.value = normalise.parcoursInitial
+      dernierParcoursId.value = normalise.dernierParcoursId
       revaliderEtapes()
     }
   }
@@ -804,16 +910,32 @@ export function utiliserDemo(deps: DepsDemo) {
     raccrocherModeCorpus,
     preparer,
     importerSource,
+    catalogueParcours,
+    parcoursSelectionneId,
+    dernierParcoursId,
+    catalogueParcoursOuvert,
+    ouvrirCatalogueParcours,
+    fermerCatalogueParcours,
+    definitionSelectionnee,
+    parcoursActifId,
+    parcoursActif,
+    etatsParcours,
+    selectionnerParcours,
     etapes,
+    etapeActive,
     etapeCouranteId,
     etapeCourante,
     validees,
+    valideesParParcours,
+    contextesParcours,
     etatParcours,
+    surfaceGuide,
     retestInfo,
     finiInfo,
     activer,
     verifierChargementEtape1,
     verifierChargementEtape2,
     ouvrirApresImport,
+    enregistrerEntretienCree,
   }
 }

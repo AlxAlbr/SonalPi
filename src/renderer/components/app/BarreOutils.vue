@@ -16,10 +16,11 @@ const {
 <template>
   <div v-if="vue !== 'accueil'" class="barre-outils">
     <div class="ligne">
-      <button class="outil btn-tableau" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
+      <button class="outil btn-tableau" data-tour="ouvrir-tableau-bord" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
       <button
         v-if="gesteDisponible('docsCadre')"
         class="outil btn-docs-cadre"
+        data-tour="ouvrir-docs-cadre"
         title="Ouvrir les documents du projet"
         @click="afficherDocsCadre()"
       >Docs cadre projet</button>

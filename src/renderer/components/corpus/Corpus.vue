@@ -3,7 +3,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from '../themes/EditionThemes.vue'
 import MenuTheme from '../themes/MenuTheme.vue'
-import ParcoursPasAPas from './ParcoursPasAPas.vue'
+import ModaleParcoursPasAPas from './ModaleParcoursPasAPas.vue'
+import ResumeParcoursPasAPas from './ResumeParcoursPasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
@@ -31,6 +32,8 @@ const {
   vue,
   revisionCorpus,
   enregistrerNavigationParcours,
+  selectionnerParcours,
+  ouvrirCatalogueParcours,
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
   codebook,
   usages,
@@ -153,7 +156,7 @@ function basculerRepli(id: string) {
 
 type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon' | 'journal'
 const ongletCorpus = ref<OngletCorpus>('accueil')
-const parcours = ref<InstanceType<typeof ParcoursPasAPas> | null>(null)
+const resumeParcours = ref<HTMLElement | null>(null)
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
 async function choisirOnglet(onglet: OngletCorpus) {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return
@@ -169,13 +172,21 @@ watch([pasAPas, revisionCorpus], ([actif]) => {
   if (actif) void choisirOnglet('accueil')
 })
 
-async function afficherParcours(): Promise<boolean> {
+async function afficherParcours(
+  parcoursId?: import('../../../shared/format').ParcoursId,
+  afficherCatalogue = true,
+): Promise<boolean> {
+  if (parcoursId) selectionnerParcours(parcoursId)
   await choisirOnglet('accueil')
   if (ongletCorpus.value !== 'accueil') return false
   deselectionnerCorpus()
   extraitAffiche.value = null
   await nextTick()
-  await parcours.value?.mettreEnVue()
+  if (afficherCatalogue) ouvrirCatalogueParcours(parcoursId)
+  else {
+    resumeParcours.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    resumeParcours.value?.focus({ preventScroll: true })
+  }
   return true
 }
 
@@ -333,6 +344,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
+      <div v-if="pasAPas && ongletCorpus === 'accueil'" ref="resumeParcours" tabindex="-1">
+        <ResumeParcoursPasAPas />
+      </div>
+      <ModaleParcoursPasAPas v-if="pasAPas" />
 
       <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes' }">
         <!-- Colonne gauche : accueil, outils ou métadonnées de l'entretien sélectionné. -->
@@ -463,9 +478,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <div class="corpus-tete">
               <h3>Corpus</h3>
             </div>
-            <p v-if="!pasAPas" class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
-            <ParcoursPasAPas v-if="pasAPas" ref="parcours" />
-            <p v-else class="raccourci">
+            <p class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
+            <p class="raccourci">
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
             <ul class="accueil-outils">
@@ -627,6 +641,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               :key="e.id"
               class="carte-ent"
               :data-tour="'carte-' + e.titre"
+              :data-entretien-id="e.id"
               :class="{ selection: corpusSelId === e.id }"
               @click="selectionnerCorpus(e.id)"
             >
@@ -781,6 +796,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .grille-corpus.atelier-actif { grid-template-columns: 300px minmax(0, 1fr); }
 @media (max-width: 780px) {
+  .grille-corpus,
   .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */

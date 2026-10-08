@@ -54,7 +54,7 @@ export interface EtatDemo {
 }
 
 /** Retour de `demo:etat` : l'état mémorisé + la présence RÉELLE sur disque —
- *  les sources seulement si les 8 fichiers (4 SRT + 4 MP3) sont là ; un corpus
+ *  les sources seulement si les 9 fichiers (4 SRT, 4 MP3 et le guide) sont là ; un corpus
  *  de test seulement si son `corpus.json` porte le marqueur `demo` du mode
  *  (un squelette amorcé vide ne compte pas). */
 export interface EtatDemoComplet extends EtatDemo {
@@ -63,12 +63,24 @@ export interface EtatDemoComplet extends EtatDemo {
   corpusAutonomieExist: boolean
 }
 
-/** Marqueur `demo` de `corpus.json` : identité d'un corpus de TEST ; absent = corpus normal (la démo n'y touche jamais).
- *  `mode` = pas-à-pas ou autonomie ; `validees` = étapes cochées du parcours, qui voyage avec le corpus. */
+/** Identité stable d'un parcours de découverte. */
+export type ParcoursId = 'preparation' | 'traitement' | 'analyse'
+
+/** Progression d'un parcours, transportée avec le corpus d'apprentissage. */
+export interface ProgressionParcoursDemo {
+  validees: string[]
+  contexte?: Record<string, string>
+}
+
+/** Marqueur `demo` de `corpus.json` : identité d'un corpus de test ; absent = corpus normal.
+ *  `validees` reste lisible pour les anciens corpus et correspond au parcours de traitement. */
 export interface MarqueurDemo {
   mode: ModeDemo
   racineSources: string
   validees?: string[]
+  parcours?: Partial<Record<ParcoursId, ProgressionParcoursDemo>>
+  /** Dernier parcours choisi ; aucune étape active n'est restaurée automatiquement. */
+  dernierParcoursId?: ParcoursId
 }
 
 /** Résultat de la garde `demo:verifierCorpus` (modale) : `ok` si le dossier est

@@ -33,6 +33,12 @@ async function stuberDeuxDossiers(
   }, { sources, corpus })
 }
 
+async function ouvrirCatalogueParcours(page: import('@playwright/test').Page): Promise<void> {
+  if (await page.locator('.voile-catalogue-parcours').isVisible()) return
+  await page.locator('.resume-parcours .secondaire').click()
+  await expect(page.locator('.voile-catalogue-parcours')).toBeVisible()
+}
+
 /** Ouvre la modale démo depuis la carte pas-à-pas et la valide. */
 async function preparerPasAPas(
   app: import('@playwright/test').ElectronApplication,
@@ -50,6 +56,12 @@ async function preparerPasAPas(
   await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
   await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
+  await expect(page.locator('.carte-parcours')).toHaveCount(2)
+  await expect(page.locator('.liste-pp li')).toHaveCount(4)
+  await expect(page.locator('.liste-pp li.actif')).toHaveCount(0)
+  await page.locator('.carte-parcours').filter({ hasText: 'Traiter ses entretiens' }).locator('button').click()
+  await expect(page.locator('.voile-catalogue-parcours')).not.toBeVisible()
+  await expect(page.locator('.liste-pp li')).toHaveCount(6)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
 }
 
@@ -143,6 +155,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // Toute la suite du parcours est construite sur son contenu.
   await expect(page.locator('.carte-ent .ent-titre')).toHaveText('1Coordinatrice')
   await expect(page.locator('.carte-ent')).toHaveCount(1)
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(1).locator('.ligne-pp').click()
   // Le spotlight guide d'abord vers le VRAI bouton « + Ajouter un entretien ».
   await spotlightSur(page, '[data-tour="ajouter-entretien"]')
@@ -226,8 +239,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // La consigne devient un panneau sous les onglets, avant le panneau métier.
   // Aucun trou : les deux champs de nom restent accessibles.
   // Le geste commence par l'onglet Locuteurs (icone) : on le clique pour afficher la liste.
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(3).locator('.ligne-pp').click()
-  await spotlightSur(page, '.cartes-ent .carte-ent:nth-of-type(1) .crayon')
+  await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.guide-pp')).toBeVisible()
@@ -238,11 +252,12 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // Son bouton ferme l'entretien et remet le parcours au premier plan avec le focus clavier.
   await page.locator('.onglets button[data-onglet="maison"]').click()
   await expect(page.locator('.rappel-parcours')).toContainText('Renommer les locuteurs')
-  await page.getByRole('button', { name: 'Voir le parcours dans le corpus' }).click()
+  await page.getByRole('button', { name: 'Voir ce parcours dans le corpus' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
-  await expect(page.getByTestId('parcours-pas-a-pas')).toBeFocused()
+  await expect(page.getByTestId('parcours-pas-a-pas')).toBeVisible()
   await expect(page.locator('.liste-pp li').nth(3)).toHaveClass(/actif/)
-  await page.locator('.carte-ent .crayon').first().click()
+  await page.getByTitle('Fermer le choix des parcours').click()
+  await page.locator('[data-tour="carte-1Coordinatrice"] .crayon').click()
   await expect(page.locator('.guide-pp')).toBeVisible()
 
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -270,8 +285,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.corpus-ecran')).toBeVisible()
 
   // --- Étape 5 : Créer une thématique et annoter (lancée AU CLIC) ---
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(4).locator('.ligne-pp').click()
-  await spotlightSur(page, '.cartes-ent .carte-ent:nth-of-type(1) .crayon')
+  await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
   // Ouvrir l'entretien → le spotlight bascule (recalcul live) sur l'onglet Thématique.
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible()
@@ -289,8 +305,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.corpus-ecran')).toBeVisible()
 
   // --- Étape 6 : Saisir une variable (lancée AU CLIC) ---
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(5).locator('.ligne-pp').click()
-  await spotlightSur(page, '.cartes-ent .carte-ent:nth-of-type(1) .crayon')
+  await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible()
   await spotlightSur(page, '[data-tour="onglet-donnees"]')
@@ -309,8 +326,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // sinon l'entretien s'ouvrait et se refermait aussitôt (les locuteurs sont déjà renommés).
   // Le guidage s'éteint et un petit message « déjà réalisée » s'affiche,
   // avec un bouton pour revenir au Pas à pas.
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(3).locator('.ligne-pp').click()
-  await spotlightSur(page, '.cartes-ent .carte-ent:nth-of-type(1) .crayon')
+  await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 5_000 })
   await expect(page.locator('.editeur')).toContainText('Fatima')
@@ -336,6 +354,13 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 5_000 })
   await expect(page.locator('.guide-pp.retest')).toBeVisible()
   await expect(page.locator('.guide-pp.retest')).toContainText('notes à chaud')
+
+  // Le parcours de préparation reste démarrable après le traitement.
+  await page.locator('.guide-pp.retest button').click()
+  await page.locator('.carte-parcours').filter({ hasText: 'Préparer son terrain' }).locator('button').click()
+  await expect(page.locator('.liste-pp li')).toHaveCount(4)
+  await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
+  await spotlightSur(page, '[data-tour="ouvrir-tableau-bord"]')
 
   await app.close()
 })
@@ -410,7 +435,7 @@ test('réouverture par « Récents » : le parcours et l\'historique des étapes
   // Attendre que l'historique soit écrit dans le MARQUEUR du corpus (watch →
   // corpus:marquerDemo) avant de fermer — sinon le test pourrait lire trop tôt.
   await expect
-    .poll(() => JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo?.validees ?? [])
+    .poll(() => JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo?.parcours?.traitement?.validees ?? [])
     .toContain('charger')
   await app.close()
 
@@ -418,7 +443,8 @@ test('réouverture par « Récents » : le parcours et l\'historique des étapes
   // l'étape « charger » est mémorisée avec le mode pas-a-pas.
   const marqueur = JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo
   expect(marqueur.mode).toBe('pas-a-pas')
-  expect(marqueur.validees).toContain('charger')
+  expect(marqueur.parcours.traitement.validees).toContain('charger')
+  expect(marqueur.dernierParcoursId).toBe('traitement')
 
   // 2e session (même profil, settings PRÉSERVÉS) : rouvrir le corpus démo par « Récents ».
   // Le panneau réapparaît AVEC l'historique (étape 1 cochée).
@@ -428,11 +454,15 @@ test('réouverture par « Récents » : le parcours et l\'historique des étapes
   // Le 1er récent est le corpus démo (ouvrirDossier l'a mis en tête en session 1).
   await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
+  await expect(page.locator('.voile-catalogue-parcours')).not.toBeVisible()
+  await expect(page.locator('.resume-parcours')).toContainText('Traiter ses entretiens')
+  await expect(page.getByTestId('continuer-parcours')).toContainText('Continuer')
+  await ouvrirCatalogueParcours(page)
   await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
   await expect(page.locator('.onglets-corpus')).toBeVisible()
   await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
   await expect(page.locator('.liste-pp li')).toHaveCount(6)
-  await expect(page.getByTestId('continuer-parcours')).toContainText('Continuer')
+  await expect(page.locator('.carte-parcours').filter({ hasText: 'Traiter ses entretiens' }).locator('button')).toContainText('Continuer')
   // Étape 1 cochée (mémorisée + re-dérivée du modèle — un entretien existe) ;
   // les étapes 2 à 6 ne sont pas faites. Le spotlight reste inactif.
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
@@ -512,6 +542,7 @@ test('pas-à-pas : l’étape 1 EXIGE l’audio 1Coordinatrice.mp3 — 1Coordina
   // On revient au Corpus pour relancer l'étape.
   await retourCorpus(page)
   await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
+  await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').first().locator('.ligne-pp').click()
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
 

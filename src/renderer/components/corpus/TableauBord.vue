@@ -300,6 +300,7 @@ function afficherDate(iso: string): string {
               <td v-if="!colonne.traversante || tableaubord.lignes.indexOf(ligne) === 0"
                 :rowspan="colonne.traversante ? tableaubord.lignes.length : undefined"
                 class="case"
+                :data-tour="colonne.id === 'problematique' ? 'cellule-problematique' : undefined"
                 :class="{ 'case-active': caseActive?.ligneId === cleCellule(colonne, ligne.id) && caseActive?.colonneId === colonne.id, 'case-traversante': colonne.traversante }"
                 :title="infoBulle(ligne.id, colonne.id)"
                 @click="ouvrirCase(ligne.id, colonne.id)">
@@ -350,13 +351,14 @@ function afficherDate(iso: string): string {
     </div>
 
     <div v-if="caseActive" class="voile-case" @click.self="fermerCase">
-      <div class="modale-case" @keydown.escape="fermerCase">
+      <div class="modale-case" data-tour="formulaire-cellule-tableau" @keydown.escape="fermerCase">
+        <div data-tour="ancre-guide-tableau-form"></div>
         <div class="statuts">
           <button :class="{ actif: brouillon.badge === null }" @click="brouillon.badge = null">Sans badge</button>
           <button v-for="badge in tableaubord?.badges" :key="badge.id" class="badge" :class="{ actif: brouillon.badge === badge.id }" :style="{ background: badge.couleur, color: texteLisible(badge.couleur) }" @click="brouillon.badge = badge.id">{{ badge.nom }}</button>
         </div>
         <label>Note
-          <textarea v-model="brouillon.note" class="saisie-note" rows="2" placeholder="Petit texte d'accompagnement…"></textarea>
+          <textarea v-model="brouillon.note" class="saisie-note" data-tour="note-cellule-tableau" rows="2" placeholder="Petit texte d'accompagnement…"></textarea>
         </label>
         <div class="champ">
           <span>Date</span>
@@ -377,7 +379,7 @@ function afficherDate(iso: string): string {
           </span>
         </div>
         <div class="modale-actions">
-          <button class="valider" @click="validerCase">Appliquer</button>
+          <button class="valider" data-tour="appliquer-cellule-tableau" @click="validerCase">Appliquer</button>
           <button @click="fermerCase">Annuler</button>
         </div>
       </div>

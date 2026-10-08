@@ -9,15 +9,17 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 - **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
 - **Journal**, pour annuler les actions récentes prises en charge dans le corpus.
 
-Lorsque la découverte pas à pas est active, son parcours apparaît directement en tête de l’Accueil du corpus. Il indique la progression, les prérequis et l’étape en cours, et permet de commencer, continuer ou réessayer une étape. Dans ce mode, le rappel de recherche laisse sa place au parcours ; **Ctrl + F** reste disponible.
+Lorsque la découverte pas à pas est active, une fenêtre permet de choisir entre **Préparer son terrain** et **Traiter ses entretiens**. Le premier accompagne le tableau de bord, les documents cadre, la création d’un entretien planifié et sa note préparatoire. Le second reprend les six étapes d’import, de documentation, de transcription et de codage. Chaque parcours conserve sa propre progression et peut être commencé dans n’importe quel ordre. **Analyse** est annoncé comme « à venir », sans action inactive présentée comme utilisable.
 
-Hors découverte pas à pas, la recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
+Après le choix, la fenêtre se ferme et l’Accueil retrouve la disposition d’un corpus ordinaire. Un bandeau compact indique le parcours retenu et propose **Continuer** ou **Revoir**, ainsi que **Voir les étapes de ce parcours — ou changer de parcours**. Une nouvelle découverte ouvre le choix sans lancer d’étape automatiquement. Une ouverture par **Récents** ne rouvre pas la fenêtre : elle restaure le dernier parcours choisi dans le bandeau, sans relancer son guidage. **Ctrl + F** reste disponible.
+
+La recherche dans le texte de tous les entretiens reste accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
 La barre d’outils supérieure donne aussi accès à **Docs cadre projet**, l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
 
 Les cartes d’entretiens restent visibles dans Accueil et Journal. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
-Dans un entretien du parcours, l’Accueil rappelle la progression et propose de revenir au parcours dans le corpus. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées.
+Dans un entretien du parcours, l’Accueil nomme le parcours actif, rappelle sa progression et propose soit de revoir ce parcours, soit de revenir au catalogue. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées. Dans le Tableau de bord et Docs cadre projet, la consigne se place également sous l’en-tête de la grande fenêtre.
 
 ## Chargement et actualisation
 
