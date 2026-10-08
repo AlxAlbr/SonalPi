@@ -56,15 +56,22 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     return { entrees: badges, indisponible: false }
   }
 
-  private async relever(ids: string[]): Promise<EntreeVerrouPublic[]> {
-    const lecteur = await this.options.instantane.racineDepot()
+  async observerCibles(ids: string[], lecteur: LecteurGitLab): Promise<ResultatObservationVerrous> {
+    if (!ids.length) return { entrees: [], indisponible: false }
+    try { return { entrees: await this.relever(ids, lecteur, true), indisponible: false } } catch {
+      return { entrees: [], indisponible: true }
+    }
+  }
+
+  private async relever(ids: string[], lecteurFourni?: LecteurGitLab, strict = false): Promise<EntreeVerrouPublic[]> {
+    const lecteur = lecteurFourni ?? await this.options.instantane.racineDepot()
     const presents = await this.inventorier(lecteur)
     if (presents.size === 0) return []
     const out: EntreeVerrouPublic[] = []
     for (const id of ids) {
       for (const candidat of this.cheminsDuBail(id)) {
         if (!presents.has(candidat.chemin)) continue
-        const bail = await this.lireBail(lecteur, candidat.chemin, candidat.legacy)
+        const bail = await this.lireBail(lecteur, candidat.chemin, candidat.legacy, strict)
         if (!bail) continue
         // Le coordinateur refuse d'abord tout marqueur historique. Un bail v2,
         // lui, ne bloque plus après son expiration.
@@ -122,11 +129,13 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     lecteur: LecteurGitLab,
     chemin: string,
     legacy: boolean,
+    strict: boolean,
   ): Promise<BailObserveGitLab | null> {
     const contenu = await lecteur.lireTexte(chemin)
     try {
       return observerBailGitLab(contenu, chemin, legacy)
-    } catch {
+    } catch (erreur) {
+      if (strict) throw erreur
       return null
     }
   }

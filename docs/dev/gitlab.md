@@ -1187,3 +1187,40 @@ Ce que la qualification **n'a pas** mesuré : le coût d'un lot de grande taille
 la borne de taille d'un entretien écrit, et la coexistence d'un grand nombre de
 transactions courtes sur la même branche. Le banc ne possède ni configuration CI
 ni runner : le coût de pipeline de ces commits reste inconnu.
+
+## Aperçus de réorganisation des thèmes
+
+L’analyse lit les membres publiés et le corpus à un seul SHA, sans utiliser les
+copies de sessions ni le miroir comme repli. Les baux sont observés au même SHA,
+uniquement pour les entretiens réellement modifiés ; le mode strict signale les
+marqueurs illisibles comme une indisponibilité. Les sessions locales et chemins
+récupérables sont ajoutés à l’observation publique, sans acquisition de bail.
+
+L’aperçu distingue l’indisponibilité par entretien des obstacles de suppression :
+l’inventaire incomplet ou plus de 248 membres bloquent la finalisation destructive,
+mais cette cardinalité n’interdit pas un transfert séquentiel.
+
+Les réaffectations sont désormais ouvertes. `gitlab/operationsThemes.ts` crée
+les destinations sous le bail corpus, puis publie chaque entretien sous son bail
+court avec une garde légère du codebook. Le journal `.themes-gitlab.json` fixe
+les ids, les sélections, les différés, les compteurs et la publication en cours.
+Les réponses perdues sont recherchées dans l’historique et leur contenu est
+vérifié au SHA retrouvé, sans rejeu du commit.
+
+La suppression finale relit le membership et tous ses entretiens au même SHA.
+Elle publie le codebook final, une garde par membre et la transition du bail
+corpus dans un seul commit. Une référence nouvelle ou une publication concurrente
+refuse cette étape seule ; les réaffectations restent acquises et la source reste
+présente. Voir [operations-themes.md](operations-themes.md).
+
+`apercusThemes.test.ts` couvre les lectures et observations en mémoire.
+`qualificationApercusThemes.test.ts` qualifie leurs lectures réelles à deux comptes :
+SHA unique, observation ciblée, aucun commit d’analyse ni repli sur le miroir.
+Le blocage initial venait des jetons expirés au 1er octobre 2026. Les trois jetons
+du banc ont été renouvelés à droits inchangés jusqu’au 6 janvier 2027 ; les anciens
+sont révoqués et les fichiers de configuration et de jetons sont protégés en `0600`.
+La qualification de lecture passe. `qualificationThemes.test.ts` qualifie aussi
+l’écriture réelle à deux comptes : un entretien tenu est différé puis repris,
+et une référence publiée pendant la finalisation refuse la suppression seule
+avant une reprise réussie. Les deux portées de thèmes sont ouvertes à la suite
+de cette qualification sur GitLab CE 18.11.

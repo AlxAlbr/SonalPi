@@ -10,7 +10,9 @@ const electron = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => electron)
 
-let api: { gitlab: ApiGitLab; webdav: ApiWebDAV; distant: ApiDistant }
+let api: { gitlab: ApiGitLab; webdav: ApiWebDAV; distant: ApiDistant; corpus: Window['sonal']['corpus'] }
+const demandeTheme = { type: 'transfert' as const, conserverSource: true, source: 'source', cible: { type: 'existante' as const, id: 'cible' } }
+const optionsThemes = { entretiens: 'tous-prevus' as const }
 
 const creationWebDAV: DemandeCreationWebDAV = {
   urlServeur: 'https://nuage.example.org/remote.php/dav/files/moi/corpus',
@@ -66,7 +68,15 @@ describe('pont IPC des corpus distants', () => {
     appeler: () => Promise<unknown>
     arguments: unknown[]
   }> = [
+    { canal: 'corpus:analyserOperationTheme', appeler: () => api.corpus.analyserOperationTheme(demandeTheme), arguments: [demandeTheme, undefined] },
+    { canal: 'corpus:analyserOperationTheme', appeler: () => api.corpus.analyserOperationTheme(demandeTheme, 'op-avant'), arguments: [demandeTheme, 'op-avant'] },
+    { canal: 'corpus:detailsOperationTheme', appeler: () => api.corpus.detailsOperationTheme('op-1', 'e1'), arguments: ['op-1', 'e1'] },
+    { canal: 'corpus:executerOperationTheme', appeler: () => api.corpus.executerOperationTheme('op-1', demandeTheme, optionsThemes), arguments: ['op-1', demandeTheme, optionsThemes] },
     { canal: 'webdav:lister', appeler: () => api.webdav.lister(), arguments: [] },
+    { canal: 'corpus:lireSuiviOperationTheme', appeler: () => api.corpus.lireSuiviOperationTheme(), arguments: [] },
+    { canal: 'corpus:preparerRepriseOperationTheme', appeler: () => api.corpus.preparerRepriseOperationTheme('op-1'), arguments: ['op-1'] },
+    { canal: 'corpus:reconcilierOperationTheme', appeler: () => api.corpus.reconcilierOperationTheme('op-1'), arguments: ['op-1'] },
+    { canal: 'corpus:abandonnerOperationTheme', appeler: () => api.corpus.abandonnerOperationTheme('op-1'), arguments: ['op-1'] },
     { canal: 'webdav:connecter', appeler: () => api.webdav.connecter(connexionWebDAV), arguments: [connexionWebDAV] },
     { canal: 'webdav:creer', appeler: () => api.webdav.creer(creationWebDAV), arguments: [creationWebDAV] },
     { canal: 'webdav:ouvrir', appeler: () => api.webdav.ouvrir('destination-dav', 'secret'), arguments: ['destination-dav', 'secret'] },
@@ -135,6 +145,18 @@ describe('pont IPC des corpus distants', () => {
     arreter()
     expect(electron.ipcRenderer.removeListener)
       .toHaveBeenCalledExactlyOnceWith('distant:etatLectureMedia', ecouteur)
+  })
+
+  it('abonne et désabonne la progression des opérations de thèmes avec son identifiant', () => {
+    const recevoir = vi.fn()
+    const arreter = api.corpus.surProgressionOperationTheme(recevoir)
+    const [canal, ecouteur] = electron.ipcRenderer.on.mock.calls[0]
+    expect(canal).toBe('corpus:progressionOperationTheme')
+    const progression = { operationId: 'op-1', phase: 'entretiens', termines: 2, total: 4, reussis: 1, echecs: 1 }
+    ecouteur({}, progression)
+    expect(recevoir).toHaveBeenCalledExactlyOnceWith(progression)
+    arreter()
+    expect(electron.ipcRenderer.removeListener).toHaveBeenCalledExactlyOnceWith(canal, ecouteur)
   })
 
   it('abonne et désabonne la progression commune aux fournisseurs', () => {

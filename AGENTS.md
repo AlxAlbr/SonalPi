@@ -39,6 +39,11 @@ Les images et volumes Nextcloud des bancs (`docker/compose-*.yml`) sont déjà e
 `npm run nc:up` / `npm run nc-b:up` suffisent à les démarrer. Pas de `pull`, pas de
 re-provisioning ; sans serveur, les bancs concernés se sautent tout seuls.
 
+Dans pi, utilisez l'outil `preparer_bancs_docker` avant les tests GitLab ou Nextcloud
+réels. Il vérifie d'abord si le service répond et ne démarre que les bancs nécessaires.
+N'écrivez pas de boucle sur `/-/readiness` pour GitLab : ce banc y répond `404` même
+lorsqu'il fonctionne. N'arrêtez pas un banc qui peut resservir pendant la session.
+
 ## Git : deux remotes (GitLab origine + GitHub miroir CI)
 
 - L'upstream des branches est **GitHub** (`github` → `PUD-GA/SonalPiTestV2`, miroir privé

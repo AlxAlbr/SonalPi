@@ -28,6 +28,7 @@ import type {
 } from './transfert'
 import type { ObservationCoordinationDistante } from './coordination'
 import { ObservationVerrousWebDAV } from './observationVerrousWebDAV'
+import type { DemandeOperationTheme, OptionsExecutionOperationTheme, ProgressionOperationTheme } from '../../shared/corpus/themes'
 
 /** Services d'un corpus distant assemblés pour une même destination. */
 export class ContexteCorpusDistant {
@@ -125,6 +126,43 @@ export class ContexteCorpusDistant {
     return this.transactions.executer(mutation)
   }
 
+  /** Prépare l’aperçu depuis les fichiers publiés, sans modifier le miroir ni les sessions. */
+  async analyserOperationTheme(demande: DemandeOperationTheme, operationPrecedente?: string) {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.analyserOperationTheme(demande, operationPrecedente)
+  }
+
+  async executerOperationTheme(id: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme,
+    progression?: (etat: ProgressionOperationTheme) => void) {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.executerOperationTheme(id, demande, options, progression)
+  }
+
+  lireSuiviOperationTheme() {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.lireSuiviOperationTheme()
+  }
+
+  async preparerRepriseOperationTheme(id: string) {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.preparerRepriseOperationTheme(id)
+  }
+
+  async reconcilierOperationTheme(id: string) {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.reconcilierOperationTheme(id)
+  }
+
+  abandonnerOperationTheme(id: string): void {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    this.transactions.abandonnerOperationTheme(id)
+  }
+
+  detailsOperationTheme(operationId: string, entretienId: string) {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.detailsOperationTheme(operationId, entretienId)
+  }
+
   /** Liste un dossier de la destination courante pour les sélecteurs. */
   async listerDossier(dossier: string): Promise<{ nom: string; dossier: boolean }[]> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
@@ -198,6 +236,7 @@ export class ContexteCorpusDistant {
   /** Publie et libère toutes les sessions avant de terminer le contexte. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    if (this.transactions.operationThemeEnCours) throw new Error('Une opération sur les thématiques doit se terminer avant le changement de corpus.')
     const ids = this.sessions.idsTenus()
     for (const id of ids) this.store.revoquerEcritureEntretien(id)
     const bilan = await this.sessions.fermerToutes()
@@ -214,6 +253,7 @@ export class ContexteCorpusDistant {
     }
     this.presence.arreter()
     this.sessions.dispose()
+    this.transactions.viderApercusOperationTheme()
     this.termine = true
   }
 

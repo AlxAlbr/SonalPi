@@ -93,6 +93,21 @@ describe('opération globale d’un corpus', () => {
     expect(messageOperationGlobale.value).toBeNull()
   })
 
+  it('un aperçu confirmé évite la seconde confirmation et utilise une attente adaptée', async () => {
+    const confirmer = simulerConfirmation(true)
+    installer()
+    let terminer!: () => void
+    const attente = new Promise<void>((resolve) => { terminer = resolve })
+    const premiere = lancerOperationGlobale(() => attente, { confirmation: 'deja-confirmee', message: 'Réaffectation des thématiques…' })
+    expect(messageOperationGlobale.value).toBe('Réaffectation des thématiques…')
+    expect(confirmer).not.toHaveBeenCalled()
+    await expect(lancerOperationGlobale(vi.fn())).resolves.toBe(false)
+    terminer()
+    await premiere
+    expect(operationGlobaleEnCours.value).toBe(false)
+    expect(messageOperationGlobale.value).toBeNull()
+  })
+
   it('ne montre ni confirmation ni message GitLab sur les autres corpus', async () => {
     const confirmer = simulerConfirmation(true)
     installer({ gitlab: false, entretiens: 9 })

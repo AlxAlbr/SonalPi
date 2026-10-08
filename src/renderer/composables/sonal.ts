@@ -332,6 +332,7 @@ export function creerSonal() {
   })
   const {
     dossierCourantDir,
+    revisionCorpus,
     reprise,
     appliquerCorpus,
     chargerCorpus,
@@ -708,6 +709,7 @@ export function creerSonal() {
     creerEtOuvrirGitLab,
     idDistantCourant,
     dossierCourantDir,
+    revisionCorpus,
     dernierTirage,
     tirageEnCours,
     progressionDistant,

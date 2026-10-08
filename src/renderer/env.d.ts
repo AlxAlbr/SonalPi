@@ -42,6 +42,16 @@ import type {
   ParamsAnon,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type {
+  ApercuOperationTheme,
+  DemandeOperationTheme,
+  DetailsOperationTheme,
+  OptionsExecutionOperationTheme,
+  ProgressionOperationTheme,
+  ResultatOperationTheme,
+  SuiviOperationTheme,
+  PreparationRepriseOperationTheme,
+} from '../shared/corpus/themes'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -136,6 +146,14 @@ declare global {
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
         migrerCategorie: (id: string, nouveauParent: string | null) => Promise<CorpusFichier>
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
+        analyserOperationTheme: (demande: DemandeOperationTheme, operationPrecedente?: string) => Promise<ApercuOperationTheme>
+        detailsOperationTheme: (operationId: string, entretienId: string) => Promise<DetailsOperationTheme>
+        executerOperationTheme: (operationId: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme) => Promise<ResultatOperationTheme>
+        lireSuiviOperationTheme: () => Promise<SuiviOperationTheme | null>
+        preparerRepriseOperationTheme: (id: string) => Promise<PreparationRepriseOperationTheme>
+        reconcilierOperationTheme: (id: string) => Promise<ResultatOperationTheme>
+        abandonnerOperationTheme: (id: string) => Promise<void>
+        surProgressionOperationTheme: (cb: (etat: ProgressionOperationTheme) => void) => () => void
         usagesParCategorie: () => Promise<Record<string, number>>
         categoriesNote: () => Promise<NoteCategory[]>
         ajouterCategorieNote: (

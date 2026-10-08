@@ -26,6 +26,8 @@ entretiens publiés.
 | `suppression-entretien` | retrait du membership, déplacement du JSON sous **deux** baux, archivage local séparé | analyse de suppression, suppression |
 | `valeurs-entretien` | un entretien protégé et les définitions qu'il référence | saisie directe et lot de valeurs |
 | `pseudonymisation-entretiens` | un entretien protégé et la règle appliquée | poses, retraits et exceptions de pseudonymisation |
+| `themes-reaffectation` | création éventuelle de catégories, puis codages de plusieurs entretiens, source conservée | `theme.transferer`, `theme.diviser` |
+| `themes-reaffectation-suppression` | réaffectation puis inventaire complet protégé avant retrait de la source | `theme.fusionner`, `theme.diviser-supprimer-source` |
 | `indisponible` | rien — parcours refusés sur **tout** corpus distant | édition d'une note du corpus, personnes, annulation d'une action du journal, marqueur de démonstration |
 Le classement se fait par commande, et par variante pour les commandes qui en ont
 plusieurs : insérer un passage se distingue d'insérer un texte, un tri
@@ -45,6 +47,8 @@ Un fournisseur n'accorde jamais une portée qu'aucun de ses gestes ne partage.
 | `suppression-entretien` | oui | oui | oui |
 | `valeurs-entretien` | oui | oui | oui |
 | `pseudonymisation-entretiens` | oui | oui | oui |
+| `themes-reaffectation` | oui | oui | oui |
+| `themes-reaffectation-suppression` | oui | non | oui |
 | `indisponible` | oui | non | non |
 
 GitLab accorde toutes les opérations de définitions qualifiées. Les gestes à
@@ -60,6 +64,22 @@ Les écritures d'entretien depuis les vues corpus sont ouvertes sur les deux
 fournisseurs. Elles se distinguent des définitions : le gesture prend un bail
 court sur **chaque entretien** du lot, et garde les définitions sans les modifier.
 Le détail est dans `docs/dev/gitlab.md` §12.
+
+L’atelier thématique local est livré : panneau, aperçu versionné, répartition
+manuelle et transaction multi-fichiers reprenable. WebDAV dispose désormais
+d’aperçus depuis le serveur, sans lecture ni mutation de secours du miroir.
+Le transfert et la division WebDAV sont ouverts avec publication conditionnelle
+par entretien, bilan partiel, suivi persistant et reprise sans recréer les
+destinations. Une réponse inconnue arrête le lot et exige une vérification sans
+rejeu avant reprise. WebDAV conserve la source : fusion et division destructive
+restent désactivées. GitLab prend en charge les trois gestes : commits courts
+par entretien, suivi durable, reprise et suppression finale protégée par des
+gardes sur tout le membership (248 membres maximum). Cette ouverture a été
+qualifiée à deux comptes sur GitLab CE 18.11. Détails :
+[operations-themes.md](operations-themes.md).
+
+Une division avec `effacerSource: true` exige **les deux gestes**
+`theme.diviser` et `theme.diviser-supprimer-source` dans le main, avant préparation.
 
 ## 3. Les gardes, dans l'ordre
 
@@ -94,6 +114,10 @@ accès.
 | `metadonneesEntretien` | oui | oui | non | parcours du transport |
 | `tableDonnees` | oui | oui | oui | portée `valeurs-entretien` |
 | `pseudonymisationEntretiens` | oui | oui | oui | portée `pseudonymisation-entretiens` |
+| `transfertThemes` | oui | non, parcours à livrer | non | geste `theme.transferer` et parcours livré |
+| `divisionThemes` | oui | non, parcours à livrer | non | geste `theme.diviser` et parcours livré |
+| `fusionThemes` | oui | non | non | geste `theme.fusionner` |
+| `suppressionSourceThemes` | oui | non | non | geste `theme.diviser-supprimer-source` |
 | `notes` | oui | non | non | parcours du transport |
 | `personnes` | oui | oui | non | parcours du transport |
 | `annulationJournal` | oui | non | non | parcours du transport |

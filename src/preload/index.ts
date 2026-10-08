@@ -43,6 +43,16 @@ import type {
   SourceDocumentCadre,
 } from '../shared/docsCadre'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type {
+  ApercuOperationTheme,
+  DemandeOperationTheme,
+  DetailsOperationTheme,
+  OptionsExecutionOperationTheme,
+  ProgressionOperationTheme,
+  ResultatOperationTheme,
+  SuiviOperationTheme,
+  PreparationRepriseOperationTheme,
+} from '../shared/corpus/themes'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -255,6 +265,21 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:migrerCategorie', id, nouveauParent),
     supprimerCategorie: (id: string, exceptId?: string): Promise<ResultatSuppressionCategorie> =>
       invoquer('corpus:supprimerCategorie', id, exceptId),
+    analyserOperationTheme: (demande: DemandeOperationTheme, operationPrecedente?: string): Promise<ApercuOperationTheme> =>
+      invoquer('corpus:analyserOperationTheme', demande, operationPrecedente),
+    detailsOperationTheme: (operationId: string, entretienId: string): Promise<DetailsOperationTheme> =>
+      invoquer('corpus:detailsOperationTheme', operationId, entretienId),
+    executerOperationTheme: (operationId: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme): Promise<ResultatOperationTheme> =>
+      invoquer('corpus:executerOperationTheme', operationId, demande, options),
+    lireSuiviOperationTheme: (): Promise<SuiviOperationTheme | null> => invoquer('corpus:lireSuiviOperationTheme'),
+    preparerRepriseOperationTheme: (id: string): Promise<PreparationRepriseOperationTheme> => invoquer('corpus:preparerRepriseOperationTheme', id),
+    reconcilierOperationTheme: (id: string): Promise<ResultatOperationTheme> => invoquer('corpus:reconcilierOperationTheme', id),
+    abandonnerOperationTheme: (id: string): Promise<void> => invoquer('corpus:abandonnerOperationTheme', id),
+    surProgressionOperationTheme: (cb: (etat: ProgressionOperationTheme) => void): (() => void) => {
+      const ecouteur = (_e: Electron.IpcRendererEvent, etat: ProgressionOperationTheme) => cb(etat)
+      ipcRenderer.on('corpus:progressionOperationTheme', ecouteur)
+      return () => ipcRenderer.removeListener('corpus:progressionOperationTheme', ecouteur)
+    },
     usagesParCategorie: (): Promise<Record<string, number>> =>
       invoquer('corpus:usagesParCategorie'),
     // Catégories de note (définitions corpus)

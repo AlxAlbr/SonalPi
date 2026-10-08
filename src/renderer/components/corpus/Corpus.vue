@@ -5,6 +5,8 @@ import EditionThemes from '../themes/EditionThemes.vue'
 import MenuTheme from '../themes/MenuTheme.vue'
 import PasAPas from './PasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
+import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
+import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import PanneauJournalCorpus from './PanneauJournalCorpus.vue'
@@ -311,7 +313,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button class="btn-export-corpus" title="Exporter ce corpus" aria-label="Exporter ce corpus" @click="ouvrirExportCorpus">Exporter ce corpus</button>
       </nav>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus">
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes' }">
         <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas,
              puis bascule Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
         <aside class="colonne-g-corpus">
@@ -454,7 +456,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
-              <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
+              <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></li>
               <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoJournal" alt="" /><span><b>Journal</b> — annuler les actions récentes prises en charge depuis les outils du corpus.</span></li>
               <li v-if="pasAPas"><img :src="icoPasAPas" alt="" /><span><b>Pas à pas</b> — suivre le parcours guidé.</span></li>
@@ -464,7 +466,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
-              <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
+              <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️</button>
             </div>
             <p class="aide-thm">Le codage se fait au niveau des entretiens</p>
             <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
@@ -546,8 +548,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <PasAPas v-if="pasAPas" :montre-liste="ongletCorpus === 'pas-a-pas'" />
         </aside>
 
-        <!-- Colonne DROITE (large) : entretiens en cartes ; à terme = spectrogramme -->
-        <section class="colonne-d-corpus">
+        <ThemesOpsCorpus v-show="ongletCorpus === 'themes'" :actif="ongletCorpus === 'themes'" />
+
+        <!-- Les autres onglets conservent les cartes d'entretiens. -->
+        <section v-show="ongletCorpus !== 'themes'" class="colonne-d-corpus">
           <div class="corpus-tete">
             <h3>Entretiens</h3>
             <span class="actions-ent">
@@ -769,6 +773,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   grid-template-columns: 300px 1fr;
   gap: 1rem;
   align-items: start;
+}
+.grille-corpus.atelier-actif { grid-template-columns: 300px minmax(0, 1fr); }
+@media (max-width: 780px) {
+  .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
 .onglets-corpus {

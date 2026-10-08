@@ -311,6 +311,18 @@ export class ClientWebDAV {
     })
   }
 
+  /** Retourne le texte et l’ETag de la même réponse, sans observation séparée. */
+  async getTexteAvecEtag(chemin: string): Promise<{ contenu: string; etag: string | null }> {
+    return this.requete('GET', chemin, {
+      // L’ETag d’une représentation gzip ne convient pas au PUT du fichier original.
+      entetes: { 'Cache-Control': 'no-cache', 'Accept-Encoding': 'identity' },
+      traiter: async (reponse) => {
+        const etag = reponse.headers.get('etag')
+        return { contenu: await reponse.text(), etag: etag ? retirerGuillemets(etag) : null }
+      },
+    })
+  }
+
   /* ── Lecture d'un média ────────────────────────────────────────────────
    *  Deux primitives seulement : l'information sur le fichier et la lecture
    *  d'une plage. Elles rendent la réponse TELLE QUELLE — c'est le contrat

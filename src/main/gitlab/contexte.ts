@@ -29,6 +29,13 @@ import { ClientGitLab } from './client'
 import { FileOperationsContexte } from './fileOperations'
 import { InstantaneLectureGitLab } from './lecture'
 import { ObservationBailsGitLab } from './observationBails'
+import { ApercusThemesGitLab } from './apercusThemes'
+import type { OperationsThemesGitLab } from './operationsThemes'
+import type {
+  DemandeOperationTheme,
+  OptionsExecutionOperationTheme,
+  ProgressionOperationTheme,
+} from '../../shared/corpus/themes'
 import {
   exigerGeste,
   porteeGeste,
@@ -62,6 +69,8 @@ export interface PreparationContexteGitLabLectureSeule {
 /** Contexte GitLab de préversion, avec services de session réservés au main. */
 export class ContexteGitLab {
   private termine = false
+  private readonly apercusThemes?: ApercusThemesGitLab
+  private readonly operationsThemes?: OperationsThemesGitLab
   private readonly sessions = new Map<string, {
     session: SessionGitLab
     chemin: string
@@ -83,7 +92,72 @@ export class ContexteGitLab {
     public readonly transactions?: TransactionsGitLab,
     private readonly observation?: ObservationCoordinationDistante,
     private readonly instantane?: InstantaneLectureGitLab,
-  ) {}
+    optionsApercus?: Pick<OptionsContexteGitLabLectureSeule, 'client' | 'branche' | 'racine' | 'cheminsRecuperables'>,
+  ) {
+    if (optionsApercus) {
+      const sessionsLocales = () => [...this.sessions.values()].filter((s) => s.protege).map((s) => s.chemin)
+        .concat(optionsApercus.cheminsRecuperables ?? [])
+        .flatMap((chemin) => /^entretiens\/([^/]+)\.json$/.exec(chemin)?.[1] ?? [])
+      this.apercusThemes = new ApercusThemesGitLab({
+        ...optionsApercus,
+        adapter: (avant) => store.adapterEntretienOperationTheme(avant),
+        observer: (ids, lecteur) => observation instanceof ObservationBailsGitLab
+          ? observation.observerCibles(ids, lecteur) : Promise.resolve({ entrees: [], indisponible: true }),
+        sessionsLocales,
+      })
+      if (transactions) {
+        this.operationsThemes = transactions.creerOperationsThemes(this.apercusThemes, miroir.dirLocal, sessionsLocales)
+      }
+    }
+  }
+
+  async analyserOperationTheme(demande: DemandeOperationTheme, precedent?: string) {
+    return this.file.executer(async () => {
+      if (this.termine || !this.apercusThemes) throw new Error('Aperçus de thèmes GitLab indisponibles dans ce contexte.')
+      return this.operationsThemes
+        ? this.operationsThemes.analyser(demande, precedent)
+        : this.apercusThemes.analyser(demande, precedent)
+    })
+  }
+
+  detailsOperationTheme(id: string, entretien: string) {
+    if (this.termine || !this.apercusThemes) throw new Error('Aperçus de thèmes GitLab indisponibles dans ce contexte.')
+    return this.apercusThemes.details(id, entretien)
+  }
+
+  executerOperationTheme(id: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme,
+    progression?: (etat: ProgressionOperationTheme) => void) {
+    return this.file.executer(async () => {
+      if (this.termine || !this.operationsThemes) throw new Error('Publication des thématiques GitLab indisponible dans ce contexte.')
+      return this.operationsThemes.executer(id, demande, options, progression)
+    })
+  }
+
+  lireSuiviOperationTheme() {
+    if (this.termine || !this.operationsThemes) return null
+    return this.operationsThemes.lireSuivi()
+  }
+
+  preparerRepriseOperationTheme(id: string) {
+    return this.file.executer(async () => {
+      if (this.termine || !this.operationsThemes) throw new Error('Reprise des thématiques GitLab indisponible dans ce contexte.')
+      return this.operationsThemes.preparerReprise(id)
+    })
+  }
+
+  reconcilierOperationTheme(id: string) {
+    return this.file.executer(async () => {
+      if (this.termine || !this.operationsThemes) throw new Error('Réconciliation des thématiques GitLab indisponible dans ce contexte.')
+      return this.operationsThemes.reconcilier(id)
+    })
+  }
+
+  abandonnerOperationTheme(id: string) {
+    return this.file.executer(async () => {
+      if (this.termine || !this.operationsThemes) throw new Error('Suivi des thématiques GitLab indisponible dans ce contexte.')
+      this.operationsThemes.abandonner(id)
+    })
+  }
 
   get dirLocal(): string {
     return this.miroir.dirLocal
@@ -663,6 +737,7 @@ export class ContexteGitLab {
       this.sessions.delete(ressource)
     }
     this.termine = true
+    this.apercusThemes?.vider()
   }
 
   private session(ressource: string): SessionGitLab {
@@ -741,6 +816,7 @@ export async function preparerContexteGitLabLectureSeule(
       bailTenuLocalement: (id, bail) => contexte.bailTenuLocalement(id, bail),
     }),
     instantane,
+    options,
   )
   try {
     // Badges relevés au commit du tirage d'ouverture : le premier affichage

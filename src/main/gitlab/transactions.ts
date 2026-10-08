@@ -30,6 +30,8 @@ import {
 import type { FileOperationsContexte } from './fileOperations'
 import { ErreurReponseTropVolumineuseGitLab } from './client'
 import type { JournalPublicationGitLab } from './journalPublication'
+import type { ApercusThemesGitLab } from './apercusThemes'
+import { OperationsThemesGitLab } from './operationsThemes'
 import { verifierReferencesDefinitions } from './referencesDefinitions'
 import {
   preparerDefinitions,
@@ -116,6 +118,27 @@ export class TransactionsGitLab {
       options.destination.branche,
       this.cheminCorpus,
     )
+  }
+
+  creerOperationsThemes(
+    apercus: ApercusThemesGitLab,
+    dirLocal: string,
+    sessionsLocales: () => string[],
+  ): OperationsThemesGitLab {
+    return new OperationsThemesGitLab({
+      destinationId: this.options.destination.id,
+      dirLocal,
+      branche: this.branche,
+      racine: this.racine,
+      store: this.options.store,
+      depot: this.options.depot,
+      coordination: this.options.coordination,
+      publication: this.options.publication,
+      journalPublication: this.options.journal,
+      apercus,
+      sessionsLocales,
+      nouvelleOperation: this.nouvelleOperation,
+    })
   }
 
   /** Mutation de définitions calculée sur le seul `corpus.json` lu sur

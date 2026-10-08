@@ -63,6 +63,8 @@ import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import { executerCommandeCas, deduireSourcesCas } from './casOrchestration'
+import { creerHandlersOperationsThemes } from './ipcOperationsThemes'
+import type { DemandeOperationTheme, OptionsExecutionOperationTheme } from '../shared/corpus/themes'
 import type {
   Categorie,
   CibleRegleAnon,
@@ -555,6 +557,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     preparation: PreparationOuvertureCorpus,
   ): OuvertureCorpus {
     const corpus = nouveauStore.finaliserOuverture(preparation)
+    store.viderApercusOperationTheme()
     store = nouveauStore
     contextesDistants.remplacer(null)
     dossierCourant = dir
@@ -736,6 +739,73 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (contexte) return 'webdav'
     return 'local'
   }
+
+  const handlersThemes = creerHandlersOperationsThemes({
+    store: () => store,
+    fournisseur: fournisseurCourant,
+    gitlab: {
+      analyser: (demande, precedent) => executerGitLab((contexte) => contexte.analyserOperationTheme(demande, precedent)),
+      details: (id, entretien) => executerGitLab(async (contexte) => contexte.detailsOperationTheme(id, entretien)),
+      executer: (id, demande, options, progression) =>
+        executerGitLab((contexte) => contexte.executerOperationTheme(id, demande, options, progression)),
+      lireSuivi: () => executerGitLab(async (contexte) => contexte.lireSuiviOperationTheme()),
+      preparerReprise: (id) => executerGitLab((contexte) => contexte.preparerRepriseOperationTheme(id)),
+      reconcilier: (id) => executerGitLab((contexte) => contexte.reconcilierOperationTheme(id)),
+      abandonner: (id) => executerGitLab(async (contexte) => contexte.abandonnerOperationTheme(id)),
+    },
+    webdav: {
+      analyser: (demande, operationPrecedente) => {
+        const execution = executerIntentionDistante((contexte) => contexte.analyserOperationTheme(demande, operationPrecedente))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      details: (operationId, entretienId) => {
+        const execution = executerIntentionDistante(async (contexte) => contexte.detailsOperationTheme(operationId, entretienId))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      executer: (id, demande, options, progression) => {
+        const execution = executerIntentionDistante((contexte) => contexte.executerOperationTheme(id, demande, options, progression))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      lireSuivi: () => {
+        const execution = executerIntentionDistante(async (contexte) => contexte.lireSuiviOperationTheme())
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      preparerReprise: (id) => {
+        const execution = executerIntentionDistante((contexte) => contexte.preparerRepriseOperationTheme(id))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      reconcilier: (id) => {
+        const execution = executerIntentionDistante((contexte) => contexte.reconcilierOperationTheme(id))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+      abandonner: (id) => {
+        const execution = executerIntentionDistante(async (contexte) => contexte.abandonnerOperationTheme(id))
+        if (!execution) throw new Error('Aucun contexte WebDAV courant.')
+        return execution
+      },
+    },
+    progression: (etat) => {
+      for (const fenetre of BrowserWindow.getAllWindows()) {
+        if (!fenetre.isDestroyed()) fenetre.webContents.send('corpus:progressionOperationTheme', etat)
+      }
+    },
+  })
+  ipcMain.handle('corpus:analyserOperationTheme', (_e, demande: DemandeOperationTheme, operationPrecedente?: string) =>
+    handlersThemes.analyser(demande, operationPrecedente))
+  ipcMain.handle('corpus:detailsOperationTheme', (_e, operationId: string, entretienId: string) =>
+    handlersThemes.details(operationId, entretienId))
+  ipcMain.handle('corpus:executerOperationTheme', (_e, operationId: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme) =>
+    handlersThemes.executer(operationId, demande, options))
+  ipcMain.handle('corpus:lireSuiviOperationTheme', () => handlersThemes.lireSuivi())
+  ipcMain.handle('corpus:preparerRepriseOperationTheme', (_e, id: string) => handlersThemes.preparerReprise(id))
+  ipcMain.handle('corpus:reconcilierOperationTheme', (_e, id: string) => handlersThemes.reconcilier(id))
+  ipcMain.handle('corpus:abandonnerOperationTheme', (_e, id: string) => handlersThemes.abandonner(id))
 
   /** Opération réservée au corpus GitLab courant. Un corpus local ou un autre
    *  fournisseur ne l'a pas : le refus est nommé, jamais silencieux. */
@@ -1784,6 +1854,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
       if (motDePasseSaisi) coffre.memoriserMotDePasse(id, motDePasseSaisi)
       await fermerContexteActuel()
+      store.viderApercusOperationTheme()
       store = preparation.contexte.store
       dossierCourant = preparation.contexte.dirLocal
       contextesDistants.remplacer(preparation.contexte)
@@ -1814,6 +1885,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     identiteSession: { machineId, sessionId: SESSION_ID },
     fermerContexte: fermerContexteActuel,
     installer: (destination, preparation) => {
+      store.viderApercusOperationTheme()
       store = preparation.contexte.store
       dossierCourant = preparation.contexte.dirLocal
       contextesDistants.remplacer(preparation.contexte)

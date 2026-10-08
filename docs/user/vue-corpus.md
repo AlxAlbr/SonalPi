@@ -5,7 +5,7 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 - **Notes**, pour consulter les notes de tous les entretiens ;
 - **Personnes**, pour relier les locuteurs d’entretiens différents ;
 - **Pseudonymisation**, pour contrôler et appliquer les règles partagées ;
-- **Thèmes**, pour consulter le codebook et ouvrir son édition ;
+- **Thèmes**, pour consulter le codebook et réorganiser ses codages ;
 - **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
 - **Journal**, pour annuler les actions récentes prises en charge dans le corpus ;
 - **Pas à pas**, lorsque le parcours de démonstration est actif.
@@ -14,13 +14,89 @@ La recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F
 
 La barre d’outils supérieure donne aussi accès à **Docs cadre projet**, l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
 
-Les cartes d’entretiens restent visibles dans Accueil, Thèmes, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+Les cartes d’entretiens restent visibles dans Accueil, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
 ## Chargement et actualisation
 
 Lors de la première ouverture d’un outil, un état de chargement discret remplace sa zone de contenu. Les actualisations suivantes gardent le dernier résultat lisible à l’écran. Si une relecture échoue, l’outil indique que ce résultat peut ne plus être à jour ; si rien n’a encore pu être lu, il propose **Réessayer**. Les entretiens indisponibles sont résumés dans un détail replié et n’empêchent pas de consulter les autres.
 
 Dans un corpus distant, le bouton global **Actualiser** renouvelle aussi l’outil affiché. Une réussite n’ajoute pas de message de confirmation.
+
+## Thèmes
+
+À gauche, l’arbre conserve ses couleurs, ses compteurs et le crayon d’édition.
+À droite, trois opérations réorganisent les codages du **corpus local** :
+
+- **Transférer…** déplace tous les codages vers une thématique existante ou
+  nouvelle. **Conserver la thématique source** est cochée par défaut ; décochez
+  cette case pour retirer la source et promouvoir ses sous-thèmes vers son
+  ancien parent.
+- **Fusionner…** réunit les codages dans une cible existante, retire la source
+  et déplace ses sous-thèmes directs vers la cible. Une cible descendante de la
+  source n’est pas proposée.
+- **Diviser…** prépare deux à quatre nouvelles thématiques, avec noms et
+  couleurs, puis propose une répartition manuelle des codages.
+
+Avant toute écriture, l’aperçu annonce passages, entretiens, orphelins, doublons
+prévisibles et éventuels fichiers indisponibles. Une fusion indique aussi les
+sous-thèmes déplacés. Seuls les codages sont modifiés : transcriptions,
+commentaires et pseudonymisations restent inchangés. Si la cible possède déjà
+un codage sur la plage exacte, celui-ci est conservé et le doublon source retiré.
+
+Pour diviser, dépliez un entretien et choisissez une destination pour chaque
+codage, ou attribuez tous ses codages à une destination. Sur une ligne
+sélectionnée, les touches **1 à 4** choisissent la destination correspondante.
+Les codages sans texte, notamment les orphelins, apparaissent séparément.
+Sans destination, un codage reste sur la source. **Supprimer la source après
+répartition complète** exige une destination pour tous les codages, orphelins
+compris. Les nouvelles catégories sont placées sous la source conservée, ou
+sous son ancien parent si elle est supprimée.
+
+**Consulter l’entretien** conserve l’atelier mais invalide son aperçu. Au
+retour, recalculez avec les choix existants ; ils ne sont réutilisés que si les
+fichiers restent valides. Sinon, **Repartir de l’état actuel** redemande tous les
+choix. Aucune nouvelle annotation n’est répartie automatiquement. Le changement
+de corpus efface le brouillon.
+
+**Confirmer et appliquer** est la seule étape d’écriture. Tout changement depuis
+l’aperçu refuse l’opération locale et demande un recalcul. Les contrôles restent
+désactivés pendant l’exécution. En local, en cas de résultat inconnu, rouvrez le corpus
+pour vérifier ou reprendre la transaction avant un nouveau lancement. Ces
+opérations ne sont **pas annulables dans le Journal du corpus**.
+
+Sur **WebDAV/Nextcloud connecté**, le transfert et la division sont disponibles,
+toujours avec source conservée. La fusion et la suppression de source restent
+désactivées. Les aperçus lisent le serveur ; les membres indisponibles sont nommés,
+sans être comptés comme des usages nuls. Fermez vos sessions d’entretien actives
+ou récupérables avant leur réaffectation.
+
+Les entretiens sont traités un par un, sans atomicité globale. Le bilan distingue
+les succès acquis et les entretiens à reprendre. **Recalculer et reprendre** relit
+l’état actuel, conserve les catégories déjà créées et redemande les choix de division.
+Seuls les codages encore sur la source sont proposés. Le suivi survit à la fermeture
+du bilan et au redémarrage.
+
+Si une réponse est inconnue, **Vérifier la publication** vérifie le serveur sans
+rejouer l’envoi. Une publication non confirmée reste bloquante. Une fois les issues
+certaines, reprenez explicitement ou choisissez **Clôturer le suivi sans reprendre** :
+les réaffectations réussies et les catégories créées restent en place, sans annulation.
+
+Sur **GitLab connecté**, les trois opérations sont disponibles. L’aperçu indique
+les entretiens observés libres, tenus sur un autre poste, ouverts localement ou
+d’état inconnu. Cette observation n’est pas une réservation : chaque droit est
+vérifié de nouveau avant l’écriture. Vous pouvez tenter tous les entretiens prévus
+ou traiter seulement ceux observés libres ; les autres restent dans le suivi.
+
+Un transfert sans conservation, une fusion ou une division avec suppression
+conserve la source jusqu’à ce que toutes les réaffectations aient réussi. GitLab relit alors tout le corpus et
+supprime la source dans un commit protégé. Une nouvelle référence ou une
+publication concurrente bloque seulement cette finalisation : les succès restent
+acquis et **Recalculer et reprendre** permet de terminer plus tard. Ce parcours
+est limité aux corpus de 248 entretiens pour une suppression de source ; les
+opérations qui conservent la source n’ont pas cette limite globale.
+
+Hors ligne ou en lecture seule, les boutons restent désactivés avec leur motif.
+L’édition habituelle du codebook par le crayon conserve ses capacités propres.
 
 ## Notes
 

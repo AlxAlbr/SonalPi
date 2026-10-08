@@ -54,21 +54,27 @@ export function confirmerOperationGlobale(): boolean {
   return window.confirm(message)
 }
 
-/** Lance une seule vérification globale à la fois sur un corpus GitLab. */
+export interface OptionsOperationGlobale {
+  confirmation?: 'habituelle' | 'deja-confirmee'
+  message?: string
+}
+
+/** Sérialise les opérations de corpus, y compris celles confirmées par leur aperçu. */
 export async function lancerOperationGlobale(
   operation: () => Promise<void>,
+  options: OptionsOperationGlobale = {},
 ): Promise<boolean> {
   if (operationGlobaleEnCours.value) return false
   const gitlab = lectures.estCorpusGitLab()
-  if (gitlab && !confirmerOperationGlobale()) return false
+  if (gitlab && options.confirmation !== 'deja-confirmee' && !confirmerOperationGlobale()) return false
   operationGlobaleEnCours.value = true
-  messageOperationGlobale.value = gitlab
+  messageOperationGlobale.value = options.message ?? (gitlab
     ? `Vérification de ${nombrer(
         lectures.compterEntretiens(),
         'entretien publié',
         'entretiens publiés',
       )}…`
-    : null
+    : null)
   try {
     await operation()
     return true

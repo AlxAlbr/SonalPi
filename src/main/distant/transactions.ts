@@ -53,6 +53,10 @@ import type { PlanAjoutEntretien } from '../transactionsFichiers'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
 import type { SourcePassageCas } from '../../shared/corpus/cas'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
+import type { DemandeOperationTheme, OptionsExecutionOperationTheme, ProgressionOperationTheme } from '../../shared/corpus/themes'
+import { ApercusThemesWebDAV } from './apercusThemesWebDAV'
+import { OperationsThemesWebDAV } from './operationsThemesWebDAV'
+import { randomUUID } from 'node:crypto'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
@@ -81,12 +85,16 @@ export interface OptionsTransactions {
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
   getSessions?: () => {
     idsTenus(): string[]
+    idsRecuperablesLocalement?(): string[]
     noterSale(id: string): void
     publier?(id: string): Promise<{ ok: boolean; raison?: string }>
   } | null
 }
 
 export class TransactionsCorpus {
+  private readonly apercusThemes: ApercusThemesWebDAV
+  private readonly operationsThemes: OperationsThemesWebDAV
+
   constructor(
     private readonly client: ClientWebDAV,
     private readonly miroir: MiroirWebDAV,
@@ -95,7 +103,54 @@ export class TransactionsCorpus {
     private readonly getStore: () => CorpusStore,
     private readonly identite: () => IdentiteSession,
     private readonly options: OptionsTransactions = {},
-  ) {}
+  ) {
+    this.apercusThemes = new ApercusThemesWebDAV(client, (avant) => this.getStore().adapterEntretienOperationTheme(avant))
+    const identiteCourte = () => ({ ...this.identite(), sessionId: `theme-${randomUUID()}` })
+    this.operationsThemes = new OperationsThemesWebDAV({
+      client, apercus: this.apercusThemes, dirLocal: miroir.dirLocal,
+      adapter: (avant) => this.getStore().adapterEntretienOperationTheme(avant),
+      miroir: (chemin, contenu, etag) => {
+        this.ecrireEntretienLocal(chemin, contenu)
+        if (etag) miroir.noterEtagPublie(chemin, etag)
+      },
+      verrouCorpus: () => {
+        const identite = identiteCourte()
+        return { provider: new ProviderPutConditionnel(client, () => identite), chemin: CHEMIN_VERROU_CORPUS }
+      },
+      verrouEntretien: (id) => {
+        const identite = identiteCourte()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite)
+          : new ProviderPutConditionnel(client, () => identite), chemin: this.cheminVerrouEntretien(id) }
+      },
+      sessionsLocales: () => {
+        const sessions = options.getSessions?.()
+        return [...(sessions?.idsTenus() ?? []), ...(sessions?.idsRecuperablesLocalement?.() ?? [])]
+      },
+    })
+  }
+
+  analyserOperationTheme(demande: DemandeOperationTheme, operationPrecedente?: string) {
+    return this.operationsThemes.analyser(demande, operationPrecedente)
+  }
+
+  executerOperationTheme(id: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme,
+    progression?: (etat: ProgressionOperationTheme) => void) {
+    return this.operationsThemes.executer(id, demande, options, progression)
+  }
+
+  lireSuiviOperationTheme() { return this.operationsThemes.lireSuivi() }
+  preparerRepriseOperationTheme(id: string) { return this.operationsThemes.preparerReprise(id) }
+  reconcilierOperationTheme(id: string) { return this.operationsThemes.reconcilier(id) }
+  abandonnerOperationTheme(id: string) { this.operationsThemes.abandonner(id) }
+  get operationThemeEnCours(): boolean { return this.operationsThemes.occupe }
+
+  detailsOperationTheme(operationId: string, entretienId: string) {
+    return this.apercusThemes.details(operationId, entretienId)
+  }
+
+  viderApercusOperationTheme(): void {
+    this.apercusThemes.vider()
+  }
 
   /* ── Transaction générique ─────────────────────────────────────────────────*/
 

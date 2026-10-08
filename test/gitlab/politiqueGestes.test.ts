@@ -129,6 +129,50 @@ describe('portée des gestes du corpus', () => {
     }
   })
 
+  test('les réaffectations de thèmes sont séparées de leur variante destructive', () => {
+    for (const geste of ['theme.transferer', 'theme.diviser']) {
+      expect(porteeGeste(geste)).toBe('themes-reaffectation')
+      expect(gesteAutorise('local', geste)).toBe(true)
+      expect(gesteAutorise('webdav', geste)).toBe(true)
+      expect(gesteAutorise('gitlab', geste)).toBe(true)
+      expect(() => exigerGeste('gitlab', geste)).not.toThrow()
+    }
+    for (const geste of ['theme.fusionner', 'theme.diviser-supprimer-source']) {
+      expect(porteeGeste(geste)).toBe('themes-reaffectation-suppression')
+      expect(gesteAutorise('local', geste)).toBe(true)
+      expect(gesteAutorise('webdav', geste)).toBe(false)
+      expect(() => exigerGeste('webdav', geste)).toThrow(/suppression de la thématique source/)
+      expect(gesteAutorise('gitlab', geste)).toBe(true)
+      expect(() => exigerGeste('gitlab', geste)).not.toThrow()
+    }
+  })
+
+  test('les capacités des thèmes suivent les gestes et les parcours livrés', () => {
+    expect(matriceCapacites('local')).toMatchObject({
+      transfertThemes: true, divisionThemes: true, fusionThemes: true, suppressionSourceThemes: true,
+    })
+    expect(matriceCapacites('webdav')).toMatchObject({
+      transfertThemes: true, divisionThemes: true, fusionThemes: false, suppressionSourceThemes: false,
+    })
+    expect(matriceCapacites('gitlab')).toMatchObject({
+      transfertThemes: true, divisionThemes: true, fusionThemes: true, suppressionSourceThemes: true,
+    })
+  })
+
+  test('fermer la portée destructive GitLab ne ferme pas la réaffectation avec source conservée', () => {
+    const ouvertes = [...PORTEEES_OVERTES_GITLAB]
+    try {
+      PORTEEES_OVERTES_GITLAB.splice(PORTEEES_OVERTES_GITLAB.indexOf('themes-reaffectation-suppression'), 1)
+      expect(matriceCapacites('gitlab')).toMatchObject({
+        transfertThemes: true, divisionThemes: true, fusionThemes: false, suppressionSourceThemes: false,
+      })
+      expect(() => exigerGeste('gitlab', 'theme.diviser-supprimer-source')).toThrow()
+    } finally {
+      PORTEEES_OVERTES_GITLAB.length = 0
+      PORTEEES_OVERTES_GITLAB.push(...ouvertes)
+    }
+  })
+
   test('les gestes hors portée restent refusés sur tous les corpus distants', () => {
     for (const geste of [
       'note.editer',
@@ -213,6 +257,10 @@ describe('portée des gestes du corpus', () => {
       metadonneesEntretien: false,
       tableDonnees: true,
       pseudonymisationEntretiens: true,
+      transfertThemes: true,
+      divisionThemes: true,
+      fusionThemes: true,
+      suppressionSourceThemes: true,
       notes: false,
       personnes: false,
       annulationJournal: false,

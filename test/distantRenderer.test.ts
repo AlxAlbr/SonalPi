@@ -207,6 +207,33 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.gesteDisponible('definitions')).toBe(false)
   })
 
+  test('les gestes des thèmes suivent les capacités et les blocages du corpus', () => {
+    const contexte = creerContexte(vi.fn())
+    for (const capacite of ['transfertThemes', 'divisionThemes', 'fusionThemes', 'suppressionSourceThemes'] as const) {
+      expect(contexte.distant.gesteDisponible(capacite)).toBe(true)
+    }
+    contexte.distant.activerDistant('webdav-1', [], [], false, matriceCapacites('webdav'), 'webdav')
+    expect(contexte.distant.gesteDisponible('transfertThemes')).toBe(true)
+    expect(contexte.distant.gesteDisponible('divisionThemes')).toBe(true)
+    const capacitesOuvertes = matriceCapacites('webdav')
+    contexte.distant.activerDistant('webdav-1', [], [], false, capacitesOuvertes, 'webdav')
+    expect(contexte.distant.gesteDisponible('transfertThemes')).toBe(true)
+    expect(contexte.distant.gesteDisponible('fusionThemes')).toBe(false)
+    expect(contexte.distant.gesteDisponible('suppressionSourceThemes')).toBe(false)
+    contexte.distant.enLigne.value = false
+    expect(contexte.distant.gesteDisponible('transfertThemes')).toBe(false)
+    expect(contexte.distant.gesteDisponible('divisionThemes')).toBe(false)
+    contexte.distant.enLigne.value = true
+    contexte.distant.activerDistant('webdav-1', [], [], true, capacitesOuvertes, 'webdav')
+    expect(contexte.distant.gesteDisponible('divisionThemes')).toBe(false)
+    contexte.distant.activerDistant('gitlab-1', [], [], false, matriceCapacites('gitlab'), 'gitlab')
+    for (const capacite of ['transfertThemes', 'divisionThemes', 'fusionThemes', 'suppressionSourceThemes'] as const) {
+      expect(contexte.distant.gesteDisponible(capacite)).toBe(true)
+    }
+    contexte.distant.activerDistant('gitlab-1', [], [], true, matriceCapacites('gitlab'), 'gitlab')
+    expect(contexte.distant.gesteDisponible('transfertThemes')).toBe(false)
+  })
+
   test('une observation des détenteurs en panne est signalée, puis effacée', async () => {
     const tirer = vi.fn()
       .mockResolvedValueOnce({

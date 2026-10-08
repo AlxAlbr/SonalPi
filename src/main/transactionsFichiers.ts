@@ -38,6 +38,7 @@ export interface PlanRemplacementEntretiens {
   readonly operation: 'remplacement'
   readonly id: string
   readonly corpusAvant: CorpusFichier
+  readonly corpusIntermediaire?: CorpusFichier
   readonly corpusApres: CorpusFichier
   readonly entretiens: { id: string; avant: EntretienFichier; apres: EntretienFichier }[]
   readonly ordre?: 'entretiens-puis-corpus' | 'corpus-puis-entretiens'
@@ -65,7 +66,7 @@ export function planSuppressionLocal(
 }
 
 interface JournalTransactionFichiers {
-  readonly formatVersion: 1
+  readonly formatVersion: 1 | 2
   readonly plan: PlanTransactionFichiers
 }
 
@@ -201,12 +202,13 @@ export class TransactionsFichiersCorpus {
 
   private appliquer(plan: PlanTransactionFichiers): void {
     const fichierCorpus = join(this.dir, 'corpus.json')
-    const avant = contenuJson(plan.corpusAvant)
     const apres = contenuJson(plan.corpusApres)
     const courant = existsSync(fichierCorpus) ? readFileSync(fichierCorpus, 'utf8') : null
     const correspondAvant = correspondAuCorpus(courant, plan.corpusAvant)
     const correspondApres = correspondAuCorpus(courant, plan.corpusApres)
-    if (!correspondAvant && !correspondApres) {
+    const intermediaire = plan.operation === 'remplacement' ? plan.corpusIntermediaire : undefined
+    const correspondIntermediaire = intermediaire !== undefined && correspondAuCorpus(courant, intermediaire)
+    if (!correspondAvant && !correspondApres && !correspondIntermediaire) {
       throw new Error(
         `La transaction de fichiers « ${plan.id} » ne peut pas être reprise : corpus.json a changé.`,
       )
@@ -223,9 +225,18 @@ export class TransactionsFichiersCorpus {
         return { fichier, dejaApplique, apres: e.apres }
       })
       const corpusDAbord = plan.ordre === 'corpus-puis-entretiens'
-      // Une création écrit sa définition avant ses liens.
-      // Une fusion conserve la définition absorbée jusqu'au dernier lien.
-      if (corpusDAbord && !correspondApres) ecrireAtomiquement(fichierCorpus, apres)
+      if (intermediaire) {
+        if (corpusDAbord) throw new Error('Un corpus intermédiaire exige les entretiens avant le corpus final.')
+        if (correspondApres && fichiers.some((e) => !e.dejaApplique)) {
+          throw new Error('Le corpus final précède des entretiens non appliqués. La transaction est incohérente.')
+        }
+        // Les nouvelles définitions précèdent leurs usages ; la source reste jusqu'au dernier codage.
+        if (!correspondIntermediaire && !correspondApres) {
+          ecrireAtomiquement(fichierCorpus, contenuJson(intermediaire))
+        }
+      } else if (corpusDAbord && !correspondApres) {
+        ecrireAtomiquement(fichierCorpus, apres)
+      }
       for (const e of fichiers) if (!e.dejaApplique) ecrireAtomiquement(e.fichier, contenuJson(e.apres))
       if (!corpusDAbord && !correspondApres) ecrireAtomiquement(fichierCorpus, apres)
     } else if (plan.operation === 'ajout') {
@@ -283,7 +294,8 @@ export class TransactionsFichiersCorpus {
   }
 
   private ecrireJournal(plan: PlanTransactionFichiers): void {
-    const journal: JournalTransactionFichiers = { formatVersion: 1, plan }
+    const formatVersion = plan.operation === 'remplacement' && plan.corpusIntermediaire ? 2 : 1
+    const journal: JournalTransactionFichiers = { formatVersion, plan }
     ecrireAtomiquement(this.journal, contenuJson(journal), 0o600)
   }
 
@@ -298,7 +310,7 @@ export class TransactionsFichiersCorpus {
       throw new Error('Le journal de transaction multi-fichiers est invalide.')
     }
     const journal = valeur as Partial<JournalTransactionFichiers>
-    if (journal.formatVersion !== 1 || !journal.plan) {
+    if ((journal.formatVersion !== 1 && journal.formatVersion !== 2) || !journal.plan) {
       throw new Error('Version inconnue du journal de transaction multi-fichiers.')
     }
     const plan = journal.plan as Partial<PlanTransactionFichiers>
@@ -323,6 +335,16 @@ export class TransactionsFichiersCorpus {
     }
     if (plan.operation === 'suppression' && !plan.deplacements!.every(validerDeplacement)) {
       throw new Error('Le journal de suppression est invalide.')
+    }
+    if (journal.formatVersion === 2 && (plan.operation !== 'remplacement' || !plan.corpusIntermediaire)) {
+      throw new Error('Le journal de remplacement intermédiaire est incomplet.')
+    }
+    if (plan.operation === 'remplacement' && plan.corpusIntermediaire !== undefined
+      && (journal.formatVersion !== 2 || !plan.corpusIntermediaire
+        || typeof plan.corpusIntermediaire !== 'object' || Array.isArray(plan.corpusIntermediaire)
+        || !plan.corpusIntermediaire.codebook || !plan.corpusIntermediaire.membership
+        || plan.ordre === 'corpus-puis-entretiens')) {
+      throw new Error('Le journal de remplacement intermédiaire est invalide.')
     }
     if (plan.operation === 'remplacement' && (!Array.isArray(plan.entretiens)
       || (plan.ordre !== undefined && plan.ordre !== 'entretiens-puis-corpus' && plan.ordre !== 'corpus-puis-entretiens')

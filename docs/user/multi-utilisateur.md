@@ -172,6 +172,10 @@ l'autre — utilisez le bouton de ligne pour ces cas. Si une divergence survient
 - **La fusion après divergence n'existe pas encore.** Si quelqu'un a modifié un
   entretien hors de l'application, la réouverture est bloquée et votre copie est
   mise de côté : comparez avec l'historique du projet et reprenez à la main.
+- **Les opérations de thématiques** traitent les entretiens un par un. Vous
+  pouvez tenter tout le lot ou seulement ceux observés libres. Les succès restent
+  acquis ; une fusion ne retire la source qu’après une vérification protégée de
+  tous les entretiens, limitée à 248 membres.
 - **La suppression d'un entretien** range son fichier dans `corbeille/` **du
   dépôt**, où il reste consultable dans l'historique du projet. Vos sauvegardes
   et vos images de forme d'onde sont rangées dans la corbeille **de votre poste**.

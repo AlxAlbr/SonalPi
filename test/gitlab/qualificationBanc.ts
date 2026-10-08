@@ -22,6 +22,7 @@ import type { ConfigDestinationGitLab } from '../../src/main/distant/coffre'
 import {
   BailGitLab,
   DepotCommitsGitLabClient,
+  type ActionCommitGitLab,
   type DepotCommitsGitLab,
   cleRessourceBailGitLab,
   cheminBailRessourceGitLab,
@@ -166,6 +167,7 @@ export function cheminBailCorpus(racine: string): string {
 
 export interface Pile {
   store: CorpusStore
+  client: ClientGitLab
   depot: DepotCommitsGitLab
   coordination: BailGitLab
   publication: PublieurGitLab
@@ -188,6 +190,11 @@ export interface Pile {
   nePasEnvoyerLeProchainCommitDeDonnees(course?: (p: Pile) => Promise<void>): void
   /** Exécute une course juste avant l'envoi du prochain commit de données. */
   avantCommitDeDonnees(course: (p: Pile) => Promise<void>): void
+  /** Exécute une course avant le prochain commit de données correspondant au filtre. */
+  avantCommitDeDonneesQuand(
+    condition: (actions: readonly ActionCommitGitLab[]) => boolean,
+    course: (p: Pile) => Promise<void>,
+  ): void
   /** Exécute une course après la prochaine acquisition de bail. */
   apresProchaineAcquisition(course: (p: Pile) => Promise<void>): void
   rendreHistoriqueIndisponible(): void
@@ -231,7 +238,10 @@ export function pile(options: {
   const commitsEnvoyes: Array<{ message: string; actions: number; octets: number; indexRequete: number }> = []
   // Pannes et courses, commandées par le scénario de qualification.
   const pannes = { commitDeDonnees: false, avantEnvoiDonnees: false, historique: false }
-  const avantDonnees: Array<(p: Pile) => Promise<void>> = []
+  const avantDonnees: Array<{
+    condition: (actions: readonly ActionCommitGitLab[]) => boolean
+    course: (p: Pile) => Promise<void>
+  }> = []
   const apresAcquisition: Array<(p: Pile) => Promise<void>> = []
   const fetchCompte: typeof fetch = async (entree, init) => {
     const url = new URL(String(entree))
@@ -240,12 +250,14 @@ export function pile(options: {
     const corps = String(init?.body ?? '')
     const estCommit = url.pathname.endsWith('/repository/commits')
       && (init?.method ?? 'GET') === 'POST'
+    let actionsCommit: ActionCommitGitLab[] = []
     if (estCommit) {
       try {
-        const commit = JSON.parse(corps) as { commit_message?: string; actions?: unknown[] }
+        const commit = JSON.parse(corps) as { commit_message?: string; actions?: ActionCommitGitLab[] }
+        actionsCommit = Array.isArray(commit.actions) ? commit.actions : []
         commitsEnvoyes.push({
           message: commit.commit_message ?? '',
-          actions: Array.isArray(commit.actions) ? commit.actions.length : 0,
+          actions: actionsCommit.length,
           octets: Buffer.byteLength(corps),
           indexRequete: requetes.length - 1,
         })
@@ -262,7 +274,8 @@ export function pile(options: {
       }
       if (estDonnees) {
         const pile = pieges.pile as Pile
-        while (avantDonnees.length > 0) await avantDonnees.shift()!(pile)
+        const indexCourse = avantDonnees.findIndex((entree) => entree.condition(actionsCommit))
+        if (indexCourse >= 0) await avantDonnees.splice(indexCourse, 1)[0].course(pile)
         if (pannes.avantEnvoiDonnees) {
           pannes.avantEnvoiDonnees = false
           throw new TypeError('fetch failed')
@@ -333,6 +346,7 @@ export function pile(options: {
   })
   const pile: Pile = {
     store,
+    client,
     depot,
     coordination,
     publication,
@@ -346,15 +360,18 @@ export function pile(options: {
     lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier,
     /** Le commit de données partira, sa réponse ne reviendra pas. */
     perdreReponseDuCommitDeDonnees(course?: (p: Pile) => Promise<void>): void {
-      if (course) avantDonnees.push(course)
+      if (course) avantDonnees.push({ condition: () => true, course })
       pannes.commitDeDonnees = true
     },
     nePasEnvoyerLeProchainCommitDeDonnees(course?: (p: Pile) => Promise<void>): void {
-      if (course) avantDonnees.push(course)
+      if (course) avantDonnees.push({ condition: () => true, course })
       pannes.avantEnvoiDonnees = true
     },
     avantCommitDeDonnees(course: (p: Pile) => Promise<void>): void {
-      avantDonnees.push(course)
+      avantDonnees.push({ condition: () => true, course })
+    },
+    avantCommitDeDonneesQuand(condition, course): void {
+      avantDonnees.push({ condition, course })
     },
     apresProchaineAcquisition(course: (p: Pile) => Promise<void>): void {
       apresAcquisition.push(course)

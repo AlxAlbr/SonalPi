@@ -122,6 +122,7 @@ export function useCycleCorpus(deps: {
   effets: EffetsCycleCorpus
 }) {
   const dossierCourantDir = ref<string | null>(null)
+  const revisionCorpus = ref(0)
   const reprise = ref<{
     id: string
     positionAudio: number
@@ -140,6 +141,7 @@ export function useCycleCorpus(deps: {
   })
 
   async function appliquerCorpus(corpus: CorpusFichier, dir?: string): Promise<void> {
+    revisionCorpus.value++
     deps.entretien.reinitialiser()
     deps.audio.charger(null, null)
     if (dir) dossierCourantDir.value = dir
@@ -437,6 +439,7 @@ export function useCycleCorpus(deps: {
 
   return {
     dossierCourantDir,
+    revisionCorpus,
     reprise,
     appliquerCorpus,
     chargerCorpus,

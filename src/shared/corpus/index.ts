@@ -11,6 +11,7 @@
  *  Entretien (`shared/entretien/`).
  */
 export * from './categories'
+export * from './themes'
 export * from './variables'
 export * from './requetes'
 export * from './import'

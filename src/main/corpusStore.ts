@@ -14,6 +14,12 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type {
+  DemandeOperationTheme,
+  OptionsExecutionOperationTheme,
+  ProgressionOperationTheme,
+} from '../shared/corpus/themes'
+import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
 import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
 import {
@@ -26,7 +32,7 @@ import {
   type InventaireNotes,
 } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
-import { appliquerRegleAnonEntretien } from '../shared/entretien/anon'
+import { aplatir, appliquerRegleAnonEntretien } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import {
@@ -246,6 +252,8 @@ export class CorpusStore {
 
   private readonly journalCorpus = new JournalCorpus()
 
+  private readonly operationsThemes: OperationsThemesCorpus
+
   /** Cache en mémoire des chemins audio référencés du corpus courant,
    *  id → audioRef absolu.
    *  Évite de relire les fichiers entretiens à chaque requête média ;
@@ -356,6 +364,13 @@ export class CorpusStore {
   constructor(dir: string) {
     this.dir = dir
     this.transactionsFichiers = new TransactionsFichiersCorpus(dir)
+    this.operationsThemes = new OperationsThemesCorpus({
+      lire: () => this.lireInstantaneOperationTheme(),
+      appliquer: (plan) => this.appliquerTransactionFichiers(plan),
+      verifierEcriture: () => this.verifierEcriture(),
+      transactionEnAttente: () => this.transactionsFichiers.journalPresent(),
+      genIdCategorie: () => genId('cat'),
+    })
   }
 
   /** Exemple : dir = "/home/user/projets/mon_corpus",
@@ -501,7 +516,10 @@ export class CorpusStore {
   finaliserOuverture(preparation: PreparationOuvertureCorpus): CorpusFichier {
     this.verifierDossiersOuverture()
     let cible = preparation
-    if (this.transactionsFichiers.reprendre()) cible = this.preparerOuverture()
+    if (this.transactionsFichiers.reprendre()) {
+      this.operationsThemes.vider()
+      cible = this.preparerOuverture()
+    }
     const contenuActuel = existsSync(this.corpusFile)
       ? readFileSync(this.corpusFile, 'utf8')
       : null
@@ -738,7 +756,11 @@ export class CorpusStore {
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
-    let data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+    return this.adapterEntretienLu(JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier)
+  }
+
+  private adapterEntretienLu(entretien: EntretienFichier): LectureEntretien {
+    let data = entretien
     if ((data.formatVersion as number) === 1) {
       data = migrerEntretienFormatV1(
         data as unknown as Record<string, unknown>,
@@ -1066,7 +1088,10 @@ export class CorpusStore {
   /** Termine l'éventuelle intention durable laissée par un arrêt précédent. */
   reprendreTransactionFichiers(): boolean {
     const reprise = this.transactionsFichiers.reprendre()
-    if (reprise) this.invaliderRefsAudio()
+    if (reprise) {
+      this.invaliderRefsAudio()
+      this.operationsThemes.vider()
+    }
     return reprise
   }
 
@@ -1085,6 +1110,63 @@ export class CorpusStore {
       suffixe,
       (chemin) => existsSync(join(this.dir, chemin)),
     )
+  }
+
+  analyserOperationTheme(demande: DemandeOperationTheme, operationPrecedente?: string) {
+    return this.operationsThemes.analyser(demande, operationPrecedente)
+  }
+
+  detailsOperationTheme(operationId: string, entretienId: string) {
+    return this.operationsThemes.details(operationId, entretienId)
+  }
+
+  executerOperationTheme(
+    operationId: string,
+    demande: DemandeOperationTheme,
+    options: OptionsExecutionOperationTheme,
+    progression?: (etat: ProgressionOperationTheme) => void,
+  ) {
+    return this.operationsThemes.executer(operationId, demande, options, progression)
+  }
+
+  viderApercusOperationTheme(): void {
+    this.operationsThemes.vider()
+  }
+
+  /** Adapte une lecture fournie en mémoire, sans lire ni écrire le miroir. */
+  adapterEntretienOperationTheme(avant: EntretienFichier): EntretienFichier {
+    const lecture = this.adapterEntretienLu(structuredClone(avant))
+    if (!lecture.ok) throw new Error('Version d’entretien non supportée.')
+    validerEntretienTheme(lecture.data)
+    return lecture.data
+  }
+
+  /** Inventaire strict sans migration sur disque ni ouverture de session. */
+  private lireInstantaneOperationTheme(): InstantaneOperationTheme {
+    this.verifierEntretienLisible()
+    if (!existsSync(this.corpusFile)) {
+      throw new Error(this.amortissable
+        ? 'Ouvrez le corpus avant de préparer une opération sur les thématiques.'
+        : `${CORPUS_SUPPRIME}: le fichier corpus.json courant a été supprimé.`)
+    }
+    const corpus = decoderCorpusTheme(readFileSync(this.corpusFile, 'utf8'))
+    const entretiens: InstantaneOperationTheme['entretiens'] = []
+    for (const [id, ref] of Object.entries(corpus.membership)) {
+      const titre = ref?.titre ?? id
+      try {
+        if (!id || id === '.' || id === '..' || /[/\\\\\0]/.test(id)) {
+          throw new Error('Identifiant d’entretien invalide dans le membership.')
+        }
+        const fichier = this.entretienFile(id)
+        if (!existsSync(fichier)) throw new Error('Fichier d’entretien absent.')
+        const avant = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+        const data = this.adapterEntretienOperationTheme(avant)
+        entretiens.push({ id, titre, ok: true, avant, data })
+      } catch (erreur) {
+        entretiens.push({ id, titre, ok: false, motif: erreur instanceof Error ? erreur.message : String(erreur) })
+      }
+    }
+    return { corpus, entretiens }
   }
 
   /** Lit sur disque les fichiers dont les ids sont dans le membership.

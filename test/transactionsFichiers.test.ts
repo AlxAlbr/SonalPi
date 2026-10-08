@@ -1,10 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { TransactionsFichiersCorpus, type PlanTransactionFichiers } from '../src/main/transactionsFichiers'
+import { dirname, join, relative } from 'node:path'
+import { TransactionsFichiersCorpus, type PlanTransactionFichiers, type PlanRemplacementEntretiens } from '../src/main/transactionsFichiers'
 import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
+
+const injections = vi.hoisted(() => ({ apresRenommage: undefined as ((destination: string) => void) | undefined }))
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...fs,
+    renameSync: (...args: Parameters<typeof fs.renameSync>) => {
+      fs.renameSync(...args)
+      injections.apresRenommage?.(String(args[1]))
+    },
+  }
+})
+afterEach(() => { injections.apresRenommage = undefined })
 
 function corpus(membership: CorpusFichier['membership'] = {}): CorpusFichier {
   return {
@@ -36,6 +49,28 @@ function ecrireJson(fichier: string, valeur: unknown): void {
 
 function ecrireJournal(dir: string, plan: PlanTransactionFichiers): void {
   ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 1, plan })
+}
+
+function planDivision(): PlanRemplacementEntretiens {
+  const corpusAvant = corpus()
+  corpusAvant.codebook.source = { id: 'source', nom: 'Source', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' }
+  const corpusIntermediaire = structuredClone(corpusAvant)
+  corpusIntermediaire.codebook.nouvelle = { id: 'nouvelle', nom: 'Nouvelle', ordre: 1, parent: null, actif: true, codeExport: 'cat_002' }
+  const corpusApres = structuredClone(corpusIntermediaire)
+  delete corpusApres.codebook.source
+  const entretiens = ['e1', 'e2'].map((id) => {
+    const avant = entretien()
+    avant.annotations = [{ id: 'a', type: 'codage', code: 'source', from: 1, to: 2, auteur: 'auteur' }]
+    const apres = structuredClone(avant)
+    apres.annotations[0].code = 'nouvelle'
+    return { id, avant, apres }
+  })
+  for (const e of entretiens) {
+    for (const c of [corpusAvant, corpusIntermediaire, corpusApres]) {
+      c.membership[e.id] = { titre: e.id, date: null, lastModified: e.avant.lastModified }
+    }
+  }
+  return { operation: 'remplacement', id: 'division', corpusAvant, corpusIntermediaire, corpusApres, entretiens }
 }
 
 describe('TransactionsFichiersCorpus', () => {
@@ -122,6 +157,89 @@ describe('TransactionsFichiersCorpus', () => {
     expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8'))).toEqual(fichiers[0].avant)
     expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(avant)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
+  })
+
+  it.each([0, 1, 2, 3, 4])('reprend une division destructive après l’écriture %i, avant d’exposer le corpus', (arret) => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-themes-'))
+    const plan = planDivision()
+    ecrireJson(join(dir, 'corpus.json'), plan.corpusAvant)
+    for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
+    const ecritures: string[] = []
+    injections.apresRenommage = (destination) => {
+      const chemin = relative(dir, destination)
+      if (chemin === '.transaction-fichiers.json') {
+        if (arret === 0) throw new Error('arrêt simulé')
+        return
+      }
+      ecritures.push(chemin)
+      const c = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+      if (ecritures.length < 4) {
+        expect(c.codebook.source).toBeDefined()
+        expect(c.codebook.nouvelle).toBeDefined()
+      } else expect(c.codebook.source).toBeUndefined()
+      for (const e of plan.entretiens) {
+        const data = JSON.parse(readFileSync(join(dir, `entretiens/${e.id}.json`), 'utf8')) as EntretienFichier
+        for (const a of data.annotations) if (a.type === 'codage') expect(c.codebook[a.code!]).toBeDefined()
+      }
+      if (ecritures.length === arret) throw new Error('arrêt simulé')
+    }
+    expect(() => new TransactionsFichiersCorpus(dir).executer(plan)).toThrow('arrêt simulé')
+    expect(ecritures).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'].slice(0, arret))
+    expect(JSON.parse(readFileSync(join(dir, '.transaction-fichiers.json'), 'utf8')).formatVersion).toBe(2)
+    injections.apresRenommage = undefined
+    const expose = new CorpusStore(dir).ouvrir()
+    expect(expose.codebook.source).toBeUndefined()
+    expect(expose.codebook.nouvelle).toBeDefined()
+    for (const e of plan.entretiens) expect(JSON.parse(readFileSync(join(dir, `entretiens/${e.id}.json`), 'utf8'))).toEqual(e.apres)
+    expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(false)
+  })
+
+  it.each(['corpus-puis-entretiens', 'entretiens-puis-corpus'] as const)('respecte l’ordre %s sans corpus intermédiaire', (ordre) => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-ordre-'))
+    const plan = planDivision()
+    delete (plan as { corpusIntermediaire?: CorpusFichier }).corpusIntermediaire
+    const ecritures: string[] = []
+    ecrireJson(join(dir, 'corpus.json'), plan.corpusAvant)
+    for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
+    injections.apresRenommage = (destination) => {
+      const chemin = relative(dir, destination)
+      if (chemin !== '.transaction-fichiers.json') ecritures.push(chemin)
+    }
+    new TransactionsFichiersCorpus(dir).executer({ ...plan, ordre })
+    expect(ecritures).toEqual(ordre === 'corpus-puis-entretiens'
+      ? ['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json']
+      : ['entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+  })
+
+  it('refuse un état inconnu sur un corpus intermédiaire, sans écrire le corpus final', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-intermediaire-conflit-'))
+    const plan = planDivision()
+    ecrireJson(join(dir, 'corpus.json'), plan.corpusIntermediaire)
+    ecrireJson(join(dir, 'entretiens/e1.json'), plan.entretiens[0].apres)
+    ecrireJson(join(dir, 'entretiens/e2.json'), { ...plan.entretiens[1].avant, lastModified: 'concurrent' })
+    ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 2, plan })
+    expect(() => new CorpusStore(dir).ouvrir()).toThrow(/e2.*a changé/)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(plan.corpusIntermediaire)
+    expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
+  })
+
+  it('refuse un corpus final placé avant ses entretiens dans une transaction intermédiaire', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-intermediaire-incoherent-'))
+    const plan = planDivision()
+    ecrireJson(join(dir, 'corpus.json'), plan.corpusApres)
+    for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
+    ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 2, plan })
+    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/incohérente/)
+    expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8'))).toEqual(plan.entretiens[0].avant)
+  })
+
+  it('ne lit pas une intention intermédiaire avec l’ancienne version de journal', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-version-'))
+    const plan = planDivision()
+    ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 1, plan })
+    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/intermédiaire est invalide/)
+    ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 2, plan: { ...plan, corpusIntermediaire: null } })
+    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/intermédiaire est incomplet/)
   })
 
   it('refuse d’écraser un corpus modifié extérieurement et conserve le journal', () => {

@@ -34,6 +34,10 @@ export type PorteeGesteCorpus =
   | 'valeurs-entretien'
   /** Application d'une règle de pseudonymisation à un entretien. */
   | 'pseudonymisation-entretiens'
+  /** Réaffectation des codages, avec création éventuelle de catégories. */
+  | 'themes-reaffectation'
+  /** Réaffectation suivie du retrait protégé de la source. */
+  | 'themes-reaffectation-suppression'
   /** Parcours non pris en charge sur un corpus distant. */
   | 'indisponible'
 
@@ -51,6 +55,8 @@ export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = [
   'suppression-entretien',
   'valeurs-entretien',
   'pseudonymisation-entretiens',
+  'themes-reaffectation',
+  'themes-reaffectation-suppression',
 ]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
@@ -64,6 +70,8 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'suppression-entretien',
     'valeurs-entretien',
     'pseudonymisation-entretiens',
+    'themes-reaffectation',
+    'themes-reaffectation-suppression',
     'indisponible',
   ],
   webdav: [
@@ -74,6 +82,7 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'suppression-entretien',
     'valeurs-entretien',
     'pseudonymisation-entretiens',
+    'themes-reaffectation',
   ],
   gitlab: PORTEEES_OVERTES_GITLAB,
 }
@@ -90,6 +99,11 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
   'theme.deplacer': 'definitions-corpus',
   'theme.migrer': 'definitions-corpus',
   'theme.supprimer': 'suppression-definition',
+  'theme.transferer': 'themes-reaffectation',
+  'theme.transferer-supprimer-source': 'themes-reaffectation-suppression',
+  'theme.diviser': 'themes-reaffectation',
+  'theme.fusionner': 'themes-reaffectation-suppression',
+  'theme.diviser-supprimer-source': 'themes-reaffectation-suppression',
 
   // Catégories de note du corpus.
   'note.creer-categorie': 'definitions-corpus',
@@ -205,6 +219,12 @@ export function exigerGeste(fournisseur: FournisseurCorpus, geste: GesteCorpus):
 }
 
 function messageRefusPortee(portee: PorteeGesteCorpus): string {
+  if (portee === 'themes-reaffectation-suppression') {
+    return 'La réaffectation avec suppression de la thématique source n’est pas disponible sur ce corpus.'
+  }
+  if (portee === 'themes-reaffectation') {
+    return 'Les opérations de réaffectation des thématiques ne sont pas encore disponibles sur ce corpus.'
+  }
   return 'Cette opération n’est pas disponible sur un corpus distant.'
 }
 /** Geste d'une commande CAS : un rattachement de passage et une dérivation
@@ -260,6 +280,10 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   | 'suppressionEntretien'
   | 'tableDonnees'
   | 'pseudonymisationEntretiens'
+  | 'transfertThemes'
+  | 'divisionThemes'
+  | 'fusionThemes'
+  | 'suppressionSourceThemes'
 >> = {
   local: {
     renommageEntretien: true,
@@ -309,6 +333,10 @@ export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpu
     suppressionEntretien: portees.has('suppression-entretien'),
     tableDonnees: portees.has('valeurs-entretien'),
     pseudonymisationEntretiens: portees.has('pseudonymisation-entretiens'),
+    transfertThemes: gesteAutorise(fournisseur, 'theme.transferer'),
+    divisionThemes: gesteAutorise(fournisseur, 'theme.diviser'),
+    fusionThemes: gesteAutorise(fournisseur, 'theme.fusionner'),
+    suppressionSourceThemes: gesteAutorise(fournisseur, 'theme.transferer-supprimer-source'),
     ...PARCOURS_PAR_FOURNISSEUR[fournisseur],
   }
 }

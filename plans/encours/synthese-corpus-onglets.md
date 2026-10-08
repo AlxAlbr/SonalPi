@@ -50,8 +50,9 @@ L’ordre de référence est :
 8. **Pas à pas**, uniquement en démonstration.
 
 Les onglets de travail larges — Notes, Personnes, Données et
-Pseudonymisation — masquent les cartes d’entretiens. Accueil, Thèmes, Recherche,
-Journal et Pas à pas utilisent la grille historique avec les cartes.
+Pseudonymisation — masquent les cartes d’entretiens. Thèmes conserve l’arbre à
+gauche et affiche son atelier à droite. Accueil, Recherche, Journal et Pas à pas
+utilisent la grille historique avec les cartes.
 
 L’ouverture puis la fermeture d’un entretien conserve l’onglet corpus actif.
 Les composants de travail restent montés : filtres, tri, mode, sélection,
@@ -192,9 +193,14 @@ protégé, garde de sortie et application en masse. Son dernier scan lisible res
 visible après un échec. Les opérations de masse ont déjà leur propre contrat et
 ne doivent pas servir de patron minimal aux autres onglets.
 
-Thèmes permet la consultation du codebook et l’accès aux définitions existantes.
-Il ne faut pas le confondre avec un futur **atelier thématique** de fusion,
-scission, santé du codage ou assistance par IA.
+Thèmes conserve le codebook et ses définitions à gauche, avec un atelier à droite.
+Le transfert, la fusion et la division manuelle sont livrés en local, avec aperçu
+versionné et transaction multi-fichiers reprenable. WebDAV ouvre le transfert
+et la division avec source conservée : aperçu publié, lot séquentiel, suivi
+persistant, vérification des réponses inconnues et reprise gardant les destinations.
+Les variantes destructives WebDAV restent désactivées. GitLab ouvre les trois
+gestes avec lots journalisés, résultats partiels et suppression finale gardée.
+La santé du codage et l’assistance par IA sont des évolutions distinctes.
 
 Le Journal reste volontairement partiel. Il couvre les gestes locaux simples de
 Personnes et la modification ou suppression locale d’une note depuis le corpus.
@@ -215,6 +221,8 @@ Les principaux points d’entrée sont :
   `rapprochementsPersonnes.ts` pour le répertoire et ses suggestions ;
 - `PseudonymisationCorpus.vue` et `src/shared/corpus/scanAnon.ts` pour le scan
   et le brouillon d’application ;
+- `ThemesOpsCorpus.vue`, `RepartitionTheme.vue`, `useOperationsThemesCorpus.ts`
+  et `src/shared/corpus/themes.ts` pour l’atelier thématique ;
 - `src/renderer/components/donnees/TableDonnees.vue` et
   `src/renderer/tableNavigation.ts` pour la matrice ;
 - `PanneauJournalCorpus.vue`, `src/main/journalCorpus.ts` et
@@ -239,7 +247,7 @@ car ils évoluent avec la suite du dépôt.
 | **Notes** | Consultation complète, édition locale limitée, Journal local, ouverture de l’entretien en distant. | Non, volontairement. | Validation réelle et performances, puis décision d’usage. |
 | **Personnes** | Fonctionnalité locale et distante avancée. | Oui, transactions spécialisées. | Améliorations métier indépendantes seulement. |
 | **Pseudonymisation** | Scan et application spécialisée. | Oui selon son moteur actuel. | Gestion des règles uniquement si le besoin est confirmé. |
-| **Thèmes** | Consultation et définitions existantes. | Définitions par la transaction corpus existante. | Atelier thématique comme produit séparé. |
+| **Thèmes** | Codebook et atelier local de transfert, fusion et division manuelle. | WebDAV : transfert et division sans suppression, bilan partiel et reprise. | GitLab : trois gestes, lots qualifiés et finalisation protégée. |
 | **Données** | Matrice et saisie actuelles. | Conserver les parcours existants. | Journaliser d’abord une cellule locale isolée. |
 | **Journal** | Annulation locale, volatile et partielle. | Non. | Étendre par petites commandes sémantiques. |
 | **Pas à pas** | Outil conditionnel de démonstration. | Sans objet. | Le maintenir séparé des fonctions métier. |
@@ -527,23 +535,52 @@ décisions supplémentaires, pas des conséquences automatiques du parseur.
 
 ### 8.3 Atelier thématique sans IA
 
-Il faut séparer la lecture actuelle des thèmes d’un atelier qui transforme le
-codebook. Un ordre prudent serait :
+L’atelier de transfert, fusion et division manuelle est livré en local.
+Des projections complémentaires pourront l’enrichir ensuite :
 
 1. **santé du codage en lecture** : couverture par entretien, thèmes inutilisés,
    annotations orphelines et références pendantes ;
 2. **courbe de saturation** : ordre de première apparition des thèmes au fil des
    entretiens ;
 3. **candidats** à examiner : thèmes souvent co-présents ou thème volumineux et
-   lexicalement hétérogène ;
-4. **fusion** explicite de deux thèmes, avec réécriture transactionnelle des
-   références ;
-5. **scission manuelle** : rassembler les extraits puis les répartir vers deux
-   ou plusieurs catégories.
+   lexicalement hétérogène.
 
-Les deux premiers éléments sont surtout des projections. Fusion et scission
-sont des commandes multi-entretiens et doivent annoncer les conflits et les
-résultats partiels au lieu de promettre une atomicité distante inexistante.
+Les deux premiers éléments sont surtout des projections. Le contrat de l'atelier
+est désormais défini dans [plan-theme-corpus.md](plan-theme-corpus.md) :
+
+- **Transférer** réaffecte les codages et conserve la source ; **fusionner** la
+  retire après réaffectation et déplace ses enfants directs vers la cible.
+- **Diviser** répartit manuellement les codages vers deux à quatre nouvelles
+  catégories. Les codages sans choix restent sur la source ; sa suppression
+  exige une répartition complète, orphelins compris.
+- Seuls les codages sont modifiés. La déduplication porte sur la plage exacte
+  de la destination, jamais sur les annotations de pseudonymisation ou de
+  commentaire ; `RegleAnon.categorie` est une étiquette indépendante.
+- **Local** : parcours complet, transaction multi-fichiers reprenable avec
+  définitions intermédiaires lorsque création et suppression sont combinées.
+  Toute obsolescence pertinente de l'aperçu refuse l'opération entière.
+- **WebDAV livré** : transfert et division sans suppression, définitions créées avant
+  les écritures courtes par entretien. Les succès restent acquis ; les refus
+  sont nommés et une reprise repart des codages encore sur la source, avec les
+  mêmes destinations et des choix redemandés. Un journal persistant bloque les
+  réponses inconnues jusqu’à vérification explicite sans rejeu. Lecture et
+  publication sont qualifiées à deux comptes sur Nextcloud A et B.
+- **GitLab livré** : les aperçus main lisent un SHA unique et observent seulement
+  les baux des entretiens à modifier, sans acquisition ni repli miroir. Les
+  transactions sont séquentielles par entretien, avec un seul bail court et un
+  contenu complet par commit. Un journal durable conserve destinations, succès
+  et étapes inconnues ; aucune atomicité globale du lot n'est annoncée. Lecture,
+  reprise partielle et finalisation concurrente sont qualifiées à deux comptes.
+- La suppression finale GitLab relit tout le membership frais sous bail corpus
+  et ne retire la source que sans référence restante, avec une garde légère par
+  entretien (248 membres maximum). Un refus conserve la source et les succès ;
+  une réponse perdue impose la réconciliation avant reprise.
+
+L'aperçu appartient au main, expire et ne vaut jamais autorisation d'écriture.
+L’interface affiche les obstacles et les bilans des trois fournisseurs. Pour
+GitLab, la disponibilité ne porte que sur les entretiens réellement à modifier ;
+le choix explicite des seuls entretiens observés libres laisse les autres différés,
+sans réduire l'inventaire de suppression finale.
 
 ### 8.4 Accord inter-codeurs et assistance par IA
 

@@ -37,6 +37,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   await page.locator('.liste-thm li[data-nom="Famille"] .swatch').fill('#ff0000')
   await fermerEditionThemes(page)
 
+  await retourCorpus(page)
   // Rouvrir via la reprise : le surlignage porte la nouvelle couleur, résolue
   // par id à la projection (jamais copiée dans l'entretien), et l'entretien
   // n'a pas été touché par le recoloriage (pas de re-sauvegarde).

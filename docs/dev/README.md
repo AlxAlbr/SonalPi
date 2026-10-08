@@ -21,7 +21,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [docs-cadre.md](docs-cadre.md) | « Docs cadre projet » : l'espace documentaire propre au corpus (stockage local, lecture WebDAV directe sans miroir, aperçus, sécurité des chemins, décision PDF) |
 | [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
-| [gitlab.md](gitlab.md) | Qualification GitLab en cours : acquis V1, caractérisation V2, résultats des tests et garanties restant à vérifier ; pas encore de connecteur GitLab livré |
+| [gitlab.md](gitlab.md) | Connecteur GitLab : acquis V1, architecture V2, transactions gardées, lots reprenables et résultats des qualifications réelles |
 | [gestes-fournisseur.md](gestes-fournisseur.md) | Les gestes du corpus selon le fournisseur (local / WebDAV / GitLab) : portées sémantiques, gardes dans l'ordre, matrice publique `CapacitesCorpus`, recette pour ajouter ou reclasser un geste |
 | [gitlab-oauth.md](gitlab-oauth.md) | L’authentification GitLab : OAuth, repli par jeton personnel, scopes, cycle de vie des credentials et diagnostic. |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
