@@ -21,6 +21,7 @@ const PILE = [
   'e2e/dissociation-webdav.e2e.ts',
   'e2e/suppression-webdav.e2e.ts',
   'e2e/variante-webdav.e2e.ts',
+  'e2e/retrait-variante-webdav.e2e.ts',
 ]
 
 export default defineConfig({

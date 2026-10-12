@@ -12,6 +12,7 @@ const apercu = ref<ApercuRetraitVarianteAnon | null>(null), confirme = ref(false
 const erreur = ref<string | null>(null), diagnostic = ref<string | null>(null), incertain = ref(false), perime = ref(false)
 const boite = ref<HTMLDivElement | null>(null)
 const distant = computed(() => props.fournisseur === 'gitlab' || props.fournisseur === 'webdav')
+const libelleFournisseur = props.fournisseur === 'webdav' ? 'WebDAV' : 'GitLab'
 const suivi = ref<SuiviRetraitVarianteAnon | null>(props.suivi ?? null), suiviIndisponible = ref(false)
 const contexteInitial = props.contexte, fournisseurInitial = props.fournisseur, demandeInitiale = JSON.stringify(props.demande)
 const plafondEntretiens = computed(() => /limitée à (\d+) entretiens/.exec(apercu.value?.motifIndisponible ?? '')?.[1])
@@ -62,7 +63,7 @@ async function appliquer() {
     if (vivant && g === generation) {
       incertain.value = true
       erreur.value = distant.value
-        ? 'Le retrait n’a pas pu être terminé. Cliquez sur « Relire le suivi GitLab » pour vérifier ce qui a été enregistré avant de continuer.'
+        ? `Le retrait n’a pas pu être terminé. Cliquez sur « Relire le suivi ${libelleFournisseur} » pour vérifier ce qui a été enregistré avant de continuer.`
         : 'Le retrait n’a pas pu être terminé. Fermez cette fenêtre puis rouvrez le corpus pour vérifier ce qui a été enregistré, avant tout nouveau retrait.'
       diagnostic.value = nettoyerMessage(e)
     }
@@ -125,9 +126,9 @@ onUnmounted(() => { vivant = false; generation++; reprendreTirage?.(); reprendre
       <p>Les choix liés utilisant {{ demande.pseudoRetire }} seront remplacés par {{ demande.pseudoConserve }}, y compris ceux masqués par un autre passage. La règle gardera uniquement {{ demande.pseudoConserve }}.</p>
       <p>Les passages laissés en clair restent en clair : seul leur pseudonyme mémorisé change. Le texte d’origine, vos choix indépendants, les noms et pseudonymes enregistrés dans chaque entretien et les locuteurs restent inchangés.</p>
       <p>Les passages à traiter ne sont pas modifiés. Ce retrait ne peut pas être annulé depuis le Journal.</p>
-      <p v-if="distant">Sur GitLab, les entretiens sont mis à jour l’un après l’autre. Si l’opération s’arrête, les remplacements déjà enregistrés sont conservés. Les deux variantes restent proposées jusqu’à la fin du retrait.</p>
+      <p v-if="distant">Sur {{ libelleFournisseur }}, les entretiens sont mis à jour l’un après l’autre. Si l’opération s’arrête, les remplacements déjà enregistrés sont conservés. Les deux variantes restent proposées jusqu’à la fin du retrait.</p>
       <section v-if="suivi" role="status">
-        <h3>Retrait de variante GitLab à reprendre</h3>
+        <h3>Retrait de variante {{ libelleFournisseur }} à reprendre</h3>
         <p>{{ suivi.annotations }} choix remplacé(s) dans {{ suivi.entretiens }} entretien(s). {{ suivi.varianteRetiree ? 'La variante est retirée ; il reste à actualiser votre copie du corpus.' : 'Le retrait de la variante n’est pas encore terminé.' }}</p>
         <p v-if="suivi.statut === 'indetermine'">Le serveur n’a pas confirmé le résultat. Relisez le suivi avant de continuer.</p>
         <p v-if="suivi.miroirIncomplet && !suivi.varianteRetiree">Des remplacements sont enregistrés ; il reste à actualiser votre copie du corpus avant de continuer.</p>
@@ -139,7 +140,7 @@ onUnmounted(() => { vivant = false; generation++; reprendreTirage?.(); reprendre
           <p v-if="suivi.nouvellesCibles.length">{{ suivi.nouvellesCibles.join(', ') }}</p>
         </details>
       </section>
-      <button v-if="distant" :disabled="enCours || !origineValide()" @click="relireSuivi">Relire le suivi GitLab</button>
+      <button v-if="distant" :disabled="enCours || !origineValide()" @click="relireSuivi">Relire le suivi {{ libelleFournisseur }}</button>
       <p v-if="enCours" role="status">Veuillez patienter…</p>
       <button v-if="distant || (!apercu && !enCours)" :disabled="!disponible || enCours || incertain || perime || suiviIndisponible || !!suivi?.varianteRetiree || !!suivi?.miroirIncomplet" @click="preparer">{{ suivi ? 'Recalculer la reprise' : distant ? 'Préparer le retrait de variante' : 'Actualiser le bilan' }}</button>
       <template v-if="apercu">

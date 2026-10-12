@@ -282,12 +282,12 @@ describe('portée des gestes du corpus', () => {
     expect(matriceCapacites('webdav').ajoutVarianteAnon).toBe(true)
   })
 
-  test('retrait de variante : local et GitLab qualifiés, WebDAV fermé sans qualification empruntée', () => {
+  test('retrait de variante : local, GitLab et WebDAV qualifiés indépendamment', () => {
     expect(() => exigerGeste('local', 'anon.retirer-variante')).not.toThrow()
     expect(() => exigerGeste('gitlab', 'anon.retirer-variante')).not.toThrow()
-    expect(() => exigerGeste('webdav', 'anon.retirer-variante')).toThrow('pas disponible')
+    expect(() => exigerGeste('webdav', 'anon.retirer-variante')).not.toThrow()
     expect(matriceCapacites('gitlab').retraitVarianteAnon).toBe(true)
-    expect(matriceCapacites('webdav').retraitVarianteAnon).toBe(false)
+    expect(matriceCapacites('webdav').retraitVarianteAnon).toBe(true)
   })
 
   test('les parcours déjà acquis ne régressent pas', () => {

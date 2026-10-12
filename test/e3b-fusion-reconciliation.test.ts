@@ -101,7 +101,10 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
       ],
       pseudosDeclares: { 'marie durand': ['MD'] },
     })
+    const courantAvant = structuredClone(courant), copieAvant = structuredClone(copie)
     const { fusion, ajouts } = fusionnerEntretiens(courant, copie)
+    expect(courant).toEqual(courantAvant)
+    expect(copie).toEqual(copieAvant)
     expect(fusion.locuteurs[1].valeursLoc).toEqual({ v1: 'm1', v2: 'm2' })
     expect(fusion.brouillonsAnon?.map((b) => b.entite)).toEqual([
       'Hopital Saint-Anne',

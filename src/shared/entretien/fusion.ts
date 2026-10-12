@@ -74,11 +74,11 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
 
   // Locuteurs : l'identité stable est l'INDEX (position ordinale du tour).
   const indexesLocuteurs = new Set(courant.locuteurs.map((l) => l.index))
-  const locuteurs = [...courant.locuteurs]
+  const locuteurs = structuredClone(courant.locuteurs)
   let locuteursAjoutes = 0
   for (const l of copie.locuteurs) {
     if (!indexesLocuteurs.has(l.index)) {
-      locuteurs.push(l)
+      locuteurs.push(structuredClone(l))
       indexesLocuteurs.add(l.index)
       locuteursAjoutes += 1
     }

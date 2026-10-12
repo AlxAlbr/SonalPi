@@ -99,7 +99,7 @@ export async function construireInstantane(
   if (!id) return null
   const donnees = source.donneesExport()
   const refAudio = donnees.meta.audioRef ?? null
-  return {
+  const instantane = JSON.parse(JSON.stringify({
     id,
     titre: source.titre(id),
     date: null,
@@ -111,8 +111,10 @@ export async function construireInstantane(
       reglesAnon: source.reglesAnon(),
     },
     notesPubliques: donnees.notes ?? [],
-    audioLocal: refAudio ? await source.audioLocal(refAudio) : null,
-  }
+    audioLocal: null,
+  })) as InstantaneEntretienExport
+  instantane.audioLocal = refAudio ? await source.audioLocal(refAudio) : null
+  return instantane
 }
 
 /** Prépare le rapport facultatif sans écrire ni générer l'export final. */
@@ -165,27 +167,23 @@ export async function enregistrerRapportPseudonymisation(
   }
 }
 
-/** Export de l'entretien ouvert dans le format demandé. La pseudonymisation
- *  applique les remplacements configurés sans bloquer sur les éléments qui
- *  restent en clair. */
+/** La pseudonymisation applique les remplacements configurés sans bloquer l’export incomplet. */
 export async function exporterEntretien(
   format: FormatExport,
   options: OptionsExport,
   source: SourceExportEntretien,
 ): Promise<ResultatExport> {
-  const instantane = await construireInstantane(source)
-  if (!instantane) {
-    return { etat: 'erreur', message: "L'entretien à exporter n'est plus disponible." }
-  }
-  const ctx: ContexteExport = {
-    entree: instantane.entretien,
-    titre: instantane.titre,
-    notes: instantane.notesPubliques,
-    audioUrl: instantane.audioLocal,
-  }
-  const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`
-  const nom = nomFichierExport(instantane.titre, ext.slice(1), options.anon)
   try {
+    const instantane = await construireInstantane(source)
+    if (!instantane) return { etat: 'erreur', message: "L'entretien à exporter n'est plus disponible." }
+    const ctx: ContexteExport = {
+      entree: instantane.entretien,
+      titre: instantane.titre,
+      notes: instantane.notesPubliques,
+      audioUrl: instantane.audioLocal,
+    }
+    const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`
+    const nom = nomFichierExport(instantane.titre, ext.slice(1), options.anon)
     switch (format) {
       case 'sonal': {
         const contenu = options.anon

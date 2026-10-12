@@ -18,7 +18,7 @@ export interface InventaireRetraitVarianteAnon {
   bilan: BilanRetraitVarianteAnon; faisable: boolean
 }
 export interface ApercuRetraitVarianteAnon extends InventaireRetraitVarianteAnon {
-  token: string; lecture: 'local' | 'gitlab'; applicationDisponible: boolean
+  token: string; lecture: 'local' | 'gitlab' | 'webdav'; applicationDisponible: boolean
   reprise?: string; ciblesRetirees?: string[]; motifIndisponible?: string
 }
 export interface BilanRetraitVarianteDistant extends BilanRetraitVarianteAnon {

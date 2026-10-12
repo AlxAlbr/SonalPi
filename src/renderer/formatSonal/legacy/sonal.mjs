@@ -138,7 +138,13 @@ export function cssFromCodebook(tabThm = []) {
     `;
 
   for (let t = 0; t < tabThm.length; t++) {
-    chaineCss += `.` + tabThm[t].code + `{
+    const code = tabThm[t].code;
+    if (typeof code !== 'string' || !code) continue;
+    // Le sélecteur reste un identifiant, jamais du HTML ou une instruction CSS.
+    const selecteur = Array.from(code).map((c, i) =>
+      /^[a-zA-Z0-9_-]$/.test(c) && !(i === 0 && /[0-9]/.test(c)) && !(i === 1 && code[0] === '-' && /[0-9]/.test(c))
+        ? c : `\\${c.codePointAt(0).toString(16)} `).join('');
+    chaineCss += `.` + selecteur + `{
 
         `;
 
@@ -187,12 +193,15 @@ export function serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, 
 
    `;
 
-  const locJSON = JSON.stringify(tabLoc, null);
-  const thmJSON = JSON.stringify(tabThm, null);
-  const varJSON = JSON.stringify(tabVar, null);
-  const dicJSON = JSON.stringify(tabDic, null);
-  const datJSON = JSON.stringify(tabDat, null);
-  const anonJSON = JSON.stringify(tabAnon, null);
+  // Les valeurs JSON ne doivent jamais fermer leur balise script.
+  const jsonInerte = (valeur) => JSON.stringify(valeur, null)?.replace(/</g, '\\u003c');
+  const notesInertes = String(notes ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const locJSON = jsonInerte(tabLoc);
+  const thmJSON = jsonInerte(tabThm);
+  const varJSON = jsonInerte(tabVar);
+  const dicJSON = jsonInerte(tabDic);
+  const datJSON = jsonInerte(tabDat);
+  const anonJSON = jsonInerte(tabAnon);
 
   contenuHtml += cssFromCodebook(tabThm);
 
@@ -253,7 +262,7 @@ export function serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, 
     <H2 > Notes</H2>
 
         <div id="txtnotes">
-        ` + notes + `
+        ` + notesInertes + `
         </div>
     </div>
     `;

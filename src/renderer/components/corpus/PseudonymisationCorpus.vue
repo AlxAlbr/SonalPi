@@ -255,10 +255,12 @@ const ajoutVarianteDisponible = computed(() => !lectureSeule.value && gesteDispo
 const retraitVarianteDisponible = computed(() => !lectureSeule.value && gesteDisponible('retraitVarianteAnon'))
 const retraitVariante = ref<DemandeRetraitVarianteAnon | null>(null), retraitVarianteEnCours = ref(false)
 const suiviRetraitVariante = ref<SuiviRetraitVarianteAnon | null>(null), erreurSuiviRetraitVariante = ref<string | null>(null)
+const fournisseurRetraitDistant = computed(() => fournisseurCourant?.value === 'gitlab' || fournisseurCourant?.value === 'webdav')
+const libelleFournisseurRetrait = computed(() => fournisseurCourant?.value === 'webdav' ? 'WebDAV' : 'GitLab')
 let generationSuiviRetrait = 0
 async function lireSuiviRetraitVariante() {
   const g = ++generationSuiviRetrait, revision = revisionCorpus.value
-  if (!props.actif || fournisseurCourant?.value !== 'gitlab') { suiviRetraitVariante.value = null; erreurSuiviRetraitVariante.value = null; return }
+  if (!props.actif || !fournisseurRetraitDistant.value) { suiviRetraitVariante.value = null; erreurSuiviRetraitVariante.value = null; return }
   try {
     const suivi = await window.sonal.corpus.suiviRetraitVarianteAnon()
     if (!editionVivante || g !== generationSuiviRetrait || revision !== revisionCorpus.value || !props.actif) return
@@ -313,7 +315,7 @@ async function ouvrirEditionPseudos(id: string) {
   const revision = revisionCorpus.value
   ajoutVarianteEnCours.value = true
   try {
-    if (fournisseurCourant?.value === 'gitlab') {
+    if (fournisseurRetraitDistant.value) {
       const retrait = await window.sonal.corpus.suiviRetraitVarianteAnon()
       if (!editionVivante || !props.actif || revision !== revisionCorpus.value) return
       if (retrait) {
@@ -753,20 +755,20 @@ watch(scanAnonCharge, (charge) => {
   suppression.value = null
   suppressionEnCours.value = false
 }, { flush: 'sync' })
+async function actualiserPanneau() {
+  await charger(true)
+  if (props.actif && !retraitVariante.value && !retraitVarianteEnCours.value && !ajoutVarianteEnCours.value) await lireSuiviRetraitVariante()
+}
 watch(dernierTirage, () => {
-  if (props.actif && vue.value === 'corpus') void charger(true)
+  if (props.actif && vue.value === 'corpus') void actualiserPanneau()
 })
 function surResize() { bornerLargeur() }
-let minuteurSuiviRetrait: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
-  minuteurSuiviRetrait = setInterval(() => {
-    if (props.actif && fournisseurCourant?.value === 'gitlab' && !retraitVariante.value && !retraitVarianteEnCours.value && !ajoutVarianteEnCours.value) void lireSuiviRetraitVariante()
-  }, 1_000)
   restaurerLargeur()
   window.addEventListener('resize', surResize)
 })
 onUnmounted(() => {
-  clearInterval(minuteurSuiviRetrait); generationSuiviRetrait++
+  generationSuiviRetrait++
   suiviSuppressionVivant = false; generationSuiviSuppression++
   generationDetails++
   choisirGarde('rester')
@@ -781,7 +783,7 @@ onUnmounted(() => {
           <header class="pseudo-tete">
             <h3>Pseudonymisation <span class="pseudo-sous">— règles d'anonymisation du corpus</span></h3>
             <div class="pseudo-tete-actions">
-              <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="charger(true)">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
+              <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="actualiserPanneau">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
               <div class="pseudo-outils-regles">
                 <button class="ajouter-regle" aria-label="Import règles" title="Importer des règles ou des pseudonymes depuis un fichier" @click="ouvrirEchanges('import')">Import règles <span aria-hidden="true">📥</span></button>
                 <button class="ajouter-regle" aria-label="Export règles" title="Exporter une table de règles et de pseudonymes" @click="ouvrirEchanges('export')">Export règles <span aria-hidden="true">📤</span></button>
@@ -841,11 +843,11 @@ onUnmounted(() => {
           <p v-if="scanAnonErreur && scanAnonCharge" class="pseudo-erreur" role="alert">{{ scanAnonErreur }} Le dernier résultat lisible reste affiché et peut ne plus être à jour.</p>
         </div>
           <section v-if="suiviRetraitVariante || erreurSuiviRetraitVariante" class="pseudo-hint" role="status">
-            <strong>Retrait de variante GitLab à reprendre</strong>
+            <strong>Retrait de variante {{ libelleFournisseurRetrait }} à reprendre</strong>
             <p v-if="suiviRetraitVariante">{{ suiviRetraitVariante.annotations }} choix remplacé(s) dans {{ suiviRetraitVariante.entretiens }} entretien(s). {{ suiviRetraitVariante.varianteRetiree || suiviRetraitVariante.miroirIncomplet ? 'Les remplacements sont enregistrés ; il reste à actualiser votre copie du corpus.' : 'Le retrait de la variante n’est pas encore terminé.' }}</p>
             <p v-if="suiviRetraitVariante?.statut === 'indetermine'">Le serveur n’a pas confirmé le résultat. Relisez le suivi avant de continuer.</p>
             <p v-if="erreurSuiviRetraitVariante" role="alert">{{ erreurSuiviRetraitVariante }}</p>
-            <button :disabled="retraitVarianteEnCours || !!retraitVariante || ajoutVarianteEnCours" @click="relireSuiviRetraitVariante">Relire le suivi GitLab</button>
+            <button :disabled="retraitVarianteEnCours || !!retraitVariante || ajoutVarianteEnCours" @click="relireSuiviRetraitVariante">Relire le suivi {{ libelleFournisseurRetrait }}</button>
             <button v-if="suiviRetraitVariante" :disabled="retraitVarianteEnCours || !!retraitVariante || ajoutVarianteEnCours" @click="ouvrirSuiviRetraitVariante">Examiner le retrait de variante</button>
           </section>
           <section v-if="suiviSuppression || erreurSuiviSuppression" class="pseudo-hint" role="status">

@@ -413,11 +413,67 @@ charge maximale, Windows, ancien client, instance institutionnelle, révocation 
 de rôle ou empaquetage. Racines/profils synthétiques ; aucun corpus utilisateur, reset,
 commit ou push du dépôt de l’application. **Vingt et une livraisons, plan toujours ouvert.**
 
-## Travaux restants
+## Retrait WebDAV qualifié et activé
 
-Implémenter, raccorder et qualifier le retrait WebDAV avec ses propres protections,
-sans réutiliser les qualifications GitLab, d’ajout ou de renommage.
-Les audits de transitions/provenance, la parité V1 et l’acceptation finale restent ouverts.
+`RetraitsVarianteAnonWebDAV` et `JournalRetraitVarianteAnonWebDAV` sont assemblés dans
+les transactions, le contexte, le dispatch main et le dialogue commun. Inventaire frais
+sur tous les membres, ETags forts, droit corpus puis une cible à la fois, écriture
+conditionnelle et journal privé `0600`/atomique/fsync/128 Mio. Les deux variantes restent
+publiées jusqu’à la preuve finale d’absence des anciens choix liés, exceptions et masqués
+compris. Cibles changées/tenues et nouveaux usages demandent un nouveau bilan et accord.
+Reconnaissance des octets exacts sans répétition, installation des sources actuelles,
+aucune restauration, compensation, libération forcée ou adoption des droits d’une relance.
+
+Le contexte réserve les cibles avant attente et refuse les ouvertures déjà engagées,
+le tirage et la fermeture pendant le travail actif. Les sessions non ciblées restent
+éditables ; leurs changements non publiés sont conservés et leur sauvegarde reste possible
+pendant un lot partiel. Réouverture d’un journal en attente avant tirage/migration,
+contrôle du contexte et de la politique après l’intention durable, suivi lisible même
+lorsque l’écriture est interdite.
+
+### Échanges et compatibilité
+
+Le suivi du panneau est lu à l’ouverture/changement de contexte, lors d’une actualisation
+et avant une édition : aucun minuteur d’une seconde. Pendant l’inventaire, les droits
+sont renouvelés lorsqu’il reste au plus deux minutes, pas pour chaque fichier.
+Le propriétaire/génération natifs et leur échéance sont obtenus par une seule lecture.
+Les droits sont contrôlés avant publication et après l’intention durable ; une minute
+de marge reste exigée. Une échéance raccourcie est prise en compte à chaque preuve.
+Une lecture revenant après expiration n’autorise ni renouvellement ni libération forcés.
+
+Une extension générale du contrôle des exceptions aurait bloqué un import valide après
+renommage ; elle a été retirée, sans changer les imports ni les contrôles GitLab existants.
+La barrière WebDAV du retrait interdit toujours la réintroduction du pseudo retiré,
+y compris dans une exception inchangée, pendant l’opération. Les exceptions historiques
+hors de cette barrière gardent le comportement WebDAV antérieur.
+
+### Preuves et limites
+
+**360 tests/18 fichiers ciblés réussis**, dont moteur, contexte, suivi, dispatch,
+permissions et régressions des autres gestes. **Dix scénarios Nextcloud réels A/B réussis**,
+puis **quatre concernés repassés après derniers ajustements, six filtrés**.
+La première tentative réelle antérieure avait dépassé le délai de 300 secondes.
+Première campagne application : six réussis/deux échecs de sélecteur ambigu ; deux corrigés
+repassés, puis quatre concernés sur la copie à jour. Main activé byte-identique par `cmp -s`,
+puis **huit parcours dans le build normal sans substitution réussis**, quatre par banc :
+annulation/partiel/nouveaux choix, édition habituelle/définition périmée,
+réponse finale perdue/relecture, vrai SIGKILL après e1/reconnexion/droits persistants
+refusés/poursuite restante après libération extérieure contrôlée du banc.
+Captures normales/réduites/partielles/indéterminées/droits persistants conservées.
+Typecheck/build/espaces vérifiés.
+
+Scénario nominal réel synthétique : environ 25–26 secondes au lieu de 44–48 auparavant,
+préparation et vérifications du test comprises ; indication, pas qualification de charge.
+Aucune nouvelle suite générale complète verte, charge maximale, Windows, ancien client,
+instance institutionnelle, révocation permanente de rôle ou empaquetage revendiqués.
+La portée `pseudonymisation-retrait-variante` est ouverte sur WebDAV après sa qualification
+propre ; la fermeture de politique et l’absence de repli local restent testées.
+
+## Périmètre figé
+
+Le retrait WebDAV est terminé. Les audits de transitions/provenance, la parité V1 et
+l’acceptation finale restent ouverts mais ne sont pas engagés sans nouvel accord utilisateur.
+Aucun nouveau format, mémoire supplémentaire, moteur générique ou parcours d’import.
 
 La promotion conserve son parcours simple ; aucun rattachement groupé n’est ajouté.
 Le plan principal reste ouvert dans `plans/encours/` jusqu’à acceptation finale.

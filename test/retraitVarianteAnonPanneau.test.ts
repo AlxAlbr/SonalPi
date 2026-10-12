@@ -88,7 +88,7 @@ test('réponse de suivi ancienne ignorée après changement de corpus', async ()
 test('suivi précédemment connu devenu absent ne permet pas une nouvelle édition', async () => {
   vi.useFakeTimers()
   const b = await monter(); b.api.suiviRetraitVarianteAnon.mockResolvedValue(null)
-  await vi.advanceTimersByTimeAsync(1_001); await rendu()
+  bouton('⟳ Actualiser').click(); await rendu()
   expect(document.body.textContent).toContain('Le suivi n’est plus disponible')
   modifier().click(); await rendu()
   expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(b.api.suiviRenommageAnon).not.toHaveBeenCalled()
@@ -104,6 +104,12 @@ test('relecture en attente : navigation gardée, tirage suspendu et résultat an
   } finally { terminer({ ...b.suivi, statut: 'termine', varianteRetiree: true }); await rendu() }
   expect(document.body.textContent).not.toContain('Variante retirée')
   expect(tirageAutomatiqueSuspendu.value).toBe(false)
+})
+test('au repos : aucune lecture de suivi périodique, y compris après plusieurs minutes', async () => {
+  vi.useFakeTimers()
+  const b = await monter(), lectures = b.api.suiviRetraitVarianteAnon.mock.calls.length
+  await vi.advanceTimersByTimeAsync(180_000); await rendu()
+  expect(b.api.suiviRetraitVarianteAnon).toHaveBeenCalledTimes(lectures)
 })
 test('changement vers local : suivi distant effacé, aucune nouvelle lecture distante périodique', async () => {
   vi.useFakeTimers()

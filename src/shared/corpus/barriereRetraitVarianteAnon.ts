@@ -1,3 +1,4 @@
+import type { Annotation } from '../entretien/annotation'
 import { FORMAT_VERSION, type CorpusFichier } from '../format'
 import { validerDefinitionAnon } from './definitionsAnon'
 
@@ -21,6 +22,14 @@ export function lireBarriereRetraitVarianteAnon(corpus: CorpusFichier): Barriere
       || b.pseudoRetire === b.pseudoConserve || !r.pseudos.includes(b.pseudoRetire) || !r.pseudos.includes(b.pseudoConserve)) throw new Error()
     return b
   } catch { throw new Error('L’état publié de retrait de variante est invalide. Aucun entretien publié.') }
+}
+
+/** Une publication ordinaire ne peut réintroduire le choix retiré, même dans une exception. */
+export function verifierBarriereRetraitVarianteAnon(corpus: CorpusFichier, annotations: Annotation[]): void {
+  const b = lireBarriereRetraitVarianteAnon(corpus)
+  if (b && annotations.some((a) => a.regle === b.regleId && typeof a.pseudo === 'string' && memeVarianteAnon(a.pseudo, b.pseudoRetire))) {
+    throw new Error('Cette variante est en cours de retrait. Aucun ancien choix lié, même mémorisé dans une exception, ne peut être réintroduit.')
+  }
 }
 
 /** Les autres mutations ne peuvent modifier la définition ni sa protection en cours. */

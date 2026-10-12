@@ -2,20 +2,24 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { CommandesRetraitVarianteAnon } from '../src/main/commandesRetraitVarianteAnon'
 import { ContexteGitLab } from '../src/main/gitlab/contexte'
 import { ContexteCorpusDistant } from '../src/main/distant/contexte'
-import { PORTEEES_OVERTES_GITLAB, type FournisseurCorpus } from '../src/main/gitlab/politiqueGestes'
+import { PORTEEES_OVERTES_GITLAB, PORTEES_OUVERTES_WEBDAV, type FournisseurCorpus } from '../src/main/gitlab/politiqueGestes'
 import { fixtureRetraitVarianteAnon } from './fixtures/retraitVarianteAnon'
 import { inventorierRetraitVarianteAnon, type ApercuRetraitVarianteAnon } from '../src/shared/corpus/retraitVarianteAnon'
 
 type Contexte = ContexteGitLab | ContexteCorpusDistant
+const porteesWebDAV = [...PORTEES_OUVERTES_WEBDAV]
 const portees = [...PORTEEES_OVERTES_GITLAB], portee = 'pseudonymisation-retrait-variante' as const
 const ouvrir = () => { if (!PORTEEES_OVERTES_GITLAB.includes(portee)) PORTEEES_OVERTES_GITLAB.push(portee) }
 const fermer = () => { const i = PORTEEES_OVERTES_GITLAB.indexOf(portee); if (i >= 0) PORTEEES_OVERTES_GITLAB.splice(i, 1) }
-afterEach(() => { vi.restoreAllMocks(); PORTEEES_OVERTES_GITLAB.splice(0, Infinity, ...portees) })
+afterEach(() => {
+  vi.restoreAllMocks(); PORTEEES_OVERTES_GITLAB.splice(0, Infinity, ...portees)
+  PORTEES_OUVERTES_WEBDAV.splice(0, Infinity, ...porteesWebDAV)
+})
 function banc(fournisseurAvant: FournisseurCorpus = 'gitlab') {
   const f = fixtureRetraitVarianteAnon()
-  const apercu: ApercuRetraitVarianteAnon = { ...inventorierRetraitVarianteAnon(f.corpus, f.sources, f.demande), lecture: 'gitlab', token: 'prive', applicationDisponible: true }
+  const apercu: ApercuRetraitVarianteAnon = { ...inventorierRetraitVarianteAnon(f.corpus, f.sources, f.demande), lecture: fournisseurAvant === 'webdav' ? 'webdav' : 'gitlab', token: 'prive', applicationDisponible: true }
   const bilan = { ...apercu.bilan, operationId: 'retrait-variante-prive', statut: 'termine' as const, miroirIncomplet: false, differes: [], nouvellesCibles: [] }
-  const gitlab = Object.create(ContexteGitLab.prototype) as ContexteGitLab
+  const gitlab = Object.create(fournisseurAvant === 'webdav' ? ContexteCorpusDistant.prototype : ContexteGitLab.prototype) as Contexte
   const preparer = vi.spyOn(gitlab, 'preparerRetraitVarianteAnon').mockResolvedValue(apercu)
   const reprise = vi.spyOn(gitlab, 'preparerRepriseRetraitVarianteAnon').mockResolvedValue(apercu)
   const appliquer = vi.spyOn(gitlab, 'retirerVarianteAnon').mockResolvedValue(bilan)
@@ -24,7 +28,7 @@ function banc(fournisseurAvant: FournisseurCorpus = 'gitlab') {
   const oublier = vi.spyOn(gitlab, 'oublierApercuRetraitVarianteAnon').mockImplementation(() => {})
   const local = { preparer: vi.fn(() => ({ ...apercu, lecture: 'local' as const })), appliquer: vi.fn(() => apercu.bilan) }
   let generation = 0, fournisseur = fournisseurAvant, courant: Contexte | null = fournisseur === 'local' ? null
-    : fournisseur === 'gitlab' ? gitlab : Object.create(ContexteCorpusDistant.prototype)
+    : gitlab
   let avantExecution = () => {}, executionDisponible = true
   const options = {
     local: local as never,
@@ -61,9 +65,19 @@ test('politique GitLab fermée : aucune préparation ou application, aucune solu
   expect(b.preparer).not.toHaveBeenCalled(); expect(b.appliquer).not.toHaveBeenCalled(); expect(b.local.appliquer).not.toHaveBeenCalled()
 })
 test('WebDAV fermé : refus sans utiliser la copie locale', async () => {
+  PORTEES_OUVERTES_WEBDAV.splice(PORTEES_OUVERTES_WEBDAV.indexOf(portee), 1)
   const b = banc('webdav')
   await expect(b.commandes.preparer(b.f.demande)).rejects.toThrow()
-  expect(() => b.commandes.appliquer('prive', true)).toThrow('Aucun repli sur le miroir')
+  await expect(b.commandes.appliquer('prive', true)).rejects.toThrow('pas disponible')
+  expect(b.oublier).toHaveBeenCalledExactlyOnceWith('prive')
+  expect(b.appliquer).not.toHaveBeenCalled()
+  expect(b.local.preparer).not.toHaveBeenCalled(); expect(b.local.appliquer).not.toHaveBeenCalled()
+})
+test('WebDAV qualifié : préparation et application distantes, jamais de repli local', async () => {
+  const b = banc('webdav')
+  expect((await b.commandes.preparer(b.f.demande)).lecture).toBe('webdav')
+  expect(await b.commandes.appliquer('prive', true)).toMatchObject({ statut: 'termine' })
+  expect(b.appliquer).toHaveBeenCalledExactlyOnceWith('prive', true)
   expect(b.local.preparer).not.toHaveBeenCalled(); expect(b.local.appliquer).not.toHaveBeenCalled()
 })
 test.each(['preparation', 'reprise'] as const)('%s liée à génération et origine après lecture ; aperçu détruit si périmé', async (phase) => {

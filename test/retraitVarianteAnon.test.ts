@@ -93,8 +93,7 @@ describe('retrait de variante : remplacement lié et explicite', () => {
     expect(() => preparerRetraitVarianteAnon(f.corpus, f.sources, f.demande)).toThrow('obstacles')
   })
   test.each(['local', 'gitlab', 'webdav'] as const)('politique distincte : %s', (p) => {
-    expect(matriceCapacites(p).retraitVarianteAnon).toBe(p !== 'webdav')
-    if (p !== 'webdav') expect(() => exigerGeste(p, 'anon.retirer-variante')).not.toThrow()
-    else expect(() => exigerGeste(p, 'anon.retirer-variante')).toThrow('pas disponible')
+    expect(matriceCapacites(p).retraitVarianteAnon).toBe(true)
+    expect(() => exigerGeste(p, 'anon.retirer-variante')).not.toThrow()
   })
 })

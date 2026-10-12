@@ -211,6 +211,7 @@ export async function exporterCorpus(
   source: SourceExportCorpus,
 ): Promise<ResultatLotCorpus> {
   try {
+    demande = JSON.parse(JSON.stringify(demande)) as DemandeLotCorpus
     const nomCorpus = source.nomCorpus()
     const nomDossier = nomDossierExportCorpus(nomCorpus, new Date().toISOString().slice(0, 10))
     const dossier = await source.choisirDossier(nomDossier)
@@ -242,7 +243,7 @@ export async function exporterCorpus(
     let traite = 0
     for (let i = 0; i < demande.selection.length; i++) {
       const selectionne = demande.selection[i]
-      if (!source.doitContinuer?.()) {
+      if (source.doitContinuer && !source.doitContinuer()) {
         for (const s of demande.selection.slice(i)) {
           faits.push({ id: s.id, titre: s.titre, etat: 'abandonne' })
         }

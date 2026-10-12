@@ -1,5 +1,6 @@
 import type { CorpusFichier, EntretienFichier } from '../format'
 import { exigerAbsenceSuppressionAnon, lireBarriereSuppressionAnon } from './barriereSuppressionAnon'
+import { verifierBarriereRetraitVarianteAnon } from './barriereRetraitVarianteAnon'
 import { validerDefinitionAnon } from './definitionsAnon'
 import { validerMemoireLocale, type DefinitionAnonLocale } from '../entretien/anon/definitionsLocales'
 
@@ -40,6 +41,7 @@ export function declarationDissociationConservee(definitions: DefinitionAnonLoca
 
 /** Le verrou corpus protège aussi la mémoire acquise, pas seulement les références à la règle. */
 export function verifierBarriereDissociationWebDAV(corpus: CorpusFichier, candidat: EntretienFichier, id: string): void {
+  verifierBarriereRetraitVarianteAnon(corpus, candidat.annotations)
   const suppression = lireBarriereSuppressionAnon(corpus)
   if (suppression && (!Array.isArray(candidat.annotations) || candidat.annotations.some((a) => a.regle === suppression.regleId))) {
     throw new Error('La règle est en cours de suppression. Aucun ancien lien ne peut être réintroduit.')

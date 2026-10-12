@@ -41,6 +41,8 @@ import { JournalSuppressionAnonWebDAV } from './journalSuppressionAnonWebDAV'
 import { JournalGardePseudosWebDAV } from './journalGardePseudosWebDAV'
 import { JournalAjoutVarianteAnonWebDAV } from './journalAjoutVarianteAnonWebDAV'
 import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon'
+import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
+import { JournalRetraitVarianteAnonWebDAV } from './journalRetraitVarianteAnonWebDAV'
 
 /** Services d'un corpus distant assemblés pour une même destination. */
 export class ContexteCorpusDistant {
@@ -54,6 +56,8 @@ export class ContexteCorpusDistant {
   private lecturesDissociation = 0
   private readonly suppressionCibles = new Set<string>()
   private lecturesSuppression = 0
+  private readonly retraitVarianteCibles = new Set<string>()
+  private lecturesRetraitVariante = 0
 
   constructor(
     public readonly id: string,
@@ -76,6 +80,7 @@ export class ContexteCorpusDistant {
   private async avecSession<T>(action: () => Promise<T>, id?: string): Promise<T> {
     this.exigerOuvert()
     this.transactions.exigerSansImportCorrespondances()
+    if (id && this.retraitVarianteCibles.has(id)) throw new Error('Cette cible participe au retrait de variante. Attendez son bilan avant de modifier ou fermer la session.')
     if (id && this.suppressionCibles.has(id)) throw new Error('Cette cible participe à la suppression en cours. Attendez son bilan avant de modifier ou fermer la session.')
     if (id && this.dissociationCibles.has(id)) throw new Error('Cette cible participe à la dissociation en cours. Attendez son bilan avant de modifier ou fermer la session.')
     if (id && this.renommageCibles.has(id)) throw new Error('Cette cible participe au renommage en cours. Attendez son bilan avant de modifier ou fermer la session.')
@@ -101,7 +106,7 @@ export class ContexteCorpusDistant {
   lireSuiviRenommageAnon() { this.exigerOuvert(); return this.transactions.lireSuiviRenommageAnon() }
   renommageAnonDisponible() {
     this.exigerOuvert()
-    return !this.lecturesSuppression && !this.transactions.suppressionEnCours && !this.transactions.lireSuiviSuppressionAnon()
+    return !this.lecturesRetraitVariante && !this.transactions.retraitVarianteEnCours && !this.transactions.lireSuiviRetraitVarianteAnon() && !this.lecturesSuppression && !this.transactions.suppressionEnCours && !this.transactions.lireSuiviSuppressionAnon()
       && !this.lecturesDissociation && !this.transactions.dissociationEnCours && !this.transactions.lireSuiviDissociationAnon()
       && !this.renommageCibles.size && !this.transactions.mutationEnCours && !this.transactions.lirePublicationEntretien() && !this.transactions.importCorrespondancesEnCours
       && !this.transactions.lireSuiviImportCorrespondances() && !this.transactions.operationThemeEnCours && !this.transactions.lireSuiviOperationTheme()
@@ -142,7 +147,7 @@ export class ContexteCorpusDistant {
   oublierApercuDissociationAnon(token: string) { this.transactions.oublierApercuDissociationAnon(token) }
   dissociationAnonDisponible() {
     this.exigerOuvert()
-    return gesteAutorise('webdav', 'anon.dissocier-globalement') && !this.lecturesSuppression && !this.transactions.suppressionEnCours && !this.transactions.lireSuiviSuppressionAnon() && !this.lecturesDissociation && !this.lecturesRenommage && !this.transactions.renommageEnCours
+    return gesteAutorise('webdav', 'anon.dissocier-globalement') && !this.lecturesRetraitVariante && !this.transactions.retraitVarianteEnCours && !this.transactions.lireSuiviRetraitVarianteAnon() && !this.lecturesSuppression && !this.transactions.suppressionEnCours && !this.transactions.lireSuiviSuppressionAnon() && !this.lecturesDissociation && !this.lecturesRenommage && !this.transactions.renommageEnCours
       && !this.transactions.lireSuiviRenommageAnon() && !this.transactions.mutationEnCours && !this.transactions.lirePublicationEntretien()
       && !this.transactions.importCorrespondancesEnCours && !this.transactions.lireSuiviImportCorrespondances()
       && !this.transactions.operationThemeEnCours && !this.transactions.lireSuiviOperationTheme()
@@ -183,7 +188,7 @@ export class ContexteCorpusDistant {
   oublierApercuSuppressionAnon(token: string) { this.transactions.oublierApercuSuppressionAnon(token) }
   suppressionAnonDisponible() {
     this.exigerOuvert()
-    return gesteAutorise('webdav', 'anon.supprimer-partout') && !this.lecturesSuppression && !this.transactions.suppressionEnCours
+    return gesteAutorise('webdav', 'anon.supprimer-partout') && !this.lecturesRetraitVariante && !this.transactions.retraitVarianteEnCours && !this.transactions.lireSuiviRetraitVarianteAnon() && !this.lecturesSuppression && !this.transactions.suppressionEnCours
       && !this.lecturesDissociation && !this.transactions.dissociationEnCours && !this.transactions.lireSuiviDissociationAnon()
       && !this.lecturesRenommage && !this.transactions.renommageEnCours && !this.transactions.lireSuiviRenommageAnon()
       && !this.transactions.mutationEnCours && !this.transactions.lirePublicationEntretien()
@@ -205,6 +210,39 @@ export class ContexteCorpusDistant {
     } finally {
       this.transactions.oublierApercuSuppressionAnon(token)
       if (reservees) { this.suppressionCibles.clear(); this.lecturesSuppression-- }
+    }
+  }
+
+  idsOperationsSessions(): string[] { return [...this.operationsParEntretien.keys()] }
+  verifierContexteRetraitVariante(): void { this.exigerOuvert() }
+  private async avecLectureRetraitVariante<T>(action: () => Promise<T>): Promise<T> {
+    this.exigerOuvert(); this.lecturesRetraitVariante++
+    try { return await action() } finally { this.lecturesRetraitVariante-- }
+  }
+  preparerRetraitVarianteAnon(demande: DemandeRetraitVarianteAnon) {
+    exigerGeste('webdav', 'anon.retirer-variante')
+    return this.avecLectureRetraitVariante(() => this.transactions.preparerRetraitVarianteAnon(demande))
+  }
+  preparerRepriseRetraitVarianteAnon(id: string) {
+    exigerGeste('webdav', 'anon.retirer-variante')
+    return this.avecLectureRetraitVariante(() => this.transactions.preparerRepriseRetraitVarianteAnon(id))
+  }
+  lireSuiviRetraitVarianteAnon() { this.exigerOuvert(); return this.transactions.lireSuiviRetraitVarianteAnon() }
+  relireSuiviRetraitVarianteAnon(id: string) { return this.avecLectureRetraitVariante(() => this.transactions.relireSuiviRetraitVarianteAnon(id)) }
+  oublierApercuRetraitVarianteAnon(token: string) { this.transactions.oublierApercuRetraitVarianteAnon(token) }
+  async retirerVarianteAnon(token: string, confirmee: boolean) {
+    let reservees = false
+    try {
+      this.exigerOuvert(); exigerGeste('webdav', 'anon.retirer-variante')
+      const ids = this.transactions.ciblesApercuRetraitVarianteAnon(token)
+      const sansCible = this.operationsSessions - [...this.operationsParEntretien.values()].reduce((n, v) => n + v, 0)
+      if (sansCible || this.lecturesRetraitVariante || this.lecturesSuppression || this.lecturesDissociation || this.lecturesRenommage
+        || ids.some((id) => this.operationsParEntretien.has(id))) throw new Error('Terminez les opérations des cibles avant le retrait de variante WebDAV.')
+      ids.forEach((id) => this.retraitVarianteCibles.add(id)); this.lecturesRetraitVariante++; reservees = true
+      return await this.transactions.retirerVarianteAnon(token, confirmee)
+    } finally {
+      this.transactions.oublierApercuRetraitVarianteAnon(token)
+      if (reservees) { this.retraitVarianteCibles.clear(); this.lecturesRetraitVariante-- }
     }
   }
 
@@ -238,6 +276,7 @@ export class ContexteCorpusDistant {
   exigerEcritureEntretien(id: string): void {
     this.exigerOuvert()
     this.transactions.exigerSansImportCorrespondances()
+    if (this.retraitVarianteCibles.has(id)) throw new Error('La cible participe au retrait de variante. Attendez avant d’enregistrer.')
     if (this.suppressionCibles.has(id)) throw new Error('La cible participe à la suppression en cours. Attendez avant d’enregistrer.')
     if (this.dissociationCibles.has(id)) throw new Error('La cible participe à la dissociation en cours. Attendez avant d’enregistrer.')
     if (this.renommageCibles.has(id)) throw new Error('La cible participe au renommage en cours. Attendez avant d’enregistrer.')
@@ -258,11 +297,14 @@ export class ContexteCorpusDistant {
 
   private async tirerMiroir(): Promise<ResultatTiragePublic> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
+    if (this.lecturesRetraitVariante || this.transactions.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante avant le tirage du miroir.')
     if (this.lecturesSuppression || this.transactions.suppressionEnCours) throw new Error('Attendez la fin de la suppression avant le tirage du miroir.')
     if (this.lecturesDissociation || this.transactions.dissociationEnCours) throw new Error('Attendez la fin de la dissociation avant le tirage du miroir.')
     if (this.lecturesRenommage || this.transactions.renommageEnCours) throw new Error('Attendez la fin du renommage avant le tirage du miroir.')
     await this.transactions.reconcilierAjoutVariante()
     await this.transactions.reconcilierPublicationEntretien()
+    const retrait = this.transactions.lireSuiviRetraitVarianteAnon()
+    if (retrait) await this.transactions.relireSuiviRetraitVarianteAnon(retrait.operationId)
     const dissociation = this.transactions.lireSuiviDissociationAnon()
     if (dissociation) await this.transactions.relireSuiviDissociationAnon(dissociation.operationId)
     const suppression = this.transactions.lireSuiviSuppressionAnon()
@@ -272,7 +314,9 @@ export class ContexteCorpusDistant {
       ...(this.transactions.lireSuiviDissociationAnon()?.differes.map((c) => c.id) ?? []),
       ...(this.transactions.lireSuiviDissociationAnon()?.nouvellesCibles ?? []),
       ...(this.transactions.lireSuiviSuppressionAnon()?.differes.map((c) => c.id) ?? []),
-      ...(this.transactions.lireSuiviSuppressionAnon()?.nouvellesCibles ?? [])])].map((id) => `entretiens/${id}.json`)
+      ...(this.transactions.lireSuiviSuppressionAnon()?.nouvellesCibles ?? []),
+      ...(this.transactions.lireSuiviRetraitVarianteAnon()?.differes.map((c) => c.id) ?? []),
+      ...(this.transactions.lireSuiviRetraitVarianteAnon()?.nouvellesCibles ?? [])])].map((id) => `entretiens/${id}.json`)
     const tirage = await this.miroir.tirer(exclus)
     const observation = await this.coordination.observerVerrous()
     return {
@@ -440,7 +484,7 @@ export class ContexteCorpusDistant {
     const suivi = this.transactions.lireSuiviRenommageAnon()
     const dissociation = this.transactions.lireSuiviDissociationAnon()
     const liste = await this.sessions.orphelins()
-    return liste.filter(({ id, verrou }) => !verrou.sessionId.startsWith('import-') && !verrou.sessionId.startsWith('rename-') && !verrou.sessionId.startsWith('garde-') && !verrou.sessionId.startsWith('dissociation-') && !verrou.sessionId.startsWith('suppression-anon-') && id !== 'corpus'
+    return liste.filter(({ id, verrou }) => !verrou.sessionId.startsWith('retrait-variante-') && !this.transactions.cibleRetraitVarianteProtegee(id) && !verrou.sessionId.startsWith('import-') && !verrou.sessionId.startsWith('rename-') && !verrou.sessionId.startsWith('garde-') && !verrou.sessionId.startsWith('dissociation-') && !verrou.sessionId.startsWith('suppression-anon-') && id !== 'corpus'
       && !this.transactions.cibleSuppressionProtegee(id) && !suivi?.cibles.some((c) => c.id === id) && !dissociation?.differes.some((c) => c.id === id) && !dissociation?.nouvellesCibles.includes(id))
       .map(({ cheminVerrou, id, verrou }) => ({
       cheminVerrou,
@@ -474,7 +518,7 @@ export class ContexteCorpusDistant {
   private async exigerOrphelinDeSession(cheminVerrou: string): Promise<void> {
     this.transactions.exigerPublicationDisponible()
     const orphelin = (await this.sessions.orphelins()).find((v) => v.cheminVerrou === cheminVerrou)
-    if (!orphelin || orphelin.verrou.sessionId.startsWith('ajout-variante-') || orphelin.verrou.sessionId.startsWith('import-') || orphelin.verrou.sessionId.startsWith('rename-') || orphelin.verrou.sessionId.startsWith('garde-') || orphelin.verrou.sessionId.startsWith('dissociation-') || orphelin.verrou.sessionId.startsWith('suppression-anon-') || orphelin.id === 'corpus'
+    if (!orphelin || this.transactions.cibleRetraitVarianteProtegee(orphelin.id) || orphelin.verrou.sessionId.startsWith('retrait-variante-') || orphelin.verrou.sessionId.startsWith('ajout-variante-') || orphelin.verrou.sessionId.startsWith('import-') || orphelin.verrou.sessionId.startsWith('rename-') || orphelin.verrou.sessionId.startsWith('garde-') || orphelin.verrou.sessionId.startsWith('dissociation-') || orphelin.verrou.sessionId.startsWith('suppression-anon-') || orphelin.id === 'corpus'
       || this.transactions.lireSuiviRenommageAnon()?.cibles.some((c) => c.id === orphelin.id)
       || this.transactions.cibleDissociationProtegee(orphelin.id) || this.transactions.cibleSuppressionProtegee(orphelin.id)) {
       throw new Error('Ce verrou ne correspond pas à une session locale récupérable. Aucune publication ni libération autorisée.')
@@ -490,6 +534,7 @@ export class ContexteCorpusDistant {
   /** Publie et libère toutes les sessions avant de terminer le contexte. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    if (this.lecturesRetraitVariante || this.transactions.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante avant le changement de corpus.')
     if (this.lecturesSuppression || this.transactions.suppressionEnCours) throw new Error('Attendez la fin de la suppression globale avant le changement de corpus.')
     if (this.lecturesDissociation || this.transactions.dissociationEnCours) throw new Error('Attendez la fin de la dissociation globale avant le changement de corpus.')
     if (this.lecturesRenommage || this.transactions.renommageEnCours || this.transactions.mutationEnCours) throw new Error('Attendez la fin du renommage ou de la mutation avant le changement de corpus.')
@@ -514,6 +559,7 @@ export class ContexteCorpusDistant {
     this.transactions.viderApercusOperationTheme()
     this.transactions.viderApercusDissociationAnon()
     this.transactions.viderApercusSuppressionAnon()
+    this.transactions.viderApercusRetraitVarianteAnon()
     this.termine = true
   }
 
@@ -559,6 +605,7 @@ export async function preparerContexteNextcloud(
   )
   let store: CorpusStore | null = null
   let sessions!: SessionsDEntretien
+  let contexte: ContexteCorpusDistant | undefined
   const gardePseudos = new GardePseudosWebDAV(options.client, options.identite, options.dirLocal,
     (chemin, contenu, etag) => sessions.confirmerSource(chemin, contenu, etag))
   sessions = new SessionsDEntretien(
@@ -577,6 +624,9 @@ export async function preparerContexteNextcloud(
     empreinteCorrespondance(options.client.config.baseUrl.replace(/\/+$/, ''))).lire()
   const suppression = new JournalSuppressionAnonWebDAV(options.dirLocal,
     empreinteCorrespondance(options.client.config.baseUrl.replace(/\/+$/, ''))).lire()
+  const retrait = new JournalRetraitVarianteAnonWebDAV(options.dirLocal,
+    empreinteCorrespondance(options.client.config.baseUrl.replace(/\/+$/, ''))).lire()
+  const retraitEnAttente = !!retrait && (!retrait.varianteRetiree || !retrait.miroirComplet)
   const garderMiroirSuppression = !!suppression && (!!suppression.envoi || !suppression.miroirComplet)
   const lotRenommage = new JournalRenommageAnonWebDAV(options.dirLocal,
     empreinteCorrespondance(options.client.config.baseUrl.replace(/\/+$/, ''))).lire()
@@ -585,6 +635,7 @@ export async function preparerContexteNextcloud(
   const envoiEntretien = new JournalGardePseudosWebDAV(options.dirLocal,
     empreinteCorrespondance(options.client.config.baseUrl.replace(/\/+$/, ''))).lire()
   const idsExclus = new Set([
+    ...(retraitEnAttente ? [...retrait!.cibles.map((c) => c.id), ...retrait!.nouvellesCibles] : []),
     ...(suppression && (!suppression.regleRetiree || !suppression.miroirComplet) ? [...suppression.cibles.map((c) => c.id), ...suppression.nouvellesCibles] : []),
     ...(envoiEntretien ? [envoiEntretien.chemin.slice('entretiens/'.length, -'.json'.length)] : []),
     ...(lotRenommage && !lotRenommage.termine ? lotRenommage.cibles.map((c) => c.id) : []),
@@ -592,10 +643,10 @@ export async function preparerContexteNextcloud(
     ...sessions.idsRecuperablesLocalement(),
     ...(options.exclusionsSupplementaires ?? []),
   ])
-  if (!ajoutVariante && (!suppression || suppression.regleRetiree && suppression.miroirComplet)) {
+  if (!retraitEnAttente && !ajoutVariante && (!suppression || suppression.regleRetiree && suppression.miroirComplet)) {
     for (const orphelin of await sessions.orphelins()) idsExclus.add(orphelin.id)
   }
-  const tirage = garderMiroirSuppression || !!ajoutVariante
+  const tirage = retraitEnAttente || garderMiroirSuppression || !!ajoutVariante
     ? { telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
     : await miroir.tirer([...idsExclus].map((id) => `entretiens/${id}.json`))
   if (!existsSync(join(options.dirLocal, 'corpus.json'))) {
@@ -616,6 +667,8 @@ export async function preparerContexteNextcloud(
       verrouNatif: options.verrouNatif,
       gardePseudos,
       getSessions: () => sessions,
+      sessionsEnCours: () => contexte?.idsOperationsSessions() ?? [],
+      verifierContexteRetrait: () => contexte?.verifierContexteRetraitVariante(),
     },
   )
   await transactions.reconcilierAjoutVariante()
@@ -626,16 +679,14 @@ export async function preparerContexteNextcloud(
     options.verrouNatif,
   )
   // Une reprise n’autorise ni migration ni archivage automatique des sources.
-  if (!ajoutVariante && !transactions.lireSuiviSuppressionAnon() && !transactions.lireSuiviImportCorrespondances() && !transactions.lireSuiviRenommageAnon() && !transactions.lireSuiviDissociationAnon()
-    && !transactions.lirePublicationEntretien() && magasin.ouvrir().dissociationAnon === undefined && magasin.ouvrir().suppressionAnon === undefined) {
+  if (!retraitEnAttente && !ajoutVariante && !transactions.lireSuiviSuppressionAnon() && !transactions.lireSuiviImportCorrespondances() && !transactions.lireSuiviRenommageAnon() && !transactions.lireSuiviDissociationAnon()
+    && !transactions.lirePublicationEntretien() && magasin.ouvrir().dissociationAnon === undefined && magasin.ouvrir().suppressionAnon === undefined && magasin.ouvrir().retraitVarianteAnon === undefined) {
     await transactions.migrerFormatSiNecessaire()
     await transactions.reconcilierFichiersOrphelins()
   }
   const corpus = magasin.ouvrir()
-  const observation = await coordination.observerVerrous()
-
-  return {
-    contexte: new ContexteCorpusDistant(
+  const observation = retraitEnAttente ? { entrees: [], indisponible: true } : await coordination.observerVerrous()
+  contexte = new ContexteCorpusDistant(
       options.id,
       magasin,
       miroir,
@@ -643,7 +694,10 @@ export async function preparerContexteNextcloud(
       transactions,
       presence,
       coordination,
-    ),
+    )
+
+  return {
+    contexte,
     corpus,
     verrous: observation.entrees,
     verrousIndisponibles: observation.indisponible || undefined,

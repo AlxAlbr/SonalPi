@@ -92,6 +92,7 @@ export const PORTEES_OUVERTES_WEBDAV: PorteeGesteCorpus[] = [
   'pseudonymisation-dissociation',
   'pseudonymisation-suppression-globale',
   'pseudonymisation-ajout-variante',
+  'pseudonymisation-retrait-variante',
 ]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une

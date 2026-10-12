@@ -68,6 +68,9 @@ import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon
 import { exigerAbsenceDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
 import { DissociationsAnonWebDAV } from './dissociationsAnonWebDAV'
 import { SuppressionsAnonWebDAV } from './suppressionsAnonWebDAV'
+import { RetraitsVarianteAnonWebDAV, type EtapeRetraitVarianteWebDAV } from './retraitsVarianteAnonWebDAV'
+import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
+import { exigerGeste } from '../gitlab/politiqueGestes'
 import type { DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
 import type { DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
 import type { PreparationRenommageDistant } from '../renommagesAnon'
@@ -95,6 +98,8 @@ export interface OptionsTransactions {
    *  reste TOUJOURS en PUT conditionnel. */
   verrouNatif?: boolean
   gardePseudos?: GardePseudosWebDAV
+  sessionsEnCours?: () => string[]
+  verifierContexteRetrait?: (etape: EtapeRetraitVarianteWebDAV) => void
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -115,6 +120,7 @@ export class TransactionsCorpus {
   private readonly renommages: RenommagesAnonWebDAV
   private readonly dissociations: DissociationsAnonWebDAV
   private readonly suppressions: SuppressionsAnonWebDAV
+  private readonly retraitsVariante: RetraitsVarianteAnonWebDAV
   private readonly gardePseudos: GardePseudosWebDAV
   private readonly ajoutsVariante: AjoutsVarianteAnonWebDAV
   private mutationsEnCours = 0
@@ -193,6 +199,23 @@ export class TransactionsCorpus {
           chemin: this.cheminVerrouEntretien(id) }
       },
     })
+    const identiteRetrait = () => ({ ...this.identite(), sessionId: `retrait-variante-${randomUUID()}` })
+    this.retraitsVariante = new RetraitsVarianteAnonWebDAV({
+      utilisateur: () => this.identite().userId,
+      client, dirLocal: miroir.dirLocal,
+      verifierContexte: (etape) => this.verifierRetraitDisponible(etape),
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? []), ...(options.sessionsEnCours?.() ?? [])],
+      miroir: (chemin, contenu, etag) => {
+        const id = /^entretiens\/([^/]+)\.json$/.exec(chemin)?.[1], sessions = options.getSessions?.()
+        if (id && (sessions?.idsTenus().includes(id) || sessions?.idsRecuperablesLocalement?.().includes(id))) throw new Error('Une session garde sa copie indépendante.')
+        this.ecrireEntretienLocal(chemin, contenu); miroir.noterEtagPublie(chemin, etag)
+      },
+      verrouCorpus: () => { const id = identiteRetrait(); return { provider: new ProviderPutConditionnel(client, () => id), chemin: CHEMIN_VERROU_CORPUS } },
+      verrouEntretien: (id) => {
+        const identite = identiteRetrait()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite) : new ProviderPutConditionnel(client, () => identite), chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
     this.apercusThemes = new ApercusThemesWebDAV(client, (avant) => this.getStore().adapterEntretienOperationTheme(avant))
     const identiteCourte = () => ({ ...this.identite(), sessionId: `theme-${randomUUID()}` })
     this.operationsThemes = new OperationsThemesWebDAV({
@@ -267,6 +290,8 @@ export class TransactionsCorpus {
     if (this.renommages.occupe || this.renommages.lireSuivi()) throw new Error('Un renommage WebDAV est en cours ou reste à reprendre. Terminez-le avant cette mutation du corpus.')
   }
   exigerOuvertureRenommage(id: string): void {
+    this.retraitsVariante.exigerMiroirComplet()
+    if (this.retraitsVariante.cibleProtegee(id)) throw new Error('Cette cible de retrait de variante reste à traiter. Reprenez le lot avant d’ouvrir cet entretien.')
     this.suppressions.exigerMiroirComplet()
     if (this.suppressions.cibleProtegee(id)) throw new Error('Cette cible de suppression reste à publier. Relisez le suivi avant d’ouvrir cet entretien.')
     this.dissociations.exigerMiroirComplet()
@@ -319,11 +344,13 @@ export class TransactionsCorpus {
   cibleDissociationProtegee(id: string) { return this.dissociations.cibleProtegee(id) }
 
   exigerSansSuppression(): void {
+    this.exigerSansRetraitVariante()
     this.exigerSansAjoutVariante()
     this.suppressions.exigerMiroirComplet()
     if (this.suppressions.occupe || this.suppressions.lireSuivi()) throw new Error('Une suppression WebDAV est engagée. Relisez son suivi avant cette mutation du corpus.')
   }
   private exigerSuppressionDisponible() {
+    this.exigerSansRetraitVariante()
     this.exigerJournalDissociationDisponible()
     this.exigerPublicationDisponible()
     this.exigerSansImportCorrespondances()
@@ -345,6 +372,28 @@ export class TransactionsCorpus {
   relireSuiviSuppressionAnon(id: string) { return this.suppressions.relireSuivi(id) }
   get suppressionEnCours() { return this.suppressions.occupe }
   cibleSuppressionProtegee(id: string) { return this.suppressions.cibleProtegee(id) }
+
+  exigerSansRetraitVariante(): void {
+    this.retraitsVariante.exigerMiroirComplet()
+    if (this.retraitsVariante.occupe || this.retraitsVariante.lireSuivi()) throw new Error('Un retrait de variante WebDAV est engagé. Relisez son suivi avant cette mutation du corpus.')
+  }
+  private verifierRetraitDisponible(etape: EtapeRetraitVarianteWebDAV) {
+    this.options.verifierContexteRetrait?.(etape)
+    if (etape !== 'suivi') exigerGeste('webdav', 'anon.retirer-variante')
+    this.exigerSansImportCorrespondances(); this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible()
+    this.exigerJournalDissociationDisponible(); this.exigerJournalRenommageDisponible()
+    if (this.suppressions.occupe || this.suppressions.lireSuivi() || this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) throw new Error('Terminez les opérations incompatibles avant le retrait de variante WebDAV.')
+  }
+  preparerRetraitVarianteAnon(demande: DemandeRetraitVarianteAnon) { return this.retraitsVariante.preparer(demande) }
+  preparerRepriseRetraitVarianteAnon(id: string) { return this.retraitsVariante.preparerReprise(id) }
+  ciblesApercuRetraitVarianteAnon(token: string) { return this.retraitsVariante.ciblesApercu(token) }
+  oublierApercuRetraitVarianteAnon(token: string) { this.retraitsVariante.oublierApercu(token) }
+  viderApercusRetraitVarianteAnon() { this.retraitsVariante.viderApercus() }
+  retirerVarianteAnon(token: string, confirmee: boolean) { return this.retraitsVariante.appliquer(token, confirmee) }
+  lireSuiviRetraitVarianteAnon() { return this.retraitsVariante.lireSuivi() }
+  relireSuiviRetraitVarianteAnon(id: string) { return this.retraitsVariante.relireSuivi(id) }
+  get retraitVarianteEnCours() { return this.retraitsVariante.occupe }
+  cibleRetraitVarianteProtegee(id: string) { return this.retraitsVariante.cibleProtegee(id) }
 
   private async avecMutation<T>(action: () => Promise<T>): Promise<T> {
     this.exigerSansImportCorrespondances()

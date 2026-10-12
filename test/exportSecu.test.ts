@@ -12,7 +12,8 @@ import {
   COULEUR_HOSTILE,
   CODE_SECOND,
 } from './fixtures/export/entretiens'
-import { sonalPseudonymise } from '../src/renderer/formatSonal/exportSonal'
+import { exporterSonal, sonalPseudonymise } from '../src/renderer/formatSonal/exportSonal'
+import { importerSonal } from '../src/renderer/formatSonal/importSonal'
 import { genererTxt, genererHtml } from '../src/shared/export/formatsTexte'
 import { optionsEfficaces, type OptionsExport } from '../src/shared/export/types'
 
@@ -109,6 +110,23 @@ describe('codebook hostile — aucune injection dans la page autonome', () => {
   test('le texte contenant des marqueurs DOCX passe en clair dans le TXT', () => {
     const out = genererTxt({ entree: entreeSentinelle(), titre: 'T', notes: [], audioRef: null }, OPTS)
     expect(out).toContain('{g} **gras** littéral.')
+  })
+})
+
+describe('.sonal — tables JSON et sélecteurs inertes', () => {
+  test.each([false, true])('une valeur hostile ne ferme pas les blocs JSON ou CSS : pseudonymisé=%s', (anon) => {
+    const e = entreePseudonymisable(), hostile = '</script><script>window.__sortieInjetee=1</script>'
+    e.locuteurs[0].nom = hostile; e.locuteurs[0].pseudo = hostile
+    e.codebook[0].nom = hostile; e.codebook[0].codeExport = '</style><script>window.__sortieInjetee=2</script>'
+    const avant = JSON.stringify(e), out = anon ? sonalPseudonymise(e) : exporterSonal(e)
+    expect(out).not.toContain('</style><script>')
+    const inerte = out.replace(/<link\b[^>]*>/gi, '').replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, '')
+    const doc = new DOMParser().parseFromString(inerte, 'text/html')
+    expect(doc.querySelectorAll('script')).toHaveLength(6)
+    expect(doc.getElementById('loc-json')!.textContent).toContain('\\u003c/script>')
+    const importe = importerSonal(doc)
+    expect(importe.payload.locuteurs[0].nom).toBe(hostile); expect(importe.codebook[0].nom).toBe(hostile)
+    expect(JSON.stringify(e)).toBe(avant)
   })
 })
 

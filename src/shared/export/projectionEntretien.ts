@@ -1,4 +1,5 @@
 import { debutBloc } from '../entretien/positions'
+import { annotationVisible } from '../entretien/anon/classification'
 import type { Annotation } from '../entretien/annotation'
 import type { Ancre } from '../entretien/audio'
 import type { EntreeExport } from './types'
@@ -87,6 +88,7 @@ export interface SegmentProjete {
  *  compteur rk (mot par mot), les marqueurs de commentaires du `.sonal` et
  *  les sauts de ligne du modèle (hardBreak → offset plat). */
 export function projeterSegments(e: EntreeExport): SegmentProjete[] {
+  const anonymisations = new Map<Annotation, AnonFragment>()
   const doc = e.corpsTexte as DocPM
   // Un « bloc » = un paragraphe ProseMirror : texte plat (concat des nœuds
   // text) + les SAUTS DE LIGNE internes (nœuds hardBreak, Shift+Entrée).
@@ -296,13 +298,15 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
         const couvrant = local.filter((l) => l.from <= fs && l.to >= fe)
 
         const codes: string[] = []
-        let anon: AnonFragment | null = null
-        for (const { ann } of couvrant) {
-          if (ann.type === 'codage' && ann.code) codes.push(ann.code)
-          else if (ann.type === 'anon') {
-            anon = { etat: ann.etat === 'exception' ? 'exception' : 'anonymise', pseudo: ann.pseudo ?? null }
-          }
-        }
+        for (const { ann } of couvrant) if (ann.type === 'codage' && ann.code) codes.push(ann.code)
+        const decisions = couvrant.map(({ ann }) => ann).filter((a) => a.type === 'anon')
+        const visible = decisions.length ? annotationVisible(decisions, {
+          from: Math.max(...decisions.map((a) => a.from)), to: Math.min(...decisions.map((a) => a.to)),
+        }) : undefined
+        if (visible && !anonymisations.has(visible)) anonymisations.set(visible, {
+          etat: visible.etat === 'exception' ? 'exception' : 'anonymise', pseudo: visible.pseudo ?? null,
+        })
+        const anon = visible ? anonymisations.get(visible)! : null
         const obs = obsDebut.get(`${k}:${fs}`)
         const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) ?? []
         fragments.push({
@@ -348,29 +352,25 @@ export function appliquerAnonymisation(
   segments: SegmentProjete[],
   { garderLibelles = false }: { garderLibelles?: boolean } = {},
 ): SegmentProjete[] {
-  return segments.map((seg) => ({
-    ...seg,
-    nomloc: null,
-    // Les libellés gardent la classe ligloc (SonalPi1 re-dérive le reste) ;
-    // les marqueurs pseudo/refus sont retirés pour un fichier autonome.
-    libelle: garderLibelles
-      ? seg.libelle
-      : seg.libelle != null
-        ? { type: 'simple' }
-        : null,
-    fragments: seg.fragments.map((f) => {
-      if (!f.anon) return f
-      // Une exception reste marquée `anon` (pas de distinction d'état dans le
-      // fichier produit) : highlight SonalPi1 conservé, pseudo jamais émis.
-      const anon: AnonFragment | null =
-        f.anon.etat === 'exception' ? { etat: 'anonymise', pseudo: null } : null
-      const texte =
-        f.anon.etat !== 'exception' && (f.anon.pseudo?.trim() ?? '') !== ''
-          ? `[${f.anon.pseudo}]`
-          : f.texte
-      return { ...f, texte, anon }
-    }),
-  }))
+  return segments.map((seg) => {
+    const emises = new Set<AnonFragment>()
+    return {
+      ...seg,
+      nomloc: null,
+      // Les libellés restent dans le .sonal, sans marqueur pseudo/refus dans les formats autonomes.
+      libelle: garderLibelles ? seg.libelle : seg.libelle != null ? { type: 'simple' } : null,
+      fragments: seg.fragments.map((f) => {
+        if (!f.anon) return f
+        // Une exception conserve son texte, mais jamais son pseudonyme mémorisé dans l’export.
+        const anon: AnonFragment | null = f.anon.etat === 'exception' ? { etat: 'anonymise', pseudo: null } : null
+        const remplacer = f.anon.etat !== 'exception' && (f.anon.pseudo?.trim() ?? '') !== ''
+        // Les codages peuvent découper un passage ; son pseudo n’est émis qu’une fois par segment.
+        const texte = remplacer ? emises.has(f.anon) ? '' : `[${f.anon.pseudo}]` : f.texte
+        if (remplacer) emises.add(f.anon)
+        return { ...f, texte, anon, sauts: remplacer ? [] : f.sauts }
+      }),
+    }
+  })
 }
 
 /** Échappe les caractères sensibles d'un texte inséré dans du HTML. */
