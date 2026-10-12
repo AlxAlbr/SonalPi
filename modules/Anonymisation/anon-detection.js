@@ -71,6 +71,31 @@ function tokenizeCommeSegmentation(texte) {
 }
 
 /**
+ * Variante de la tokenisation qui conserve les offsets dans le span source. Ces coordonnées sont
+ * strictement runtime : elles servent à distinguer plusieurs occurrences situées dans un même span
+ * compacté et ne sont jamais persistées dans les fichiers Sonal/corpus.
+ * @param {string} texte
+ * @returns {Array<{texte:string,debut:number,fin:number}>}
+ */
+function tokeniserCommeSegmentationAvecOffsets(texte) {
+    const tokens = [];
+    const re = /[\wÀ-ÿ]+|[^\w\s]|[\s]+/g;
+    let match;
+    while ((match = re.exec(texte || '')) !== null) {
+        tokens.push({ texte: match[0], debut: match.index, fin: match.index + match[0].length });
+    }
+    return tokens;
+}
+
+/** Clé éphémère d'une plage d'occurrence. Invalide dès que le texte ou sa structure change. */
+function cleCibleOccurrence(cible) {
+    if (!cible || !cible.debut || !cible.fin) return '';
+    const d = cible.debut;
+    const f = cible.fin;
+    return `${d.spanIndex}:${d.rk || ''}:${d.offset}-${f.spanIndex}:${f.rk || ''}:${f.offset}`;
+}
+
+/**
  * Extrait les mots-clés d'un texte pour l'index inversé et le pré-filtre du scan.
  * On ne garde que les suites de lettres/chiffres, en minuscules : la ponctuation
  * (virgules, points, « ... », tirets, apostrophes…) sert de séparateur.
@@ -239,7 +264,10 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle) {
             applique: o.etat === 'anon',
             exclue: o.etat === 'exception',
             incluse: o.etat === 'incluse',
-            spanId: o.spanDebut.dataset.rk
+            spanId: o.spanDebut.dataset.rk,
+            // Identité runtime précise : spanId seul est ambigu si un span compacté contient
+            // plusieurs occurrences. Cette cible n'est jamais sérialisée dans tabAnon/.sonal/.crp.
+            cible: o.cible
         }));
     } catch (error) {
         console.error("Erreur dans trouverOccurrencesDansDoc():", error);
@@ -354,11 +382,17 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
     // Tokenisation = segmentation (mots ET ponctuation) ; les espaces (insécables compris) sont
     // retirés, exactement comme les anciens matchers qui ignoraient les spans vides mais gardaient
     // les spans de ponctuation. Un span compacté (data-len>1) produit plusieurs tokens.
-    const flux = []; // { tok, tokL (minuscule), idxSpan }
+    const flux = []; // { tok, tokL (minuscule), idxSpan, debutDansSpan, finDansSpan }
     for (let i = 0; i < spans.length; i++) {
-        for (const tok of tokenizeCommeSegmentation(spans[i].textContent || '')) {
-            if (tok.trim() === '') continue; // espace/insécable → séparateur, pas un token
-            flux.push({ tok, tokL: tok.toLowerCase(), idxSpan: i });
+        for (const token of tokeniserCommeSegmentationAvecOffsets(spans[i].textContent || '')) {
+            if (token.texte.trim() === '') continue; // espace/insécable → séparateur, pas un token
+            flux.push({
+                tok: token.texte,
+                tokL: token.texte.toLowerCase(),
+                idxSpan: i,
+                debutDansSpan: token.debut,
+                finDansSpan: token.fin
+            });
         }
     }
 
@@ -412,10 +446,9 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
 
     for (const toks of aliasTokens) {
         for (let p = 0; p + toks.length <= flux.length; p++) {
-            if (fluxConsomme[p]) continue;
             let ok = true;
             for (let q = 0; q < toks.length; q++) {
-                if (flux[p + q].tokL !== toks[q]) { ok = false; break; }
+                if (fluxConsomme[p + q] || flux[p + q].tokL !== toks[q]) { ok = false; break; }
             }
             if (!ok) continue;
             for (let q = 0; q < toks.length; q++) fluxConsomme[p + q] = true;
@@ -454,6 +487,8 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
                 spanFin: spans[idxFin],
                 indexDebut: idxDebut,
                 indexFin: idxFin,
+                offsetDebut: flux[p].debutDansSpan,
+                offsetFin: flux[p + toks.length - 1].finDansSpan,
                 // Variante d'origine d'une occurrence absorbée (mémorisée par l'absorption) → exposant
                 // sur le bon badge de variante. Vide hors cas 'incluse'.
                 pseudoAbsorbe: (etat === 'incluse' && spanDebut.dataset.pseudoAbsorbe) || ''
@@ -461,7 +496,26 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
         }
     }
 
-    occurrences.sort((a, b) => a.indexDebut - b.indexDebut);
+    occurrences.sort((a, b) =>
+        a.indexDebut - b.indexDebut || a.offsetDebut - b.offsetDebut ||
+        a.indexFin - b.indexFin || a.offsetFin - b.offsetFin);
+    occurrences.forEach((o, ordinal) => {
+        o.ordinal = ordinal;
+        o.cible = {
+            ordinal,
+            debut: {
+                spanIndex: o.indexDebut,
+                rk: o.spanDebut.dataset.rk || '',
+                offset: o.offsetDebut
+            },
+            fin: {
+                spanIndex: o.indexFin,
+                rk: o.spanFin.dataset.rk || '',
+                offset: o.offsetFin
+            }
+        };
+        o.cible.cle = cleCibleOccurrence(o.cible);
+    });
     return occurrences;
 }
 
@@ -531,7 +585,8 @@ function entretiensCandidats(entite, index) {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         escapeRegex, parseAliases, rognerPonctuationBords, construireRegexEntite,
-        tokenizeCommeSegmentation, motsCles, reconstruireDepuisTokens, rognerAffixesTete,
+        tokenizeCommeSegmentation, tokeniserCommeSegmentationAvecOffsets, cleCibleOccurrence,
+        motsCles, reconstruireDepuisTokens, rognerAffixesTete,
         detecterAffixeLiaison, MOTS_LIAISON_DEFAUT, THEMES_DEFAUT,
         analyserOccurrences, trouverMatchesEntiteDOM
     };

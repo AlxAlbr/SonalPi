@@ -2,93 +2,237 @@
 // GESTION DE L'ANONYMISATION
 ////////////////////////////////////////////////////////////////////////
 
+/** Renvoie vrai si tous les pseudos de `petit` appartiennent à `grand` (ordre et casse ignorés). */
+function _pseudosFusionInclus(petit, grand) {
+    const grandSet = new Set(pseudosDe(grand).map(p => p.toLowerCase()));
+    const petits = pseudosDe(petit);
+    return petits.length > 0 && petits.every(p => grandSet.has(p.toLowerCase()));
+}
+
+/** Construit une ligne de fusion propre tout en conservant les données non standard de la règle. */
+function _creerLigneFusion(regle, source, entite) {
+    const ligne = {
+        ...regle,
+        entite: entite || regle.entite,
+        remplacement: regle.remplacement || '',
+        occurrences: Number(regle.occurrences) || 0,
+        indexCourant: Number(regle.indexCourant) || 0,
+        matchPositions: Array.isArray(regle.matchPositions) ? regle.matchPositions : [],
+        source,
+        portee: regle.portee || 'corpus'
+    };
+    if (ligne.remplacement) return normaliserRegle(ligne);
+    delete ligne.remplacementAlt;
+    return ligne;
+}
+
 /**
- * Fusionne les règles d'anonymisation globales (tabAnon du corpus) avec celles locales de l'entretien
+ * Transfère l'état propre à l'entretien sur la ligne retenue sans écraser l'identité, l'ordre des
+ * pseudos ni la thématique autoritaires du corpus. Les champs additionnels sont conservés : certains
+ * modules enrichissent les règles sans que le moteur de fusion ait à les connaître.
+ */
+function _fusionnerEtatLocal(cible, locale) {
+    const proteges = new Set([
+        'entite', 'remplacement', 'remplacementAlt', 'source', 'portee', 'thematique',
+        '_conflitFusion', '_conflitFusionLocale', '_supprimerApresConflitFusion'
+    ]);
+    Object.keys(locale || {}).forEach(cle => {
+        if (!proteges.has(cle)) cible[cle] = locale[cle];
+    });
+    cible.occurrences = Number(locale.occurrences) || 0;
+    cible.indexCourant = Number(locale.indexCourant) || 0;
+    cible.matchPositions = Array.isArray(locale.matchPositions) ? locale.matchPositions : [];
+    cible.existeLocalement = true;
+    if (!cible.thematique && locale.thematique) cible.thematique = locale.thematique;
+}
+
+/**
+ * Fusionne les règles d'anonymisation globales (tabAnon du corpus) avec celles locales de l'entretien.
+ *
+ * L'identité est l'entité canonique et les pseudos forment un ENSEMBLE : `ville/cité` et
+ * `cité/ville` sont donc une seule règle. Le corpus conserve l'ordre primaire/secondaire, tandis que
+ * les compteurs, positions et données additionnelles viennent de l'entretien. Une divergence réelle
+ * n'est jamais réunie silencieusement : la ligne locale est conservée avec `_conflitFusion`, puis le
+ * dialogue d'ouverture la résout. Lors d'une collision partielle d'alias, seuls les alias déjà pris
+ * sont rapprochés ; les alias libres restent sur une ligne locale distincte.
+ *
  * @param {Array} tabAnonGlobal - Tableau global des anonymisations du corpus
  * @param {Array} tabAnonLocal - Tableau local des anonymisations de l'entretien
  * @returns {Array} Tableau fusionné
  */
 function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
-  const map = new Map(); // Clé: "entite|remplacement"
-  
-  // 1. Ajouter les règles du tabAnon global
-  if (tabAnonGlobal && tabAnonGlobal.length > 0) {
-    tabAnonGlobal.forEach(regle => {
-      if (!regle.entite || !regle.remplacement) return;
-      const key = cleAnon(regle.entite, regle.remplacement);
-      if (!map.has(key)) {
-        map.set(key, {
-          entite: regle.entite,
-          remplacement: regle.remplacement,
-          remplacementAlt: regle.remplacementAlt, // multi-pseudo : 2ᵉ pseudo autorisé (undefined si mono)
-          occurrences: 0,
-          indexCourant: 0,
-          matchPositions: [],
-          source: regle.source || 'Global', // Marquer comme venant du global
-          portee: regle.portee || 'corpus', // règle venue du corpus ⇒ portée corpus (legacy ≡ corpus)
-          thematique: regle.thematique // thématique portée par la règle corpus (plan-thematiques-entites.md)
+    const result = [];
+    const proprietaireAlias = new Map();
+
+    const enregistrerAlias = ligne => {
+        parseAliases(ligne.entite).forEach(alias => {
+            const cle = alias.trim().toLowerCase();
+            if (cle && !proprietaireAlias.has(cle)) proprietaireAlias.set(cle, ligne);
         });
-      }
-    });
-  }
+    };
 
-  // 2. Ajouter les règles du tabAnon local (qui peuvent surcharger les globales)
-  if (tabAnonLocal && tabAnonLocal.length > 0) {
-    tabAnonLocal.forEach(regle => {
-      if (!regle.entite) return;
-      // Sans pseudo : on ne charge QUE les brouillons en chantier (restaurés tels quels) ;
-      // une vraie règle (document/corpus) exige toujours un pseudo.
-      const estBrouillon = (regle.portee || 'corpus') === 'brouillon';
-      if (!regle.remplacement && !estBrouillon) return;
-      const key = cleAnon(regle.entite, regle.remplacement || '');
-      if (!map.has(key)) {
-        map.set(key, {
-          entite: regle.entite,
-          remplacement: regle.remplacement || '',
-          remplacementAlt: regle.remplacementAlt, // multi-pseudo : 2ᵉ pseudo autorisé (undefined si mono)
-          occurrences: regle.occurrences || 0,
-          indexCourant: regle.indexCourant || 0,
-          matchPositions: regle.matchPositions || [],
-          source: 'Local',
-          portee: regle.portee || 'corpus', // préserver la portée locale (legacy ≡ corpus)
-          thematique: regle.thematique // thématique posée localement (portée document/brouillon)
+    // Le corpus est prioritaire. Un vieux corpus peut lui-même contenir le doublon primaire/alt
+    // inversé : le dédupliquer ici évite de le propager à chaque entretien.
+    for (const regle of (tabAnonGlobal || [])) {
+        if (!regle || !regle.entite || !regle.remplacement) continue;
+        const identique = result.find(ligne => ligne.source === 'Global' &&
+            cleEntite(ligne.entite) === cleEntite(regle.entite) &&
+            _pseudosFusionInclus(regle, ligne) && _pseudosFusionInclus(ligne, regle));
+        if (identique) continue;
+        const ligne = _creerLigneFusion(regle, 'Global');
+        result.push(ligne);
+        enregistrerAlias(ligne);
+    }
+
+    for (const regle of (tabAnonLocal || [])) {
+        if (!regle || !regle.entite) continue;
+        const estBrouillon = (regle.portee || 'corpus') === 'brouillon';
+        if (!regle.remplacement && !estBrouillon) continue;
+
+        // Un brouillon ne possède pas encore une règle réconciliable : le conserver intégralement.
+        if (!regle.remplacement) {
+            const ligne = _creerLigneFusion(regle, 'Local');
+            result.push(ligne);
+            continue;
+        }
+
+        const groupes = new Map(); // ligne propriétaire (ou null pour alias libre) → alias originaux
+        for (const alias of parseAliases(regle.entite)) {
+            const proprietaire = proprietaireAlias.get(alias.trim().toLowerCase()) || null;
+            if (!groupes.has(proprietaire)) groupes.set(proprietaire, []);
+            groupes.get(proprietaire).push(alias.trim());
+        }
+
+        for (const [proprietaire, aliases] of groupes) {
+            const entitePartielle = aliases.join('/');
+            if (!proprietaire) {
+                // Évite aussi les doublons locaux ne différant que par la casse ou l'ordre des pseudos.
+                const identique = result.find(ligne => ligne.source === 'Local' &&
+                    cleEntite(ligne.entite) === cleEntite(entitePartielle) &&
+                    _pseudosFusionInclus(regle, ligne) && _pseudosFusionInclus(ligne, regle));
+                if (identique) {
+                    _fusionnerEtatLocal(identique, regle);
+                    continue;
+                }
+                const ligne = _creerLigneFusion(regle, 'Local', entitePartielle);
+                result.push(ligne);
+                enregistrerAlias(ligne);
+                continue;
+            }
+
+            if (_pseudosFusionInclus(regle, proprietaire)) {
+                // Même règle, y compris primaire/secondaire inversés ou règle locale mono utilisant
+                // l'une des variantes corpus : une seule ligne, sans réécrire le DOM.
+                _fusionnerEtatLocal(proprietaire, regle);
+            } else {
+                // Conserver la divergence jusqu'à sa résolution explicite après le scan du DOM.
+                const ligne = _creerLigneFusion(regle, 'Local', entitePartielle);
+                const detailsConflit = {
+                    entiteExistante: proprietaire.entite,
+                    pseudosExistants: pseudosDe(proprietaire)
+                };
+                if (proprietaire.source === 'Global') {
+                    ligne._conflitFusion = {
+                        ...detailsConflit,
+                        entiteCorpus: proprietaire.entite,
+                        pseudosCorpus: pseudosDe(proprietaire)
+                    };
+                } else {
+                    // Deux règles incompatibles existaient déjà dans le même entretien. Elles restent
+                    // visibles et distinctes : surtout ne pas fabriquer silencieusement un 3e pseudo.
+                    ligne._conflitFusionLocale = detailsConflit;
+                }
+                result.push(ligne);
+            }
+        }
+    }
+
+    // Ajouter des lignes vides pour la saisie.
+    const nbLignesVides = Math.max(5 - result.length, 3);
+    for (let i = 0; i < nbLignesVides; i++) {
+        result.push({
+            entite: '',
+            remplacement: '',
+            occurrences: 0,
+            indexCourant: 0,
+            matchPositions: [],
+            portee: 'brouillon'
         });
-      } else {
-        // Si la règle existe, mettre à jour les données d'exécution
-        const existing = map.get(key);
-        existing.occurrences = regle.occurrences || 0;
-        existing.indexCourant = regle.indexCourant || 0;
-        existing.matchPositions = regle.matchPositions || [];
-        existing.existeLocalement = true; // présente dans le tabAnon local → pas en attente
-        // Multi-pseudo : l'alt local prime ; sinon on garde celui du corpus déjà posé.
-        if (regle.remplacementAlt) existing.remplacementAlt = regle.remplacementAlt;
-        // Thématique : « corpus autoritaire » — la valeur du corpus (déjà posée en branche global)
-        // fait foi pour une règle présente aux DEUX niveaux. On ne comble depuis le local QUE si le
-        // corpus n'en a pas, pour éviter qu'une thématique locale périmée écrase un changement fait
-        // au corpus (cf. divergence tracée). Les lignes document/brouillon (absentes du corpus)
-        // passent par la branche d'insertion, pas par ce else : leur thématique locale reste affichée.
-        if (regle.thematique && !existing.thematique) existing.thematique = regle.thematique;
-      }
-    });
-  }
+    }
+    return result;
+}
 
-  // 3. Convertir la map en tableau et ajouter des lignes vides si nécessaire
-  let result = Array.from(map.values());
-  
-  // Ajouter des lignes vides pour la saisie
-  const nbLignesVides = Math.max(5 - result.length, 3);
-  for (let i = 0; i < nbLignesVides; i++) {
-    result.push({
-      entite: "",
-      remplacement: "",
-      occurrences: 0,
-      indexCourant: 0,
-      matchPositions: [],
-      portee: 'brouillon' // nouvelle ligne de saisie = brouillon par défaut (R3)
-    });
-  }
+// Une validation Entrée et le `change` déclenché par un éventuel blur peuvent arriver presque en
+// même temps. Ces deux registres sérialisent les opérations par ligne : jamais de validation sur un
+// modèle à moitié relabellisé, ni de second `sauvAnon` pendant la validation.
+var _validationsEntreeAnon = new Map();
+var _sauvegardesEditionAnon = new Map();
 
-  return result;
+// Réconcilie les champs encore focalisés avec la règle AVANT de décider s'il faut appliquer les
+// occurrences en attente. C'est indispensable pour préserver le mapping A/B → A/C : l'ancien B doit
+// être connu au moment du relabel, puis seulement les occurrences restantes peuvent recevoir A.
+async function _reconcilierEditionAvantEntree(idx) {
+    const paire = window.tabAnon[idx];
+    const entiteInput = document.querySelector(`.input-entite[data-idx="${idx}"]`);
+    const pseudoInput = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
+    if (!paire || !entiteInput || !pseudoInput) return { poursuivre: true, modifiee: false };
+
+    const ancienneEntite = (paire.entite || '').trim();
+    const anciensPseudos = pseudosDe(paire);
+    let nouvelleEntite = entiteInput.value.trim();
+    if (nouvelleEntite && nouvelleEntite === tronquerEntiteAffichage(ancienneEntite)
+        && nouvelleEntite !== ancienneEntite) {
+        nouvelleEntite = ancienneEntite;
+    }
+    const pseudoSaisi = pseudoInput.value.trim();
+    if (!nouvelleEntite || !pseudoSaisi) return { poursuivre: true, modifiee: false };
+
+    // Ne rien muter sur une saisie invalide : validerLigneAnon affichera son diagnostic habituel.
+    const analyse = analyserChampsEntitePseudo(nouvelleEntite, pseudoSaisi);
+    if (analyse.erreur) return { poursuivre: true, modifiee: false };
+    const nouveauxPseudos = pseudosDe(analyse);
+    // La recherche d'entité est insensible à la casse : une simple correction de graphie ne doit
+    // pas démarquer les runs ni faire perdre leur variante.
+    const entiteModifiee = nouvelleEntite.toLowerCase() !== ancienneEntite.toLowerCase();
+    const pseudosModifies = anciensPseudos.length !== nouveauxPseudos.length
+        || anciensPseudos.some((p, i) => p !== nouveauxPseudos[i]);
+    if (!entiteModifiee && !pseudosModifies) return { poursuivre: true, modifiee: false };
+
+    // Sans état déjà repéré/marqué, la validation normale peut écrire les champs puis appliquer.
+    const aliasAvant = new Set(clesAlias(ancienneEntite));
+    const aEtatLocuteur = Array.from(document.querySelectorAll('.ligloc[data-nomloc]')).some(lig =>
+        clesAlias(lig.dataset.nomloc || '').some(cle => aliasAvant.has(cle))
+        && (lig.classList.contains('loc-anon') || lig.classList.contains('loc-suggere-refuse')
+            || !!lig.dataset.locpseudoSuggere));
+    const avaitEtat = (paire.occurrences || 0) > 0 || aEtatLocuteur;
+    if (!avaitEtat) return { poursuivre: true, modifiee: false };
+
+    if (!entiteModifiee) {
+        appliquerChampsAPaire(paire, nouvelleEntite, analyse);
+        const resultat = await relabelPseudoEnPlace(idx, anciensPseudos);
+        if (resultat === 'annule') return { poursuivre: false, modifiee: false };
+        if (resultat === 'ambigu') {
+            await demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
+        }
+        return { poursuivre: true, modifiee: true };
+    }
+
+    // Un changement d'entité doit résoudre son éventuel conflit AVANT d'effacer les anciens runs.
+    // Annuler laisse ainsi règle, exceptions, libellés et marqueurs d'attente strictement intacts.
+    const conflit = await resoudreConflitCorpus(nouvelleEntite, analyse);
+    if (conflit.annule) {
+        affichTableauAnon();
+        return { poursuivre: false, modifiee: false };
+    }
+    appliquerChampsAPaire(paire, nouvelleEntite, conflit.champs);
+    if ((paire.occurrences || 0) > 0) {
+        await demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
+    } else {
+        await resynchroniserLibellesLocuteurs();
+        affichTableauAnon();
+        await sauvegarderTabAnonEnt();
+    }
+    return { poursuivre: true, modifiee: true };
 }
 
 // Gère la validation/revalidation au clavier du champ Pseudo.
@@ -96,26 +240,54 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
 //  - priorité 'corpus' (défaut)    : Entrée → corpus,   Maj+Entrée → document ;
 //  - priorité 'entretien'          : Entrée → document, Maj+Entrée → corpus (inversé).
 function gererEntrePseudo(idx, shiftPressed = false) {
-    const paire = window.tabAnon[idx];
+    if (_validationsEntreeAnon.has(idx)) return _validationsEntreeAnon.get(idx);
+    const operation = (async () => {
+        // Si onchange a démarré juste avant keydown, attendre son relabel plutôt que le doubler.
+        const editionEnCours = _sauvegardesEditionAnon.get(idx);
+        if (editionEnCours) await editionEnCours;
 
-    // Portée visée : Entrée applique la portée PRIORITAIRE réglée au corpus ; Maj inverse.
-    const prioriteCorpus = (typeof getPrioriteValidation === 'function') && getPrioriteValidation() === 'corpus';
-    const versCorpus = prioriteCorpus ? !shiftPressed : shiftPressed;
+        let paire = window.tabAnon[idx];
+        if (!paire) return false;
 
-    // Ligne déjà appliquée :
-    // - Shift+Entrée sur une ligne pas encore au corpus → promotion D→C (R5) ;
-    // - sinon (Entrée, ou déjà corpus) → réconcilier via sauvAnon. Une modif réelle du nom/pseudo la
-    //   repasse « en attente » (Cas 4) ; sans changement, no-op. Pas de ré-application silencieuse.
-    if (paire.occurrences > 0) {
-        if (versCorpus && (paire.portee || 'corpus') !== 'corpus') {
-            promouvoirLigneAuCorpus(idx);
-        } else {
-            sauvAnon(idx);
+        const reconciliation = await _reconcilierEditionAvantEntree(idx);
+        if (!reconciliation.poursuivre) return false;
+        paire = window.tabAnon[idx];
+        if (!paire) return false;
+
+        // Portée visée : Entrée applique la portée PRIORITAIRE réglée au corpus ; Maj inverse.
+        const prioriteCorpus = (typeof getPrioriteValidation === 'function') && getPrioriteValidation() === 'corpus';
+        const versCorpus = prioriteCorpus ? !shiftPressed : shiftPressed;
+
+        // `occurrences > 0` signifie « occurrences trouvées », pas nécessairement « déjà appliquées ».
+        const aOccurrenceEnAttente = Array.isArray(paire.matchPositions)
+            && paire.matchPositions.some(m => m && m.isNonTraite);
+        const etatLocuteur = (typeof _etatLocuteurLigne === 'function')
+            ? _etatLocuteurLigne(paire)
+            : null;
+        const aTraitementEnAttente = aOccurrenceEnAttente || etatLocuteur === 'pending';
+        const estDejaTraitee = (paire.occurrences || 0) > 0 || etatLocuteur === 'resolu';
+
+        if (aTraitementEnAttente || !estDejaTraitee) {
+            await validerLigneAnon(idx, versCorpus ? 'corpus' : 'document');
+            return true;
         }
-    } else {
-        // Brouillon : valider en document (Entrée) ou corpus (Shift+Entrée).
-        validerLigneAnon(idx, versCorpus ? 'corpus' : 'document');
-    }
+
+        // Ligne entièrement traitée : ne pas ré-appliquer silencieusement toutes les occurrences.
+        if (versCorpus && (paire.portee || 'corpus') !== 'corpus') {
+            await promouvoirLigneAuCorpus(idx);
+        } else if (!reconciliation.modifiee) {
+            // Le booléen interne force l'exécution malgré le verrou Entrée. Il reste ignoré par les
+            // mocks/tests et par les appels historiques à un seul argument.
+            await sauvAnon(idx, true);
+        }
+        return true;
+    })();
+    _validationsEntreeAnon.set(idx, operation);
+    const liberer = () => {
+        if (_validationsEntreeAnon.get(idx) === operation) _validationsEntreeAnon.delete(idx);
+    };
+    operation.then(liberer, liberer);
+    return operation;
 }
 
 // analyserChampsEntitePseudo (parse « a/b » + I2 + ≤2) est défini dans anon-regles.js (cœur
@@ -310,23 +482,35 @@ function detecterOccurrencesToutesLesPaires() {
 }
 
 /**
- * Compte, sur l'entretien OUVERT, le total des occurrences « à anonymiser » (isNonTraite),
- * toutes règles confondues (locales ET corpus présentes mais pas encore appliquées ici). Lit
- * window.tabAnon[].matchPositions, re-dérivé du DOM (source de vérité, anon.md §2) — même notion
- * exacte que le compteur orange `nbNon` de chaque ligne (affichTableauAnon). N'inclut NI les
- * incluses NI les exceptions (assumées). À appeler APRÈS detecterOccurrencesToutesLesPaires/
- * affichTableauAnon pour que matchPositions soit à jour.
- * @returns {{ total:number, lignes:Array<{entite:string, nb:number}> }}
+ * Compte, sur l'entretien OUVERT, tout ce qui reste « à anonymiser » : occurrences textuelles
+ * `isNonTraite` ET règles dont un libellé de locuteur est pending. Toutes règles confondues (locales
+ * et corpus présentes mais pas encore appliquées ici). Les incluses et exceptions sont résolues.
+ * À appeler APRÈS detecterOccurrencesToutesLesPaires/affichTableauAnon pour que le DOM et les
+ * matchPositions soient à jour.
+ * @returns {{total:number,totalOccurrences:number,totalLocuteurs:number,
+ *   lignes:Array<{entite:string,nb:number,locuteurPending:boolean}>}}
  */
 function compterAnonATraiterEntretien() {
-    let total = 0;
+    let totalOccurrences = 0;
+    let totalLocuteurs = 0;
     const lignes = [];
+    const idxLibLoc = _indexerLibellesLocuteurs();
     (window.tabAnon || []).forEach(p => {
         if (!p || !p.entite || !p.entite.trim()) return;
         const nbNon = (p.matchPositions || []).filter(m => m && m.isNonTraite).length;
-        if (nbNon > 0) { total += nbNon; lignes.push({ entite: p.entite, nb: nbNon }); }
+        const locuteurPending = _etatLocuteurLigne(p, idxLibLoc) === 'pending';
+        if (nbNon > 0 || locuteurPending) {
+            totalOccurrences += nbNon;
+            if (locuteurPending) totalLocuteurs++;
+            lignes.push({ entite: p.entite, nb: nbNon, locuteurPending });
+        }
     });
-    return { total, lignes };
+    return {
+        total: totalOccurrences + totalLocuteurs,
+        totalOccurrences,
+        totalLocuteurs,
+        lignes
+    };
 }
 
 /**
@@ -355,7 +539,7 @@ async function verifierEntretien() {
     // loc-anon/data-locpseudo). Démarque les libellés orphelins, resynchronise les pseudos changés.
     await resynchroniserLibellesLocuteurs();
 
-    const { total, lignes } = compterAnonATraiterEntretien();
+    const { total, totalOccurrences, totalLocuteurs, lignes } = compterAnonATraiterEntretien();
 
     // Brouillons « parqués » ayant des occurrences réelles dans le texte : ce ne sont PAS des
     // « à anonymiser » (I-POR-4 : un brouillon ne le devient jamais seul, matchPositions=[]), mais un
@@ -384,11 +568,20 @@ async function verifierEntretien() {
     }
 
     const detail = lignes
-        .sort((a, b) => b.nb - a.nb)
-        .map(l => `• ${tronq(l.entite)} — ${l.nb}`)
+        .sort((a, b) => (Number(b.locuteurPending) + b.nb) - (Number(a.locuteurPending) + a.nb))
+        .map(l => {
+            const restes = [];
+            if (l.nb > 0) restes.push(`${l.nb} occurrence(s) dans le texte`);
+            if (l.locuteurPending) restes.push('libellé de locuteur à pseudonymiser');
+            return `• ${tronq(l.entite)} — ${restes.join(' + ')}`;
+        })
         .join('\n');
+    const resume = [
+        totalOccurrences > 0 ? `${totalOccurrences} occurrence(s) dans le texte` : '',
+        totalLocuteurs > 0 ? `${totalLocuteurs} locuteur(s)` : ''
+    ].filter(Boolean).join(' et ');
     await question(
-        `⚠️ ${total} occurrence(s) encore « à anonymiser » dans cet entretien :\n\n${detail}\n\n` +
+        `⚠️ Il reste ${resume} à pseudonymiser dans cet entretien :\n\n${detail}\n\n` +
         `Les lignes concernées sont en orange dans le panneau ci-dessous. Appliquez-les avant l'export.` +
         listeBrouillons + noteNER,
         ['OK']);
@@ -475,8 +668,94 @@ function suffixeTooltipIncluse(nbIncl, noms) {
     return ` — plus ${nbIncl} absorbée${s}${par} (non comptée${s} ici)`;
 }
 
+// Consomme une cible sémantique envoyée par la vue corpus APRÈS le recalcul local des occurrences.
+// Les data-rk et offsets du scan corpus sont volontairement ignorés : ils peuvent changer lors de
+// cleanHTML(), d'une édition ou de la réouverture. L'ordinal porte sur toutes les occurrences de
+// l'entité ; la catégorie est ensuite redérivée depuis l'état local courant.
+function activerNavigationCorpusVersEntretien() {
+    const cible = window._pendingNavActivation;
+    if (!cible || !cible.entite || !Array.isArray(window.tabAnon)) return false;
+
+    const cleCible = typeof cleEntite === 'function'
+        ? cleEntite(cible.entite)
+        : String(cible.entite).trim().toLowerCase();
+    const spans = document.querySelectorAll('[data-rk]');
+
+    for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
+        const paire = window.tabAnon[idxPaire];
+        if (!paire || !Array.isArray(paire.matchPositions) || paire.matchPositions.length === 0) continue;
+        const clePaire = typeof cleEntite === 'function'
+            ? cleEntite(paire.entite || '')
+            : String(paire.entite || '').trim().toLowerCase();
+        if (clePaire !== cleCible) continue;
+
+        let matchIdx = Number.isInteger(cible.occOrdinal) ? cible.occOrdinal : -1;
+        if (matchIdx < 0 || matchIdx >= paire.matchPositions.length) {
+            // Compatibilité avec les anciennes cibles : retrouver l'occurrence par son rang dans
+            // la catégorie constatée au corpus, sans utiliser ses coordonnées DOM.
+            const catDemandee = cible.cat || 'non';
+            const candidats = paire.matchPositions
+                .map((m, i) => ({ m, i }))
+                .filter(({ m }) => typeof _matchDansCategorie === 'function'
+                    ? _matchDansCategorie(paire, m, catDemandee, spans)
+                    : ((catDemandee === 'exc' && m.isException) ||
+                       (catDemandee === 'non' && m.isNonTraite) ||
+                       (catDemandee === 'anon' && !m.isException && !m.isNonTraite && !m.isIncluded)));
+            if (candidats.length === 0) continue;
+            const rang = Math.max(0, Math.min(Number(cible.occIdxInCat) || 0, candidats.length - 1));
+            matchIdx = candidats[rang].i;
+        }
+
+        const match = paire.matchPositions[matchIdx];
+        if (!match) continue;
+
+        // Une occurrence incluse n'a volontairement aucun compteur cliquable : on la focalise
+        // directement, en lecture seule, au lieu de la confondre avec un run propre de la règle.
+        if (match.isIncluded) {
+            paire.indexCourant = matchIdx;
+            window._pendingNavActivation = null;
+            if (typeof surlignerOccurrence === 'function') surlignerOccurrence(idxPaire);
+            return true;
+        }
+
+        let catEffective;
+        if (match.isException) catEffective = 'exc';
+        else if (match.isNonTraite) catEffective = 'non';
+        else {
+            const pseudos = typeof pseudosDe === 'function' ? pseudosDe(paire) : [paire.remplacement];
+            if (pseudos.length > 1) {
+                const pseudoEffectif = ((spans[match.start] && spans[match.start].dataset.pseudo) || '').toLowerCase();
+                const variante = Math.max(0, pseudos.findIndex(p => String(p).toLowerCase() === pseudoEffectif));
+                catEffective = `anon${variante}`;
+            } else {
+                catEffective = 'anon';
+            }
+        }
+
+        const matchesCat = paire.matchPositions
+            .map((m, i) => ({ m, i }))
+            .filter(({ m }) => typeof _matchDansCategorie === 'function'
+                ? _matchDansCategorie(paire, m, catEffective, spans)
+                : ((catEffective === 'exc' && m.isException) ||
+                   (catEffective === 'non' && m.isNonTraite) ||
+                   (catEffective.startsWith('anon') && !m.isException && !m.isNonTraite && !m.isIncluded)));
+        const positionDansCategorie = matchesCat.findIndex(x => x.i === matchIdx);
+        if (positionDansCategorie < 0) continue;
+
+        const btn = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="${catEffective}"]`);
+        if (!btn || typeof clicCompteur !== 'function') return false; // tableau pas encore rendu
+
+        paire[`indexCourant_${catEffective}`] = positionDansCategorie - 1;
+        window._pendingNavActivation = null;
+        clicCompteur(btn, idxPaire, catEffective);
+        return true;
+    }
+    return false;
+}
+
 // Affichage du tableau d'anonymisation
-// FILTRAGE : affiche les paires avec occurrences > 0, + les paires en cours de remplissage (entité sans occurrences), + lignes vides
+// FILTRAGE : affiche les paires avec occurrences > 0, les règles correspondant à un libellé de
+// locuteur, les paires en cours de remplissage (entité sans occurrences), + lignes vides.
 function affichTableauAnon() {
     const tableauDiv = document.getElementById('tableauAnon');
     if (!tableauDiv) return;
@@ -484,8 +763,13 @@ function affichTableauAnon() {
     // Réinitialiser le compteur actif (les flèches disparaissent au re-rendu)
     window._activeCounter = null;
 
+    // Précalcul (1×/rendu) des LIBELLÉS locuteurs. Il sert dès le filtrage : une règle corpus qui ne
+    // figure pas dans le texte doit néanmoins apparaître si l'entité est le nom d'un locuteur.
+    const idxLibLoc = _indexerLibellesLocuteurs();
+
     // 1. Construire la liste des indices à afficher
     // - Toutes les paires avec occurrences > 0
+    // - Les règles correspondant à un libellé de locuteur, même sans occurrence textuelle
     // - Les paires avec entité mais 0 occurrences (en cours de remplissage par l'utilisateur)
     // - Plus les dernières lignes vides du tabAnon pour permettre l'ajout
     const indicesToDisplay = [];
@@ -501,9 +785,11 @@ function affichTableauAnon() {
             indicesToDisplay.push(i);
         } else if (p.entite && p.entite.trim()) {
             // En cours de remplissage / brouillon. Pour les entrées globales non encore appliquées
-            // localement, ne montrer que si l'entité est réellement présente dans le texte.
+            // localement, montrer la règle si l'entité est présente dans le texte OU correspond à un
+            // libellé de locuteur. Ce second cas rend enfin visibles les règles « locuteur seulement ».
             if (p.source === 'Global' && !p.existeLocalement) {
-                if (compterOccurrencesEntite(p.entite) > 0) {
+                const estLocuteurIci = _etatLocuteurLigne(p, idxLibLoc) !== null;
+                if (compterOccurrencesEntite(p.entite) > 0 || estLocuteurIci) {
                     indicesToDisplay.push(i);
                 }
             } else {
@@ -540,10 +826,6 @@ function affichTableauAnon() {
             <tbody>
     `;
     
-    // Précalcul (1×/rendu) des LIBELLÉS locuteurs : leur liste et leurs clés d'alias sont identiques
-    // pour toutes les lignes → on évite un querySelectorAll + N×M clesAlias par ligne (cf. pastille 👤).
-    const idxLibLoc = _indexerLibellesLocuteurs();
-
     for (let displayIdx = 0; displayIdx < indicesToDisplay.length; displayIdx++) {
         const i = indicesToDisplay[displayIdx];
         const paire = window.tabAnon[i];
@@ -565,13 +847,20 @@ function affichTableauAnon() {
         const nbExc  = paire.matchPositions ? paire.matchPositions.filter(m => m.isException).length : 0;
         const nbNon  = paire.matchPositions ? paire.matchPositions.filter(m => m.isNonTraite).length : 0;
         const nbIncl = paire.matchPositions ? paire.matchPositions.filter(m => m.isIncluded).length : 0;
-        const estPending = nbNon > 0;
-        // Ligne verte uniquement si toutes les occurrences sont traitées (anonymisées ou en exception)
-        const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0 && nbNon === 0;
-        // État LIBELLÉ locuteur de CET entretien (null / 'pending' / 'resolu') — sert à la pastille 👤 ET
-        // à masquer la loupe de repérage (une entité qui n'est QUE locuteur n'a pas d'occurrence de texte
-        // à repérer). Utilise l'index pré-calculé hors boucle.
+        // État LIBELLÉ locuteur de CET entretien (null / 'pending' / 'resolu') — sert à la pastille 👤,
+        // à l'état global de la ligne ET à masquer la loupe de repérage (une entité qui n'est QUE
+        // locuteur n'a pas d'occurrence de texte à repérer).
         const etatLoc = _etatLocuteurLigne(paire, idxLibLoc);
+        const estPending = nbNon > 0 || etatLoc === 'pending';
+        // Une ligne peut être entièrement traitée sans occurrence textuelle : un libellé de locuteur
+        // confirmé (ou explicitement refusé) est une matérialisation résolue à part entière.
+        const estAnonymisee = (aDesOccurrences || etatLoc === 'resolu') &&
+            paire.remplacement.trim().length > 0 && !estPending;
+        // Règle héritée du corpus, visible ici uniquement parce qu'elle correspond à un locuteur :
+        // elle n'est pas un brouillon local. On ne lui propose donc pas l'action « supprimer ce
+        // brouillon » (la suppression de la règle corpus reste disponible dans le panneau Pseudos).
+        const estRegleCorpusHeriteeLocSeul = !aDesOccurrences && !!etatLoc &&
+            paire.source === 'Global' && !paire.existeLocalement;
 
         // Compteur(s) « anonymisées » : pour une ligne MULTI-PSEUDO, un badge PAR variante (compté
         // depuis le DOM via data-pseudo) avec navigation propre (cat 'anon0'/'anon1') ; sinon un seul
@@ -682,10 +971,10 @@ function affichTableauAnon() {
                             ${badgesAnonHtml}
                             ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                             ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
-                            ${_badgeLocuteurHtml(etatLoc)}
+                            ${_badgeLocuteurHtml(etatLoc, i)}
                             ${aDesOccurrences
                                 ? `<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer"><span class="btn-main-icon">✖️</span></button>`
-                                : (montrerSlider
+                                : (montrerSlider && !estRegleCorpusHeriteeLocSeul
                                     ? `${(nbNon > 0 || etatLoc) ? '' : _reperageHtml(i, paire)}<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer ce brouillon"><span class="btn-main-icon">✖️</span></button>`
                                     : '')}
                         </div>
@@ -768,41 +1057,9 @@ function affichTableauAnon() {
         attacheExceptionListeners();
     }, 50);
 
-    // Navigation corpus → entretien : activer le compteur sur l'occurrence cible.
-    // On utilise les données sémantiques (entite, cat, index) — pas le span DOM,
-    // qui peut avoir un data-rk différent après cleanHTML si le HTML était compact.
-    if (window._pendingNavActivation) {
-        const { entite, pseudo, cat, occIdxInCat } = window._pendingNavActivation;
-        window._pendingNavActivation = null;
-        if (entite && cat && window.tabAnon) {
-            for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
-                const paire = window.tabAnon[idxPaire];
-                if (!paire.matchPositions || paire.matchPositions.length === 0) continue;
-                if (paire.entite.trim() !== entite.trim()) continue;
-
-                const catEffective = cat;
-                let matchesCat = paire.matchPositions
-                    .map((m, i) => ({ m, i }))
-                    .filter(({ m }) =>
-                        (cat === 'anon' && !m.isException && !m.isNonTraite) ||
-                        (cat === 'exc'  &&  m.isException) ||
-                        (cat === 'non'  &&  m.isNonTraite)
-                    );
-
-                if (matchesCat.length === 0) continue;
-
-                // Clamp au cas où l'index serait hors limites (état différent entre corpus et entretien)
-                const targetPosInCat = Math.min(occIdxInCat, matchesCat.length - 1);
-
-                // Positionner juste avant : allerCatSuivante atterrira exactement sur cette occurrence
-                paire[`indexCourant_${catEffective}`] = targetPosInCat - 1;
-
-                const btn = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="${catEffective}"]`);
-                if (btn) clicCompteur(btn, idxPaire, catEffective);
-                return;
-            }
-        }
-    }
+    // Navigation corpus → entretien : la cible n'est consommée qu'une fois les occurrences locales
+    // recalculées et les compteurs rendus. Elle reste en attente si le panneau n'est pas encore prêt.
+    activerNavigationCorpusVersEntretien();
 }
 
 /**
@@ -831,18 +1088,57 @@ function nettoyerTabAnon() {
            !(p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0);
   });
 
-  // Supprimer les doublons (même entité + remplacement), clé canonique unique (cleAnon).
-  // NB : on conserve l'objet `p` COMPLET (champs runtime de l'entretien local), donc on ne
-  // peut pas utiliser fusionnerRegles ici (qui ne renvoie que {entite, remplacement}).
-  const map = new Map();
+  // Dédupliquer sur l'identité de l'entité ET l'ensemble non ordonné de ses pseudos. Une inversion
+  // primaire/secondaire ne doit pas recréer le défaut du lot F à la sauvegarde. En revanche deux
+  // ensembles incompatibles restent distincts : les fusionner ici ferait perdre une variante sans
+  // aucune résolution utilisateur.
+  const nettoyees = [];
   lignesValides.forEach(p => {
-    const key = cleAnon(p.entite, p.remplacement || ''); // brouillon entité-seule : remplacement vide
-    if (!map.has(key)) {
-      map.set(key, p);
+    const existante = nettoyees.find(q => {
+      if (cleEntite(q.entite) !== cleEntite(p.entite)) return false;
+      const deuxBrouillonsSansPseudo = !p.remplacement && !q.remplacement;
+      return deuxBrouillonsSansPseudo ||
+        (_pseudosFusionInclus(p, q) && _pseudosFusionInclus(q, p));
+    });
+    if (!existante) {
+      nettoyees.push(p);
+    } else if (p.source !== 'Global' || p.existeLocalement) {
+      _fusionnerEtatLocal(existante, p);
     }
   });
 
-  return Array.from(map.values());
+  return nettoyees;
+}
+
+// Recalcule les plages d'une règle depuis le TEXTE de son entité. Le cache matchPositions peut être
+// périmé et la valeur du pseudo n'est pas une identité de règle (plusieurs entités peuvent partager
+// « ville »). Un run anon n'appartient à la règle que si ses frontières coïncident exactement avec
+// l'occurrence ; une occurrence au milieu d'un run plus large reste incluse, même avec le même pseudo.
+function _positionsCourantesRegle(paire, tousLesSpans) {
+    if (!paire || !paire.entite) return [];
+    const pseudos = pseudosDe(paire);
+    const pseudosBas = pseudos.map(p => p.toLowerCase());
+    return analyserOccurrences(document, paire.entite, paire.remplacement, pseudos, true).map(o => {
+        let isIncluded = o.etat === 'incluse';
+        if (o.etat === 'anon') {
+            const debut = tousLesSpans[o.indexDebut];
+            const fin = tousLesSpans[o.indexFin];
+            const pseudoDebut = ((debut && debut.dataset.pseudo) || '').toLowerCase();
+            const pseudoFin = ((fin && fin.dataset.pseudo) || '').toLowerCase();
+            const runExact = !!debut && !!fin && debut.classList.contains('debsel') &&
+                fin.classList.contains('finsel') && pseudosBas.includes(pseudoDebut) &&
+                pseudosBas.includes(pseudoFin);
+            if (!runExact) isIncluded = true;
+        }
+        return {
+            start: o.indexDebut,
+            end: o.indexFin,
+            isException: o.etat === 'exception',
+            isNonTraite: o.etat === 'non-traite',
+            isIncluded,
+            pseudoAbsorbe: o.pseudoAbsorbe || ''
+        };
+    });
 }
 
 // Sauvegarde d'une ligne du tableau (quand on change le champ entité ou pseudo)
@@ -850,45 +1146,38 @@ function nettoyerTabAnon() {
 // affichTableauAnon re-scanne ensuite le texte démarqué et re-détecte les occurrences en
 // « à traiter » (orange) — donc la ligne réapparaît en attente avec le bouton « Valider et
 // appliquer ». Réutilisé par sauvAnon : vidage du nom (Cas 1) et modification d'une ligne déjà
-// appliquée (Cas 4). anciensPseudos = pseudos AVANT modification (filet de sécurité multi-pseudo).
-function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
+// appliquée (Cas 4). Les anciennes valeurs sont indispensables car sauvAnon met la paire à jour avant
+// de démarquer le DOM.
+function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite) {
     const paire = window.tabAnon[idx];
     if (!paire) return;
     const tousLesSpans = document.querySelectorAll('[data-rk]');
+    const regleAvantEdition = {
+        entite: ancienneEntite == null ? paire.entite : ancienneEntite,
+        remplacement: anciensPseudos[0] || paire.remplacement,
+        remplacementAlt: anciensPseudos[1]
+    };
+    const positions = _positionsCourantesRegle(regleAvantEdition, tousLesSpans);
 
-    // §G-bis : portées des runs possédés par CETTE règle (hors incluses), à libérer après nettoyage.
-    const rangesLiberees = (paire.matchPositions || [])
-        .filter(m => !m.isIncluded).map(m => ({ start: m.start, end: m.end }));
+    // Portées des runs réellement possédés par CETTE règle, à libérer après nettoyage.
+    const rangesLiberees = positions
+        .filter(m => !m.isIncluded && !m.isException && !m.isNonTraite)
+        .map(m => ({ start: m.start, end: m.end }));
 
-    // 1. Démarquage par positions exactes (matchPositions) — couvre anon ET anon-exception.
-    if (paire.matchPositions && paire.matchPositions.length > 0) {
-        paire.matchPositions.forEach(match => {
-            if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
-            for (let i = match.start; i <= match.end; i++) {
-                if (tousLesSpans[i]) {
-                    tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                    tousLesSpans[i].removeAttribute('data-anon-nt');
-                    delete tousLesSpans[i].dataset.pseudo;
-                }
+    // Démarquage borné aux occurrences de l'entité. Ne jamais balayer le DOM par pseudo : ce pseudo
+    // peut légitimement appartenir à une autre règle.
+    positions.forEach(match => {
+        if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
+        for (let i = match.start; i <= match.end; i++) {
+            if (tousLesSpans[i]) {
+                tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                tousLesSpans[i].removeAttribute('data-anon-nt');
+                delete tousLesSpans[i].dataset.pseudo;
             }
-        });
-    }
+        }
+    });
 
-    // 2. Filet de sécurité via les anciens pseudos (matchPositions vide/périmé). Multi-pseudo :
-    //    couvrir CHAQUE pseudo autorisé (primaire ET alt).
-    const pseudosBas = (anciensPseudos || []).map(p => (p || '').toLowerCase()).filter(Boolean);
-    if (pseudosBas.length > 0) {
-        tousLesSpans.forEach(span => {
-            const dp = (span.dataset.pseudo || '').toLowerCase();
-            if (dp && pseudosBas.includes(dp)) {
-                span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                span.removeAttribute('data-anon-nt');
-                delete span.dataset.pseudo;
-            }
-        });
-    }
-
-    // §G-bis / Partie 2 : runs retirés → RESTAURER les occurrences absorbées (pseudo réaligné).
+    // Runs retirés → RESTAURER les occurrences absorbées (pseudo réaligné).
     rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
 
     // 3. Reset → « en attente ». Le re-scan « à traiter » est fait par affichTableauAnon
@@ -897,13 +1186,16 @@ function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
     paire.matchPositions = [];
     paire.indexCourant = 0;
     affichTableauAnon();
-    sauvegarderTabAnonEnt();
+    const sauvegarde = sauvegarderTabAnonEnt();
     // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5b) : entité vidée/renommée (Cas 1/4) ou
     // pseudo modifié → réaligner les libellés sur l'état courant des règles.
-    resynchroniserLibellesLocuteurs();
+    const libelles = resynchroniserLibellesLocuteurs();
+    // Les anciens appelants peuvent continuer à utiliser cette fonction synchroniquement : toutes les
+    // mutations DOM ont déjà eu lieu. Entrée attend ces deux promesses avant de poursuivre.
+    return Promise.all([Promise.resolve(sauvegarde), Promise.resolve(libelles)]);
 }
 
-function sauvAnon(idx) {
+async function _sauvAnonMaintenant(idx) {
     const entiteInput = document.querySelector(`.input-entite[data-idx="${idx}"]`);
     const remplacementInput = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
     if (!entiteInput || !remplacementInput) return;
@@ -940,7 +1232,7 @@ function sauvAnon(idx) {
     // → démarquer + reset. L'entité étant désormais vide, affichTableauAnon ne re-scanne pas :
     //   les 3 compteurs (anon / exc / non) disparaissent.
     if (ancienneEntite && !nouvelleEntite && aOccurrences) {
-        demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+        await demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
         return;
     }
 
@@ -986,13 +1278,14 @@ function sauvAnon(idx) {
         if (!nomChange && pseudoChange) {
             // SEUL le pseudo change (nom identique) → relabel EN PLACE (préserve les choix par occurrence).
             // Fallback démarquage si mapping ambigu (≥2 changements) ; 'annule' gère son propre revert.
-            relabelPseudoEnPlace(idx, anciensPseudos).then(r => {
-                if (r === 'ambigu') demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
-            });
+            const resultat = await relabelPseudoEnPlace(idx, anciensPseudos);
+            if (resultat === 'ambigu') {
+                await demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
+            }
             return;
         }
         if (nomChange || pseudoChange) {
-            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+            await demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
             return;
         }
     }
@@ -1003,9 +1296,23 @@ function sauvAnon(idx) {
     if (nouvelleEntite && nouveauRemplacement && !aOccurrences) {
         // Règle label-only (occ=0) : l'édition ne passe pas par relabelPseudoEnPlace (gardé sur occ>0)
         // → réaligner le libellé ici (plan-locuteurs-pseudo.md Étape 5b).
-        resynchroniserLibellesLocuteurs();
+        await resynchroniserLibellesLocuteurs();
         affichTableauAnon();
     }
+}
+
+// Point d'entrée onchange. Si Entrée traite déjà cette ligne, le change tardif rejoint la même
+// opération. Inversement, gererEntrePseudo attend une sauvegarde/relabel onchange déjà démarré.
+function sauvAnon(idx, depuisEntree = false) {
+    if (!depuisEntree && _validationsEntreeAnon.has(idx)) return _validationsEntreeAnon.get(idx);
+    if (_sauvegardesEditionAnon.has(idx)) return _sauvegardesEditionAnon.get(idx);
+    const operation = _sauvAnonMaintenant(idx);
+    _sauvegardesEditionAnon.set(idx, operation);
+    const liberer = () => {
+        if (_sauvegardesEditionAnon.get(idx) === operation) _sauvegardesEditionAnon.delete(idx);
+    };
+    operation.then(liberer, liberer);
+    return operation;
 }
 
 // Vérifie s'il y a un doublon d'entité dans les lignes déjà anonymisées
@@ -1099,40 +1406,27 @@ async function supprimeLigneAnon(idx) {
 
     if (paireSupprimee) {
         const tousLesSpans = document.querySelectorAll('[data-rk]');
+        const positions = _positionsCourantesRegle(paireSupprimee, tousLesSpans);
 
-        // §G-bis : portées des runs possédés par CETTE règle (hors incluses), pour libérer après
-        // nettoyage les occurrences que ces runs absorbaient (→ re-bascule en 'non-traité', I-INC-7).
-        const rangesLiberees = (paireSupprimee.matchPositions || [])
-            .filter(m => !m.isIncluded).map(m => ({ start: m.start, end: m.end }));
+        // Portées des runs possédés par CETTE règle, pour restaurer ensuite les occurrences absorbées.
+        const rangesLiberees = positions
+            .filter(m => !m.isIncluded && !m.isException && !m.isNonTraite)
+            .map(m => ({ start: m.start, end: m.end }));
 
-        // 1. Nettoyer via matchPositions (indices NodeList exacts) — couvre aussi anon-exception
-        if (paireSupprimee.matchPositions && paireSupprimee.matchPositions.length > 0) {
-            paireSupprimee.matchPositions.forEach(match => {
-                if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
-                for (let i = match.start; i <= match.end; i++) {
-                    if (tousLesSpans[i]) {
-                        tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                        delete tousLesSpans[i].dataset.pseudo;
-                    }
+        // Nettoyer uniquement les occurrences retrouvées par l'entité, y compris si matchPositions est
+        // vide ou périmé. Un pseudo partagé n'est jamais utilisé comme clé de propriété.
+        positions.forEach(match => {
+            if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
+            for (let i = match.start; i <= match.end; i++) {
+                if (tousLesSpans[i]) {
+                    tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                    tousLesSpans[i].removeAttribute('data-anon-nt');
+                    delete tousLesSpans[i].dataset.pseudo;
                 }
-            });
-        }
+            }
+        });
 
-        // 2. Filet de sécurité : balayer les spans encore marqués data-pseudo (cas où matchPositions
-        //    serait vide/périmé). Multi-pseudo : couvrir CHAQUE pseudo autorisé (primaire ET alt).
-        const pseudosAEffacer = pseudosDe(paireSupprimee).map(p => p.toLowerCase());
-        if (pseudosAEffacer.length > 0) {
-            tousLesSpans.forEach(span => {
-                const dp = (span.dataset.pseudo || '').toLowerCase();
-                if (dp && pseudosAEffacer.includes(dp)) {
-                    span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                    delete span.dataset.pseudo;
-                }
-            });
-        }
-
-        // §G-bis / Partie 2 : les spans des runs retirés sont redevenus nus → RESTAURER les
-        // occurrences que ces runs absorbaient (pseudo réaligné sur la règle courante).
+        // Les spans des runs retirés sont redevenus nus → RESTAURER les occurrences absorbées.
         rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
     }
 
@@ -1192,6 +1486,516 @@ async function regleEstIsolee(entite) {
     const estUsageReel = r => r && r.entite && cleEntite(r.entite) === cleEntite(entite) && _aOccurrenceTraitee(r);
     return !tabEnt.some((ent, i) =>
         i !== rkCur && ent && Array.isArray(ent.tabAnon) && ent.tabAnon.some(estUsageReel));
+}
+
+// Une occurrence portant un pseudo étranger peut être soit un vrai run historique de cette entité,
+// soit une inclusion dans un run plus large. Les frontières et offsets permettent de ne retenir que
+// le premier cas lors de la préparation d'une dissociation.
+function _estRunExactDissociation(occurrence) {
+    if (!occurrence || !occurrence.spanDebut || !occurrence.spanFin) return false;
+    const debut = occurrence.spanDebut;
+    const fin = occurrence.spanFin;
+    return debut.classList.contains('anon') && debut.classList.contains('debsel')
+        && fin.classList.contains('anon') && fin.classList.contains('finsel')
+        && occurrence.offsetDebut === 0
+        && occurrence.offsetFin === (fin.textContent || '').length;
+}
+
+// Décrit l'usage réel d'une règle corpus dans un entretien sans modifier son HTML. Cette analyse sert
+// à la dissociation globale C→D : les runs, exceptions et libellés confirmés restent exactement tels
+// quels ; seule la portée persistée de la règle change.
+function _usageRegleCorpusDansHtml(html, regle) {
+    const usage = { anonymisees: 0, exceptions: 0, aTraiter: 0, locuteurs: 0 };
+    if (!html || !regle || !regle.entite || !regle.remplacement) return usage;
+
+    const racine = document.createElement('div');
+    racine.innerHTML = String(html).replace(/`/g, '');
+    const pseudos = pseudosDe(regle);
+    const occurrences = analyserOccurrences(
+        racine, regle.entite, regle.remplacement, pseudos, true
+    );
+    occurrences.forEach(o => {
+        if (o.etat === 'anon' || (o.etat === 'incluse' && _estRunExactDissociation(o))) {
+            usage.anonymisees++;
+        } else if (o.etat === 'exception') usage.exceptions++;
+        else if (o.etat === 'non-traite') usage.aTraiter++;
+    });
+
+    const alias = new Set(clesAlias(regle.entite));
+    racine.querySelectorAll('.ligloc.loc-anon[data-nomloc]').forEach(lig => {
+        if (clesAlias(lig.dataset.nomloc || '').some(k => alias.has(k))) usage.locuteurs++;
+    });
+    return usage;
+}
+
+function _partageAliasDissociation(entiteA, entiteB) {
+    const cibles = new Set(clesAlias(entiteB));
+    return clesAlias(entiteA).some(k => cibles.has(k));
+}
+
+function _reglesLocalesMemeEntite(ent, entite) {
+    const toutes = ent && Array.isArray(ent.tabAnon) ? ent.tabAnon : [];
+    const cles = new Set(clesAlias(entite));
+    const retenues = new Set();
+    let ajoutee = true;
+    // Fermeture transitive : `Alice/Alicia`, `Alice/Ally`, puis `Ally/Alison` décrivent une seule
+    // couverture effective. S'arrêter à la première collision ferait perdre les alias libres.
+    while (ajoutee) {
+        ajoutee = false;
+        toutes.forEach(r => {
+            if (!r || !r.entite || retenues.has(r)) return;
+            const alias = clesAlias(r.entite);
+            if (!alias.some(cle => cles.has(cle))) return;
+            retenues.add(r);
+            alias.forEach(cle => cles.add(cle));
+            ajoutee = true;
+        });
+    }
+    return toutes.filter(r => retenues.has(r));
+}
+
+function _ajouterPseudoDissociation(liste, pseudo) {
+    const valeur = String(pseudo == null ? '' : pseudo).trim();
+    if (valeur && !liste.some(p => p.toLowerCase() === valeur.toLowerCase())) liste.push(valeur);
+}
+
+function _positionsDissociationDepuisHtml(racine, regle) {
+    if (!racine) return [];
+    return analyserOccurrences(
+        racine, regle.entite, regle.remplacement, pseudosDe(regle), true
+    ).map(o => ({
+        start: o.indexDebut,
+        end: o.indexFin,
+        isException: o.etat === 'exception',
+        isNonTraite: o.etat === 'non-traite',
+        isIncluded: o.etat === 'incluse' && !_estRunExactDissociation(o),
+        pseudoAbsorbe: o.pseudoAbsorbe || ''
+    }));
+}
+
+/**
+ * Construit la couverture document qui remplacera une règle corpus dans un entretien. Les alias et
+ * pseudos du corpus, des règles locales et des marquages HTML confirmés sont réunis alias par alias.
+ * Une combinaison alias + multi-pseudo est scindée en règles valides plutôt que de violer I2.
+ * Aucune donnée source n'est modifiée ; une troisième variante bloque tout le lot.
+ */
+function _construireReglesDocumentDissociation(ent, regleCorpus, html) {
+    const locales = _reglesLocalesMemeEntite(ent, regleCorpus.entite);
+    const aliasParCle = new Map();
+    const ajouterRegle = regle => {
+        const pseudos = pseudosDe(regle);
+        parseAliases(regle.entite).forEach(alias => {
+            const cle = alias.toLowerCase();
+            if (!aliasParCle.has(cle)) aliasParCle.set(cle, { cle, nom: alias, pseudos: [] });
+            const couverture = aliasParCle.get(cle);
+            pseudos.forEach(p => _ajouterPseudoDissociation(couverture.pseudos, p));
+        });
+    };
+    ajouterRegle(regleCorpus);
+    locales.forEach(ajouterRegle);
+
+    const racine = document.createElement('div');
+    racine.innerHTML = String(html || '').replace(/`/g, '');
+
+    // Les runs exacts et libellés confirmés sont une source de vérité au même titre que les règles
+    // persistées. Un pseudo encore présent dans le DOM ne doit jamais devenir orphelin.
+    aliasParCle.forEach(couverture => {
+        const occurrences = analyserOccurrences(racine, couverture.nom, '', [], true);
+        occurrences.forEach(o => {
+            if (!_estRunExactDissociation(o)) return;
+            _ajouterPseudoDissociation(
+                couverture.pseudos,
+                o.spanFin.dataset.pseudo || o.spanDebut.dataset.pseudo
+            );
+        });
+    });
+    racine.querySelectorAll('.ligloc.loc-anon[data-nomloc][data-locpseudo]').forEach(lig => {
+        clesAlias(lig.dataset.nomloc || '').forEach(cle => {
+            const couverture = aliasParCle.get(cle);
+            if (couverture) _ajouterPseudoDissociation(couverture.pseudos, lig.dataset.locpseudo);
+        });
+    });
+
+    aliasParCle.forEach(couverture => {
+        if (couverture.pseudos.length <= 2) return;
+        const nomEntretien = (ent && ent.nom) || 'entretien sans nom';
+        throw new Error(
+            `Impossible de dissocier la règle dans « ${nomEntretien} » : l’alias ` +
+            `« ${couverture.nom} » nécessiterait trois pseudonymes ` +
+            `(${couverture.pseudos.join(' / ')}). Alignez d’abord les variantes.`
+        );
+    });
+
+    // Regrouper les alias qui ont exactement la même couverture mono-pseudo. Une couverture à deux
+    // pseudos reste mono-entité afin de respecter l'interdiction « / » des deux côtés (I2).
+    const groupes = [];
+    aliasParCle.forEach(couverture => {
+        const clePseudos = couverture.pseudos.map(p => p.toLowerCase()).sort().join('\u0000');
+        let groupe = couverture.pseudos.length === 1
+            ? groupes.find(g => g.clePseudos === clePseudos && g.pseudos.length === 1)
+            : null;
+        if (!groupe) {
+            groupe = { clePseudos, alias: [], pseudos: couverture.pseudos.slice() };
+            groupes.push(groupe);
+        }
+        groupe.alias.push(couverture);
+    });
+
+    const reglesConstruites = groupes.map(groupe => {
+        const clesGroupe = new Set(groupe.alias.map(a => a.cle));
+        const contributrices = locales.filter(r =>
+            clesAlias(r.entite).some(cle => clesGroupe.has(cle)));
+        const base = contributrices[0] || regleCorpus;
+        const ligne = { ...base };
+        // Conserver les enrichissements non structurels de plusieurs règles locales lorsque leur clé
+        // n'existe pas encore sur la première. Les champs runtime sont reconstruits depuis le HTML.
+        contributrices.slice(1).forEach(r => {
+            Object.keys(r).forEach(cle => {
+                if (!(cle in ligne)) ligne[cle] = r[cle];
+            });
+        });
+        ligne.entite = groupe.alias.map(a => a.nom).join('/');
+        ligne.remplacement = groupe.pseudos[0] || '';
+        if (!ligne.thematique && regleCorpus.thematique) ligne.thematique = regleCorpus.thematique;
+        if (groupe.pseudos[1]) ligne.remplacementAlt = groupe.pseudos[1];
+        else delete ligne.remplacementAlt;
+        ligne.portee = 'document';
+        ligne.source = 'Local';
+        ligne.existeLocalement = true;
+        delete ligne._conflitFusion;
+        delete ligne._conflitFusionLocale;
+        delete ligne._supprimerApresConflitFusion;
+        ligne.matchPositions = _positionsDissociationDepuisHtml(racine, ligne);
+        ligne.occurrences = ligne.matchPositions.length;
+        ligne.indexCourant = Math.min(Number(ligne.indexCourant) || 0, Math.max(0, ligne.occurrences - 1));
+        return ligne;
+    });
+
+    const ensembleLocales = new Set(locales);
+    const originales = ent && Array.isArray(ent.tabAnon) ? ent.tabAnon : [];
+    const premiere = originales.findIndex(r => ensembleLocales.has(r));
+    const restantes = originales.filter(r => !ensembleLocales.has(r));
+    restantes.splice(premiere < 0 ? restantes.length : premiere, 0, ...reglesConstruites);
+    return restantes;
+}
+
+// Une ligne locale explicite doit survivre à la dissociation même si toutes ses occurrences sont
+// encore « à traiter ». À l'inverse, une simple copie d'affichage venue du corpus est un fantôme.
+function _estRegleLocalePropre(r) {
+    return !!(r && (r.source !== 'Global' || r.existeLocalement || (r.portee || 'corpus') !== 'corpus'));
+}
+
+function _memeIdentiteRegleDissociation(a, b) {
+    if (!a || !b || cleEntite(a.entite) !== cleEntite(b.entite)) return false;
+    return _pseudosFusionInclus(a, b) && _pseudosFusionInclus(b, a);
+}
+
+// Le modèle de l'éditeur est distinct du tableau IPC et peut contenir une validation ou une édition
+// pas encore synchronisée. On ne remplace dans la copie persistée que la fermeture d'alias ciblée :
+// les autres règles live héritées du corpus ne doivent surtout pas être gravées dans le .Sonal.
+function _entretienAvecReglesLiveDissociation(ent, regleCorpus) {
+    const copie = { ...(ent || {}) };
+    const persistees = Array.isArray(copie.tabAnon) ? copie.tabAnon.slice() : [];
+    if (!document.getElementById('segments') || !Array.isArray(window.tabAnon)) {
+        copie.tabAnon = persistees;
+        return copie;
+    }
+    const localesLive = _reglesLocalesMemeEntite({ tabAnon: window.tabAnon }, regleCorpus.entite);
+    if (localesLive.length === 0) {
+        copie.tabAnon = persistees;
+        return copie;
+    }
+    const localesPersistees = new Set(_reglesLocalesMemeEntite({ tabAnon: persistees }, regleCorpus.entite));
+    const premiere = persistees.findIndex(r => localesPersistees.has(r));
+    copie.tabAnon = persistees.filter(r => !localesPersistees.has(r));
+    copie.tabAnon.splice(
+        premiere < 0 ? copie.tabAnon.length : premiere,
+        0,
+        ...localesLive.map(r => ({ ...r }))
+    );
+    return copie;
+}
+
+async function _contexteDissociationRegle(regle, tabEnt) {
+    const rkCur = await window.electronAPI.getEntCur();
+    const editeurOuvert = !!document.getElementById('segments') && Array.isArray(window.tabAnon);
+    const contextes = [];
+    for (let i = 0; i < tabEnt.length; i++) {
+        const live = editeurOuvert && i === rkCur;
+        const ent = live ? _entretienAvecReglesLiveDissociation(tabEnt[i], regle) : (tabEnt[i] || {});
+        const html = live
+            ? document.getElementById('segments').innerHTML
+            : await window.electronAPI.getHtml(i);
+        contextes.push({ index: i, ent, html, live });
+    }
+    return { rkCur, contextes };
+}
+
+/**
+ * Prépare le bilan présenté avant de dissocier une règle corpus. Aucun état n'est modifié.
+ * @returns {Promise<{regle:Object|null, entretiens:Array, indicesFantomes:number[]}>}
+ */
+async function analyserDissociationRegleCorpus(entite) {
+    const reglesCorpus = await window.electronAPI.getAnon() || [];
+    const regle = reglesCorpus.find(r => r && r.entite && cleEntite(r.entite) === cleEntite(entite))
+        || regleEnCollisionAlias(entite, reglesCorpus);
+    if (!regle) return { regle: null, entretiens: [], indicesFantomes: [] };
+
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    const { contextes } = await _contexteDissociationRegle(regle, tabEnt);
+    const entretiens = [];
+    const indicesFantomes = [];
+    for (const contexte of contextes) {
+        const { index: i, ent, html, live } = contexte;
+        const locales = _reglesLocalesMemeEntite(ent, regle.entite);
+        const usage = _usageRegleCorpusDansHtml(html, regle);
+        const utilisee = usage.anonymisees > 0 || usage.exceptions > 0 || usage.locuteurs > 0;
+        // Une ligne héritée mais éditée dans le modèle live est un changement utilisateur, même si
+        // son flag existeLocalement n'a pas encore été posé. Seule la copie strictement identique à
+        // la règle corpus, dont les usages sont tous en attente, est un fantôme.
+        const localePropre = locales.some(r => _estRegleLocalePropre(r)
+            || (live && !_memeIdentiteRegleDissociation(r, regle)));
+        if (utilisee || localePropre) {
+            entretiens.push({ index: i, nom: ent.nom || `Entretien ${i + 1}`, usage, localePropre });
+        } else if (locales.length > 0) {
+            indicesFantomes.push(i);
+        }
+    }
+    return { regle, entretiens, indicesFantomes };
+}
+
+function _echapperTexteDialogueAnon(texte) {
+    return String(texte == null ? '' : texte)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _messageDissociationRegle(apercu) {
+    const regle = apercu.regle;
+    const lignes = apercu.entretiens.slice(0, 8).map(e => {
+        const details = [];
+        if (e.usage.anonymisees) details.push(`${e.usage.anonymisees} pseudonymisation(s)`);
+        if (e.usage.exceptions) details.push(`${e.usage.exceptions} exception(s)`);
+        if (e.usage.locuteurs) details.push(`${e.usage.locuteurs} libellé(s) de locuteur`);
+        if (e.usage.aTraiter) details.push(`${e.usage.aTraiter} à traiter`);
+        if (details.length === 0) details.push('règle locale existante');
+        return `• ${_echapperTexteDialogueAnon(e.nom)} — ${details.join(', ')}`;
+    });
+    if (apercu.entretiens.length > 8) {
+        lignes.push(`• … et ${apercu.entretiens.length - 8} autre(s) entretien(s)`);
+    }
+
+    const titre = apercu.entretiens.length > 0
+        ? `Cette règle est partagée dans ${apercu.entretiens.length} entretien(s).`
+        : 'Cette règle corpus n’est utilisée dans aucun entretien.';
+    const detail = apercu.entretiens.length > 0
+        ? `« ${_echapperTexteDialogueAnon(regle.entite)} → ${_echapperTexteDialogueAnon(pseudosDe(regle).join(' / '))} »\n\n` +
+          `Les pseudonymisations, exceptions et choix de locuteurs seront conservés. ` +
+          `Chaque entretien concerné recevra une règle 📄 document et la règle disparaîtra du corpus.\n\n` +
+          lignes.join('\n')
+        : `« ${_echapperTexteDialogueAnon(regle.entite)} → ${_echapperTexteDialogueAnon(pseudosDe(regle).join(' / '))} »\n\n` +
+          `La règle sera simplement retirée du corpus.`;
+    return `${titre}\n${detail}`;
+}
+
+function _remplacerReglesLiveDissociation(regleCorpus, remplacements, supprimerFantomesSeulement) {
+    if (!Array.isArray(window.tabAnon)) return;
+    const liees = new Set(_reglesLocalesMemeEntite({ tabAnon: window.tabAnon }, regleCorpus.entite));
+    const premiere = window.tabAnon.findIndex(r => liees.has(r));
+    window.tabAnon = window.tabAnon.filter(r => {
+        if (!liees.has(r)) return true;
+        if (!supprimerFantomesSeulement) return false;
+        // Un changement utilisateur apparu entre le bilan et la fin des écritures reste intact.
+        return _estRegleLocalePropre(r) || !_memeIdentiteRegleDissociation(r, regleCorpus);
+    });
+    if (!supprimerFantomesSeulement && Array.isArray(remplacements)) {
+        window.tabAnon.splice(
+            premiere < 0 ? window.tabAnon.length : premiere,
+            0,
+            ...remplacements.map(r => ({ ...r }))
+        );
+    }
+}
+
+// Les marqueurs orange et suggestions de locuteurs sont du runtime. Après retrait d'un fantôme,
+// ils doivent être redérivés depuis les règles restantes, sans toucher aux runs, exceptions ou
+// libellés déjà confirmés qui constituent la source de vérité persistée.
+function _realignerRuntimeApresDissociation() {
+    const segments = document.getElementById('segments');
+    if (!segments || !Array.isArray(window.tabAnon)) return;
+    const spans = document.querySelectorAll('[data-rk]');
+    document.querySelectorAll('[data-anon-nt]').forEach(s => s.removeAttribute('data-anon-nt'));
+
+    window.tabAnon.forEach(paire => {
+        if (!paire || !paire.entite || (paire.portee || 'corpus') === 'brouillon') return;
+        const positions = _positionsCourantesRegle(paire, spans);
+        paire.matchPositions = positions;
+        paire.occurrences = positions.length;
+        paire.indexCourant = Math.min(Number(paire.indexCourant) || 0, Math.max(0, positions.length - 1));
+        positions.filter(m => m.isNonTraite && !m.isIncluded).forEach(m => {
+            for (let i = m.start; i <= m.end; i++) {
+                if (spans[i]) spans[i].setAttribute('data-anon-nt', 'true');
+            }
+        });
+    });
+
+    document.querySelectorAll('.ligloc:not(.loc-anon):not(.loc-suggere-refuse)[data-nomloc]').forEach(lig => {
+        const clesNom = clesAlias(lig.dataset.nomloc || '');
+        const regle = window.tabAnon.find(p => p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+            && clesAlias(p.entite).some(cle => clesNom.includes(cle)));
+        const pseudo = regle ? pseudosDe(regle)[0] : '';
+        lig.classList.toggle('loc-suggere', !!pseudo);
+        if (pseudo) lig.dataset.locpseudoSuggere = pseudo;
+        else delete lig.dataset.locpseudoSuggere;
+    });
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();
+}
+
+/**
+ * Convertit atomiquement autant que possible une règle corpus en règles document dans tous les
+ * entretiens qui la portent réellement. Les marquages confirmés du HTML ne sont jamais modifiés ;
+ * seuls les marqueurs runtime sont redérivés après succès. Les .Sonal sont réécrits avec leur
+ * tabAnon local, puis le .crp perd la règle globale. En cas d'échec, un rollback est tenté.
+ */
+async function dissocierRegleCorpus(entite, apercuInitial = null) {
+    const apercu = apercuInitial || await analyserDissociationRegleCorpus(entite);
+    if (!apercu.regle) throw new Error('Cette règle corpus n’existe plus.');
+
+    const reglesAvant = await window.electronAPI.getAnon() || [];
+    const tabEntAvant = await window.electronAPI.getEnt() || [];
+    const tabEntApres = JSON.parse(JSON.stringify(tabEntAvant));
+    const indicesConvertis = new Set(apercu.entretiens.map(e => e.index));
+    const indicesFantomes = new Set(apercu.indicesFantomes || []);
+    const indicesModifies = new Set();
+    const reglesDocuments = new Map();
+    const contexteFrais = await _contexteDissociationRegle(apercu.regle, tabEntAvant);
+    const contextesParIndex = new Map(contexteFrais.contextes.map(c => [c.index, c]));
+
+    // Préparer et valider TOUTES les couvertures avant la première écriture. Pour l'entretien
+    // ouvert, le DOM et le modèle live (potentiellement plus frais que le cache main) sont utilisés.
+    // Une troisième variante ou une donnée impossible à représenter bloque le lot entier.
+    for (const index of indicesConvertis) {
+        const contexte = contextesParIndex.get(index);
+        const ent = contexte ? contexte.ent : tabEntApres[index];
+        if (!ent) continue;
+        const html = contexte ? contexte.html : await window.electronAPI.getHtml(index);
+        reglesDocuments.set(
+            index,
+            _construireReglesDocumentDissociation(ent, apercu.regle, html)
+        );
+    }
+
+    for (let i = 0; i < tabEntApres.length; i++) {
+        const ent = tabEntApres[i];
+        if (!ent) continue;
+        if (!Array.isArray(ent.tabAnon)) ent.tabAnon = [];
+        const locales = _reglesLocalesMemeEntite(ent, apercu.regle.entite);
+
+        if (indicesConvertis.has(i)) {
+            ent.tabAnon = reglesDocuments.get(i) || ent.tabAnon;
+            ent.lastModified = Date.now();
+            indicesModifies.add(i);
+        } else if (indicesFantomes.has(i)) {
+            const aRetirer = new Set(locales);
+            const avant = ent.tabAnon.length;
+            ent.tabAnon = ent.tabAnon.filter(r => !aRetirer.has(r));
+            if (ent.tabAnon.length !== avant) indicesModifies.add(i);
+        }
+    }
+
+    const reglesApres = reglesAvant.filter(r =>
+        !(r && r.entite && cleEntite(r.entite) === cleEntite(apercu.regle.entite)));
+    const sonalEcrits = [];
+    const rkCur = contexteFrais.rkCur;
+    let memoireModifiee = false;
+    try {
+        if (indicesModifies.has(rkCur)) await _synchroniserHtmlEntretienOuvertPourLot(rkCur);
+        await window.electronAPI.setEnt(tabEntApres);
+        memoireModifiee = true;
+
+        if (typeof window.majFichierSonal !== 'function' && indicesModifies.size > 0) {
+            throw new Error('La sauvegarde des entretiens n’est pas disponible.');
+        }
+        for (const index of indicesModifies) {
+            await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+            sonalEcrits.push(index);
+        }
+
+        await persisterReglesCorpus(reglesApres);
+        if (typeof window.sauvegarderCorpus === 'function') {
+            const sauvegarde = await window.sauvegarderCorpus(false);
+            if (sauvegarde && sauvegarde.success === false) {
+                throw new Error(sauvegarde.error || 'Le corpus n’a pas pu être sauvegardé.');
+            }
+        }
+    } catch (error) {
+        // Restaurer d'abord la mémoire, puis les .Sonal déjà convertis et enfin le .crp. Le rollback
+        // distant reste une tentative : l'erreur initiale est conservée et signalée à l'utilisateur.
+        try {
+            if (memoireModifiee) await window.electronAPI.setEnt(tabEntAvant);
+            await persisterReglesCorpus(reglesAvant);
+            if (typeof window.majFichierSonal === 'function') {
+                for (const index of sonalEcrits) {
+                    await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+                }
+            }
+            if (typeof window.sauvegarderCorpus === 'function') await window.sauvegarderCorpus(false);
+        } catch (rollbackError) {
+            console.error('❌ Rollback incomplet de la dissociation corpus:', rollbackError);
+            error.rollbackError = rollbackError;
+        }
+        throw error;
+    }
+
+    // Le modèle live est distinct du clone IPC. Ne le réconcilier qu'APRÈS le succès complet : une
+    // annulation ou un rollback doit laisser ligne et marqueurs intacts. Si le courant n'avait que
+    // des occurrences à traiter, sa copie héritée est retirée ; s'il portait un usage confirmé ou
+    // une édition locale fraîche, les règles document préparées remplacent la fermeture ciblée.
+    if (document.getElementById('segments') && Array.isArray(window.tabAnon) && rkCur >= 0) {
+        if (indicesConvertis.has(rkCur)) {
+            const toutes = reglesDocuments.get(rkCur) || [];
+            const documents = _reglesLocalesMemeEntite({ tabAnon: toutes }, apercu.regle.entite);
+            _remplacerReglesLiveDissociation(apercu.regle, documents, false);
+        } else {
+            _remplacerReglesLiveDissociation(apercu.regle, null, true);
+        }
+        _realignerRuntimeApresDissociation();
+    }
+    window._anonScanStale = true;
+    window._anonIndexInverse = null;
+    return {
+        ok: true,
+        regle: apercu.regle,
+        entretiens: apercu.entretiens,
+        nbEntretiens: apercu.entretiens.length,
+        nbFantomesNettoyes: apercu.indicesFantomes.length
+    };
+}
+
+/** Affiche la confirmation UX commune au slider entretien et au panneau Pseudos corpus. */
+async function demanderDissociationRegleCorpus(entite) {
+    try {
+        const apercu = await analyserDissociationRegleCorpus(entite);
+        if (!apercu.regle) {
+            await question('Cette règle corpus n’existe plus.', ['OK']);
+            return { ok: false, annule: true };
+        }
+        const bouton = apercu.entretiens.length > 0 ? 'Rendre locales' : 'Retirer du corpus';
+        const rep = await question(_messageDissociationRegle(apercu), [bouton, 'Annuler']);
+        if (rep !== bouton.toLowerCase()) return { ok: false, annule: true };
+        if (typeof wait === 'function') wait('Dissociation de la règle et sauvegarde des entretiens…');
+        try {
+            return await dissocierRegleCorpus(entite, apercu);
+        } finally {
+            if (typeof endWait === 'function') endWait();
+        }
+    } catch (error) {
+        console.error('❌ demanderDissociationRegleCorpus:', error);
+        const rollback = error.rollbackError
+            ? '\n\nAttention : la restauration automatique est incomplète. Rechargez le corpus avant de continuer.'
+            : '';
+        await question(`La règle n’a pas pu être dissociée.\n${_echapperTexteDialogueAnon(error.message || error)}${rollback}`, ['OK']);
+        return { ok: false, erreur: error };
+    }
 }
 
 // Retire la règle corpus d'une entité + nettoie les fantômes (occ=0) dans TOUS les entretiens (sinon
@@ -1353,6 +2157,9 @@ function reindexerMatchPositions(idxPaire) {
     }));
 
     paire.matchPositions = matches;
+    // occurrences et matchPositions décrivent le même état dérivé. Ne jamais conserver ici le
+    // compteur sérialisé d'un ancien DOM (compactage/normalisation peuvent changer ses indices).
+    paire.occurrences = matches.length;
 
     // Marquer/démarquer les spans avec data-anon-nt (cursor pointer côté CSS)
     matches.forEach(m => {
@@ -1374,10 +2181,9 @@ function reindexerMatchPositions(idxPaire) {
 }
 
 // Vrai si [s,e] est strictement à l'INTÉRIEUR d'un run ÉTRANGER plus large (déborde d'au moins un
-// côté). Sert au principe « le large absorbe l'étroit » (Plan §A) : un match d'une règle étroite posé
-// dans un run déjà ouvert par une règle large ne doit PAS être marqué → il reste incluse.
-// Un run = debsel(pseudo) … [anon] … finsel(pseudo) ; seuls debsel/finsel portent data-pseudo.
-function _runEtrangerEnglobe(spans, s, e, pseudosRegle) {
+// côté). L'identité de la règle englobante est d'abord établie par son ENTITÉ et sa plage ; le pseudo
+// n'est qu'un repli pour les anciens DOM dont la règle n'est plus chargée.
+function _runEtrangerEnglobe(spans, s, e, pseudosRegle, idxPaire) {
     if (!spans[s] || !spans[e]) return false;
     // Frontière d'un VRAI run d'anonymisation = debsel/finsel portant un data-pseudo (≠ marqueur de
     // sélection, qui n'en a pas). On ignore donc les debsel/finsel sans pseudo pendant le scan.
@@ -1388,13 +2194,17 @@ function _runEtrangerEnglobe(spans, s, e, pseudosRegle) {
     while (d >= 0 && spans[d] && spans[d].classList.contains('anon') && !estDeb(spans[d])) d--;
     if (d < 0 || !spans[d] || !spans[d].classList.contains('anon') || !estDeb(spans[d])) return false;
     const dp = spans[d].dataset.pseudo || '';
-    const etranger = !!dp && !pseudosRegle.some(p => (p || '').toLowerCase() === dp.toLowerCase());
-    if (!etranger) return false;
     // Descendre au finsel qui ferme le run à partir de e.
     let f = e;
     while (f < spans.length && spans[f] && spans[f].classList.contains('anon') && !estFin(spans[f])) f++;
     if (f >= spans.length || !spans[f] || !estFin(spans[f])) return false;
-    return d < s || f > e; // run [d,f] déborde [s,e] → englobant
+    if (!(d < s || f > e)) return false;
+
+    const appartientAutreEntite = (window.tabAnon || []).some((p, j) =>
+        j !== idxPaire && p && p.entite &&
+        trouverMatchesEntiteDOM(p.entite, spans).some(m => m.start === d && m.end === f));
+    const pseudoEtranger = !!dp && !pseudosRegle.some(p => (p || '').toLowerCase() === dp.toLowerCase());
+    return appartientAutreEntite || pseudoEtranger;
 }
 
 // Réindexe les règles AUTRES que idxSource dont au moins une occurrence chevauche [start,end].
@@ -1466,13 +2276,8 @@ function appliquerAnonymisationPour(idxPaire) {
         }
     });
 
-    // Retirer d'abord les classes de cette paire spécifique
-    tousLesSpans.forEach(span => {
-        if (span.dataset.pseudo === paire.remplacement) {
-            span.classList.remove('debsel', 'finsel');
-            delete span.dataset.pseudo;
-        }
-    });
+    // Ne surtout pas « nettoyer » par valeur de data-pseudo : deux règles distinctes peuvent partager
+    // le même pseudo. La pose ci-dessous est idempotente et ne touche que les plages de l'entité.
 
     // Chercher TOUTES les occurrences (insensible à la casse + tous les alias « / »)
     const matches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans).map(({ start, end }) => {
@@ -1518,7 +2323,7 @@ function appliquerAnonymisationPour(idxPaire) {
         matches.forEach((match, matchIdx) => {
             // §A — « le large absorbe l'étroit » : si ce match est strictement à l'intérieur d'un run
             // ÉTRANGER plus large, on ne le marque PAS — il reste incluse (possédé par la règle large).
-            if (_runEtrangerEnglobe(tousLesSpans, match.start, match.end, pseudosPaire)) {
+            if (_runEtrangerEnglobe(tousLesSpans, match.start, match.end, pseudosPaire, idxPaire)) {
                 match.isIncluded = true;
                 return;
             }
@@ -1535,7 +2340,10 @@ function appliquerAnonymisationPour(idxPaire) {
                     // Le data-pseudo de CETTE règle est préservé (no-flatten I6) ; seuls debsel/finsel
                     // étrangers portent un pseudo → détectables via dpI.
                     const dpI = tousLesSpans[i].dataset.pseudo;
-                    if (dpI && !pseudosPaire.some(p => p.toLowerCase() === dpI.toLowerCase())) {
+                    const frontiereInterieure =
+                        (i !== match.start && tousLesSpans[i].classList.contains('debsel')) ||
+                        (i !== match.end && tousLesSpans[i].classList.contains('finsel'));
+                    if (dpI && (frontiereInterieure || !pseudosPaire.some(p => p.toLowerCase() === dpI.toLowerCase()))) {
                         // Mémoriser la variante d'origine AVANT de l'effacer : sert à poser l'exposant
                         // sur le bon badge de variante, et (Partie 2) à restaurer le pseudo si on retire
                         // l'englobante. (Fondation §10)
@@ -1642,6 +2450,16 @@ async function validerAnonEnAttente(porteeRequise = 'document') {
 
             appliquerChampsAPaire(window.tabAnon[i], entiteVal, analyse);
 
+            // Une republication qui toucherait des règles document/brouillon dans d'autres
+            // entretiens exige le bilan et la confirmation individuels ; ne pas la faire en lot.
+            if (porteeRequise === 'corpus' && !cRegle) {
+                const promotion = await analyserPromotionRegleCorpus(window.tabAnon[i]);
+                if (promotion.rattachements.length > 0 || promotion.divergences.length > 0) {
+                    compteurConflits++;
+                    continue;
+                }
+            }
+
             // Vérifier si cette entité n'est pas déjà anonymisée
             let estDoublon = false;
             for (let j = 0; j < tabAnonLength; j++) {
@@ -1720,11 +2538,12 @@ async function validerAnonEnAttente(porteeRequise = 'document') {
     // Rafraîchir le tableau
     affichTableauAnon();
     
-    // Avertir (non silencieux) si des conflits corpus ont été laissés de côté.
+    // Avertir si des conflits ou des rattachements multi-entretiens ont été laissés de côté.
     if (compteurConflits > 0) {
         await question(
-            `${compteurConflits} entité(s) en conflit avec le corpus n'ont pas été validées en lot.\n\n` +
-            `Validez-les individuellement (bouton ✓ de la ligne) pour choisir « Garder les deux » ou « Utiliser l'existant ».`,
+            `${compteurConflits} entité(s) n'ont pas été validées en lot.\n\n` +
+            `Validez-les individuellement : un conflit de pseudo peut demander un choix, et une règle ` +
+            `déjà locale dans d'autres entretiens doit être rattachée au corpus après confirmation.`,
             ['OK']);
     }
     } finally {
@@ -1805,10 +2624,216 @@ function trouverOccurrenceAnonyme(debSel, finSel) {
     return null;
 }
 
+function _remplacerPseudoDansRegle(regle, ancienPseudo, nouveauPseudo) {
+    const ancien = String(ancienPseudo || '').trim().toLowerCase();
+    let modifiee = false;
+    if ((regle.remplacement || '').trim().toLowerCase() === ancien) {
+        regle.remplacement = nouveauPseudo;
+        modifiee = true;
+    }
+    if ((regle.remplacementAlt || '').trim().toLowerCase() === ancien) {
+        regle.remplacementAlt = nouveauPseudo;
+        modifiee = true;
+    }
+    return modifiee;
+}
+
+// Relabel ciblé : l'entité ET la variante doivent correspondre. Une valeur de pseudo partagée par
+// une autre entité n'est donc jamais une clé de remplacement.
+function _remplacerPseudoDansHtml(racine, entite, ancienPseudo, nouveauPseudo) {
+    let texte = 0;
+    const ancien = ancienPseudo.trim().toLowerCase();
+    const occurrences = analyserOccurrences(racine, entite, ancienPseudo, [ancienPseudo], true, true);
+    occurrences.forEach(o => {
+        if (o.etat === 'anon') {
+            for (const span of [o.spanDebut, o.spanFin]) {
+                if (span && (span.dataset.pseudo || '').trim().toLowerCase() === ancien) {
+                    span.dataset.pseudo = nouveauPseudo;
+                }
+            }
+            texte++;
+        } else if (o.etat === 'incluse') {
+            for (let i = o.indexDebut; i <= o.indexFin; i++) {
+                const span = racine.querySelectorAll('[data-rk]')[i];
+                if (span && (span.dataset.pseudoAbsorbe || '').trim().toLowerCase() === ancien) {
+                    span.dataset.pseudoAbsorbe = nouveauPseudo;
+                }
+            }
+        }
+    });
+    let locuteurs = 0;
+    const alias = new Set(clesAlias(entite));
+    racine.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+        if (!clesAlias(lig.dataset.nomloc || '').some(cle => alias.has(cle))) return;
+        let change = false;
+        for (const attr of ['locpseudo', 'locpseudoSuggere']) {
+            if ((lig.dataset[attr] || '').trim().toLowerCase() === ancien) {
+                lig.dataset[attr] = nouveauPseudo;
+                change = true;
+            }
+        }
+        if (change) locuteurs++;
+    });
+    return { texte, locuteurs };
+}
+
+/** Bilan frais, sans mutation, d'un remplacement de variante corpus. */
+async function analyserRemplacementPseudoCorpus(entite, ancienPseudo, nouveauPseudo) {
+    const reglesCorpus = await window.electronAPI.getAnon() || [];
+    const regle = regleEnCollisionAlias(entite, reglesCorpus);
+    if (!regle) throw new Error('Cette règle corpus n’existe plus.');
+    const ancien = String(ancienPseudo || '').trim();
+    const nouveau = String(nouveauPseudo || '').trim();
+    if (!ancien || !nouveau || !pseudosDe(regle).some(p => p.toLowerCase() === ancien.toLowerCase())) {
+        throw new Error('La variante à remplacer n’appartient plus à la règle corpus.');
+    }
+    if (pseudosDe(regle).some(p => p.toLowerCase() === nouveau.toLowerCase())) {
+        throw new Error('Le nouveau pseudonyme est déjà une variante de cette règle.');
+    }
+
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    const rkCur = await window.electronAPI.getEntCur();
+    const editeurOuvert = !!document.getElementById('segments') && Array.isArray(window.tabAnon);
+    const entretiens = [];
+    const divergences = [];
+    for (let i = 0; i < tabEnt.length; i++) {
+        const live = editeurOuvert && i === rkCur;
+        const ent = live ? _entretienAvecReglesLiveDissociation(tabEnt[i], regle) : (tabEnt[i] || {});
+        const liees = _reglesLocalesMemeEntite(ent, regle.entite);
+        const independantes = liees.filter(r => ['document', 'brouillon'].includes(r.portee));
+        if (independantes.length > 0) {
+            divergences.push({ index: i, nom: ent.nom || `Entretien ${i + 1}`, regles: independantes });
+            continue;
+        }
+        const html = live ? document.getElementById('segments').innerHTML
+            : String(await window.electronAPI.getHtml(i) || '').replace(/`/g, '');
+        const racine = document.createElement('div');
+        racine.innerHTML = html;
+        const bilan = _remplacerPseudoDansHtml(racine, regle.entite, ancien, nouveau);
+        const reglesModifiees = liees.some(r => pseudosDe(r).some(p => p.toLowerCase() === ancien.toLowerCase()));
+        if (bilan.texte || bilan.locuteurs || reglesModifiees) {
+            entretiens.push({
+                index: i, nom: ent.nom || `Entretien ${i + 1}`, live, ent, htmlAvant: html,
+                htmlApres: racine.innerHTML, bilan, reglesModifiees
+            });
+        }
+    }
+    return { regle, reglesCorpus, tabEnt, rkCur, ancienPseudo: ancien, nouveauPseudo: nouveau, entretiens, divergences };
+}
+
+function _messageRemplacementPseudoCorpus(apercu) {
+    const lignes = apercu.entretiens.slice(0, 8).map(e => {
+        const details = [];
+        if (e.bilan.texte) details.push(`${e.bilan.texte} occurrence(s)`);
+        if (e.bilan.locuteurs) details.push(`${e.bilan.locuteurs} libellé(s)`);
+        if (details.length === 0) details.push('règle associée');
+        return `• ${_echapperTexteDialogueAnon(e.nom)} — ${details.join(', ')}`;
+    });
+    if (apercu.entretiens.length > 8) lignes.push(`• … et ${apercu.entretiens.length - 8} autre(s)`);
+    return `Remplacer « ${_echapperTexteDialogueAnon(apercu.ancienPseudo)} » par « ${_echapperTexteDialogueAnon(apercu.nouveauPseudo)} » dans le corpus ?\n\n` +
+        `${apercu.entretiens.length} entretien(s) seront mis à jour. Les exceptions, refus et occurrences à traiter resteront inchangés.` +
+        (lignes.length ? `\n\n${lignes.join('\n')}` : '');
+}
+
+/** Écriture groupée .Sonal + .crp avec restauration tentée sur toute erreur. */
+async function remplacerPseudoCorpus(apercu) {
+    if (apercu.divergences.length) {
+        throw new Error(`Remplacement bloqué : ${apercu.divergences.length} entretien(s) ont une règle document ou brouillon indépendante sur cette entité.`);
+    }
+    const tabEntAvant = JSON.parse(JSON.stringify(apercu.tabEnt));
+    const tabEntApres = JSON.parse(JSON.stringify(apercu.tabEnt));
+    const reglesAvant = JSON.parse(JSON.stringify(apercu.reglesCorpus));
+    const htmlAvant = new Map(apercu.entretiens.map(e => [e.index, e.htmlAvant]));
+    const indices = new Set(apercu.entretiens.map(e => e.index));
+    const sonalEcrits = [];
+
+    apercu.entretiens.forEach(item => {
+        const ent = tabEntApres[item.index];
+        if (!ent || !Array.isArray(ent.tabAnon)) return;
+        _reglesLocalesMemeEntite(ent, apercu.regle.entite).forEach(r => {
+            if ((r.portee || 'corpus') === 'corpus') {
+                _remplacerPseudoDansRegle(r, apercu.ancienPseudo, apercu.nouveauPseudo);
+            }
+        });
+        ent.lastModified = Date.now();
+    });
+    const reglesApres = JSON.parse(JSON.stringify(apercu.reglesCorpus));
+    const regleApres = regleEnCollisionAlias(apercu.regle.entite, reglesApres);
+    if (!regleApres || !_remplacerPseudoDansRegle(regleApres, apercu.ancienPseudo, apercu.nouveauPseudo)) {
+        throw new Error('La règle corpus a changé avant la confirmation.');
+    }
+
+    try {
+        for (const item of apercu.entretiens) await window.electronAPI.setHtml(item.index, item.htmlApres);
+        await window.electronAPI.setEnt(tabEntApres);
+        if (indices.size && typeof window.majFichierSonal !== 'function') {
+            throw new Error('La sauvegarde des entretiens n’est pas disponible.');
+        }
+        for (const index of indices) {
+            // L'écriture peut avoir partiellement remplacé le fichier avant de lever : inclure aussi
+            // l'index en cours dans la tentative de restauration.
+            sonalEcrits.push(index);
+            await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+        }
+        await persisterReglesCorpus(reglesApres);
+        if (typeof window.sauvegarderCorpus === 'function') {
+            const resultat = await window.sauvegarderCorpus(false);
+            if (resultat && resultat.success === false) throw new Error(resultat.error || 'Échec de sauvegarde du corpus.');
+        }
+    } catch (error) {
+        try {
+            for (const [index, html] of htmlAvant) await window.electronAPI.setHtml(index, html);
+            // Même si setEnt a levé, il peut avoir appliqué une partie de l'écriture IPC.
+            await window.electronAPI.setEnt(tabEntAvant);
+            await persisterReglesCorpus(reglesAvant);
+            for (const index of sonalEcrits) {
+                await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+            }
+            if (typeof window.sauvegarderCorpus === 'function') await window.sauvegarderCorpus(false);
+        } catch (rollbackError) {
+            error.rollbackError = rollbackError;
+            console.error('❌ Rollback incomplet du remplacement corpus:', rollbackError);
+        }
+        throw error;
+    }
+
+    const courant = apercu.entretiens.find(e => e.live && e.index === apercu.rkCur);
+    if (courant) {
+        document.getElementById('segments').innerHTML = courant.htmlApres;
+        _reglesLocalesMemeEntite({ tabAnon: window.tabAnon }, apercu.regle.entite).forEach(r => {
+            if ((r.portee || 'corpus') === 'corpus') _remplacerPseudoDansRegle(r, apercu.ancienPseudo, apercu.nouveauPseudo);
+        });
+        _realignerRuntimeApresDissociation();
+    }
+    window._anonScanStale = true;
+    window._anonIndexInverse = null;
+    return { ok: true, nbEntretiens: indices.size, ancienPseudo: apercu.ancienPseudo, nouveauPseudo: apercu.nouveauPseudo };
+}
+
+async function demanderRemplacementPseudoCorpus(entite, ancienPseudo, nouveauPseudo) {
+    try {
+        const apercu = await analyserRemplacementPseudoCorpus(entite, ancienPseudo, nouveauPseudo);
+        if (apercu.divergences.length) {
+            const noms = apercu.divergences.slice(0, 8).map(e => `• ${_echapperTexteDialogueAnon(e.nom)}`).join('\n');
+            await question(`Remplacement impossible : des règles document/brouillon indépendantes existent.\n\n${noms}\nDissociez ou alignez d’abord ces règles.`, ['OK']);
+            return { ok: false, bloque: true };
+        }
+        const rep = await question(_messageRemplacementPseudoCorpus(apercu), [
+            { id: 'remplacer', label: 'Confirmer le remplacement', positive: true },
+            { id: 'annuler', label: 'Annuler' }
+        ]);
+        if (rep !== 'remplacer') return { ok: false, annule: true };
+        return await remplacerPseudoCorpus(apercu);
+    } catch (error) {
+        const rollback = error.rollbackError ? '\n\nAttention : la restauration est incomplète. Rechargez le corpus.' : '';
+        await question(`Le pseudonyme n’a pas pu être remplacé.\n${_echapperTexteDialogueAnon(error.message || error)}${rollback}`, ['OK']);
+        return { ok: false, erreur: error };
+    }
+}
+
 // Résout un éventuel conflit entre le(s) pseudo(s) saisi(s) et une règle CORPUS existante pour la même
 // entité (alias). Renvoie { champs:{remplacement, remplacementAlt} } à appliquer, ou { annule:true }.
-// Effet de bord assumé : « garder les deux » met à jour ET persiste le corpus. Partagé par
-// validerLigneAnon et le relabel en place (sauvAnon Cas 4).
+// Les actions sont identifiées par un id stable, indépendamment de leur libellé contextualisé.
 async function resoudreConflitCorpus(entiteVal, analyse) {
     let champs = { remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt };
     const corpusRules = await window.electronAPI.getAnon() || [];
@@ -1828,30 +2853,46 @@ async function resoudreConflitCorpus(entiteVal, analyse) {
                 await persisterReglesCorpus(corpusRules);
                 return { champs: { remplacement: corpusRegle.remplacement, remplacementAlt: nouveaux[0] } };
             }
-            const peutGarderLesDeux = !estMultiPseudo(corpusRegle) && saisiePseudos.length === 1;
-            if (!peutGarderLesDeux) {
-                // Impossible de fusionner sans dépasser 2 → aligner la ligne sur le corpus.
-                await question(`L'entité « ${corpusRegle.entite} » a déjà « ${pseudosDe(corpusRegle).join(' / ')} » au corpus. ` +
-                    `La ligne va utiliser ${corpusPseudos.length > 1 ? 'ces pseudonymes' : 'ce pseudonyme'}.`, ['OK']);
-                champs = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
+            const peutAjouterAlternative = !estMultiPseudo(corpusRegle) && saisiePseudos.length === 1;
+            const varianteRemplacee = manquants.length === 1
+                ? pseudosDe(corpusRegle).find(p => p.toLowerCase() === manquants[0])
+                : null;
+            const nouveau = nouveaux[0];
+            if (!varianteRemplacee) {
+                await question(
+                    `L'entité « ${corpusRegle.entite} » possède plusieurs variantes au corpus. ` +
+                    `Indiquez explicitement celle qui reste (par exemple « existante / nouvelle ») afin de déterminer laquelle remplacer.`,
+                    ['OK']);
+                return { annule: true };
+            }
+            const boutons = [
+                { id: 'remplacer', label: `Remplacer « ${varianteRemplacee} » par « ${nouveau} » dans le corpus`, positive: true }
+            ];
+            if (peutAjouterAlternative) {
+                boutons.push({ id: 'ajouter', label: `Ajouter « ${nouveau} » comme alternative` });
+            }
+            boutons.push(
+                { id: 'conserver', label: `Conserver « ${pseudosDe(corpusRegle).join(' / ')} »` },
+                { id: 'annuler', label: 'Annuler la modification' }
+            );
+            const limite = peutAjouterAlternative ? '' : '\nL’ajout comme alternative est indisponible : la règle a déjà deux variantes.';
+            const rep = await question(
+                `« ${corpusRegle.entite} » est déjà pseudonymisé en « ${pseudosDe(corpusRegle).join(' / ')} » dans le corpus. ` +
+                `Que souhaitez-vous faire avec « ${nouveau} » ?${limite}`,
+                boutons);
+            if (rep === 'annuler') return { annule: true };
+            if (rep === 'remplacer') {
+                const resultat = await demanderRemplacementPseudoCorpus(corpusRegle.entite, varianteRemplacee, nouveau);
+                if (!resultat.ok) return { annule: true };
+                const actualisees = await window.electronAPI.getAnon() || [];
+                const actualisee = regleEnCollisionAlias(corpusRegle.entite, actualisees);
+                champs = { remplacement: actualisee.remplacement, remplacementAlt: actualisee.remplacementAlt };
+            } else if (rep === 'ajouter') {
+                corpusRegle.remplacementAlt = nouveau;
+                await persisterReglesCorpus(corpusRules);
+                champs = { remplacement: corpusRegle.remplacement, remplacementAlt: nouveau };
             } else {
-                const nouveau = nouveaux[0];
-                const rep = await question(
-                    `L'entité « ${corpusRegle.entite} » est déjà au corpus avec « ${corpusRegle.remplacement} », ` +
-                    `et vous saisissez « ${nouveau} ».\n\n` +
-                    `• « Garder les deux » : l'entité aura deux pseudonymes, à choisir occurrence par occurrence ` +
-                    `(ici ET dans les autres entretiens). Par défaut le pseudo « ${corpusRegle.remplacement} » est posé.\n` +
-                    `• « Utiliser le pseudo du corpus » : aligner cette ligne sur « ${corpusRegle.remplacement} ».`,
-                    ['Garder les deux', "Utiliser l'existant", 'Annuler']);
-                if (rep === 'annuler') return { annule: true };
-                if (rep === 'garder les deux') {
-                    // Mettre à jour le CORPUS tout de suite (alt = nouveau) puis aligner la ligne dessus.
-                    corpusRegle.remplacementAlt = nouveau;
-                    await persisterReglesCorpus(corpusRules);
-                    champs = { remplacement: corpusRegle.remplacement, remplacementAlt: nouveau };
-                } else {
-                    champs = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
-                }
+                champs = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
             }
         }
     }
@@ -1921,8 +2962,20 @@ async function relabelPseudoEnPlace(idx, anciensPseudos) {
         if (spans[m.end])   spans[m.end].dataset.pseudo = cible;
     });
 
+    // Même mapping pour les libellés de locuteur : un locuteur réglé sur la variante alternative
+    // suit son renommage au lieu de retomber arbitrairement sur le primaire. Couvre aussi la variante
+    // conservée sur une suggestion refusée (`data-locpseudo-suggere`).
+    const clesEntite = new Set(clesAlias(paire.entite));
+    document.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+        if (!clesAlias(lig.dataset.nomloc || '').some(k => clesEntite.has(k))) return;
+        for (const attr of ['locpseudo', 'locpseudoSuggere']) {
+            const actuel = (lig.dataset[attr] || '').toLowerCase();
+            if (actuel && map[actuel]) lig.dataset[attr] = map[actuel];
+        }
+    });
+
     reindexerMatchPositions(idx);
-    // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5) : pseudo changé → réécrire data-locpseudo.
+    // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5) : valider/conserver la variante choisie.
     await resynchroniserLibellesLocuteurs();
     affichTableauAnon();
     await sauvegarderTabAnonEnt();
@@ -1942,16 +2995,207 @@ async function pousserRegleAuCorpus(paire) {
     await persisterReglesCorpus(fusionne);
 }
 
-// Promotion d'une ligne déjà appliquée vers la portée corpus (D→C) : pousse au corpus + bascule la
-// portée + rafraîchit. Sûr car une ligne 'document' n'a, par construction (I-POR-3), pas de règle
-// corpus divergente pour son entité.
+// Inventorie les copies locales de la règle qu'on s'apprête à republier au corpus. Aucun scan de
+// toutes les entités : on parcourt les tabAnon déjà chargés et on ne retient que les alias de la
+// règle ciblée. Un entretien peut avoir gardé la règle en 📄 ou l'avoir reparquée en 🚧.
+async function analyserPromotionRegleCorpus(paire) {
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    const rkCur = await window.electronAPI.getEntCur();
+    const rattachements = [];
+    const divergences = [];
+
+    tabEnt.forEach((ent, index) => {
+        if (index === rkCur || !ent) return;
+        const locales = _reglesLocalesMemeEntite(ent, paire.entite);
+        if (locales.length === 0) return;
+        const incompatibles = locales.filter(r =>
+            cleEntite(r.entite) !== cleEntite(paire.entite) ||
+            !r.remplacement || !_pseudosFusionInclus(r, paire));
+        const item = {
+            index,
+            nom: ent.nom || `Entretien ${index + 1}`,
+            portees: locales.map(r => r.portee || 'corpus'),
+            regles: locales
+        };
+        if (incompatibles.length > 0) {
+            item.pseudos = incompatibles.map(r =>
+                `${r.entite} → ${pseudosDe(r).join(' / ') || '(pseudo non renseigné)'}`);
+            divergences.push(item);
+        } else {
+            rattachements.push(item);
+        }
+    });
+    return { paire, rkCur, rattachements, divergences };
+}
+
+function _messagePromotionRegleCorpus(analyse) {
+    const nBrouillons = analyse.rattachements.filter(e => e.portees.includes('brouillon')).length;
+    const lignes = analyse.rattachements.slice(0, 8)
+        .map(e => `• ${_echapperTexteDialogueAnon(e.nom)}${e.portees.includes('brouillon') ? ' — brouillon 🚧' : ''}`);
+    if (analyse.rattachements.length > 8) {
+        lignes.push(`• … et ${analyse.rattachements.length - 8} autre(s) entretien(s)`);
+    }
+    const noteBrouillons = nBrouillons > 0
+        ? `\n\n${nBrouillons} entretien(s) avaient annulé ou reparqué la règle en brouillon : ` +
+          `elle y redeviendra une règle corpus « à traiter », sans pseudonymisation automatique du texte.`
+        : '';
+    return `Cette règle existe localement dans ${analyse.rattachements.length} autre(s) entretien(s).\n` +
+        `« ${_echapperTexteDialogueAnon(analyse.paire.entite)} → ` +
+        `${_echapperTexteDialogueAnon(pseudosDe(analyse.paire).join(' / '))} »\n\n` +
+        `Rattacher ces règles locales à la nouvelle règle corpus ? Les marquages et exceptions ` +
+        `existants resteront inchangés.${noteBrouillons}\n\n${lignes.join('\n')}`;
+}
+
+// Avant une écriture groupée déclenchée depuis l'éditeur, le cache main peut être en retard sur le
+// DOM live. Le synchroniser évite qu'une réécriture .Sonal conserve un ancien marquage.
+async function _synchroniserHtmlEntretienOuvertPourLot(rkEnt) {
+    if (rkEnt == null || rkEnt < 0 || !document.getElementById('segments')) return;
+    let html;
+    if (typeof compactHtml === 'function') html = await compactHtml();
+    if (html == null) html = document.getElementById('segments').innerHTML;
+    await window.electronAPI.setHtml(rkEnt, String(html).replace(/`/g, ''));
+}
+
+// Promotion groupée inverse de la dissociation : change uniquement la portée persistée des règles
+// locales compatibles, réécrit leurs .Sonal, puis crée la règle du .crp. Rollback tenté sur erreur.
+async function rattacherReglesLocalesAuCorpus(paire, analyse) {
+    const reglesAvant = await window.electronAPI.getAnon() || [];
+    const tabEntAvant = await window.electronAPI.getEnt() || [];
+    const tabEntApres = JSON.parse(JSON.stringify(tabEntAvant));
+    const indices = new Set([analyse.rkCur, ...analyse.rattachements.map(e => e.index)]);
+    const indicesModifies = [];
+
+    for (const index of indices) {
+        if (index < 0 || !tabEntApres[index]) continue;
+        const ent = tabEntApres[index];
+        if (!Array.isArray(ent.tabAnon)) ent.tabAnon = [];
+        let locales = _reglesLocalesMemeEntite(ent, paire.entite);
+        if (index === analyse.rkCur && locales.length === 0) {
+            ent.tabAnon.push(JSON.parse(JSON.stringify(paire)));
+            locales = _reglesLocalesMemeEntite(ent, paire.entite);
+        }
+        locales.forEach(r => {
+            r.portee = 'corpus';
+            r.source = 'Global';
+            r.existeLocalement = true;
+        });
+        ent.lastModified = Date.now();
+        indicesModifies.push(index);
+    }
+
+    const reglesApres = fusionnerRegles(reglesAvant, [{
+        entite: paire.entite,
+        remplacement: paire.remplacement,
+        remplacementAlt: paire.remplacementAlt,
+        thematique: paire.thematique
+    }]);
+    const sonalEcrits = [];
+    let memoireModifiee = false;
+    try {
+        await _synchroniserHtmlEntretienOuvertPourLot(analyse.rkCur);
+        await window.electronAPI.setEnt(tabEntApres);
+        memoireModifiee = true;
+        if (typeof window.majFichierSonal !== 'function' && indicesModifies.length > 0) {
+            throw new Error('La sauvegarde des entretiens n’est pas disponible.');
+        }
+        for (const index of indicesModifies) {
+            await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+            sonalEcrits.push(index);
+        }
+        await persisterReglesCorpus(reglesApres);
+        if (typeof window.sauvegarderCorpus === 'function') {
+            const sauvegarde = await window.sauvegarderCorpus(false);
+            if (sauvegarde && sauvegarde.success === false) {
+                throw new Error(sauvegarde.error || 'Le corpus n’a pas pu être sauvegardé.');
+            }
+        }
+    } catch (error) {
+        try {
+            if (memoireModifiee) await window.electronAPI.setEnt(tabEntAvant);
+            await persisterReglesCorpus(reglesAvant);
+            if (typeof window.majFichierSonal === 'function') {
+                for (const index of sonalEcrits) {
+                    await window.majFichierSonal(index, index + 1, { propagerErreur: true });
+                }
+            }
+            if (typeof window.sauvegarderCorpus === 'function') await window.sauvegarderCorpus(false);
+        } catch (rollbackError) {
+            console.error('❌ Rollback incomplet du rattachement au corpus:', rollbackError);
+            error.rollbackError = rollbackError;
+        }
+        throw error;
+    }
+
+    if (document.getElementById('segments') && Array.isArray(window.tabAnon)) {
+        window.tabAnon.forEach(r => {
+            if (!r || !r.entite || !_partageAliasDissociation(r.entite, paire.entite)) return;
+            r.portee = 'corpus';
+            r.source = 'Global';
+            r.existeLocalement = true;
+        });
+    }
+    window._anonScanStale = true;
+    window._anonIndexInverse = null;
+    return { ok: true, nbEntretiens: indicesModifies.length };
+}
+
+// Retourne null si la promotion simple suffit, true si le rattachement groupé a été effectué,
+// false si l'utilisateur annule, si un conflit existe ou si une sauvegarde échoue.
+async function demanderRattachementReglesLocales(paire, options = {}) {
+    const analyse = await analyserPromotionRegleCorpus(paire);
+    if (analyse.divergences.length > 0) {
+        const detail = analyse.divergences.slice(0, 8).map(e =>
+            `• ${_echapperTexteDialogueAnon(e.nom)} — ${e.pseudos.map(_echapperTexteDialogueAnon).join(', ')}`
+        ).join('\n');
+        await question(
+            `Impossible de publier cette règle au corpus sans résoudre les divergences.\n` +
+            `${analyse.divergences.length} entretien(s) utilisent un autre pseudo, un autre groupe d’alias ou un brouillon incomplet :\n\n${detail}\n\n` +
+            `Ouvrez-les pour aligner leur règle, puis recommencez.`, ['OK']);
+        return false;
+    }
+    if (analyse.rattachements.length === 0) return null;
+
+    const rep = await question(_messagePromotionRegleCorpus(analyse), ['Rattacher au corpus', 'Annuler']);
+    if (rep !== 'rattacher au corpus') return false;
+    // Le chemin brouillon→corpus demande confirmation AVANT de poser les runs, puis exécute le lot
+    // une fois le DOM et le tabAnon courant actualisés.
+    if (options.executer === false) return analyse;
+    if (typeof wait === 'function') wait('Rattachement des règles locales au corpus…');
+    try {
+        await rattacherReglesLocalesAuCorpus(paire, analyse);
+        return true;
+    } catch (error) {
+        console.error('❌ demanderRattachementReglesLocales:', error);
+        const rollback = error.rollbackError
+            ? '\n\nAttention : la restauration automatique est incomplète. Rechargez le corpus avant de continuer.'
+            : '';
+        await question(`La règle n’a pas pu être publiée au corpus.\n${_echapperTexteDialogueAnon(error.message || error)}${rollback}`, ['OK']);
+        return false;
+    } finally {
+        if (typeof endWait === 'function') endWait();
+    }
+}
+
+// Promotion d'une ligne déjà appliquée vers la portée corpus (D→C). Si la même règle existe en
+// document dans d'autres entretiens, ils sont inventoriés puis rattachés ensemble après confirmation.
 async function promouvoirLigneAuCorpus(idx) {
     const paire = window.tabAnon[idx];
-    if (!paire) return;
+    if (!paire) return false;
+    const rattachement = await demanderRattachementReglesLocales(paire);
+    if (rattachement === false) {
+        affichTableauAnon();
+        return false;
+    }
+    if (rattachement === true) {
+        affichTableauAnon();
+        await question('Règle publiée au corpus.\nLes règles locales compatibles ont été rattachées sans modifier leurs pseudonymisations.', ['OK']);
+        return true;
+    }
     await pousserRegleAuCorpus(paire);
     paire.portee = 'corpus';
     affichTableauAnon();
     await sauvegarderTabAnonEnt();
+    return true;
 }
 
 // R2 — Re-validation à l'ouverture : une règle locale 'document' (appliquée) peut diverger d'une règle
@@ -1964,33 +3208,73 @@ async function reconcilierPorteesDivergentesAOuverture() {
     if (!Array.isArray(window.tabAnon)) return;
     const corpusRules = await window.electronAPI.getAnon() || [];
 
+    const conflitsLocaux = window.tabAnon.filter(p => p && p._conflitFusionLocale);
+    if (conflitsLocaux.length > 0) {
+        await question(
+            `${conflitsLocaux.length} conflit(s) de pseudonymes existaient déjà dans cet entretien. ` +
+            `Les lignes ont été conservées séparément afin de ne perdre aucune variante ; vérifiez-les manuellement.`,
+            ['OK']);
+        conflitsLocaux.forEach(p => delete p._conflitFusionLocale);
+    }
+
     for (let idx = 0; idx < window.tabAnon.length; idx++) {
         const p = window.tabAnon[idx];
         if (!p || !p.entite || !p.remplacement) continue;
-        if ((p.portee || 'corpus') === 'corpus') continue;   // déjà corpus
-        if ((p.occurrences || 0) === 0) continue;            // brouillon : résolu à l'application
+        const conflitFusion = !!p._conflitFusion;
+        // Une ancienne ligne locale pouvait déjà porter `corpus` tout en divergeant du corpus
+        // courant. Le marqueur posé par fusionnerTabAnon oblige alors la résolution explicite.
+        if ((p.portee || 'corpus') === 'corpus' && !conflitFusion) continue;
+        if ((p.occurrences || 0) === 0 && !conflitFusion) continue; // brouillon : résolu à l'application
         const corpusRegle = regleEnCollisionAlias(p.entite, corpusRules);
         if (!corpusRegle) continue;                          // entité hors corpus → document légitime
 
         const corpusPseudos = pseudosDe(corpusRegle).map(s => s.toLowerCase());
         const diverge = pseudosDe(p).some(lp => !corpusPseudos.includes(lp.toLowerCase()));
-        if (!diverge) { p.portee = 'corpus'; continue; }     // même pseudo → l'entité EST corpus
-
-        // Divergence réelle → dialogue + réalignement du marquage (réutilise le relabel éprouvé).
-        const anciensPseudos = pseudosDe(p);
-        const r = await relabelPseudoEnPlace(idx, anciensPseudos);
-        if (r === 'annule' || r === 'ambigu') {
-            // Annulation / cas ambigu → alignement DUR sur le corpus (pas de divergence persistante).
-            appliquerChampsAPaire(p, p.entite, { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt });
-            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
-            appliquerAnonymisationPour(idx);
+        if (diverge) {
+            // Divergence réelle → dialogue + réalignement du marquage (réutilise le relabel éprouvé).
+            const anciensPseudos = pseudosDe(p);
+            const r = await relabelPseudoEnPlace(idx, anciensPseudos);
+            if (r === 'annule' || r === 'ambigu') {
+                // Annulation / cas ambigu → alignement DUR sur le corpus (pas de divergence persistante).
+                appliquerChampsAPaire(p, p.entite, { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt });
+                demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+                appliquerAnonymisationPour(idx);
+            }
         }
         p.portee = 'corpus';
+
+        if (conflitFusion) {
+            // La ligne globale affichée avant le scan et la ligne locale utilisée pour résoudre le
+            // conflit doivent redevenir UNE ligne. Le DOM vient d'être réaligné (ou autorise désormais
+            // les deux variantes) : ses choix par occurrence restent intacts et le cache est redérivé.
+            const entiteCorpus = p._conflitFusion.entiteCorpus;
+            const idxGlobal = window.tabAnon.findIndex((q, j) => j !== idx && q && q.entite &&
+                cleEntite(q.entite) === cleEntite(entiteCorpus));
+            if (idxGlobal >= 0) {
+                const globale = window.tabAnon[idxGlobal];
+                appliquerChampsAPaire(globale, globale.entite, {
+                    remplacement: p.remplacement,
+                    remplacementAlt: p.remplacementAlt
+                });
+                _fusionnerEtatLocal(globale, p);
+                globale.source = 'Global';
+                globale.portee = 'corpus';
+                delete globale._conflitFusion;
+                reindexerMatchPositions(idxGlobal);
+                p._supprimerApresConflitFusion = true;
+            } else {
+                delete p._conflitFusion;
+            }
+        }
     }
 
-    // Retirer les fantômes globaux (occ=0) dont l'entité est désormais appliquée par une autre ligne.
+    window.tabAnon = window.tabAnon.filter(p => !p._supprimerApresConflitFusion);
+
+    // Retirer les anciens fantômes globaux dont l'entité est désormais matérialisée par une autre
+    // ligne locale. Le compteur du fantôme peut être non nul (état « incluse »), il n'est donc pas
+    // un critère fiable de déduplication.
     window.tabAnon = window.tabAnon.filter((p, i) =>
-        !(p && p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0 &&
+        !(p && p.source === 'Global' && !p.existeLocalement &&
           window.tabAnon.some((q, j) => j !== i && q && q.entite &&
               cleEntite(q.entite) === cleEntite(p.entite) && (q.occurrences || 0) > 0)));
 }
@@ -2027,8 +3311,8 @@ function _reperageHtml(i, paire) {
 }
 
 // Marque (classe .verrou + 🔒 via CSS) les sliders de portée CORPUS dont l'entité est appliquée
-// (occ>0) dans un AUTRE entretien : on ne peut alors pas quitter C (§6). Asynchrone (lit getEnt),
-// appelée après chaque rendu — fire-and-forget. Le garde-fou réel reste dans changerPorteeLigne.
+// dans un AUTRE entretien. Le cran 📄 reste cliquable et propose la dissociation globale ; 🚧 reste
+// bloqué. Asynchrone (lit getEnt), appelée après chaque rendu — fire-and-forget.
 async function marquerVerrousPortee() {
     try {
         const sliders = document.querySelectorAll('.portee-slider.portee-corpus');
@@ -2048,6 +3332,14 @@ async function marquerVerrousPortee() {
             const paire = window.tabAnon[idx];
             const verrou = !!(paire && paire.entite && partageesAilleurs.has(cleEntite(paire.entite)));
             sl.classList.toggle('verrou', verrou);
+            const cranDocument = sl.querySelector('.portee-cran[data-cran="document"]');
+            const cranBrouillon = sl.querySelector('.portee-cran[data-cran="brouillon"]');
+            if (cranDocument) cranDocument.title = verrou
+                ? 'Dissocier du corpus — conserver les usages comme règles document'
+                : 'Document — cet entretien seulement';
+            if (cranBrouillon) cranBrouillon.title = verrou
+                ? 'Dissociez d’abord la règle vers document'
+                : 'Brouillon — pas encore appliqué';
         });
     } catch (e) {
         console.warn('[marquerVerrousPortee]', e);
@@ -2148,7 +3440,7 @@ function _indexerLibellesLocuteurs() {
  *   'resolu' = tous les libellés matchants sont pseudonymisés (loc-anon) ou refusés (loc-suggere-refuse).
  */
 function _etatLocuteurLigne(paire, index) {
-    if (!paire || !paire.entite) return null;
+    if (!paire || !paire.entite || (paire.portee || 'corpus') === 'brouillon') return null;
     const cles = new Set(clesAlias(paire.entite));
     if (cles.size === 0) return null;
     const libs = index || _indexerLibellesLocuteurs();
@@ -2161,15 +3453,18 @@ function _etatLocuteurLigne(paire, index) {
  * Pastille 👤 « locuteur de cet entretien » pour une ligne (couleurs alignées sur le 👤 corpus).
  * @param {null|'pending'|'resolu'} etat - état pré-calculé par _etatLocuteurLigne (évite un 2e parcours DOM).
  */
-function _badgeLocuteurHtml(etat) {
+function _badgeLocuteurHtml(etat, idxPaire) {
     if (!etat) return '';
     const pending = etat === 'pending';
     const c = pending ? '#e65100' : '#2e7d32';
-    const titre = pending
-        ? 'Locuteur de cet entretien — libellé à pseudonymiser'
-        : 'Locuteur de cet entretien — libellé pseudonymisé/refusé';
-    return `<span class="badge-loc-entretien" title="${titre}" style="color:${c};font-size:0.72rem;`
-        + `white-space:nowrap;align-self:center;margin-left:6px;">👤${pending ? '●' : '✓'}</span>`;
+    if (pending) {
+        return `<button type="button" class="badge-loc-entretien badge-loc-entretien-action" `
+            + `onclick="confirmerPseudoLibellesLigne(${idxPaire})" `
+            + `title="Locuteur de cet entretien — cliquer pour appliquer le pseudo" `
+            + `style="color:${c};font-size:0.72rem;white-space:nowrap;align-self:center;margin-left:6px;">👤●</button>`;
+    }
+    return `<span class="badge-loc-entretien" title="Locuteur de cet entretien — libellé pseudonymisé/refusé" `
+        + `style="color:${c};font-size:0.72rem;white-space:nowrap;align-self:center;margin-left:6px;">👤✓</span>`;
 }
 
 /**
@@ -2178,7 +3473,8 @@ function _badgeLocuteurHtml(etat) {
  * de `window.tabAnon` dont un alias d'entité matche le nom du locuteur (`data-nomloc`) :
  *  - aucune (règle supprimée, reparquée en brouillon, ou entité renommée) → on **démarque** (le libellé
  *    revient au vrai nom) ;
- *  - pseudo de la règle changé → on **réécrit** `data-locpseudo`.
+ *  - pseudo courant encore autorisé → on le **conserve** (primaire ou alternatif) ;
+ *  - variante supprimée/inconnue → repli sur le pseudo primaire.
  * Indépendant des occurrences de texte (couvre aussi les règles label-only). À appeler après toute
  * mutation de règle. Persiste via le cache HTML si quelque chose a changé.
  * @returns {Promise<boolean>} true si au moins un libellé a été modifié.
@@ -2197,7 +3493,12 @@ async function resynchroniserLibellesLocuteurs() {
             delete lig.dataset.locpseudo;
             modifie = true;
         } else {
-            const pseudo = (pseudosDe(regle)[0] || '').trim();
+            const autorises = pseudosDe(regle);
+            const actuel = (lig.dataset.locpseudo || '').trim().toLowerCase();
+            // Préserver le choix par locuteur. La comparaison est insensible à la casse, puis on
+            // réinjecte la graphie canonique de la règle. Repli primaire seulement si la variante
+            // enregistrée n'existe plus (retrait d'alt, ancienne donnée incohérente, etc.).
+            const pseudo = autorises.find(p => p.toLowerCase() === actuel) || autorises[0] || '';
             if (pseudo && lig.dataset.locpseudo !== pseudo) {
                 lig.dataset.locpseudo = pseudo;
                 modifie = true;
@@ -2286,13 +3587,26 @@ async function changerPorteeLigne(idx, cible) {
     // Ligne APPLIQUÉE. Promotion vers corpus (D→C) : pousse au corpus + bascule.
     if (cible === 'corpus') return promouvoirLigneAuCorpus(idx);
 
-    // cible ∈ {document, brouillon}. Si on QUITTE le corpus → garde-fou « règle isolée » (§6).
+    // cible ∈ {document, brouillon}. Si on QUITTE le corpus et que la règle est partagée, proposer
+    // la dissociation globale : chaque usage existant devient une règle 📄 sans toucher au DOM.
     if (actuel === 'corpus') {
         if (!(await regleEstIsolee(paire.entite))) {
-            await question(
-                `La règle « ${paire.entite} » est utilisée dans plusieurs entretiens.\n\n` +
-                `Ramenez-la à un seul entretien avant de réduire sa portée.`, ['OK']);
-            affichTableauAnon(); // re-cale le slider sur 📁
+            if (cible !== 'document') {
+                await question(
+                    `La règle « ${paire.entite} » est utilisée dans plusieurs entretiens.\n\n` +
+                    `Dissociez-la d’abord vers 📄 avant de la remettre en brouillon.`, ['OK']);
+                affichTableauAnon();
+                return;
+            }
+            const resultat = await demanderDissociationRegleCorpus(paire.entite);
+            if (resultat.ok) {
+                affichTableauAnon();
+                await question(
+                    `Règle retirée du corpus.\n${resultat.nbEntretiens} entretien(s) possèdent maintenant une règle locale 📄. ` +
+                    `Les pseudonymisations et exceptions ont été conservées.`, ['OK']);
+            } else {
+                affichTableauAnon(); // re-cale le slider sur 📁 après annulation/erreur
+            }
             return;
         }
         await retirerRegleCorpusEtFantomes(paire.entite);
@@ -2351,6 +3665,19 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
     if (resConflit.annule) return;
     appliquerChampsAPaire(window.tabAnon[idx], entiteVal, resConflit.champs);
 
+    // Brouillon→corpus : si la règle existe déjà localement dans d'autres entretiens, demander le
+    // rattachement AVANT de poser le moindre marquage. L'exécution attendra que cette ligne soit
+    // effectivement matérialisée et sauvegardée comme document.
+    let rattachementPrepare = null;
+    if (porteeRequise === 'corpus') {
+        const corpusMaintenant = regleEnCollisionAlias(entiteVal, await window.electronAPI.getAnon() || []);
+        if (!corpusMaintenant) {
+            const decision = await demanderRattachementReglesLocales(window.tabAnon[idx], { executer: false });
+            if (decision === false) return;
+            if (decision && decision.rattachements) rattachementPrepare = decision;
+        }
+    }
+
     // Vérifier si cette entité n'est pas déjà anonymisée ailleurs
     if (verifierDoublonEntite(idx)) {
         await question(`⚠️ L'entité "${entiteVal}" est déjà anonymisée ailleurs.\n\nVeuillez rééditer la ligne existante.`, ["OK"]);
@@ -2372,9 +3699,30 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
         // dialogue de conflit « garder les deux ») une règle du corpus. Sinon document (local).
         const corpusApres = regleEnCollisionAlias(entiteVal, await window.electronAPI.getAnon() || []);
         const porteeEff = (porteeRequise === 'corpus' || corpusApres) ? 'corpus' : 'document';
-        window.tabAnon[idx].portee = porteeEff;
-        // Si corpus demandé pour une entité encore absente du corpus → l'y pousser maintenant.
-        if (porteeEff === 'corpus' && !corpusApres) await pousserRegleAuCorpus(window.tabAnon[idx]);
+
+        if (rattachementPrepare && !corpusApres) {
+            // Conserver un état local cohérent si le lot échoue : la règle vient d'être appliquée,
+            // elle est donc d'abord sauvegardée en 📄, puis la transaction la passe en 📁 partout.
+            window.tabAnon[idx].portee = 'document';
+            await sauvegarderTabAnonEnt();
+            if (typeof wait === 'function') wait('Rattachement des règles locales au corpus…');
+            try {
+                await rattacherReglesLocalesAuCorpus(window.tabAnon[idx], rattachementPrepare);
+            } catch (error) {
+                console.error('❌ rattachement après validation:', error);
+                const rollback = error.rollbackError
+                    ? '\n\nAttention : la restauration automatique est incomplète. Rechargez le corpus avant de continuer.'
+                    : '';
+                await question(`La règle a été appliquée à ce document, mais n’a pas pu être publiée au corpus.\n` +
+                    `${_echapperTexteDialogueAnon(error.message || error)}${rollback}`, ['OK']);
+            } finally {
+                if (typeof endWait === 'function') endWait();
+            }
+        } else {
+            window.tabAnon[idx].portee = porteeEff;
+            // Si corpus demandé pour une entité encore absente du corpus → l'y pousser maintenant.
+            if (porteeEff === 'corpus' && !corpusApres) await pousserRegleAuCorpus(window.tabAnon[idx]);
+        }
 
         desactiverEditionLigne(idx);
         affichTableauAnon();
@@ -2677,8 +4025,9 @@ async function proposerRegleCoeurAffixe(paire, porteeRequise) {
  * l'entretien, PROPOSE (opt-in) de pseudonymiser aussi leur LIBELLÉ : pose `loc-anon` +
  * `data-locpseudo` sur tous les `.ligloc` correspondants (le CSS de l'Étape 1 barre alors le nom
  * réel et affiche le pseudo). Indépendant des occurrences de TEXTE → couvre le locuteur non cité
- * dans le corps (§4 du plan). Mirroir de proposerRegleCoeurAffixe : opt-in post-validation, pseudo
- * = primaire de la règle. Marquage DOM-natif (anon.md §2) → persiste via le cache HTML.
+ * dans le corps (§4 du plan). Miroir de proposerRegleCoeurAffixe : opt-in post-validation ; pour une
+ * règle multi-pseudo, le dialogue permet de choisir la variante du locuteur (primaire par défaut dans
+ * les autres flux rapides). Marquage DOM-natif (anon.md §2) → persiste via le cache HTML.
  * @param {object} paire - la règle qui vient d'être validée
  * @param {string} porteeRequise - 'document'/'corpus' héritée du geste (réservé : la portée du
  *   libellé suivra la règle, cf. plan-locuteurs-pseudo.md — Étapes 3/5).
@@ -2689,7 +4038,8 @@ async function proposerRegleCoeurAffixe(paire, porteeRequise) {
 async function proposerPseudoLocuteur(paire, porteeRequise) {
     const aucun = { matched: false, marked: false };
     if (!paire || !paire.entite) return aucun;
-    const pseudo = (pseudosDe(paire)[0] || '').trim();
+    const pseudos = pseudosDe(paire);
+    let pseudo = (pseudos[0] || '').trim();
     if (!pseudo) return aucun;
 
     const clesEntite = new Set(clesAlias(paire.entite));
@@ -2702,16 +4052,29 @@ async function proposerPseudoLocuteur(paire, porteeRequise) {
     });
     if (cibles.length === 0) return aucun;
 
-    // Ask-once : déjà tous pseudonymisés avec CE pseudo → déjà matérialisé, rien à reproposer.
-    if (cibles.every(lig => lig.classList.contains('loc-anon') && lig.dataset.locpseudo === pseudo)) {
+    // Ask-once : déjà tous pseudonymisés avec une variante autorisée → préserver le choix existant.
+    if (cibles.every(lig => lig.classList.contains('loc-anon') &&
+        pseudos.some(p => p.toLowerCase() === (lig.dataset.locpseudo || '').toLowerCase()))) {
         return { matched: true, marked: true };
     }
 
-    const rep = await question(
-        `« ${cibles[0].dataset.nomloc} » est aussi un locuteur de l'entretien.\n\n` +
-        `Pseudonymiser aussi son libellé en « ${pseudo} » ?`,
-        ['Oui', 'Non']);
-    if (rep !== 'oui') return { matched: true, marked: false }; // décliné : locuteur connu, mais rien marqué
+    if (pseudos.length > 1) {
+        const btnPrimaire = `Principal : ${pseudos[0]}`;
+        const btnAlt = `Alternatif : ${pseudos[1]}`;
+        const rep = await question(
+            `« ${cibles[0].dataset.nomloc} » est aussi un locuteur de l'entretien.\n\n` +
+            `Choisissez le pseudonyme de son libellé :`,
+            [btnPrimaire, btnAlt, 'Non']);
+        if (rep === btnPrimaire.toLowerCase()) pseudo = pseudos[0];
+        else if (rep === btnAlt.toLowerCase()) pseudo = pseudos[1];
+        else return { matched: true, marked: false };
+    } else {
+        const rep = await question(
+            `« ${cibles[0].dataset.nomloc} » est aussi un locuteur de l'entretien.\n\n` +
+            `Pseudonymiser aussi son libellé en « ${pseudo} » ?`,
+            ['Oui', 'Non']);
+        if (rep !== 'oui') return { matched: true, marked: false };
+    }
 
     if (typeof backUp === 'function') backUp(); // snapshot undo (cf. anon-menus.js)
     cibles.forEach(lig => {

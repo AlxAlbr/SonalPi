@@ -2944,7 +2944,9 @@ class RecentFilesManager {
                     //sublabel: file.path,
                     click: () => {
                       if (file.type === 'gitlab') {
-                        ouvrirCorpusGitLab(mainWindow, file.config).then((result) => {
+                        // La configuration non secrète est déjà mémorisée : ouvrir
+                        // directement et laisser le jeton OAuth se renouveler si besoin.
+                        ouvrirCorpusGitLab(mainWindow, null, file.config).then((result) => {
                           if (result && result.success) {
                             mainWindow.webContents.send('afficher-corpus', result);
                           }
@@ -3291,7 +3293,7 @@ app.on('ready', () => {
  
       ]
     },
-     /*
+     
     {
       label: 'Édition',
       submenu: [
@@ -3302,7 +3304,7 @@ app.on('ready', () => {
         { role: 'paste', label: 'Coller' }
       ]
     }
-      */
+      
   ]
 
   const menu = Menu.buildFromTemplate(menuParDefaut)

@@ -6,51 +6,74 @@ var tabExt = []; // tableau des extraits sélectionnés
 // → « [Pseudo] » si pseudonymisé. anonymise=false (option « Pseudonymiser » décochée à l'export) :
 // texte ET noms de locuteurs réels — les spans de xtr.texte gardent le texte d'origine, la
 // pseudonymisation n'est qu'une lecture des marqueurs, on peut donc re-traiter à la demande.
-function traiterTexteExtrait(spans, { anonymise = true } = {}) {
+function traiterTexteExtrait(spans, { anonymise = true, tousLesSpans = null } = {}) {
+    const selection = Array.from(spans || []);
     let texte = "";
-    let locuteurs = new Set();
-    let categories = new Set();
+    const locuteurs = new Set();
+    const categories = new Set();
     let nbInterv = 0;
 
-    spans.forEach(mot => {
-        // Gestion des locuteurs (ajoute un préfixe)
-        if (mot.classList.contains('ligloc')) {
-            nbInterv++;
-            // Point de passage unique (plan-locuteurs-pseudo.md) : les marqueurs loc-anon/loc-suggere
-            // sont recopiés du vrai .ligloc sur ce ligloc synthétique (traiterEntretien) → libellé
-            // pseudonymisé rendu « [Pseudo] », sinon nom réel (convention locuteursExport).
-            const reelLoc = (mot.dataset.nomloc || '').replace(/\?/g, '').trim();
-            let nomLoc = reelLoc;
-            if (anonymise) {
-                const affLoc = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
-                nomLoc = (affLoc && affLoc !== reelLoc) ? '[' + affLoc + ']' : affLoc;
-            }
-            if (nbInterv > 1) {
-                texte += "\n" + nomLoc + ": \n- ";
-            } else {
-                texte += nomLoc + ": ";
-            }
-            locuteurs.add(nomLoc.trim());
+    const ajouterLocuteur = mot => {
+        if (!mot.classList.contains('ligloc')) return;
+        nbInterv++;
+        // Point de passage unique (plan-locuteurs-pseudo.md) : les marqueurs loc-anon/loc-suggere
+        // sont recopiés du vrai .ligloc sur ce ligloc synthétique (traiterEntretien) → libellé
+        // pseudonymisé rendu « [Pseudo] », sinon nom réel (convention locuteursExport).
+        const reelLoc = (mot.dataset.nomloc || '').replace(/\?/g, '').trim();
+        let nomLoc = reelLoc;
+        if (anonymise) {
+            const affLoc = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
+            nomLoc = (affLoc && affLoc !== reelLoc) ? '[' + affLoc + ']' : affLoc;
         }
+        texte += nbInterv > 1 ? "\n" + nomLoc + ": \n- " : nomLoc + ": ";
+        locuteurs.add(nomLoc.trim());
+    };
 
-        // Gestion de l'anonymisation (indépendant du traitement ci-dessus)
-        if (anonymise && mot.classList.contains('anon')) {
-            if (mot.classList.contains('finsel')) {
-                texte += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]";
-            }
-            // sinon ignorer ce mot (ne rien ajouter)
-        } else {
-            // Pas d'anonymisation, ajouter le texte du mot
-            texte += mot.innerText;
-        }
-
-        // Récupérer les catégories
+    selection.forEach(mot => {
         const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
         thmClasses.forEach(c => {
             const thm = tabThm.find(t => t.code === c);
             if (thm) categories.add(thm.nom.split('//')[0].trim());
         });
     });
+
+    if (anonymise) {
+        if (typeof extraireTexteAnonymiseDepuisSpans !== 'function') {
+            throw new Error("Extraction anonymisée indisponible.");
+        }
+
+        // L'extrait peut commencer ou finir au milieu d'un run `.anon`. On fournit donc à
+        // l'extracteur commun le document complet, puis on ne lui demande que les plages retenues.
+        // Les coupures servent aussi à replacer les changements de locuteur au bon endroit.
+        const contexte = Array.from(tousLesSpans || selection);
+        const indices = selection.map(mot => contexte.indexOf(mot));
+        if (indices.some(index => index < 0)) throw erreurExtractionAnonymisee('CONTEXTE_EXTRAIT_INCOHERENT');
+
+        let debutGroupe = 0;
+        const extraireGroupe = finGroupe => {
+            if (finGroupe < debutGroupe) return;
+            ajouterLocuteur(selection[debutGroupe]);
+            texte += extraireTexteAnonymiseDepuisSpans(
+                contexte,
+                indices[debutGroupe],
+                indices[finGroupe]
+            ).texte;
+        };
+
+        for (let i = 1; i <= selection.length; i++) {
+            const nouvelleIntervention = i < selection.length && selection[i].classList.contains('ligloc');
+            const plageDiscontinue = i < selection.length && indices[i] !== indices[i - 1] + 1;
+            if (i === selection.length || nouvelleIntervention || plageDiscontinue) {
+                extraireGroupe(i - 1);
+                debutGroupe = i;
+            }
+        }
+    } else {
+        selection.forEach(mot => {
+            ajouterLocuteur(mot);
+            texte += mot.innerText !== undefined ? mot.innerText : (mot.textContent || '');
+        });
+    }
 
     // Correction des espaces avant et après la ponctuation
     texte = texte.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
@@ -65,25 +88,25 @@ function traiterTexteExtrait(spans, { anonymise = true } = {}) {
 
 async function synthese(critereEt){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
 
- if (tabThm.length == 0){
-  tabThm = await window.electronAPI.getThm()
-}
-if (tabEnt.length == 0){
-  tabEnt = await window.electronAPI.getEnt()
-}
+ // Toujours relire l'état courant : les tris à plat et les sélections manuelles
+ // peuvent avoir changé depuis le dernier affichage de la synthèse.
+ tabThm = await window.electronAPI.getThm();
+ tabEnt = await window.electronAPI.getEnt();
 
     let tabHtml = await window.electronAPI.getHtml();
 //console.log("début de la synthèse. TabTHm=" + JSON.stringify (tabThm) + " / tabEnt=" + JSON.stringify (tabEnt) );
 
 
 
-    function finalizeExtrait(extrait, fin, entretien, resetLocCur) {
+    function finalizeExtrait(extrait, fin, entretien, resetLocCur, tousLesSpans) {
         extrait.fin = fin;
-        const traitement = traiterTexteExtrait(extrait.texte);
+        const contexteSpans = Array.from(tousLesSpans || extrait.texte);
+        const traitement = traiterTexteExtrait(extrait.texte, { tousLesSpans: contexteSpans });
         
         tabExt.push({
             ...extrait,
             entretien,
+            contexteSpans,
             texteTraite: traitement.texte,
             locuteurs: traitement.locuteurs,
             categories: traitement.categories
@@ -384,7 +407,7 @@ if (tabEnt.length == 0){
                     if (extraitEnCours) {
                         extraitEnCours = false;
                         //extrait.texte.push (...suffixe(mots,m));  
-                        finalizeExtrait(extrait, m, i, () => { locCur = -1; });
+                        finalizeExtrait(extrait, m, i, () => { locCur = -1; }, mots);
                         extrait = { debut: 0, fin: 0, texte: [] };
                         catsDernierMot = [];
                         continue; // passer au mot suivant
@@ -425,7 +448,7 @@ if (tabEnt.length == 0){
                         if (extraitEnCours && catsDernierMot.length > 0 && catsMot.length > 0) {
                             const partage = catsMot.some(c => catsDernierMot.includes(c));
                             if (!partage) {
-                                finalizeExtrait(extrait, m, i, () => { locCur = -1; });
+                                finalizeExtrait(extrait, m, i, () => { locCur = -1; }, mots);
                                 extrait = { debut: 0, fin: 0, texte: [] };
                                 extraitEnCours = false;
                             }
@@ -478,7 +501,7 @@ if (tabEnt.length == 0){
                         if (extraitEnCours) {
                             extraitEnCours = false;
                             //extrait.texte.push (...suffixe(mots,m));  
-                            finalizeExtrait(extrait, m, i, () => { locCur = -1; });
+                            finalizeExtrait(extrait, m, i, () => { locCur = -1; }, mots);
                             extrait = { debut: 0, fin: 0, texte: [] };
                             catsDernierMot = [];
                         }
@@ -488,7 +511,7 @@ if (tabEnt.length == 0){
 
             if (extraitEnCours) {
                 //extrait.texte.push (...suffixe(mots,m));
-                finalizeExtrait(extrait, m, i, () => { locCur = -1; });
+                finalizeExtrait(extrait, m, i, () => { locCur = -1; }, mots);
             }
 
             // Utiliser setTimeout pour permettre la mise à jour de l'interface
@@ -535,7 +558,8 @@ if (tabEnt.length == 0){
 
     // Traitement asynchrone des entretiens (entretiens inactifs exclus)
     for (let i = 0; i < tabHtml.length; i++) {
-        if (tabEnt[i] && tabEnt[i].actif === 0) continue;
+        const actif = tabEnt[i] ? tabEnt[i].actif : undefined;
+        if (actif === 0 || actif === '0' || actif === false || actif === 'false') continue;
         await traiterEntretien(i);
     }
 
@@ -749,9 +773,24 @@ async function creerResolveurLocAffSynthese() {
  * @returns {{texte:string, locuteurs:string[]}}
  */
 function traitementExtraitExport(extrait, anon) {
-    if (anon) return { texte: extrait.texteTraite || "", locuteurs: extrait.locuteurs || [] };
-    const t = traiterTexteExtrait(extrait.texte, { anonymise: false });
+    const t = traiterTexteExtrait(extrait.texte, {
+        anonymise: anon,
+        tousLesSpans: extrait.contexteSpans || extrait.texte
+    });
     return { texte: t.texte || "", locuteurs: t.locuteurs || [] };
+}
+
+function retirerLocuteursTexteSynthese(texte) {
+    return (texte || "").replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
+}
+
+function echapperHtmlSynthese(valeur) {
+    return String(valeur == null ? '' : valeur)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 async function genererExportTxtSynthese(opts) {
@@ -762,10 +801,6 @@ async function genererExportTxtSynthese(opts) {
 
     const locAffEnt = (opts.vars && opts.anon) ? await creerResolveurLocAffSynthese() : null;
     let entretienCourant = -1;
-
-    const retirerLocuteursTexte = (texte) => {
-        return (texte || "").replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
-    };
 
     for (let i = 0; i < tabExt.length; i++) {
         const extrait = tabExt[i];
@@ -805,7 +840,7 @@ async function genererExportTxtSynthese(opts) {
 
         // Filtrer les locuteurs si option désactivée
         if (!opts.loc) {
-            contenuTexte = retirerLocuteursTexte(contenuTexte);
+            contenuTexte = retirerLocuteursTexteSynthese(contenuTexte);
         }
 
         txt += contenuTexte + "\n\n";
@@ -843,7 +878,7 @@ async function genererExportCsvSynthese(opts) {
         const trait = traitementExtraitExport(extrait, opts.anon);
         let texte = trait.texte;
         if (!opts.loc) {
-            texte = texte.replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
+            texte = retirerLocuteursTexteSynthese(texte);
         }
         // Remplacer les retours à la ligne par des espaces pour CSV
         texte = texte.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
@@ -961,24 +996,37 @@ async function exportSyntheseFormat(format) {
     let contenuExport = '';
     let nomFichier = '';
 
-    if (format === 'txt') {
-        contenuExport = await genererExportTxtSynthese(opts);
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.txt';
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
-    } else if (format === 'csv') {
-        contenuExport = await genererExportCsvSynthese(opts);
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.csv';
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
-    } else if (format === 'docx') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.docx';
-        await genererExportDocxSynthese(opts, nomFichier);
-    } else if (format === 'pdf') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.pdf';
-        await genererExportPdfSynthese(opts, nomFichier);
-    } else if (format === 'html') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.html';
-        contenuExport = await genererExportHtmlSynthese(opts);
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
+    try {
+        if (format === 'txt') {
+            contenuExport = await genererExportTxtSynthese(opts);
+            nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.txt';
+            SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
+        } else if (format === 'csv') {
+            contenuExport = await genererExportCsvSynthese(opts);
+            nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.csv';
+            SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
+        } else if (format === 'docx') {
+            nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.docx';
+            const result = await genererExportDocxSynthese(opts, nomFichier);
+            if (result && result.canceled) return;
+        } else if (format === 'pdf') {
+            nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.pdf';
+            const result = await genererExportPdfSynthese(opts, nomFichier);
+            if (result && result.canceled) return;
+        } else if (format === 'html') {
+            nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.html';
+            contenuExport = await genererExportHtmlSynthese(opts);
+            SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
+        } else {
+            throw new Error('Format de synthèse inconnu.');
+        }
+    } catch (error) {
+        console.error("Erreur lors de l'export de synthèse :", error);
+        const message = error && error.name === 'ErreurExtractionAnonymisee'
+            ? "Export interrompu : vérifiez le marquage de pseudonymisation des extraits."
+            : "Erreur lors de l'export de la synthèse.";
+        afficherNotification(message, "error");
+        return;
     }
 
     afficherNotification("Synthèse exportée en " + format.toUpperCase() + " : " + nomFichier, "success");
@@ -988,10 +1036,9 @@ async function exportSyntheseFormat(format) {
 // EXPORT SYNTHÈSE - Format DOCX (via IPC au main process)
 // ---------------------------------------------------------------
 async function genererExportDocxSynthese(opts, nomFichier) {
-    try {
-        // Sérialiser les extraits pour IPC (données pré-traitées, ou re-traitées en clair
-        // si l'option « Pseudonymiser » est décochée)
-        const extraitsSerialized = tabExt.map(extrait => {
+    // Sérialiser les extraits pour IPC (données pré-traitées, ou re-traitées en clair
+    // si l'option « Pseudonymiser » est décochée)
+    const extraitsSerialized = tabExt.map(extrait => {
             const trait = traitementExtraitExport(extrait, opts.anon);
             return {
                 debut: extrait.debut,
@@ -1014,54 +1061,38 @@ async function genererExportDocxSynthese(opts, nomFichier) {
         }
 
         // Préparer les données à envoyer au main process
-        const donnees = {
-            extraits: extraitsSerialized,
-            entretiens: tabEnt.map((ent, idx) => ({
-                ...ent,
-                variables: entretienVariables[idx] || ""
-            })),
-            themes: tabThm,
-            opts: opts,
-            nomFichier: nomFichier
-        };
-        
-        // Appeler le handler IPC
-        const result = await window.electronAPI.exportSynthesisDocx(donnees);
-        
-        if (result.success) {
-            afficherNotification("Synthèse exportée en DOCX : " + nomFichier, "success");
-        } else if (!result.canceled) {
-            afficherNotification("Erreur lors de l'export DOCX : " + result.error, "error");
-        }
-    } catch (error) {
-        console.error("Erreur :", error);
-        afficherNotification("Erreur lors de l'export DOCX", "error");
+    // Ne transmettre au main que les champs réellement utilisés par le générateur. Les chemins
+    // audio/image, tabLoc, tabDat et autres métadonnées du corpus n'ont rien à faire dans cet export.
+    const donnees = {
+        extraits: extraitsSerialized,
+        entretiens: tabEnt.map((ent, idx) => ({
+            nom: ent.nom,
+            variables: entretienVariables[idx] || ""
+        })),
+        opts: opts,
+        nomFichier: nomFichier
+    };
+
+    const result = await window.electronAPI.exportSynthesisDocx(donnees);
+    if (!result || (!result.success && !result.canceled)) {
+        throw new Error((result && result.error) || "Échec de l'export DOCX.");
     }
+    return result;
 }
 
 // ---------------------------------------------------------------
 // EXPORT SYNTHÈSE - Format PDF (via IPC au main process)
 // ---------------------------------------------------------------
 async function genererExportPdfSynthese(opts, nomFichier) {
-    try {
-        // Générer le contenu TXT
-        const contenuTxt = await genererExportTxtSynthese(opts);
-        
-        // Appeler le handler IPC
-        const result = await window.electronAPI.exportSynthesisPdf({
-            contenuTxt: contenuTxt,
-            nomFichier: nomFichier
-        });
-        
-        if (result.success) {
-            afficherNotification("Synthèse exportée en PDF : " + nomFichier, "success");
-        } else if (!result.canceled) {
-            afficherNotification("Erreur lors de l'export PDF : " + result.error, "error");
-        }
-    } catch (error) {
-        console.error("Erreur :", error);
-        afficherNotification("Erreur lors de l'export PDF", "error");
+    const contenuTxt = await genererExportTxtSynthese(opts);
+    const result = await window.electronAPI.exportSynthesisPdf({
+        contenuTxt: contenuTxt,
+        nomFichier: nomFichier
+    });
+    if (!result || (!result.success && !result.canceled)) {
+        throw new Error((result && result.error) || "Échec de l'export PDF.");
     }
+    return result;
 }
 
 // ---------------------------------------------------------------
@@ -1120,7 +1151,7 @@ async function genererExportHtmlSynthese(opts) {
             font-weight: bold;
             color: #333;
         }
-        .btn-play {
+        ${opts.anon ? '' : `.btn-play {
             background: none;
             border: 1px solid #548dc1;
             border-radius: 50%;
@@ -1143,29 +1174,24 @@ async function genererExportHtmlSynthese(opts) {
         .btn-play.playing {
             background: #548dc1;
             color: #fff;
-        }
+        }`}
         .extrait-text {
             font-style: italic;
             color: #555;
             margin: 10px 0;
             padding: 0 10px;
         }
-        .speaker-line {
-            font-weight: bold;
-            color: #548dc1;
-            margin: 8px 0 4px 0;
-        }
         .categories {
             font-size: 0.85em;
             color: #998844;
             font-weight: bold;
         }
-        .audio-controls {
+        ${opts.anon ? '' : `.audio-controls {
             margin: 20px 0;
             padding: 15px;
             background: #f0f0f0;
             border-radius: 5px;
-        }
+        }`}
         footer {
             margin-top: 40px;
             padding-top: 20px;
@@ -1180,10 +1206,10 @@ async function genererExportHtmlSynthese(opts) {
     <h1>Synthèse des Extraits Sélectionnés</h1>
     <p class="meta">Exporté par Sonal π (version ${window.versionSonal || ''}) le ${new Date().toLocaleString()}</p>
     
-    <div class="audio-controls">
+    ${opts.anon ? '' : `<div class="audio-controls">
         <label>Fichiers audio disponibles :</label>
         <div id="audio-files-list"></div>
-    </div>
+    </div>`}
 `;
 
     const locAffEnt = (opts.vars && opts.anon) ? await creerResolveurLocAffSynthese() : null;
@@ -1196,17 +1222,17 @@ async function genererExportHtmlSynthese(opts) {
         // Changement d'entretien
         if (entretienCourant !== extrait.entretien) {
             entretienCourant = extrait.entretien;
-            html += `<h2>${entInfo.nom}</h2>`;
+            html += `<h2>${echapperHtmlSynthese(entInfo.nom)}</h2>`;
 
             if (opts.vars) {
                 const varsTexte = (await varsPubliquesEnt(extrait.entretien, locAffEnt && locAffEnt(extrait.entretien)))[1];
-                html += `<p><strong>Variables :</strong> ${varsTexte}</p>`;
+                html += `<p><strong>Variables :</strong> ${echapperHtmlSynthese(varsTexte).replace(/\r?\n/g, '<br>')}</p>`;
             }
 
-            // Ajouter si le fichier audio existe
-            if (entInfo.audioPath) {
+            // Un export pseudonymisé ne doit embarquer ni lecteur ni chemin vers l'audio original.
+            if (!opts.anon && entInfo.audioPath) {
                 html += `<audio id="audio-ent-${extrait.entretien}" style="width:100%; margin-bottom: 20px;" controls>
-                    <source src="${entInfo.audioPath}" type="audio/mpeg">
+                    <source src="${echapperHtmlSynthese(entInfo.audioPath)}" type="audio/mpeg">
                     Votre navigateur ne supporte pas le lecteur audio.
                 </audio>`;
             }
@@ -1228,53 +1254,30 @@ async function genererExportHtmlSynthese(opts) {
                     return thm ? thm.nom.split('//')[0].trim() : null;
                 }).filter(nom => nom);
                 if (thmNoms.length > 0) {
-                    categs = ` <span class="categories">[${thmNoms.join(" | ")}]</span>`;
+                    categs = ` <span class="categories">[${echapperHtmlSynthese(thmNoms.join(" | "))}]</span>`;
                 }
             }
         }
 
         html += `<div class="extrait-container">
                     <div class="extrait-header">
-                        <button class="btn-play" data-deb="${extrait.debut}" data-aud="audio-ent-${extrait.entretien}">▶</button>
-                        <span>${headerHTML}${categs}</span>
+                        ${opts.anon ? '' : `<button class="btn-play" data-deb="${extrait.debut}" data-aud="audio-ent-${extrait.entretien}">▶</button>`}
+                        <span>${echapperHtmlSynthese(headerHTML)}${categs}</span>
                     </div>
                     <div class="extrait-text">`;
 
-        // Contenu de l'extrait
-        let isNewSpeaker = true;
-        extrait.texte.forEach((mot) => {
-            if (mot.classList.contains('ligloc')) {
-                if (!isNewSpeaker) html += `</div>`;
-                // Libellé pseudonymisé → « [Pseudo] » (les marqueurs loc-* sont portés par le
-                // ligloc synthétique, cf. traiterEntretien), sinon nom réel. Option
-                // « Pseudonymiser » décochée → nom réel directement.
-                const reelLoc = (mot.dataset.nomloc || '').replace(/\?/g, '').trim();
-                let nomLocExp = reelLoc;
-                if (opts.anon) {
-                    const affLoc = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
-                    nomLocExp = (affLoc && affLoc !== reelLoc) ? '[' + affLoc + ']' : affLoc;
-                }
-                html += `<div class="speaker-line">${opts.loc ? nomLocExp + ": " : ""}</div><div>`;
-                isNewSpeaker = true;
-            }
+        // Même extracteur borné que TXT/CSV/DOCX/PDF : une occurrence coupée produit son pseudo
+        // et un run incohérent interrompt la génération au lieu d'être omis silencieusement.
+        let contenuTexte = traitementExtraitExport(extrait, opts.anon).texte;
+        if (!opts.loc) contenuTexte = retirerLocuteursTexteSynthese(contenuTexte);
+        html += echapperHtmlSynthese(contenuTexte).replace(/\r?\n/g, '<br>');
 
-            if (opts.anon && mot.classList.contains('anon')) {
-                if (!mot.classList.contains('finsel')) {
-                    return;
-                } else {
-                    html += (mot.dataset.pseudo ? `[${mot.dataset.pseudo}]` : '[anonyme]');
-                }
-            } else {
-                html += mot.innerText;
-            }
-        });
-
-        html += `</div></div></div>`;
+        html += `</div></div>`;
     }
 
     html += `
     <footer>Sonal π</footer>
-    <script>
+    ${opts.anon ? '' : `<script>
         document.querySelectorAll('.btn-play').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 const audioId = this.dataset.aud;
@@ -1294,7 +1297,7 @@ async function genererExportHtmlSynthese(opts) {
                 }, { once: true });
             });
         });
-    </script>
+    <\/script>`}
 </body>
 </html>`;
 

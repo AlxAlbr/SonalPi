@@ -2197,7 +2197,8 @@ async function triEntCorpus(mode) { // fonction permettant de trier les entretie
         await window.electronAPI.setGrph(index, tabGrph[index]);
     }
 
-   
+    // L'index inversé du scan stocke les rangs d'entretiens : le tri le rend inutilisable.
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     console.log("tri des entretiens du corpus effectué");
 
@@ -2293,18 +2294,24 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
            <p style="padding:20px 20px 0 20px; font-size:1.1rem; margin:0;">${msgTitre}</p>${msgDetail ? `<p style="padding:6px 20px 20px 20px; font-size:0.88rem; color:#888; white-space:pre-wrap; margin:0;">${msgDetail}</p>` : ''}`;
 
         const divBtns = document.createElement('div');
-        divBtns.style.cssText = "display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;";
+        divBtns.style.cssText = "display:flex; flex-direction:row; flex-wrap:wrap; justify-content:right; gap:6px; margin-top:30px; padding:0 10px 10px;";
 
         const btnElements = [];
         let positiveButtonIndex = -1;
 
         (bouttons || []).forEach((btn, index) => {
-            const isPositive = /^(oui|valider|ok)$/i.test(btn.trim());
+            // Un appelant peut dissocier l'identifiant stable de l'action de son libellé (long et
+            // contextualisé). Les chaînes historiques restent entièrement compatibles.
+            const texte = typeof btn === 'object' ? String(btn.label || btn.id || '') : String(btn);
+            const valeur = typeof btn === 'object' ? String(btn.id || '') : texte.trim().toLowerCase();
+            const isPositive = (typeof btn === 'object' && !!btn.positive)
+                || /^(oui|valider|ok|rendre locales|retirer du corpus|rattacher au corpus)$/i.test(texte.trim());
             const lbl = document.createElement('label');
             lbl.className = 'btnfonction btnquestion' + (isPositive ? ' btnoui' : '');
-            lbl.textContent = btn;
+            lbl.textContent = texte;
             lbl.setAttribute('data-btn-index', index);
-            lbl.style.cursor = 'pointer';
+            lbl.setAttribute('data-action', valeur);
+            lbl.style.cssText = 'cursor:pointer; white-space:normal; max-width:240px; overflow-wrap:anywhere; text-align:center;';
             
             if (isPositive) {
                 positiveButtonIndex = index;
@@ -2313,7 +2320,7 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
             
             lbl.addEventListener('click', () => {
                 hidedlg();
-                window._questionResolve(btn.trim().toLowerCase());
+                window._questionResolve(valeur);
             });
             divBtns.appendChild(lbl);
             btnElements.push(lbl);

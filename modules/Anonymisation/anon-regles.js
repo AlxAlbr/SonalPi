@@ -31,11 +31,137 @@ function tronquerEntiteAffichage(texte, n = 6) {
 }
 
 /**
+ * Erreur publique d'intégrité des marqueurs d'anonymisation.
+ *
+ * Le diagnostic ne contient volontairement ni texte de transcription, ni entité, ni pseudo : il
+ * peut être affiché et journalisé sans recopier de donnée sensible. Le nom de l'entretien n'est
+ * ajouté que par la commande d'export, pour permettre à l'utilisateur de retrouver le document.
+ */
+function erreurIntegriteAnonymisation(typeIncoherence, span = null) {
+    const libelles = {
+        DEBUT_MANQUANT: "début de pseudonymisation manquant",
+        FIN_MANQUANTE: "fin de pseudonymisation manquante",
+        PSEUDO_ABSENT: "pseudonyme absent",
+        PSEUDOS_INCOHERENTS: "pseudonymes contradictoires aux frontières",
+        FRONTIERES_CONTRADICTOIRES: "frontières de pseudonymisation contradictoires",
+        ETATS_CONTRADICTOIRES: "états pseudonymisé et exception contradictoires",
+    };
+    const type = libelles[typeIncoherence] ? typeIncoherence : 'FRONTIERES_CONTRADICTOIRES';
+    const error = new Error(
+        "Export anonymisé interrompu : marquage de pseudonymisation incohérent (" + libelles[type] + "). " +
+        "Aucun fichier n'a été écrit."
+    );
+    error.name = 'ErreurIntegriteAnonymisation';
+    error.code = 'ANON_EXPORT_INTEGRITE';
+    error.typeIncoherence = type;
+    error.rang = span && span.dataset && span.dataset.rk != null ? String(span.dataset.rk) : null;
+    error.segment = span && span.dataset && span.dataset.sg != null
+        ? String(span.dataset.sg)
+        : (span && span.closest && span.closest('.lblseg') &&
+            (span.closest('.lblseg').dataset.rksg || span.closest('.lblseg').dataset.sg)) || null;
+    error.entretienIndex = null;
+    error.entretienNom = null;
+    return error;
+}
+
+function estErreurIntegriteAnonymisation(error) {
+    return !!error && error.code === 'ANON_EXPORT_INTEGRITE';
+}
+
+/** Ajoute uniquement le contexte documentaire, sans recopier le contenu fautif. */
+function contextualiserErreurIntegriteAnonymisation(error, contexte = {}) {
+    if (!estErreurIntegriteAnonymisation(error)) return error;
+    if (contexte.entretienIndex !== undefined && contexte.entretienIndex !== null) {
+        error.entretienIndex = Number(contexte.entretienIndex);
+    }
+    if (contexte.entretienNom != null) error.entretienNom = String(contexte.entretienNom);
+    return error;
+}
+
+/**
+ * Message actionnable mais exempt de texte transcrit, d'entité et de pseudonyme.
+ */
+function messageErreurIntegriteAnonymisation(error) {
+    if (!estErreurIntegriteAnonymisation(error)) return error && error.message ? error.message : String(error || 'Erreur inconnue');
+    const lignes = ['Export anonymisé interrompu : ' + error.message.replace(/^Export anonymisé interrompu :\s*/i, '')];
+    if (error.entretienNom) lignes.push('Entretien : ' + error.entretienNom);
+    if (error.segment != null) lignes.push('Segment : ' + error.segment);
+    if (error.rang != null) lignes.push('Rang : ' + error.rang);
+    lignes.push('Code : ' + error.code + ' / ' + error.typeIncoherence);
+    lignes.push('Correction : ouvrez le passage indiqué, retirez puis réappliquez la règle concernée, vérifiez les frontières, enregistrez et relancez l’export. Aucune réparation automatique n’a été effectuée.');
+    return lignes.join('\n');
+}
+
+/**
+ * Affiche le diagnostic et, si possible, ajoute un bouton de navigation à la boîte existante.
+ * `dialog('Message', …)` reste utilisé pour les contextes de test et les interfaces sans bouton.
+ */
+function afficherErreurIntegriteAnonymisation(error, naviguer = null) {
+    const message = messageErreurIntegriteAnonymisation(error);
+    // Conserver le point d'entrée historique (et les interfaces sans conteneur), puis construire
+    // nous-mêmes la boîte : le `dialog` de la fenêtre entretien ne gère pas le type « Message ».
+    const messageHtml = message.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+    dialog('Message', messageHtml);
+
+    const contenu = document.getElementById('ssdlg');
+    if (!contenu) return;
+    contenu.innerHTML = '';
+    contenu.style.top = '25%';
+    contenu.style.width = 'min(680px, 80%)';
+    contenu.style.height = '';
+    contenu.style.display = 'flex';
+    contenu.style.flexDirection = 'column';
+
+    const titre = document.createElement('h3');
+    titre.textContent = 'Export interrompu';
+    titre.style.margin = '10px 20px 0';
+    contenu.appendChild(titre);
+
+    const detail = document.createElement('p');
+    detail.textContent = message;
+    detail.style.cssText = 'padding:12px 20px;white-space:pre-wrap;line-height:1.45;margin:0;';
+    contenu.appendChild(detail);
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;padding:10px 20px 18px;';
+    if (typeof naviguer === 'function') {
+        const bouton = document.createElement('button');
+        bouton.type = 'button';
+        bouton.className = 'btn btn-primary btn-nav-erreur-anon';
+        bouton.textContent = 'Aller au passage';
+        bouton.style.cssText = 'padding:8px 14px;cursor:pointer;';
+        bouton.addEventListener('click', async () => {
+            if (typeof hidedlg === 'function') hidedlg();
+            await naviguer();
+        });
+        actions.appendChild(bouton);
+    }
+    const fermer = document.createElement('button');
+    fermer.type = 'button';
+    fermer.className = 'btnfonction';
+    fermer.textContent = 'Fermer';
+    fermer.style.cssText = 'padding:8px 14px;cursor:pointer;';
+    fermer.addEventListener('click', () => { if (typeof hidedlg === 'function') hidedlg(); });
+    actions.appendChild(fermer);
+    contenu.appendChild(actions);
+}
+
+/** Exécute une préparation synchrone et enrichit ses seules erreurs d'intégrité. */
+function avecContexteIntegriteAnonymisation(operation, contexte) {
+    try {
+        return operation();
+    } catch (error) {
+        throw contextualiserErreurIntegriteAnonymisation(error, contexte);
+    }
+}
+
+/**
  * Anonymisation HTML DÉFINITIVE (irréversible), en place dans un élément DOM détaché.
  * - run anonymisé (debsel.anon … finsel.anon) → remplacé par « [pseudo] » (pseudo lu sur le finsel →
  *   gère le multi-pseudo par occurrence) ; les spans absorbés internes (incluses) sont vidés ;
  * - exception (.anon-exception) / « à anonymiser » (data-anon-nt) → texte original conservé, marqueurs retirés.
- * Ne touche QUE le marquage d'anonymisation : la structure (data-rk/data-sg/data-deb…) est préservée.
+ * Préserve la structure (data-rk/data-sg/data-deb…). Un marquage incomplet interrompt l'export :
+ * jamais de repli sur le texte original ni de suppression silencieuse d'une occurrence corrompue.
  * Placé ici (anon-regles.js, chargé dans LES DEUX fenêtres) car l'export corpus tourne côté index.html
  * alors qu'anon-export-document.js n'est chargé que côté entretien. @returns {HTMLElement} root muté
  */
@@ -48,39 +174,85 @@ function _anonymiserDansElement(root) {
         s.removeAttribute('data-anon-nt');
         s.removeAttribute('data-pseudo-absorbe');
     };
-    let i = 0;
-    while (i < spans.length) {
-        const span = spans[i];
-        if (span.classList.contains('anon') && span.classList.contains('debsel')) {
-            let fin = i;
-            for (let j = i; j < spans.length; j++) {
-                if (spans[j].classList.contains('finsel') && spans[j].classList.contains('anon')) { fin = j; break; }
+    // Valider TOUTES les plages avant de modifier le clone. Deux entités partageant un pseudo
+    // restent deux plages distinctes : appariement structurel, jamais par valeur du pseudo.
+    // Les exceptions sont intentionnelles et non bloquantes, y compris les anciens fichiers où
+    // elles portent encore debsel/finsel.
+    for (const span of spans) {
+        const estAnon = span.classList.contains('anon');
+        const estException = span.classList.contains('anon-exception');
+        if (estAnon && estException) throw erreurIntegriteAnonymisation('ETATS_CONTRADICTOIRES', span);
+        // debsel/finsel sans `.anon` appartiennent aussi aux sélections souris et thématiques :
+        // ils ne constituent pas une incohérence d'anonymisation et seront simplement nettoyés.
+    }
+
+    const plages = [];
+    for (let i = 0; i < spans.length; i++) {
+        const debut = spans[i];
+        if (!debut.classList.contains('anon')) continue;
+        if (!debut.classList.contains('debsel')) {
+            throw erreurIntegriteAnonymisation('DEBUT_MANQUANT', debut);
+        }
+        let fin = -1;
+        for (let j = i; j < spans.length; j++) {
+            const s = spans[j];
+            if (j > i && s.classList.contains('anon') && s.classList.contains('debsel')) {
+                throw erreurIntegriteAnonymisation('FRONTIERES_CONTRADICTOIRES', s);
             }
-            const pseudo = (spans[fin].dataset.pseudo || span.dataset.pseudo || span.textContent || '').trim();
-            for (let k = i; k <= fin; k++) {
-                const s = spans[k];
-                nettoyerMarqueurs(s);
-                s.textContent = (k === i) ? `[${pseudo}]` : '';
-            }
-            i = fin + 1;
-        } else {
-            i++;
+            // Les espaces neutres produits par l'application corpus sont autorisés dans un run.
+            if (!s.classList.contains('anon') && s.textContent.trim()) break;
+            if (s.classList.contains('anon-exception')) break;
+            if (s.classList.contains('anon') && s.classList.contains('finsel')) { fin = j; break; }
+        }
+        if (fin < 0) throw erreurIntegriteAnonymisation('FIN_MANQUANTE', debut);
+        const pseudoDebut = (debut.dataset.pseudo || '').trim();
+        const pseudoFin = (spans[fin].dataset.pseudo || '').trim();
+        const pseudo = pseudoFin || pseudoDebut;
+        if (!pseudo) throw erreurIntegriteAnonymisation('PSEUDO_ABSENT', debut);
+        if (pseudoDebut && pseudoFin && pseudoDebut !== pseudoFin) {
+            throw erreurIntegriteAnonymisation('PSEUDOS_INCOHERENTS', debut);
+        }
+        plages.push({ debut: i, fin, pseudo });
+        i = fin;
+    }
+    for (const { debut, fin, pseudo } of plages) {
+        for (let k = debut; k <= fin; k++) {
+            nettoyerMarqueurs(spans[k]);
+            spans[k].textContent = (k === debut) ? `[${pseudo}]` : '';
         }
     }
-    root.querySelectorAll('.anon-exception, [data-anon-nt]').forEach(nettoyerMarqueurs);
+    // Retirer aussi les mémos d'absorption et marqueurs de sélection résiduels hors des runs.
+    spans.forEach(nettoyerMarqueurs);
     return root;
 }
 
 /**
- * Variante chaîne : anonymise définitivement un fragment HTML stocké (ex. tabEnt[i].html) et renvoie
- * le HTML nettoyé. Utilisée par l'export corpus (index.html) et l'export document (entretien).
- * @param {string} html @returns {string}
+ * Prépare une copie définitive pour TOUS les exports : texte ET attributs des locuteurs.
+ * Le tableau de locuteurs est résolu AVANT de retirer les marqueurs HTML. Sa convention est celle
+ * du stockage Sonal (sans crochets, suffixe interrogateur « ? » conservé), pas celle de l'affichage.
+ * Aucun changement du DOM live, des tableaux sources ou des fichiers originaux.
+ * Les exceptions, noms non marqués et champs libres ne sont pas anonymisés automatiquement.
+ * @param {string} html
+ * @param {string[]} tabLoc - locuteurs d'origine, indexés comme data-loc
+ * @returns {{html:string, tabLoc:string[]}}
  */
-function _anonymiserHtml(html) {
+function preparerDocumentAnonymise(html, tabLoc = []) {
     const tmp = document.createElement('div');
-    tmp.innerHTML = (html == null ? '' : String(html)).replace(/^`|`$/g, ''); // certains HTML stockés sont entourés de backticks
+    tmp.innerHTML = (html == null ? '' : String(html)).replace(/^`|`$/g, '');
+    const locuteurs = (tabLoc || []).map((nom, i) => {
+        if (!nom) return nom;
+        const lig = tmp.querySelector(`.ligloc[data-loc="${i}"]`);
+        const aff = lig ? nomLocAffiche(lig, { anonymise: true }) : String(nom).replace(/\?/g, '');
+        return String(nom).endsWith('?') ? aff + '?' : aff;
+    });
     _anonymiserDansElement(tmp);
-    return tmp.innerHTML;
+    _anonymiserLiglocsDansElement(tmp);
+    return { html: tmp.innerHTML, tabLoc: locuteurs };
+}
+
+/** Variante HTML seul : même nettoyage complet que les exports Sonal. */
+function _anonymiserHtml(html) {
+    return preparerDocumentAnonymise(html).html;
 }
 
 /**
@@ -94,8 +266,9 @@ function _anonymiserHtml(html) {
  */
 function _anonymiserLiglocsDansElement(root) {
     if (!root) return root;
-    root.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
-        const aff = (typeof nomLocAffiche === 'function') ? nomLocAffiche(lig, { anonymise: true }) : lig.dataset.nomloc;
+    root.querySelectorAll('.ligloc').forEach(lig => {
+        // Pas de repli silencieux sur le vrai nom si le résolveur partagé manque.
+        const aff = nomLocAffiche(lig, { anonymise: true });
         lig.dataset.nomloc = aff;
         lig.classList.remove('loc-anon', 'loc-suggere', 'loc-suggere-refuse');
         delete lig.dataset.locpseudo;

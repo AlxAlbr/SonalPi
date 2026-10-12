@@ -68,9 +68,13 @@ function ouvrirAideAnonymisation() {
                             (aucun marquage dans le texte). Pour parquer une entité incertaine, ou à
                             traiter ailleurs.</li>
                             <li>📄 Document : appliquée, mais confinée à cet entretien.</li>
-                            <li>📁 Corpus : appliquée et partagée. Un 🔒
-                            apparaît si elle est déjà utilisée dans un autre entretien (elle ne peut plus
-                            être rétrogradée sauf à aller dans les autres entretiens pour modifier les occurrences concernées).</li>
+                            <li>📁 Corpus : appliquée et partagée. Un 🔒 apparaît si elle est déjà utilisée
+                            dans un autre entretien. Pour la ramener vers 📄, cliquez néanmoins sur le cran
+                            document : Sonal propose de <strong>dissocier la règle du corpus</strong>. Les
+                            pseudonymisations et exceptions existantes sont conservées et deviennent locales
+                            dans tous les entretiens concernés. Inversement, lors d'un retour 📄→📁, Sonal
+                            repère les copies locales de la même règle et propose de les rattacher ensemble ;
+                            un pseudo divergent doit d'abord être résolu.</li>
                         </ul>
                     </div>
 
@@ -89,8 +93,13 @@ function ouvrirAideAnonymisation() {
                         exceptions : occurrences laissées volontairement en clair.</li>
                         <li><span style="background:#ff9800;color:#fff;border-radius:3px;padding:1px 6px;font-size:0.78rem;font-weight:bold;">N</span>
                         à anonymiser : occurrences encore <em>en clair</em>.</li>
-                        <li>Fond de la ligne : 🟩 tout traité · 🟧 il reste des « à anonymiser » ·
-                        ⬜ brouillon.</li>
+                        <li><span style="color:#e65100;font-weight:bold;">👤●</span> : l'entité correspond
+                        à un locuteur dont le libellé reste à pseudonymiser. Cela vaut aussi lorsque son
+                        nom n'apparaît jamais dans le texte. Cliquez sur la pastille pour appliquer le
+                        pseudo ; <span style="color:#2e7d32;font-weight:bold;">👤✓</span> indique un
+                        libellé résolu (pseudonymisé ou explicitement refusé).</li>
+                        <li>Fond de la ligne : 🟩 tout traité · 🟧 il reste du texte ou un locuteur
+                        « à anonymiser » · ⬜ brouillon.</li>
                     </ul>
 
                     <h3 style="color:#333;font-weight:600;">6) Alias, multi-pseudos et occurrences incluses</h3>
@@ -279,7 +288,16 @@ function ouvrirAideCorpus() {
                         entretien par entretien, avec leur contexte.</li>
                     </ul>
 
-                    <h3 style="color:#333;font-weight:600;">4) Multi-pseudo (a / b)</h3>
+                    <h3 style="color:#333;font-weight:600;">4) Dissocier ou supprimer une règle</h3>
+                    <ul style="margin:8px 0;padding-left:20px;">
+                        <li><strong>📄 Dissocier</strong> retire la règle du corpus mais conserve les
+                        pseudonymisations, exceptions et choix de locuteurs déjà réalisés. Ils deviennent
+                        des règles document dans les entretiens concernés.</li>
+                        <li><strong>✖ Supprimer partout</strong> retire au contraire la règle et ses
+                        pseudonymisations de tous les entretiens, en restaurant le texte et les noms.</li>
+                    </ul>
+
+                    <h3 style="color:#333;font-weight:600;">5) Multi-pseudo (a / b)</h3>
                     <ul style="margin:8px 0;padding-left:20px;">
                         <li>Une entité peut porter maximum deux pseudos. 
                         On ne peut pas alors faire de modification au niveau du corpus :
@@ -288,18 +306,18 @@ function ouvrirAideCorpus() {
                         </li>
                     </ul>
 
-                    <h3 style="color:#333;font-weight:600;">5) Import / export des règles corpus</h3>
+                    <h3 style="color:#333;font-weight:600;">6) Import / export des règles corpus</h3>
                     <ul style="margin:8px 0;padding-left:20px;">
                         <li>Importer / exporter la table de correspondance partagée (JSON), pour réutiliser
                         ou archiver les règles du corpus.</li>
                     </ul>
 
-                    <h3 style="color:#333;font-weight:600;">6) Exporter le corpus anonymisé</h3>
+                    <h3 style="color:#333;font-weight:600;">7) Exporter le corpus anonymisé</h3>
                     <ul style="margin:8px 0;padding-left:20px;">
                         <li> Se réalise via le menu "Corpus"</li>
                     </ul>
 
-                    <h3 style="color:#333;font-weight:600;">7) Paramètres ⚙</h3>
+                    <h3 style="color:#333;font-weight:600;">8) Paramètres ⚙</h3>
                     <p style="margin:8px 0;">Le bouton ⚙ Paramètres (bandeau de ce panneau) ouvre plusieurs
                     réglages partagés par tout le corpus et enregistrés dans le <code>.crp</code>.</p>
 

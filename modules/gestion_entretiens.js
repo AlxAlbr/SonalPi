@@ -218,6 +218,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     let rknv = tabEnt.length - 1; // rang de l'entretien ajouté
     console.log("Entretien ajouté avec le rang " + rknv, nouveauEnt);
@@ -1296,12 +1297,8 @@ async function retirerEnt(rk){
     await window.electronAPI.setHtml(null, tabHtml); // remplacement complet du tableau HTML
     await window.electronAPI.setGrph(null, tabGrph); // remplacement complet du tableau graphique
 
-    // La suppression change le corpus → le scan d'anonymisation en cache est périmé.
-    // (sinon les badges corpus resteraient ceux d'avant suppression)
-    if (window._anonScanCache) {
-        window._anonScanStale = true;
-        window._anonIndexInverse = null;
-    }
+    // La suppression change les rangs du corpus : stats, index inversé et détail courant sont périmés.
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();
@@ -1654,17 +1651,19 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
 
  
 
-async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sonal depuis les données en mémoire
+async function majFichierSonal(rkD,rkF, options = {}){ // permet de réécrire un fichier Sonal depuis les données en mémoire
 
+    const erreursEcriture = [];
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     let tabThm = await window.electronAPI.getThm(); // récupération des thématiques depuis main
     let tabVar = await window.electronAPI.getVar(); // récupération des variables depuis main
     let tabDic = await window.electronAPI.getDic(); // récupération des dictionnaires depuis main
 
-     if (!rkD || !rkD){rkD=0; rkF=tabEnt.length} // si les rangs de début et de fin ne sont pas précisés, on traite tous les entretiens
-
-    if (!rkD || rkD<0){rkD=0}
-    if (!rkF || rkF>tabEnt.length){rkF=tabEnt.length}
+    // 0 est un index valide : ne pas le confondre avec « argument absent », sinon une modification
+    // du premier entretien réécrirait inutilement tous les fichiers du corpus.
+    if (rkD === undefined || rkD === null) { rkD = 0; rkF = tabEnt.length; }
+    if (rkD < 0) rkD = 0;
+    if (rkF === undefined || rkF === null || rkF > tabEnt.length) rkF = tabEnt.length;
 
     for (let rkEnt=rkD; rkEnt<rkF; rkEnt++){
     
@@ -1683,22 +1682,37 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
      try {
  
             let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
-            let cheminEnt = ""; 
+            let cheminEnt = "";
+            let res;
             if (Corpus.type == "local") {
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-                const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
+                res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
                 cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
+                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
-            
-              
+            if (!res || res.success !== true) {
+                throw new Error((res && res.error) || `Écriture impossible : ${cheminEnt}`);
+            }
 
         }  catch(err) {
             console.error("impossible de modifier:", err);
+            erreursEcriture.push({ index: rkEnt, erreur: err });
         }
  
     }
+
+    // Les appelants historiques conservent le comportement non bloquant. Les mutations précises
+    // depuis le corpus demandent explicitement la propagation afin de ne jamais annoncer à tort
+    // « changements enregistrés » lorsque le fichier .sonal n'a pas été réécrit.
+    if (options && options.propagerErreur && erreursEcriture.length > 0) {
+        const erreur = new Error(erreursEcriture.map(e =>
+            `entretien ${e.index + 1}: ${(e.erreur && e.erreur.message) || e.erreur}`).join('; '));
+        erreur.code = 'SONAL_ECRITURE_ECHEC';
+        erreur.details = erreursEcriture;
+        throw erreur;
+    }
+    return { ok: erreursEcriture.length === 0, erreurs: erreursEcriture };
 }
 
 // conversion des anciens fichiers RTR
@@ -2069,27 +2083,39 @@ async function exportEntretien(format) {
 
     // préparation des données de l'entretien
     const ent = tabEnt[ent_cur];
-    let contenuHtmlCmpct = await compactHtml(); // compactage du html
-    let tabAnonloc = ent.tabAnon; 
-    if (opts.anon) { // anonymisation éventuelle
-        contenuHtmlCmpct = AnonymiserHtml(contenuHtmlCmpct); // remplacement des pseudos dans le texte
-        tabAnonloc = [] //suppression de la table d'anonymisation de l'export
+    let contenuHtmlCmpct = await compactHtml(); // instantané, sans mutation du DOM live
+    let tabAnonloc = ent.tabAnon;
+    let tabLocSonal = ent.tabLoc;
+    // En-têtes lisibles et données structurelles sont dérivés du MÊME instantané, avant nettoyage.
+    const locuteursExport = locuteursAffiches({ tabLoc: locut }, contenuHtmlCmpct, opts.anon);
+    if (opts.anon) {
+        try {
+            const documentAnon = preparerDocumentAnonymise(contenuHtmlCmpct, locut);
+            contenuHtmlCmpct = documentAnon.html;
+            tabLocSonal = documentAnon.tabLoc;
+            tabAnonloc = [];
+        } catch (error) {
+            contextualiserErreurIntegriteAnonymisation(error, {
+                entretienIndex: ent_cur,
+                entretienNom: ent && ent.nom,
+            });
+            if (estErreurIntegriteAnonymisation(error)) {
+                afficherErreurIntegriteAnonymisation(error, async () => {
+                    const span = error.rang != null
+                        ? document.querySelector(`[data-rk="${CSS.escape(String(error.rang))}"]`)
+                        : null;
+                    if (span) {
+                        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        span.classList.add('nav-highlight');
+                        setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    }
+                });
+            } else {
+                dialog('Message', error.message);
+            }
+            return; // aucun fichier partiellement anonymisé ne doit être écrit
+        }
     }
-
-    // LIBELLÉS de locuteurs (plan-locuteurs-pseudo.md) : AnonymiserHtml n'anonymise que le TEXTE, pas les
-    // en-têtes de locuteurs (construits par index depuis locut[] dans chaque case). À l'export anonymisé,
-    // le nom AFFICHÉ doit être le PSEUDO du libellé (loc-anon/data-locpseudo sur le .ligloc), pas le vrai
-    // nom. On pré-calcule un tableau indexé comme locut via nomLocAffiche (lit l'état sur le DOM live —
-    // compactHtml/AnonymiserHtml ne modifient pas le DOM). Non-anon : on garde locut (vrais noms).
-    // Locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → mis entre crochets « [Pseudo] » comme
-    // le texte anonymisé ; un locuteur sans règle reste en clair, SANS crochets (il n'est pas anonymisé).
-    const locuteursExport = (opts.anon && typeof nomLocAffiche === 'function')
-        ? locut.map((nom, i) => {
-            const reel = (nom || '').replace(/\?/g, '').trim();
-            const aff  = (nomLocAffiche(i, { anonymise: true }) || '').trim();
-            return (aff && aff !== reel) ? '[' + aff + ']' : aff;
-        })
-        : locut;
 
     //if (opts.vars) {
         // locuteursExport injecté : les variables « par locuteur » sortent avec le même nom
@@ -2104,7 +2130,7 @@ async function exportEntretien(format) {
             contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g, ''); // mise en string
            
  
-            const contenu = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, tabAnonloc); // création du fichier Sonal
+            const contenu = sauvHtml(tabLocSonal, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, tabAnonloc); // loc-json et HTML nettoyés ensemble
             SauvegarderSurDisque(contenu, detailsf[1] +  suffixeAnon + '.Sonal', 'UTF-8'); // enregistrement
 
             
@@ -2210,7 +2236,9 @@ async function exportEntretien(format) {
             const locuteurs = locuteursExport;
 
             // --- 1b. Convertir audioPath en URL file:// utilisable dans un navigateur ---
-            const audioSrcPath = ent.audioPath || '';
+            // L'audio n'est pas anonymisé ; ni sa voix ni son chemin privé ne doivent accompagner
+            // une copie anonymisée. L'export en clair conserve le lecteur et le lien d'origine.
+            const audioSrcPath = opts.anon ? '' : (ent.audioPath || '');
             let audioSrcUrl = '';
             if (audioSrcPath) {
                 const normalized = audioSrcPath.replace(/\\/g, '/');
@@ -3014,33 +3042,7 @@ async function genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenu
 }
 
 
-function AnonymiserHtml (contenuHtml) {
-
-    // affecter le contenu html à un conteneur temporaire pour manipulation
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = contenuHtml;
-    
-    //sélectionner tous les mots qui contiennent la classe anon mais pas finsel et anon (dernier span qui contient le pseudo)
-    const motsASuppr = tempDiv.querySelectorAll('span.anon:not(.finsel)');
-
-    motsASuppr.forEach(mot => {
-        mot.remove(); // Supprimer les spans intermédiaires de l'anonymisation
-    });
-
-
-    const motsAAnonymiser = tempDiv.querySelectorAll('span.anon.finsel');
-
-    motsAAnonymiser.forEach(mot => {
-        const pseudo = mot.dataset.pseudo ; // Récupérer le pseudo 
-        if (pseudo) {
-            mot.textContent = "[" + pseudo + "]"; // Remplacer le texte du span par le pseudo
-            mot.classList.remove('anon', 'finsel'); // Retirer les classes d'anonymisation
-            delete mot.dataset.pseudo; // Supprimer l'attribut de pseudo
-        }
-    });
-        
-    htmlAnonymise = tempDiv.innerHTML;
-    tempDiv.remove(); // Nettoyer le conteneur temporaire
-    
-    return htmlAnonymise;
+// Compatibilité avec les anciens appelants : aucun second moteur d'export.
+function AnonymiserHtml(contenuHtml) {
+    return _anonymiserHtml(contenuHtml);
 }
