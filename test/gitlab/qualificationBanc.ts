@@ -210,6 +210,8 @@ export function pile(options: {
   sessionId: string
   instance?: string
   fetchImpl?: typeof fetch
+  /** Inclut les écritures du corpus seul dans les injections de transport. */
+  inclureCorpusSeul?: boolean
   /** Dossier de journal partagé : une pile relancée le relit tel quel. */
   journalRepertoire?: string
   /** Dossier du miroir existant, réutilisé lors d'un redémarrage. */
@@ -265,9 +267,9 @@ export function pile(options: {
         /* Un corps de commit illisible n'est pas une mesure à conserver. */
       }
     }
-    const estDonnees = estCommit
-      && corps.includes(`"${options.racine}/entretiens/`)
-      && corps.includes(`"${options.racine}/corpus.json"`)
+    const estDonnees = estCommit && (
+      (corps.includes(`"${options.racine}/entretiens/`) && corps.includes(`"${options.racine}/corpus.json"`))
+      || (options.inclureCorpusSeul === true && actionsCommit.some((a) => a.action === 'update' && a.file_path === `${options.racine}/corpus.json`)))
     try {
       if (pannes.historique && url.searchParams.has('search')) {
         throw new Error('historique indisponible')
@@ -407,10 +409,10 @@ export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
     publication: p.publication,
     stockageLocal: stockage,
     journal: p.journal,
-    preparerGardeDefinitions: async (contenuEntretien) => {
+    preparerGardeDefinitions: async (contenuEntretien, contenuAvant) => {
       const corpus = await p.depot.lireFichier(cheminCorpus, 'main')
       if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
-      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
+      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu, contenuAvant)
       return {
         action: 'update',
         chemin: cheminCorpus,

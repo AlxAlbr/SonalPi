@@ -34,7 +34,8 @@ import type { IdentiteSession } from './sessions'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
-import { appliquerRegleAnonEntretien } from '../../shared/entretien/anon'
+import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
+import { regrouperCiblesAnon } from '../../shared/corpus/lotAnon'
 import type {
   CorpusFichier,
   EntretienFichier,
@@ -43,6 +44,7 @@ import type {
   ResultatLotValeur,
   CibleRegleAnon,
   ResultatLotAnon,
+  ResultatMutationAnon,
   RegleAnon,
   PayloadEntretien,
   Categorie,
@@ -57,6 +59,18 @@ import type { DemandeOperationTheme, OptionsExecutionOperationTheme, Progression
 import { ApercusThemesWebDAV } from './apercusThemesWebDAV'
 import { OperationsThemesWebDAV } from './operationsThemesWebDAV'
 import { randomUUID } from 'node:crypto'
+import { CorrespondancesWebDAV } from './correspondancesWebDAV'
+import type { TablesCorrespondance } from '../tablesCorrespondance'
+import { RenommagesAnonWebDAV } from './renommagesAnonWebDAV'
+import { GardePseudosWebDAV } from './gardePseudosWebDAV'
+import { AjoutsVarianteAnonWebDAV } from './ajoutsVarianteAnonWebDAV'
+import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon'
+import { exigerAbsenceDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
+import { DissociationsAnonWebDAV } from './dissociationsAnonWebDAV'
+import { SuppressionsAnonWebDAV } from './suppressionsAnonWebDAV'
+import type { DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
+import type { DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
+import type { PreparationRenommageDistant } from '../renommagesAnon'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
@@ -80,6 +94,7 @@ export interface OptionsTransactions {
    *  ; false/absent = PUT conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui,
    *  reste TOUJOURS en PUT conditionnel. */
   verrouNatif?: boolean
+  gardePseudos?: GardePseudosWebDAV
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -88,12 +103,21 @@ export interface OptionsTransactions {
     idsRecuperablesLocalement?(): string[]
     noterSale(id: string): void
     publier?(id: string): Promise<{ ok: boolean; raison?: string }>
+    publierSousVerrouCorpus?(id: string, provider: ProviderPutConditionnel): Promise<{ ok: boolean; raison?: string }>
+    confirmerSource?(chemin: string, contenu: string, etag: string): void
   } | null
 }
 
 export class TransactionsCorpus {
   private readonly apercusThemes: ApercusThemesWebDAV
   private readonly operationsThemes: OperationsThemesWebDAV
+  private readonly correspondances: CorrespondancesWebDAV
+  private readonly renommages: RenommagesAnonWebDAV
+  private readonly dissociations: DissociationsAnonWebDAV
+  private readonly suppressions: SuppressionsAnonWebDAV
+  private readonly gardePseudos: GardePseudosWebDAV
+  private readonly ajoutsVariante: AjoutsVarianteAnonWebDAV
+  private mutationsEnCours = 0
 
   constructor(
     private readonly client: ClientWebDAV,
@@ -104,10 +128,75 @@ export class TransactionsCorpus {
     private readonly identite: () => IdentiteSession,
     private readonly options: OptionsTransactions = {},
   ) {
+    this.gardePseudos = options.gardePseudos ?? new GardePseudosWebDAV(client, identite, miroir.dirLocal,
+      (chemin, contenu, etag) => {
+        const sessions = options.getSessions?.()
+        if (sessions?.confirmerSource) return sessions.confirmerSource(chemin, contenu, etag)
+        const id = chemin.slice('entretiens/'.length, -'.json'.length)
+        if (!sessions?.idsTenus().includes(id) && !sessions?.idsRecuperablesLocalement?.().includes(id)) this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      })
+    this.ajoutsVariante = new AjoutsVarianteAnonWebDAV({ client, dirLocal: miroir.dirLocal, identite,
+      miroir: (contenu, etag) => { this.ecrireCorpusLocal(contenu); miroir.noterEtagPublie(CHEMIN_CORPUS, etag) },
+    })
+    const identiteRenommage = () => ({ ...this.identite(), sessionId: `rename-${randomUUID()}` })
+    this.renommages = new RenommagesAnonWebDAV({
+      client, store: getStore(), dirLocal: miroir.dirLocal,
+      miroir: (chemin, contenu, etag) => {
+        this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? [])],
+      verrouCorpus: () => {
+        const id = identiteRenommage()
+        return { provider: new ProviderPutConditionnel(client, () => id), chemin: CHEMIN_VERROU_CORPUS }
+      },
+      verrouEntretien: (id) => {
+        const identite = identiteRenommage()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite) : new ProviderPutConditionnel(client, () => identite),
+          chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
+    const identiteDissociation = () => ({ ...this.identite(), sessionId: `dissociation-${randomUUID()}` })
+    this.dissociations = new DissociationsAnonWebDAV({
+      client, dirLocal: miroir.dirLocal,
+      miroir: (chemin, contenu, etag) => {
+        this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? [])],
+      verrouCorpus: () => {
+        const identite = identiteDissociation()
+        return { provider: new ProviderPutConditionnel(client, () => identite), chemin: CHEMIN_VERROU_CORPUS }
+      },
+      verrouEntretien: (id) => {
+        const identite = identiteDissociation()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite) : new ProviderPutConditionnel(client, () => identite),
+          chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
+    const identiteSuppression = () => ({ ...this.identite(), sessionId: `suppression-anon-${randomUUID()}` })
+    this.suppressions = new SuppressionsAnonWebDAV({
+      client, dirLocal: miroir.dirLocal,
+      miroir: (chemin, contenu, etag) => {
+        this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? [])],
+      verrouCorpus: () => {
+        const identite = identiteSuppression()
+        return { provider: new ProviderPutConditionnel(client, () => identite), chemin: CHEMIN_VERROU_CORPUS }
+      },
+      verrouEntretien: (id) => {
+        const identite = identiteSuppression()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite) : new ProviderPutConditionnel(client, () => identite),
+          chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
     this.apercusThemes = new ApercusThemesWebDAV(client, (avant) => this.getStore().adapterEntretienOperationTheme(avant))
     const identiteCourte = () => ({ ...this.identite(), sessionId: `theme-${randomUUID()}` })
     this.operationsThemes = new OperationsThemesWebDAV({
-      client, apercus: this.apercusThemes, dirLocal: miroir.dirLocal,
+      client, apercus: this.apercusThemes, dirLocal: miroir.dirLocal, gardePseudos: this.gardePseudos,
       adapter: (avant) => this.getStore().adapterEntretienOperationTheme(avant),
       miroir: (chemin, contenu, etag) => {
         this.ecrireEntretienLocal(chemin, contenu)
@@ -127,20 +216,190 @@ export class TransactionsCorpus {
         return [...(sessions?.idsTenus() ?? []), ...(sessions?.idsRecuperablesLocalement?.() ?? [])]
       },
     })
+    const identiteImport = () => ({ ...this.identite(), sessionId: `import-${randomUUID()}` })
+    this.correspondances = new CorrespondancesWebDAV({
+      client, store: getStore(), dirLocal: miroir.dirLocal,
+      miroir: (chemin, contenu, etag) => {
+        this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      verrouCorpus: () => {
+        const identite = identiteImport()
+        return { provider: new ProviderPutConditionnel(client, () => identite), chemin: CHEMIN_VERROU_CORPUS }
+      },
+      verrouEntretien: (id) => {
+        const identite = identiteImport()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => identite)
+          : new ProviderPutConditionnel(client, () => identite), chemin: this.cheminVerrouEntretien(id) }
+      },
+      sessionsLocales: () => {
+        const sessions = options.getSessions?.()
+        return [...(sessions?.idsTenus() ?? []), ...(sessions?.idsRecuperablesLocalement?.() ?? [])]
+      },
+    })
   }
 
+  /** Refuse les écritures ordinaires tant qu’un import est actif ou incomplet. */
+  exigerSansImportCorrespondances(): void {
+    if (this.correspondances.occupe || this.correspondances.lireSuivi()) {
+      throw new Error('Un import WebDAV est en cours ou reste à reprendre. Aucune autre écriture n’est autorisée.')
+    }
+  }
+
+  lireAjoutVariante() { return this.ajoutsVariante.lireEnvoi() }
+  reconcilierAjoutVariante() { return this.ajoutsVariante.reconcilier() }
+  exigerSansAjoutVariante() { this.ajoutsVariante.exigerDisponible() }
+  async ajouterVarianteAnon(demande: DemandeAjoutVarianteAnon) {
+    if (this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) throw new Error('Terminez les autres modifications avant l’ajout de variante.')
+    return this.avecMutation(() => this.ajoutsVariante.appliquer(demande))
+  }
+
+  async reconcilierPublicationEntretien() { await this.gardePseudos.reconcilier() }
+  lirePublicationEntretien() { return this.gardePseudos.lireEnvoi() }
+  exigerPublicationDisponible() { this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible() }
+  exigerSansRenommage(): void {
+    this.exigerSansDissociation()
+    this.exigerPublicationDisponible()
+    this.exigerJournalRenommageDisponible()
+  }
+  private exigerJournalRenommageDisponible(): void {
+    this.renommages.exigerMiroirComplet()
+    if (this.renommages.occupe || this.renommages.lireSuivi()) throw new Error('Un renommage WebDAV est en cours ou reste à reprendre. Terminez-le avant cette mutation du corpus.')
+  }
+  exigerOuvertureRenommage(id: string): void {
+    this.suppressions.exigerMiroirComplet()
+    if (this.suppressions.cibleProtegee(id)) throw new Error('Cette cible de suppression reste à publier. Relisez le suivi avant d’ouvrir cet entretien.')
+    this.dissociations.exigerMiroirComplet()
+    if (this.dissociations.cibleProtegee(id)) throw new Error('Cette cible de dissociation reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
+    this.renommages.exigerMiroirComplet()
+    if (this.renommages.cibleProtegee(id)) throw new Error('Cette cible de renommage reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
+  }
+  lireSuiviRenommageAnon() { return this.renommages.lireSuivi() }
+  get renommageEnCours() { return this.renommages.occupe }
+  get mutationEnCours() { return this.mutationsEnCours > 0 }
+  private exigerRenommageDisponible() {
+    this.exigerSansDissociation()
+    this.exigerPublicationDisponible()
+    this.exigerSansImportCorrespondances()
+    if (this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) throw new Error('Terminez les mutations et opérations thématiques avant le renommage WebDAV.')
+  }
+  instantaneRenommageAnon() { this.exigerRenommageDisponible(); return this.renommages.instantane() }
+  preparerRepriseRenommageAnon(id: string) { this.exigerRenommageDisponible(); return this.renommages.preparerReprise(id) }
+  renommerVarianteAnon(p: PreparationRenommageDistant) { this.exigerRenommageDisponible(); return this.renommages.appliquer(p) }
+
+  exigerSansDissociation(): void {
+    this.exigerSansSuppression()
+    this.exigerJournalDissociationDisponible()
+  }
+  private exigerJournalDissociationDisponible(): void {
+    this.dissociations.exigerMiroirComplet()
+    if (this.dissociations.occupe || this.dissociations.lireSuivi()) throw new Error('Une dissociation WebDAV est engagée. Relisez son suivi avant cette mutation du corpus.')
+  }
+  private exigerDissociationDisponible() {
+    this.exigerSansSuppression()
+    this.exigerPublicationDisponible()
+    this.exigerSansImportCorrespondances()
+    this.renommages.exigerMiroirComplet()
+    if (this.renommages.occupe || this.renommages.lireSuivi() || this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) {
+      throw new Error('Terminez les opérations incompatibles avant la dissociation WebDAV.')
+    }
+  }
+  preparerDissociationAnon(demande: DemandeDissociationAnon) { this.exigerDissociationDisponible(); return this.dissociations.preparer(demande) }
+  preparerRepriseDissociationAnon(id: string) { this.exigerDissociationDisponible(); return this.dissociations.preparerReprise(id) }
+  ciblesApercuDissociationAnon(token: string) { return this.dissociations.ciblesApercu(token) }
+  oublierApercuDissociationAnon(token: string) { this.dissociations.oublierApercu(token) }
+  viderApercusDissociationAnon() { this.dissociations.viderApercus() }
+  async dissocierRegleAnon(token: string, confirmee: boolean) {
+    try { this.exigerDissociationDisponible(); return await this.dissociations.appliquer(token, confirmee) }
+    finally { this.dissociations.oublierApercu(token) }
+  }
+  lireSuiviDissociationAnon() { return this.dissociations.lireSuivi() }
+  relireSuiviDissociationAnon(id: string) { return this.dissociations.relireSuivi(id) }
+  get dissociationEnCours() { return this.dissociations.occupe }
+  cibleDissociationProtegee(id: string) { return this.dissociations.cibleProtegee(id) }
+
+  exigerSansSuppression(): void {
+    this.exigerSansAjoutVariante()
+    this.suppressions.exigerMiroirComplet()
+    if (this.suppressions.occupe || this.suppressions.lireSuivi()) throw new Error('Une suppression WebDAV est engagée. Relisez son suivi avant cette mutation du corpus.')
+  }
+  private exigerSuppressionDisponible() {
+    this.exigerJournalDissociationDisponible()
+    this.exigerPublicationDisponible()
+    this.exigerSansImportCorrespondances()
+    this.renommages.exigerMiroirComplet()
+    if (this.renommages.occupe || this.renommages.lireSuivi() || this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) {
+      throw new Error('Terminez les opérations incompatibles avant la suppression WebDAV.')
+    }
+  }
+  preparerSuppressionAnon(demande: DemandeSuppressionAnon) { this.exigerSuppressionDisponible(); return this.suppressions.preparer(demande) }
+  preparerRepriseSuppressionAnon(id: string) { this.exigerSuppressionDisponible(); return this.suppressions.preparerReprise(id) }
+  ciblesApercuSuppressionAnon(token: string) { return this.suppressions.ciblesApercu(token) }
+  oublierApercuSuppressionAnon(token: string) { this.suppressions.oublierApercu(token) }
+  viderApercusSuppressionAnon() { this.suppressions.viderApercus() }
+  async supprimerRegleAnonPartout(token: string, confirmee: boolean) {
+    try { this.exigerSuppressionDisponible(); return await this.suppressions.appliquer(token, confirmee) }
+    finally { this.suppressions.oublierApercu(token) }
+  }
+  lireSuiviSuppressionAnon() { return this.suppressions.lireSuivi() }
+  relireSuiviSuppressionAnon(id: string) { return this.suppressions.relireSuivi(id) }
+  get suppressionEnCours() { return this.suppressions.occupe }
+  cibleSuppressionProtegee(id: string) { return this.suppressions.cibleProtegee(id) }
+
+  private async avecMutation<T>(action: () => Promise<T>): Promise<T> {
+    this.exigerSansImportCorrespondances()
+    this.exigerSansRenommage()
+    this.mutationsEnCours++
+    try { return await action() } finally { this.mutationsEnCours-- }
+  }
+
+  private exigerImportDisponible(): void {
+    this.exigerSansRenommage()
+    if (this.mutationsEnCours || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()) {
+      throw new Error('Terminez les mutations et opérations thématiques avant l’import WebDAV.')
+    }
+  }
+
+  async instantaneCorrespondances() {
+    this.exigerImportDisponible()
+    return this.correspondances.instantane()
+  }
+
+  async importerCorrespondances(preparation: ReturnType<TablesCorrespondance['consommerImport']>) {
+    this.exigerImportDisponible()
+    return this.correspondances.appliquer(preparation)
+  }
+
+  async reprendreImportCorrespondances(operationId: string, confirmee: boolean) {
+    this.exigerImportDisponible()
+    return this.correspondances.reprendre(operationId, confirmee)
+  }
+
+  lireSuiviImportCorrespondances() { return this.correspondances.lireSuivi() }
+  get importCorrespondancesEnCours(): boolean { return this.correspondances.occupe }
+
   analyserOperationTheme(demande: DemandeOperationTheme, operationPrecedente?: string) {
+    this.exigerSansImportCorrespondances()
+    this.exigerSansRenommage()
     return this.operationsThemes.analyser(demande, operationPrecedente)
   }
 
   executerOperationTheme(id: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme,
     progression?: (etat: ProgressionOperationTheme) => void) {
-    return this.operationsThemes.executer(id, demande, options, progression)
+    if (this.operationsThemes.occupe) return this.operationsThemes.executer(id, demande, options, progression)
+    return this.avecMutation(() => this.operationsThemes.executer(id, demande, options, progression))
   }
 
   lireSuiviOperationTheme() { return this.operationsThemes.lireSuivi() }
   preparerRepriseOperationTheme(id: string) { return this.operationsThemes.preparerReprise(id) }
-  reconcilierOperationTheme(id: string) { return this.operationsThemes.reconcilier(id) }
+  async reconcilierOperationTheme(id: string) {
+    this.exigerSansImportCorrespondances()
+    this.exigerSansDissociation()
+    this.exigerJournalRenommageDisponible()
+    if (!this.operationsThemes.publicationDuLotSeule(id)) this.exigerPublicationDisponible()
+    this.mutationsEnCours++
+    try { return await this.operationsThemes.reconcilier(id) } finally { this.mutationsEnCours-- }
+  }
   abandonnerOperationTheme(id: string) { this.operationsThemes.abandonner(id) }
   get operationThemeEnCours(): boolean { return this.operationsThemes.occupe }
 
@@ -166,6 +425,10 @@ export class TransactionsCorpus {
    *  avec message utilisateur ; refus de domaine (ex. catégorie utilisée)
    *  → Error telle quelle, verrou quand même libéré. */
   async executer<T>(mutation: () => T): Promise<T> {
+    return this.avecMutation(() => this.executerSousVerrou(mutation))
+  }
+
+  private async executerSousVerrou<T>(mutation: () => T): Promise<T> {
     const provider = new ProviderPutConditionnel(this.client, this.identite)
     let verrouTenu = false
     try {
@@ -175,7 +438,7 @@ export class TransactionsCorpus {
 
       // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose que notre miroir,
       // on télécharge AVANT de muter — jamais de transformation posée sur une copie périmée.
-      const etagServeur = await this.rafraichirCorpusLocal()
+      const etagServeur = await this.rafraichirCorpusLocal(true)
       const contenuAvant = readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
 
       const store = this.getStore()
@@ -226,6 +489,10 @@ export class TransactionsCorpus {
 
   /** Trie selon les contenus publiés sans remplacer les fichiers du miroir local. */
   async trierEntretiens(mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>): Promise<CorpusFichier> {
+    return this.avecMutation(() => this.trierEntretiensSousVerrou(mode))
+  }
+
+  private async trierEntretiensSousVerrou(mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>): Promise<CorpusFichier> {
     const provider = new ProviderPutConditionnel(this.client, this.identite)
     let verrouTenu = false
     try {
@@ -233,7 +500,7 @@ export class TransactionsCorpus {
       if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
       verrouTenu = true
 
-      const etagServeur = await this.rafraichirCorpusLocal()
+      const etagServeur = await this.rafraichirCorpusLocal(true)
       const fichierCorpus = join(this.miroir.dirLocal, CHEMIN_CORPUS)
       const contenuAvant = readFileSync(fichierCorpus, 'utf8')
       const store = this.getStore()
@@ -285,6 +552,10 @@ export class TransactionsCorpus {
 
   /** Relit les sources serveur et actualise le miroir avant de publier leurs références. */
   async verifierReferencesPassagesPubliees(references: SourcePassageCas[]): Promise<void> {
+    return this.avecMutation(() => this.rafraichirReferencesPassages(references))
+  }
+
+  private async rafraichirReferencesPassages(references: SourcePassageCas[]): Promise<void> {
     const parEntretien = new Map<string, SourcePassageCas[]>()
     for (const reference of references) {
       const groupe = parEntretien.get(reference.entretienId) ?? []
@@ -350,7 +621,11 @@ export class TransactionsCorpus {
 
   /** Publie le nouveau fichier avant de rendre son membership visible.
    *  Le miroir n'est modifié qu'après confirmation des deux publications. */
-  private async ajouterEntretien(
+  private async ajouterEntretien(preparer: (store: CorpusStore) => PlanAjoutEntretien) {
+    return this.avecMutation(() => this.ajouterEntretienSousVerrou(preparer))
+  }
+
+  private async ajouterEntretienSousVerrou(
     preparer: (store: CorpusStore) => PlanAjoutEntretien,
   ): Promise<{ id: string; corpus: CorpusFichier }> {
     const provider = new ProviderPutConditionnel(this.client, this.identite)
@@ -360,16 +635,16 @@ export class TransactionsCorpus {
       if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
       verrouTenu = true
 
-      const etagCorpus = await this.rafraichirCorpusLocal()
+      const etagCorpus = await this.rafraichirCorpusLocal(true)
       const store = this.getStore()
       const plan = preparer(store)
       const cheminEntretien = CHEMIN_ENTRETIEN(plan.id)
       const contenuEntretien = JSON.stringify(plan.entretien, null, 2)
       const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
-      const etagEntretien = await this.publierNouvelEntretien(
-        cheminEntretien,
-        contenuEntretien,
-      )
+      const nouvellesRegles = Object.fromEntries(Object.entries(plan.corpusApres.reglesAnon ?? {})
+        .filter(([id]) => !Object.hasOwn(plan.corpusAvant.reglesAnon ?? {}, id)))
+      const etagEntretien = await this.gardePseudos.publierSousVerrou(contenuEntretien, JSON.stringify({ annotations: [] }),
+        () => this.publierNouvelEntretien(cheminEntretien, contenuEntretien), provider, cheminEntretien, nouvellesRegles)
 
       let etagCorpusPublie = ''
       try {
@@ -391,7 +666,7 @@ export class TransactionsCorpus {
     } catch (e) {
       throw classifier(e)
     } finally {
-      if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+      if (verrouTenu && !this.gardePseudos.verrouIncertain(provider)) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
     }
   }
 
@@ -402,13 +677,17 @@ export class TransactionsCorpus {
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
   ): Promise<CorpusFichier> {
+    return this.avecMutation(() => this.supprimerEntretienSousVerrous(id, impactAttendu))
+  }
+
+  private async supprimerEntretienSousVerrous(id: string, impactAttendu?: ImpactSuppressionEntretien): Promise<CorpusFichier> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
     let verrouCorpusTenu = false
     try {
       const acqC = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
       if (!acqC.ok) throw new ErreurTransaction(messageRefusDefinitions(acqC.tenuPar))
       verrouCorpusTenu = true
-      const etagServeur = await this.rafraichirCorpusLocal()
+      const etagServeur = await this.rafraichirCorpusLocal(true)
 
       const providerEntretien = this.providerPourEntretien()
       const cheminVerrou = this.cheminVerrouEntretien(id)
@@ -460,12 +739,16 @@ export class TransactionsCorpus {
   /** Archive les fichiers serveur qui ne sont plus référencés par le membership.
    *  Le verrou corpus garantit qu'aucune création ou suppression n'est en cours. */
   async reconcilierFichiersOrphelins(): Promise<string[]> {
+    return this.avecMutation(() => this.archiverFichiersOrphelinsSousVerrous())
+  }
+
+  private async archiverFichiersOrphelinsSousVerrous(): Promise<string[]> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
     const acquisition = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
     if (!acquisition.ok) return []
     const archives: string[] = []
     try {
-      await this.rafraichirCorpusLocal()
+      await this.rafraichirCorpusLocal(true)
       const corpus = this.getStore().ouvrir()
       const fichiers = (await this.client.propfind('entretiens'))
         .filter((entree) => !entree.dossier && entree.chemin.endsWith('.json'))
@@ -610,6 +893,13 @@ export class TransactionsCorpus {
     idsDemandes: string[] | (() => string[]),
     mutation: () => T,
   ): Promise<T> {
+    return this.avecMutation(() => this.corrigerEntretiensSousVerrous(cibles, idsDemandes, mutation))
+  }
+
+  private async corrigerEntretiensSousVerrous<T>(
+    cibles: { corpus: boolean; entretiens: string[] | (() => string[]); ordreCorpus?: 'avant' | 'apres' },
+    idsDemandes: string[] | (() => string[]), mutation: () => T,
+  ): Promise<T> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
     let verrouCorpusTenu = false
     const verrousEntretiens: { provider: VerrouProvider; chemin: string }[] = []
@@ -619,7 +909,7 @@ export class TransactionsCorpus {
       const acquisitionCorpus = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
       if (!acquisitionCorpus.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisitionCorpus.tenuPar))
       verrouCorpusTenu = true
-      const etagCorpus = await this.rafraichirCorpusLocal()
+      const etagCorpus = await this.rafraichirCorpusLocal(cibles.corpus)
       const cheminCorpus = join(this.miroir.dirLocal, CHEMIN_CORPUS)
       const contenuCorpusAvant = readFileSync(cheminCorpus, 'utf8')
       const idsLus = typeof idsDemandes === 'function' ? idsDemandes() : idsDemandes
@@ -726,10 +1016,10 @@ export class TransactionsCorpus {
             if (idsTenus.has(id)) {
               sessions?.noterSale(id)
               if (cibles.ordreCorpus === 'apres' && corpusModifie) {
-                if (!sessions?.publier) {
+                if (!sessions?.publierSousVerrouCorpus) {
                   throw new ErreurTransaction('La session ouverte ne permet pas de confirmer sa publication.')
                 }
-                const publication = await sessions.publier(id)
+                const publication = await sessions.publierSousVerrouCorpus(id, providerCorpus)
                 if (!publication.ok) {
                   throw new ErreurTransaction(
                     `La session de « ${id} » n’a pas été publiée (${publication.raison ?? 'échec inconnu'}).`,
@@ -740,7 +1030,7 @@ export class TransactionsCorpus {
               const etagFinal = await this.publierEntretienCourt(
                 chemin,
                 contenuTente,
-                etags.get(id) ?? null,
+                etags.get(id) ?? null, contenuAvant!, providerCorpus,
               )
               if (etagFinal) this.miroir.noterEtagPublie(chemin, etagFinal)
             }
@@ -778,7 +1068,7 @@ export class TransactionsCorpus {
       for (const verrou of [...verrousEntretiens].reverse()) {
         await verrou.provider.liberer(verrou.chemin).catch(() => {})
       }
-      if (verrouCorpusTenu) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+      if (verrouCorpusTenu && !this.gardePseudos.verrouIncertain(providerCorpus)) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
     }
   }
 
@@ -788,6 +1078,10 @@ export class TransactionsCorpus {
     locuteurId: string,
     nom: string,
   ): Promise<string> {
+    return this.avecMutation(() => this.creerEtLierPersonne(entretienId, locuteurId, nom))
+  }
+
+  private async creerEtLierPersonne(entretienId: string, locuteurId: string, nom: string): Promise<string> {
     const personneId = await this.executer(() => this.getStore().creerDefinitionPersonne(nom))
     try {
       await this.executerEntretien(entretienId, () => this.getStore().personnesCommander({
@@ -813,6 +1107,10 @@ export class TransactionsCorpus {
    *  la matrice locale est fraîche sans pull complet, le prochain tirage devient no-op.
    *  JAMAIS de verrou global : un lot long ne doit pas geler le corpus. */
   async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
+    return this.avecMutation(() => this.poserValeurLotSousVerrous(items))
+  }
+
+  private async poserValeurLotSousVerrous(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
     const succes: string[] = []
     const echecs: { id: string; raison: string }[] = []
     // Regrouper par entretien :
@@ -882,7 +1180,7 @@ export class TransactionsCorpus {
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
-      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur)
+      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur, brut)
       // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local (écriture atomique,
       // même utilitaire que le store) — la matrice est fraîche sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
@@ -906,55 +1204,49 @@ export class TransactionsCorpus {
    *  Un entretien OUVERT chez nous passe par le chemin session existant (défense en profondeur, cf.
    *  `poserValeurLot`). */
   async appliquerRegleLot(cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> {
+    return this.avecMutation(() => this.appliquerRegleLotSousVerrous(cibles))
+  }
+
+  private async appliquerRegleLotSousVerrous(cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> {
     const succes: ResultatLotAnon['succes'] = []
-    const echecs: ResultatLotAnon['echecs'] = []
-    // Dédupliquer par entretien : UN verrou et UN aller-retour serveur,
-    // même si la sélection contient des doublons ; les plages du diff (poses cochées, retraits,
-    // exceptions) sont FUSIONNÉES.
-    const parEntretien = new Map<string, CibleRegleAnon>()
-    for (const c of cibles) {
-      const v = parEntretien.get(c.entretienId)
-      if (!v) {
-        parEntretien.set(c.entretienId, { ...c })
-      } else {
-        for (const k of ['plages', 'retirer', 'exception', 'retirerException'] as const) {
-          if (c[k]?.length) v[k] = [...(v[k] ?? []), ...c[k]]
-        }
-      }
-    }
+    const { groupes, echecs } = regrouperCiblesAnon(cibles)
     const sessions = this.options.getSessions?.() ?? null
-    for (const [id, cible] of parEntretien) {
+    for (const [id, cible] of groupes) {
+      const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
+      let corpusTenu = false
       try {
+        const acquisition = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
+        if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+        corpusTenu = true
+        const etagCorpus = await this.rafraichirCorpusLocal()
+        if (!etagCorpus) throw new ErreurTransaction('Le corpus distant est introuvable. Aucun entretien n’a été modifié.')
         const { regle, titre } = this.regleEtTitre(cible.regleId, id)
         if (sessions?.idsTenus().includes(id)) {
-          // Session À NOUS sur cet id : chemin existant ; la publication suivra la session (`noterSale`).
-          // Jamais un second verrou sur un fichier déjà à nous.
           const store = this.getStore()
           const gardePrecedente = store.lectureSeule
           store.lectureSeule = false
-          let nb: number
+          let resultat: ResultatMutationAnon
           try {
-            nb = store.appliquerRegleAnon(id, cible.regleId, cible).nb
+            resultat = store.appliquerRegleAnon(id, cible.regleId, cible)
           } finally {
             store.lectureSeule = gardePrecedente
           }
-          sessions.noterSale(id)
-          succes.push({ id, nb, titre })
+          if (resultat.nb) sessions.noterSale(id)
+          succes.push({ id, ...resultat, titre })
         } else {
-          const nb = await this.appliquerRegleHorsSession(id, regle, cible)
-          succes.push({ id, nb, titre })
+          const resultat = await this.appliquerRegleHorsSession(id, regle, cible, etagCorpus, providerCorpus)
+          succes.push({ id, ...resultat, titre })
         }
       } catch (e) {
         echecs.push({ id, raison: classifier(e).message })
+      } finally {
+        if (corpusTenu && !this.gardePseudos.verrouIncertain(providerCorpus)) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
       }
     }
     return { succes, echecs }
   }
 
-  /** Règle + titre lus sur le corpus LOCAL (miroir).
-   *  La règle affichée dans le panneau est celle qu'on applique ;
-   *  le GET frais porte sur le fichier ENTRETIEN seul,
-   *  qui est le seul verrouillé par ce cycle. */
+  /** Lit la règle dans le corpus rafraîchi sous verrou, avant le verrou d'entretien. */
   private regleEtTitre(regleId: string, entretienId: string): { regle: RegleAnon; titre: string } {
     const corpus = this.getStore().ouvrir()
     const regle = corpus.reglesAnon[regleId]
@@ -970,7 +1262,9 @@ export class TransactionsCorpus {
     id: string,
     regle: RegleAnon,
     cible: CibleRegleAnon,
-  ): Promise<number> {
+    etagCorpus: string,
+    providerCorpus: ProviderPutConditionnel,
+  ): Promise<ResultatMutationAnon> {
     const provider = this.providerPourEntretien()
     const cheminVerrou = this.cheminVerrouEntretien(id)
     const acquisition = await provider.acquerir(cheminVerrou)
@@ -984,17 +1278,18 @@ export class TransactionsCorpus {
       // La version d'APRÈS-verrou fait foi : GET frais du SERVEUR,
       // jamais confiance à la copie miroir (périmée possible).
       const etagServeur = await this.etagServeurDe(cheminFichier)
-      let brut: string
-      if (etagServeur) brut = await this.client.getTexte(cheminFichier)
-      else
-        brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir.
+      if (!etagServeur) throw new ErreurTransaction('L’entretien distant est introuvable. Le miroir n’est pas une source de publication.')
+      const brut = await this.client.getTexte(cheminFichier)
       const data = JSON.parse(brut) as EntretienFichier
-      const nb = appliquerRegleAnonEntretien(data, regle, cible)
-      if (nb === 0) return 0
+      const resultat = appliquerRegleAnonEntretienAvecBilan(data, regle, cible)
+      if (resultat.nb === 0) return resultat
+      if (await this.etagServeurDe(CHEMIN_CORPUS) !== etagCorpus) {
+        throw new ErreurTransaction('La définition corpus a changé pendant la validation. Actualisez avant de recommencer.')
+      }
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
-      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur)
+      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur, brut, providerCorpus)
       // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local ;
       // compteurs et prochains scans sont à jour sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
@@ -1003,7 +1298,7 @@ export class TransactionsCorpus {
       writeFileSync(tmp, contenu, 'utf8')
       renameSync(tmp, abs)
       if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
-      return nb
+      return resultat
     } finally {
       await provider.liberer(cheminVerrou).catch(() => {})
     }
@@ -1011,20 +1306,19 @@ export class TransactionsCorpus {
 
   /* ── Aides internes ──────────────────────────────────────────────────────── */
 
-  /** GET frais de `corpus.json` si le serveur n'est plus la version du manifeste ;
-   *  renvoie l'ETag serveur OBSERVÉ (garde If-Match du PUT final).
-   *  null = fichier absent du serveur (cas dégénéré : première publication). */
-  private async rafraichirCorpusLocal(): Promise<string | null> {
-    const etatServeur = await this.etagServeurDe(CHEMIN_CORPUS)
-    if (!etatServeur) return null
-    if (etatServeur === this.miroir.etagDistant(CHEMIN_CORPUS)) return etatServeur
-    const contenu = await this.client.getTexte(CHEMIN_CORPUS)
+  /** Relit les octets et leur ETag, même si le manifeste annonce une version identique. */
+  private async rafraichirCorpusLocal(interdireDissociation = false): Promise<string | null> {
+    let source
+    try { source = await this.client.getTexteAvecEtag(CHEMIN_CORPUS) }
+    catch (e) { if (e instanceof ErreurHttp && e.statut === 404) return null; throw e }
+    const contenu = source.contenu, etatServeur = source.etag
+    if (interdireDissociation) exigerAbsenceDissociationWebDAV(JSON.parse(contenu))
     const abs = join(this.miroir.dirLocal, CHEMIN_CORPUS)
     mkdirSync(dirname(abs), { recursive: true })
     const tmp = `${abs}.tmp`
     writeFileSync(tmp, contenu, 'utf8')
     renameSync(tmp, abs)
-    this.miroir.noterEtagPublie(CHEMIN_CORPUS, etatServeur)
+    if (etatServeur) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etatServeur)
     return etatServeur
   }
 
@@ -1066,7 +1360,17 @@ export class TransactionsCorpus {
     chemin: string,
     contenu: string,
     etagAttendu: string | null,
+    avant: string,
+    providerCorpus?: ProviderPutConditionnel,
   ): Promise<string> {
+    if (contenu !== avant && Buffer.byteLength(contenu) === Buffer.byteLength(avant)) contenu += '\n'
+    const envoi = () => this.envoyerEntretienCourt(chemin, contenu, etagAttendu)
+    return providerCorpus
+      ? this.gardePseudos.publierSousVerrou(contenu, avant, envoi, providerCorpus, chemin)
+      : this.gardePseudos.publier(contenu, avant, envoi, chemin)
+  }
+
+  private async envoyerEntretienCourt(chemin: string, contenu: string, etagAttendu: string | null): Promise<string> {
     try {
       const nouveauEtag = await this.client.putTexte(
         chemin,
@@ -1169,6 +1473,9 @@ export class TransactionsCorpus {
   ): Promise<string> {
     const contenu = contenuFourni
       ?? readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
+    exigerAbsenceDissociationWebDAV(JSON.parse(contenu))
+    try { exigerAbsenceDissociationWebDAV(JSON.parse(await this.client.getTexte(CHEMIN_CORPUS))) }
+    catch (e) { if (!(e instanceof ErreurHttp && e.statut === 404)) throw e }
     const nouveauEtag = await this.client.putTexte(
       CHEMIN_CORPUS,
       contenu,
@@ -1241,14 +1548,11 @@ export async function appliquerRegleLotLocal(
   cibles: CibleRegleAnon[],
 ): Promise<ResultatLotAnon> {
   const succes: ResultatLotAnon['succes'] = []
-  const echecs: ResultatLotAnon['echecs'] = []
-  const vues = new Set<string>()
-  for (const c of cibles) {
-    if (vues.has(c.entretienId)) continue
-    vues.add(c.entretienId)
+  const { groupes, echecs } = regrouperCiblesAnon(cibles)
+  for (const c of groupes.values()) {
     try {
       const r = store.appliquerRegleAnon(c.entretienId, c.regleId, c)
-      succes.push({ id: c.entretienId, nb: r.nb, titre: r.titre })
+      succes.push({ id: c.entretienId, ...r })
     } catch (e) {
       echecs.push({ id: c.entretienId, raison: classifier(e).message })
     }

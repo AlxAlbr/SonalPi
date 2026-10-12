@@ -17,6 +17,7 @@ import {
   type ResultatOperationTheme,
 } from '../../shared/corpus/themes'
 import { decoderCorpusTheme, empreinteTheme, validerEntretienTheme, verifierReferencesThemes } from '../operationsThemes'
+import { exigerAbsenceDissociationGitLab } from './referencesDefinitions'
 import { normaliserRacineGitLab } from '../distant/coffre'
 import {
   cleRessourceBailGitLab,
@@ -269,6 +270,7 @@ export class OperationsThemesGitLab {
     try {
       const fichier = await this.lire('corpus.json', this.deps.branche)
       const corpus = decoderCorpusTheme(fichier.contenu)
+      exigerAbsenceDissociationGitLab(corpus)
       verifierDemandeOperationTheme(corpus, demande)
       verifierReferencesThemes(corpus, [])
       if (!j && empreinteTheme(corpus) !== empreinteCorpus) {
@@ -336,6 +338,7 @@ export class OperationsThemesGitLab {
       const sha = await this.deps.depot.resoudreTete(this.deps.branche)
       const corpusFichier = await this.lire('corpus.json', sha)
       const corpus = decoderCorpusTheme(corpusFichier.contenu)
+      exigerAbsenceDissociationGitLab(corpus)
       this.verifierDestinations(corpus, j)
       if (!Object.hasOwn(corpus.membership, id)) throw new RefusOperationTheme('L’entretien ne fait plus partie du corpus.')
       const source = await this.lire(`entretiens/${id}.json`, sha)
@@ -371,6 +374,7 @@ export class OperationsThemesGitLab {
       const sha = await this.deps.depot.resoudreTete(this.deps.branche)
       const fichier = await this.lire('corpus.json', sha)
       const corpus = decoderCorpusTheme(fichier.contenu)
+      exigerAbsenceDissociationGitLab(corpus)
       this.verifierDestinations(corpus, j)
       const ids = Object.keys(corpus.membership)
       if (ids.length > MAX_ACTIONS_PUBLICATION - 2) {

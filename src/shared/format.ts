@@ -122,6 +122,10 @@ export interface CorpusFichier {
   codebook: Record<string, Categorie>
   variables: Record<string, Variable>
   reglesAnon: Record<string, RegleAnon>
+  /** Bloque les publications liées pendant le transfert GitLab d’une définition. */
+  dissociationAnon?: { operationId: string; regleId: string; fournisseur?: 'webdav'; cibles?: string[] }
+  suppressionAnon?: { operationId: string; regleId: string }
+  retraitVarianteAnon?: { operationId: string; regleId: string; pseudoRetire: string; pseudoConserve: string }
   personnes: Record<string, Personne>
   membership: Record<string, EntretienRef>
   /** Ordre courant des entretiens. Absent dans les anciens corpus. */
@@ -300,6 +304,8 @@ export interface EntretienFichier {
   /** Mémoire de l'ENSEMBLE multi-pseudo déclaré par entité, au-delà de 2 pseudos (clef `cleEntite`, insensible à la casse) ;
    *  sert à la bascule du menu contextuel. Champ ADDITIF optionnel. */
   pseudosDeclares?: Record<string, string[]>
+  /** Définitions textuelles locales complètes, sans occurrence implicite. */
+  definitionsAnonLocales?: import('./entretien/anon/definitionsLocales').DefinitionAnonLocale[]
   /** Notes structurées de l'entretien (corps + surlignages + rang) ; normalisées en [] à l'ouverture.
    *  Champ ADDITIF optionnel. */
   notes?: Note[]
@@ -320,6 +326,7 @@ export interface PayloadEntretien {
   meta: MetaEntretien
   brouillonsAnon?: BrouillonAnon[]
   pseudosDeclares?: Record<string, string[]>
+  definitionsAnonLocales?: import('./entretien/anon/definitionsLocales').DefinitionAnonLocale[]
   notes?: Note[]
   reperesPassages?: ReperePassage[]
   legacy?: Record<string, unknown>
@@ -508,21 +515,38 @@ export interface ResultatLotValeur {
 }
 
 /** Cible du lot d'application en masse d'une règle d'anonymisation : un entretien fermé, et la règle à y poser.
- *  `plages` (optionnel) restreint aux SEULES occurrences cochées de la vue vérification (positions PM) ; absent → toutes les « à traiter ».
+ *  `plages` restreint aux seules occurrences cochées ; absent ou vide → aucune pose.
+ *  `toutes` demande explicitement l'application à toutes les occurrences à traiter.
  *  `retirer` dé-pseudonymise, `exception` pose une exception, `retirerException` la retire — chaque liste porte des positions PM exactes. */
 export interface CibleRegleAnon {
   entretienId: string
   regleId: string
+  /** Empreinte du texte, des décisions et de la règle lors de l'aperçu. */
+  empreinte?: string
+  toutes?: boolean
   plages?: { from: number; to: number }[]
   retirer?: { from: number; to: number }[]
   exception?: { from: number; to: number }[]
   retirerException?: { from: number; to: number }[]
 }
 
+export interface BilanMutationAnon {
+  poses: number
+  retraits: number
+  exceptionsAjoutees: number
+  exceptionsRetirees: number
+}
+
+export interface ResultatMutationAnon {
+  nb: number
+  actions: BilanMutationAnon
+}
+
 /** Retour du lot d'anonymisation en masse, même politique que `ResultatLotValeur`.
- *  Chaque succès porte le nombre d'occurrences posées — l'UI ajuste ses compteurs sans re-scan. */
+ *  Chaque succès porte le nombre de mutations obtenues (poses, retraits et exceptions),
+ *  et non un compteur d'intention de la sélection. */
 export interface ResultatLotAnon {
-  succes: { id: string; nb: number; titre: string }[]
+  succes: (ResultatMutationAnon & { id: string; titre: string })[]
   echecs: { id: string; raison: string }[]
 }
 

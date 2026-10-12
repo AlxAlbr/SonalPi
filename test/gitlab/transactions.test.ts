@@ -17,6 +17,9 @@ import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import type { CorpusFichier, EntretienFichier, PayloadEntretien } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
+import { decoderCorrespondances, preparerImportCorrespondances } from '../../src/shared/corpus/importCorrespondances'
+import { empreinteDefinitionsCorrespondance } from '../../src/main/tablesCorrespondance'
+import { empreinteAnon } from '../../src/shared/entretien/anon/classification'
 
 const destination: ConfigDestinationGitLab = {
   fournisseur: 'gitlab',
@@ -497,6 +500,27 @@ describe('reprise après coupure', () => {
     expect(entree.etat).toBe('indetermine')
   })
 
+  test('importe des définitions sous publication corpus, sans lire ni modifier les entretiens', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const lignes = preparerImportCorrespondances(decoderCorrespondances([{ nom: 'regles.json', texte: '[{"entite_init":"Nouvelle","entite_pseudo":"Remplacement"}]' }]), Object.values(serveur.reglesAnon))
+    const resultat = await b.transactions.executerDefinitions((store) => store.importerDefinitionsAnon(lignes, {}, empreinteDefinitionsCorrespondance(serveur.reglesAnon)))
+    expect(resultat.valeur.ajouts).toBe(1)
+    expect(Object.values(b.store.ouvrir().reglesAnon).some((r) => r.entite.includes('Nouvelle'))).toBe(true)
+    expect(actionsDeDonnees(b.depot).every((a) => !a.file_path.includes('/entretiens/'))).toBe(true)
+  })
+
+  test('l’import refuse une règle changée sur le serveur après l’aperçu du miroir', async () => {
+    const serveur = corpusAvecValeurs()
+    const local = structuredClone(serveur)
+    serveur.reglesAnon.r1.pseudos = ['Modifié ailleurs']
+    const b = banc({ serveur, local })
+    const lignes = preparerImportCorrespondances(decoderCorrespondances([{ nom: 'regles.json', texte: '[{"entite_init":"Nouvelle","entite_pseudo":"Remplacement"}]' }]), Object.values(local.reglesAnon))
+    await expect(b.transactions.executerDefinitions((store) => store.importerDefinitionsAnon(lignes, {}, empreinteDefinitionsCorrespondance(local.reglesAnon)))).rejects.toThrow('ont changé')
+    expect(actionsDeDonnees(b.depot)).toEqual([])
+    expect(Object.values(b.store.ouvrir().reglesAnon).some((r) => r.entite.includes('Nouvelle'))).toBe(false)
+  })
+
   test('réappliquer un plan déjà installé est sans effet', async () => {
     const serveur = corpusAvecTheme()
     const { transactions, store, lireLocal } = banc({ serveur, local: structuredClone(serveur) })
@@ -661,6 +685,40 @@ describe('écritures courtes d’entretien GitLab', () => {
     expect(existsSync(join(b.dirLocal, 'entretiens/e1.json'))).toBe(false)
   })
 
+  test('une session refuse une définition distante modifiée avant de toucher son miroir', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const fraiche = structuredClone(serveur)
+    fraiche.reglesAnon.r1.pseudos = ['Autre variante']
+    b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(fraiche))
+    await expect(b.transactions.verifierRegleAnonSession(serveur.reglesAnon.r1)).rejects.toThrow('La règle distante a changé')
+    expect(b.store.ouvrir().reglesAnon.r1.pseudos).toEqual(serveur.reglesAnon.r1.pseudos)
+    expect(b.depot.commits).toHaveLength(0)
+  })
+
+  test('une simple catégorie distante n’invalide pas la définition textuelle d’une session', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const fraiche = structuredClone(serveur)
+    fraiche.reglesAnon.r1.categorie = 'LOC'
+    b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(fraiche))
+    await expect(b.transactions.verifierRegleAnonSession(serveur.reglesAnon.r1)).resolves.toBeUndefined()
+    expect(b.depot.commits).toHaveLength(0)
+  })
+
+  test('refuse un diff dont l’empreinte ne correspond plus au fichier distant', async () => {
+    const serveur = corpusAvecValeurs()
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const source = entretien()
+    const empreinte = empreinteAnon(source, serveur.reglesAnon.r1)
+    source.annotations.push({ id: 'decision-concurrente', type: 'anon', from: 1, to: 2, auteur: 'autre', pseudo: 'Autre', etat: 'anonymise' })
+    b.depot.deposerHorsProtocole(`${RACINE}/entretiens/e1.json`, JSON.stringify(source, null, 2))
+    await expect(b.transactions.appliquerRegleEntretien('e1', {
+      entretienId: 'e1', regleId: 'r1', plages: [], exception: [{ from: 1, to: 2 }], empreinte,
+    })).rejects.toThrow('périmé')
+    expect(existsSync(join(b.dirLocal, 'entretiens/e1.json'))).toBe(false)
+  })
+
   test('applique une règle et installe seulement le candidat confirmé', async () => {
     const serveur = corpusAvecValeurs()
     const b = banc({ serveur, local: structuredClone(serveur) })
@@ -669,7 +727,8 @@ describe('écritures courtes d’entretien GitLab', () => {
     const resultat = await b.transactions.appliquerRegleEntretien('e1', {
       entretienId: 'e1',
       regleId: 'r1',
-      exception: [{ from: 1, to: 2 }],
+      empreinte: empreinteAnon(entretien(), serveur.reglesAnon.r1),
+      exception: [{ from: 1, to: 6 }],
     })
 
     expect(resultat).toMatchObject({ nb: 1, titre: 'Entretien un' })

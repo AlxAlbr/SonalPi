@@ -185,7 +185,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     expect(attente.chemin).toBe('entretiens/e2.json')
     expect(b.puts()).toHaveLength(2)
     const tx = b.creerTransactions()
-    await expect(tx.analyserOperationTheme(transfert)).rejects.toThrow(/réconciliée/)
+    expect(() => tx.analyserOperationTheme(transfert)).toThrow(/indéterminée|réconciliée/)
     await expect(tx.preparerRepriseOperationTheme(a.operationId)).rejects.toThrow(/Réconciliez/)
     expect(() => tx.abandonnerOperationTheme(a.operationId)).toThrow(/inconnue ne peut pas être abandonnée/)
     expect(await tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'indeterminee' })
@@ -193,11 +193,31 @@ describe('publication des opérations de thèmes WebDAV', () => {
     // Le serveur finit par rendre visible la publication ; seule cette preuve autorise la suite.
     b.serveur.poser(attente.chemin, attente.contenu)
     b.intercepter(async () => undefined)
-    expect(await tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'partielle', bilan: { reussis: [{ id: 'e1' }, { id: 'e2' }] } })
+    expect(await tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'indeterminee' })
+    expect(await b.tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'partielle', bilan: { reussis: [{ id: 'e1' }, { id: 'e2' }] } })
     expect(b.puts()).toHaveLength(2)
     const reprise = await tx.preparerRepriseOperationTheme(a.operationId)
     expect(reprise.apercu.parEntretien.filter((e) => e.aModifier).map((e) => e.id)).toEqual(['e3'])
     expect(await tx.executerOperationTheme(reprise.apercu.operationId, reprise.demande, options)).toMatchObject({ statut: 'appliquee', entretiens: 3 })
+  })
+
+  test('la relecture thématique ne peut pas reconnaître une autre intention de publication', async () => {
+    const b = await banc()
+    b.intercepter(async (req) => {
+      if (req.method === 'PUT' && cible(req, 'e2')) throw new Error('Réponse inconnue')
+      return undefined
+    })
+    const a = await b.tx.analyserOperationTheme(transfert)
+    await b.tx.executerOperationTheme(a.operationId, transfert, options)
+    const chemin = join(b.miroir.dirLocal, '.publication-pseudos-webdav.json')
+    const original = readFileSync(chemin, 'utf8'), j = JSON.parse(original)
+    j.chemin = 'entretiens/e3.json'
+    writeFileSync(chemin, JSON.stringify(j))
+    try {
+      await expect(b.tx.reconcilierOperationTheme(a.operationId)).rejects.toThrow('indéterminée')
+      expect(b.puts()).toHaveLength(2)
+      expect(readFileSync(chemin, 'utf8')).toBe(JSON.stringify(j))
+    } finally { writeFileSync(chemin, original) }
   })
 
   test('création de destinations inconnue : aucune réaffectation avant confirmation', async () => {

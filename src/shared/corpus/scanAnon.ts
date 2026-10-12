@@ -1,229 +1,101 @@
-/**
- *  Scan ANONYMISATION au niveau du CORPUS.
- *
- *  Pour chaque RÈGLE corpus (`RegleAnon`), on relit le texte de chaque
- *  entretien et on classe les occurrences de l'entité : déjà anonymisées /
- *  en exception / à traiter. C'est une REQUÊTE (rien de stocké, aucun cache) :
- *  le texte est relu à chaque ouverture du panneau « Pseudos », pour révéler
- *  les changements qui « coincident » avec une règle.
- *
- *  Seules les RÈGLES corpus sont scannées. Les occurrences entretien-locales
- *  (standalone, 2ᵉ cran du slider) ne figurent pas dans le panneau corpus,
- *  mais elles marquent quand même le texte (une occurrence déjà posée couvre
- *  le mot, même si elle ne vient pas d'une règle).
- *
- *  PURE : lit `EntretienFichier` (corpsTexte + annotations) et `RegleAnon`, ne
- *  mute rien, aucune I/O — testable headless.
- */
-
 import type { CibleRegleAnon, EntretienFichier, RegleAnon } from '../format'
-import { aplatir, occurrencesDe, plageVersPM, type Plage, type TextePlat } from '../entretien/anon'
+import { aplatir, plageVersPM } from '../entretien/anon/anonymisation'
 import { parserAliases } from '../entretien/anon/alias'
 import { cleEntite } from '../entretien/anon/brouillonsAnon'
 import { estOrpheline } from '../entretien/annotation'
+import { classerPlage, empreinteAnon, matchesAliases, textePlage } from '../entretien/anon/classification'
 
-/** Compteurs d'état d'une entité pour une règle (textes agrégés ou par entretien). */
 export interface StatutScan {
-  /** Occurrences couvertes par une annotation `anon` au pseudo de la règle. */
   anon: number
-  /** Occurrences couvertes par une annotation `exception`. */
   exc: number
-  /** Occurrences présentes dans le texte mais ni anonymisées ni en exception. */
   non: number
-  /** Occurrences INCLUSES : recouvertes par une entité plus large (masquées,
-   *  comptées nulle part) — exposant « +N », non actionnables ici. */
   incl: number
 }
 
-/** Résultat de scan d'une règle corpus, avec drill-down par entretien. */
 export interface ScanRegle {
   regle: RegleAnon
   total: StatutScan
-  /** entretienId → statuts. Ne contient qu'un entretien si l'entité y apparaît. */
   parEntretien: Record<string, StatutScan>
+  variantes?: Record<string, number>
 }
 
-/** Élément d'entretien fourni au scan (id → données lues sur disque). */
 export interface EntretienScan {
   id: string
   data: EntretienFichier
 }
 
-/** Retourne les annotations anon couvrant le DEBUT d'une position PM. */
-function anonCouvrantDebut(annotations: EntretienFichier['annotations'], debutPM: number) {
-  return annotations.filter((a) => a.type === 'anon' && !estOrpheline(a) && a.from <= debutPM && debutPM < a.to)
-}
-
-/** Texte plat couvert par une plage PM. Les annotations vivent sur le même doc que les matchs ;
- *  on re-projette leur plage sur le texte aplati pour savoir QUELLE entité elles couvrent,
- *  par comparaison du texte, pas du pseudo. */
-function textePM(plat: TextePlat, from: number, to: number): string {
-  let platDebut = 0
-  let a: number | null = null
-  let b: number | null = null
-  for (const bloc of plat.blocs) {
-    const finPM = bloc.debut + bloc.longueur
-    if (a === null && from <= finPM) a = Math.max(from - bloc.debut, 0) + platDebut
-    if (b === null && to <= finPM) {
-      b = Math.min(Math.max(to - bloc.debut, 0), bloc.longueur) + platDebut
-    }
-    if (a !== null && b !== null) break
-    platDebut += bloc.longueur + 1 // +1 : le saut de ligne séparateur
-  }
-  if (a === null || b === null || b <= a) return ''
-  return plat.texte.slice(a, b)
-}
-
-/** Classe UNE occurrence (plage plat) d'une entité dans un texte aplatit.
- *  Priorité : EXCEPTION d'abord (une occurrence dans une exception n'est
- *  JAMAIS « à traiter »), puis ANONYMISÉE (pseudo ∈ pseudos de la règle),
- *  puis INCLUSE (recouverte par une anonymisation d'une AUTRE entité plus
- *  large — masquée, non actionnable ici), sinon NON traitée. */
-function classerOccurrence(
-  annotations: EntretienFichier['annotations'],
-  plat: TextePlat,
-  plage: Plage,
-  clesRegle: Set<string>,
-  pseudos: string[],
-): 'anon' | 'exc' | 'non' | 'incl' {
-  const t = plageVersPM(plat, plage.from, plage.to)
-  if (!t) return 'non'
-  const couvrants = anonCouvrantDebut(annotations, t.from)
-  if (couvrants.some((a) => a.etat === 'exception')) return 'exc'
-  const anon = couvrants.find((a) => a.etat === 'anonymise')
-  if (!anon) return 'non'
-  // Même entité que la règle ? Parité avec le compteur entretien.
-  // On compare le TEXTE recouvert par l'annotation (cleEntite), pas seulement son pseudo.
-  // Un pseudo venu d'une expérimentation multi-pseudo ou d'un ancien libellé,
-  // ne doit pas déclasser une occurrence pourtant anonymisée.
-  // Le pseudo reste accepté en secours (annotation posée par une règle au libellé différent).
-  if (clesRegle.has(cleEntite(textePM(plat, anon.from, anon.to)).toLowerCase())) return 'anon'
-  if (pseudos.some((p) => (p || '').toLowerCase() === (anon.pseudo || '').toLowerCase())) return 'anon'
-  // Entité étrangère : INCLUSE seulement si l'annotation ENGLOBE strictement le match (entité plus large) ;
-  // à périmètre égal, c'est la même entité sous un autre libellé → « non » (à traiter).
-  const englobe = anon.to - anon.from > t.to - t.from
-  return englobe ? 'incl' : 'non'
-}
-
-/**
- *  Scan du corpus : pour chaque règle, agrège les occurrences par état sur
- *  l'ensemble des entretiens fournis (déjà lus sur disque par l'appelant).
- *
- *  Comptage par les DONNÉES pour l'état stocké : les anonymisées et exceptions
- *  sont des annotations — on les compte directement (l'entité est reconnue au
- *  texte qu'elles couvrent, jamais au pseudo porté). Le TEXTE n'est parcouru
- *  que pour la requête « à anonymiser » (matchs sans annotation) et les
- *  incluses (matchs absorbés par une entité plus large) : un utilisateur qui
- *  édite fait émerger de nouvelles occurrences à traiter, le reste vit dans
- *  les annotations.
- */
-export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]): ScanRegle[] {
-  const out: ScanRegle[] = []
-  for (const regle of regles) {
-    const total: StatutScan = { anon: 0, exc: 0, non: 0, incl: 0 }
-    const parEntretien: Record<string, StatutScan> = {}
-    const clesRegle = new Set(regle.entite.map((e) => cleEntite(e).toLowerCase()))
-    const aliases = regle.entite.flatMap((e) => parserAliases(e))
-    for (const ent of entretiens) {
-      const plat = aplatir(ent.data.corpsTexte)
-      const vivantes = ent.data.annotations.filter(
-        (a) => a.type === 'anon' && !estOrpheline(a),
-      )
-      const st: StatutScan = { anon: 0, exc: 0, non: 0, incl: 0 }
-      let touche = false
-
-      // 1. ÉTAT STOCKÉ : anonymisées et exceptions se comptent depuis les annotations,
-      //    sans déduction ni dépendance au pseudo porté.
-      for (const a of vivantes) {
-        if (!clesRegle.has(cleEntite(textePM(plat, a.from, a.to)).toLowerCase())) continue
-        touche = true
-        if (a.etat === 'exception') st.exc++
-        else st.anon++
-      }
-
-      // 2. REQUÊTE sur le texte : « à anonymiser » et « incluses ».
-      for (const alias of aliases) {
-        for (const m of occurrencesDe(plat.texte, alias)) {
-          touche = true
-          const t = plageVersPM(plat, m.from, m.to)
-          if (!t) continue
-          const couvrantes = vivantes.filter((a) => a.from <= t.from && t.from < a.to)
-          const englobante = couvrantes.find((a) => t.to <= a.to)
-          if (!englobante) {
-            st.non++ // occurrence nue, ou recouvrement seulement partiel
-            continue
-          }
-          const cle = cleEntite(textePM(plat, englobante.from, englobante.to)).toLowerCase()
-          if (clesRegle.has(cle)) continue // déjà comptée en 1 (anonymisée/exception)
-          st.incl++ // absorbée par une entité étrangère plus large
-        }
-      }
-
-      if (!touche) continue
-      parEntretien[ent.id] = st
-      total.anon += st.anon
-      total.exc += st.exc
-      total.non += st.non
-      total.incl += st.incl
-    }
-    out.push({ regle, total, parEntretien })
-  }
-  return out
-}
-
-/* ── Scan DÉTAILLÉ d'une règle (vue vérification du panneau corpus) ─────────*/
-
-/** Occurrence vue par la vérification corpus : position PM, état,
- *  contexte lisible « avant / match / après » (parité accordéon SonalPi1). */
+/** Décision visible, contexte et preuve de fraîcheur d'une occurrence textuelle. */
 export interface OccurrenceScan {
   from: number
   to: number
   etat: 'anon' | 'exc' | 'non' | 'incl'
-  /** Texte AVANT le match (~`contexte` caractères), gris dans l'UI. */
   avant: string
-  /** Le texte du match lui-même. */
   match: string
-  /** Texte APRÈS le match (~`contexte` caractères). */
   apres: string
+  pseudo?: string
+  annotationId?: string
+  inclusePar?: string
+  actionnable?: boolean
+  motif?: string
+  empreinte?: string
 }
 
-/** Décompte les occurrences d'une règle dans un entretien, avec leur état et contexte.
- *  Même classification que le scan agrégé, affichée occurrence par occurrence.
- *  PURE : ne lit rien sur disque. */
-export function scannerRegleDetaille(
-  regle: RegleAnon,
-  entretien: EntretienScan,
-  contexte = 24,
-): OccurrenceScan[] {
+/** Le scan détaillé et les compteurs corpus utilisent les mêmes décisions visibles. */
+export function scannerRegleDetaille(regle: RegleAnon, entretien: EntretienScan, contexte = 24, avecEmpreinte = true): OccurrenceScan[] {
   const plat = aplatir(entretien.data.corpsTexte)
-  const pseudos = regle.pseudos
-  const clesRegle = new Set(regle.entite.map((e) => cleEntite(e).toLowerCase()))
+  const aliases = regle.entite.flatMap(parserAliases)
+  const cles = new Set(aliases.map(cleEntite))
+  const empreinte = avecEmpreinte ? empreinteAnon(entretien.data, regle) : undefined
   const out: OccurrenceScan[] = []
-  for (const alias of regle.entite.flatMap((e) => parserAliases(e))) {
-    for (const m of occurrencesDe(plat.texte, alias)) {
-      const etat = classerOccurrence(entretien.data.annotations, plat, m, clesRegle, pseudos)
-      out.push({
-        ...plageVersPM(plat, m.from, m.to)!,
-        etat,
-        avant: plat.texte.slice(Math.max(0, m.from - contexte), m.from),
-        match: plat.texte.slice(m.from, m.to),
-        apres: plat.texte.slice(m.to, Math.min(plat.texte.length, m.to + contexte)),
-      })
-    }
+  for (const match of matchesAliases(plat.texte, aliases)) {
+    const pm = plageVersPM(plat, match.from, match.to)
+    if (!pm) continue
+    const { etat, annotation } = classerPlage(entretien.data.annotations, pm, cles,
+      (from, to) => textePlage(plat, from, to))
+    const exceptionInterne = etat === 'non' && entretien.data.annotations.some((a) =>
+      a.type === 'anon' && !estOrpheline(a) && a.etat === 'exception' && a.from < pm.to && pm.from < a.to)
+    const actionnable = etat !== 'incl' && !exceptionInterne && (!annotation || annotation.regle === regle.id)
+    out.push({
+      ...pm, etat, empreinte, actionnable,
+      pseudo: annotation?.pseudo,
+      annotationId: annotation?.id,
+      inclusePar: etat === 'incl' && annotation ? textePlage(plat, annotation.from, annotation.to) : undefined,
+      motif: exceptionInterne ? 'Exception interne protégée : ouvrir l’entretien pour examiner cette occurrence.' :
+        !actionnable ? 'Décision indépendante ou incluse : modifier dans l’entretien.' : undefined,
+      avant: plat.texte.slice(Math.max(0, match.from - contexte), match.from),
+      match: plat.texte.slice(match.from, match.to),
+      apres: plat.texte.slice(match.to, match.to + contexte),
+    })
   }
-  return out.sort((x, y) => x.from - y.from)
+  return out
 }
 
-/* ── Diff de la vue vérification (édition locale vs dernier scan) ───────────*/
+/** Agrège les décisions textuelles ; les locuteurs restent indépendants. */
+export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]): ScanRegle[] {
+  return regles.map((regle) => {
+    const total: StatutScan = { anon: 0, exc: 0, non: 0, incl: 0 }
+    const parEntretien: Record<string, StatutScan> = {}
+    const variantes: Record<string, number> = Object.create(null)
+    for (const entretien of entretiens) {
+      const occurrences = scannerRegleDetaille(regle, entretien, 0, false)
+      if (!occurrences.length) continue
+      const st: StatutScan = { anon: 0, exc: 0, non: 0, incl: 0 }
+      for (const occurrence of occurrences) {
+        st[occurrence.etat]++
+        if (occurrence.etat === 'anon' && occurrence.pseudo) {
+          variantes[occurrence.pseudo] = (variantes[occurrence.pseudo] ?? 0) + 1
+        }
+      }
+      parEntretien[entretien.id] = st
+      for (const etat of ['anon', 'exc', 'non', 'incl'] as const) total[etat] += st[etat]
+    }
+    return { regle, total, parEntretien, variantes }
+  })
+}
 
-/** Clé d'identification d'une occurrence dans les états éditables. */
 export const cleOccurrence = (o: { from: number; to: number }): string => `${o.from}:${o.to}`
-
-/** États éditables par occurrence (clé « from:to »), par entretien. */
 export type EtatsOccurrences = Record<string, Record<string, boolean>>
 
-/** États éditables initiaux d'un scan détaillé : cochée = déjà anonymisée,
- *  marque d'exception posée ; les incluses n'y figurent pas (non modifiables). */
 export function etatsDepuisDetails(details: Record<string, OccurrenceScan[]>): {
   cochees: EtatsOccurrences
   exceptions: EtatsOccurrences
@@ -234,7 +106,7 @@ export function etatsDepuisDetails(details: Record<string, OccurrenceScan[]>): {
     cochees[id] = {}
     exceptions[id] = {}
     for (const o of occurrences) {
-      if (o.etat === 'incl') continue
+      if (o.etat === 'incl' || o.actionnable === false) continue
       const cle = cleOccurrence(o)
       cochees[id][cle] = o.etat === 'anon'
       exceptions[id][cle] = o.etat === 'exc'
@@ -243,8 +115,6 @@ export function etatsDepuisDetails(details: Record<string, OccurrenceScan[]>): {
   return { cochees, exceptions }
 }
 
-/** Diff prêt à valider : cibles du lot IPC (`CibleRegleAnon[]`),
- *  et compteurs d'affichage des changements. */
 export interface DiffPseudonymisation {
   cibles: CibleRegleAnon[]
   poses: number
@@ -253,60 +123,38 @@ export interface DiffPseudonymisation {
   exceptionsRetirees: number
 }
 
-/** Compare l'édition locale au dernier scan détaillé : chaque occurrence dont
- *  la case (ou l'exception) diverge de l'état scanné entre dans la cible de
- *  son entretien. PURE : ne mute rien, aucune I/O. */
+/** Compare des états finaux, sans demander deux actions incompatibles sur une même plage. */
 export function construireDiff(
   regleId: string,
   details: Record<string, OccurrenceScan[]>,
   cochees: EtatsOccurrences,
   exceptions: EtatsOccurrences,
 ): DiffPseudonymisation {
-  const diff: DiffPseudonymisation = {
-    cibles: [],
-    poses: 0,
-    retraits: 0,
-    exceptionsAjoutees: 0,
-    exceptionsRetirees: 0,
-  }
+  const diff: DiffPseudonymisation = { cibles: [], poses: 0, retraits: 0, exceptionsAjoutees: 0, exceptionsRetirees: 0 }
   for (const [entretienId, occurrences] of Object.entries(details)) {
     if (!cochees[entretienId]) continue
-    const plages: { from: number; to: number }[] = []
-    const retirer: { from: number; to: number }[] = []
-    const exception: { from: number; to: number }[] = []
-    const retirerException: { from: number; to: number }[] = []
-    const cible: CibleRegleAnon = { entretienId, regleId, plages, retirer, exception, retirerException }
+    const cible: CibleRegleAnon = {
+      entretienId, regleId, plages: [], retirer: [], exception: [], retirerException: [],
+      empreinte: occurrences[0]?.empreinte,
+    }
     for (const o of occurrences) {
-      if (o.etat === 'incl') continue
+      if (o.etat === 'incl' || o.actionnable === false) continue
       const cle = cleOccurrence(o)
-      const cochee = !!cochees[entretienId]?.[cle]
-      const estException = !!exceptions[entretienId]?.[cle]
+      const final = exceptions[entretienId]?.[cle] ? 'exc' : cochees[entretienId]?.[cle] ? 'anon' : 'non'
+      if (final === o.etat) continue
       const plage = { from: o.from, to: o.to }
-      if (cochee && o.etat === 'non') { plages.push(plage); diff.poses++ }
-      if (!cochee && o.etat === 'anon') { retirer.push(plage); diff.retraits++ }
-      if (estException && o.etat !== 'exc') { exception.push(plage); diff.exceptionsAjoutees++ }
-      if (!estException && o.etat === 'exc') { retirerException.push(plage); diff.exceptionsRetirees++ }
+      if (o.etat === 'exc') { cible.retirerException!.push(plage); diff.exceptionsRetirees++ }
+      if (o.etat === 'anon' && final === 'non') { cible.retirer!.push(plage); diff.retraits++ }
+      if (final === 'exc') { cible.exception!.push(plage); diff.exceptionsAjoutees++ }
+      if (final === 'anon') { cible.plages!.push(plage); diff.poses++ }
     }
-    if (plages.length || retirer.length || exception.length || retirerException.length) {
-      diff.cibles.push(cible)
-    }
+    if (cible.plages!.length || cible.retirer!.length || cible.exception!.length || cible.retirerException!.length) diff.cibles.push(cible)
   }
   return diff
 }
 
-/* ── Ajustement des compteurs après application en masse ────────────────────*/
-
-/** Déplace vers « anonymisées » les occurrences posées par application en masse,
- *  sans re-scan, depuis le compteur « à traiter ».
- *  Le lot renvoie le nombre d'occurrences réellement posées par entretien,
- *  et les fichiers locaux sont déjà à jour (écriture THROUGH).
- *  PURE : renvoie un nouveau tableau, ne mute rien.
- *  L'affichage reste ainsi cohérent jusqu'au prochain pull. */
-export function ajusterScanApresApplication(
-  scan: ScanRegle[],
-  regleId: string,
-  succes: { id: string; nb: number }[],
-): ScanRegle[] {
+/** Ajuste provisoirement les compteurs après une application, avant le prochain scan. */
+export function ajusterScanApresApplication(scan: ScanRegle[], regleId: string, succes: { id: string; nb: number }[]): ScanRegle[] {
   const posees = new Map<string, number>()
   for (const x of succes) posees.set(x.id, (posees.get(x.id) ?? 0) + Math.max(0, x.nb))
   return scan.map((s) => {
@@ -317,7 +165,7 @@ export function ajusterScanApresApplication(
       const copie = { ...st }
       const nb = posees.get(id)
       if (nb) {
-        const n = Math.min(nb, copie.non) // borné : jamais de compteur négatif
+        const n = Math.min(nb, copie.non)
         copie.non -= n
         copie.anon += n
         deplace += n

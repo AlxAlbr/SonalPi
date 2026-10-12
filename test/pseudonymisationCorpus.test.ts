@@ -42,12 +42,46 @@ describe('diff de pseudonymisation corpus', () => {
     etats.exceptions.e1['1:5'] = true
     etats.exceptions.e1['20:24'] = false
     const diff = construireDiff('r1', details, etats.cochees, etats.exceptions)
-    expect(diff).toMatchObject({ poses: 1, retraits: 1, exceptionsAjoutees: 1, exceptionsRetirees: 1 })
+    expect(diff).toMatchObject({ poses: 0, retraits: 1, exceptionsAjoutees: 1, exceptionsRetirees: 1 })
     expect(diff.cibles).toHaveLength(1)
+    expect(diff.cibles[0].plages).toEqual([])
   })
 })
 
 describe('cycle du scan', () => {
+  test('ignore la réponse d’un ancien corpus, même après le démarrage du nouveau scan', async () => {
+    let finirAncien!: (valeur: unknown[]) => void
+    let finirNouveau!: (valeur: unknown[]) => void
+    const scanAnon = vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { finirAncien = resolve }))
+      .mockImplementationOnce(() => new Promise((resolve) => { finirNouveau = resolve }))
+    const reglesAnon = vi.fn().mockResolvedValue([])
+    Object.defineProperty(globalThis, 'window', { value: { sonal: { corpus: { scanAnon, reglesAnon } } }, configurable: true })
+    const corpus = useCorpus({ flush: async () => {} })
+    const ancien = corpus.rafraichirScanAnon()
+    corpus.reinitialiserScanAnon()
+    const nouveau = corpus.rafraichirScanAnon()
+    finirAncien([{ regle: { id: 'ancien' } }])
+    expect(await ancien).toBe(false)
+    expect(corpus.scanAnon.value).toEqual([])
+    expect(corpus.scanAnonEnCours.value).toBe(true)
+    finirNouveau([])
+    expect(await nouveau).toBe(true)
+    expect(corpus.scanAnonEnCours.value).toBe(false)
+  })
+
+  test('un scan invalidé en cours de lecture reste périmé', async () => {
+    let terminer!: (valeur: unknown[]) => void
+    const scanAnon = vi.fn(() => new Promise<unknown[]>((resolve) => { terminer = resolve }))
+    Object.defineProperty(globalThis, 'window', { value: { sonal: { corpus: { scanAnon, reglesAnon: vi.fn().mockResolvedValue([]) } } }, configurable: true })
+    const corpus = useCorpus({ flush: async () => {} })
+    const scan = corpus.rafraichirScanAnon()
+    corpus.perimerScanAnon()
+    terminer([])
+    await scan
+    expect(corpus.scanAnonPerime.value).toBe(true)
+  })
+
   test('réutilise un scan frais et fusionne les chargements concurrents', async () => {
     let terminer!: (valeur: unknown[]) => void
     const scanAnon = vi.fn(() => new Promise<unknown[]>((resolve) => { terminer = resolve }))

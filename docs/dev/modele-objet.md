@@ -102,6 +102,7 @@ classDiagram
         +MetaEntretien meta «valeursGen, audioRef»
         +BrouillonAnon[] brouillonsAnon?
         +pseudosDeclares?
+        +definitionsAnonLocales?
         +legacy?
     }
 
@@ -237,8 +238,8 @@ classDiagram
 - **Codage** : `{type:'codage', code}` — le `code` référence une `Categorie` **par id** (référence,
   pas copie). Geste « re-coder = retirer » = `trouverCodage` (`entretien/entretien.ts`).
 - **Anonymisation** : `{type:'anon', regle?, pseudo?, etat}` — `etat` = `'anonymise' | 'exception'` ;
-  `pseudo` est pour l'instant porté **sur l'annotation** (provisoire : quand `RegleAnon` sera
-  pleine, on lira le pseudo **depuis la règle**, via `regle`). Détail en §6.
+  `pseudo` reste porté **sur l'annotation** : il mémorise la variante réellement choisie.
+  Le lien `regle` identifie la définition partagée, sans remplacer cette décision. Détail en §6.
 - **Commentaire** : `{type:'commentaire', texte, auteur}` — contenu **autonome**, aucun étage 1.
 - **Remap** : les positions `from`/`to` d'une annotation **suivent les éditions du texte** — le
   plugin `editor/remap.ts` observe `tr.mapping` de ProseMirror et met à jour les bornes à chaque
@@ -383,18 +384,39 @@ classDiagram
 ```
 
 - **`RegleAnon` (corpus)** : `{entite[], pseudos[]}` — un mappage `entité → pseudo(s)` **partagé**,
-  seule vérité « règle ». `entite[]`/`pseudos[]` gardent la forme unidimensionnelle du futur
-  multi-alias / multi-pseudo (≤2, `entretien/anon/pseudos.ts`). Pas de `actif` : le brouillon est
+  seule vérité « règle ». `entite[]` porte les alias et `pseudos[]` les variantes déclarées
+  (≤2). `corpus/definitionsAnon.ts` valide les créations et ajouts : plusieurs alias avec
+  un pseudo, ou une entité avec deux variantes. Les combinaisons invalides et chevauchements
+  partiels d’alias sont refusés sans troncature. La création depuis le corpus peut porter sa
+  catégorie dans la même écriture ; elle ne modifie jamais les entretiens.
+  Le pseudo appliqué reste dans chaque annotation.
+  Pas de `actif` : le brouillon est
   entretien-local, ce n'est pas un drapeau de règle.
 - **Couverture d'un match** : les occurrences d'une entité sont détectées insensible à la casse,
   aux **frontières de mot Unicode** (`occurrencesDe`, `entretien/anon/anonymisation.ts`).
-  `scannerCorpus` (`corpus/scanAnon.ts`) classe chaque match en 3 états — **requête** :
-  `anon` (couvert, pseudo ∈ pseudos de la règle) / `exc` (exception) / `non` (à traiter). Priorité :
-  une occurrence dans une **exception n'est jamais « à traiter »**.
+  Les scans agrégé/détaillé et les compteurs entretien partagent la classification des plages
+  (`entretien/anon/classification.ts`) : `anon`, `exc`, `non` et `incl`.
+  L'identité vient du texte couvert et des alias, jamais du seul pseudo. La décision englobante
+  visible prime sur les annotations internes, indépendamment de l'ordre de stockage.
+  Les matchs d'alias recouvrants sont dédupliqués en conservant le plus long.
+  Une exception interne bloque une nouvelle pose englobante par défaut ; sa couverture dans
+  l'entretien demande une confirmation. L'annotation interne n'est jamais détruite.
 - **Application** : poser une `Annotation{type:'anon'}` sur la plage d'un match. En **masse** sur un
   entretien **fermé** (depuis l’onglet Pseudonymisation du corpus) : `instructionsAppliquerRegle`
   (`entretien/anon/applicationMasse.ts`) calcule les occurrences à poser (sans toucher aux déjà
-  couvertes), puis le store écrit atomiquement.
+  couvertes), puis le store écrit atomiquement **un fichier**, pas le lot complet.
+  Un diff porte des listes explicites : `plages` absente ou vide ne demande aucune pose ;
+  `toutes: true` demande une application entière. Les retraits d'exceptions précèdent les poses.
+  Le détail transporte une empreinte du texte, des annotations et de la définition textuelle
+  de la règle ; tout diff positionnel exige cette empreinte et un état attendu compatible.
+  Le moteur prépare les décisions sur une copie avant mutation : un refus laisse la source intacte.
+  `BilanMutationAnon` distingue poses, retraits et exceptions ajoutées/retirées ; `nb` compte
+  les mutations, pas forcément des occurrences distinctes. Les cibles répétées compatibles
+  sont regroupées ; des versions différentes font refuser l’entretien entier.
+  WebDAV verrouille corpus puis entretien, relit la définition et contrôle l’ETag corpus avant
+  publication. GitLab garde le corpus dans le commit d’un entretien fermé ; une session ouverte
+  vérifie aussi la définition textuelle distante avant sa mutation locale.
+  Les décisions indépendantes sont visibles mais non modifiables depuis le détail corpus.
 - **Brouillons** (`BrouillonAnon`, `entretiens/<id>.json.brouillonsAnon`) : une entité saisie sans
   occurrence posée. **Entretien-local, pas une règle.** Validé → consommé, des `Annotation{type:'anon'}`
   sont posées. (`entretien/anon/brouillonsAnon.ts`, `cleEntite`).
@@ -405,6 +427,75 @@ classDiagram
 **Code** : `src/shared/corpus/reglesAnon.ts`, `src/shared/corpus/scanAnon.ts`,
 `src/shared/entretien/anon/` (`anonymisation.ts`, `brouillonsAnon.ts`, `pseudos.ts`,
 `applicationMasse.ts`, barrel `index.ts`).
+
+L’inventaire pur `corpus/correspondancesLocuteurs.ts` déduplique les couples nom/pseudo en
+conservant les identités et décisions par entretien, même sans tour de parole. Il signale
+les pseudos divergents pour un nom ou une `Personne` sans synchroniser ni créer de règle textuelle.
+Il alimente maintenant l’export des correspondances ; les libellés ne sont jamais assimilés aux règles textuelles.
+
+Les modules `corpus/tablesCorrespondance.ts` et `corpus/importCorrespondances.ts` construisent
+le format privé `sonalpi-correspondances` version 2, son aplatissement V1 et les résolutions
+pures d’import. Le format distingue `texte/corpus`, `texte/texte-local` et `locuteur` ; les
+usages et diagnostics ne sont jamais des positions à réappliquer. Les alias, variantes
+et catégories disponibles restent déclaratifs. Le champ natif optionnel `definitionsAnonLocales`
+conserve les alias, les variantes inutilisées, la catégorie et l’état déclaration/brouillon.
+Il ne contient ni ID de règle, ni position, ni compteur. Seul un brouillon peut rester sans pseudo.
+Les annotations demeurent la source du pseudo choisi ; l’export rééditable `.sonal` conserve
+cette mémoire locale et tous les alias corpus utilisés. L’export pseudonymisé l’exclut.
+Le numéro de format natif reste inchangé ; l’édition de ce nouveau champ dans les anciens clients V2 n’est pas qualifiée.
+
+Le main mémorise trois aperçus au maximum, pendant cinq minutes, liés au store courant.
+Il n’accepte pas du renderer une table arbitraire à écrire. L’export est celui de l’aperçu,
+avec confirmation des limites et de la confidentialité ; les destinations dans le corpus
+ou son miroir, y compris via un lien symbolique, sont refusées. L’export distant lit le
+miroir du poste, explicitement signalé, et non un instantané serveur garanti publié.
+
+L’import de définitions corpus prépare
+une copie complète des règles, vérifie l’empreinte SHA-256 des définitions fraîches puis
+écrit un seul `corpus.json`. Les identifiants existants sont conservés ; les identifiants
+étrangers ne servent pas à réaffecter une règle. Le geste `anon.importer-regles` relève
+des transactions de définitions existantes sur WebDAV/GitLab. Remplacer une définition
+ne renomme aucun usage.
+
+Le parcours `anon.importer-cibles`, disponible en local, sur GitLab et sur WebDAV, propose les entretiens et locuteurs
+existants de même nom, sans sélection automatique ni réassignation de `Personne`.
+La sélection et la décision du locuteur sont confirmées explicitement ; les provenances mixtes
+exigent de choisir l’état cible. L’import local ne pose aucune annotation et conserve
+les pseudos déjà choisis. Les collisions partielles ou de portée sont refusées.
+Le cache conserve les empreintes SHA-256 du corpus et des fichiers, jamais une autorité reçue du renderer.
+Après relecture et refus des sessions ouvertes, toutes les copies sont préparées avant
+le journal durable de remplacement, commun aux règles et entretiens sélectionnés.
+Ce journal privé contient les instantanés de reprise, dans le corpus avec permissions `0600` ;
+aucun texte ni table de correspondance n’est journalisé dans les diagnostics techniques.
+La reprise est idempotente et refuse d’écraser un fichier modifié entre-temps.
+Une transaction en attente bloque l’ouverture locale en édition ; la fermeture d’une session
+bloque également ses sauvegardes tardives.
+
+Sur GitLab, l’aperçu lit les versions publiées à un même SHA, sans écrire le miroir ni ouvrir de session.
+Le main reprend le bail corpus puis les baux des entretiens sélectionnés, en ordre d’identifiant.
+Il refuse les sessions locales/récupérables et les versions modifiées, puis prépare règles et cibles
+avant un seul commit de données, avec gardes et renouvellement de tous les baux.
+La borne est de 124 entretiens ciblés et 250 actions, baux compris ; la taille HTTP reste également bornée.
+L’inventaire publié est limité à 64 Mio et l’aperçu privé à 8 Mio/10 000 cibles.
+Une réponse perdue est réconciliée par le journal de publication version 5, privé (`0600`),
+qui relit les versions 1 à 4 ; les anciennes versions conservent leurs bornes historiques.
+Un résultat inconnu bloque les nouveaux imports jusqu’à réouverture/réconciliation, sans rejeu du commit.
+L’installation du miroir suit la confirmation ; une panne d’installation impose le tirage, pas un nouvel import.
+Les entretiens GitLab doivent déjà être au format natif actuel : aucune migration implicite du ciblage.
+Sur WebDAV, l’aperçu lit le serveur et garde les empreintes dans le même cache privé,
+sans repli sur le miroir. `CorrespondancesWebDAV` prépare les copies sous verrous corpus→entretiens triés,
+puis publie séquentiellement par PUT If-Match ; aucune atomicité multi-fichiers n’est promise.
+La borne est de 100 entretiens, 32 Mio d’inventaire et 64 Mio de journal privé `0600`.
+Le journal conserve les copies avant/après et les succès acquis ; une interruption exige une reprise confirmée.
+Tout le plan est recontrôlé sous verrous, sans compensation ni écrasement concurrent.
+Un ETag changé par LOCK/UNLOCK n’est adopté en reprise qu’après égalité exacte des octets.
+Le contexte bloque sessions, sauvegardes, autres mutations et tirages jusqu’à achèvement du suivi.
+Une ouverture ou mutation déjà engagée exclut l’import ; les baux d’import ne deviennent jamais des sessions.
+Le suivi public ne contient que cibles, états et bilan prévu, sans copies ni table originale.
+La reprise IPC est liée au contexte d’origine, avec confirmation renouvelée après chaque refus.
+Les verrous persistants après SIGKILL sont refusés, même pour le même compte Nextcloud :
+leur libération nécessite une intervention extérieure après vérification du détenteur.
+Huit scénarios Electron A/B qualifient le parcours raccordé ; aucune charge maximale ni autre serveur n’est revendiqué.
 
 ## 7. Locuteurs
 

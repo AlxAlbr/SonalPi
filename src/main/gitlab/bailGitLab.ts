@@ -283,6 +283,7 @@ export class BailGitLab {
   private readonly dureeBailMs: number
   private readonly ressourcesLegacy: string[]
   private readonly commits: FileCommitsGitLab
+  private readonly droitsAcquis = new Map<string, EtatDroit>()
 
   constructor(private readonly options: OptionsBailGitLab) {
     if (!options.branche.trim()) throw new Error('Branche GitLab manquante.')
@@ -460,10 +461,12 @@ export class BailGitLab {
         }],
       )
       etat.invalide = true
+      if (this.droitsAcquis.get(etat.chemin) === etat) this.droitsAcquis.delete(etat.chemin)
       return 'libere'
     } catch (erreur) {
       if (refusMutationConnu(erreur)) {
         etat.invalide = true
+        if (this.droitsAcquis.get(etat.chemin) === etat) this.droitsAcquis.delete(etat.chemin)
         return 'deja-perdu'
       }
       throw erreur
@@ -628,6 +631,7 @@ export class BailGitLab {
   async rendreBailNotre(
     chemin: string,
     generationAttendue: string,
+    detenteurAttendu?: IdentiteBailGitLab,
   ): Promise<'libere' | 'absent' | 'autre'> {
     return this.serierCommit(async () => {
       const resourceHash = resourceHashDeChemin(chemin)
@@ -637,6 +641,8 @@ export class BailGitLab {
       if (
         courant.holder.userId !== this.options.identite().userId
         || courant.generation !== generationAttendue
+        || (detenteurAttendu && (courant.holder.userId !== detenteurAttendu.userId
+          || courant.holder.machineId !== detenteurAttendu.machineId || courant.holder.sessionId !== detenteurAttendu.sessionId))
       ) {
         return 'autre'
       }
@@ -646,6 +652,7 @@ export class BailGitLab {
           `Sonal bail ${courant.resourceHash.slice(0, 12)} reprise au démarrage`,
           [{ action: 'delete', file_path: chemin, last_commit_id: observe.commitId }],
         )
+        if (this.droitsAcquis.get(chemin)?.generation === generationAttendue) this.droitsAcquis.delete(chemin)
         return 'libere'
       } catch (erreur) {
         // Un refus laisse le bail à son expiration, comme avant cette reprise.
@@ -653,6 +660,18 @@ export class BailGitLab {
         return 'autre'
       }
     })
+  }
+
+  /** La réconciliation ne peut rendre que les droits acquis par cette instance. */
+  async rendreBailAcquis(chemin: string, generation: string): Promise<'libere' | 'absent' | 'autre'> {
+    const etat = this.droitsAcquis.get(chemin)
+    if (!etat || etat.invalide || etat.generation !== generation || this.maintenant() >= etat.expireLe) return 'autre'
+    const resultat = await this.rendreBailNotre(chemin, generation, etat.identite)
+    if (resultat !== 'autre') {
+      etat.invalide = true
+      if (this.droitsAcquis.get(chemin) === etat) this.droitsAcquis.delete(chemin)
+    }
+    return resultat
   }
 
   /** Le compte de cette application, pour nommer un refus sans se nommer
@@ -763,6 +782,7 @@ export class BailGitLab {
       invalide: false,
       suspendu: false,
     })
+    this.droitsAcquis.set(chemin, états.get(droit)!)
     return droit
   }
 

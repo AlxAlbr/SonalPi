@@ -13,6 +13,7 @@ import type {
   EntretienRef,
   MarqueurDemo,
   ParamsAnon,
+  RegleAnon,
 } from '../../../shared/format'
 import { paramsAnonDefaut } from '../../../shared/format'
 import { squeletteCorpus } from '../../../shared/corpus/squelette'
@@ -41,6 +42,7 @@ interface ModeleCycleCorpus {
   attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   tableaubord: Ref<TableauBord | null>
   paramsAnon: Ref<ParamsAnon>
+  reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
   majVariables: (variables: CorpusFichier['variables']) => void
   majCategoriesNote: (categories: CorpusFichier['categoriesNote']) => void
@@ -163,6 +165,8 @@ export function useCycleCorpus(deps: {
     deps.corpus.majVariables(corpus.variables)
     deps.corpus.majCategoriesNote(corpus.categoriesNote)
     deps.corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(corpus.paramsAnon ?? {}) }
+    // Les règles doivent être disponibles dans l’entretien même sans avoir ouvert le panneau corpus.
+    deps.corpus.reglesAnon.value = structuredClone(Object.values(corpus.reglesAnon ?? {}))
     await deps.corpus.rafraichirUsages()
     await deps.medias.rafraichirAudios()
     await deps.medias.rafraichirIntegriteAudios()
@@ -314,6 +318,8 @@ export function useCycleCorpus(deps: {
     deps.corpus.majVariables(charge.variables)
     deps.corpus.majCategoriesNote(charge.categoriesNote)
     deps.corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(charge.paramsAnon ?? {}) }
+    // Actualise aussi les règles utilisées par l’entretien resté ouvert.
+    deps.corpus.reglesAnon.value = structuredClone(Object.values(charge.reglesAnon ?? {}))
     deps.corpus.perimerScanAnon()
     await deps.corpus.rafraichirUsages()
     await deps.medias.rafraichirAudios()
@@ -374,15 +380,12 @@ export function useCycleCorpus(deps: {
       annulerSauvegarde: deps.entretien.annulerEtAttendreSauvegarde,
       viderSauvegarde: deps.entretien.viderSauvegarde,
     })
-    if (deps.distant.idCourant.value) {
-      const resultat = await window.sonal.corpus.fermerEntretien(id)
-      if (!resultat.fermee) {
-        const geste =
-          resultat.raison === 'publication' ? 'publier les modifications' : 'libérer le verrou'
-        throw new Error(resultat.message ?? `Impossible de ${geste}.`)
-      }
-      deps.distant.appliquerStatutSession({ etat: 'aucune' })
+    const resultat = await window.sonal.corpus.fermerEntretien(id)
+    if (!resultat.fermee) {
+      const geste = resultat.raison === 'publication' ? 'publier les modifications' : 'libérer le verrou'
+      throw new Error(resultat.message ?? `Impossible de ${geste}.`)
     }
+    if (deps.distant.idCourant.value) deps.distant.appliquerStatutSession({ etat: 'aucune' })
     reprise.value = {
       id,
       positionAudio: deps.audio.position.value,

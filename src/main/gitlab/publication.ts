@@ -129,13 +129,13 @@ export function verifierBornesAnticipees(
   actions: readonly unknown[],
   nombreDroits = 1,
 ): void {
-  if (!Number.isSafeInteger(nombreDroits) || nombreDroits < 1 || nombreDroits > 2) {
+  if (!Number.isSafeInteger(nombreDroits) || nombreDroits < 1 || nombreDroits > MAX_ACTIONS_PUBLICATION) {
     throw new Error('Nombre de droits GitLab invalide.')
   }
   if (actions.length + nombreDroits > MAX_ACTIONS_PUBLICATION) {
     throw refusActions(actions.length + nombreDroits)
   }
-  const octets = mesurerCorpsPublication(branche, message, actions, RESERVE_ENVELOPPE_PUBLICATION)
+  const octets = mesurerCorpsPublication(branche, message, actions, RESERVE_ENVELOPPE_PUBLICATION * nombreDroits)
   if (octets > MAX_CORPS_PUBLICATION) throw refusTaille(octets)
 }
 
@@ -394,6 +394,9 @@ export class PublieurGitLab {
     if (resultat.statut === 'indetermine') {
       return { statut: 'indetermine', operationId: plan.operationId }
     }
+    if (resultat.statut === 'absent' && (plan.operationId.startsWith('ajout-variante-') || plan.operationId.startsWith('retrait-variante-'))) {
+      return { statut: 'indetermine', operationId: plan.operationId }
+    }
     if (resultat.statut === 'absent') {
       // Le commit n'a jamais existé : le refus est certain, et la libération
       // portera encore la bonne garde.
@@ -524,7 +527,7 @@ export class PublieurGitLab {
 export function verifierDroitsPublication(
   droits: readonly DroitsEditionGitLab[],
 ): void {
-  if (droits.length === 0 || droits.length > 2) {
+  if (droits.length === 0 || droits.length > MAX_ACTIONS_PUBLICATION) {
     throw new Error('Droits de publication GitLab invalides.')
   }
   const generations = new Set(droits.map((droit) => droit.generation))

@@ -13,7 +13,12 @@ import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'no
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
+import { ajouterVarianteAnon, type DemandeAjoutVarianteAnon, type ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import { appliquerImportCorrespondances, type LigneImportCorrespondance, type ChoixImportCorrespondance } from '../shared/corpus/importCorrespondances'
+import { normaliserPseudosDeclares, validerMemoireLocale } from '../shared/entretien/anon/definitionsLocales'
+import { appliquerCorrespondancesEntretiens, type CibleImportCorrespondance, type ChoixCibleCorrespondance } from '../shared/corpus/importCorrespondancesEntretiens'
+import { empreinteCorrespondance, empreinteDefinitionsCorrespondance } from './tablesCorrespondance'
 import type {
   DemandeOperationTheme,
   OptionsExecutionOperationTheme,
@@ -32,7 +37,7 @@ import {
   type InventaireNotes,
 } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
-import { aplatir, appliquerRegleAnonEntretien } from '../shared/entretien/anon'
+import { aplatir, appliquerRegleAnonEntretienAvecBilan, bilanAnonVide } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import {
@@ -104,6 +109,7 @@ import {
   type CibleValeur,
   type CorpusFichier,
   type EntretienFichier,
+  type ResultatMutationAnon,
   type LectureEntretien,
   type Locuteur,
   type MarqueurDemo,
@@ -333,17 +339,23 @@ export class CorpusStore {
     throw new ErreurCorpusSeul(id)
   }
 
-  /** Exception PAR ENTRETIEN : quand le corpus distant est en lecture seule (les définitions partagées restent bloquées),
-   *  le contenu des entretiens DONT NOUS TENONS le verrou reste écrivable.
-   *  La couche session pose/retire l'id ici, à l'acquisition/libération. */
+  /** Entretiens en cours d’édition, refusés comme cibles d’un import fermé.
+   *  En distant, cette inscription correspond également au verrou de session. */
   private readonly ecrituresAutorisees = new Set<string>()
+  private readonly sessionsLocalesFermees = new Set<string>()
+
+  exigerSessionLocaleEcriture(id: string): void {
+    if (!this.lectureSeule && this.sessionsLocalesFermees.has(id)) throw new Error('La session locale est fermée. Rouvrez l’entretien avant d’enregistrer.')
+  }
 
   autoriserEcritureEntretien(id: string): void {
     this.ecrituresAutorisees.add(id)
+    this.sessionsLocalesFermees.delete(id)
   }
 
   revoquerEcritureEntretien(id: string): void {
     this.ecrituresAutorisees.delete(id)
+    if (!this.lectureSeule) this.sessionsLocalesFermees.add(id)
   }
 
   private verifierEcritureEntretien(id: string): void {
@@ -372,6 +384,8 @@ export class CorpusStore {
       genIdCategorie: () => genId('cat'),
     })
   }
+
+  get repertoire(): string { return this.dir }
 
   /** Exemple : dir = "/home/user/projets/mon_corpus",
     *  corpusFile → "/home/user/projets/mon_corpus/corpus.json". */
@@ -760,6 +774,10 @@ export class CorpusStore {
   }
 
   private adapterEntretienLu(entretien: EntretienFichier): LectureEntretien {
+    try {
+      if (entretien.definitionsAnonLocales !== undefined) validerMemoireLocale(entretien.definitionsAnonLocales)
+      if (entretien.pseudosDeclares !== undefined) normaliserPseudosDeclares(entretien.pseudosDeclares)
+    } catch { return { ok: false, raison: 'version' } }
     let data = entretien
     if ((data.formatVersion as number) === 1) {
       data = migrerEntretienFormatV1(
@@ -786,10 +804,12 @@ export class CorpusStore {
   /** Ouvre explicitement une session d'édition locale.
    *  La première écriture qui suit conservera l'état antérieur dans `.bak1`. */
   ouvrirEntretienPourEdition(id: string): LectureEntretien {
+    if (!this.lectureSeule && this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant d’éditer un entretien.')
     const lecture = this.lireEntretien(id)
     if (lecture.ok) {
       lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
       this.rotationEnAttente.add(id)
+      if (!this.lectureSeule) this.autoriserEcritureEntretien(id)
     }
     return lecture
   }
@@ -799,12 +819,15 @@ export class CorpusStore {
    *  Les données à écrire viennent de la classe PayloadEntretien (shared/format.ts). */
   ecrireEntretien(id: string, payload: PayloadEntretien): string {
     this.verifierEcritureEntretien(id)
+    if (payload.pseudosDeclares !== undefined) normaliserPseudosDeclares(payload.pseudosDeclares)
+    const definitionsLocales = payload.definitionsAnonLocales === undefined ? undefined : validerMemoireLocale(payload.definitionsAnonLocales)
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
     const now = new Date().toISOString()
     const fichier: EntretienFichier = {
       formatVersion: FORMAT_VERSION,
       lastModified: now,
       ...payload,
+      ...(definitionsLocales !== undefined ? { definitionsAnonLocales: definitionsLocales } : {}),
       reperesPassages: normaliserReperesPassages(payload.reperesPassages),
     }
 
@@ -848,6 +871,7 @@ export class CorpusStore {
       reperesPassages: rendreReperesOrphelins(data.reperesPassages),
       brouillonsAnon: data.brouillonsAnon,
       pseudosDeclares: data.pseudosDeclares,
+      definitionsAnonLocales: data.definitionsAnonLocales,
       legacy: data.legacy,
     })
   }
@@ -900,6 +924,8 @@ export class CorpusStore {
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
   ): PlanAjoutEntretien {
+    if (payload.pseudosDeclares !== undefined) normaliserPseudosDeclares(payload.pseudosDeclares)
+    const definitionsLocales = payload.definitionsAnonLocales === undefined ? undefined : validerMemoireLocale(payload.definitionsAnonLocales)
     const corpusAvant = this.ouvrir()
     const corpusApres = structuredClone(corpusAvant)
     const id = genIdEntretien(titre)
@@ -908,6 +934,7 @@ export class CorpusStore {
       formatVersion: FORMAT_VERSION,
       lastModified: now,
       ...payload,
+      ...(definitionsLocales !== undefined ? { definitionsAnonLocales: definitionsLocales } : {}),
       reperesPassages: normaliserReperesPassages(payload.reperesPassages),
       locuteurs: completerIdsLocuteurs(id, payload.locuteurs),
     }
@@ -1142,14 +1169,22 @@ export class CorpusStore {
   }
 
   /** Inventaire strict sans migration sur disque ni ouverture de session. */
-  private lireInstantaneOperationTheme(): InstantaneOperationTheme {
+  private lireInstantaneOperationTheme(limiteOctets?: number): InstantaneOperationTheme {
     this.verifierEntretienLisible()
     if (!existsSync(this.corpusFile)) {
       throw new Error(this.amortissable
         ? 'Ouvrez le corpus avant de préparer une opération sur les thématiques.'
         : `${CORPUS_SUPPRIME}: le fichier corpus.json courant a été supprimé.`)
     }
-    const corpus = decoderCorpusTheme(readFileSync(this.corpusFile, 'utf8'))
+    let octets = 0
+    const lire = (fichier: string): string => {
+      if (limiteOctets !== undefined && octets + statSync(fichier).size > limiteOctets) throw new Error('L’inventaire dépasse sa limite de lecture.')
+      const contenu = readFileSync(fichier, 'utf8')
+      octets += Buffer.byteLength(contenu)
+      if (limiteOctets !== undefined && octets > limiteOctets) throw new Error('L’inventaire dépasse sa limite de lecture.')
+      return contenu
+    }
+    const corpus = decoderCorpusTheme(lire(this.corpusFile))
     const entretiens: InstantaneOperationTheme['entretiens'] = []
     for (const [id, ref] of Object.entries(corpus.membership)) {
       const titre = ref?.titre ?? id
@@ -1159,7 +1194,7 @@ export class CorpusStore {
         }
         const fichier = this.entretienFile(id)
         if (!existsSync(fichier)) throw new Error('Fichier d’entretien absent.')
-        const avant = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+        const avant = JSON.parse(lire(fichier)) as EntretienFichier
         const data = this.adapterEntretienOperationTheme(avant)
         entretiens.push({ id, titre, ok: true, avant, data })
       } catch (erreur) {
@@ -1878,18 +1913,133 @@ export class CorpusStore {
     return corpusModel.trouverRegleParEntite(this.ouvrir(), entite)
   }
 
+  /** Lecture stricte sans migration sur disque ; les membres indisponibles restent signalés. */
+  instantaneCorrespondances(avecEntretiens: boolean, limiteOctets?: number): InstantaneOperationTheme {
+    if (avecEntretiens) {
+      const instantane = this.lireInstantaneOperationTheme(limiteOctets)
+      if (!Object.hasOwn(instantane.corpus, 'reglesAnon')) instantane.corpus = { ...instantane.corpus, reglesAnon: {} }
+      return instantane
+    }
+    return { corpus: this.ouvrir(), entretiens: [] }
+  }
+
+  /** Un renommage global local nécessite la fermeture de toutes les sessions d’édition. */
+  renommageAnonGlobalPossible(): boolean {
+    return !this.lectureSeule && this.sourcesPreparation === null && !this.transactionsFichiers.journalPresent() && this.ecrituresAutorisees.size === 0
+  }
+
+  exigerRenommageAnonGlobal(): void {
+    this.verifierEcriture()
+    if (this.sourcesPreparation !== null) throw new Error('Le renommage global doit passer par le service qualifié du fournisseur.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant de renommer.')
+    if (this.ecrituresAutorisees.size) throw new Error('Fermez tous les entretiens en édition et recalculez l’aperçu avant de renommer.')
+  }
+
+  /** Le premier protocole local de dissociation exige des copies fermées et un journal libre. */
+  dissociationAnonGlobalePossible(): boolean { return this.renommageAnonGlobalPossible() }
+
+  exigerDissociationAnonGlobale(): void {
+    this.verifierEcriture()
+    if (this.sourcesPreparation !== null) throw new Error('La dissociation globale doit passer par le service qualifié du fournisseur.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant de dissocier.')
+    if (this.ecrituresAutorisees.size) throw new Error('Fermez les entretiens en édition et recalculez l’aperçu avant de dissocier.')
+  }
+
+  /** La suppression globale locale exige des sessions fermées et un journal libre. */
+  suppressionAnonGlobalePossible(): boolean { return this.renommageAnonGlobalPossible() }
+
+  exigerSuppressionAnonGlobale(): void {
+    this.verifierEcriture()
+    if (this.sourcesPreparation !== null) throw new Error('La suppression globale doit passer par le service qualifié du fournisseur.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant de supprimer.')
+    if (this.ecrituresAutorisees.size) throw new Error('Fermez les entretiens en édition et recalculez l’aperçu avant de supprimer.')
+  }
+
+  /** Le retrait d’une variante exige un bilan frais, des sessions fermées et un journal libre. */
+  retraitVarianteAnonPossible(): boolean { return this.renommageAnonGlobalPossible() }
+
+  exigerRetraitVarianteAnon(): void {
+    this.verifierEcriture()
+    if (this.sourcesPreparation !== null) throw new Error('Le retrait de variante doit passer par le service qualifié du fournisseur.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant de retirer une variante.')
+    if (this.ecrituresAutorisees.size) throw new Error('Fermez les entretiens en édition et recalculez le bilan avant de retirer une variante.')
+  }
+
+  /** L'import ciblé local utilise le journal durable et refuse les entretiens encore édités. */
+  importerCorrespondancesEntretiens(preparation: {
+    empreinteCorpus: string; empreintesEntretiens: Record<string, string>
+    lignes: LigneImportCorrespondance[]; choix: Record<string, ChoixImportCorrespondance>
+    cibles: CibleImportCorrespondance[]; choixCibles: ChoixCibleCorrespondance[]
+  }) {
+    this.verifierEcriture()
+    if (this.sourcesPreparation !== null) throw new Error('L’import ciblé doit passer par le service du fournisseur, jamais par un store de préparation.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant d’importer.')
+    const instantane = this.instantaneCorrespondances(true)
+    if (empreinteCorrespondance(instantane.corpus) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé depuis l’aperçu. Recalculez avant d’importer.')
+    const selection = new Set(preparation.choixCibles.map((c) => {
+      const cible = preparation.cibles.find((x) => x.id === c.cibleId)
+      if (!cible) throw new Error('Cible inconnue. Recalculez l’aperçu.')
+      return cible.entretienId
+    }))
+    const entretiens: Record<string, EntretienFichier> = Object.create(null)
+    for (const id of selection) {
+      if (this.ecrituresAutorisees.has(id)) throw new Error('Un entretien cible est ouvert en édition. Fermez-le et recalculez l’aperçu.')
+      const source = instantane.entretiens.find((e) => e.id === id)
+      if (!source?.ok || empreinteCorrespondance(source.avant) !== preparation.empreintesEntretiens[id]) throw new Error('Un entretien cible a changé ou est indisponible. Recalculez avant d’importer.')
+      if (source.avant.formatVersion < 3) throw new Error('Enregistrez cet ancien entretien dans le format actuel avant d’importer des correspondances locales.')
+      entretiens[id] = source.avant
+    }
+    const global = appliquerImportCorrespondances(instantane.corpus.reglesAnon, preparation.lignes, preparation.choix, () => genId('reg'))
+    const corpusAvant = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+    const corpusApres = structuredClone(corpusAvant)
+    if (global.bilan.ajouts + global.bilan.variantes + global.bilan.remplacements) corpusApres.reglesAnon = global.regles
+    const local = appliquerCorrespondancesEntretiens({ lignes: preparation.lignes }, { ...corpusApres, reglesAnon: global.regles }, entretiens, preparation.cibles, preparation.choixCibles)
+    const modifications = Object.entries(local.apres).map(([id, apres]) => ({ id, avant: entretiens[id], apres: { ...apres, lastModified: new Date().toISOString() } }))
+    if (modifications.length || JSON.stringify(corpusAvant) !== JSON.stringify(corpusApres)) this.appliquerTransactionFichiers({
+      operation: 'remplacement', id: genId('correspondances'), corpusAvant, corpusApres, entretiens: modifications,
+      ordre: 'entretiens-puis-corpus',
+    })
+    const lignesCiblees = new Set(preparation.choixCibles.map((c) => preparation.cibles.find((x) => x.id === c.cibleId)!.ligneId))
+    global.bilan.ignores -= lignesCiblees.size
+    return { ...global.bilan, entretiens: local.bilan }
+  }
+
+  /** Importe uniquement des définitions partagées ; les décisions et libellés restent intacts. */
+  importerDefinitionsAnon(lignes: LigneImportCorrespondance[], choix: Record<string, ChoixImportCorrespondance>, empreinte: string) {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    if (empreinteDefinitionsCorrespondance(corpus.reglesAnon) !== empreinte) throw new Error('Les règles ont changé depuis l’aperçu. Recalculez avant d’importer.')
+    const resultat = appliquerImportCorrespondances(corpus.reglesAnon, lignes, choix, () => genId('reg'))
+    if (resultat.bilan.ajouts + resultat.bilan.variantes + resultat.bilan.remplacements) {
+      corpus.reglesAnon = resultat.regles
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
+    return resultat.bilan
+  }
+
   /** Crée une règle pour une entité.
    *  Défensive : si la transaction révèle une règle déjà posée par un collègue
    *  (données fraîches du GET d'après-verrou), elle est réutilisée.
    *  `existait: true` signale ce cas à l'UI,
    *  qui ouvre son dialogue Aligner / Garder les deux. */
-  regleAnonCreer(entite: string, pseudos: string[]): { regle: RegleAnon; existait: boolean } {
+  regleAnonCreer(entite: string, pseudos: string[], categorie?: string): { regle: RegleAnon; existait: boolean } {
     this.verifierEcriture()
     const corpus = this.ouvrir()
-    const existante = corpusModel.trouverRegleParEntite(corpus, entite)
-    const r = corpusModel.creerRegle(corpus, entite, pseudos, () => genId('reg'))
-    if (!existante) this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return { regle: r, existait: !!existante }
+    const identifiantsAvant = new Set(Object.keys(corpus.reglesAnon))
+    const r = corpusModel.creerRegle(corpus, entite, pseudos, () => genId('reg'), categorie)
+    const existait = identifiantsAvant.has(r.id)
+    if (!existait) this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return { regle: r, existait }
+  }
+
+  /** Une variante supplémentaire ne réécrit aucun entretien, même ouvert en édition. */
+  regleAnonAjouterVariante(demande: DemandeAjoutVarianteAnon): ResultatAjoutVarianteAnon {
+    this.verifierEcriture()
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant d’ajouter une variante.')
+    const corpus = this.ouvrir()
+    const resultat = ajouterVarianteAnon(corpus, demande)
+    if (resultat.ajoute) this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return resultat
   }
 
   /** « Garder les deux » : ajoute un pseudo secondaire à une règle (si ≤2). */
@@ -1968,25 +2118,30 @@ export class CorpusStore {
     entretienId: string,
     regleId: string,
     cible?: {
+      empreinte?: string
+      toutes?: boolean
       plages?: { from: number; to: number }[]
       retirer?: { from: number; to: number }[]
       exception?: { from: number; to: number }[]
       retirerException?: { from: number; to: number }[]
     },
-  ): { nb: number; titre: string } {
+  ): ResultatMutationAnon & { titre: string } {
     this.verifierEcritureEntretien(entretienId)
     const corpus = this.ouvrir()
     const titre = corpus.membership[entretienId]?.titre ?? entretienId
     const regle = corpus.reglesAnon[regleId]
     const file = this.entretienFile(entretienId)
-    if (!regle || !existsSync(file)) return { nb: 0, titre }
+    if (!regle || !existsSync(file) || (cible?.empreinte && !Object.hasOwn(corpus.membership, entretienId))) {
+      if (cible?.empreinte) throw new Error('La règle ou l’entretien de l’aperçu n’existe plus. Actualisez avant de recommencer.')
+      return { nb: 0, actions: bilanAnonVide(), titre }
+    }
     const data = JSON.parse(readFileSync(file, 'utf8')) as EntretienFichier
-    const nb = appliquerRegleAnonEntretien(data, regle, cible ?? {})
-    if (nb > 0) {
+    const resultat = appliquerRegleAnonEntretienAvecBilan(data, regle, cible ?? { toutes: true })
+    if (resultat.nb > 0) {
       data.lastModified = new Date().toISOString()
       this.ecrireJsonAtomique(file, data)
     }
-    return { nb, titre }
+    return { ...resultat, titre }
   }
 
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée.

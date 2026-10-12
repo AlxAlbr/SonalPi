@@ -33,6 +33,16 @@ Règles concrètes :
 En résumé : si un commentaire ne survit pas à la suppression des plans, il ne
  doit pas être dans le code.
 
+## Interface : l’utilisateur n’est pas un technicien
+
+Les dialogues expliquent les conséquences pour les données et les actions possibles,
+pas les mécanismes internes. Employer un langage courant, un bilan court et des
+boutons explicites ; garder les détails facultatifs. Les verrous, ETags, PUT,
+barrières et journaux privés appartiennent à la documentation développeur ou à des
+informations d’assistance repliées, pas au texte principal d’une confirmation.
+Automatiser les étapes techniques qui ne demandent aucun choix utilisateur, sans
+retirer les contrôles internes ni les confirmations nécessaires.
+
 ## Tests : ne retéléchargez JAMAIS les images Docker
 
 Les images et volumes Nextcloud des bancs (`docker/compose-*.yml`) sont déjà en place :

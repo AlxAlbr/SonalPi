@@ -1224,3 +1224,129 @@ l’écriture réelle à deux comptes : un entretien tenu est différé puis rep
 et une référence publiée pendant la finalisation refuse la suppression seule
 avant une reprise réussie. Les deux portées de thèmes sont ouvertes à la suite
 de cette qualification sur GitLab CE 18.11.
+
+## 14. Import ciblé des correspondances — 9 octobre 2026
+
+`anon.importer-cibles` est disponible en local, sur GitLab et sur WebDAV après qualification A/B.
+Le protocole WebDAV est séquentiel, distinct du commit GitLab ; voir [publication et reprise WebDAV](correspondances-webdav.md).
+L’aperçu GitLab lit corpus et entretiens sur un même commit publié, jamais sur le miroir.
+Les cibles sont choisies séparément, sans réassignation des identités importées ni synchronisation de Personne.
+La mémoire locale conserve alias, variantes inutilisées, catégorie et état ; les décisions textuelles ne sont pas modifiées.
+
+`CorrespondancesGitLab` refuse les sessions locales ou récupérables, puis acquiert le corpus et les entretiens par identifiant trié.
+Il relit les empreintes SHA-256 après acquisition et prépare toutes les copies avant publication.
+Les définitions partagées et les seuls entretiens sélectionnés entrent dans un unique commit de données,
+avec leurs gardes et le renouvellement de tous les baux. Un refus ne publie aucune moitié du choix.
+La borne de 250 actions comprend aussi les baux : au plus 124 entretiens par import,
+avec contrôle supplémentaire des octets HTTP. L’inventaire est borné à 64 Mio et l’aperçu privé à 8 Mio/10 000 cibles.
+Les entretiens doivent déjà être au format actuel ; l’import ne migre pas silencieusement un fichier ancien.
+
+Le journal de publication passe en version 5 pour ces droits multiples et reste privé (`0600`).
+Les versions 1 à 4 restent lisibles avec leurs bornes historiques.
+Une réponse perdue est retrouvée et prouvée par l’historique, sans deuxième envoi.
+Un résultat inconnu bloque imports et nouvelles sessions jusqu’à réouverture/réconciliation.
+Le miroir s’installe après confirmation ; une panne locale impose le tirage, jamais le rejeu d’un import publié.
+Ce journal de reprise n’est pas une annulation utilisateur.
+
+`correspondances.test.ts` couvre versions périmées, sessions, contradictions de portée, préparation mixte,
+no-op, limites, réponse perdue, journal privé et ouverture concurrente.
+Les sept scénarios de `qualificationCorrespondances.test.ts` ont passé sur le banc réel à deux comptes :
+publication de deux cibles sous trois baux, bail tiers, autorisation perdue à l’envoi,
+source périmée, garde modifiée pendant l’envoi, réponse perdue et reprise après redémarrage.
+Le scénario Electron dédié qualifie aussi le dialogue, la confirmation et la persistance publiée d’une déclaration sans occurrence.
+Il crée un projet privé synthétique dédié à la racine, conservé pour examen ; les données utilisateur ne sont pas touchées.
+La qualification concerne ces petits lots synthétiques, pas encore la charge maximale ni une instance institutionnelle.
+
+## 15. Renommage global d’une variante — 9 octobre 2026
+
+`anon.renommer-variante` et la capacité `pseudonymisationGlobale` sont ouverts sur GitLab après qualification propre au geste. WebDAV était encore refusé à ce point de contrôle ; il est désormais livré séparément. Voir [contrat, inventaire et reprise du renommage](renommage-anon.md).
+
+Le choix scellé vient d’un inventaire publié de tous les membres, pas du miroir. Le scan complet ne verrouille pas tout le corpus : seuls les fichiers à écrire reçoivent un bail court. La définition est publiée d’abord, puis les entretiens consentis, chacun avec une garde du corpus. Les entretiens étrangers au changement restent ouverts et publiables ; une modification sans rapport ne refuse plus tout le lot. La variante choisie et ses seuls usages attribués changent ; texte, exceptions, autres variantes, attente, mémoire locale et locuteurs restent intacts.
+
+Le lot n’est plus atomique et la borne de 124 membres est supprimée pour ce geste. Chaque publication reste bornée en actions et taille HTTP ; l’inventaire reste limité à 64 Mio. Une cible tenue ou changée est différée, pas écrasée. Un contrôle final complet détecte les nouveaux usages sans les modifier implicitement. Le journal privé `.renommage-anon-gitlab.json` (0600, 128 Mio) garde copies consenties, acquis et intention avant chaque publication. Les nouveaux choix liés sont contrôlés contre les variantes publiées et la base du candidat : aucun rétablissement involontaire de l’ancienne variante par une session actuelle, sans imposer la définition courante aux décisions déjà choisies.
+
+Le contexte conserve une seule file tirage/transactions. Les ouvertures ciblées sont protégées, pas celles des autres entretiens ; aucune copie non ciblée n’est installée dans le miroir. Suivi public et recalcul de reprise sont raccordés à l’IPC et au dialogue. Une reprise réconcilie les publications inconnues sans rejeu, puis exige nouveau scan et nouveau consentement. Une panne locale après succès reste un acquis serveur à relire par réouverture, jamais une compensation ou une deuxième publication.
+
+Qualification : **13 scénarios réels à deux comptes**, dont **130 membres/deux cibles**, session étrangère maintenue et publiable, différé ciblé/reprise, nouveaux usages à confirmer, sauvegarde tardive et import d’ancien choix lié refusés. La recette OAuth/Electron prouve annulation, cible et non-cible tenues par le second compte, succès partiel et nouvelle confirmation de reprise, trois commits bornés, locuteurs préservés et publication d’un entretien après le lot. Les **7 qualifications de correspondances** et leur E2E OAuth repassent. Les suites mémoire/renderer/locales et la suite complète sont détaillées dans le plan principal. Projets/racines synthétiques conservés ; aucun corpus utilisateur modifié. Charge maximale, anciens clients et autre instance institutionnelle ne sont pas qualifiés.
+
+## 16. Dissociation globale — 10 octobre 2026
+
+`anon.dissocier-globalement`, portée `pseudonymisation-dissociation` et capacité `dissociationGlobale` sont ouverts sur GitLab après qualification distincte. WebDAV possède sa qualification séparée. Voir [contrat et reprise de dissociation](dissociation-anon.md).
+
+Inventaire serveur complet, aperçu privé, puis barrière publiée conservant la règle : les chemins coopératifs ne peuvent plus envoyer ses anciens liens, même inchangés. Les seules cibles consenties sont transférées sous corpus puis un bail cible ; chacune reçoit sa déclaration locale complète sans changement des choix, états, positions, textes ou locuteurs. Une cible tenue ou modifiée est différée. Le retrait règle/barrière vient après scan complet et vérification des mémoires acquises ; il garde la version courante de chaque acquis encore membre, sans prendre leurs baux. Le budget Sonal de 250 actions impose au plus 248 cibles transférées encore membres par lot, refus explicite avant début/reprise, sans plafond sur les membres inventoriés ni découpage implicite. Charge maximale à cette borne non qualifiée.
+
+Le journal privé `.dissociation-anon-gitlab.json` (0600, 128 Mio) conserve les intentions et acquis. Relecture/reprise et cran corpus→entretien sont raccordés aux IPC et au dialogue ; aucun succès partiel présenté comme complet. Retrait accepté reconnu sans rejeu ; sources actuelles installées, jamais images historiques. Perte de mémoire acquise, source illisible, droit ou bail perdu suspend sans écrasement, compensation ni clôture forcée.
+
+Qualification : 11 scénarios réels à deux comptes et quatre nouvelles recettes OAuth/Electron, dont SIGKILL après transfert accepté, refus du bail persistant à la relance puis reprise restante. Libération extérieure de fixture seulement après preuve de mort, compte et génération contrôlés. Les deux recettes OAuth de renommage/import et les onze locales repassent. Captures normales/réduites et erreurs examinées. Les refus d’authentification utilisent un jeton invalide au transport ; révocation persistante de rôle, anciens clients, charge maximale et autre instance institutionnelle restent distincts et non qualifiés. Les API directes/anciens clients ne sont pas universellement isolés par la barrière additive.
+
+## 17. Suppression textuelle globale
+
+`anon.supprimer-partout`, portée `pseudonymisation-suppression-globale` et capacité
+`suppressionAnonGlobale` sont ouverts sur GitLab après qualification distincte.
+WebDAV est désormais qualifié et ouvert séparément. Voir [suppression et reprise](suppression-anon.md).
+
+Barrière publiée gardant la règle, retrait des seules annotations explicitement liées,
+puis preuve finale gardée avant retrait de la règle. Aucune copie de déclaration ni
+modification du texte original. Corpus et une cible tenus ensemble à la publication ;
+non-cibles non verrouillées et sessions indépendantes conservées. Limite du publieur :
+248 acquis encore membres à finaliser, jamais 248 membres au total.
+
+Contexte, IPC d’origine contrôlée, préparation explicite, suivi et reprise consentie raccordés.
+Ouverture/Actualiser reconnaissent les publications sans rejeu et protègent les candidats.
+Le démarrage générique ne reprend pas ces intentions. Nouveau processus : aucun droit
+hérité des journaux, même pour le même compte et la même génération. Le moteur vivant
+ne rend à la reconnaissance que ses droits réellement acquis. Miroir incomplet durable,
+relecture seule après retrait logique, aucun succès complet avant installation.
+
+Qualification : huit cas réels à deux comptes et quatre nouveaux parcours OAuth/Electron,
+dont vrai SIGKILL, deux baux persistants inchangés, poursuite refusée, puis seulement
+travail restant après intervention extérieure de fixture vérifiée et nouvel accord.
+Six parcours GitLab antérieurs et quinze locaux repassés. Charge maximale, Windows,
+anciens clients, autre instance, empaquetage et révocation persistante de rôle non qualifiés.
+
+## 18. Ajout d’une variante de pseudonyme
+
+`anon.ajouter-variante`, portée `pseudonymisation-ajout-variante` et capacité
+`ajoutVarianteAnon` sont ouverts sur GitLab après six cas réels et quatre parcours
+OAuth/Electron propres. Même champ avec `/` qu’au local, corpus frais sous son seul bail,
+aucun entretien lu/gardé/verrouillé/publié. Définition attendue complète, choix antérieurs
+intacts, classement/dates/membership conservés sans publier la normalisation du store.
+
+Intention `ajout-variante-*` dans le journal commun. Une recherche vide ne prouve pas
+l’absence d’un envoi ; l’original ne suffit pas non plus. Actualiser et le démarrage
+reconnaissent uniquement le commit exact, sans nouvel envoi ni image historique installée.
+Le bail ne peut être rendu qu’avec provenance d’acquisition de l’instance vivante, droit
+encore valable et propriétaire/génération sous garde. Nouveau processus : bail persistant
+conservé, autre ajout refusé. SIGKILL réellement testé ; intervention extérieure de fixture
+après preuve de mort/compte/propriétaire/génération/version, jamais autorité produit.
+
+Quatorze parcours GitLab, dont quatre ajouts et dix régressions, plus dix-sept locaux
+réussis. WebDAV, encore fermé à ce point de contrôle, est désormais qualifié séparément ; retrait WebDAV et acceptation finale restent ouverts.
+Voir [contrat, qualification et réserves](variantes-anon.md).
+
+## Retrait de variante avec remplacement explicite
+
+`anon.retirer-variante`, portée `pseudonymisation-retrait-variante` et capacité
+`retraitVarianteAnon` sont ouverts sur GitLab après qualification propre dans l’application.
+Même champ Pseudonymes avec `/`, variante restante inchangée obligatoire, inventaire
+publié intégral puis préparation et confirmation explicites. Exceptions liées : pseudo
+mémorisé remplacé, état conservé ; choix masqués inclus. Texte, positions, identités,
+choix indépendants, mémoires complètes, brouillons et locuteurs restent intacts.
+
+Barrière conservant les deux variantes, corpus puis une cible consentie, gardes du corpus,
+contrôle final et retrait de la seule variante. Journal privé redérivé, cible tenue/changée
+ou session locale différée, non-cibles encore éditables. Réouverture protégée, relecture
+sans envoi, bilan neuf et accord neuf pour reprendre ; aucun rejeu, droit hérité,
+restauration ou libération forcée. Limite du publieur final : 248 cibles acquises encore
+membres, pas 248 membres d’inventaire.
+
+Cinq parcours de bout en bout du retrait dans l’application réussis : slash/annulation,
+ressources tenues/nouveaux usages, édition sauvegardée/définition périmée, édition non
+ciblée pendant lot partiel, résultat perdu puis reconnu, SIGKILL après e1 accepté.
+Après reconnexion : acquis et droits persistants intacts, poursuite refusée ; libération
+extérieure de fixture après preuve de mort/compte/propriétaire/génération/version, puis
+accord neuf et seuls e2/retrait publiés. Treize parcours GitLab repassés sur le build normal,
+dont cinq retraits et huit régressions ajout/suppression ; 22 cas réels moteur/contexte et
+écritures ordinaires réussis, un informatif sauté. WebDAV reste fermé pour ce geste.
+Charge maximale, anciens clients, autre instance institutionnelle, Windows et révocation
+persistante de rôle non qualifiés. Voir [contrat et preuves](variantes-anon.md).

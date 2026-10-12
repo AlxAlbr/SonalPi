@@ -12,13 +12,12 @@
 import type { BrouillonAnon, RegleAnon } from '../../format'
 import { joindrePseudos } from './pseudos'
 import { parserAliases } from './alias'
+import type { DefinitionAnonLocale } from './definitionsLocales'
 
-/** Clef de GROUPEMENT d'une entité multi-alias : aliases normalisés (trim +
- *  minuscules) triés et joints par `/` — « Lyon/Lyons » et « Lyons/Lyon »
- *  donnent la même cle. Pour un alias seul, identique à trim + minuscules. */
+/** Clef de groupement Unicode : alias triés, sans distinction de casse. */
 export function cleEntite(entite: string): string {
   return parserAliases(entite)
-    .map((a) => a.toLowerCase())
+    .map((a) => a.normalize('NFC').toLocaleLowerCase('fr'))
     .sort()
     .join('/')
 }
@@ -29,9 +28,9 @@ export function trouverBrouillon(
   brouillons: BrouillonAnon[],
   entite: string,
 ): BrouillonAnon | undefined {
-  const cles = new Set(parserAliases(entite).map((a) => a.toLowerCase()))
+  const cles = new Set(parserAliases(entite).map(cleEntite))
   return brouillons.find((b) =>
-    parserAliases(b.entite).some((a) => cles.has(a.toLowerCase())),
+    parserAliases(b.entite).some((a) => cles.has(cleEntite(a))),
   )
 }
 
@@ -158,6 +157,7 @@ export function lignesAnonUnifiees(
   /** Prédicat d'inclusion (injecté) : l'occurrence est recouverte par une
    *  annotation d'une AUTRE entité plus large → exclue des compteurs. */
   estIncluse?: (o: OccurrenceAnonProjection) => boolean,
+  definitionsLocales: DefinitionAnonLocale[] = [],
 ): LigneAnon[] {
   const parCle = new Map<string, LigneAnon>()
   // Compteurs par variante : cle → (pseudo minuscule → compteurs), rempli au
@@ -171,15 +171,21 @@ export function lignesAnonUnifiees(
   const formeGroupe = new Map<string, string>()
   for (const b of brouillons) {
     const g = cleEntite(b.entite)
-    for (const a of parserAliases(b.entite)) groupeParAlias.set(a.toLowerCase(), g)
+    for (const a of parserAliases(b.entite)) groupeParAlias.set(cleEntite(a), g)
     formeGroupe.set(g, b.entite)
   }
   for (const r of reglesAnon) {
     const g = cleEntite(r.entite.join('/'))
     for (const e of r.entite) {
-      for (const a of parserAliases(e)) groupeParAlias.set(a.toLowerCase(), g)
+      for (const a of parserAliases(e)) groupeParAlias.set(cleEntite(a), g)
     }
     if (!formeGroupe.has(g)) formeGroupe.set(g, r.entite.join('/'))
+  }
+  const memoire = new Map(definitionsLocales.map((d) => [cleEntite(d.entite.join('/')), d]))
+  for (const d of definitionsLocales) {
+    const groupe = cleEntite(d.entite.join('/'))
+    for (const alias of d.entite) groupeParAlias.set(cleEntite(alias), groupe)
+    formeGroupe.set(groupe, d.entite.join('/'))
   }
   // 1. Occurrences : une ligne par groupe d'entité, agrégeant ses occurrences.
   //    Le texte de l'occurrence est résolu à son groupe déclaré s'il en a un
@@ -187,8 +193,9 @@ export function lignesAnonUnifiees(
   for (const o of occurrences) {
     const texte = texteEntre(o.from, o.to)
     const cleOcc = cleEntite(texte)
-    const cle = groupeParAlias.get(cleOcc) ?? cleOcc
-    const entite = formeGroupe.get(cle) ?? texte
+    const liee = o.regle ? reglesAnon.find((r) => r.id === o.regle) : undefined
+    const cle = liee ? cleEntite(liee.entite.join('/')) : groupeParAlias.get(cleOcc) ?? cleOcc
+    const entite = liee ? liee.entite.join('/') : formeGroupe.get(cle) ?? texte
     let ligne = parCle.get(cle)
     if (!ligne) {
       // Portée corpus : si une occurrence est liée à une règle, la ligne est
@@ -202,7 +209,7 @@ export function lignesAnonUnifiees(
       } else {
         // Multi-pseudo standalone : un ensemble ≥2 déclaré prime sur le
         // pseudo d'une occurrence pour l'AFFICHAGE « a / b ».
-        const declares = pseudosDeclares[cle]
+        const declares = memoire.get(cle)?.pseudos ?? pseudosDeclares[cle]
         if (declares && declares.length > 1) pseudo = joindrePseudos(declares)
       }
       ligne = {
@@ -231,7 +238,7 @@ export function lignesAnonUnifiees(
     else ligne.nbAnonymise++
     if (o.pseudo?.trim()) {
       const parPseudo = variantesParCle.get(cle) ?? new Map<string, VarianteAnon>()
-      const k = o.pseudo.trim().toLowerCase()
+      const k = o.pseudo.trim().normalize('NFC').toLocaleLowerCase('fr')
       const v = parPseudo.get(k) ?? { pseudo: o.pseudo.trim(), nbAnonymise: 0, nbException: 0 }
       if (o.etat === 'exception') v.nbException++
       else v.nbAnonymise++
@@ -258,20 +265,27 @@ export function lignesAnonUnifiees(
       occurrenceIds: [],
     })
   }
+  for (const [cle, d] of memoire) {
+    if (parCle.has(cle)) continue
+    parCle.set(cle, { cle, entite: d.entite.join('/'), pseudo: joindrePseudos(d.pseudos),
+      etat: d.etat === 'brouillon' ? 'brouillon' : 'entretien', nb: 0, nbAnonymise: 0,
+      nbException: 0, nbIncluse: 0, variantes: [], occurrenceIds: [],
+    })
+  }
   // 3. Variantes ordonnées : d'abord l'ordre DÉCLARÉ (règle corpus liée, sinon
   //    ensemble déclaré du fichier), puis les pseudos rencontrés non déclarés.
   for (const [cle, ligne] of parCle) {
-    const parPseudo = variantesParCle.get(cle)
-    if (!parPseudo || parPseudo.size === 0) continue
+    const parPseudo = variantesParCle.get(cle) ?? new Map<string, VarianteAnon>()
+    if (parPseudo.size === 0 && !memoire.has(cle)) continue
     const declares = (
-      reglesAnon.find((r) => r.id === ligne.regle)?.pseudos ?? pseudosDeclares[cle] ?? []
+      reglesAnon.find((r) => r.id === ligne.regle)?.pseudos ?? memoire.get(cle)?.pseudos ?? pseudosDeclares[cle] ?? []
     )
     const ordonnee: VarianteAnon[] = []
     for (const p of declares) {
-      const v = parPseudo.get(p.toLowerCase())
+      const v = parPseudo.get(p.normalize('NFC').toLocaleLowerCase('fr'))
       if (v) {
         ordonnee.push(v)
-        parPseudo.delete(p.toLowerCase())
+        parPseudo.delete(p.normalize('NFC').toLocaleLowerCase('fr'))
       } else {
         ordonnee.push({ pseudo: p, nbAnonymise: 0, nbException: 0 })
       }

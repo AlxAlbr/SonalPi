@@ -39,6 +39,13 @@ export interface CapacitesCorpus {
   tableDonnees: boolean
   /** Application des règles de pseudonymisation dans les entretiens. */
   pseudonymisationEntretiens: boolean
+  pseudonymisationGlobale: boolean
+  /** Transfert complet des décisions liées vers les définitions locales. */
+  dissociationGlobale: boolean
+  suppressionAnonGlobale: boolean
+  /** Ajout d’une variante déclarée sans modifier les choix existants. */
+  ajoutVarianteAnon: boolean
+  retraitVarianteAnon: boolean
   /** Transfert des codages, avec conservation optionnelle de la source. */
   transfertThemes: boolean
   /** Division manuelle des codages vers de nouvelles catégories. */

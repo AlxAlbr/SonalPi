@@ -1,4 +1,11 @@
 /// <reference types="vite/client" />
+import type { OptionsTableCorrespondance, ApercuExportCorrespondance } from '../shared/corpus/tablesCorrespondance'
+import type { DemandeRenommageAnon, ApercuRenommageAnon, BilanRenommageAnon, SuiviRenommageAnon } from '../shared/corpus/renommageAnon'
+import type { DemandeDissociationAnon, ApercuDissociationAnon, BilanDissociationAnon, BilanDissociationDistant, SuiviDissociationAnon } from '../shared/corpus/dissociationAnon'
+import type { DemandeAjoutVarianteAnon, ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
+import type { DemandeRetraitVarianteAnon, ApercuRetraitVarianteAnon, BilanRetraitVarianteAnon, BilanRetraitVarianteDistant, SuiviRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
+import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAnon, BilanSuppressionDistant, SuiviSuppressionAnon } from '../shared/corpus/suppressionAnon'
+import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -177,7 +184,33 @@ declare global {
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
-        regleAnonCreer: (entite: string, pseudos: string[]) => Promise<{ regle: RegleAnon; existait: boolean }>
+        apercuExportCorrespondances: (options: OptionsTableCorrespondance) => Promise<ApercuExportCorrespondance>
+        exporterCorrespondances: (token: string, format: 'v2' | 'v1', confidentiel: boolean, limites: boolean, v1: boolean) => Promise<{ annule: boolean }>
+        apercuImportCorrespondances: (documents: DocumentCorrespondance[], corrections?: CorrectionCorrespondance[]) => Promise<ApercuImportCorrespondance>
+        importerCorrespondances: (token: string, choix: Record<string, ChoixImportCorrespondance>, cibles?: import('../shared/corpus/importCorrespondancesEntretiens').ChoixCibleCorrespondance[], confirmees?: boolean) => Promise<BilanImportCorrespondance>
+        suiviImportCorrespondances: () => Promise<SuiviImportCorrespondances | null>
+        reprendreImportCorrespondances: (operationId: string, confirmee: boolean) => Promise<BilanImportCorrespondance>
+        apercuRetraitVarianteAnon: (demande: DemandeRetraitVarianteAnon) => Promise<ApercuRetraitVarianteAnon>
+        retirerVarianteAnon: (token: string, confirmee: boolean) => Promise<BilanRetraitVarianteAnon | BilanRetraitVarianteDistant>
+        suiviRetraitVarianteAnon: () => Promise<SuiviRetraitVarianteAnon | null>
+        relireSuiviRetraitVarianteAnon: (operationId: string) => Promise<BilanRetraitVarianteDistant>
+        apercuRepriseRetraitVarianteAnon: (operationId: string) => Promise<ApercuRetraitVarianteAnon>
+        apercuSuppressionAnon: (demande: DemandeSuppressionAnon) => Promise<ApercuSuppressionAnon>
+        supprimerRegleAnonPartout: (token: string, confirmee: boolean) => Promise<BilanSuppressionAnon | BilanSuppressionDistant>
+        suiviSuppressionAnon: () => Promise<SuiviSuppressionAnon | null>
+        relireSuiviSuppressionAnon: (operationId: string) => Promise<BilanSuppressionDistant>
+        apercuRepriseSuppressionAnon: (operationId: string) => Promise<ApercuSuppressionAnon>
+        apercuDissociationAnon: (demande: DemandeDissociationAnon) => Promise<ApercuDissociationAnon>
+        dissocierRegleAnon: (token: string, confirmee: boolean) => Promise<BilanDissociationAnon | BilanDissociationDistant>
+        suiviDissociationAnon: () => Promise<SuiviDissociationAnon | null>
+        relireSuiviDissociationAnon: (operationId: string) => Promise<BilanDissociationDistant>
+        apercuRepriseDissociationAnon: (operationId: string) => Promise<ApercuDissociationAnon>
+        apercuRenommageAnon: (demande: DemandeRenommageAnon) => Promise<ApercuRenommageAnon>
+        renommerVarianteAnon: (token: string, confirmee: boolean) => Promise<BilanRenommageAnon>
+        suiviRenommageAnon: () => Promise<SuiviRenommageAnon | null>
+        apercuRepriseRenommageAnon: (operationId: string) => Promise<ApercuRenommageAnon>
+        regleAnonCreer: (entite: string, pseudos: string[], categorie?: string) => Promise<{ regle: RegleAnon; existait: boolean }>
+        regleAnonAjouterVariante: (demande: DemandeAjoutVarianteAnon) => Promise<ResultatAjoutVarianteAnon>
         regleAnonAjouterPseudo: (id: string, pseudo: string) => Promise<RegleAnon | null>
         regleAnonUtiliseeAilleurs: (id: string, exceptId?: string) => Promise<boolean>
         regleAnonSupprimer: (id: string) => Promise<void>

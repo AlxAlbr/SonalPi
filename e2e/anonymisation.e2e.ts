@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -7,6 +7,7 @@ import {
   entrerCorpus,
   ajouterParModale,
   ouvrir,
+  ouvrirSurCorpus,
   retourCorpus,
   selectionner,
 } from './util'
@@ -18,7 +19,390 @@ import {
  *  (texte + exceptions + règles, sans perte), dans la vraie app.
  */
 
+import { fixturePseudonymisation } from '../test/fixtures/pseudonymisation'
+import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
+
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
+
+test('tableau corpus : quatre colonnes, filtres, variantes et garde des changements', async ({}, testInfo) => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-tableau-')
+  try {
+    const fixture = fixturePseudonymisation()
+    await page.evaluate(async ({ regles, entretiens }) => {
+      await window.sonal.corpus.importer('Recette synthétique', entretiens[0].data, [], [], regles)
+    }, fixture)
+    const entiteLongue = 'un deux trois quatre cinq six sept huit neuf dix onze douze treize quatorze quinze seize'
+    await page.evaluate(async (entite) => {
+      await window.sonal.corpus.regleAnonCreer(entite, ['Un remplacement synthétique très long qui doit rester lisible même dans une fenêtre étroite'])
+    }, entiteLongue)
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    await expect(page.locator('.pseudo-table thead th')).toHaveCount(4)
+    const filtre = page.getByLabel('Filtre d’état'), ajouter = page.getByRole('button', { name: 'Ajouter une règle', exact: true })
+    expect(await ajouter.evaluate((button) => button.previousElementSibling?.getAttribute('aria-label'))).toBe('Filtre d’état')
+    const positionFiltre = (await filtre.boundingBox())!, positionAjout = (await ajouter.boundingBox())!
+    expect(positionAjout.x).toBeGreaterThan(positionFiltre.x)
+    expect(Math.abs(positionAjout.y - positionFiltre.y)).toBeLessThan(5)
+    await expect(page.getByRole('button', { name: 'Import règles', exact: true })).toHaveText('Import règles 📥')
+    await expect(page.getByRole('button', { name: 'Export règles', exact: true })).toHaveText('Export règles 📤')
+    const parametres = page.getByRole('button', { name: 'Paramètres de pseudonymisation', exact: true })
+    await expect(parametres).toHaveText('Paramètres ⚙')
+    await parametres.click(); await expect(parametres).toHaveAttribute('aria-expanded', 'true')
+    await parametres.click(); await expect(parametres).toHaveAttribute('aria-expanded', 'false')
+    const enteteActions = page.locator('.pseudo-outils-regles')
+    const positionOutils = (await enteteActions.boundingBox())!, positionActualiser = (await page.locator('.actualiser-pseudo').boundingBox())!
+    expect(positionOutils.x).toBeGreaterThan(positionActualiser.x + positionActualiser.width)
+    expect(await page.locator('.pseudo-table tbody tr').first().locator('td').evaluateAll((tds) => tds.slice(0, 3).map((td) => getComputedStyle(td).textAlign))).toEqual(['center', 'center', 'center'])
+    const legende = page.locator('.pseudo-legende')
+    await expect(legende).toHaveAttribute('open', '')
+    await legende.locator('summary').click(); await expect(legende).not.toHaveAttribute('open')
+    await legende.locator('summary').press('Enter'); await expect(legende).toHaveAttribute('open', '')
+    const absente = page.locator('.pseudo-table tbody tr', { hasText: 'Absente' })
+    await expect(absente).toHaveClass(/neutre/)
+    await expect(absente).not.toHaveClass(/\bok\b/)
+    await page.getByLabel('Filtre d’état').selectOption('inutilisees')
+    await expect(absente).toBeVisible()
+    await page.getByLabel('Filtre d’état').selectOption('collisions')
+    await expect(page.locator('.pseudo-table tbody tr')).toHaveCount(2)
+    await page.getByLabel('Filtre d’état').selectOption('toutes')
+    await page.getByLabel('Rechercher une règle').fill('huit')
+    await expect(page.locator('.pseudo-table tbody tr')).toHaveCount(1)
+    await expect(page.getByTitle(entiteLongue, { exact: true })).toContainText('[…]')
+    await page.getByLabel('Rechercher une règle').fill('')
+    await page.locator('.pseudo-table tbody tr', { hasText: 'Karine' }).getByRole('button', { name: 'Voir les entretiens' }).click()
+    await page.locator('.acc-tete').last().getByRole('button').press('Enter')
+    await expect(page.locator('.occ-pseudo', { hasText: '[Rebecca]' })).toBeVisible()
+    await expect(page.locator('.occ input[type="checkbox"]').nth(0)).toBeDisabled()
+    await expect(page.locator('.occ input[type="checkbox"]').nth(1)).toBeDisabled()
+    await page.screenshot({ path: testInfo.outputPath('pseudonymisation-normal.png') })
+    const ratioInitial = await page.evaluate(() => window.devicePixelRatio)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25))
+    await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBe(ratioInitial * 1.25)
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    expect((await page.locator('.pseudo-table-wrap').boundingBox())!.height).toBeGreaterThan(170)
+    const captureZoom = await app.evaluate(async ({ BrowserWindow }) => {
+      const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage()
+      return image.toPNG().toString('base64')
+    })
+    writeFileSync(testInfo.outputPath('pseudonymisation-zoom.png'), Buffer.from(captureZoom, 'base64'))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1))
+    await page.setViewportSize({ width: 760, height: 700 })
+    await page.screenshot({ path: testInfo.outputPath('pseudonymisation-reduite.png') })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.locator('.pseudo-table tbody tr', { hasText: 'Marseille' }).getByRole('button', { name: 'Voir les entretiens' }).click()
+    await page.locator('.acc-tete').last().click()
+    await page.locator('.occ input[type="checkbox"]').first().check()
+    await page.locator('.pseudo-table tbody tr', { hasText: 'Absente' }).getByRole('button', { name: 'Voir les entretiens' }).click()
+    await expect(page.getByRole('heading', { name: 'Changements non validés' })).toBeVisible()
+    await page.getByRole('button', { name: 'Rester', exact: true }).click()
+    await expect(page.locator('.occ input[type="checkbox"]').first()).toBeChecked()
+    await page.getByRole('button', { name: 'Actualiser', exact: false }).click()
+    await page.locator('.garde-dialogue').getByRole('button', { name: 'Abandonner', exact: true }).click()
+    await expect(page.locator('.occ input[type="checkbox"]').first()).not.toBeChecked()
+  } finally {
+    await app.close()
+  }
+})
+
+test('renommage global local : annulation, source périmée, inventaire confirmé et seules décisions liées', async ({}, testInfo) => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-renommage-')
+  try {
+    const fixture = fixtureRenommageAnon()
+    const ids = await page.evaluate(async ({ corpus, sources }) => {
+      const ids: string[] = []
+      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
+      return ids
+    }, fixture)
+    const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    const ouvrirRenommage = async () => {
+      await page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true }).click()
+      const edition = page.getByRole('dialog', { name: 'Modifier les pseudonymes', exact: true })
+      await edition.getByLabel('Pseudonymes', { exact: true }).fill('Nouvelle / Rebecca')
+      await edition.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    }
+    await ouvrirRenommage()
+    let dialogue = page.getByRole('dialog', { name: 'Renommer une variante corpus' })
+    await dialogue.getByLabel('Nouveau pseudonyme').fill('Nouvelle')
+    await dialogue.getByRole('button', { name: 'Préparer l’inventaire' }).click()
+    await expect(dialogue).toContainText('4 annotation(s) à renommer, dont 2 masquée(s)')
+    await expect(dialogue.getByRole('button', { name: 'Confirmer le renommage global' })).toBeDisabled()
+    await dialogue.getByRole('button', { name: 'Annuler', exact: true }).click()
+    expect(await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)).toEqual(avant)
+    await ouvrirRenommage()
+    dialogue = page.getByRole('dialog', { name: 'Renommer une variante corpus' })
+    await dialogue.getByLabel('Nouveau pseudonyme').fill('Nouvelle')
+    await dialogue.getByRole('button', { name: 'Préparer l’inventaire' }).click()
+    await expect(dialogue).toContainText('4 annotation(s) à renommer')
+    await page.evaluate(async (id) => {
+      const lecture = await window.sonal.corpus.lireEntretien(id)
+      if (!lecture.ok) throw new Error('Source synthétique indisponible.')
+      await window.sonal.corpus.ecrireEntretien(id, { ...lecture.data, meta: { ...lecture.data.meta,
+        valeursGen: { ...lecture.data.meta.valeursGen, 'concurrence-synthetique': 'Modification concurrente synthétique' } } })
+    }, ids[1])
+    await dialogue.getByRole('checkbox').check()
+    await dialogue.getByRole('button', { name: 'Confirmer le renommage global' }).click()
+    await expect(dialogue.getByRole('alert')).toContainText('changé depuis l’inventaire')
+    await expect(dialogue.getByRole('checkbox')).toHaveCount(0)
+    const frais = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
+    await dialogue.getByRole('button', { name: 'Préparer l’inventaire' }).click()
+    await expect(dialogue).toContainText('4 annotation(s) à renommer')
+    await page.screenshot({ path: testInfo.outputPath('renommage-normal.png') })
+    await page.setViewportSize({ width: 760, height: 700 })
+    await page.screenshot({ path: testInfo.outputPath('renommage-reduit.png') })
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+    await dialogue.getByRole('checkbox').check()
+    await dialogue.getByRole('button', { name: 'Confirmer le renommage global' }).click()
+    await expect(dialogue).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Nouvelle / Rebecca')
+    const apres = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
+    for (let n = 0; n < frais.length; n++) {
+      const a = frais[n], b = apres[n]
+      expect(a.ok && b.ok).toBe(true)
+      if (!a.ok || !b.ok) throw new Error('Source synthétique indisponible.')
+      const attendu = structuredClone(a.data)
+      for (const annotation of attendu.annotations) if (['a0', 'a5'].includes(annotation.id)) annotation.pseudo = 'Nouvelle'
+      expect({ ...b.data, lastModified: a.data.lastModified }).toEqual(attendu)
+    }
+  } finally { await app.close() }
+})
+
+test('ajouter depuis un corpus sans règle crée seulement la définition et respecte les invariants', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-creation-')
+  try {
+    const avant = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    await expect(page.locator('.pseudo-vide')).toContainText('Aucune règle')
+    await page.getByRole('button', { name: 'Ajouter une règle', exact: true }).click()
+    const formulaire = page.getByRole('dialog', { name: 'Ajouter une règle au corpus' })
+    await formulaire.getByLabel('Entité originale / alias').fill('Lyon / Lyons')
+    await formulaire.getByLabel('Pseudonymes', { exact: true }).fill('Ville / Cité')
+    await formulaire.getByRole('button', { name: 'Créer la définition' }).click()
+    await expect(formulaire.getByRole('alert')).toContainText('plusieurs alias')
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])
+    await formulaire.getByRole('button', { name: 'Annuler', exact: true }).click()
+    await page.getByRole('button', { name: 'Ajouter une règle', exact: true }).click()
+    await formulaire.getByLabel('Entité originale / alias').fill('Lyon / Lyons')
+    await formulaire.getByLabel('Pseudonymes', { exact: true }).fill('Ville')
+    await formulaire.getByRole('button', { name: 'Créer la définition' }).click()
+    await expect(formulaire).not.toBeVisible()
+    await expect(page.locator('.pseudo-table tbody tr', { hasText: 'Lyon / Lyons' })).toHaveClass(/todo/)
+    const apres = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    expect(apres).toEqual(avant)
+    await page.getByRole('button', { name: 'Ajouter une règle', exact: true }).click()
+    await formulaire.getByLabel('Entité originale / alias').fill('Nouvelle entité')
+    await formulaire.getByLabel('Pseudonymes', { exact: true }).fill('Remplacement')
+    await formulaire.getByRole('button', { name: 'Annuler', exact: true }).click()
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toHaveLength(1)
+  } finally { await app.close() }
+})
+
+test('ajout de variante local : annulation, définition périmée refusée puis choix existants inchangés', async ({}, info) => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-variante-')
+  try {
+    const fixture = fixtureRenommageAnon()
+    fixture.corpus.reglesAnon.personne.pseudos = ['Claire']
+    for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === 'personne' && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
+    const ids = await page.evaluate(async ({ corpus, sources }) => {
+      const ids: string[] = []
+      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
+      return ids
+    }, fixture)
+    const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    const ouvrirAjout = () => page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true }).click()
+    await ouvrirAjout()
+    const modal = page.getByRole('dialog', { name: 'Modifier les pseudonymes', exact: true })
+    await expect(modal.getByLabel('Pseudonymes', { exact: true })).toHaveValue('Claire')
+    await expect(page.locator('.pseudo-table')).not.toContainText('+ Variante')
+    await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
+    await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!.pseudos).toEqual(['Claire'])
+    await ouvrirAjout(); await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / claire')
+    await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(modal.getByRole('alert')).toContainText('différents')
+    await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
+    await page.evaluate(() => window.sonal.corpus.regleAnonCategoriser('personne', 'Catégorie concurrente'))
+    await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
+    await expect(modal.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled()
+    await modal.getByRole('button', { name: 'Fermer', exact: true }).click()
+    await page.locator('.actualiser-pseudo').click(); await ouvrirAjout()
+    await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
+    await page.screenshot({ path: info.outputPath('ajout-variante-normal.png') })
+    await page.setViewportSize({ width: 760, height: 700 })
+    await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(modal).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Claire / Rebecca')
+    await ouvrirAjout()
+    await expect(modal.getByLabel('Pseudonymes', { exact: true })).toHaveValue('Claire / Rebecca')
+    await page.screenshot({ path: info.outputPath('ajout-variante-reduit.png') })
+    await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire')
+    await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    const retrait = page.getByRole('dialog', { name: 'Retirer une variante', exact: true })
+    await expect(retrait).toBeVisible()
+    await expect(retrait.getByRole('button', { name: 'Remplacer les choix et retirer la variante', exact: true })).toBeDisabled()
+    await retrait.getByRole('button', { name: 'Annuler', exact: true }).click()
+    const regle = (await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!
+    expect(regle).toMatchObject({ pseudos: ['Claire', 'Rebecca'], categorie: 'Catégorie concurrente' })
+    expect(await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)).toEqual(avant)
+  } finally { await app.close() }
+})
+
+test('ajout de variante local : erreur après écriture reconnue par actualisation sans deuxième ajout', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-variante-incertaine-')
+  try {
+    await page.evaluate(() => window.sonal.corpus.regleAnonCreer('Karine', ['Claire']))
+    const dir = (await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir
+    const avant = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    await page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Modifier les pseudonymes', exact: true })
+    await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
+    await app.evaluate((_electron, cible) => {
+      const fs = process.getBuiltinModule('fs') as typeof import('node:fs'), original = fs.renameSync
+      let interrompt = true
+      fs.renameSync = (...args: Parameters<typeof fs.renameSync>) => {
+        original(...args)
+        if (interrompt && String(args[1]) === cible) { interrompt = false; throw new Error('Interruption synthétique après remplacement.') }
+      }
+    }, join(dir, 'corpus.json'))
+    await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
+    await expect(modal.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled()
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.entite[0] === 'Karine')!.pseudos).toEqual(['Claire', 'Rebecca'])
+    await modal.getByRole('button', { name: 'Fermer', exact: true }).click()
+    await page.locator('.actualiser-pseudo').click()
+    await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Claire / Rebecca')
+    expect(await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))).toEqual(avant)
+  } finally { await app.close() }
+})
+
+test('tables de correspondance : aperçu, annulation, import seul et export V2/V1', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-echanges-')
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-tables-export-'))
+  const destination = join(dir, 'correspondances.json')
+  try {
+    const avant = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    await page.getByRole('button', { name: 'Import règles', exact: true }).click()
+    const modalImport = page.getByRole('dialog', { name: 'Importer les correspondances', exact: true })
+    const fichier = { name: 'regles-synthetiques.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify([
+      { entite_init: 'Lyon / Lyons', entite_pseudo: 'Ville', thematique: 'LOC' },
+      { entite_init: 'Karine', entite_pseudo: 'Claire', entite_pseudo_alt: 'Rebecca' },
+      { entite_init: 'Paris / Pariss', entite_pseudo: 'Capitale', entite_pseudo_alt: 'Cité' },
+    ])) }
+    await modalImport.getByLabel('Fichiers JSON').setInputFiles(fichier)
+    await expect(modalImport.locator('tbody tr')).toHaveCount(3)
+    await expect(modalImport.getByText('Choisissez plusieurs alias', { exact: false })).toBeVisible()
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])
+    await modalImport.getByRole('button', { name: 'Fermer les échanges' }).click()
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])
+    await page.getByRole('button', { name: 'Import règles', exact: true }).click()
+    await modalImport.getByLabel('Fichiers JSON').setInputFiles(fichier)
+    await expect(modalImport.locator('tbody tr')).toHaveCount(3)
+    await modalImport.getByRole('button', { name: 'Confirmer l’import des définitions' }).click()
+    await expect(modalImport).not.toBeVisible()
+    await expect(page.locator('.pseudo-table tbody tr')).toHaveCount(2)
+    const regles = await page.evaluate(() => window.sonal.corpus.reglesAnon())
+    expect(regles).toHaveLength(2)
+    expect(await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))).toEqual(avant)
+    await page.getByRole('button', { name: 'Import règles', exact: true }).click()
+    await modalImport.getByLabel('Fichiers JSON').setInputFiles(fichier)
+    await expect(modalImport.locator('tbody tr')).toHaveCount(3)
+    await modalImport.getByLabel('Pseudos (séparés par /)', { exact: true }).nth(2).fill('Capitale')
+    await expect(modalImport.getByRole('button', { name: 'Confirmer l’import des définitions' })).toBeDisabled()
+    await modalImport.getByRole('button', { name: 'Recalculer l’aperçu' }).click()
+    await expect(modalImport.getByLabel('Pseudos (séparés par /)', { exact: true }).nth(2)).toHaveValue('Capitale')
+    await modalImport.getByRole('button', { name: 'Recalculer l’aperçu' }).click()
+    await expect(modalImport.getByLabel('Pseudos (séparés par /)', { exact: true }).nth(2)).toHaveValue('Capitale')
+    await modalImport.getByRole('button', { name: 'Fermer les échanges' }).click()
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual(regles)
+    await app.evaluate(({ dialog }, chemin) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: chemin }) }, destination)
+    await page.getByRole('button', { name: 'Export règles', exact: true }).click()
+    const modalExport = page.getByRole('dialog', { name: 'Exporter les correspondances', exact: true })
+    await expect(modalExport.getByRole('button', { name: 'Exporter V2', exact: true })).toBeDisabled()
+    await modalExport.getByLabel('Règles', { exact: false }).selectOption('toutes')
+    await expect(modalExport.locator('tbody tr')).toHaveCount(2)
+    await modalExport.getByLabel('Je comprends que le fichier contient les identités originales.').check()
+    await modalExport.getByRole('button', { name: 'Exporter V2', exact: true }).click()
+    await expect(modalExport.getByText('Table exportée.', { exact: false })).toBeVisible()
+    const exportV2 = JSON.parse(readFileSync(destination, 'utf8'))
+    expect(exportV2).toMatchObject({ format: 'sonalpi-correspondances', version: 2 })
+    expect(exportV2.correspondances).toHaveLength(2)
+    await modalExport.getByText('Export compatible V1 — limites', { exact: true }).click()
+    await modalExport.getByLabel('J’accepte les pertes et ambiguïtés du format V1.').check()
+    await modalExport.getByRole('button', { name: 'Export compatible V1', exact: true }).click()
+    await expect(modalExport.getByText('Table exportée.', { exact: false })).toBeVisible()
+    expect(JSON.parse(readFileSync(destination, 'utf8'))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entite_init: 'Lyon / Lyons', entite_pseudo: 'Ville', thematique: 'LOC' }),
+      expect.objectContaining({ entite_init: 'Karine', entite_pseudo: 'Claire', entite_pseudo_alt: 'Rebecca' }),
+    ]))
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual(regles)
+    expect(await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))).toEqual(avant)
+    await modalExport.getByRole('button', { name: 'Fermer les échanges' }).click()
+    await page.getByRole('button', { name: 'Import règles', exact: true }).click()
+    await modalImport.getByLabel('Fichiers JSON').setInputFiles({ name: 'retour-v2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exportV2)) })
+    await expect(modalImport.locator('tbody tr')).toHaveCount(2)
+    await expect(modalImport.getByRole('button', { name: 'Confirmer l’import des définitions' })).toBeDisabled()
+    await expect(modalImport.locator('tbody tr').first()).toContainText('identique')
+  } finally { await app.close() }
+})
+
+test('import ciblé local : confirmation, identité du locuteur et mémoire sans occurrence', async ({}, testInfo) => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-import-local-')
+  try {
+    const avant = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
+    await page.getByRole('button', { name: 'Import règles', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Importer les correspondances', exact: true })
+    await modal.getByLabel('Fichiers JSON').setInputFiles({ name: 'cibles-locales.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'sonalpi-correspondances', version: 2, correspondances: [
+      { nature: 'texte', portee: 'texte-local', entite: ['Alias sans occurrence', 'Autre graphie'], pseudos: ['Ville témoin'], categorie: 'LOC', etatLocal: 'declaration', entretienId: 'id-etranger' },
+      { nature: 'texte', portee: 'texte-local', entite: ['Nom sans occurrence'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etatLocal: 'declaration' },
+      { nature: 'locuteur', nom: 'Karine', pseudo: 'Voix témoin', origines: [{ entretienId: 'id-etranger', locuteurIndex: 99, personneRef: 'identite-etrangere', pseudoEtat: 'confirme' }] },
+    ] })) })
+    const cibles = modal.locator('table').nth(1).locator('tbody tr')
+    await expect(cibles).toHaveCount(3)
+    await page.screenshot({ path: testInfo.outputPath('import-cible-normal.png') })
+    await page.setViewportSize({ width: 760, height: 700 })
+    await page.screenshot({ path: testInfo.outputPath('import-cible-reduit.png') })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    const confirmer = modal.getByRole('button', { name: /Confirmer l’import/ })
+    const confirmation = modal.getByLabel('Je confirme ces seuls entretiens et décisions.', { exact: false })
+    await expect(confirmer).toBeDisabled()
+    await cibles.nth(0).getByRole('checkbox').check()
+    await confirmation.check()
+    await cibles.nth(1).getByRole('checkbox').check()
+    await expect(confirmation).not.toBeChecked()
+    await cibles.nth(2).getByRole('checkbox').check()
+    await cibles.nth(2).getByLabel('Décision du locuteur').selectOption('confirme')
+    await expect(confirmer).toBeDisabled()
+    await confirmation.check()
+    await confirmer.click()
+    await expect(modal).not.toBeVisible()
+    const apres = await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))
+    expect(avant.ok && apres.ok).toBe(true)
+    if (!avant.ok || !apres.ok) throw new Error('Fixture illisible.')
+    expect(apres.data.corpsTexte).toEqual(avant.data.corpsTexte)
+    expect(apres.data.annotations).toEqual(avant.data.annotations)
+    expect(apres.data.locuteurs[1]).toEqual({ ...avant.data.locuteurs[1], pseudo: 'Voix témoin', pseudoEtat: 'confirme' })
+    expect(apres.data.definitionsAnonLocales).toHaveLength(2)
+    expect(apres.data.definitionsAnonLocales![1].pseudos).toEqual(['Claire', 'Rebecca'])
+    expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])
+    await retourCorpus(page)
+    await page.locator('.carte-ent', { hasText: 'Entretien Karine' }).locator('.crayon').click()
+    await expect(page.locator('.editeur')).toBeVisible()
+    await page.locator('[data-onglet="anon"]').click()
+    const declaration = page.locator('.ligne-anon.etat-entretien', { hasText: 'Nom sans occurrence' })
+    await expect(declaration).toBeVisible()
+    await expect(declaration.locator('.pseudo-anon')).toHaveValue('Claire / Rebecca')
+    await retourCorpus(page)
+    await expect.poll(async () => page.evaluate(async () => {
+      const data = await window.sonal.corpus.lireEntretien('e1')
+      return data.ok ? data.data.definitionsAnonLocales?.length : -1
+    })).toBe(2)
+  } finally { await app.close() }
+})
 
 test('la sélection alimente une ligne et le brouillon survit au changement d’onglet', async () => {
   const { app, page } = await ouvrir('sonal-anon-brouillon-')

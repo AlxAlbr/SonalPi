@@ -52,6 +52,19 @@ import { detecterInstanceGitLab } from './gitlab/detectionInstance'
 import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
+import { TablesCorrespondance } from './tablesCorrespondance'
+import { RenommagesAnon } from './renommagesAnon'
+import { DissociationsAnon } from './dissociationsAnon'
+import { RetraitsVarianteAnon } from './retraitsVarianteAnon'
+import { CommandesRetraitVarianteAnon } from './commandesRetraitVarianteAnon'
+import type { DemandeRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
+import { SuppressionsAnon } from './suppressionsAnon'
+import type { DemandeSuppressionAnon } from '../shared/corpus/suppressionAnon'
+import type { DemandeAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
+import type { DemandeDissociationAnon } from '../shared/corpus/dissociationAnon'
+import type { DemandeRenommageAnon } from '../shared/corpus/renommageAnon'
+import { aplatirTableV1, type OptionsTableCorrespondance } from '../shared/corpus/tablesCorrespondance'
+import type { DocumentCorrespondance, CorrectionCorrespondance, ChoixImportCorrespondance } from '../shared/corpus/importCorrespondances'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
 import { archiverCorpusLocal } from './archiveCorpus'
 import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus, ecrireQualcoderCorpus } from './exportCorpus'
@@ -950,6 +963,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       await contexte.marquerSessionSale(contexte.ressourceEntretien(id))
       return now
     }
+    if (!contexte) store.exigerSessionLocaleEcriture(id)
+    if (estContexteNextcloud(contexte)) contexte.exigerEcritureEntretien(id)
     const now = store.ecrireEntretien(id, p)
     if (estContexteNextcloud(contexte)) contexte.sessions.noterSale(id)
     return now
@@ -1271,9 +1286,242 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return store.journalCorpusAnnuler(id)
   })
   ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
-  ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>
-    executerDefinitions('anon.creer-regle', (cible) => cible.regleAnonCreer(entite, pseudos)),
+  const tablesCorrespondance = new TablesCorrespondance({ store: () => store, lecture: () => contextesDistants.actuel ? 'miroir' : 'local' })
+  ipcMain.handle('corpus:apercuExportCorrespondances', (_e, options: OptionsTableCorrespondance) => tablesCorrespondance.preparerExport(options))
+  ipcMain.handle('corpus:exporterCorrespondances', async (e, token: string, format: 'v2' | 'v1', confidentielConfirme: boolean, limitesConfirmees: boolean, v1Confirme: boolean) => {
+    if (confidentielConfirme !== true || (format !== 'v2' && format !== 'v1') || (format === 'v1' && v1Confirme !== true)) throw new Error('Confirmez la confidentialité et les limites du format avant d’exporter.')
+    const table = tablesCorrespondance.exportMemorise(token, limitesConfirmees)
+    const contenu = format === 'v2' ? table : aplatirTableV1(table)
+    const chemin = await choisirDestination(e, { defaultPath: `correspondances-${format}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] })
+    if (!chemin) return { annule: true }
+    tablesCorrespondance.verifierDestination(token, chemin)
+    ecrireFichierAtomique(chemin, JSON.stringify(contenu, null, 2))
+    return { annule: false }
+  })
+  ipcMain.handle('corpus:apercuImportCorrespondances', async (_e, documents: DocumentCorrespondance[], corrections: CorrectionCorrespondance[] = []) => {
+    const contexte = contextesDistants.actuel
+    if (!contexte) return tablesCorrespondance.preparerImport(documents, corrections)
+    const instantane = await contexte.instantaneCorrespondances()
+    if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé pendant l’aperçu. Recalculez-le.')
+    return contexte instanceof ContexteGitLab
+      ? tablesCorrespondance.preparerImportGitLab(documents, corrections, instantane)
+      : tablesCorrespondance.preparerImportWebDAV(documents, corrections, instantane)
+  })
+  ipcMain.handle('corpus:importerCorrespondances', (_e, token: string, choix: Record<string, ChoixImportCorrespondance>, cibles: import('../shared/corpus/importCorrespondancesEntretiens').ChoixCibleCorrespondance[] = [], confirmees = false) => {
+    const preparation = tablesCorrespondance.consommerImport(token, choix, cibles, confirmees)
+    if (preparation.choixCibles.length) {
+      if (preparation.store !== store) throw new Error('Le corpus a changé. Recalculez l’aperçu.')
+      exigerGeste(fournisseurCourant(), 'anon.importer-cibles')
+      const execution = executerContexteCommun((contexte) => contexte.importerCorrespondances(preparation))
+      if (execution) return execution.then((resultat) => {
+        if (!resultat.courant) throw new Error('Le corpus a changé pendant l’import. Consultez le corpus cible avant toute nouvelle tentative.')
+        return resultat.valeur
+      })
+      return store.importerCorrespondancesEntretiens(preparation)
+    }
+    return executerDefinitions('anon.importer-regles', (cible) => {
+      if (preparation.store !== store) throw new Error('Le corpus a changé. Recalculez l’aperçu avant d’importer.')
+      return cible.importerDefinitionsAnon(preparation.lignes, preparation.choix, preparation.empreinte)
+    })
+  })
+  ipcMain.handle('corpus:suiviImportCorrespondances', () => {
+    const contexte = contextesDistants.actuel
+    return estContexteNextcloud(contexte) ? contexte.lireSuiviImportCorrespondances() : null
+  })
+  ipcMain.handle('corpus:reprendreImportCorrespondances', (_e, operationId: string, confirmee: boolean) => {
+    const contexte = contextesDistants.actuel
+    if (!estContexteNextcloud(contexte)) throw new Error('La reprise ciblée exige le contexte WebDAV d’origine.')
+    const execution = executerIntentionDistante((courant) => courant.reprendreImportCorrespondances(operationId, confirmee))
+    if (!execution) throw new Error('Le contexte WebDAV a changé. Rouvrez le corpus cible.')
+    return execution
+  })
+  const retraitsVarianteAnon = new RetraitsVarianteAnon({ store: () => store, local: () => !contextesDistants.actuel,
+    exiger: () => exigerGeste(fournisseurCourant(), 'anon.retirer-variante') })
+  const commandesRetrait = new CommandesRetraitVarianteAnon({ local: retraitsVarianteAnon,
+    capturer: capturerCorpusCourant, verifier: verifierCorpusCourant,
+    fournisseur: fournisseurCourant, executer: executerContexteCommun })
+  ipcMain.handle('corpus:apercuRetraitVarianteAnon', (_e, demande: DemandeRetraitVarianteAnon) => commandesRetrait.preparer(demande))
+  ipcMain.handle('corpus:suiviRetraitVarianteAnon', () => commandesRetrait.lireSuivi())
+  ipcMain.handle('corpus:relireSuiviRetraitVarianteAnon', (_e, operationId: string) => commandesRetrait.relireSuivi(operationId))
+  ipcMain.handle('corpus:apercuRepriseRetraitVarianteAnon', (_e, operationId: string) => commandesRetrait.preparerReprise(operationId))
+  ipcMain.handle('corpus:retirerVarianteAnon', (_e, token: string, confirmee: boolean) => commandesRetrait.appliquer(token, confirmee))
+
+  const suppressionsAnon = new SuppressionsAnon({ store: () => store, local: () => !contextesDistants.actuel,
+    exiger: () => exigerGeste(fournisseurCourant(), 'anon.supprimer-partout') })
+  ipcMain.handle('corpus:apercuSuppressionAnon', async (_e, demande: DemandeSuppressionAnon) => {
+    exigerGeste(fournisseurCourant(), 'anon.supprimer-partout')
+    const contexte = contextesDistants.actuel
+    if (!contexte) return suppressionsAnon.preparer(demande)
+    if (!(contexte instanceof ContexteGitLab) && !estContexteNextcloud(contexte)) throw new Error('La suppression globale n’est pas qualifiée pour ce fournisseur distant.')
+    const apercu = await contexte.preparerSuppressionAnon(demande)
+    try {
+      if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé. Recalculez la suppression.')
+      exigerGeste(fournisseurCourant(), 'anon.supprimer-partout')
+    } catch (e) { contexte.oublierApercuSuppressionAnon(apercu.token); throw e }
+    return apercu
+  })
+  ipcMain.handle('corpus:suiviSuppressionAnon', () => {
+    const contexte = contextesDistants.actuel
+    return contexte instanceof ContexteGitLab || estContexteNextcloud(contexte) ? contexte.lireSuiviSuppressionAnon() : null
+  })
+  ipcMain.handle('corpus:relireSuiviSuppressionAnon', async (_e, operationId: string) => {
+    const contexte = contextesDistants.actuel
+    if (!(contexte instanceof ContexteGitLab) && !estContexteNextcloud(contexte)) throw new Error('Le suivi exige le corpus distant d’origine.')
+    const bilan = await contexte.relireSuiviSuppressionAnon(operationId)
+    if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé. Rouvrez le corpus cible.')
+    return bilan
+  })
+  ipcMain.handle('corpus:apercuRepriseSuppressionAnon', async (_e, operationId: string) => {
+    exigerGeste(fournisseurCourant(), 'anon.supprimer-partout')
+    const contexte = contextesDistants.actuel
+    if (!(contexte instanceof ContexteGitLab) && !estContexteNextcloud(contexte)) throw new Error('La reprise exige le corpus distant d’origine.')
+    const apercu = await contexte.preparerRepriseSuppressionAnon(operationId)
+    try {
+      if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé. Rouvrez le corpus cible.')
+      exigerGeste(fournisseurCourant(), 'anon.supprimer-partout')
+    } catch (e) { contexte.oublierApercuSuppressionAnon(apercu.token); throw e }
+    return apercu
+  })
+  ipcMain.handle('corpus:supprimerRegleAnonPartout', (_e, token: string, confirmee: boolean) => {
+    const contexte = contextesDistants.actuel
+    if (!contexte) return suppressionsAnon.appliquer(token, confirmee)
+    if (!(contexte instanceof ContexteGitLab) && !estContexteNextcloud(contexte)) throw new Error('La suppression globale n’est pas qualifiée pour ce fournisseur distant.')
+    const execution = executerContexteCommun((courant) => {
+      if (courant !== contexte) {
+        contexte.oublierApercuSuppressionAnon(token)
+        throw new Error('Le corpus a changé. Recalculez la suppression.')
+      }
+      try { exigerGeste(fournisseurCourant(), 'anon.supprimer-partout') }
+      catch (e) { contexte.oublierApercuSuppressionAnon(token); throw e }
+      return contexte.supprimerRegleAnonPartout(token, confirmee)
+    })
+    if (!execution) {
+      contexte.oublierApercuSuppressionAnon(token)
+      throw new Error('Le corpus distant de la suppression est indisponible.')
+    }
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la suppression. Rouvrez le corpus cible sans recommencer.')
+      return resultat.valeur
+    })
+  })
+
+  const dissociationsAnon = new DissociationsAnon({ store: () => store, local: () => !contextesDistants.actuel,
+    exiger: () => exigerGeste(fournisseurCourant(), 'anon.dissocier-globalement') })
+  ipcMain.handle('corpus:apercuDissociationAnon', async (_e, demande: DemandeDissociationAnon) => {
+    exigerGeste(fournisseurCourant(), 'anon.dissocier-globalement')
+    const contexte = contextesDistants.actuel
+    if (!contexte) return dissociationsAnon.preparer(demande)
+    const apercu = await contexte.preparerDissociationAnon(demande)
+    if (contextesDistants.actuel !== contexte) {
+      contexte.oublierApercuDissociationAnon(apercu.token)
+      throw new Error('Le contexte distant a changé. Recalculez la dissociation.')
+    }
+    return apercu
+  })
+  ipcMain.handle('corpus:suiviDissociationAnon', () => {
+    const contexte = contextesDistants.actuel
+    return contexte?.lireSuiviDissociationAnon() ?? null
+  })
+  ipcMain.handle('corpus:relireSuiviDissociationAnon', async (_e, operationId: string) => {
+    const contexte = contextesDistants.actuel
+    if (!contexte) throw new Error('Le suivi exige le contexte distant d’origine.')
+    const bilan = await contexte.relireSuiviDissociationAnon(operationId)
+    if (contextesDistants.actuel !== contexte) throw new Error('Le contexte distant a changé. Rouvrez le corpus cible.')
+    return bilan
+  })
+  ipcMain.handle('corpus:apercuRepriseDissociationAnon', async (_e, operationId: string) => {
+    exigerGeste(fournisseurCourant(), 'anon.dissocier-globalement')
+    const contexte = contextesDistants.actuel
+    if (!contexte) throw new Error('La reprise exige le contexte distant d’origine.')
+    const apercu = await contexte.preparerRepriseDissociationAnon(operationId)
+    if (contextesDistants.actuel !== contexte) {
+      contexte.oublierApercuDissociationAnon(apercu.token)
+      throw new Error('Le contexte distant a changé. Rouvrez le corpus cible.')
+    }
+    return apercu
+  })
+  ipcMain.handle('corpus:dissocierRegleAnon', (_e, token: string, confirmee: boolean) => {
+    const contexte = contextesDistants.actuel
+    if (!contexte) return dissociationsAnon.appliquer(token, confirmee)
+    const execution = executerContexteCommun((courant) => {
+      if (courant !== contexte) {
+        contexte.oublierApercuDissociationAnon(token)
+        throw new Error('Le contexte distant a changé. Recalculez la dissociation.')
+      }
+      try { exigerGeste(fournisseurCourant(), 'anon.dissocier-globalement') }
+      catch (e) { contexte.oublierApercuDissociationAnon(token); throw e }
+      return contexte.dissocierRegleAnon(token, confirmee)
+    })
+    if (!execution) {
+      contexte.oublierApercuDissociationAnon(token)
+      throw new Error('Le contexte distant de la dissociation est indisponible.')
+    }
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la publication. Rouvrez le corpus cible sans rejouer la dissociation.')
+      return resultat.valeur
+    })
+  })
+  const renommagesAnon = new RenommagesAnon({ store: () => store, local: () => !contextesDistants.actuel })
+  ipcMain.handle('corpus:apercuRenommageAnon', async (_e, demande: DemandeRenommageAnon) => {
+    exigerGeste(fournisseurCourant(), 'anon.renommer-variante')
+    const contexte = contextesDistants.actuel
+    if (!contexte) return renommagesAnon.preparer(demande)
+    const instantane = await contexte.instantaneRenommageAnon()
+    if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez-le.')
+    const apercu = contexte instanceof ContexteGitLab
+      ? renommagesAnon.preparerGitLab(demande, instantane, contexte.renommageAnonDisponible(), contexte)
+      : renommagesAnon.preparerWebDAV(demande, instantane, contexte.renommageAnonDisponible(), contexte)
+    apercu.disponibilites = await contexte.observerCiblesRenommageAnon(apercu.entretiens.filter((e) => e.renommages).map((e) => e.id))
+    if (contextesDistants.actuel !== contexte) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez-le.')
+    return apercu
+  })
+  ipcMain.handle('corpus:suiviRenommageAnon', () => {
+    const contexte = contextesDistants.actuel
+    return contexte?.lireSuiviRenommageAnon() ?? null
+  })
+  ipcMain.handle('corpus:apercuRepriseRenommageAnon', async (_e, operationId: string) => {
+    exigerGeste(fournisseurCourant(), 'anon.renommer-variante')
+    const contexte = contextesDistants.actuel
+    if (!contexte) throw new Error('La reprise exige le contexte distant d’origine.')
+    const reprise = await contexte.preparerRepriseRenommageAnon(operationId)
+    if (contextesDistants.actuel !== contexte) throw new Error('Le contexte distant a changé. Rouvrez le corpus cible.')
+    const apercu = contexte instanceof ContexteGitLab
+      ? renommagesAnon.preparerGitLab(reprise.demande, reprise.instantane, true, contexte, reprise)
+      : renommagesAnon.preparerWebDAV(reprise.demande, reprise.instantane, true, contexte, reprise)
+    apercu.disponibilites = await contexte.observerCiblesRenommageAnon(apercu.entretiens.filter((e) => e.renommages).map((e) => e.id))
+    if (contextesDistants.actuel !== contexte) throw new Error('Le contexte distant a changé. Rouvrez le corpus cible.')
+    return apercu
+  })
+  ipcMain.handle('corpus:renommerVarianteAnon', (_e, token: string, confirmee: boolean) => {
+    exigerGeste(fournisseurCourant(), 'anon.renommer-variante')
+    const contexte = contextesDistants.actuel
+    if (!contexte) return renommagesAnon.appliquer(token, confirmee)
+    const preparation = contexte instanceof ContexteGitLab
+      ? renommagesAnon.consommerGitLab(token, confirmee, contexte)
+      : renommagesAnon.consommerWebDAV(token, confirmee, contexte)
+    const execution = executerContexteCommun((courant) => {
+      if (courant !== contexte) throw new Error('Le contexte distant a changé. Recalculez le renommage.')
+      return contexte.renommerVarianteAnon(preparation)
+    })
+    if (!execution) throw new Error('Le contexte distant du renommage est indisponible.')
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la publication. Rouvrez le corpus cible, sans rejouer le renommage.')
+      return resultat.valeur
+    })
+  })
+  ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[], categorie?: string) =>
+    executerDefinitions('anon.creer-regle', (cible) => cible.regleAnonCreer(entite, pseudos, categorie)),
   )
+  ipcMain.handle('corpus:regleAnonAjouterVariante', (_e, demande: DemandeAjoutVarianteAnon) => {
+    const execution = executerContexteCommun((contexte) => contexte instanceof ContexteGitLab
+      ? contexte.executerDefinitions('anon.ajouter-variante', (cible) => cible.regleAnonAjouterVariante(demande)).then((r) => r.valeur)
+      : contexte.ajouterVarianteAnon(demande))
+    if (!execution) { exigerGeste('local', 'anon.ajouter-variante'); return store.regleAnonAjouterVariante(demande) }
+    return execution.then((r) => {
+      if (!r.courant) throw new Error('Le corpus a changé pendant l’ajout. Rouvrez le corpus cible sans rejouer.')
+      return r.valeur
+    })
+  })
   ipcMain.handle('corpus:regleAnonAjouterPseudo', (_e, id: string, pseudo: string) =>
     executerDefinitions('anon.ajouter-pseudo', (cible) => cible.regleAnonAjouterPseudo(id, pseudo)),
   )

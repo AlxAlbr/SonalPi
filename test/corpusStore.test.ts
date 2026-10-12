@@ -1093,6 +1093,23 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     expect(Object.keys(regles)).toHaveLength(1)
   })
 
+  test('créer une définition avec catégorie ne modifie aucun entretien', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const avant = readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')
+    const resultat = store.regleAnonCreer('Lyon / Lyons', ['Ville'], 'LOC')
+    expect(resultat.existait).toBe(false)
+    expect(resultat.regle).toMatchObject({ entite: ['Lyon', 'Lyons'], pseudos: ['Ville'], categorie: 'LOC' })
+    expect(store.ouvrir().reglesAnon[resultat.regle.id].categorie).toBe('LOC')
+    expect(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).toBe(avant)
+  })
+
+  test('un diff avec aperçu ne réussit pas silencieusement après suppression de sa règle', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    expect(() => store.appliquerRegleAnon('e1', 'regle-disparue', { empreinte: 'ancienne', plages: [] })).toThrow('n’existe plus')
+  })
+
   test('creerRegle (pur) renvoie la règle existante sans muter le corpus', () => {
     const { store } = storeNeuf()
     const corpus = store.ouvrir() // copie fraîche, reglesAnon vide.

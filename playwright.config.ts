@@ -16,6 +16,11 @@ import { defineConfig } from '@playwright/test'
 const PILE = [
   'e2e/audio-distant.e2e.ts',
   'e2e/multi-utilisateur.e2e.ts',
+  'e2e/correspondances-webdav.e2e.ts',
+  'e2e/renommage-webdav.e2e.ts',
+  'e2e/dissociation-webdav.e2e.ts',
+  'e2e/suppression-webdav.e2e.ts',
+  'e2e/variante-webdav.e2e.ts',
 ]
 
 export default defineConfig({

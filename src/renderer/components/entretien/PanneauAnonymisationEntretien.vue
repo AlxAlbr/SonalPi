@@ -29,6 +29,9 @@ const {
   categoriserLigne,
   thematiquesActives,
   dialoguePorteeCorpus,
+  confirmationCouverture,
+  accepterCouverture,
+  refuserCouverture,
   alignerCorpus,
   garderLesDeuxCorpus,
   annulerDialogueCorpus,
@@ -38,6 +41,7 @@ const {
   entiteExisteDeja,
   editor,
   lectureSeule,
+  gesteDisponible,
 } = utiliserSonal()
 
 // --- ANON : lignes de saisie (en bas du tableau) ---
@@ -422,16 +426,16 @@ onBeforeUnmount(() => {
                 type="button"
                 class="portee-cran"
                 :class="{ actif: l.etat === 'brouillon' }"
-                :disabled="lectureSeuleContenu || l.etat === 'brouillon' || operationGlobaleEnCours"
-                title="Brouillon — pas encore appliqué"
+                :disabled="lectureSeuleContenu || l.etat === 'brouillon' || l.etat === 'corpus' || operationGlobaleEnCours"
+                :title="l.etat === 'corpus' ? 'Retrait partagé vers brouillon non qualifié ; la dissociation globale conserve les décisions en entretien' : 'Brouillon — pas encore appliqué'"
                 @click="changerPorteeAnon(l.entite, 'brouillon')"
               >🚧</button>
               <button
                 type="button"
                 class="portee-cran"
                 :class="{ actif: l.etat === 'entretien' }"
-                :disabled="lectureSeuleContenu || l.etat === 'entretien' || l.etat === 'corpus' || operationGlobaleEnCours"
-                title="Entretien — occurrences posées"
+                :disabled="lectureSeuleContenu || l.etat === 'entretien' || (l.etat === 'corpus' && (lectureSeule || !gesteDisponible('dissociationGlobale'))) || operationGlobaleEnCours"
+                :title="l.etat === 'corpus' ? !gesteDisponible('dissociationGlobale') ? 'Dissociation globale non qualifiée pour ce fournisseur' : 'Préparer une dissociation globale, après enregistrement et fermeture de cet entretien' : 'Entretien — occurrences posées'"
                 @click="changerPorteeAnon(l.entite, 'entretien')"
               >📄</button>
               <button
@@ -443,13 +447,13 @@ onBeforeUnmount(() => {
                 @click="changerPorteeAnon(l.entite, 'corpus')"
               >🌐</button>
             </div>
-            <!-- Catégorie affichée sur les règles corpus lorsque ce réglage est actif. -->
+            <!-- Catégorie de la définition locale ou partagée, lorsque ce réglage est actif. -->
             <select
-              v-if="l.etat === 'corpus' && thematiquesActives.length"
+              v-if="thematiquesActives.length"
               class="cat-select"
               :value="categorieDeLigne(l.entite)"
               title="Thématique de l'entité"
-              :disabled="lectureSeuleContenu || lectureSeule"
+              :disabled="lectureSeuleContenu || (l.etat === 'corpus' && lectureSeule)"
               @change="categoriserLigne(l.entite, ($event.target as HTMLSelectElement).value)"
             >
               <option value="">—</option>
@@ -567,10 +571,22 @@ onBeforeUnmount(() => {
           <b>« {{ dialoguePorteeCorpus.reglePseudos.join(' / ') }} »</b> alors que cette ligne porte
           <b>« {{ dialoguePorteeCorpus.pseudosCible.join(' / ') }} »</b>.
         </p>
+        <p v-if="hintAnon" role="alert">{{ hintAnon }}</p>
         <div class="portee-dialogue-actions">
-          <button @click="alignerCorpus">Aligner (pseudo du corpus)</button>
-          <button @click="garderLesDeuxCorpus">Garder les deux</button>
+          <button @click="alignerCorpus()">Aligner (pseudo du corpus)</button>
+          <button @click="garderLesDeuxCorpus()">Garder les deux</button>
           <button @click="annulerDialogueCorpus">Annuler</button>
+        </div>
+      </div>
+    </div>
+    <div v-if="confirmationCouverture" class="portee-dialogue-overlay" role="dialog" aria-modal="true" aria-labelledby="couverture-exceptions-titre">
+      <div class="portee-dialogue">
+        <h4 id="couverture-exceptions-titre">Couvrir des exceptions internes ?</h4>
+        <p>{{ confirmationCouverture.nb }} occurrence(s) de « {{ confirmationCouverture.entite }} » contiennent une exception. La pseudonymisation englobante masquera le texte laissé volontairement en clair.</p>
+        <p>Les exceptions sont conservées et réapparaîtront au retrait de l’englobante.</p>
+        <div class="portee-dialogue-actions">
+          <button @click="refuserCouverture">Annuler</button>
+          <button @click="accepterCouverture">Confirmer la couverture</button>
         </div>
       </div>
     </div>

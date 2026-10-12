@@ -123,7 +123,7 @@ describe('portée des gestes du corpus', () => {
   })
 
   test('les écritures ciblées sont rétablies sur WebDAV et qualifications sur GitLab', () => {
-    for (const geste of ['valeurs.lot', 'regles.lot']) {
+    for (const geste of ['valeurs.lot', 'regles.lot', 'anon.importer-cibles']) {
       expect(gesteAutorise('webdav', geste), geste).toBe(true)
       expect(gesteAutorise('gitlab', geste), geste).toBe(true)
     }
@@ -257,6 +257,11 @@ describe('portée des gestes du corpus', () => {
       metadonneesEntretien: false,
       tableDonnees: true,
       pseudonymisationEntretiens: true,
+      pseudonymisationGlobale: true,
+      dissociationGlobale: true,
+      suppressionAnonGlobale: true,
+      ajoutVarianteAnon: true,
+      retraitVarianteAnon: true,
       transfertThemes: true,
       divisionThemes: true,
       fusionThemes: true,
@@ -270,12 +275,39 @@ describe('portée des gestes du corpus', () => {
     })
   })
 
+  test('nouvel ajout de variante : local, GitLab et WebDAV qualifiés séparément', () => {
+    expect(() => exigerGeste('local', 'anon.ajouter-variante')).not.toThrow()
+    expect(() => exigerGeste('gitlab', 'anon.ajouter-variante')).not.toThrow()
+    expect(() => exigerGeste('webdav', 'anon.ajouter-variante')).not.toThrow()
+    expect(matriceCapacites('webdav').ajoutVarianteAnon).toBe(true)
+  })
+
+  test('retrait de variante : local et GitLab qualifiés, WebDAV fermé sans qualification empruntée', () => {
+    expect(() => exigerGeste('local', 'anon.retirer-variante')).not.toThrow()
+    expect(() => exigerGeste('gitlab', 'anon.retirer-variante')).not.toThrow()
+    expect(() => exigerGeste('webdav', 'anon.retirer-variante')).toThrow('pas disponible')
+    expect(matriceCapacites('gitlab').retraitVarianteAnon).toBe(true)
+    expect(matriceCapacites('webdav').retraitVarianteAnon).toBe(false)
+  })
+
   test('les parcours déjà acquis ne régressent pas', () => {
     const webdav = matriceCapacites('webdav')
     expect(webdav.definitionsAvecSources).toBe(true)
     expect(webdav.suppressionEntretien).toBe(true)
     expect(webdav.tableDonnees).toBe(true)
     expect(webdav.pseudonymisationEntretiens).toBe(true)
+    expect(webdav.pseudonymisationGlobale).toBe(true)
+    expect(webdav.dissociationGlobale).toBe(true)
+    expect(webdav.suppressionAnonGlobale).toBe(true)
+    expect(matriceCapacites('local').suppressionAnonGlobale).toBe(true)
+    expect(() => exigerGeste('webdav', 'anon.supprimer-partout')).not.toThrow()
+    expect(() => exigerGeste('gitlab', 'anon.supprimer-partout')).not.toThrow()
+    expect(() => exigerGeste('local', 'anon.supprimer-partout')).not.toThrow()
+    expect(matriceCapacites('local').dissociationGlobale).toBe(true)
+    expect(() => exigerGeste('webdav', 'anon.dissocier-globalement')).not.toThrow()
+    expect(() => exigerGeste('gitlab', 'anon.dissocier-globalement')).not.toThrow()
+    expect(() => exigerGeste('local', 'anon.dissocier-globalement')).not.toThrow()
+    expect(gesteAutorise('webdav', 'anon.renommer-variante')).toBe(true)
     expect(webdav.personnes).toBe(true)
     expect(webdav.designationMedia).toBe(true)
     expect(webdav.televersementMedia).toBe(true)

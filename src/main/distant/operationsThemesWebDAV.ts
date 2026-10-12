@@ -1,3 +1,5 @@
+import { exigerAbsenceDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
+import { GardePseudosWebDAV, RefusAvantEnvoiPseudos } from './gardePseudosWebDAV'
 import { randomUUID } from 'node:crypto'
 import type { ClientWebDAV } from '../webdav/client'
 import { ErreurHttp } from '../webdav/client'
@@ -18,6 +20,7 @@ interface Dependances {
   client: ClientWebDAV
   apercus: ApercusThemesWebDAV
   dirLocal: string
+  gardePseudos: GardePseudosWebDAV
   adapter: (avant: EntretienFichier) => EntretienFichier
   miroir: (chemin: string, contenu: string, etag: string | null) => void
   verrouCorpus: () => VerrouCourt
@@ -37,6 +40,7 @@ function signature(demande: DemandeOperationTheme): string {
 export class OperationsThemesWebDAV {
   private readonly journal: JournalLocalThemesWebDAV
   private enCours = false
+  private readonly retenus = new Map<string, VerrouCourt & { echeance: number }>()
 
   constructor(private readonly deps: Dependances) {
     this.journal = new JournalLocalThemesWebDAV(deps.dirLocal, empreinteTheme(deps.client.config.baseUrl))
@@ -50,6 +54,13 @@ export class OperationsThemesWebDAV {
       operationId: j.operationId, demande: structuredClone(j.demande), bilan: this.bilan(j),
       indeterminee: !!j.publication,
     } : null
+  }
+
+  publicationDuLotSeule(operationId: string): boolean {
+    const garde = this.deps.gardePseudos.lireEnvoi()
+    if (!garde) return true
+    const j = this.journal.lire()
+    return j?.operationId === operationId && j.publication?.chemin === garde.chemin && j.publication.contenu === garde.contenu
   }
 
   async analyser(demande: DemandeOperationTheme, precedent?: string) {
@@ -108,6 +119,7 @@ export class OperationsThemesWebDAV {
       j = await this.avecVerrou(this.deps.verrouCorpus(), async (verifier, garantir) => {
         const lecture = await this.lire('corpus.json')
         const corpus = decoderCorpusTheme(lecture.contenu)
+        exigerAbsenceDissociationWebDAV(corpus)
         if (empreinteTheme(corpus) !== manifeste.corpus) throw new RefusOperationTheme('Le corpus a changé : recalculez l’aperçu.')
         verifierDemandeOperationTheme(corpus, demande)
         verifierReferencesThemes(corpus, [])
@@ -148,6 +160,7 @@ export class OperationsThemesWebDAV {
             this.exigerSansSession(id)
             const corpusLu = await this.lire('corpus.json')
             const corpus = decoderCorpusTheme(corpusLu.contenu)
+            exigerAbsenceDissociationWebDAV(corpus)
             this.verifierDestinations(corpus, j!)
             if (!Object.hasOwn(corpus.membership, id)) throw new RefusOperationTheme('L’entretien ne fait plus partie du corpus.')
             const lecture = await this.lire(`entretiens/${id}.json`)
@@ -196,7 +209,10 @@ export class OperationsThemesWebDAV {
       j = this.exigerJournal(operationId)
       const p = j.publication
       if (!p) return this.resultat(j)
-      if (p.entretien) this.exigerSansSession(p.entretien.id)
+      if (p.entretien) {
+        this.exigerSansSession(p.entretien.id)
+        await this.deps.gardePseudos.reconcilier()
+      }
       const verrou = p.entretien ? this.deps.verrouEntretien(p.entretien.id) : this.deps.verrouCorpus()
       await this.avecVerrou(verrou, async () => {
         if (p.entretien) this.exigerSansSession(p.entretien.id)
@@ -266,21 +282,28 @@ export class OperationsThemesWebDAV {
     return Buffer.byteLength(contenu) === Buffer.byteLength(avant) ? `${contenu}\n` : contenu
   }
 
-  private async avecVerrou<T>(verrou: VerrouCourt, fn: (verifier: () => Promise<void>, garantir: () => void) => Promise<T>): Promise<T> {
-    const debutAcquisition = Date.now()
-    const acquisition = await verrou.provider.acquerir(verrou.chemin)
-    if (!acquisition.ok) throw new RefusOperationTheme(`Verrou tenu par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'}.`)
-    let echeance = debutAcquisition + acquisition.dureeGarantieMs
+  private async avecVerrou<T>(demande: VerrouCourt, fn: (verifier: () => Promise<void>, garantir: () => void) => Promise<T>): Promise<T> {
+    const connu = this.retenus.get(demande.chemin)
+    let verrou = connu
+    if (!verrou) {
+      const debut = Date.now(), acquisition = await demande.provider.acquerir(demande.chemin)
+      if (!acquisition.ok) throw new RefusOperationTheme(`Verrou tenu par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'}.`)
+      verrou = { ...demande, echeance: debut + acquisition.dureeGarantieMs }
+    }
+    const verifier = async () => {
+      const debut = Date.now(), battement = await verrou.provider.battre(verrou.chemin)
+      if (!battement.ok) throw new RefusOperationTheme('Le droit d’écriture n’est plus garanti.')
+      verrou.echeance = debut + battement.dureeGarantieMs
+    }
     try {
-      return await fn(async () => {
-        const debut = Date.now()
-        const battement = await verrou.provider.battre(verrou.chemin)
-        if (!battement.ok) throw new RefusOperationTheme('Le droit d’écriture n’est plus garanti.')
-        echeance = debut + battement.dureeGarantieMs
-      }, () => {
-        if (Date.now() + 60_000 >= echeance) throw new RefusOperationTheme('Le droit d’écriture va expirer ; aucun PUT n’est envoyé.')
+      await verifier()
+      return await fn(verifier, () => {
+        if (Date.now() + 60_000 >= verrou.echeance) throw new RefusOperationTheme('Le droit d’écriture va expirer ; aucun PUT n’est envoyé.')
       })
-    } finally { await verrou.provider.liberer(verrou.chemin).catch(() => {}) }
+    } finally {
+      if (this.journal.lire()?.publication) this.retenus.set(verrou.chemin, verrou)
+      else { this.retenus.delete(verrou.chemin); await verrou.provider.liberer(verrou.chemin).catch(() => {}) }
+    }
   }
 
   private async publier(j: JournalThemesWebDAV, publication: PublicationThemeEnAttente, etag: string, garantir: () => void): Promise<void> {
@@ -294,9 +317,20 @@ export class OperationsThemesWebDAV {
       this.journal.ecrire(j)
       throw e
     }
-    let etagFinal: string | null
-    try { etagFinal = await this.deps.client.putTexte(publication.chemin, publication.contenu, { ifMatch: etag }) } catch (e) {
-      if (e instanceof ErreurHttp && [400, 401, 403, 404, 409, 412, 413, 423].includes(e.statut)) {
+    let etagFinal: string | null, envoiCommence = false
+    const envoyer = (garantirCorpus: () => void = () => {}) => {
+      try { garantirCorpus(); garantir() } catch (e) { throw new RefusAvantEnvoiPseudos(message(e)) }
+      envoiCommence = true
+      return this.deps.client.putTexte(publication.chemin, publication.contenu, { ifMatch: etag })
+    }
+    try {
+      if (publication.entretien) {
+        const avant = await this.lire(publication.chemin)
+        if (avant.etag !== etag) throw new RefusAvantEnvoiPseudos('La source a changé avant le PUT thématique.')
+        etagFinal = await this.deps.gardePseudos.publier(publication.contenu, avant.contenu, envoyer, publication.chemin)
+      } else etagFinal = await envoyer()
+    } catch (e) {
+      if (!envoiCommence || e instanceof RefusAvantEnvoiPseudos || (e instanceof ErreurHttp && [400, 401, 403, 404, 409, 412, 413, 423].includes(e.statut))) {
         delete j.publication
         this.journal.ecrire(j)
         throw e
@@ -305,6 +339,7 @@ export class OperationsThemesWebDAV {
         const relu = await this.lire(publication.chemin)
         if (relu.contenu !== publication.contenu) throw new PublicationInconnue('La réponse du PUT est inconnue.')
         etagFinal = relu.etag
+        if (publication.entretien) await this.deps.gardePseudos.reconcilier()
       } catch {
         throw new PublicationInconnue(`Publication à réconcilier, sans rejeu : ${message(e)}`)
       }

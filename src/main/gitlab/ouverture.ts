@@ -27,6 +27,8 @@ import {
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
 import { JournalPublicationGitLab } from './journalPublication'
 import { reprendreOperationsGitLab } from './reprise'
+import { empreinteDestinationSuppressionGitLab, JournalSuppressionAnonGitLab } from './journalSuppressionAnon'
+import { empreinteDestinationRetraitVarianteGitLab, JournalRetraitVarianteAnonGitLab } from './journalRetraitVarianteAnon'
 import { JournalSessionsGitLab } from './journalSession'
 import { assemblerSessionGitLab } from './assemblageSession'
 import type { ServiceAuthentificationGitLab } from './authentification'
@@ -315,7 +317,12 @@ async function preparerOuvertureDestination(options: {
     identite: options.identite,
     fileCommits,
   })
-  await reprendreOperationsGitLab({
+  const retrait = new JournalRetraitVarianteAnonGitLab(dirMiroir,
+    empreinteDestinationRetraitVarianteGitLab(options.destination.id, options.destination.branche, racine), racine).lire()
+  const retraitEnAttente = !!retrait && (!retrait.varianteRetiree || !retrait.miroirComplet)
+  new JournalSuppressionAnonGitLab(dirMiroir,
+    empreinteDestinationSuppressionGitLab(options.destination.id, options.destination.branche, racine), racine).lire()
+  if (!retraitEnAttente) await reprendreOperationsGitLab({
     depot,
     coordination,
     journal,

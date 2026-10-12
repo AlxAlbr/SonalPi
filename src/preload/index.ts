@@ -1,4 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { OptionsTableCorrespondance, ApercuExportCorrespondance } from '../shared/corpus/tablesCorrespondance'
+import type { DemandeRenommageAnon, ApercuRenommageAnon, BilanRenommageAnon, SuiviRenommageAnon } from '../shared/corpus/renommageAnon'
+import type { DemandeDissociationAnon, ApercuDissociationAnon, BilanDissociationAnon, BilanDissociationDistant, SuiviDissociationAnon } from '../shared/corpus/dissociationAnon'
+import type { DemandeAjoutVarianteAnon, ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
+import type { DemandeRetraitVarianteAnon, ApercuRetraitVarianteAnon, BilanRetraitVarianteAnon, BilanRetraitVarianteDistant, SuiviRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
+import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAnon, BilanSuppressionDistant, SuiviSuppressionAnon } from '../shared/corpus/suppressionAnon'
+import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 import type {
   Categorie,
   CibleValeur,
@@ -317,8 +324,35 @@ contextBridge.exposeInMainWorld('sonal', {
     journalAnnuler: (id: string): Promise<ResultatAnnulationCorpus> => invoquer('corpus:journalAnnuler', id),
     regleAnonParEntite: (entite: string): Promise<RegleAnon | undefined> =>
       invoquer('corpus:regleAnonParEntite', entite),
-    regleAnonCreer: (entite: string, pseudos: string[]): Promise<{ regle: RegleAnon; existait: boolean }> =>
-      invoquer('corpus:regleAnonCreer', entite, pseudos),
+    apercuExportCorrespondances: (options: OptionsTableCorrespondance): Promise<ApercuExportCorrespondance> => invoquer('corpus:apercuExportCorrespondances', options),
+    exporterCorrespondances: (token: string, format: 'v2' | 'v1', confidentiel: boolean, limites: boolean, v1: boolean): Promise<{ annule: boolean }> => invoquer('corpus:exporterCorrespondances', token, format, confidentiel, limites, v1),
+    apercuImportCorrespondances: (documents: DocumentCorrespondance[], corrections: CorrectionCorrespondance[] = []): Promise<ApercuImportCorrespondance> => invoquer('corpus:apercuImportCorrespondances', documents, corrections),
+    importerCorrespondances: (token: string, choix: Record<string, ChoixImportCorrespondance>, cibles: import('../shared/corpus/importCorrespondancesEntretiens').ChoixCibleCorrespondance[] = [], confirmees = false): Promise<BilanImportCorrespondance> => invoquer('corpus:importerCorrespondances', token, choix, cibles, confirmees),
+    suiviImportCorrespondances: (): Promise<SuiviImportCorrespondances | null> => invoquer('corpus:suiviImportCorrespondances'),
+    reprendreImportCorrespondances: (operationId: string, confirmee: boolean): Promise<BilanImportCorrespondance> => invoquer('corpus:reprendreImportCorrespondances', operationId, confirmee),
+    apercuRetraitVarianteAnon: (demande: DemandeRetraitVarianteAnon): Promise<ApercuRetraitVarianteAnon> => invoquer('corpus:apercuRetraitVarianteAnon', demande),
+    retirerVarianteAnon: (token: string, confirmee: boolean): Promise<BilanRetraitVarianteAnon | BilanRetraitVarianteDistant> => invoquer('corpus:retirerVarianteAnon', token, confirmee),
+    suiviRetraitVarianteAnon: (): Promise<SuiviRetraitVarianteAnon | null> => invoquer('corpus:suiviRetraitVarianteAnon'),
+    relireSuiviRetraitVarianteAnon: (operationId: string): Promise<BilanRetraitVarianteDistant> => invoquer('corpus:relireSuiviRetraitVarianteAnon', operationId),
+    apercuRepriseRetraitVarianteAnon: (operationId: string): Promise<ApercuRetraitVarianteAnon> => invoquer('corpus:apercuRepriseRetraitVarianteAnon', operationId),
+    apercuSuppressionAnon: (demande: DemandeSuppressionAnon): Promise<ApercuSuppressionAnon> => invoquer('corpus:apercuSuppressionAnon', demande),
+    supprimerRegleAnonPartout: (token: string, confirmee: boolean): Promise<BilanSuppressionAnon | BilanSuppressionDistant> => invoquer('corpus:supprimerRegleAnonPartout', token, confirmee),
+    suiviSuppressionAnon: (): Promise<SuiviSuppressionAnon | null> => invoquer('corpus:suiviSuppressionAnon'),
+    relireSuiviSuppressionAnon: (operationId: string): Promise<BilanSuppressionDistant> => invoquer('corpus:relireSuiviSuppressionAnon', operationId),
+    apercuRepriseSuppressionAnon: (operationId: string): Promise<ApercuSuppressionAnon> => invoquer('corpus:apercuRepriseSuppressionAnon', operationId),
+    apercuDissociationAnon: (demande: DemandeDissociationAnon): Promise<ApercuDissociationAnon> => invoquer('corpus:apercuDissociationAnon', demande),
+    dissocierRegleAnon: (token: string, confirmee: boolean): Promise<BilanDissociationAnon | BilanDissociationDistant> => invoquer('corpus:dissocierRegleAnon', token, confirmee),
+    suiviDissociationAnon: (): Promise<SuiviDissociationAnon | null> => invoquer('corpus:suiviDissociationAnon'),
+    relireSuiviDissociationAnon: (operationId: string): Promise<BilanDissociationDistant> => invoquer('corpus:relireSuiviDissociationAnon', operationId),
+    apercuRepriseDissociationAnon: (operationId: string): Promise<ApercuDissociationAnon> => invoquer('corpus:apercuRepriseDissociationAnon', operationId),
+    apercuRenommageAnon: (demande: DemandeRenommageAnon): Promise<ApercuRenommageAnon> => invoquer('corpus:apercuRenommageAnon', demande),
+    renommerVarianteAnon: (token: string, confirmee: boolean): Promise<BilanRenommageAnon> => invoquer('corpus:renommerVarianteAnon', token, confirmee),
+    suiviRenommageAnon: (): Promise<SuiviRenommageAnon | null> => invoquer('corpus:suiviRenommageAnon'),
+    apercuRepriseRenommageAnon: (operationId: string): Promise<ApercuRenommageAnon> => invoquer('corpus:apercuRepriseRenommageAnon', operationId),
+    regleAnonCreer: (entite: string, pseudos: string[], categorie?: string): Promise<{ regle: RegleAnon; existait: boolean }> =>
+      invoquer('corpus:regleAnonCreer', entite, pseudos, categorie),
+    regleAnonAjouterVariante: (demande: DemandeAjoutVarianteAnon): Promise<ResultatAjoutVarianteAnon> =>
+      invoquer('corpus:regleAnonAjouterVariante', demande),
     regleAnonAjouterPseudo: (id: string, pseudo: string): Promise<RegleAnon | null> =>
       invoquer('corpus:regleAnonAjouterPseudo', id, pseudo),
     regleAnonUtiliseeAilleurs: (id: string, exceptId?: string): Promise<boolean> =>

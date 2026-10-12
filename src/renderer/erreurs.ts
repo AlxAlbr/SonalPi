@@ -34,7 +34,7 @@ export function effacerInfoGlobale(): void {
 /** Nettoie un message d'exception IPC Electron pour l'affichage :
  *  « Error invoking remote method 'corpus:X': Error: message réel »
  *  → « message réel » (le canal n'intéresse pas l'utilisateur). */
-function nettoyerMessage(raison: unknown): string {
+export function nettoyerMessage(raison: unknown): string {
   const brut =
     raison instanceof Error
       ? raison.message

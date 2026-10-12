@@ -9,6 +9,7 @@ import type {
   ProgressionTransfert,
 } from '../../../shared/distant'
 import { appliquerStatutSession as appliquerStatutSessionApplication } from '../../couturesApplication'
+import { tirageAutomatiqueSuspendu } from '../../tirageAutomatique'
 
 type VueApplication = 'accueil' | 'corpus' | 'entretien'
 
@@ -24,6 +25,11 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   metadonneesEntretien: true,
   tableDonnees: true,
   pseudonymisationEntretiens: true,
+  pseudonymisationGlobale: true,
+  dissociationGlobale: true,
+  suppressionAnonGlobale: true,
+  ajoutVarianteAnon: true,
+  retraitVarianteAnon: true,
   transfertThemes: true,
   divisionThemes: true,
   fusionThemes: true,
@@ -231,7 +237,7 @@ export function useDistantCorpus(deps: {
   }
 
   async function actualiserDistant(silencieux = false): Promise<boolean> {
-    if (!idDistantCourant.value || tirageEnCours.value) return false
+    if (!idDistantCourant.value || tirageEnCours.value || (silencieux && tirageAutomatiqueSuspendu.value)) return false
     tirageEnCours.value = true
     try {
       const tirage = await window.sonal.distant.tirer()

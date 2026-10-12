@@ -35,6 +35,8 @@ export function creerSonal() {
   // mais l'entretien est créé APRÈS le corpus, qui lui injecte `couleurTrait` ; on route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
   let publierAvantSuppressionDefinition: () => Promise<boolean> = async () => true
+  let demanderDissociationCorpus: (regleId: string) => Promise<boolean> = async () => false
+  const demandeDissociationAnon = ref<{ regleId: string; revision: number } | null>(null)
   // Indirection pour casser un cycle de dépendances :
   //     `appliquerCorpus` doit restaurer le parcours quand le corpus ouvert porte un marqueur `demo`,
   //     mais le scope demo est créé APRÈS (il injecte `appliquerCorpus`).
@@ -73,6 +75,7 @@ export function creerSonal() {
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirReglesAnon(),
     publierAvantSuppressionDefinition: () => publierAvantSuppressionDefinition(),
+    demanderDissociationCorpus: (id) => demanderDissociationCorpus(id),
     prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
     // Mots de liaison : suggestion d'entité-cœur à la validation d'une entité à affixe.
     motsLiaison: () =>
@@ -369,6 +372,18 @@ export function creerSonal() {
     fermerEntretien,
     reprendre,
   } = cycleCorpus
+  watch(revisionCorpus, () => { demandeDissociationAnon.value = null })
+  demanderDissociationCorpus = async (regleId) => {
+    if (!gesteDisponible('dissociationGlobale') || lectureSeule.value) return false
+    if (!window.confirm('Ce changement de portée exige une dissociation globale. L’entretien courant sera enregistré et fermé avant l’aperçu ; aucune règle ni décision n’est dissociée sans le consentement final. Continuer ?')) return false
+    const revision = revisionCorpus.value
+    await retourCorpus()
+    if (vue.value !== 'corpus' || revisionCorpus.value !== revision || !gesteDisponible('dissociationGlobale') || lectureSeule.value) return false
+    await corpus.rafraichirReglesAnon(false)
+    if (revisionCorpus.value !== revision) return false
+    demandeDissociationAnon.value = { regleId, revision }
+    return true
+  }
   rafraichirCorpusDepuisDistant = rafraichirCorpusSansFermer
   nettoyerMiroirDepuisDistant = nettoyerMiroirChange
 
@@ -779,6 +794,7 @@ export function creerSonal() {
     idDistantCourant,
     dossierCourantDir,
     revisionCorpus,
+    demandeDissociationAnon,
     dernierTirage,
     tirageEnCours,
     progressionDistant,

@@ -31,6 +31,7 @@ import icoNotes from '../../assets/icones/notes.png'
 const {
   vue,
   revisionCorpus,
+  demandeDissociationAnon,
   enregistrerNavigationParcours,
   selectionnerParcours,
   ouvrirCatalogueParcours,
@@ -158,6 +159,8 @@ type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' |
 const ongletCorpus = ref<OngletCorpus>('accueil')
 const resumeParcours = ref<HTMLElement | null>(null)
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
+watch(() => demandeDissociationAnon?.value, (demande) => { if (demande) void choisirOnglet('anon') }, { flush: 'post' })
+
 async function choisirOnglet(onglet: OngletCorpus) {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return
   if (ongletCorpus.value === onglet) return
@@ -218,6 +221,7 @@ function raccourciRecherche(event: KeyboardEvent) {
 }
 let arreterNavigationParcours: (() => void) | null = null
 onMounted(() => {
+  if (demandeDissociationAnon?.value) void choisirOnglet('anon')
   window.addEventListener('keydown', raccourciRecherche)
   arreterNavigationParcours = enregistrerNavigationParcours(afficherParcours)
 })

@@ -142,9 +142,9 @@ async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise
   // Max applique la règle en masse sur les TROIS entretiens : e1/e2 réussissent,
   // e3 est refusé NOMMÉMENT (verrou tenu par olivier).
   const res = await max.tx.appliquerRegleLot([
-    { entretienId: 'e1', regleId: 'reg-1' },
-    { entretienId: 'e2', regleId: 'reg-1' },
-    { entretienId: 'e3', regleId: 'reg-1' },
+    { entretienId: 'e1', regleId: 'reg-1', toutes: true },
+    { entretienId: 'e2', regleId: 'reg-1', toutes: true },
+    { entretienId: 'e3', regleId: 'reg-1', toutes: true },
   ])
   expect(res.succes.map((x) => [x.id, x.nb]).sort()).toEqual([
     ['e1', 2],
@@ -168,8 +168,8 @@ async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise
 
   // OlivieR libère ; la règle est ré-appliquée sur e3 → succès.
   await pOlivier.liberer(cheminVerrouE3)
-  const res2 = await max.tx.appliquerRegleLot([{ entretienId: 'e3', regleId: 'reg-1' }])
-  expect(res2.succes).toEqual([{ id: 'e3', nb: 2, titre: 'Entretien trois' }])
+  const res2 = await max.tx.appliquerRegleLot([{ entretienId: 'e3', regleId: 'reg-1', toutes: true }])
+  expect(res2.succes).toEqual([{ id: 'e3', nb: 2, titre: 'Entretien trois', actions: { poses: 2, retraits: 0, exceptionsAjoutees: 0, exceptionsRetirees: 0 } }])
   expect(res2.echecs).toEqual([])
 
   // COEXISTENCE finale sur e3 : l'annotation d'olivier + les DEUX posées en masse ; rien n'a été écrasé par le second passage.

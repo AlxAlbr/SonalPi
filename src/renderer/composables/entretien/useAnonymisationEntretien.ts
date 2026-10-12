@@ -4,7 +4,9 @@ import { reperagePluginKey } from '../../editor/reperage'
 import { snapToWord } from '../../editor/snap'
 import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../../shared/entretien/anon/anonymisation'
 import { hitsAAAnonymiser, hitsDeCategorie, hitsIncluses, type HitAAAnonymiser } from '../../../shared/entretien/anon/compteursAnon'
-import { scinderPseudos } from '../../../shared/entretien/anon/pseudos'
+import { memoriserDefinitionLocale, retirerDefinitionLocale, validerMemoireLocale, normaliserPseudosDeclares, type DefinitionAnonLocale } from '../../../shared/entretien/anon/definitionsLocales'
+import { dedupliquerValeursAnon, validerDefinitionAnon } from '../../../shared/corpus/definitionsAnon'
+import { empreinteAnon, matchesAliases } from '../../../shared/entretien/anon/classification'
 import { parserAliases } from '../../../shared/entretien/anon/alias'
 import {
   cleEntite,
@@ -33,6 +35,7 @@ export function useAnonymisationEntretien(deps: {
   reglesAnon: () => RegleAnon[]
   rafraichirReglesCorpus?: () => Promise<void>
   publierAvantSuppressionDefinition?: () => Promise<boolean>
+  demanderDissociationCorpus?: (regleId: string) => Promise<boolean>
   prioriteAnon: () => 'corpus' | 'entretien'
   motsLiaison?: () => MotsLiaisonParams
   thematiques?: () => { actif: boolean; liste: string[] }
@@ -177,7 +180,8 @@ export function useAnonymisationEntretien(deps: {
   const brouillonsAnon = ref<BrouillonAnon[]>([])
   // Mémoire fichier de l'ensemble multi-pseudo par entité (clé `cleEntite`),
   // quand une entité autonome en déclare au moins deux.
-  const pseudosDeclares = ref<Record<string, string[]>>({})
+  const pseudosDeclares = ref<Record<string, string[]>>(Object.create(null))
+  const definitionsAnonLocales = ref<DefinitionAnonLocale[]>([])
 
   /** Dialogue de divergence à la poussée vers le corpus : une règle
    *  existante porte des pseudos différents de l'entité qu'on pousse → proposer
@@ -187,7 +191,9 @@ export function useAnonymisationEntretien(deps: {
     pseudosCible: string[]
     regleExistanteId: string
     reglePseudos: string[]
+    regleEntite?: string[]
     cas: 'brouillon' | 'fichier'
+    couvertureConfirmee?: string
   } | null>(null)
 
   /** Lignes du tableau Anon = fusion des brouillons (0 occurrence) et des
@@ -225,6 +231,7 @@ export function useAnonymisationEntretien(deps: {
       pseudosDeclares.value,
       deps.reglesAnon(),
       estIncluse,
+      definitionsAnonLocales.value,
     )
   }
 
@@ -260,11 +267,11 @@ export function useAnonymisationEntretien(deps: {
     if (!e) return null
     const brouillon = trouverBrouillon(brouillonsAnon.value, e)
     if (brouillon) return cleEntite(brouillon.entite)
-    const clesSaisie = new Set(parserAliases(e).map((a) => a.toLowerCase()))
+    const clesSaisie = new Set(parserAliases(e).map(cleEntite))
     // Parmi les lignes projetées (groupes déclarés inclus).
     for (const l of lignesAnon.value) {
       for (const a of parserAliases(l.entite)) {
-        if (clesSaisie.has(a.toLowerCase())) return l.cle
+        if (clesSaisie.has(cleEntite(a))) return l.cle
       }
       for (const a of cleEntite(l.entite).split('/')) {
         if (clesSaisie.has(a)) return l.cle
@@ -286,6 +293,9 @@ export function useAnonymisationEntretien(deps: {
   function creerBrouillon(entite: string, pseudo?: string) {
     const e = entite.trim()
     if (!e || entiteExisteDeja(e)) return
+    try {
+      memoriserDefinitionLocale(definitionsAnonLocales.value, { entite: parserAliases(e), pseudos: pseudo?.split('/') ?? [], etat: 'brouillon' })
+    } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.'; return }
     ajouterBrouillon(brouillonsAnon.value, e, pseudo)
     deps.rafraichirProjections()
     deps.planifierSauvegarde()
@@ -294,6 +304,13 @@ export function useAnonymisationEntretien(deps: {
   /** Met à jour le pseudo d'un brouillon existant (édition en cours de ligne
    *  brouillon non validée). Auto-sauvé au blur du champ Pseudo. */
   function majBrouillonLigne(entite: string, pseudo: string) {
+    const definition = definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === cleEntite(entite))
+    try {
+      memoriserDefinitionLocale(definitionsAnonLocales.value, { entite: parserAliases(entite), pseudos: pseudo.split('/'), etat: 'brouillon', categorie: definition?.categorie })
+      const declares = definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === cleEntite(entite))!.pseudos
+      if (declares.length > 1) pseudosDeclares.value[cleEntite(entite)] = [...declares]
+      else delete pseudosDeclares.value[cleEntite(entite)]
+    } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.' }
     majBrouillon(brouillonsAnon.value, entite, pseudo)
     deps.rafraichirProjections()
     deps.planifierSauvegarde()
@@ -342,10 +359,62 @@ export function useAnonymisationEntretien(deps: {
     suggestionLiaison.value = null
   }
 
-  /** Valide une ligne : relabel toutes les occurrences existantes de `entite`
-   *  avec `pseudo`, et pose une occurrence anon sur chaque match du texte NON
-   *  déjà couvert. Consomme le brouillon de même entité (son travail est fini). */
-  function validerAnon(entite: string, pseudo: string) {
+  const confirmationCouverture = ref<{ entite: string; pseudo: string; nb: number; empreinte: string } | null>(null)
+  let suiteCouverture: (() => void | Promise<unknown>) | null = null
+  function empreinteEdition(entite: string): string {
+    return empreinteAnon({ corpsTexte: deps.lireEditeur()?.getJSON(), annotations: entretien.annotations },
+      [entite, deps.ouvertId.value, brouillonsAnon.value, pseudosDeclares.value, definitionsAnonLocales.value])
+  }
+  function demanderCouverture(entite: string, pseudo: string, nb: number, suite: () => void | Promise<unknown>) {
+    confirmationCouverture.value = { entite, pseudo, nb, empreinte: empreinteEdition(entite) }
+    suiteCouverture = suite
+  }
+  function refuserCouverture() {
+    confirmationCouverture.value = null
+    suiteCouverture = null
+  }
+  async function accepterCouverture() {
+    const demande = confirmationCouverture.value
+    const suite = suiteCouverture
+    refuserCouverture()
+    if (!demande || !suite || !deps.lireEditeur()) return
+    if (empreinteEdition(demande.entite) !== demande.empreinte) {
+      hintAnon.value = 'Le texte ou les décisions ont changé. Examinez à nouveau la couverture des exceptions.'
+      return
+    }
+    try { await suite() }
+    catch { hintAnon.value = 'La promotion n’a pas pu aboutir. Vérifiez les règles du corpus avant de recommencer.' }
+  }
+
+  function instructionsCorpus(ligne: LigneAnon, pseudo: string, couvrir = false) {
+    const ed = deps.lireEditeur()!
+    const plat = aplatir(ed.getJSON())
+    const aliases = parserAliases(ligne.entite)
+    const matches = matchesAliases(plat.texte, aliases).flatMap((m) => {
+      const pm = plageVersPM(plat, m.from, m.to)
+      return pm ? [pm] : []
+    })
+    return instructionsValiderAnon(entretien.annotations, matches, aliases.map(cleEntite), pseudo,
+      (f, t) => ed.state.doc.textBetween(f, t, ' '), genId, undefined, couvrir)
+  }
+  function autoriserCouvertureCorpus(ligne: LigneAnon, confirmation: string | undefined, suite: (empreinte: string) => Promise<unknown>): boolean {
+    if (!deps.lireEditeur()) return false
+    const empreinte = empreinteEdition(ligne.entite)
+    if (confirmation && confirmation !== empreinte) {
+      hintAnon.value = 'Le texte ou les décisions ont changé pendant la promotion. Recommencez après examen.'
+      return false
+    }
+    const instructions = instructionsCorpus(ligne, ligne.pseudo.split(' / ')[0])
+    if (instructions.exceptionsProtegees.length && !confirmation) {
+      demanderCouverture(ligne.entite, ligne.pseudo, instructions.exceptionsProtegees.length, () => suite(empreinte))
+      return false
+    }
+    return true
+  }
+
+  /** Pose les occurrences libres en conservant les variantes déjà choisies.
+   *  Couvrir une exception interne nécessite une confirmation explicite. */
+  function validerAnon(entite: string, pseudo: string, couvrirExceptions = false) {
     const ed = deps.lireEditeur()
     if (!ed) return
     const e = entite.trim()
@@ -360,20 +429,27 @@ export function useAnonymisationEntretien(deps: {
     }
     hintAnon.value = null
     const t = aplatir(ed.getJSON())
-    // Multi-alias : la saisie « Lyon/Lyons » matche chaque graphie.
+    // Les alias recouvrants ne produisent qu'une seule pose.
     const aliases = parserAliases(e)
-    const matches = aliases
-      .flatMap((a) => occurrencesDe(t.texte, a))
+    const matches = matchesAliases(t.texte, aliases)
       .map((pl) => plageVersPM(t, pl.from, pl.to))
       .filter((x): x is { from: number; to: number } => x !== null)
     const cle = cleEntite(e)
-    // La saisie multi-pseudo peut être « Claire / Rebecca ». On scinde et
-    // on mémorise l'ensemble déclaré (pseudosDeclares) pour offrir la bascule du
-    // menu contextuel ; les occurrences sont posées/relabelées avec le PREMIER
-    // pseudo (l'utilisateur bascule les autres par occurrence via le menu).
-    const declares = scinderPseudos(p)
-    if (declares.length >= 2) pseudosDeclares.value[cle] = declares
-    else delete pseudosDeclares.value[cle]
+    // Les variantes déclarées et déjà choisies restent mémorisées ; seule une nouvelle pose reçoit le premier pseudo.
+    const declares = dedupliquerValeursAnon(p.split('/'))
+    const variantesExistantes = entretien.annotations.filter((a) =>
+      a.type === 'anon' && !estOrpheline(a) && aliases.some((alias) =>
+        cleEntite(alias) === cleEntite(ed.state.doc.textBetween(a.from, a.to, ' '))))
+      .map((a) => a.pseudo ?? '').filter(Boolean)
+    const variantesConservees = dedupliquerValeursAnon([
+      ...(definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === cle)?.pseudos ?? []),
+      ...(pseudosDeclares.value[cle] ?? []), ...declares, ...variantesExistantes,
+    ])
+    try { validerDefinitionAnon(aliases, variantesConservees) }
+    catch (erreur) {
+      hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition invalide.'
+      return
+    }
     const applique = declares[0] || p
     // Les instructions sont calculées PUR (anonymisation.ts) puis
     // APPLIQUÉES sur la table réactive : relabel des occurrences ANONYMISÉES
@@ -387,7 +463,23 @@ export function useAnonymisationEntretien(deps: {
       applique,
       (f, t2) => ed.state.doc.textBetween(f, t2, ' '),
       genId,
+      variantesConservees,
+      couvrirExceptions,
     )
+    if (instr.exceptionsProtegees.length) {
+      demanderCouverture(e, p, instr.exceptionsProtegees.length, () => validerAnon(e, p, true))
+      return
+    }
+    if (!lignesAnon.value.find((l) => l.cle === cle)?.regle) {
+      try {
+        memoriserDefinitionLocale(definitionsAnonLocales.value, {
+          entite: aliases, pseudos: variantesConservees, etat: 'declaration',
+          categorie: definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === cle)?.categorie,
+        })
+      } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.'; return }
+    }
+    if (variantesConservees.length >= 2) pseudosDeclares.value[cle] = variantesConservees
+    else delete pseudosDeclares.value[cle]
     for (const r of instr.relabel) {
       const a = entretien.annotations.find((x) => x.id === r.id)
       if (a) a.pseudo = r.pseudo
@@ -453,6 +545,7 @@ export function useAnonymisationEntretien(deps: {
       for (const id of ids) retirerAnnotation(entretien, id)
       retirerBrouillon(brouillonsAnon.value, entite)
       delete pseudosDeclares.value[cle]
+      retirerDefinitionLocale(definitionsAnonLocales.value, entite)
       deps.planifierSauvegarde()
       if (
         ligne.etat === 'corpus' &&
@@ -489,6 +582,11 @@ export function useAnonymisationEntretien(deps: {
     }
     if (cible === 'brouillon' && ligne.etat === 'entretien') {
       const pseudo = ligne.pseudo
+      try {
+        memoriserDefinitionLocale(definitionsAnonLocales.value, { entite: parserAliases(ligne.entite), pseudos: pseudosCibleDeLigne(ligne),
+          categorie: categorieDeLigne(ligne.entite), etat: 'brouillon',
+        })
+      } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.'; return }
       for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
       ajouterBrouillon(brouillonsAnon.value, ligne.entite, pseudo)
       deps.rafraichirProjections()
@@ -527,14 +625,25 @@ export function useAnonymisationEntretien(deps: {
   /** Renvoie la catégorie de la règle corpus liée à une ligne. */
   function categorieDeLigne(entite: string): string {
     const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
-    if (!ligne?.regle) return ''
+    if (!ligne?.regle) return definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === cleEntite(entite))?.categorie ?? ''
     return deps.reglesAnon().find((r) => r.id === ligne.regle)?.categorie ?? ''
   }
   /** Assigne ou retire la catégorie d'une ligne corpus. */
   async function categoriserLigne(entite: string, categorie: string) {
     const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
-    if (!ligne?.regle || !deps.categoriserRegle) return
-    await deps.categoriserRegle(ligne.regle, categorie || null)
+    if (!ligne) return
+    if (!ligne.regle) {
+      try {
+        memoriserDefinitionLocale(definitionsAnonLocales.value, {
+          entite: parserAliases(ligne.entite), pseudos: pseudosCibleDeLigne(ligne),
+          etat: ligne.etat === 'brouillon' ? 'brouillon' : 'declaration', ...(categorie ? { categorie } : {}),
+        })
+        deps.planifierSauvegarde()
+      } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.' }
+
+      return
+    }
+    if (deps.categoriserRegle) await deps.categoriserRegle(ligne.regle, categorie || null)
   }
   /** Liste des catégories actives (vide = réglage désactivé → badge masqué). */
   const thematiquesActives = computed(() =>
@@ -546,18 +655,9 @@ export function useAnonymisationEntretien(deps: {
    *  LIGNE (on filtre par cle AVANT de choisir — sinon `find` prendrait la
    *  première occurrence du document, d'une autre entité). */
   function pseudosCibleDeLigne(ligne: LigneAnon): string[] {
-    const declares = pseudosDeclares.value[ligne.cle]
-    if (declares && declares.length > 1) return [...declares]
-    const occ = entretien.annotations.find(
-      (a) =>
-        a.type === 'anon' &&
-        !estOrpheline(a) &&
-        a.etat !== 'exception' &&
-        annotationDeLigne(a, ligne) &&
-        !!a.pseudo,
-    )
-    if (occ) return [occ.pseudo!]
-    return []
+    const occurrences = entretien.annotations.filter((a) =>
+      a.type === 'anon' && !estOrpheline(a) && a.etat !== 'exception' && annotationDeLigne(a, ligne))
+    return dedupliquerValeursAnon([...(ligne.etat === 'brouillon' ? (trouverBrouillon(brouillonsAnon.value, ligne.entite)?.pseudo ?? ligne.pseudo).split('/') : definitionsAnonLocales.value.find((d) => cleEntite(d.entite.join('/')) === ligne.cle)?.pseudos ?? pseudosDeclares.value[ligne.cle] ?? []), ...occurrences.map((a) => a.pseudo ?? '')])
   }
   /** Clef d'entité d'une annotation (lue sur le doc courant). */
   function lineCle(a: Annotation): string {
@@ -567,7 +667,13 @@ export function useAnonymisationEntretien(deps: {
 
   /** Fichier ou entretien vers corpus. Crée la règle si absente ; sinon, si
    *  pseudos identiques → réutilise ; sinon → dialogue de divergence. */
-  async function promouvoirCorpus(ligne: LigneAnon) {
+  async function promouvoirCorpus(ligne: LigneAnon, couvertureConfirmee?: string) {
+    hintAnon.value = null
+    try { await preparerPromotionCorpus(ligne, couvertureConfirmee) }
+    catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'La promotion a échoué.' }
+  }
+
+  async function preparerPromotionCorpus(ligne: LigneAnon, couvertureConfirmee?: string) {
     const cas: 'brouillon' | 'fichier' = ligne.etat === 'brouillon' ? 'brouillon' : 'fichier'
     // Le pseudo saisi vient du brouillon ou des occurrences du fichier.
     const pseudoSaisi =
@@ -576,13 +682,29 @@ export function useAnonymisationEntretien(deps: {
         : ''
     const pseudosCible =
       cas === 'brouillon'
-        ? scinderPseudos(trouverBrouillon(brouillonsAnon.value, ligne.entite)?.pseudo ?? ligne.pseudo)
+        ? dedupliquerValeursAnon((trouverBrouillon(brouillonsAnon.value, ligne.entite)?.pseudo ?? ligne.pseudo).split('/'))
         : pseudosCibleDeLigne(ligne)
     if (pseudosCible.length === 0) {
       hintAnon.value = 'Saisis un pseudo avant de pousser cette entité au corpus.'
       return
     }
+    try { validerDefinitionAnon(ligne.entite, pseudosCible) }
+    catch (erreur) {
+      hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition invalide.'
+      return
+    }
+    if (cas === 'brouillon' && !autoriserCouvertureCorpus(ligne, couvertureConfirmee, (empreinte) => promouvoirCorpus(ligne, empreinte))) return
+    const versionEdition = empreinteEdition(ligne.entite)
     const existante = await window.sonal.corpus.regleAnonParEntite(ligne.entite)
+    if (versionEdition !== empreinteEdition(ligne.entite)) {
+      hintAnon.value = 'La ligne a changé pendant la préparation. Recommencez la promotion.'
+      return
+    }
+    if (existante && parserAliases(ligne.entite).some((alias) =>
+      !existante.entite.flatMap(parserAliases).some((e) => e.toLocaleLowerCase('fr') === alias.toLocaleLowerCase('fr')))) {
+      hintAnon.value = 'Des alias nouveaux recouvrent une règle existante. Résolvez le groupe avant de le rattacher au corpus.'
+      return
+    }
     const memesPseudos = existante &&
       existante.pseudos.length === pseudosCible.length &&
       pseudosCible.every((p) => existante.pseudos.some((q) => q.toLowerCase() === p.toLowerCase()))
@@ -598,11 +720,12 @@ export function useAnonymisationEntretien(deps: {
           pseudosCible,
           regleExistanteId: res.regle.id,
           reglePseudos: res.regle.pseudos,
-          cas,
+          regleEntite: res.regle.entite,
+          cas, couvertureConfirmee,
         }
         return
       }
-      await appliquerCorpus(ligne, res.regle.id, cas, undefined)
+      if (!(await appliquerCorpus(ligne, res.regle.id, cas, undefined, couvertureConfirmee))) return
       // Validation corpus réussie → suggérer l'entité-cœur éventuelle.
       proposerCoeur(ligne.entite, cas === 'brouillon' ? pseudoSaisi : pseudosCible.join(' / '), 'corpus')
       return
@@ -613,17 +736,25 @@ export function useAnonymisationEntretien(deps: {
       pseudosCible,
       regleExistanteId: existante.id,
       reglePseudos: existante.pseudos,
-      cas,
+      regleEntite: existante.entite,
+      cas, couvertureConfirmee,
     }
   }
 
   /** Applique la portée corpus (create/reuse) : poser (brouillon) ou relier
    *  (fichier). `pseudoAppli` non vide = « aligner » vers ce pseudo de la règle. */
-  async function appliquerCorpus(ligne: LigneAnon, regleId: string, cas: 'brouillon' | 'fichier', pseudoAppli?: string) {
+  async function appliquerCorpus(ligne: LigneAnon, regleId: string, cas: 'brouillon' | 'fichier', pseudoAppli?: string, couvertureConfirmee?: string): Promise<boolean> {
     const ed = deps.lireEditeur()
-    if (!ed) return
+    if (!ed) return false
+    const versionEdition = empreinteEdition(ligne.entite)
+    await deps.rafraichirReglesCorpus?.()
+    if (versionEdition !== empreinteEdition(ligne.entite)) {
+      hintAnon.value = 'La ligne a changé pendant la préparation. Recommencez la promotion.'
+      return false
+    }
     if (cas === 'brouillon') {
-      poserCorpusDepuisBrouillon(ligne, regleId, pseudoAppli ?? ligne.pseudo.split(' / ')[0])
+      if (!autoriserCouvertureCorpus(ligne, couvertureConfirmee, (empreinte) => appliquerCorpus(ligne, regleId, cas, pseudoAppli, empreinte))) return false
+      poserCorpusDepuisBrouillon(ligne, regleId, pseudoAppli ?? ligne.pseudo.split(' / ')[0], !!couvertureConfirmee)
     } else {
       for (const a of entretien.annotations) {
         if (a.type === 'anon' && annotationDeLigne(a, ligne)) {
@@ -632,38 +763,52 @@ export function useAnonymisationEntretien(deps: {
         }
       }
       delete pseudosDeclares.value[ligne.cle]
+      retirerDefinitionLocale(definitionsAnonLocales.value, ligne.entite)
     }
-    await deps.rafraichirReglesCorpus?.()
     deps.rafraichirProjections()
     deps.rafraichirDecorations()
     rafraichirCompteursAAAnonymiser()
     rafraichirReperage()
     deps.planifierSauvegarde()
+    return true
   }
 
   /** Dialogue : « Aligner » — la règle garde ses pseudos, l'entretien adopte son
    *  pseudo primaire (posé/relié). */
-  async function alignerCorpus() {
+  async function alignerCorpus(confirmation?: string) {
     const d = dialoguePorteeCorpus.value
     if (!d) return
-    dialoguePorteeCorpus.value = null
     const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(d.entite))
     if (!ligne) return
-    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.reglePseudos[0])
+    const couverture = confirmation ?? d.couvertureConfirmee
+    if (d.cas === 'brouillon' && !autoriserCouvertureCorpus(ligne, couverture, alignerCorpus)) return
+    dialoguePorteeCorpus.value = null
+    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.reglePseudos[0], couverture)
   }
   /** Dialogue : « Garder les deux » — ajoute les pseudos de l'entretien à la
    *  règle (si ≤2), puis pose/relie en gardant la variante de l'entretien. */
-  async function garderLesDeuxCorpus() {
+  async function garderLesDeuxCorpus(confirmation?: string) {
     const d = dialoguePorteeCorpus.value
     if (!d) return
-    dialoguePorteeCorpus.value = null
-    for (const p of d.pseudosCible) {
-      await window.sonal.corpus.regleAnonAjouterPseudo(d.regleExistanteId, p)
-    }
     const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(d.entite))
     if (!ligne) return
+    const couverture = confirmation ?? d.couvertureConfirmee
+    if (d.cas === 'brouillon' && !autoriserCouvertureCorpus(ligne, couverture, garderLesDeuxCorpus)) return
+    try { validerDefinitionAnon(d.regleEntite ?? ligne.entite, dedupliquerValeursAnon([...d.reglePseudos, ...d.pseudosCible])) }
+    catch (erreur) {
+      hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition invalide.'
+      return
+    }
+    dialoguePorteeCorpus.value = null
+    hintAnon.value = null
+    try {
+      for (const p of d.pseudosCible) await window.sonal.corpus.regleAnonAjouterPseudo(d.regleExistanteId, p)
+    } catch (erreur) {
+      hintAnon.value = erreur instanceof Error ? erreur.message : 'L’ajout de variante a échoué.'
+      return
+    }
     // La variante de l'entretien prime pour ses occurrences (garder les deux).
-    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.pseudosCible[0])
+    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.cas === 'brouillon' ? d.pseudosCible[0] : undefined, couverture)
   }
   function annulerDialogueCorpus() {
     dialoguePorteeCorpus.value = null
@@ -694,6 +839,7 @@ export function useAnonymisationEntretien(deps: {
       pseudosCible: premiere.pseudosLocaux,
       regleExistanteId: premiere.regleId,
       reglePseudos: premiere.reglePseudos,
+      regleEntite: deps.reglesAnon().find((r) => r.id === premiere.regleId)?.entite,
       cas: premiere.cas,
     }
     return divergences.length
@@ -702,22 +848,8 @@ export function useAnonymisationEntretien(deps: {
 
   /** Brouillon → Corpus : pose les occurrences rule-backed (comme une
    *  validation, mais liée à la règle) puis consomme le brouillon. */
-  function poserCorpusDepuisBrouillon(ligne: LigneAnon, regleId: string, pseudo: string) {
-    const ed = deps.lireEditeur()!
-    const t = aplatir(ed.getJSON())
-    const aliases = parserAliases(ligne.entite)
-    const matches = aliases
-      .flatMap((a) => occurrencesDe(t.texte, a))
-      .map((pl) => plageVersPM(t, pl.from, pl.to))
-      .filter((x): x is { from: number; to: number } => x !== null)
-    const instr = instructionsValiderAnon(
-      entretien.annotations,
-      matches,
-      aliases.map((a) => cleEntite(a)),
-      pseudo,
-      (f, t2) => ed.state.doc.textBetween(f, t2, ' '),
-      genId,
-    )
+  function poserCorpusDepuisBrouillon(ligne: LigneAnon, regleId: string, pseudo: string, couvrirExceptions = false) {
+    const instr = instructionsCorpus(ligne, pseudo, couvrirExceptions)
     for (const r of instr.relabel) {
       const a = entretien.annotations.find((x) => x.id === r.id)
       if (a) { a.pseudo = r.pseudo; a.regle = regleId }
@@ -727,53 +859,22 @@ export function useAnonymisationEntretien(deps: {
     }
     retirerBrouillon(brouillonsAnon.value, ligne.entite)
     delete pseudosDeclares.value[ligne.cle]
+    retirerDefinitionLocale(definitionsAnonLocales.value, ligne.entite)
   }
 
-  /** Corpus → Entretien (déliage) : les occurrences redeviennent standalone ;
-   *  la règle est supprimée si elle devient isolée, sinon reste (partagée). */
+  /** Corpus → entretien passe par l’inventaire global, jamais par un déliage de la seule copie ouverte. */
   async function delierCorpus(ligne: LigneAnon) {
-    const regleId = ligne.regle!
-    const ailleurs = await window.sonal.corpus.regleAnonUtiliseeAilleurs(regleId, deps.ouvertId.value ?? undefined)
-    const delier = async () => {
-      for (const a of entretien.annotations) {
-        if (a.type === 'anon' && annotationDeLigne(a, ligne)) delete a.regle
-      }
-      deps.planifierSauvegarde()
-      if (!ailleurs && await publierRetraitAvantSuppression()) {
-        await window.sonal.corpus.regleAnonSupprimer(regleId)
-      }
-      await deps.rafraichirReglesCorpus?.()
-      deps.rafraichirProjections()
-      deps.rafraichirDecorations()
-      rafraichirCompteursAAAnonymiser()
-      rafraichirReperage()
-    }
-    if (ailleurs) await delier()
-    else await lancerOperationGlobale(delier)
-  }
-
-  /** Corpus → Brouillon : retire les occurrences + recrée un brouillon. BLOQUÉ
-   *  si la règle est utilisée dans d'autres entretiens (message d'isolation). */
-  async function retirerCorpusVersBrouillon(ligne: LigneAnon) {
-    const regleId = ligne.regle!
-    const ailleurs = await window.sonal.corpus.regleAnonUtiliseeAilleurs(regleId, deps.ouvertId.value ?? undefined)
-    if (ailleurs) {
-      hintAnon.value = "Vous ne pouvez pas supprimer cette règle car elle est utilisée dans d'autres entretiens."
+    if (!ligne.regle) return
+    if (!deps.demanderDissociationCorpus) {
+      hintAnon.value = 'La dissociation exige le parcours global qualifié. Aucun lien local n’a été retiré.'
       return
     }
-    await lancerOperationGlobale(async () => {
-      for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
-      ajouterBrouillon(brouillonsAnon.value, ligne.entite, ligne.pseudo)
-      deps.planifierSauvegarde()
-      if (await publierRetraitAvantSuppression()) {
-        await window.sonal.corpus.regleAnonSupprimer(regleId)
-        await deps.rafraichirReglesCorpus?.()
-      }
-      deps.rafraichirProjections()
-      deps.rafraichirDecorations()
-      rafraichirCompteursAAAnonymiser()
-      rafraichirReperage()
-    })
+    if (!await deps.demanderDissociationCorpus(ligne.regle)) hintAnon.value = 'Dissociation non engagée : aucun lien local n’a été retiré.'
+  }
+
+  /** Le retrait des décisions partagées exige une commande globale distincte de la dissociation. */
+  async function retirerCorpusVersBrouillon(_ligne: LigneAnon) {
+    hintAnon.value = 'Le retrait corpus vers brouillon n’est pas qualifié. Aucun marquage ni variante déclarée n’a été supprimé. Utilisez la dissociation globale pour conserver les décisions en entretien.'
   }
 
   async function publierRetraitAvantSuppression(): Promise<boolean> {
@@ -794,20 +895,26 @@ export function useAnonymisationEntretien(deps: {
     return trouverBrouillon(brouillonsAnon.value, cle)?.pseudo ?? ''
   }
 
-  function charger(brouillonsLus: BrouillonAnon[] | undefined, pseudosLus: Record<string, string[]> | undefined) {
+  function charger(brouillonsLus: BrouillonAnon[] | undefined, pseudosLus: Record<string, string[]> | undefined, definitionsLues?: DefinitionAnonLocale[]) {
+    definitionsAnonLocales.value = validerMemoireLocale(definitionsLues ?? [])
     brouillonsAnon.value = brouillonsLus ?? []
-    pseudosDeclares.value = { ...(pseudosLus ?? {}) }
+    pseudosDeclares.value = normaliserPseudosDeclares(pseudosLus ?? {})
+    for (const d of definitionsAnonLocales.value) {
+      if (d.pseudos.length > 1) pseudosDeclares.value[cleEntite(d.entite.join('/'))] = [...d.pseudos]
+    }
   }
 
   function reinitialiser() {
     brouillonsAnon.value = []
-    pseudosDeclares.value = {}
+    pseudosDeclares.value = Object.create(null)
+    definitionsAnonLocales.value = []
     selectionAnon.value = null
     hintAnon.value = null
     lignesAnon.value = []
     hitsAAnonymiserParCle.value = {}
     inclusesParCle.value = {}
     suggestionLiaison.value = null
+    refuserCouverture()
     dialoguePorteeCorpus.value = null
     arreterReperage()
     divergencesIgnorees.clear()
@@ -865,7 +972,11 @@ export function useAnonymisationEntretien(deps: {
     reperageAnon,
     brouillonsAnon,
     pseudosDeclares,
+    definitionsAnonLocales,
     dialoguePorteeCorpus,
+    confirmationCouverture,
+    accepterCouverture,
+    refuserCouverture,
     suggestionLiaison,
     thematiquesActives,
     rafraichirCompteursAAAnonymiser,

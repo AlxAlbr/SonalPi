@@ -40,12 +40,27 @@ export interface OptionsRepriseGitLab {
   trace?: (message: string) => void
 }
 
-/** Termine ce qu'un arrêt a laissé en suspens, avant tout nouveau tirage. */
+/** Vérifie les ajouts sans répéter un envoi dont l’issue reste inconnue. */
+export async function reprendreAjoutsVarianteGitLab(options: OptionsRepriseGitLab): Promise<void> {
+  const reconciliateur = new ReconciliateurPublicationGitLab(options.depot, options.journal)
+  for (const entree of options.journal.lister().filter((e) => e.operationId.startsWith('ajout-variante-'))) {
+    await reconcilierPublication(entree, options, reconciliateur)
+  }
+  if (options.journal.lister().some((e) => e.operationId.startsWith('ajout-variante-'))) {
+    throw new Error('L’ajout de variante n’a pas pu être vérifié. Aucun nouvel envoi autorisé ; actualisez ou rouvrez ce corpus.')
+  }
+}
+
 export async function reprendreOperationsGitLab(options: OptionsRepriseGitLab): Promise<void> {
   repriseLocale(options.dirMiroir)
   const reconciliateur = new ReconciliateurPublicationGitLab(options.depot, options.journal)
   for (const entree of options.journal.lister()) {
+    // Ces transformations textuelles ont leur suivi et n’héritent pas de droits anciens.
+    if (entree.operationId.startsWith('suppression-anon-') || entree.operationId.startsWith('retrait-variante-')) continue
     await reconcilierPublication(entree, options, reconciliateur)
+  }
+  if (options.journal.lister().some((e) => e.operationId.startsWith('ajout-variante-'))) {
+    throw new Error('L’ajout de variante reste indéterminé. Rouvrez ce corpus pour vérifier son issue, sans répéter l’ajout.')
   }
 }
 
@@ -69,7 +84,7 @@ async function reconcilierPublication(
   reconciliateur: ReconciliateurPublicationGitLab,
 ): Promise<void> {
   const resultat = await reconciliateur.reconcilier(entree)
-  if (resultat.statut === 'indetermine') return
+  if (resultat.statut === 'indetermine' || (entree.operationId.startsWith('ajout-variante-') && resultat.statut !== 'confirme')) return
   const commitId = resultat.statut === 'confirme' ? resultat.commitId : null
   if (commitId && entree.nature === 'session-entretien' && options.journalSessions) {
     const action = options.journal.chargerActions(entree).find(
@@ -86,15 +101,13 @@ async function reconcilierPublication(
     installerSuppression(entree.suppression.planLocal, options.dirMiroir)
     options.journal.marquerConfirmeAInstaller(entree.operationId, commitId)
   }
-  // Une publication laisse un bail derrière elle quand l'opération a abouti
-  // sans que l'application puisse le rendre. Le bail porte encore notre compte
-  // et la génération de l'opération : il est donc le nôtre, et le rendre évite
-  // quinze minutes de refus sur nos propres gestes.
+  // Un ajout ne rend que les droits acquis par cette instance.
+  // Les autres parcours gardent leur reprise existante.
   for (const droit of entree.droits) {
-    const rendu = await options.coordination.rendreBailNotre(
-      cheminBailDepuisEmpreinteGitLab(droit.resourceHash),
-      droit.generation,
-    )
+    const chemin = cheminBailDepuisEmpreinteGitLab(droit.resourceHash)
+    const rendu = entree.operationId.startsWith('ajout-variante-')
+      ? await options.coordination.rendreBailAcquis(chemin, droit.generation)
+      : await options.coordination.rendreBailNotre(chemin, droit.generation)
     if (rendu === 'libere') {
       options.trace?.(
         `[GitLab] bail de ${droit.resourceHash.slice(0, 12)} rendu au démarrage `

@@ -16,6 +16,7 @@
  */
 
 import type { EntretienFichier } from '../format'
+import { memoriserDefinitionLocale, normaliserPseudosDeclares } from './anon/definitionsLocales'
 import { cleEntite } from './anon/brouillonsAnon'
 
 /** Les deux textes sont-ils identiques (doc ProseMirror canonique) ?
@@ -118,8 +119,8 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
   }
 
   // Multi-pseudo déclaré : union par clef, ordre préservé, sans doublon.
-  const pseudosDeclares: Record<string, string[]> = { ...courant.pseudosDeclares }
-  for (const [cle, pseudos] of Object.entries(copie.pseudosDeclares ?? {})) {
+  const pseudosDeclares = normaliserPseudosDeclares(courant.pseudosDeclares ?? {})
+  for (const [cle, pseudos] of Object.entries(normaliserPseudosDeclares(copie.pseudosDeclares ?? {}))) {
     const deja = pseudosDeclares[cle] ?? []
     const vus = new Set(deja.map((p) => p.toLowerCase()))
     const ajoutsPseudos = pseudos.filter((p) => !vus.has(p.toLowerCase()))
@@ -129,9 +130,16 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
     }
   }
 
+  const locales = structuredClone(courant.definitionsAnonLocales ?? [])
+  for (const definition of copie.definitionsAnonLocales ?? []) {
+    const existante = locales.find((d) => cleEntite(d.entite.join('/')) === cleEntite(definition.entite.join('/')))
+    if (existante && JSON.stringify(existante) !== JSON.stringify(definition)) throw new Error('Définitions locales divergentes : résolution explicite requise avant fusion.')
+    memoriserDefinitionLocale(locales, definition)
+  }
   return {
     fusion: {
       ...courant,
+      ...(locales.length || courant.definitionsAnonLocales || copie.definitionsAnonLocales ? { definitionsAnonLocales: locales } : {}),
       annotations,
       ancres,
       reperesPassages,

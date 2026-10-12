@@ -47,6 +47,7 @@ export function assemblerInstantaneCorpus(
       },
       reglesAnon: Object.values(corpus.reglesAnon ?? {}),
       brouillonsAnon: fichier.brouillonsAnon ?? [],
+      definitionsAnonLocales: fichier.definitionsAnonLocales ?? [],
     },
     notesPubliques: fichier.notes ?? [],
     audioLocal,

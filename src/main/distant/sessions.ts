@@ -27,6 +27,7 @@ import {
 } from '../verrous/types'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
+import type { GardePseudosWebDAV } from './gardePseudosWebDAV'
 import type { VerrouProvider } from '../verrous/types'
 import type { ResultatObservationVerrous } from './coordination'
 import type {
@@ -59,6 +60,8 @@ interface SessionInterne {
   provider: VerrouProvider
   cheminVerrou: string
   etagServeur: string | null // ETag du FICHIER entretien côté serveur (garde de publication)
+  contenuPublie: string | null
+  envoiIncertain?: { contenu: string; revision: number }
   /** Révisions monotones : une écriture arrivée pendant un PUT reste sale. */
   revision: number
   revisionPubliee: number
@@ -90,6 +93,8 @@ export interface OptionsSessions {
   verrouNatif?: boolean
   /** Horloge injectable pour vérifier les échéances sans attendre en test. */
   maintenant?: () => number
+  /** Validation des nouveaux choix liés contre la base publiée, sous verrou corpus. */
+  gardePseudos?: GardePseudosWebDAV
 }
 
 export class SessionsDEntretien {
@@ -178,6 +183,7 @@ export class SessionsDEntretien {
       provider,
       cheminVerrou: chemin,
       etagServeur: null,
+      contenuPublie: null,
       revision: 0,
       revisionPubliee: 0,
       dernierPubli: null,
@@ -192,6 +198,7 @@ export class SessionsDEntretien {
       const etagServeur = await this.etagServeurDe(cheminFichier)
       if (etagServeur) {
         const contenu = await this.client.getTexte(cheminFichier)
+        session.contenuPublie = contenu
         this.ecrireLocalFichier(join(this.miroir.dirLocal, cheminFichier), contenu)
         this.miroir.noterEtagPublie(cheminFichier, etagServeur)
       }
@@ -208,6 +215,22 @@ export class SessionsDEntretien {
     }
   }
 
+  /** Confirme une image relue sans écraser une autosave plus récente. */
+  confirmerSource(chemin: string, contenu: string, etag: string): void {
+    const id = /^entretiens\/([^/]+)\.json$/.exec(chemin)?.[1]
+    if (!id) throw new Error('Chemin de publication invalide.')
+    const s = this.sessions.get(id)
+    if (!s && !this.idsRecuperablesLocalement().includes(id)) {
+      this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenu)
+    }
+    this.miroir.noterEtagPublie(chemin, etag)
+    if (s?.envoiIncertain?.contenu === contenu) {
+      s.etagServeur = etag; s.contenuPublie = contenu
+      s.revisionPubliee = Math.max(s.revisionPubliee, s.envoiIncertain.revision)
+      delete s.envoiIncertain
+    }
+  }
+
   /** Marque le contenu local comme non publié (appelé après chaque autosave). */
   noterSale(id: string): void {
     const s = this.sessions.get(id)
@@ -221,9 +244,15 @@ export class SessionsDEntretien {
     return this.serialiser(id, () => this.publierInterne(id))
   }
 
-  private async publierInterne(id: string): Promise<{ ok: boolean; raison?: string }> {
+  /** Publication interne d’une transaction qui détient déjà le verrou corpus. */
+  async publierSousVerrouCorpus(id: string, provider: ProviderPutConditionnel): Promise<{ ok: boolean; raison?: string }> {
+    return this.serialiser(id, () => this.publierInterne(id, provider))
+  }
+
+  private async publierInterne(id: string, providerCorpus?: ProviderPutConditionnel): Promise<{ ok: boolean; raison?: string }> {
     const s = this.sessions.get(id)
     if (!s) return { ok: false, raison: 'aucune session' }
+    await this.options.gardePseudos?.reconcilier()
     if (s.degrade) return { ok: false, raison: 'divergence' }
     if (this.maintenant() > s.droitValideJusqua) {
       await this.degraderInterne(id)
@@ -232,8 +261,39 @@ export class SessionsDEntretien {
     if (s.revision <= s.revisionPubliee) return { ok: true }
     const revisionPubliee = s.revision
     const cheminFichier = CHEMIN_ENTRETIEN(id)
-    const contenu = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8')
+    let contenu = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8')
+    // Revenir exactement à la base publiée ne remet aucun ancien lien sur le serveur.
+    if (contenu === s.contenuPublie) {
+      const source = await this.client.getTexteAvecEtag(cheminFichier)
+      if (!source.etag || source.etag !== s.etagServeur || source.contenu !== contenu) {
+        await this.degraderInterne(id)
+        return { ok: false, raison: 'divergence' }
+      }
+      if (s.degrade || this.maintenant() > s.droitValideJusqua) return { ok: false, raison: 'droit-expire' }
+      s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
+      return { ok: true }
+    }
+    if (s.contenuPublie !== null && contenu !== s.contenuPublie && Buffer.byteLength(contenu) === Buffer.byteLength(s.contenuPublie)) contenu += '\n'
+    const envoi = (garantir: () => void) => this.publierContenu(id, s, contenu, revisionPubliee, garantir)
+    if (this.options.gardePseudos) {
+      if (s.contenuPublie === null) throw new Error('La base publiée de l’entretien est indisponible. Aucun PUT envoyé.')
+      return providerCorpus
+        ? this.options.gardePseudos.publierSousVerrou(contenu, s.contenuPublie, envoi, providerCorpus, cheminFichier)
+        : this.options.gardePseudos.publier(contenu, s.contenuPublie, envoi, cheminFichier)
+    }
+    return envoi(() => {})
+  }
+
+  private async publierContenu(id: string, s: SessionInterne, contenu: string, revisionPubliee: number, garantir: () => void): Promise<{ ok: boolean; raison?: string }> {
+    const cheminFichier = CHEMIN_ENTRETIEN(id)
+    if (this.maintenant() > s.droitValideJusqua) {
+      await this.degraderInterne(id)
+      return { ok: false, raison: 'droit-expire' }
+    }
+    if (this.options.gardePseudos && this.maintenant() + 60_000 >= s.droitValideJusqua) return { ok: false, raison: 'Le verrou entretien va expirer. Attendez son prochain battement.' }
+    garantir()
     try {
+      s.envoiIncertain = { contenu, revision: revisionPubliee }
       const nouveauEtag = await this.client.putTexte(
         cheminFichier,
         contenu,
@@ -242,6 +302,8 @@ export class SessionsDEntretien {
       const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? ''
       this.miroir.noterEtagPublie(cheminFichier, etagFinal)
       s.etagServeur = etagFinal || null
+      s.contenuPublie = contenu
+      delete s.envoiIncertain
       // Une écriture arrivée pendant le PUT porte une révision supérieure et
       // reste donc sale pour la publication suivante.
       s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
@@ -250,6 +312,7 @@ export class SessionsDEntretien {
       return { ok: true }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
+        delete s.envoiIncertain
         await this.degraderInterne(id)
         return { ok: false, raison: 'divergence' }
       }
@@ -262,6 +325,8 @@ export class SessionsDEntretien {
       if (!etagConfirme) throw e
       this.miroir.noterEtagPublie(cheminFichier, etagConfirme)
       s.etagServeur = etagConfirme
+      s.contenuPublie = contenu
+      delete s.envoiIncertain
       s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
       s.dernierPubli = new Date().toISOString()
       this.onPublication?.(id, s.dernierPubli)
@@ -434,7 +499,10 @@ export class SessionsDEntretien {
       this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuServeur)
       this.miroir.noterEtagPublie(chemin, etag)
       const session = this.sessions.get(id)
-      if (session) session.etagServeur = etag
+      if (session) {
+        session.etagServeur = etag
+        session.contenuPublie = contenuServeur
+      }
       return contenuServeur === contenuTente
     } catch {
       this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuAvant)
@@ -745,12 +813,14 @@ export class SessionsDEntretien {
     if (etagConnu && etagActuel && etagConnu !== etagActuel) {
       return { ok: false, raison: 'divergence' }
     }
+    const base = this.options.gardePseudos ? await this.client.getTexteAvecEtag(cheminFichier) : null
+    if (base && base.etag !== etagActuel) return { ok: false, raison: 'divergence' }
+    if (base && contenu !== base.contenu && Buffer.byteLength(contenu) === Buffer.byteLength(base.contenu)) contenu += '\n'
     try {
-      const nouveauEtag = await this.client.putTexte(
-        cheminFichier,
-        contenu,
-        etagActuel ? { ifMatch: etagActuel } : {},
-      )
+      const envoi = (garantir: () => void) => { garantir(); return this.client.putTexte(cheminFichier, contenu, etagActuel ? { ifMatch: etagActuel } : {}) }
+      const nouveauEtag = this.options.gardePseudos
+        ? await this.options.gardePseudos.publier(contenu, base!.contenu, envoi, cheminFichier)
+        : await envoi(() => {})
       const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? ''
       if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
     } catch (e) {

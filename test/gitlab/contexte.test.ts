@@ -225,6 +225,7 @@ describe('contexte GitLab en lecture seule', () => {
     store.lectureSeule = true
     const session = sessionFactice()
     const transactions = {
+      transactionReconciliee: vi.fn(() => true),
       poserValeursEntretien: vi.fn(async () => undefined),
     } as unknown as TransactionsGitLab
     const contexte = new ContexteGitLab(
@@ -255,6 +256,7 @@ describe('contexte GitLab en lecture seule', () => {
 
   test('conserve les succès quand un entretien fermé est refusé', async () => {
     const transactions = {
+      transactionReconciliee: vi.fn(() => true),
       poserValeursEntretien: vi.fn(async (id: string) => {
         if (id === 'e2') throw new Error('tenu par bob')
       }),
@@ -496,6 +498,7 @@ describe('façade des définitions du contexte GitLab', () => {
       corpus: store.ouvrir(),
     })
     const transactions = {
+      transactionReconciliee: vi.fn(() => true),
       executerDefinitions: vi.fn(executer),
       executerSuppressionDefinitions: vi.fn(executer),
     }
@@ -564,6 +567,7 @@ describe('tri de contenu et sources gardées', () => {
     // Le double exécute le contrôle qui lui est confié : c'est lui qui décide
     // si le tri s'engage.
     const transactions = {
+      transactionReconciliee: vi.fn(() => true),
       trierEntretiens: vi.fn(async (_mode: string, avantBail: () => Promise<void>) => {
         await avantBail()
         return store.ouvrir()

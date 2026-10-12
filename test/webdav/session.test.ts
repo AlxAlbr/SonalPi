@@ -25,6 +25,8 @@ function banc(options: { maintenant?: () => number } = {}) {
   const dirMiroir = mkdtempSync(join(tmpdir(), 'session-'))
   const panne = {
     lecture: false,
+    attendreLecture: null as Promise<void> | null,
+    lectureCommencee: null as (() => void) | null,
     publication: false,
     publicationAppliqueePuisPerdue: false,
     liberation: false,
@@ -36,6 +38,8 @@ function banc(options: { maintenant?: () => number } = {}) {
     const requete = new Request(entree, init)
     const chemin = new URL(requete.url).pathname
     if (requete.method === 'GET' && chemin.endsWith(`/entretiens/${ID}.json`)) {
+      panne.lectureCommencee?.()
+      if (panne.attendreLecture) await panne.attendreLecture
       if (panne.lecture) return new Response('panne', { status: 503 })
     }
     if (requete.method === 'PUT' && chemin.endsWith(`/verrous/${ID}.lock.json`) && panne.battement) {
@@ -240,6 +244,7 @@ describe('Publication', () => {
     await b.sessions.ouvrir(ID)
     // Édition locale (autosave) : le fichier miroir change côté disque…
     const etagServeurAvant = b.serveur.etagDe(`entretiens/${ID}.json`)!
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'modification locale' }))
     b.sessions.noterSale(ID)
     const r = await b.sessions.publier(ID)
     expect(r.ok).toBe(true)
@@ -254,6 +259,7 @@ describe('Publication', () => {
     const b = banc()
     await b.miroir.tirer()
     await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'première modification' }))
     b.sessions.noterSale(ID)
     let debloquer!: () => void
     b.panne.attendrePublication = new Promise<void>((resolve) => {
@@ -265,6 +271,7 @@ describe('Publication', () => {
 
     const publication = b.sessions.publier(ID)
     await commencee
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v3', texte: 'modification tardive' }))
     b.sessions.noterSale(ID)
     debloquer()
     expect(await publication).toEqual({ ok: true })
@@ -298,6 +305,31 @@ describe('Publication', () => {
     expect(b.serveur.etagDe(`entretiens/${ID}.json`)).toBe(etag)
   })
 
+  it('une autosave identique à sa base ne publie rien mais acquitte sa seule révision', async () => {
+    const b = banc(); await b.miroir.tirer(); await b.sessions.ouvrir(ID)
+    const etag = b.serveur.etagDe(`entretiens/${ID}.json`)
+    b.sessions.noterSale(ID)
+    expect(await b.sessions.publier(ID)).toEqual({ ok: true })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: false })
+    expect(b.serveur.etagDe(`entretiens/${ID}.json`)).toBe(etag)
+    await b.sessions.fermer(ID)
+  })
+
+  it('une modification pendant la vérification de base reste sale et intacte', async () => {
+    const b = banc(); await b.miroir.tirer(); await b.sessions.ouvrir(ID); b.sessions.noterSale(ID)
+    let liberer!: () => void
+    b.panne.attendreLecture = new Promise<void>((resolve) => { liberer = resolve })
+    const commencee = new Promise<void>((resolve) => { b.panne.lectureCommencee = resolve })
+    const publication = b.sessions.publier(ID); await commencee
+    const nouveau = entretienDistantValide({ lastModified: 'v2', texte: 'autosave plus récente' })
+    writeFileSync(b.fichierLocal, nouveau); b.sessions.noterSale(ID); liberer()
+    expect(await publication).toEqual({ ok: true })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: true })
+    expect(readFileSync(b.fichierLocal, 'utf8')).toBe(nouveau)
+    b.panne.attendreLecture = null
+    expect(await b.sessions.publier(ID)).toEqual({ ok: true }); await b.sessions.fermer(ID)
+  })
+
   it('le serveur a changé SOUS nos pieds (412) → divergence, copie locale mise de côté', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -324,13 +356,15 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
     const b = banc()
     await b.miroir.tirer()
     await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'première modification' }))
     b.sessions.noterSale(ID)
     await b.sessions.publier(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v3', texte: 'dernière modification' }))
     b.sessions.noterSale(ID) // re-modification après publication
     await b.sessions.fermer(ID)
     expect(b.verrou()).toBeUndefined() // libéré
-    // Et le contenu publié est bien le dernier état local.
-    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toBe(readFileSync(b.fichierLocal, 'utf8'))
+    // Le saut de ligne de transport n’altère aucune donnée du dernier état local.
+    expect(JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!)).toEqual(JSON.parse(readFileSync(b.fichierLocal, 'utf8')))
   })
 
   it('contenu non publié (jamais sale) : fermeture = simple libération', async () => {
@@ -345,6 +379,7 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
     const b = banc()
     await b.miroir.tirer()
     await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'modification non publiée' }))
     b.sessions.noterSale(ID)
     b.panne.publication = true
 

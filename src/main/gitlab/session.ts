@@ -55,7 +55,7 @@ export interface OptionsSessionGitLab {
   intervallePublicationMs?: number
   margeRenouvellementMs?: number
   /** Valide le candidat contre le corpus courant et fournit sa garde. */
-  preparerGardeDefinitions?: (contenuEntretien: string) => Promise<ActionPlanGitLab>
+  preparerGardeDefinitions?: (contenuEntretien: string, contenuAvant: string) => Promise<ActionPlanGitLab>
 }
 
 interface SessionOuverte {
@@ -436,7 +436,7 @@ export class SessionGitLab {
     return this.options.coordination.serierCommit(async () => {
       let gardeDefinitions: ActionPlanGitLab | null = null
       try {
-        gardeDefinitions = await this.options.preparerGardeDefinitions?.(contenu) ?? null
+        gardeDefinitions = await this.options.preparerGardeDefinitions?.(contenu, session.contenuPublie) ?? null
       } catch (erreur) {
         if (erreur instanceof ReferencesDefinitionsInvalidesError) {
           return { statut: 'refuse', raison: 'references', message: erreur.message } as const

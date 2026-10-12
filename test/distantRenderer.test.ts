@@ -5,6 +5,7 @@ import {
   verifierTriContenu,
 } from '../src/renderer/composables/corpus/useDistantCorpus'
 import { matriceCapacites } from '../src/main/gitlab/politiqueGestes'
+import { suspendreTirageAutomatique, tirageAutomatiqueSuspendu } from '../src/renderer/tirageAutomatique'
 import type { ResultatTiragePublic } from '../src/shared/distant'
 
 const fenetreInitiale = globalThis.window
@@ -13,6 +14,7 @@ const scopes: EffectScope[] = []
 afterEach(() => {
   for (const scope of scopes.splice(0)) scope.stop()
   vi.restoreAllMocks()
+  vi.useRealTimers()
   Object.defineProperty(globalThis, 'window', { value: fenetreInitiale, configurable: true })
 })
 
@@ -121,6 +123,25 @@ const verrou = {
 }
 
 describe('orchestration distante du renderer', () => {
+  test('le tirage automatique attend les publications sans déclarer le réseau hors ligne', async () => {
+    vi.useFakeTimers()
+    const tirer = vi.fn(async (): Promise<ResultatTiragePublic> => ({ telecharges: [], corbeille: [], verrous: [], presences: [], date: '2026-10-10' }))
+    const b = creerContexte(tirer)
+    b.distant.activerDistant('d1', [], [])
+    const reprendre1 = suspendreTirageAutomatique(), reprendre2 = suspendreTirageAutomatique()
+    try {
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(tirer).not.toHaveBeenCalled()
+      expect(b.distant.gesteDisponible('dissociationGlobale')).toBe(true)
+      await expect(b.distant.actualiserDistant(false)).resolves.toBe(true)
+      reprendre1(); reprendre1()
+      expect(tirageAutomatiqueSuspendu.value).toBe(true)
+      reprendre2()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(tirer).toHaveBeenCalledTimes(2)
+    } finally { reprendre1(); reprendre2() }
+    expect(tirageAutomatiqueSuspendu.value).toBe(false)
+  })
   test('absorbe un tirage et déclenche seulement les projections concernées', async () => {
     const tirer = vi.fn(async (): Promise<ResultatTiragePublic> => ({
       telecharges: ['corpus.json'],

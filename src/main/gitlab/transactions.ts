@@ -6,6 +6,7 @@ import { planSuppressionLocal, type PlanAjoutEntretien } from '../transactionsFi
 import type {
   Categorie,
   CibleRegleAnon,
+  ResultatMutationAnon,
   CorpusFichier,
   EntretienFichier,
   ItemLotValeur,
@@ -17,7 +18,7 @@ import type {
 import { FORMAT_VERSION, referenceMediaDistant, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import { poserValeur } from '../../shared/corpus/requetes'
-import { appliquerRegleAnonEntretien } from '../../shared/entretien/anon'
+import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
 import { analyserImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import {
@@ -32,6 +33,13 @@ import { ErreurReponseTropVolumineuseGitLab } from './client'
 import type { JournalPublicationGitLab } from './journalPublication'
 import type { ApercusThemesGitLab } from './apercusThemes'
 import { OperationsThemesGitLab } from './operationsThemes'
+import { CorrespondancesGitLab } from './correspondances'
+import { RenommagesAnonGitLab } from './renommagesAnon'
+import { DissociationsAnonGitLab } from './dissociationsAnon'
+import { SuppressionsAnonGitLab } from './suppressionsAnon'
+import { RetraitsVarianteAnonGitLab, type EtapeContexteRetraitVariante } from './retraitsVarianteAnon'
+import { reprendreAjoutsVarianteGitLab } from './reprise'
+import { exigerAbsenceDissociationGitLab } from './referencesDefinitions'
 import { verifierReferencesDefinitions } from './referencesDefinitions'
 import {
   preparerDefinitions,
@@ -120,6 +128,28 @@ export class TransactionsGitLab {
     )
   }
 
+  get file(): FileOperationsContexte { return this.options.file }
+
+  creerRetraitsVarianteAnon(sessions: () => string[], verifierContexte?: (etape: EtapeContexteRetraitVariante) => void): RetraitsVarianteAnonGitLab {
+    return new RetraitsVarianteAnonGitLab(this.options, sessions, Date.now, verifierContexte)
+  }
+
+  creerSuppressionsAnon(sessions: () => string[]): SuppressionsAnonGitLab {
+    return new SuppressionsAnonGitLab(this.options, sessions)
+  }
+
+  creerDissociationsAnon(sessions: () => string[]): DissociationsAnonGitLab {
+    return new DissociationsAnonGitLab(this.options, sessions)
+  }
+
+  creerRenommagesAnon(sessions: () => string[]): RenommagesAnonGitLab {
+    return new RenommagesAnonGitLab(this.options, sessions)
+  }
+
+  creerCorrespondances(sessionsLocales: () => string[]): CorrespondancesGitLab {
+    return new CorrespondancesGitLab(this.options, sessionsLocales)
+  }
+
   creerOperationsThemes(
     apercus: ApercusThemesGitLab,
     dirLocal: string,
@@ -146,14 +176,24 @@ export class TransactionsGitLab {
    *  la base fraîche est néanmoins installée, pour ne pas rester en retard. */
   executerDefinitions<T>(
     preparer: (store: CorpusStore) => T,
+    ajoutVariante = false,
+    verifierContexte?: () => void,
   ): Promise<ResultatTransactionDefinitions<T>> {
     return this.options.file.executer(async () => {
+      verifierContexte?.()
+      if (ajoutVariante && !this.options.journal) throw new Error('Le suivi de publication GitLab est indisponible. Aucun ajout autorisé.')
       this.verifierTransactionReconciliee()
       const droit = await this.acquerirBailCorpus()
       try {
         const frais = await this.lireBase(this.branche)
-        const operationId = this.nouvelleOperation()
-        const preparation = preparerDefinitions(frais.fichier.contenu, preparer)
+        exigerAbsenceDissociationGitLab(frais.corpus)
+        const operationId = `${ajoutVariante ? 'ajout-variante-' : ''}${this.nouvelleOperation()}`
+        let preparation = preparerDefinitions(frais.fichier.contenu, preparer)
+        if (ajoutVariante) {
+          // L’ajout ne publie pas les ajustements de classement du store de préparation.
+          preparation = { ...preparation, baseFraîche: frais.corpus,
+            candidat: preparation.candidat ? { ...structuredClone(frais.corpus), reglesAnon: preparation.candidat.reglesAnon } : null }
+        }
         if (preparation.candidat) {
           const resultat = await this.options.publication.publierSousDroit({
             operationId,
@@ -168,6 +208,15 @@ export class TransactionsGitLab {
       } finally {
         await this.libererBail(droit)
       }
+    })
+  }
+
+  /** Relit l’issue des ajouts sans répéter une publication ni hériter de droits. */
+  async relireAjoutsVarianteDansFile(): Promise<void> {
+    if (!this.options.journal) return
+    await reprendreAjoutsVarianteGitLab({
+      depot: this.options.depot, coordination: this.options.coordination,
+      journal: this.options.journal, dirMiroir: this.options.store.repertoire,
     })
   }
 
@@ -187,6 +236,7 @@ export class TransactionsGitLab {
       // Aperçu sans droit : il évite la plupart des commits de coordination
       // inutiles, et ne prouve rien du membership réellement protégé.
       const apercu = await this.lireBase(this.branche)
+      exigerAbsenceDissociationGitLab(apercu.corpus)
       const prevues = this.sourcesAttendues(sources.deduire, apercu.corpus)
       for (const entretienId of prevues) {
         await sources.publierSource?.(entretienId)
@@ -235,6 +285,7 @@ export class TransactionsGitLab {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
       const apercu = await this.lireBase(this.branche)
+      exigerAbsenceDissociationGitLab(apercu.corpus)
       const prevues = this.sourcesAttendues(
         (corpus) => Object.keys(corpus.membership),
         apercu.corpus,
@@ -515,11 +566,21 @@ export class TransactionsGitLab {
     })
   }
 
+  /** Une session ouverte ne peut pas réutiliser une définition textuelle périmée. */
+  async verifierRegleAnonSession(regleLocale: RegleAnon): Promise<void> {
+    const base = await this.lireBase(await this.options.depot.resoudreTete(this.branche))
+    const fraiche = base.corpus.reglesAnon[regleLocale.id]
+    const definition = (r: RegleAnon) => JSON.stringify([r.id, r.entite, r.pseudos])
+    if (!fraiche || definition(fraiche) !== definition(regleLocale)) {
+      throw new Error('La règle distante a changé. Actualisez le corpus avant de valider les occurrences de cette session.')
+    }
+  }
+
   /** Applique une règle dans un entretien fermé sous un bail court. */
   appliquerRegleEntretien(
     entretienId: string,
     cible: CibleRegleAnon,
-  ): Promise<{ nb: number; titre: string }> {
+  ): Promise<ResultatMutationAnon & { titre: string }> {
     if (cible.entretienId !== entretienId) {
       throw new Error('La cible de pseudonymisation ne correspond pas à l’entretien.')
     }
@@ -530,7 +591,7 @@ export class TransactionsGitLab {
         throw new Error(`La règle d’anonymisation « ${cible.regleId} » n’existe plus sur GitLab.`)
       }
       return {
-        nb: appliquerRegleAnonEntretien(entretien, regle, cible),
+        ...appliquerRegleAnonEntretienAvecBilan(entretien, regle, cible),
         titre,
       }
     })
@@ -564,7 +625,7 @@ export class TransactionsGitLab {
             return valeur
           }
           entretien.lastModified = new Date().toISOString()
-          verifierReferencesDefinitions(entretien, frais.corpus)
+          verifierReferencesDefinitions(entretien, frais.corpus, JSON.parse(avant) as EntretienFichier)
           const contenu = JSON.stringify(entretien, null, 2)
           const operationId = this.nouvelleOperation()
           const resultat = await this.options.publication.publierSousDroit({
@@ -638,6 +699,7 @@ export class TransactionsGitLab {
         const frais = await this.lireBase(this.branche)
         const operationId = this.nouvelleOperation()
         const plan = preparerDefinitions(frais.fichier.contenu, preparer).valeur
+        verifierReferencesDefinitions(plan.entretien, plan.corpusApres, { ...plan.entretien, annotations: [] })
         const resultat = await this.options.publication.publierSousDroit({
           operationId,
           nature: 'transaction-corpus',
@@ -853,6 +915,7 @@ export class TransactionsGitLab {
     frais: BaseFraiche,
     plan: { candidat?: CorpusFichier | null; corpusApres?: CorpusFichier },
   ): ActionPlanGitLab {
+    exigerAbsenceDissociationGitLab(frais.corpus)
     const corpus = plan.candidat ?? plan.corpusApres
     if (!corpus) throw new Error('Candidat de corpus GitLab absent.')
     return {

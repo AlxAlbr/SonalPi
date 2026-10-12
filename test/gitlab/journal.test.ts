@@ -93,6 +93,32 @@ function creerJournal(): { root: string; journal: JournalPublicationGitLab } {
 }
 
 describe('journal de publication GitLab', () => {
+  test('la version 4 reste lisible à deux droits, la version 5 autorise les baux multiples', () => {
+    const { root, journal } = creerJournal()
+    try {
+      const operationId = 'compatibilite-droits'
+      journal.preparer({ operationId, nature: 'transaction-corpus', branche: 'main', etat: 'prepare',
+        actions: [actionCreate('{}')], droits: [
+          { resourceHash: 'a'.repeat(64), generation: 'corpus', leaseCommitId: 'a'.repeat(40) },
+          { resourceHash: 'b'.repeat(64), generation: 'entretien-1', leaseCommitId: 'b'.repeat(40) },
+        ],
+      })
+      const chemin = join(root, 'operations', `${createHash('sha256').update(operationId).digest('hex')}.json`)
+      const brut = JSON.parse(readFileSync(chemin, 'utf8'))
+      brut.version = 4
+      writeFileSync(chemin, JSON.stringify(brut))
+      expect(journal.lire(operationId).version).toBe(5)
+      brut.droits.push({ resourceHash: 'c'.repeat(64), generation: 'entretien-2', leaseCommitId: 'c'.repeat(40) })
+      writeFileSync(chemin, JSON.stringify(brut))
+      expect(() => journal.lire(operationId)).toThrow('invalide')
+      brut.version = 5
+      writeFileSync(chemin, JSON.stringify(brut))
+      expect(journal.lire(operationId).droits).toHaveLength(3)
+      brut.version = 6
+      writeFileSync(chemin, JSON.stringify(brut))
+      expect(() => journal.lire(operationId)).toThrow('invalide')
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
   test('sépare les métadonnées du candidat et permet de le recharger', () => {
     const { root, journal } = creerJournal()
     try {
@@ -303,7 +329,7 @@ describe('journal de publication GitLab', () => {
         },
       ])
       const [entree] = journal.lister()
-      expect(entree.version).toBe(4)
+      expect(entree.version).toBe(5)
       expect(entree.nature).toBe('transaction-corpus')
       expect(entree.actions[1]).toMatchObject({ action: 'chmod', execute_filemode: true })
       expect(journal.chargerActions(entree)).toHaveLength(2)

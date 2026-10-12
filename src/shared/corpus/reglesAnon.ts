@@ -9,16 +9,13 @@
 
 import type { CorpusFichier, RegleAnon } from '../format'
 import { parserAliases } from '../entretien/anon'
+import { aliasesCommuns, validerDefinitionAnon } from './definitionsAnon'
 
-/** Trouve la règle régnant sur cette entité : PARTAGE d'au moins un alias
- *  (un groupe « Lyon/Lyons » répond aussi pour « Lyon » seul — deux règles
- *  partageant un alias re-pseudonymiseraient les mêmes occurrences). */
+/** Cherche une définition non ambiguë partageant au moins un alias. */
 export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): RegleAnon | undefined {
-  const cles = new Set(parserAliases(entite).map((a) => a.toLowerCase()))
-  for (const r of Object.values(corpus.reglesAnon)) {
-    if (r.entite.some((e) => parserAliases(e).some((a) => cles.has(a.toLowerCase())))) return r
-  }
-  return undefined
+  const cherche = parserAliases(entite)
+  const correspondances = Object.values(corpus.reglesAnon).filter((r) => aliasesCommuns(r.entite, cherche))
+  return correspondances.length === 1 ? correspondances[0] : undefined
 }
 
 /** Crée une règle et la persiste dans le corpus (mutation) ; `genId` est
@@ -30,28 +27,33 @@ export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): Re
  *  collègue vient de poser sa version depuis un autre poste.
  *  L'appelant distingue les deux cas via sa propre lecture préalable
  *  (cf. `CorpusStore.regleAnonCreer`). */
-export function creerRegle(corpus: CorpusFichier, entite: string, pseudos: string[], genId: () => string): RegleAnon {
-  const existante = trouverRegleParEntite(corpus, entite)
-  if (existante) return existante
-  const r: RegleAnon = {
-    id: genId(),
-    entite: parserAliases(entite), // saisie « Lyon/Lyons » → groupe d'alias
-    pseudos: pseudos.filter((p) => p.trim() !== ''),
+export function creerRegle(corpus: CorpusFichier, entite: string, pseudos: string[], genId: () => string, categorie?: string): RegleAnon {
+  const definition = validerDefinitionAnon(entite, pseudos, categorie)
+  const collisions = Object.values(corpus.reglesAnon).filter((r) => aliasesCommuns(r.entite, definition.entite))
+  if (collisions.length > 1) throw new Error('Plusieurs règles partagent ces alias. Résolvez la collision avant de créer une règle.')
+  const existante = collisions[0]
+  if (existante) {
+    const connus = new Set(existante.entite.flatMap(parserAliases).map((e) => e.normalize('NFC').toLocaleLowerCase('fr')))
+    if (definition.entite.some((e) => !connus.has(e.toLocaleLowerCase('fr')))) {
+      throw new Error('Le groupe recouvre une règle existante et contient de nouveaux alias. Aucun alias n’a été abandonné ; résolvez ce chevauchement.')
+    }
+    return existante
   }
+  const r: RegleAnon = { id: genId(), ...definition }
+  if (!r.id || Object.hasOwn(corpus.reglesAnon, r.id) || r.id === '__proto__') throw new Error('Identifiant de règle déjà utilisé ou invalide.')
   corpus.reglesAnon[r.id] = r
   return r
 }
 
-/** « Garder les deux » : ajoute un pseudo à une règle existante si absent et
- *  sous le cap (≤2). Mutation ; renvoie le pseudo ajouté (ou undefined sinon). */
+/** Ajoute un pseudo absent, ou refuse explicitement une définition invalide. */
 export function ajouterPseudoRegle(corpus: CorpusFichier, id: string, pseudo: string): string | undefined {
   const r = corpus.reglesAnon[id]
   if (!r) return undefined
   const p = pseudo.trim()
   if (!p) return undefined
   if (r.pseudos.some((x) => x.toLowerCase() === p.toLowerCase())) return undefined
-  if (r.pseudos.length >= 2) return undefined
-  r.pseudos.push(p)
+  const definition = validerDefinitionAnon(r.entite, [...r.pseudos, p], r.categorie)
+  r.pseudos = definition.pseudos
   return p
 }
 

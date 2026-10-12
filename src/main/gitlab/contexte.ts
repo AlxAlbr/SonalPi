@@ -18,10 +18,12 @@ import {
   type PayloadEntretien,
   type RegleAnon,
   type ResultatLotAnon,
+  type ResultatMutationAnon,
   type ResultatLotValeur,
   type Variable,
   type VerrouTenuParAutrui,
 } from '../../shared/format'
+import { regrouperCiblesAnon } from '../../shared/corpus/lotAnon'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
@@ -31,6 +33,19 @@ import { InstantaneLectureGitLab } from './lecture'
 import { ObservationBailsGitLab } from './observationBails'
 import { ApercusThemesGitLab } from './apercusThemes'
 import type { OperationsThemesGitLab } from './operationsThemes'
+import type { CorrespondancesGitLab, PreparationImportGitLab } from './correspondances'
+import type { RenommagesAnonGitLab } from './renommagesAnon'
+import { JournalRetraitVarianteAnonGitLab, empreinteDestinationRetraitVarianteGitLab } from './journalRetraitVarianteAnon'
+import type { DissociationsAnonGitLab } from './dissociationsAnon'
+import type { SuppressionsAnonGitLab } from './suppressionsAnon'
+import type { RetraitsVarianteAnonGitLab, EtapeContexteRetraitVariante } from './retraitsVarianteAnon'
+import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
+import type { DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
+import type { DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
+import { empreinteDestinationDissociationGitLab, JournalDissociationAnonGitLab } from './journalDissociationAnon'
+import { empreinteDestinationSuppressionGitLab, JournalSuppressionAnonGitLab } from './journalSuppressionAnon'
+import { normaliserRacineGitLab } from '../distant/coffre'
+import type { PreparationRenommageGitLab } from '../renommagesAnon'
 import type {
   DemandeOperationTheme,
   OptionsExecutionOperationTheme,
@@ -71,6 +86,21 @@ export class ContexteGitLab {
   private termine = false
   private readonly apercusThemes?: ApercusThemesGitLab
   private readonly operationsThemes?: OperationsThemesGitLab
+  private readonly correspondances?: CorrespondancesGitLab
+  private readonly importsCibles = new Set<string>()
+  private readonly renommages?: RenommagesAnonGitLab
+  private renommageEnCours = false
+  private readonly renommageCibles = new Set<string>()
+  private readonly dissociations?: DissociationsAnonGitLab
+  private dissociationEnCours = false
+  private readonly dissociationCibles = new Set<string>()
+  private readonly suppressionsAnon?: SuppressionsAnonGitLab
+  private suppressionAnonEnCours = false
+  private readonly suppressionAnonCibles = new Set<string>()
+  private readonly retraitsVariante?: RetraitsVarianteAnonGitLab
+  private retraitVarianteEnCours = false
+  private readonly retraitVarianteCibles = new Set<string>()
+  private readonly cheminsRecuperables: string[]
   private readonly sessions = new Map<string, {
     session: SessionGitLab
     chemin: string
@@ -82,7 +112,7 @@ export class ContexteGitLab {
   private readonly suppressions = new Set<string>()
 
   /** File unique du contexte : transactions de corpus, tirages et fermeture. */
-  readonly file = new FileOperationsContexte()
+  readonly file: FileOperationsContexte
 
   constructor(
     public readonly id: string,
@@ -94,6 +124,8 @@ export class ContexteGitLab {
     private readonly instantane?: InstantaneLectureGitLab,
     optionsApercus?: Pick<OptionsContexteGitLabLectureSeule, 'client' | 'branche' | 'racine' | 'cheminsRecuperables'>,
   ) {
+    this.file = transactions?.file ?? new FileOperationsContexte()
+    this.cheminsRecuperables = [...(optionsApercus?.cheminsRecuperables ?? [])]
     if (optionsApercus) {
       const sessionsLocales = () => [...this.sessions.values()].filter((s) => s.protege).map((s) => s.chemin)
         .concat(optionsApercus.cheminsRecuperables ?? [])
@@ -107,8 +139,211 @@ export class ContexteGitLab {
       })
       if (transactions) {
         this.operationsThemes = transactions.creerOperationsThemes(this.apercusThemes, miroir.dirLocal, sessionsLocales)
+        this.correspondances = transactions.creerCorrespondances(sessionsLocales)
+        this.renommages = transactions.creerRenommagesAnon(sessionsLocales)
+        this.dissociations = transactions.creerDissociationsAnon(sessionsLocales)
+        this.suppressionsAnon = transactions.creerSuppressionsAnon(sessionsLocales)
+        this.retraitsVariante = transactions.creerRetraitsVarianteAnon(sessionsLocales,
+          (etape) => this.verifierContexteRetraitVariante(etape))
       }
     }
+  }
+
+  private exigerSansRetraitVariante(): void {
+    if (this.retraitVarianteEnCours || this.retraitsVariante?.lireSuivi()) throw new Error('Un retrait de variante GitLab est engagé. Relisez son suivi avant cette opération.')
+    this.retraitsVariante?.exigerMiroirComplet()
+  }
+  private verifierContexteRetraitVariante(etape: EtapeContexteRetraitVariante): void {
+    if (this.termine || !this.retraitsVariante) throw new Error('Retrait de variante GitLab indisponible dans ce contexte.')
+    if (etape !== 'suivi') exigerGeste('gitlab', 'anon.retirer-variante')
+    if (this.suppressionAnonEnCours || this.dissociationEnCours || this.renommageEnCours || this.importsCibles.size || this.suppressions.size
+      || this.suppressionsAnon?.lireSuivi() || this.dissociations?.lireSuivi() || this.renommages?.lireSuivi() || this.operationsThemes?.lireSuivi()) {
+      throw new Error('Terminez les opérations incompatibles avant le retrait de variante GitLab.')
+    }
+    this.suppressionsAnon?.exigerMiroirComplet()
+    this.dissociations?.exigerMiroirComplet()
+  }
+  private exigerRetraitVariante(): RetraitsVarianteAnonGitLab {
+    this.verifierContexteRetraitVariante('suivi')
+    if (this.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante GitLab.')
+    return this.retraitsVariante!
+  }
+  oublierApercuRetraitVarianteAnon(token: string): void { this.retraitsVariante?.oublierApercu(token) }
+  preparerRetraitVarianteAnon(demande: DemandeRetraitVarianteAnon) {
+    exigerGeste('gitlab', 'anon.retirer-variante')
+    return this.exigerRetraitVariante().preparer(demande)
+  }
+  preparerRepriseRetraitVarianteAnon(operationId: string) {
+    exigerGeste('gitlab', 'anon.retirer-variante')
+    return this.exigerRetraitVariante().preparerReprise(operationId)
+  }
+  lireSuiviRetraitVarianteAnon() {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.retraitsVariante?.lireSuivi() ?? null
+  }
+  async relireSuiviRetraitVarianteAnon(operationId: string) {
+    const bilan = await this.exigerRetraitVariante().relireSuivi(operationId)
+    await this.actualiser()
+    return bilan
+  }
+  async retirerVarianteAnon(token: string, confirmee: boolean) {
+    let reserve = false
+    try {
+      exigerGeste('gitlab', 'anon.retirer-variante')
+      const service = this.exigerRetraitVariante(), ids = service.ciblesApercu(token)
+      this.retraitVarianteEnCours = true; reserve = true
+      ids.forEach((id) => this.retraitVarianteCibles.add(id))
+      return await service.appliquer(token, confirmee)
+    } catch (e) { this.retraitsVariante?.oublierApercu(token); throw e }
+    finally { if (reserve) { this.retraitVarianteEnCours = false; this.retraitVarianteCibles.clear() } }
+  }
+
+  private exigerSansSuppressionAnon(): void {
+    this.exigerSansRetraitVariante()
+    if (this.suppressionAnonEnCours || this.suppressionsAnon?.lireSuivi()) throw new Error('Une suppression GitLab est engagée. Relisez son suivi avant cette opération.')
+    this.suppressionsAnon?.exigerMiroirComplet()
+  }
+  private exigerSuppressionAnon(): SuppressionsAnonGitLab {
+    this.exigerSansRetraitVariante()
+    if (this.termine || !this.suppressionsAnon) throw new Error('Suppression GitLab indisponible dans ce contexte.')
+    if (this.suppressionAnonEnCours || this.dissociationEnCours || this.renommageEnCours || this.importsCibles.size || this.suppressions.size
+      || this.dissociations?.lireSuivi() || this.renommages?.lireSuivi() || this.operationsThemes?.lireSuivi()) throw new Error('Terminez les opérations incompatibles avant la suppression GitLab.')
+    this.dissociations?.exigerMiroirComplet()
+    return this.suppressionsAnon
+  }
+  oublierApercuSuppressionAnon(token: string): void { this.suppressionsAnon?.oublierApercu(token) }
+  preparerSuppressionAnon(demande: DemandeSuppressionAnon) {
+    exigerGeste('gitlab', 'anon.supprimer-partout')
+    return this.exigerSuppressionAnon().preparer(demande)
+  }
+  preparerRepriseSuppressionAnon(operationId: string) {
+    exigerGeste('gitlab', 'anon.supprimer-partout')
+    return this.exigerSuppressionAnon().preparerReprise(operationId)
+  }
+  lireSuiviSuppressionAnon() {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.suppressionsAnon?.lireSuivi() ?? null
+  }
+  async relireSuiviSuppressionAnon(operationId: string) {
+    const bilan = await this.exigerSuppressionAnon().relireSuivi(operationId)
+    await this.actualiser()
+    return bilan
+  }
+  async supprimerRegleAnonPartout(token: string, confirmee: boolean) {
+    let reserve = false
+    try {
+      exigerGeste('gitlab', 'anon.supprimer-partout')
+      const service = this.exigerSuppressionAnon(), ids = service.ciblesApercu(token)
+      this.suppressionAnonEnCours = true; reserve = true
+      ids.forEach((id) => this.suppressionAnonCibles.add(id))
+      return await service.appliquer(token, confirmee)
+    } catch (e) { this.suppressionsAnon?.oublierApercu(token); throw e }
+    finally { if (reserve) { this.suppressionAnonEnCours = false; this.suppressionAnonCibles.clear() } }
+  }
+
+  private exigerSansDissociation(): void {
+    this.exigerSansSuppressionAnon()
+    if (this.dissociationEnCours || this.dissociations?.lireSuivi()) throw new Error('Une dissociation GitLab est engagée. Relisez son suivi avant cette opération.')
+  }
+  private exigerDissociation(): DissociationsAnonGitLab {
+    this.exigerSansSuppressionAnon()
+    if (this.termine || !this.dissociations) throw new Error('Dissociation GitLab indisponible dans ce contexte.')
+    if (this.dissociationEnCours || this.renommageEnCours || this.importsCibles.size || this.suppressions.size
+      || this.renommages?.lireSuivi() || this.operationsThemes?.lireSuivi()) throw new Error('Terminez les opérations incompatibles avant la dissociation GitLab.')
+    return this.dissociations
+  }
+  oublierApercuDissociationAnon(token: string): void { this.dissociations?.oublierApercu(token) }
+  preparerDissociationAnon(demande: DemandeDissociationAnon) {
+    exigerGeste('gitlab', 'anon.dissocier-globalement')
+    return this.exigerDissociation().preparer(demande)
+  }
+  preparerRepriseDissociationAnon(operationId: string) {
+    exigerGeste('gitlab', 'anon.dissocier-globalement')
+    return this.exigerDissociation().preparerReprise(operationId)
+  }
+  lireSuiviDissociationAnon() {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.dissociations?.lireSuivi() ?? null
+  }
+  async relireSuiviDissociationAnon(operationId: string) {
+    const service = this.exigerDissociation()
+    const bilan = await service.relireSuivi(operationId)
+    await this.actualiser()
+    return bilan
+  }
+  async dissocierRegleAnon(token: string, confirmee: boolean) {
+    let reserve = false
+    try {
+      exigerGeste('gitlab', 'anon.dissocier-globalement')
+      const service = this.exigerDissociation()
+      const ids = service.ciblesApercu(token)
+      this.dissociationEnCours = true; reserve = true
+      ids.forEach((id) => this.dissociationCibles.add(id))
+      return await service.appliquer(token, confirmee)
+    } catch (e) { this.dissociations?.oublierApercu(token); throw e }
+    finally { if (reserve) { this.dissociationEnCours = false; this.dissociationCibles.clear() } }
+  }
+
+  instantaneRenommageAnon() {
+    this.exigerSansDissociation()
+    if (this.termine || !this.renommages) throw new Error('Inventaire publié du renommage GitLab indisponible.')
+    return this.renommages.instantane()
+  }
+
+  renommageAnonDisponible(): boolean {
+    return !this.termine && !this.renommageEnCours && !this.retraitVarianteEnCours && !this.retraitsVariante?.lireSuivi()
+      && !this.importsCibles.size && !this.suppressions.size && !!this.renommages?.disponible()
+  }
+
+  async renommerVarianteAnon(preparation: PreparationRenommageGitLab) {
+    exigerGeste('gitlab', 'anon.renommer-variante')
+    this.exigerSansDissociation()
+    if (this.termine || !this.renommages) throw new Error('Renommage GitLab indisponible dans ce contexte.')
+    if (this.renommageEnCours || this.importsCibles.size || this.suppressions.size) throw new Error('Terminez les opérations en cours avant le renommage ciblé GitLab.')
+    this.renommageEnCours = true
+    preparation.cibles.forEach((c) => this.renommageCibles.add(c.id))
+    try { return await this.renommages.appliquer(preparation) }
+    finally { this.renommageEnCours = false; this.renommageCibles.clear() }
+  }
+
+  async observerCiblesRenommageAnon(ids: string[]) {
+    const observation = await this.observerVerrous()
+    return ids.map((id) => ({ id, etat: this.renommages?.sessionLocalePresente(id)
+      ? 'session-locale' as const : observation.indisponible ? 'inconnu' as const
+        : observation.entrees.some((e) => e.chemin === `entretiens/${id}.json`) ? 'tenu-autrui' as const : 'libre-observe' as const }))
+  }
+
+  lireSuiviRenommageAnon() {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.renommages?.lireSuivi() ?? null
+  }
+
+  preparerRepriseRenommageAnon(operationId: string) {
+    this.exigerSansDissociation()
+    if (this.termine || !this.renommages) throw new Error('Reprise du renommage GitLab indisponible.')
+    return this.renommages.preparerReprise(operationId)
+  }
+
+  instantaneCorrespondances() {
+    if (this.termine || !this.correspondances) throw new Error('Lecture publiée des correspondances GitLab indisponible.')
+    return this.correspondances.instantane()
+  }
+
+  async importerCorrespondances(preparation: PreparationImportGitLab) {
+    exigerGeste('gitlab', 'anon.importer-cibles')
+    this.exigerSansDissociation()
+    if (this.termine || !this.correspondances) throw new Error('Import ciblé GitLab indisponible dans ce contexte.')
+    if (this.renommageEnCours) throw new Error('Un renommage global est en cours : attendez sa fin avant d’importer.')
+    const candidats = new Map(preparation.cibles.map((c) => [c.id, c]))
+    const ids = [...new Set(preparation.choixCibles.map((c) => {
+      const cible = candidats.get(c.cibleId)
+      if (!cible) throw new Error('Cible inconnue. Recalculez l’aperçu.')
+      return cible.entretienId
+    }))]
+    if (ids.some((id) => this.importsCibles.has(id) || this.suppressions.has(id))) throw new Error('Une opération est déjà engagée sur une cible.')
+    ids.forEach((id) => this.importsCibles.add(id))
+    try { return await this.correspondances.appliquer(preparation) }
+    finally { ids.forEach((id) => this.importsCibles.delete(id)) }
   }
 
   async analyserOperationTheme(demande: DemandeOperationTheme, precedent?: string) {
@@ -128,6 +363,7 @@ export class ContexteGitLab {
   executerOperationTheme(id: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme,
     progression?: (etat: ProgressionOperationTheme) => void) {
     return this.file.executer(async () => {
+      this.exigerSansDissociation()
       if (this.termine || !this.operationsThemes) throw new Error('Publication des thématiques GitLab indisponible dans ce contexte.')
       return this.operationsThemes.executer(id, demande, options, progression)
     })
@@ -140,6 +376,7 @@ export class ContexteGitLab {
 
   preparerRepriseOperationTheme(id: string) {
     return this.file.executer(async () => {
+      this.exigerSansDissociation()
       if (this.termine || !this.operationsThemes) throw new Error('Reprise des thématiques GitLab indisponible dans ce contexte.')
       return this.operationsThemes.preparerReprise(id)
     })
@@ -175,11 +412,25 @@ export class ContexteGitLab {
   private async actualiserInterne(): Promise<ResultatTiragePublic> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     try {
-      const tirage = await this.miroir.tirer(
-        [...this.sessions.values()]
-          .filter(({ protege }) => protege)
-          .map(({ chemin }) => chemin),
-      )
+      if (this.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante avant d’actualiser le corpus.')
+      const retrait = this.retraitsVariante?.lireSuivi()
+      if (retrait && (retrait.statut === 'indetermine' || retrait.varianteRetiree || retrait.miroirIncomplet)) await this.retraitsVariante!.relireSuiviDansFile(retrait.operationId)
+      this.retraitsVariante?.exigerMiroirComplet()
+      if (this.suppressionAnonEnCours) throw new Error('Attendez la fin de la suppression globale avant d’actualiser le corpus.')
+      await this.transactions?.relireAjoutsVarianteDansFile()
+      const suppression = this.suppressionsAnon?.lireSuivi()
+      if (suppression && (suppression.statut === 'indetermine' || suppression.regleRetiree)) await this.suppressionsAnon!.relireSuiviDansFile(suppression.operationId)
+      this.suppressionsAnon?.exigerMiroirComplet()
+      const suivi = this.dissociations?.lireSuivi()
+      if (suivi?.statut === 'indetermine') await this.dissociations!.relireSuiviDansFile(suivi.operationId)
+      this.dissociations?.exigerMiroirComplet()
+      const tirage = await this.miroir.tirer([
+        ...[...this.sessions.values()].filter(({ protege }) => protege).map(({ chemin }) => chemin),
+        ...this.cheminsRecuperables,
+        ...(this.dissociations?.cheminsProteges() ?? []),
+        ...(this.suppressionsAnon?.cheminsProteges() ?? []),
+        ...(this.retraitsVariante?.cheminsProteges() ?? []),
+      ])
       const observation = await this.observerVerrous()
       return {
         telecharges: tirage.telecharges,
@@ -214,6 +465,17 @@ export class ContexteGitLab {
     cheminRelatif: string,
   ): Promise<EtatSessionGitLab> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
+    const id = /^entretiens\/([^/]+)\.json$/.exec(cheminRelatif)?.[1]
+    if (id && (this.renommageCibles.has(id) || this.renommages?.cibleProtegee(id))) throw new Error('Cette cible de renommage reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
+    if (id && (this.dissociationCibles.has(id) || this.dissociations?.cibleProtegee(id))) throw new Error('Cette cible de dissociation reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
+    if (id && (this.suppressionAnonCibles.has(id) || this.suppressionsAnon?.cibleProtegee(id))) throw new Error('Cette cible de suppression reste à traiter. Reprenez le lot avant d’ouvrir cet entretien.')
+    if (id && (this.retraitVarianteCibles.has(id) || this.retraitsVariante?.cibleProtegee(id))) throw new Error('Cette cible de retrait de variante reste à traiter. Reprenez le lot avant d’ouvrir cet entretien.')
+    this.retraitsVariante?.exigerMiroirComplet(id)
+    this.suppressionsAnon?.exigerMiroirComplet(id)
+    this.renommages?.exigerMiroirComplet(id)
+    this.dissociations?.exigerMiroirComplet(id)
+    if (this.transactions && !this.transactions.transactionReconciliee() && !this.renommages?.publicationDuLotSeule() && !this.dissociations?.publicationDuLotSeule() && !this.suppressionsAnon?.publicationDuLotSeule() && !this.retraitsVariante?.publicationDuLotSeule()) throw new Error('Une publication du corpus reste à réconcilier avant d’ouvrir une session.')
+    if (id && this.importsCibles.has(id)) throw new Error('Un import ciblé est en cours : attendez sa fin avant d’ouvrir cet entretien.')
     const existante = this.sessions.get(ressource)
     if (existante) {
       if (existante.chemin !== cheminRelatif) {
@@ -272,11 +534,12 @@ export class ContexteGitLab {
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
   ): Promise<CorpusFichier> {
+    this.exigerSansDissociation()
     if (!this.transactions) {
       throw new Error('Suppression GitLab non configurée pour ce contexte.')
     }
-    if (this.suppressions.has(id)) {
-      throw new Error(`Une suppression de « ${id} » est déjà en cours.`)
+    if (this.renommageCibles.has(id) || this.renommages?.cibleProtegee(id) || this.suppressions.has(id) || this.importsCibles.has(id)) {
+      throw new Error(`Une opération sur « ${id} » est déjà en cours.`)
     }
     this.suppressions.add(id)
     try {
@@ -295,6 +558,7 @@ export class ContexteGitLab {
   }
 
   creerEntretienVide(titre: string): Promise<{ id: string; corpus: CorpusFichier }> {
+    this.exigerSansDissociation()
     if (!this.transactions) throw new Error('Ajout GitLab non configuré pour ce contexte.')
     return this.transactions.creerEntretienVide(titre)
   }
@@ -306,6 +570,7 @@ export class ContexteGitLab {
     variables: Variable[],
     reglesAnon: RegleAnon[],
   ): Promise<{ id: string; corpus: CorpusFichier }> {
+    this.exigerSansDissociation()
     if (!this.transactions) throw new Error('Import GitLab non configuré pour ce contexte.')
     return this.transactions.importerEntretien(
       titre,
@@ -350,28 +615,8 @@ export class ContexteGitLab {
       throw new Error('Pseudonymisation GitLab non configurée pour ce contexte.')
     }
     const succes: ResultatLotAnon['succes'] = []
-    const echecs: ResultatLotAnon['echecs'] = []
-    const groupes = new Map<string, CibleRegleAnon>()
-    for (const cible of cibles) {
-      const existante = groupes.get(cible.entretienId)
-      if (!existante) {
-        groupes.set(cible.entretienId, { ...cible })
-        continue
-      }
-      if (existante.regleId !== cible.regleId) {
-        echecs.push({
-          id: cible.entretienId,
-          raison: 'Un même entretien ne peut pas recevoir deux règles dans cette validation.',
-        })
-        continue
-      }
-      for (const cle of ['plages', 'retirer', 'exception', 'retirerException'] as const) {
-        if (cible[cle]?.length) existante[cle] = [...(existante[cle] ?? []), ...cible[cle]!]
-      }
-    }
-    const dejaEnEchec = new Set(echecs.map((echec) => echec.id))
+    const { groupes, echecs } = regrouperCiblesAnon(cibles)
     for (const [id, cible] of groupes) {
-      if (dejaEnEchec.has(id)) continue
       try {
         const resultat = this.sessions.has(this.ressourceEntretien(id))
           ? await this.appliquerRegleDansSession(id, cible)
@@ -429,12 +674,12 @@ export class ContexteGitLab {
   private async appliquerRegleDansSession(
     entretienId: string,
     cible: CibleRegleAnon,
-  ): Promise<{ nb: number; titre: string }> {
+  ): Promise<ResultatMutationAnon & { titre: string }> {
     return this.file.executer(async () => {
       const entree = this.sessionEditable(entretienId)
-      if (!this.store.ouvrir().reglesAnon[cible.regleId]) {
-        throw new Error(`La règle d’anonymisation « ${cible.regleId} » n’existe plus.`)
-      }
+      const regle = this.store.ouvrir().reglesAnon[cible.regleId]
+      if (!regle) throw new Error(`La règle d’anonymisation « ${cible.regleId} » n’existe plus.`)
+      await this.transactions!.verifierRegleAnonSession(regle)
       const resultat = this.store.appliquerRegleAnon(entretienId, cible.regleId, cible)
       await entree.session.marquerSale()
       this.verifierPublicationEntretien(await entree.session.publier(), entretienId)
@@ -484,10 +729,11 @@ export class ContexteGitLab {
     preparer: (store: CorpusStore) => T,
   ): Promise<ResultatTransactionDefinitions<T>> {
     exigerGeste('gitlab', geste)
+    this.exigerSansDissociation()
     // Ce point d'entrée ne sert qu'aux définitions : un geste d'une autre
     // famille ne doit pas pouvoir s'y glisser sous couvert d'une capacité.
     const portee = porteeGeste(geste)
-    if (portee !== 'definitions-corpus' && portee !== 'suppression-definition') {
+    if (portee !== 'definitions-corpus' && portee !== 'suppression-definition' && portee !== 'pseudonymisation-ajout-variante') {
       throw new RefusGesteError(geste, 'Ce geste ne modifie pas les définitions du corpus.')
     }
     if (!this.transactions) {
@@ -497,6 +743,18 @@ export class ContexteGitLab {
       return this.transactions.executerSuppressionDefinitions(preparer, {
         publierSource: (id) => this.publierSourceDetenue(id),
       })
+    }
+    if (portee === 'pseudonymisation-ajout-variante') {
+      const verifier = () => {
+        if (this.termine) throw new Error('Le contexte distant est fermé.')
+        exigerGeste('gitlab', geste)
+        this.exigerSansDissociation()
+        if (this.renommageEnCours || this.renommages?.lireSuivi() || this.importsCibles.size || this.operationsThemes?.lireSuivi()) {
+          throw new Error('Terminez les opérations en attente avant d’ajouter une variante.')
+        }
+      }
+      verifier()
+      return this.transactions.executerDefinitions(preparer, true, verifier)
     }
     return this.transactions.executerDefinitions(preparer)
   }
@@ -515,6 +773,7 @@ export class ContexteGitLab {
     deduire: (corpus: CorpusFichier) => string[],
   ): Promise<ResultatTransactionDefinitions<T>> {
     exigerGeste('gitlab', geste)
+    this.exigerSansDissociation()
     if (porteeGeste(geste) !== 'definitions-avec-sources') {
       throw new RefusGesteError(geste, 'Ce geste ne lit aucun entretien publié.')
     }
@@ -557,6 +816,7 @@ export class ContexteGitLab {
     mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>,
   ): Promise<CorpusFichier> {
     exigerGeste('gitlab', 'entretien.trier-contenus')
+    this.exigerSansDissociation()
     if (!this.transactions) {
       throw new Error('Tri GitLab non configuré pour ce contexte.')
     }
@@ -728,6 +988,10 @@ export class ContexteGitLab {
    *  engagée est attendue, puis les sessions sont rendues. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    if (this.renommageEnCours) throw new Error('Attendez la fin du renommage global avant le changement de corpus.')
+    if (this.dissociationEnCours) throw new Error('Attendez la fin de la dissociation globale avant le changement de corpus.')
+    if (this.suppressionAnonEnCours) throw new Error('Attendez la fin de la suppression globale avant le changement de corpus.')
+    if (this.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante avant le changement de corpus.')
     await this.file.fermer()
     for (const [ressource, entree] of this.sessions) {
       const fermeture = await entree.session.fermer()
@@ -738,6 +1002,9 @@ export class ContexteGitLab {
     }
     this.termine = true
     this.apercusThemes?.vider()
+    this.dissociations?.viderApercus()
+    this.suppressionsAnon?.viderApercus()
+    this.retraitsVariante?.viderApercus()
   }
 
   private session(ressource: string): SessionGitLab {
@@ -785,7 +1052,21 @@ export async function preparerContexteGitLabLectureSeule(
     () => instantane.ouvrir(),
     { fournisseur: 'gitlab', destinationId: options.id },
   )
-  const tirage = await miroir.tirer(options.cheminsRecuperables ?? [])
+  const racine = normaliserRacineGitLab(options.racine ?? '')
+  const journalRetrait = new JournalRetraitVarianteAnonGitLab(options.dirLocal,
+    empreinteDestinationRetraitVarianteGitLab(options.id, options.branche, racine), racine).lire()
+  const retraitEnAttente = !!journalRetrait && (!journalRetrait.varianteRetiree || !journalRetrait.miroirComplet)
+  if (retraitEnAttente && !options.creerTransactions) throw new Error('Le suivi du retrait de variante exige ses services GitLab. Aucun tirage ni reprise générique autorisés.')
+  const journalSuppression = new JournalSuppressionAnonGitLab(options.dirLocal,
+    empreinteDestinationSuppressionGitLab(options.id, options.branche, racine), racine).lire()
+  const journalDissociation = new JournalDissociationAnonGitLab(options.dirLocal,
+    empreinteDestinationDissociationGitLab(options.id, options.branche, racine), racine).lire()
+  const ciblesDissociation = journalDissociation?.cibles.filter((c) => c.etat === 'a-faire').map((c) => `entretiens/${c.id}.json`) ?? []
+  const ciblesSuppression = journalSuppression?.cibles.filter((c) => c.etat === 'a-faire').map((c) => `entretiens/${c.id}.json`) ?? []
+  const tirage = retraitEnAttente || journalSuppression && (journalSuppression.publication || !journalSuppression.miroirComplet)
+    ? { telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
+    : await miroir.tirer([...(options.cheminsRecuperables ?? []), ...ciblesDissociation, ...ciblesSuppression,
+      ...(journalSuppression?.nouvellesCibles.map((id) => `entretiens/${id}.json`) ?? [])])
   const cheminCorpus = join(options.dirLocal, 'corpus.json')
   if (!existsSync(cheminCorpus)) {
     throw new Error("Le dépôt GitLab ne contient pas de corpus.json.")
@@ -821,7 +1102,7 @@ export async function preparerContexteGitLabLectureSeule(
   try {
     // Badges relevés au commit du tirage d'ouverture : le premier affichage
     // n'attend pas le cycle périodique suivant.
-    const observation = await contexte.observerVerrous()
+    const observation = retraitEnAttente ? { entrees: [], indisponible: true } : await contexte.observerVerrous()
     return {
       contexte,
       corpus,

@@ -1,3 +1,5 @@
+import { validerMemoireLocale, type DefinitionAnonLocale } from '../../shared/entretien/anon/definitionsLocales'
+import { validerDefinitionAnon } from '../../shared/corpus/definitionsAnon'
 import { charVersPM } from '../../shared/entretien/positions'
 import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
@@ -52,10 +54,11 @@ function genIdRegle(): string {
 }
 
 /** Parse l'`anon-json` SonalPi1 en brouillons (entretien-local) + règles corpus. */
-function parserAnonJson(json: unknown): { brouillons: BrouillonAnon[]; regles: RegleAnon[] } {
+function parserAnonJson(json: unknown): { brouillons: BrouillonAnon[]; regles: RegleAnon[]; locales: DefinitionAnonLocale[] } {
   const brouillons: BrouillonAnon[] = []
   const regles: RegleAnon[] = []
-  if (!Array.isArray(json)) return { brouillons, regles }
+  const locales: DefinitionAnonLocale[] = []
+  if (!Array.isArray(json)) return { brouillons, regles, locales }
   for (const es of json) {
     const entite = String((es as Record<string, unknown>)?.entite ?? '').trim()
     if (!entite) continue
@@ -64,15 +67,19 @@ function parserAnonJson(json: unknown): { brouillons: BrouillonAnon[]; regles: R
       String((es as Record<string, unknown>)?.remplacementAlt ?? '').trim(),
     ].filter(Boolean)
     const portee = (es as Record<string, unknown>)?.portee
+    const categorie = (es as Record<string, unknown>).thematique
+    if (portee === 'document' || portee === 'brouillon') {
+      locales.push({ ...validerDefinitionAnon(entite, pseudos, categorie, portee === 'brouillon'), etat: portee === 'brouillon' ? 'brouillon' : 'declaration' })
+    }
     if (portee === 'brouillon') {
       brouillons.push({ entite, pseudo: pseudos.join(' / ') || undefined })
     } else if (portee === 'corpus' || portee === undefined || portee === '') {
       if (pseudos.length === 0) continue
-      regles.push({ id: genIdRegle(), entite: [entite], pseudos })
+      regles.push({ id: genIdRegle(), ...validerDefinitionAnon(entite, pseudos, categorie) })
     }
-    // portée 'document' (standalone) : pas d'entrée — les occurrences se relisent des spans.
+    // Les positions et choix appliqués se relisent uniquement dans les spans.
   }
-  return { brouillons, regles }
+  return { brouillons, regles, locales: validerMemoireLocale(locales) }
 }
 
 /** Un bloc en cours d'import : texte + annotations (offsets locaux) + ses cues
@@ -97,7 +104,7 @@ export function importerSonal(domDoc: Document): ResultatImport {
   const tabLoc = (extraireJson(domDoc, 'loc-json') as string[] | null) ?? []
   const tabThm = (extraireJson(domDoc, 'cat-json') as CategorieV1[] | null) ?? []
   const anonJson = extraireJson(domDoc, 'anon-json')
-  const { brouillons, regles: reglesAnon } = parserAnonJson(anonJson)
+  const { brouillons, regles: reglesAnon, locales } = parserAnonJson(anonJson)
   // Notes SonalPi1 : un `<textarea>` de texte libre. On lit son contenu texte
   //  (textContent — robuste en DOM de test comme navigateur ; SonalPi1 stockait
   //  une chaîne brute). On migre ce contenu en une note « générale » (bac
@@ -377,7 +384,7 @@ export function importerSonal(domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, notes },
+    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, ...(locales.length ? { definitionsAnonLocales: locales } : {}), notes },
     codebook,
     variables,
     reglesAnon,

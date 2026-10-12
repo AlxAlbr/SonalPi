@@ -1,7 +1,10 @@
+import { lireBarriereRetraitVarianteAnon, memeVarianteAnon } from '../../shared/corpus/barriereRetraitVarianteAnon'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
+import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
+import { exigerAbsenceSuppressionAnon, lireBarriereSuppressionAnon } from '../../shared/corpus/barriereSuppressionAnon'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../shared/format'
 
-/** Refus d'une publication qui réintroduirait une définition supprimée. */
+/** Refus d’une publication incompatible avec les définitions courantes. */
 export class ReferencesDefinitionsInvalidesError extends Error {
   constructor(message: string) {
     super(message)
@@ -9,10 +12,17 @@ export class ReferencesDefinitionsInvalidesError extends Error {
   }
 }
 
+/** Les mutations concurrentes du corpus ne peuvent retirer ni altérer une barrière publiée. */
+export function exigerAbsenceDissociationGitLab(corpus: CorpusFichier): void {
+  exigerAbsenceSuppressionAnon(corpus)
+  if (corpus.dissociationAnon !== undefined) throw new Error('Une dissociation GitLab est engagée. Reprenez son suivi avant toute autre mutation du corpus.')
+}
+
 /** Vérifie toutes les références d'un entretien vers les définitions du corpus. */
 export function verifierReferencesDefinitions(
   entretien: EntretienFichier,
   corpus: CorpusFichier,
+  avant?: EntretienFichier,
 ): void {
   if (entretien.formatVersion !== FORMAT_VERSION) {
     throw new ReferencesDefinitionsInvalidesError(
@@ -28,7 +38,36 @@ export function verifierReferencesDefinitions(
     throw new ReferencesDefinitionsInvalidesError('L’entretien à publier est incomplet.')
   }
 
+  const barriere = corpus.dissociationAnon
+  if (barriere !== undefined && (!barriere || typeof barriere !== 'object'
+    || typeof barriere.regleId !== 'string' || !barriere.regleId.trim()
+    || typeof barriere.operationId !== 'string' || !/^dissociation-[a-zA-Z0-9_-]+$/.test(barriere.operationId))) {
+    throw new ReferencesDefinitionsInvalidesError('L’état publié de dissociation est invalide. Aucun entretien publié.')
+  }
+  let suppression: ReturnType<typeof lireBarriereSuppressionAnon>
+  try { suppression = lireBarriereSuppressionAnon(corpus) }
+  catch (e) { throw new ReferencesDefinitionsInvalidesError(e instanceof Error ? e.message : 'État de suppression invalide.') }
+  let retrait: ReturnType<typeof lireBarriereRetraitVarianteAnon>
+  try { retrait = lireBarriereRetraitVarianteAnon(corpus) }
+  catch (e) { throw new ReferencesDefinitionsInvalidesError(e instanceof Error ? e.message : 'État de retrait invalide.') }
   for (const annotation of entretien.annotations) {
+    if (retrait && annotation.regle === retrait.regleId && typeof annotation.pseudo === 'string' && memeVarianteAnon(annotation.pseudo, retrait.pseudoRetire)) {
+      throw new ReferencesDefinitionsInvalidesError('Cette variante est en cours de retrait. Aucun ancien choix lié, même mémorisé dans une exception, ne peut être réintroduit.')
+    }
+    if (annotation.type === 'anon' && annotation.regle && annotation.etat === 'exception' && typeof annotation.pseudo === 'string') {
+      const ancienne = avant?.annotations.find((a) => a.id === annotation.id && a.type === 'anon' && a.regle === annotation.regle)
+      const inchange = ancienne && ancienne.pseudo === annotation.pseudo
+      const regle = corpus.reglesAnon[annotation.regle]
+      if (!inchange && (!regle || !regle.pseudos.includes(annotation.pseudo.trim().normalize('NFC')))) {
+        throw new ReferencesDefinitionsInvalidesError('Le pseudonyme mémorisé de cette nouvelle exception n’est plus déclaré. Actualisez les règles avant d’enregistrer.')
+      }
+    }
+    if (suppression && annotation.regle === suppression.regleId) {
+      throw new ReferencesDefinitionsInvalidesError('La règle est en cours de suppression. Relisez l’entretien publié avant de l’enregistrer ; aucun ancien lien ne peut être réintroduit.')
+    }
+    if (barriere && annotation.regle === barriere.regleId) {
+      throw new ReferencesDefinitionsInvalidesError('La règle est en cours de dissociation. Relisez l’entretien publié avant de l’enregistrer ; aucun ancien lien ne peut être réintroduit.')
+    }
     if (
       annotation.type === 'codage' &&
       annotation.code &&
@@ -42,6 +81,11 @@ export function verifierReferencesDefinitions(
       !corpus.reglesAnon[annotation.regle]
     ) {
       throw referenceSupprimee('règle d’anonymisation', annotation.regle, true)
+    }
+  }
+  if (avant) {
+    try { verifierChoixPseudosAnon(entretien.annotations, corpus.reglesAnon, avant.annotations) } catch (e) {
+      throw new ReferencesDefinitionsInvalidesError(e instanceof Error ? e.message : 'Choix de variante invalide.')
     }
   }
 
@@ -64,6 +108,7 @@ export function verifierReferencesDefinitions(
 export function verifierContenusReferencesDefinitions(
   contenuEntretien: string,
   contenuCorpus: string,
+  contenuAvant?: string,
 ): void {
   let entretien: EntretienFichier
   let corpus: CorpusFichier
@@ -80,7 +125,14 @@ export function verifierContenusReferencesDefinitions(
   if (corpus.formatVersion !== FORMAT_VERSION) {
     throw new Error('La version du corpus GitLab n’est pas prise en charge.')
   }
-  verifierReferencesDefinitions(entretien, corpus)
+  let avant: EntretienFichier | undefined
+  if (contenuAvant !== undefined) {
+    try { avant = JSON.parse(contenuAvant) as EntretienFichier } catch {
+      throw new ReferencesDefinitionsInvalidesError('La base publiée de l’entretien est illisible.')
+    }
+    if (!Array.isArray(avant?.annotations)) throw new ReferencesDefinitionsInvalidesError('La base publiée de l’entretien est incomplète.')
+  }
+  verifierReferencesDefinitions(entretien, corpus, avant)
 }
 
 function verifierValeurs(

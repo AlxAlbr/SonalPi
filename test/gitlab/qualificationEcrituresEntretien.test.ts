@@ -15,6 +15,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { empreinteAnon } from '../../src/shared/entretien/anon/classification'
 import { MiroirDistant } from '../../src/main/distant/miroir'
 import { ClientGitLab } from '../../src/main/gitlab/client'
 import { ContexteGitLab } from '../../src/main/gitlab/contexte'
@@ -45,7 +46,7 @@ const JETON2 = configuration.token2 as string
 
 /** Un entretien portant une occurrence du pseudonyme, pour que la règle ait
  *  réellement quelque chose à poser. */
-const TEXTE = 'Alice est présente au premier entretien.'
+const TEXTE = 'Alice est présente au premier entretien. Alice répond.'
 
 function corpusEcritures(): CorpusFichier {
   const corpus = corpusAvecEntretiens({ e1: 'Entretien 1', e2: 'Entretien 2' })
@@ -193,7 +194,9 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
       const resultat = await alice.transactions.appliquerRegleEntretien('e1', {
         entretienId: 'e1',
         regleId: 'r1',
-        exception: [{ from: 0, to: 5 }],
+        toutes: true,
+        empreinte: empreinteAnon(JSON.parse(entretienPublie(TEXTE)), corpusEcritures().reglesAnon.r1),
+        exception: [{ from: 1, to: 6 }],
       })
 
       expect(resultat).toMatchObject({ titre: 'Entretien 1' })
@@ -398,8 +401,8 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
 
       // La pseudonymisation suit la même politique, entretien par entretien.
       const reponses = await contexte.appliquerRegleLot([
-        { entretienId: 'e1', regleId: 'r1' },
-        { entretienId: 'e2', regleId: 'r1' },
+        { entretienId: 'e1', regleId: 'r1', toutes: true },
+        { entretienId: 'e2', regleId: 'r1', toutes: true },
       ])
       expect(reponses.succes.map((s) => s.id)).toEqual(['e1'])
       expect(reponses.echecs.map((e) => e.id)).toEqual(['e2'])
@@ -420,7 +423,9 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
       await alice.transactions.appliquerRegleEntretien('e1', {
         entretienId: 'e1',
         regleId: 'r1',
-        exception: [{ from: 0, to: 5 }],
+        toutes: true,
+        empreinte: empreinteAnon(JSON.parse(entretienPublie(TEXTE)), corpusEcritures().reglesAnon.r1),
+        exception: [{ from: 1, to: 6 }],
       })
 
       expect(lireEntretienLocal(alice.dossier, 'e1').annotations).toEqual(

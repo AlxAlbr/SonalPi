@@ -24,7 +24,8 @@ import {
   type DepotCommitsGitLab,
 } from './bailGitLab'
 
-const VERSION_JOURNAL = 4
+const VERSION_JOURNAL = 5
+const VERSION_JOURNAL_BORNE_ACTIONS = 4
 const VERSION_JOURNAL_DEUX_DROITS = 3
 const VERSION_JOURNAL_A_UN_DROIT = 2
 const VERSION_JOURNAL_SANS_NATURE = 1
@@ -97,12 +98,12 @@ export type EntreeJournalNue = Omit<
 }
 
 export interface EntreeJournalPublication {
-  version: 4
+  version: 5
   destinationId: string
   operationId: string
   nature: NatureEntreeJournal
   branche: string
-  /** Un ou deux droits, toujours dans l'ordre canonique d'acquisition. */
+  /** Droits des ressources, dans l'ordre canonique d'acquisition. */
   droits: DroitJournalGitLab[]
   etat: EtatJournalPublication
   ecritLe: string
@@ -183,7 +184,7 @@ export class JournalPublicationGitLab {
     }
     const actions = entree.actions
     validerActions(actions)
-    if (entree.droits.length === 0 || entree.droits.length > 2) {
+    if (entree.droits.length === 0 || entree.droits.length > MAX_ACTIONS_PUBLICATION) {
       throw new Error('Droits de publication GitLab invalides.')
     }
     if (new Set(entree.droits.map((droit) => droit.resourceHash)).size
@@ -524,11 +525,12 @@ function validerEntree(
   const brut = valeur as Record<string, unknown>
   const entree = brut as unknown as Partial<EntreeJournalPublication>
   const version = brut.version
-  const limiteActions = version === VERSION_JOURNAL
+  const limiteActions = version === VERSION_JOURNAL || version === VERSION_JOURNAL_BORNE_ACTIONS
     ? MAX_ACTIONS_PUBLICATION
     : MAX_ACTIONS_JOURNAL_HISTORIQUE
   if (
     (version !== VERSION_JOURNAL
+      && version !== VERSION_JOURNAL_BORNE_ACTIONS
       && version !== VERSION_JOURNAL_DEUX_DROITS
       && version !== VERSION_JOURNAL_A_UN_DROIT
       && version !== VERSION_JOURNAL_SANS_NATURE) ||
@@ -566,7 +568,7 @@ function validerEntree(
   }
   if (
     nature === 'suppression-entretien' &&
-    (version === VERSION_JOURNAL || version === VERSION_JOURNAL_DEUX_DROITS)
+    (version === VERSION_JOURNAL || version === VERSION_JOURNAL_BORNE_ACTIONS || version === VERSION_JOURNAL_DEUX_DROITS)
   ) {
     if (!entree.suppression) throw new Error('Journal de suppression GitLab incomplet.')
     validerSuppression(entree.suppression, entree.actions)
@@ -584,9 +586,10 @@ function projeterDroits(
   brut: Record<string, unknown>,
   version: unknown,
 ): DroitJournalGitLab[] {
-  if (version === VERSION_JOURNAL || version === VERSION_JOURNAL_DEUX_DROITS) {
+  if (version === VERSION_JOURNAL || version === VERSION_JOURNAL_BORNE_ACTIONS || version === VERSION_JOURNAL_DEUX_DROITS) {
     const droits = brut.droits
-    if (!Array.isArray(droits) || droits.length === 0 || droits.length > 2) {
+    const limite = version === VERSION_JOURNAL ? MAX_ACTIONS_PUBLICATION : 2
+    if (!Array.isArray(droits) || droits.length === 0 || droits.length > limite) {
       throw new Error('Entrée de journal GitLab invalide.')
     }
     return droits.map((droit) => verifierDroitJournal(droit))

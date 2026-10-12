@@ -44,7 +44,7 @@ function ann(opts: {
 }
 
 describe('instructionsValiderAnon — relabel (jamais les exceptions)', () => {
-  test('relabel les occurrences ANONYMISÉES de la ligne, PAS les exceptions', () => {
+  test('conserve la variante des occurrences anonymisées et ne touche pas les exceptions', () => {
     const p1 = paul(0)
     const p2 = paul(1)
     const annotations = [
@@ -52,7 +52,7 @@ describe('instructionsValiderAnon — relabel (jamais les exceptions)', () => {
       ann({ ...p2, pseudo: 'Y', etat: 'exception' }),
     ]
     const r = instructionsValiderAnon(annotations, [], 'paul', 'Z', texteEntre, () => 'n')
-    expect(r.relabel).toEqual([{ id: annotations[0].id, pseudo: 'Z' }]) // seule l'anonymisée
+    expect(r.relabel).toEqual([{ id: annotations[0].id, pseudo: 'X' }]) // Variante conservée, exception intacte.
     expect(r.poser).toEqual([])
     // rien ne touche l'exception : état et pseudo-mémoire restent intacts.
     expect(annotations[1].etat).toBe('exception')

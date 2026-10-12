@@ -1,20 +1,7 @@
 /**
- *  Anonymisation — cœur PUR du niveau entretien (itération 1).
- *
- *  On anonymise des **occurrences** d'une entité dans le texte ; on ne manipule
- *  QUE du texte plat et des plages. Aucun DOM, aucun ProseMirror → testable
- *  headless. L'intégration éditeur (positions PM, décorations) s'appuie dessus.
- *
- *  Distinction fondamentale :
- *   - une **OccurrenceAnon** = une décision sur une plage de texte, vit dans
- *     `Annotation{type:'anon'}` (entretien) ;
- *   - une **RegleAnon** = un mappage entité→pseudo partagé, vit au corpus
- *     au corpus (pas ici).
- *
- *  En itération 1, l'onglet Anon ne fait que des occurrences : on matche une entité à la
- *  validation, on pose une occurrence par match non déjà couvert. Pas de règle
- *  persistée, pas de « à traiter » en temps réel, pas d'incluses, pas de
- *  multi-alias/multi-pseudo (le modèle de données futur reste `string[]`).
+ *  Détection textuelle et préparation pure des décisions de pseudonymisation.
+ *  Chaque annotation conserve sa plage, son état et la variante choisie.
+ *  Les règles partagées restent définies dans le corpus, indépendamment des locuteurs.
  */
 
 import { cleEntite } from './brouillonsAnon'
@@ -34,24 +21,18 @@ function echapper(s: string): string {
 export function chevauche(a: Plage, b: Plage): boolean {
   return a.from < b.to && b.from < a.to
 }
-/**
- *  Occurrences d'une entité dans un texte plat.
- *
- *  Insensible à la casse, **frontières de mot Unicode** (donc « Paul » ne
- *  matche pas dans « Pauline »). La ponctuation de bord du texte est
- *  naturellement exclue du match : « Lyon. » est couvert par la plage « Lyon »
- *  (le point reste hors de l'occurrence), sans rien rogner manuellement.
- *
- *  Les occurrences d'une même entité ne se chevauchent pas (une regex ne
- *  produit pas de matches se recouvrant pour un littéral). La résolution « la
- *  plus longue gagne » (principe des incluses) n'a donc pas lieu d'être ici ;
- *  elle reviendra avec le multi-alias, où deux alias d'une même entité peuvent
- *  se recouvrir.
- */
+const segmentateurAlias = new Intl.Segmenter('fr', { granularity: 'grapheme' })
+
+/** Recherche les occurrences entières avec leurs positions dans le texte original. */
 export function occurrencesDe(texte: string, entite: string): Plage[] {
   const g = entite.trim()
   if (!g) return []
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(${echapper(g)})(?![\\p{L}\\p{N}])`, 'giu')
+  // Les formes Unicode équivalentes sont reconnues sans changer les positions du texte.
+  const motif = [...segmentateurAlias.segment(g.normalize('NFC'))].map(({ segment }) => {
+    const formes = [...new Set([segment, segment.normalize('NFD')])].map(echapper)
+    return formes.length === 1 ? formes[0] : `(?:${formes.join('|')})`
+  }).join('')
+  const re = new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])(${motif})(?![\\p{L}\\p{N}\\p{M}])`, 'giu')
   const out: Plage[] = []
   for (const m of texte.matchAll(re)) {
     if (m.index == null) continue
@@ -86,11 +67,11 @@ export interface TextePlat {
  *  toujours (ils gardent leur frontière PM `2`).
  */
 export function aplatir(corpsTexte: unknown): TextePlat {
-  const doc = corpsTexte as { content?: Array<{ content?: Array<{ text?: string }> }> }
+  const doc = corpsTexte as { content?: Array<{ content?: Array<{ type?: string; text?: string }> }> }
   const blocs: Array<{ longueur: number }> = []
   const bouts: string[] = []
   for (const p of doc?.content ?? []) {
-    const t = (p.content ?? []).map((n) => n.text ?? '').join('')
+    const t = (p.content ?? []).map((n) => n.type === 'hardBreak' ? '\n' : n.text ?? '').join('')
     blocs.push({ longueur: t.length })
     bouts.push(t)
   }
@@ -124,13 +105,14 @@ export function offsetVersPM(t: TextePlat, offset: number): number | null {
 }
 
 /** Convertit une plage plat [from,to[ en plage PM.
- *  Les deux bornes doivent appartenir au MÊME bloc (garanti par les frontières
- *  de mot + le séparateur). */
+ *  Les deux bornes doivent appartenir au même bloc ; la borne finale est exclusive. */
 export function plageVersPM(t: TextePlat, from: number, to: number): { from: number; to: number } | null {
   const pf = offsetVersPM(t, from)
-  const pt = offsetVersPM(t, to)
-  if (pf == null || pt == null) return null
-  return { from: pf, to: pt }
+  const dernier = offsetVersPM(t, to - 1)
+  if (pf == null || dernier == null || to <= from) return null
+  const bloc = t.blocs.find((b) => b.debut <= pf && pf < b.debut + b.longueur)
+  if (!bloc || dernier >= bloc.debut + bloc.longueur) return null
+  return { from: pf, to: dernier + 1 }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,13 +130,14 @@ export interface InstructionsValiderAnon {
   relabel: Array<{ id: string; pseudo: string }>
   /** Nouvelles occurrences (etat 'anonymise') à poser. */
   poser: Array<{ id: string; from: number; to: number; pseudo: string }>
+  /** Plages contenant une exception et nécessitant une confirmation. */
+  exceptionsProtegees: Plage[]
 }
 
 /**
  *  Applique la validation d'une ligne (Entrée) :
- *   1. Relabel — les occurrences ANONYMISÉES de la ligne reçoivent `pseudo` ;
- *      les EXCEPTIONS gardent leur état et leur pseudo-mémoire intacts
- *      (on n'écrase jamais une exception) ;
+ *   1. Les occurrences anonymisées conservent leurs variantes déclarées ;
+ *      les exceptions gardent leur état et leur pseudo-mémoire intacts ;
  *   2. Pose — une occurrence est posée sur chaque match du texte NON déjà
  *      couvert. Une EXCEPTION au contact du match bloque la pose (le match
  *      reste en clair — « une exception ne repasse jamais à traiter »).
@@ -171,6 +154,8 @@ export function instructionsValiderAnon(
   pseudo: string,
   texteDe: (from: number, to: number) => string,
   genId: () => string,
+  variantesConservees: string[] = annotations.map((a) => a.pseudo ?? '').filter(Boolean),
+  autoriserCouvertureExceptions = false,
 ): InstructionsValiderAnon {
   const ensemble = new Set((Array.isArray(cles) ? cles : [cles]).map((k) => k.toLowerCase()))
   const existant = annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
@@ -180,20 +165,32 @@ export function instructionsValiderAnon(
   const relabel: Array<{ id: string; pseudo: string }> = []
   for (const a of existant) {
     if (a.etat === 'exception') continue
-    if (ensemble.has(cleEntite(texteDe(a.from, a.to)))) relabel.push({ id: a.id, pseudo })
+    if (!ensemble.has(cleEntite(texteDe(a.from, a.to)))) continue
+    const conserver = variantesConservees.some((p) => p.toLowerCase() === a.pseudo?.toLowerCase())
+    relabel.push({ id: a.id, pseudo: conserver ? a.pseudo! : pseudo })
   }
 
   // 2. Pose sur les matches non couverts (avec la garde d'exception).
   const poser: Array<{ id: string; from: number; to: number; pseudo: string }> = []
-  for (const m of matches) {
+  const exceptionsProtegees: Plage[] = []
+  const uniques = matches.filter((m, i) => matches.findIndex((p) => p.from === m.from && p.to === m.to) === i)
+  for (const m of uniques) {
     const touches = existant.filter((a) => chevauche(a, m))
     if (touches.length === 0) {
       poser.push({ id: genId(), from: m.from, to: m.to, pseudo })
       continue
     }
-    // Une exception au contact du match bloque la pose : le match reste en clair.
-    // La partie exceptée est mémorisée, l'autre n'est pas re-marquée (comportement conservateur).
-    if (touches.some((a) => a.etat === 'exception')) continue
+    // Une exception interne exige une confirmation ; une couverture partielle reste refusée.
+    const exceptions = touches.filter((a) => a.etat === 'exception')
+    if (exceptions.length) {
+      const internes = exceptions.every((a) => m.from <= a.from && a.to <= m.to &&
+        (m.from < a.from || a.to < m.to))
+      if (!internes) continue
+      if (!autoriserCouvertureExceptions) {
+        exceptionsProtegees.push(m)
+        continue
+      }
+    }
     // Déjà couvert en entier par une occurrence anonymisée → rien à faire.
     if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue
     // Le match contient des occurrences anonymisées plus étroites.
@@ -204,5 +201,5 @@ export function instructionsValiderAnon(
     }
   }
 
-  return { relabel, poser }
+  return { relabel, poser, exceptionsProtegees }
 }

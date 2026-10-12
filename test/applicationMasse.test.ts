@@ -70,9 +70,14 @@ describe('poserDansPlages — application ciblée (occurrences cochées)', () =>
     { id: 'b', from: 20, to: 25, pseudo: 'X', regle: 'r' },
     { id: 'c', from: 40, to: 45, pseudo: 'X', regle: 'r' },
   ]
-  test('sans plages → tout est conservé (application entière)', () => {
-    expect(poserDansPlages(poser)).toEqual(poser)
-    expect(poserDansPlages(poser, [])).toEqual(poser)
+  test('sans plages → aucune pose implicite', () => {
+    expect(poserDansPlages(poser)).toEqual([])
+  })
+  test('application entière explicitement demandée', () => {
+    expect(poserDansPlages(poser, undefined, true)).toEqual(poser)
+  })
+  test('liste vide → aucune pose demandée', () => {
+    expect(poserDansPlages(poser, [])).toEqual([])
   })
   test('avec plages → seules les occurrences cochées restent', () => {
     const res = poserDansPlages(poser, [{ from: 1, to: 6 }, { from: 40, to: 45 }])

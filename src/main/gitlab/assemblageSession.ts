@@ -109,10 +109,10 @@ export function assemblerSessionGitLab(
     maintenant,
     intervallePublicationMs: options.intervallePublicationMs ?? INTERVALLE_PUBLICATION_GITLAB_MS,
     margeRenouvellementMs: options.margeRenouvellementMs ?? MARGE_RENOUVELLEMENT_GITLAB_MS,
-    preparerGardeDefinitions: async (contenuEntretien) => {
+    preparerGardeDefinitions: async (contenuEntretien, contenuAvant) => {
       const corpus = await depot.lireFichier(cheminCorpus, options.branche)
       if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
-      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
+      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu, contenuAvant)
       return {
         action: 'update',
         chemin: cheminCorpus,

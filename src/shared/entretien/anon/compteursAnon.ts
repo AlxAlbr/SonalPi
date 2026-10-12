@@ -11,8 +11,9 @@
  */
 import type { Annotation } from '../annotation'
 import { estOrpheline } from '../annotation'
-import { aplatir, occurrencesDe, plageVersPM, type TextePlat } from './anonymisation'
+import { aplatir, plageVersPM, type TextePlat } from './anonymisation'
 import { cleEntite } from './brouillonsAnon'
+import { classerPlage, matchesAliases } from './classification'
 
 /** Catégorie navigable d'un compteur : état posé (par variante) ou requête. */
 export type CategorieReperage = 'anonymise' | 'exception' | 'a-anonymiser'
@@ -49,19 +50,13 @@ function classerMatches(
   const vivantes = annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
   const aAnonymiser: HitAAAnonymiser[] = []
   const incluses: HitIncluse[] = []
-  for (const g of alias) {
-    for (const m of occurrencesDe(plat.texte, g)) {
-      const pm = plageVersPM(plat, m.from, m.to)
-      if (!pm) continue
-      const englobante = vivantes.find((a) => a.from <= pm.from && pm.to <= a.to)
-      if (!englobante) {
-        aAnonymiser.push(pm)
-        continue
-      }
-      const texteAbsorbant = texteDe(englobante.from, englobante.to)
-      if (!ensemble.has(cleEntite(texteAbsorbant))) {
-        incluses.push({ from: pm.from, to: pm.to, par: texteAbsorbant })
-      }
+  for (const m of matchesAliases(plat.texte, alias)) {
+    const pm = plageVersPM(plat, m.from, m.to)
+    if (!pm) continue
+    const decision = classerPlage(vivantes, pm, ensemble, texteDe)
+    if (decision.etat === 'non') aAnonymiser.push(pm)
+    if (decision.etat === 'incl' && decision.annotation) {
+      incluses.push({ ...pm, par: texteDe(decision.annotation.from, decision.annotation.to) })
     }
   }
   const parPosition = (x: { from: number }, y: { from: number }) => x.from - y.from

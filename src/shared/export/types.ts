@@ -37,6 +37,7 @@ export interface EntreeExport {
   reglesAnon?: RegleAnon[]
   /** Brouillons d'anonymisation de CET entretien → entries `portee:'brouillon'`. */
   brouillonsAnon?: BrouillonAnon[]
+  definitionsAnonLocales?: import('../entretien/anon/definitionsLocales').DefinitionAnonLocale[]
 }
 
 /** Options de la fenêtre d'export (cases à cocher du panneau « options »). */

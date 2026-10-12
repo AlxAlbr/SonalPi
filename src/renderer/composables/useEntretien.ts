@@ -89,6 +89,7 @@ export function useEntretien(deps: {
   rafraichirReglesCorpus?: () => Promise<void>
   /** Publie le retrait local avant de supprimer sa définition partagée. */
   publierAvantSuppressionDefinition?: () => Promise<boolean>
+  demanderDissociationCorpus?: (regleId: string) => Promise<boolean>
   /** Priorité de validation définie dans `corpus.json.paramsAnon` : la portée
    *  qu'applique ENTRÉE sur une ligne du tableau ; Maj+Entrée fait l'inverse. */
   prioriteAnon: () => 'corpus' | 'entretien'
@@ -187,6 +188,7 @@ export function useEntretien(deps: {
     reglesAnon: deps.reglesAnon,
     rafraichirReglesCorpus: deps.rafraichirReglesCorpus,
     publierAvantSuppressionDefinition: deps.publierAvantSuppressionDefinition,
+    demanderDissociationCorpus: deps.demanderDissociationCorpus,
     prioriteAnon: deps.prioriteAnon,
     motsLiaison: deps.motsLiaison,
     thematiques: deps.thematiques,
@@ -204,7 +206,11 @@ export function useEntretien(deps: {
     reperageAnon,
     brouillonsAnon,
     pseudosDeclares,
+    definitionsAnonLocales,
     dialoguePorteeCorpus,
+    confirmationCouverture,
+    accepterCouverture,
+    refuserCouverture,
     suggestionLiaison,
     thematiquesActives,
     rafraichirCompteursAAAnonymiser,
@@ -532,6 +538,7 @@ export function useEntretien(deps: {
       // Même raison : brouillonsAnon.value est un proxy réactif → aplatir.
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
       pseudosDeclares: JSON.parse(JSON.stringify(pseudosDeclares.value)),
+      definitionsAnonLocales: JSON.parse(JSON.stringify(definitionsAnonLocales.value)),
       notes: JSON.parse(JSON.stringify(notes.value)),
       // legacyCourant est un ref → .value est un proxy réactif, non clonable par
       // l'IPC (structured clone) : on l'aplatit aussi.
@@ -575,7 +582,7 @@ export function useEntretien(deps: {
     meta.audioRef = res.data.meta.audioRef
     meta.audioDistant = res.data.meta.audioDistant ?? null
     anonymisationEntretien.reinitialiser()
-    anonymisationEntretien.charger(res.data.brouillonsAnon, res.data.pseudosDeclares)
+    anonymisationEntretien.charger(res.data.brouillonsAnon, res.data.pseudosDeclares, res.data.definitionsAnonLocales)
     notesEntretien.charger(res.data.notes)
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
@@ -657,6 +664,7 @@ export function useEntretien(deps: {
       },
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
       pseudosDeclares: JSON.parse(JSON.stringify(pseudosDeclares.value)),
+      definitionsAnonLocales: JSON.parse(JSON.stringify(definitionsAnonLocales.value)),
     }
     const { fusion, ajouts } = fusionnerEntretiens(courant, copie)
     entretien.annotations = fusion.annotations
@@ -666,6 +674,7 @@ export function useEntretien(deps: {
     Object.assign(meta.valeursGen, fusion.meta.valeursGen)
     brouillonsAnon.value = fusion.brouillonsAnon ?? []
     pseudosDeclares.value = fusion.pseudosDeclares ?? {}
+    definitionsAnonLocales.value = fusion.definitionsAnonLocales ?? []
     rafraichir()
     rafraichirDecorations()
     planifierSauvegarde()
@@ -739,6 +748,7 @@ export function useEntretien(deps: {
     meta: { valeursGen: Record<string, string>; audioRef: string | null }
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
+    definitionsAnonLocales: import('../../shared/entretien/anon/definitionsLocales').DefinitionAnonLocale[]
     notes: Note[]
     reperesPassages: ReperePassage[]
   } {
@@ -750,6 +760,7 @@ export function useEntretien(deps: {
       meta: { valeursGen: meta.valeursGen, audioRef: meta.audioRef },
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,
+      definitionsAnonLocales: definitionsAnonLocales.value,
       notes: notes.value,
       reperesPassages: entretien.reperesPassages.map((repere) => ({ ...repere })),
     }
@@ -863,6 +874,9 @@ export function useEntretien(deps: {
     basculerAnonymise,
     basculerPseudoOccurrence,
     dialoguePorteeCorpus,
+    confirmationCouverture,
+    accepterCouverture,
+    refuserCouverture,
     alignerCorpus,
     garderLesDeuxCorpus,
     annulerDialogueCorpus,

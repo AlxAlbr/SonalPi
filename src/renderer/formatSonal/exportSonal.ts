@@ -14,7 +14,7 @@ import { couleurCss } from '../../shared/export/secuCss'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
-import { scinderPseudos } from '../../shared/entretien/anon'
+import { cleEntite, scinderPseudos } from '../../shared/entretien/anon'
 
 /** Une règle d'anonymisation à la forme SonalPi1 (`remplacement`/`remplacementAlt`). */
 function formeSonalPi(entite: string, pseudos: string[]): Record<string, unknown> {
@@ -39,10 +39,16 @@ function construireTabAnon(e: EntreeExport): unknown[] {
       const r = e.reglesAnon.find((x) => x.id === a.regle)
       if (!r) continue
       vus.add(a.regle)
-      tab.push({ ...formeSonalPi(r.entite[0] ?? '', r.pseudos), portee: 'corpus' })
+      tab.push({ ...formeSonalPi(r.entite.join(' / '), r.pseudos), portee: 'corpus', ...(r.categorie ? { thematique: r.categorie } : {}) })
     }
   }
+  for (const d of e.definitionsAnonLocales ?? []) {
+    tab.push({ ...formeSonalPi(d.entite.join(' / '), d.pseudos), portee: d.etat === 'brouillon' ? 'brouillon' : 'document',
+      ...(d.categorie ? { thematique: d.categorie } : {}), ...(d.etat === 'brouillon' ? { occurrences: 0 } : {}),
+    })
+  }
   for (const b of e.brouillonsAnon ?? []) {
+    if (e.definitionsAnonLocales?.some((d) => cleEntite(d.entite.join('/')) === cleEntite(b.entite))) continue
     const pseudos = scinderPseudos(b.pseudo ?? '')
     tab.push({ ...formeSonalPi(b.entite, pseudos), portee: 'brouillon', occurrences: 0 })
   }

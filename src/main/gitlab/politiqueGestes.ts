@@ -34,6 +34,18 @@ export type PorteeGesteCorpus =
   | 'valeurs-entretien'
   /** Application d'une règle de pseudonymisation à un entretien. */
   | 'pseudonymisation-entretiens'
+  /** Renommage global des usages liés, après inventaire complet et reprise qualifiée. */
+  | 'pseudonymisation-globale'
+  /** Transfert des usages et mémoire complète avant retrait de la définition partagée. */
+  | 'pseudonymisation-dissociation'
+  /** Retrait global des décisions textuelles attribuées, puis de leur règle. */
+  | 'pseudonymisation-suppression-globale'
+  /** Ajout d’une variante sans publication d’entretien, qualifié séparément. */
+  | 'pseudonymisation-ajout-variante'
+  /** Retrait d’une variante et repli des choix liés, après bilan et confirmation. */
+  | 'pseudonymisation-retrait-variante'
+  /** Import ciblé, avec publication et reprise propres au fournisseur. */
+  | 'correspondances-entretiens'
   /** Réaffectation des codages, avec création éventuelle de catégories. */
   | 'themes-reaffectation'
   /** Réaffectation suivie du retrait protégé de la source. */
@@ -55,8 +67,31 @@ export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = [
   'suppression-entretien',
   'valeurs-entretien',
   'pseudonymisation-entretiens',
+  'correspondances-entretiens',
+  'pseudonymisation-globale',
+  'pseudonymisation-dissociation',
+  'pseudonymisation-suppression-globale',
+  'pseudonymisation-ajout-variante',
+  'pseudonymisation-retrait-variante',
   'themes-reaffectation',
   'themes-reaffectation-suppression',
+]
+
+/** Les portées WebDAV sont qualifiées séparément de celles de GitLab. */
+export const PORTEES_OUVERTES_WEBDAV: PorteeGesteCorpus[] = [
+  'definitions-corpus',
+  'definitions-avec-sources',
+  'tri-contenus',
+  'suppression-definition',
+  'suppression-entretien',
+  'valeurs-entretien',
+  'pseudonymisation-entretiens',
+  'correspondances-entretiens',
+  'themes-reaffectation',
+  'pseudonymisation-globale',
+  'pseudonymisation-dissociation',
+  'pseudonymisation-suppression-globale',
+  'pseudonymisation-ajout-variante',
 ]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
@@ -70,20 +105,17 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'suppression-entretien',
     'valeurs-entretien',
     'pseudonymisation-entretiens',
+    'correspondances-entretiens',
     'themes-reaffectation',
     'themes-reaffectation-suppression',
+    'pseudonymisation-globale',
+    'pseudonymisation-dissociation',
+    'pseudonymisation-suppression-globale',
+    'pseudonymisation-ajout-variante',
+    'pseudonymisation-retrait-variante',
     'indisponible',
   ],
-  webdav: [
-    'definitions-corpus',
-    'definitions-avec-sources',
-    'tri-contenus',
-    'suppression-definition',
-    'suppression-entretien',
-    'valeurs-entretien',
-    'pseudonymisation-entretiens',
-    'themes-reaffectation',
-  ],
+  webdav: PORTEES_OUVERTES_WEBDAV,
   gitlab: PORTEEES_OVERTES_GITLAB,
 }
 
@@ -150,7 +182,14 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
 
   // Pseudonymisation.
   'anon.creer-regle': 'definitions-corpus',
+  'anon.importer-regles': 'definitions-corpus',
+  'anon.importer-cibles': 'correspondances-entretiens',
+  'anon.renommer-variante': 'pseudonymisation-globale',
+  'anon.dissocier-globalement': 'pseudonymisation-dissociation',
+  'anon.supprimer-partout': 'pseudonymisation-suppression-globale',
   'anon.ajouter-pseudo': 'definitions-corpus',
+  'anon.ajouter-variante': 'pseudonymisation-ajout-variante',
+  'anon.retirer-variante': 'pseudonymisation-retrait-variante',
   'anon.supprimer-regle': 'suppression-definition',
   'anon.renommer-theme': 'definitions-corpus',
   'anon.ecrire-parametres': 'definitions-corpus',
@@ -280,6 +319,11 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   | 'suppressionEntretien'
   | 'tableDonnees'
   | 'pseudonymisationEntretiens'
+  | 'pseudonymisationGlobale'
+  | 'dissociationGlobale'
+  | 'suppressionAnonGlobale'
+  | 'ajoutVarianteAnon'
+  | 'retraitVarianteAnon'
   | 'transfertThemes'
   | 'divisionThemes'
   | 'fusionThemes'
@@ -333,6 +377,11 @@ export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpu
     suppressionEntretien: portees.has('suppression-entretien'),
     tableDonnees: portees.has('valeurs-entretien'),
     pseudonymisationEntretiens: portees.has('pseudonymisation-entretiens'),
+    pseudonymisationGlobale: portees.has('pseudonymisation-globale'),
+    dissociationGlobale: portees.has('pseudonymisation-dissociation'),
+    suppressionAnonGlobale: portees.has('pseudonymisation-suppression-globale'),
+    ajoutVarianteAnon: portees.has('pseudonymisation-ajout-variante'),
+    retraitVarianteAnon: portees.has('pseudonymisation-retrait-variante'),
     transfertThemes: gesteAutorise(fournisseur, 'theme.transferer'),
     divisionThemes: gesteAutorise(fournisseur, 'theme.diviser'),
     fusionThemes: gesteAutorise(fournisseur, 'theme.fusionner'),

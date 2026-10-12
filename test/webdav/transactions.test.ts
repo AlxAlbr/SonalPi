@@ -621,6 +621,7 @@ describe('Suppression d\u2019entretien — double verrou', () => {
 import { ErreurHttp } from '../../src/main/webdav/client'
 import { poserValeurLotLocal, appliquerRegleLotLocal } from '../../src/main/distant/transactions'
 import type { CibleRegleAnon } from '../../src/shared/format'
+import { empreinteAnon } from '../../src/shared/entretien/anon/classification'
 import type { ItemLotValeur } from '../../src/shared/format'
 
 /** Deux items de lot : UNE valeur « Ville = Lyon » pour e1 et e2. */
@@ -846,11 +847,96 @@ async function bancAnon() {
 }
 
 const LOT_ANON: CibleRegleAnon[] = [
-  { entretienId: 'e1', regleId: 'reg-1' },
-  { entretienId: 'e2', regleId: 'reg-1' },
+  { entretienId: 'e1', regleId: 'reg-1', toutes: true },
+  { entretienId: 'e2', regleId: 'reg-1', toutes: true },
 ]
 
 describe("Lot d'anonymisation en masse — distant (verrou court par entretien)", () => {
+  it('refuse les positions d’un miroir périmé après la lecture fraîche sous verrou', async () => {
+    const { serveur, miroir, tx } = await bancAnon()
+    const source = readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
+    const data = JSON.parse(source) as EntretienFichier
+    const regle = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
+    const empreinte = empreinteAnon(data, regle)
+    data.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte synthétique révisé.' }] }] }
+    const revision = JSON.stringify(data)
+    serveur.poser('entretiens/e2.json', revision)
+    const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: regle.id, plages: [{ from: 9, to: 15 }], empreinte }])
+    expect(resultat.succes).toEqual([])
+    expect(resultat.echecs[0].raison).toContain('périmé')
+    expect(serveur.contenuDe('entretiens/e2.json')).toBe(revision)
+    expect(readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')).toBe(source)
+    expect(serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
+  })
+
+  it('relit la règle sous verrou corpus et refuse un aperçu basé sur son ancien pseudo', async () => {
+    const { serveur, miroir, tx } = await bancAnon()
+    const source = serveur.contenuDe('entretiens/e2.json')!
+    const data = JSON.parse(source) as EntretienFichier
+    const regle = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
+    const empreinte = empreinteAnon(data, regle)
+    const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+    corpus.reglesAnon['reg-1'].pseudos = ['Autre variante']
+    serveur.poser('corpus.json', JSON.stringify(corpus))
+    const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: regle.id, empreinte, plages: [{ from: 9, to: 15 }] }])
+    expect(resultat.succes).toEqual([])
+    expect(resultat.echecs[0].raison).toContain('périmé')
+    expect(serveur.contenuDe('entretiens/e2.json')).toBe(source)
+    expect(JSON.parse(readFileSync(join(miroir.dirLocal, 'corpus.json'), 'utf8')).reglesAnon['reg-1'].pseudos).toEqual(['Autre variante'])
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
+  })
+
+  it('applique la définition distante fraîche et garde corpus puis entretien jusqu’à la publication', async () => {
+    const { serveur, clientMax, tx } = await bancAnon()
+    const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+    corpus.reglesAnon['reg-1'].pseudos = ['Pseudo actuel']
+    serveur.poser('corpus.json', JSON.stringify(corpus))
+    const publier = clientMax.putTexte.bind(clientMax)
+    const ordre: string[] = []
+    clientMax.putTexte = async (chemin, contenu, options) => {
+      ordre.push(chemin)
+      if (chemin === 'entretiens/e2.json') {
+        expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeDefined()
+        expect(serveur.contenuDe('verrous/e2.lock.json')).toBeDefined()
+      }
+      return publier(chemin, contenu, options)
+    }
+    const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1', toutes: true }])
+    expect(resultat.echecs).toEqual([])
+    expect(resultat.succes[0].actions.poses).toBe(2)
+    expect(ordre.indexOf('verrous/corpus.lock.json')).toBeLessThan(ordre.indexOf('verrous/e2.lock.json'))
+    const publie = JSON.parse(serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(publie.annotations.every((a) => a.pseudo === 'Pseudo actuel')).toBe(true)
+  })
+
+  it('une définition modifiée hors protocole entre les lectures interdit le PUT d’entretien', async () => {
+    const { serveur, clientMax, tx } = await bancAnon()
+    const source = serveur.contenuDe('entretiens/e2.json')!
+    const lire = clientMax.getTexte.bind(clientMax)
+    clientMax.getTexte = async (chemin) => {
+      const contenu = await lire(chemin)
+      if (chemin === 'entretiens/e2.json') {
+        const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+        corpus.reglesAnon['reg-1'].pseudos = ['Modification concurrente']
+        serveur.poser('corpus.json', JSON.stringify(corpus))
+      }
+      return contenu
+    }
+    const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1', toutes: true }])
+    expect(resultat.succes).toEqual([])
+    expect(resultat.echecs[0].raison).toContain('définition corpus a changé')
+    expect(serveur.contenuDe('entretiens/e2.json')).toBe(source)
+  })
+
+  it('un diff vide ne demande pas une application entière', async () => {
+    const { serveur, tx } = await bancAnon()
+    const source = serveur.contenuDe('entretiens/e2.json')
+    const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1', plages: [] }])
+    expect(resultat.succes[0].nb).toBe(0)
+    expect(serveur.contenuDe('entretiens/e2.json')).toBe(source)
+  })
+
   it('lot de 2 libres → occurrences posées côté serveur ET miroir, verrous libérés', async () => {
     // e1 (baseline) n'a pas de texte « Karine » → 0 occurrence mais succès ;
     // e2 en porte deux → les deux sont couvertes.
@@ -900,7 +986,7 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
     }
     const avant = readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
 
-    const r = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1' }])
+    const r = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1', toutes: true }])
     expect(r.succes).toEqual([])
     expect(r.echecs[0].raison).toMatch(/divergence/i)
     expect(readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')).toBe(avant)
@@ -914,7 +1000,7 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
       getSessions: () => ({ idsTenus: () => tenus, noterSale: (id) => sales.push(id) }),
     })
 
-    const r = await txSessions.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1' }])
+    const r = await txSessions.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1', toutes: true }])
     expect(r.succes.map((x) => [x.id, x.nb])).toEqual([['e2', 2]])
     expect(sales).toEqual(['e2']) // la publication suivra la session existante.
     // Chemin STORE : le fichier local porte les annotations…
@@ -1324,7 +1410,7 @@ describe('Correction courte d’un entretien distant', () => {
       getSessions: () => ({
         idsTenus: () => ['e2'],
         noterSale: () => ordre.push('session-sale'),
-        publier: async () => {
+        publierSousVerrouCorpus: async () => {
           ordre.push('session-publiee')
           const contenu = readFileSync(join(b.miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
           await b.clientMax.putTexte('entretiens/e2.json', contenu)
@@ -1603,13 +1689,13 @@ describe("Lot d'anonymisation en masse — corpus LOCAL (boucle directe du store
     writeFileSync(join(dir, 'entretiens', 'e1.json'), entretienKarine(), 'utf8')
 
     const r = await appliquerRegleLotLocal(store, [
-      { entretienId: 'e1', regleId: 'reg-1' },
-      { entretienId: 'e1', regleId: 'reg-1' }, // doublon : un seul cycle.
-      { entretienId: 'e9', regleId: 'reg-inconnu' }, // absent : succès à 0 (contrat store)
+      { entretienId: 'e1', regleId: 'reg-1', toutes: true },
+      { entretienId: 'e1', regleId: 'reg-1', toutes: true }, // Doublon : un seul cycle.
+      { entretienId: 'e9', regleId: 'reg-inconnu', toutes: true }, // absent : succès à 0 (contrat store)
     ])
     expect(r.succes).toEqual([
-      { id: 'e1', nb: 2, titre: expect.any(String) },
-      { id: 'e9', nb: 0, titre: 'e9' },
+      { id: 'e1', nb: 2, titre: expect.any(String), actions: { poses: 2, retraits: 0, exceptionsAjoutees: 0, exceptionsRetirees: 0 } },
+      { id: 'e9', nb: 0, titre: 'e9', actions: { poses: 0, retraits: 0, exceptionsAjoutees: 0, exceptionsRetirees: 0 } },
     ])
     expect(r.echecs).toEqual([])
     const data = JSON.parse(readFileSync(join(dir, 'entretiens', 'e1.json'), 'utf8')) as {
