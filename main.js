@@ -494,7 +494,10 @@ ipcMain.handle('file:exists', async (_, filePath) => {
 // Lister les fichiers .rcl dans le dossier du corpus courant (local ou distant)
 ipcMain.handle('lister-recueils', async () => {
   try {
-    if (!Corpus.folder) {
+    // Un corpus GitLab placé à la racine du dépôt a légitimement un dossier vide ("").
+    // Ne pas le confondre avec l'absence de corpus, sinon les .rcl sont bien créés à la
+    // racine mais disparaissent de la liste dès que le panneau est rouvert.
+    if (!Corpus.type || Corpus.folder === null || Corpus.folder === undefined) {
       return { success: false, error: 'Aucun corpus ouvert' };
     }
 
@@ -1576,6 +1579,24 @@ ipcMain.handle('entretien:demande-vue-corpus', async (event, payload) => {
   if (entWindow) {
     entWindow._navRetourCorpus = payload;
     entWindow.close();
+  }
+});
+
+// Déverrouillage explicite : GitLab contrôle les droits, y compris en mode force.
+ipcMain.handle('deverrouiller-entretien-gitlab', async (event, rgEnt) => {
+  if (Corpus.type !== 'gitlab' || !remoteAPI() ||
+      !Number.isInteger(rgEnt) || !tabEnt[rgEnt]?.rtrPath) {
+    return { success: false, error: 'Entretien GitLab indisponible.' };
+  }
+  try {
+    const adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
+    const result = await remoteAPI().deverrouillerFichier(adrFile, { force: true });
+    if (result.success && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('entretien-deverrouille', rgEnt);
+    }
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });
 

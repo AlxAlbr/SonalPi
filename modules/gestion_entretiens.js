@@ -607,7 +607,29 @@ async function afficherEnt(rgDep, rgFin){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)
-                                    question(`L'entretien est actuellement édité par ${result.user}.\nVous ne pouvez pas l'éditer pour le moment.`, ['OK']);
+                                    if (Corpus.type === 'gitlab') {
+                                        const choix = await question(
+                                            `L'entretien est verrouillé par ${result.user}.\nDéverrouiller peut interrompre la protection de son travail en cours.`,
+                                            ['Déverrouiller', 'Annuler']
+                                        );
+                                        if (choix === 'déverrouiller') {
+                                            try {
+                                                const res = await electronAPI.deverrouillerEntretienGitlab(rkEnt);
+                                                if (res.success) {
+                                                    this.classList.remove('btn-verrou');
+                                                    this.classList.add('btn-edit');
+                                                } else {
+                                                    await question(res.permissionDenied
+                                                        ? "Vous n'avez pas les droits nécessaires pour déverrouiller cet entretien sur GitLab."
+                                                        : `Impossible de déverrouiller l'entretien : ${res.error || 'erreur inconnue'}`, ['OK']);
+                                                }
+                                            } catch (error) {
+                                                await question(`Impossible de déverrouiller l'entretien : ${error.message}`, ['OK']);
+                                            }
+                                        }
+                                    } else {
+                                        question(`L'entretien est actuellement édité par ${result.user}.\nVous ne pouvez pas l'éditer pour le moment.`, ['OK']);
+                                    }
                                     editable=false; 
                                     return   // Ne pas ouvrir la fenêtre d'édition
                         }
