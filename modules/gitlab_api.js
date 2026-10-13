@@ -501,7 +501,7 @@ class GitLabAPI {
    * Déverrouille un fichier LFS
    * Cherche d'abord l'id du lock par chemin, puis le supprime
    */
-  async deverrouillerFichier(filePath) {
+  async deverrouillerFichier(filePath, { force = false } = {}) {
     console.log('🔓 Déverrouillage LFS:', filePath);
     try {
       // 1. Récupérer l'id du lock pour ce chemin
@@ -514,7 +514,7 @@ class GitLabAPI {
 
       // 2. Supprimer le lock (protocole LFS : POST /locks/:id/unlock)
       const body = {
-        force: false,
+        force,
         ref: { name: `refs/heads/${this.branch}` },
       };
       await this._requestLFS('POST', `/locks/${lockId}/unlock`, body);
@@ -522,8 +522,12 @@ class GitLabAPI {
       console.log('✅ Verrou supprimé');
       return { success: true };
     } catch (error) {
-      // 404 = LFS Locks non disponible — rien à déverrouiller
-      if (error.statusCode === 404 || error.statusCode === 403) {
+      // Un refus de GitLab ne doit jamais être annoncé comme un succès.
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        return { success: false, permissionDenied: true, error: error.message };
+      }
+      // Pour une action explicite, ne pas masquer une API LFS indisponible.
+      if (error.statusCode === 404 && !force) {
         console.warn('⚠️ LFS Locks non disponible — déverrouillage ignoré');
         return { success: true };
       }

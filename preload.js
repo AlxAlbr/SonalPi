@@ -185,6 +185,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ///////////////////////////////////////////////////////////////////////////
   
   isEntretienLocked: (rk) => ipcRenderer.invoke('entretien-locked', rk),
+  deverrouillerEntretienGitlab: (rk) => ipcRenderer.invoke('deverrouiller-entretien-gitlab', rk),
   editerEntretien: (rk, navTarget = null) => ipcRenderer.invoke('editer-entretien', rk, navTarget),
 
   // Navigation corpus <-> entretien (pseudonymisation)
