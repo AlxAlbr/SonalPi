@@ -3144,11 +3144,18 @@ app.on('ready', () => {
             { label: 'Par date de modification', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'date-modification') },
             { label: 'Par longueur', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'longueur') }
           ]
+        },
+
+                { type: 'separator' },
+      
+        { 
+          label: 'Exporter tous les entretiens',
+          click: () => mainWindow.webContents.send('menu:exporter-tous-entretiens')
         }
  
       ]
     },
-        { // menu entretiens
+        { // menu catégories
       label: 'Catégories',
       submenu: [
         { 
@@ -3161,7 +3168,7 @@ app.on('ready', () => {
  
       ]
     },
-     
+     /*
     {
       label: 'Édition',
       submenu: [
@@ -3172,6 +3179,7 @@ app.on('ready', () => {
         { role: 'paste', label: 'Coller' }
       ]
     }
+      */
       
   ]
 
@@ -3837,6 +3845,214 @@ ipcMain.handle('export-corpus-docx-zip', async (event, fichiers, defaultName) =>
     return { success: true, filePath };
   } catch (error) {
     console.error('❌ Erreur export-corpus-docx-zip :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Export corpus DOCX : document unique (tous les entretiens concaténés)
+ipcMain.handle('export-corpus-docx-single', async (event, payload) => {
+  try {
+    const nomCorpus = payload && payload.nomCorpus ? payload.nomCorpus : 'Corpus';
+    const sections = Array.isArray(payload && payload.sections) ? payload.sections : [];
+    const entete = payload && payload.entete !== false;
+    const nomFichier = payload && payload.nomFichier ? payload.nomFichier : 'corpus.docx';
+
+    if (sections.length === 0) return { success: false, error: 'Aucun contenu à exporter.' };
+
+    let contenuTxt = '';
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i] || {};
+      const titre = s.nomEntretien || `Entretien ${i + 1}`;
+      const bloc = s.contenuTxt || '';
+      if (i > 0) contenuTxt += '\n\n';
+      contenuTxt += `===== ${titre} =====\n\n${bloc}`;
+    }
+
+    const buffer = await construireDocxBuffer({
+      nomEntretien: nomCorpus,
+      contenuTxt,
+      notes: '',
+      variables: '',
+      entete
+    });
+
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+      ? Corpus.folder
+      : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document Word', extensions: ['docx'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, buffer);
+    shell.openPath(filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-corpus-docx-single :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+function construirePdfBuffer({ nomEntretien, contenuTxt, notes, variables, entete = true }) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      if (entete !== false) {
+        doc.fontSize(18).font('Helvetica-Bold').text('ENTRETIEN', { underline: false });
+        doc.moveDown(0.5);
+        doc.fontSize(16).font('Helvetica-Bold').text(nomEntretien || 'Entretien');
+        doc.moveDown(0.5);
+        const currentDate = new Date().toLocaleString();
+        const versionSonal = '1.0.56';
+        doc.fontSize(10).font('Helvetica').text(`Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`);
+        doc.moveDown(1);
+      }
+
+      if (notes) {
+        doc.fontSize(12).font('Helvetica-Bold').text('NOTES');
+        doc.moveDown(0.3);
+        doc.fontSize(11).font('Helvetica');
+        for (const line of String(notes).split('\n')) {
+          if (!line) {
+            doc.text('');
+            continue;
+          }
+          parsePdfLine(doc, line, 480);
+        }
+        doc.moveDown(0.5);
+      }
+
+      if (variables) {
+        doc.fontSize(12).font('Helvetica-Bold').text('VARIABLES');
+        doc.moveDown(0.3);
+        doc.fontSize(11).font('Helvetica');
+        for (const line of String(variables).split('\n')) {
+          if (!line) {
+            doc.text('');
+            continue;
+          }
+          parsePdfLine(doc, line, 480);
+        }
+        doc.moveDown(0.5);
+      }
+
+      doc.fontSize(12).font('Helvetica-Bold').text('CONTENU');
+      doc.moveDown(0.3);
+      doc.fontSize(11).font('Helvetica');
+      for (const line of String(contenuTxt || '').split('\n')) {
+        if (!line) {
+          doc.text('');
+          continue;
+        }
+        parsePdfLine(doc, line, 480);
+      }
+
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Export corpus PDF : un .pdf par entretien, regroupés dans un ZIP (un seul dialogue d'enregistrement).
+ipcMain.handle('export-corpus-pdf-zip', async (event, fichiers, defaultName) => {
+  if (!Array.isArray(fichiers) || fichiers.length === 0) {
+    return { success: false, error: 'Aucun fichier à exporter.' };
+  }
+
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+    ? Corpus.folder
+    : app.getPath('documents');
+  const defaultPath = path.join(defaultDir, defaultName || 'corpus_pdf.zip');
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Exporter les entretiens (PDF)',
+    defaultPath,
+    filters: [{ name: 'Archive ZIP', extensions: ['zip'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  try {
+    const zip = new AdmZip();
+    const nomsUtilises = new Set();
+    for (const f of fichiers) {
+      if (!f) continue;
+      const buffer = await construirePdfBuffer({
+        nomEntretien: f.nomEntretien || f.nom || 'Entretien',
+        contenuTxt: f.contenuTxt || '',
+        notes: f.notes || '',
+        variables: f.variables || '',
+        entete: f.entete !== false
+      });
+      let nom = f.nom || ((f.nomEntretien || 'Entretien') + '.pdf');
+      while (nomsUtilises.has(nom.toLowerCase())) nom = nom.replace(/\.pdf$/i, '') + '_2.pdf';
+      nomsUtilises.add(nom.toLowerCase());
+      zip.addFile(nom, buffer);
+    }
+    zip.writeZip(filePath);
+    console.log('✅ Archive PDF enregistrée :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-corpus-pdf-zip :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Export corpus PDF : document unique (tous les entretiens concaténés)
+ipcMain.handle('export-corpus-pdf-single', async (event, payload) => {
+  try {
+    const nomCorpus = payload && payload.nomCorpus ? payload.nomCorpus : 'Corpus';
+    const sections = Array.isArray(payload && payload.sections) ? payload.sections : [];
+    const entete = payload && payload.entete !== false;
+    const nomFichier = payload && payload.nomFichier ? payload.nomFichier : 'corpus.pdf';
+
+    if (sections.length === 0) return { success: false, error: 'Aucun contenu à exporter.' };
+
+    let contenuTxt = '';
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i] || {};
+      const titre = s.nomEntretien || `Entretien ${i + 1}`;
+      const bloc = s.contenuTxt || '';
+      if (i > 0) contenuTxt += '\n\n';
+      contenuTxt += `===== ${titre} =====\n\n${bloc}`;
+    }
+
+    const buffer = await construirePdfBuffer({
+      nomEntretien: nomCorpus,
+      contenuTxt,
+      notes: '',
+      variables: '',
+      entete
+    });
+
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+      ? Corpus.folder
+      : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document PDF', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, buffer);
+    shell.openPath(filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-corpus-pdf-single :', error);
     return { success: false, error: error.message };
   }
 });

@@ -206,6 +206,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuTriEntretiens: (callback) =>
     ipcRenderer.on('menu:tri-entretiens', (event, mode) => callback(mode)),
 
+  // Écouter la demande du menu pour exporter tous les entretiens
+  onMenuExporterTousEntretiens: (callback) =>
+    ipcRenderer.on('menu:exporter-tous-entretiens', () => callback()),
+
   // Écouter le signal de fermeture de la fenêtre
   onSaveAndClose: (callback) =>
     ipcRenderer.on('save-and-close', () => callback()),
@@ -246,6 +250,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Export corpus DOCX : construit un .docx par entretien et les regroupe dans un ZIP (un seul dialogue)
   exportCorpusDocxZip: (fichiers, defaultName) => ipcRenderer.invoke('export-corpus-docx-zip', fichiers, defaultName),
+  // Export corpus DOCX : construit un document unique
+  exportCorpusDocxSingle: (payload) => ipcRenderer.invoke('export-corpus-docx-single', payload),
+
+  // Export corpus PDF : construit un .pdf par entretien et les regroupe dans un ZIP (un seul dialogue)
+  exportCorpusPdfZip: (fichiers, defaultName) => ipcRenderer.invoke('export-corpus-pdf-zip', fichiers, defaultName),
+  // Export corpus PDF : construit un document unique
+  exportCorpusPdfSingle: (payload) => ipcRenderer.invoke('export-corpus-pdf-single', payload),
 
   // Lister les fichiers .rcl dans le dossier du corpus courant (local ou distant)
   listerRecueils: () => ipcRenderer.invoke('lister-recueils'),

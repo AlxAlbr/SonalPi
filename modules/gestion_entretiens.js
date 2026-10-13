@@ -3068,3 +3068,827 @@ async function genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenu
 function AnonymiserHtml(contenuHtml) {
     return _anonymiserHtml(contenuHtml);
 }
+
+// Le cache main fourni par getHtml() est autoritaire, même vide. ent.html n'est qu'un repli
+// legacy quand le cache est absent : ne jamais préférer un instantané .crp périmé.
+function _sourceHtmlExport(ent, htmlCache) {
+    return htmlCache != null ? htmlCache : ((ent && ent.html) || '');
+}
+
+// Anonymise le texte ET les libellés, en préservant l'encadrement legacy par backticks.
+function _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite = null) {
+    const raw = _sourceHtmlExport(ent, htmlCache);
+    const aBackticks = typeof raw === 'string' && raw.startsWith('`') && raw.endsWith('`');
+    const inner = aBackticks ? raw.slice(1, -1) : raw;
+    const anon = avecContexteIntegriteAnonymisation(
+        () => _anonymiserHtml(inner),
+        contexteIntegrite || {}
+    );
+    return aBackticks ? '`' + anon + '`' : anon;
+}
+
+/**
+ * HTML stocké d'un entretien prêt pour la génération de texte (txt/docx/pdf) : anonymisé si demandé,
+ * et toujours dé-encadré des backticks.
+ */
+function _htmlEntretienPourExport(ent, htmlCache, anon, contexteIntegrite = null) {
+    let html = anon
+        ? _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite)
+        : _sourceHtmlExport(ent, htmlCache);
+    if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+    return html || '';
+}
+
+function locuteursExportCorpus(ent, htmlCache, anon) {
+    return locuteursAffiches(ent, _htmlEntretienPourExport(ent, htmlCache, false), anon);
+}
+
+function _nomExportEntretien(ent, index, ext, nomsUtilises) {
+    let base = ((ent && ent.nom) ? String(ent.nom) : ('Entretien_' + (index + 1)))
+        .replace(/[/\\?%*:|"<>]/g, '-').trim() || ('Entretien_' + (index + 1));
+    let nom = base;
+    let n = 2;
+    while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
+    nomsUtilises.add(nom.toLowerCase());
+    return nom + ext;
+}
+
+function _demarrerProgressionExportCorpus(total, message) {
+    const nb = Math.max(0, Number(total) || 0);
+    if (typeof wait === 'function') {
+        wait((message || 'Export en cours...') + ` (0/${nb})`);
+    }
+    _majProgressionExportCorpus(0, nb, message);
+}
+
+function _majProgressionExportCorpus(indexTraite, total, message) {
+    const nbTotal = Math.max(1, Number(total) || 1);
+    const traite = Math.min(Math.max(0, Number(indexTraite) || 0), nbTotal);
+    const pct = Math.round((traite / nbTotal) * 100);
+
+    if (typeof updateProgressBar === 'function') {
+        updateProgressBar(pct);
+    }
+
+    const texte = `${message || 'Export en cours...'} (${traite}/${nbTotal})`;
+    const lbl = document.getElementById('lblwait');
+    if (lbl) lbl.innerText = texte;
+    const status = document.getElementById('status-bar');
+    if (status) status.innerText = texte;
+}
+
+function _terminerProgressionExportCorpus() {
+    if (typeof endWait === 'function') {
+        endWait();
+    }
+}
+
+/**
+ * Ouvre la modale d'export du corpus (déclenchée par les menus Corpus/Entretiens).
+ */
+function ouvrirModaleExportCorpus() {
+    const element = document.getElementById('dlg');
+    if (!element) return;
+    element.style.display = 'block';
+
+    const contenu = document.getElementById('ssdlg');
+    contenu.style.top = '20%';
+    contenu.style.height = '';
+
+    contenu.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <img src="img/logoSonal.png" alt="" style="height:36px; width:auto;">
+            <div class="close" onclick="hidedlg()" >✖️</div>
+        </div>
+        <div style="overflow:hidden; margin-left:-20px; margin-right:-20px; margin-bottom:-20px;">
+            <div id="export-slider-corpus" style="display:flex; width:200%; transition:transform 0.35s cubic-bezier(.4,0,.2,1); transform:translateX(0);">
+                <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
+                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
+                    <div style="display:flex;gap:16px;align-items:center;background:#f4f4f4;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="export-corpus-mode" id="export-corpus-mode-split" checked>
+                            Fichiers séparés
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="export-corpus-mode" id="export-corpus-mode-single">
+                            Un fichier unique
+                        </label>
+                    </div>
+                    <p style="font-size:0.85em;color:#666;margin-top:-4px;margin-bottom:12px;">Le mode « fichier unique » est appliqué quand il est disponible pour le format choisi.</p>
+                    <div class="menudrlnt">
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('pdf')"><label class="lblformat">.pdf</label> <span class="lbldetails">Document PDF</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Pages web pour lecture/partage hors SonalPi</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Copie réouvrable dans SonalPi (.crp + .Sonal)</span></div>
+                    </div>
+                </div>
+                <div id="export-panel-options-corpus" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
+            </div>
+        </div>`;
+}
+
+function dialogExportCorpusChoixOptions(format) {
+    const CFG = {
+        sonal: [[true,true],  [false,true], [false,true], [false,true], [false,true],  [false,true],  [false,true]],
+        html:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,true],   [true,true],   [false,true]],
+        txt:   [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true],   [true,true]],
+        docx:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true],   [true,true]],
+        pdf:   [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true],   [true,true]],
+        srt:   [[true,true],  [false,true], [false,true], [true,true],  [false,true],  [true,true],   [false,true]],
+        vtt:   [[true,true],  [true,true],  [false,true], [true,true],  [true,true],   [true,true],   [false,true]],
+    };
+    const LABELS = {
+        sonal: '.Sonal', html: '.Html', txt: '.txt', docx: '.docx',
+        pdf: '.pdf', srt: '.srt', vtt: '.vtt'
+    };
+
+    const cfg = CFG[format] || CFG.txt;
+    const [oa, on, ov, ol, oth, oti, oe] = cfg;
+
+    const opt = (id, classes, label, [enabled, checked]) => {
+        const dis  = enabled ? '' : ' disabled';
+        const chk  = checked ? ' checked' : '';
+        const fade = enabled ? '' : 'opacity:0.75;';
+        return `<label class="${classes}" style="display:flex;align-items:center;gap:10px;padding:6px 0;${fade}cursor:${enabled ? 'pointer' : 'default'}">
+                    <input type="checkbox" id="${id}"${chk}${dis} style="width:15px;height:15px;flex-shrink:0;cursor:inherit;">
+                    ${label}
+                </label>`;
+    };
+
+    const panel = document.getElementById('export-panel-options-corpus');
+    panel.innerHTML = `
+        <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format ${LABELS[format]}</h3>
+        <div style="margin-bottom:18px;">
+            ${opt('opt-entete', '', 'En-tête (Sonal π + nom de l\'entretien)', oe)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-notes', 'logo-notes', 'Notes', on)}
+            ${opt('opt-vars',  'logo-variables', 'Variables', ov)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-time', 'logo-time', 'Coordonnées temporelles', oti)}
+            ${opt('opt-loc',  'logo-loc', 'Locuteurs', ol)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitive)', oa)}
+            <p style="font-size:0.85em;color:#666;margin:6px 0;">
+                Seuls le texte et les libellés de locuteurs marqués sont pseudonymisés.
+                Vérifiez les exceptions, les notes, le contenu libre des variables, les titres et les noms de fichiers avant partage.
+                Les exports anonymisés ne sont pas liés aux médias originaux.
+            </p>
+            <hr style="margin:6px 0;">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px; height:36px"
+                onclick="document.getElementById('export-slider-corpus').style.transform='translateX(0)'">
+                ← Retour
+            </label>
+            <label class="btn btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
+                onclick="exporterCorpusAvecOptions('${format}')">
+              ↗️  Exporter
+            </label>
+        </div>`;
+
+    document.getElementById('export-slider-corpus').style.transform = 'translateX(-50%)';
+}
+
+async function exporterCorpusAvecOptions(format) {
+    const getChk = id => {
+        const el = document.getElementById(id);
+        return el ? el.checked : false;
+    };
+    const opts = {
+        anon: getChk('opt-anon'),
+        notes: getChk('opt-notes'),
+        vars: getChk('opt-vars'),
+        loc: getChk('opt-loc'),
+        thm: getChk('opt-thm'),
+        time: getChk('opt-time'),
+        entete: getChk('opt-entete'),
+    };
+    const modeUnique = getChk('export-corpus-mode-single');
+
+    hidedlg();
+    try {
+        if (format === 'sonal') {
+            await exporterCorpusReouvrable(opts);
+        } else if (format === 'txt') {
+            if (modeUnique) await exporterCorpusTxtUnique(opts);
+            else await exporterCorpusTxtZip(opts);
+        } else if (format === 'html') {
+            if (modeUnique) await exporterCorpusHtmlUnique(opts);
+            else await exporterCorpusPartage(opts);
+        } else if (format === 'docx') {
+            if (modeUnique) await exporterCorpusDocxUnique(opts);
+            else await exporterCorpusDocxZip(opts);
+        } else if (format === 'pdf') {
+            if (modeUnique) await exporterCorpusPdfUnique(opts);
+            else await exporterCorpusPdfZip(opts);
+        } else if (format === 'srt') {
+            if (modeUnique) question("Le format .srt est actuellement exporté en fichiers séparés.", ['OK']);
+            await exporterCorpusSrtZip(opts);
+        } else if (format === 'vtt') {
+            if (modeUnique) question("Le format .vtt est actuellement exporté en fichiers séparés.", ['OK']);
+            await exporterCorpusVttZip(opts);
+        }
+    } catch (error) {
+        if (estErreurIntegriteAnonymisation(error)) {
+            afficherErreurIntegriteAnonymisation(error, async () => {
+                const idx = Number.isInteger(error.entretienIndex) ? error.entretienIndex : null;
+                if (idx == null || typeof ouvrirEntretienAnonGen !== 'function') return;
+                await ouvrirEntretienAnonGen(idx, { spanId: error.rang, segment: error.segment });
+            });
+        } else {
+            dialog('Message', error.message || String(error));
+        }
+    }
+}
+
+async function exporterCorpusTxtZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export TXT');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nom = _nomExportEntretien(ent, i, '.txt', nomsUtilises);
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            const contenu = construireTxtEntretien(ent, opts, txtvars, html, locAff);
+            fichiers.push({ nom, contenu });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export TXT');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_txt_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} fichier(s) .txt dans l'archive.`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export TXT : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusTxtUnique(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation du fichier TXT unique');
+    let contenu = '';
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: nomEnt,
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            contenu += (i > 0 ? '\n\n' : '') + '============================================================\n';
+            contenu += 'ENTRETIEN ' + (i + 1) + ' : ' + nomEnt + '\n';
+            contenu += '============================================================\n\n';
+            contenu += construireTxtEntretien(ent, opts, txtvars, html, locAff);
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation du fichier TXT unique');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.saveFileDialog({
+        filename: `corpus_txt_${opts.anon ? 'anonymise_' : ''}${ts}.txt`,
+        content: contenu,
+        encoding: 'utf8'
+    });
+
+    if (res && res.success) question('Export TXT unique réussi.', ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export TXT unique : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+function _construireSrtEntretien(contenuHtmlCmpct, opts, locuteursExport) {
+    let txtSrt = '';
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtmlCmpct;
+    const segs = tempDiv.querySelectorAll('.lblseg');
+
+    segs.forEach((seg, idx) => {
+        const deb = seg.dataset.deb;
+        const fin = seg.dataset.fin;
+        if (!(deb && fin)) return;
+
+        const timeDeb = SecToTime(deb, false);
+        const timeFin = SecToTime(fin, false);
+        let text = seg.textContent.trim().replace(/\s+/g, ' ');
+        if (opts.loc) {
+            const locIdx = seg.dataset.loc;
+            const locNom = locuteursExport[locIdx] ? locuteursExport[locIdx].replaceAll('?', '').trim() : '';
+            if (locNom) text = locNom + ': ' + text;
+        }
+
+        txtSrt += (idx + 1) + '\n' + timeDeb + ' --> ' + timeFin + '\n' + text + '\n\n';
+    });
+
+    return txtSrt;
+}
+
+function _construireVttEntretien(ent, contenuHtmlCmpct, opts, locuteursExport) {
+    let txtVtt = 'WEBVTT\n\n';
+
+    if (opts.notes && ent && ent.notes) {
+        const noteContent = String(ent.notes).replace(/\n{2,}/g, '\n').trim();
+        if (noteContent) txtVtt += 'NOTE\n' + noteContent + '\n\n';
+    }
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtmlCmpct;
+    const segs = tempDiv.querySelectorAll('.lblseg');
+
+    segs.forEach((seg, idx) => {
+        const deb = seg.dataset.deb;
+        const fin = seg.dataset.fin;
+        if (!deb || !fin) return;
+
+        const timeDeb = SecToTime(deb, false);
+        const timeFin = SecToTime(fin, false);
+
+        let payload = '';
+        if (opts.thm) {
+            seg.querySelectorAll('span').forEach(mot => {
+                const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                const word = mot.textContent;
+                if (thmClasses.length > 0) payload += '<c.' + thmClasses[0] + '>' + word + '</c>';
+                else payload += word;
+            });
+            payload = payload.trim().replace(/\s+/g, ' ');
+        } else {
+            payload = seg.textContent.trim().replace(/\s+/g, ' ');
+        }
+
+        if (opts.loc) {
+            const locIdx = seg.dataset.loc;
+            const locNom = locuteursExport[locIdx] ? locuteursExport[locIdx].replaceAll('?', '').trim() : '';
+            if (locNom) payload = '<v ' + locNom + '>' + payload + '</v>';
+        }
+
+        txtVtt += (idx + 1) + '\n' + timeDeb + ' --> ' + timeFin + '\n' + payload + '\n\n';
+    });
+
+    return txtVtt;
+}
+
+async function exporterCorpusSrtZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export SRT');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nom = _nomExportEntretien(ent, i, '.srt', nomsUtilises);
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            fichiers.push({ nom, contenu: _construireSrtEntretien(html, opts, locAff) });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export SRT');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_srt_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} fichier(s) .srt dans l'archive.`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export SRT : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusVttZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export VTT');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nom = _nomExportEntretien(ent, i, '.vtt', nomsUtilises);
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            fichiers.push({ nom, contenu: _construireVttEntretien(ent, html, opts, locAff) });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export VTT');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_vtt_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} fichier(s) .vtt dans l'archive.`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export VTT : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusPdfZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export PDF');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nom = _nomExportEntretien(ent, i, '.pdf', nomsUtilises);
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
+            fichiers.push({
+                nom,
+                nomEntretien: (ent && ent.nom) ? ent.nom : nom,
+                contenuTxt,
+                notes: (opts.notes && ent && ent.notes) ? ent.notes : '',
+                variables: txtvars,
+                entete: opts.entete,
+            });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export PDF');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exportCorpusPdfZip(fichiers, `corpus_pdf_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} fichier(s) .pdf dans l'archive.`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export PDF : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusPdfUnique(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation du PDF unique');
+    const sections = [];
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: nomEnt,
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
+            sections.push({ nomEntretien: nomEnt, contenuTxt });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation du PDF unique');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exportCorpusPdfSingle({
+        nomCorpus: (Corpus && Corpus.fileName) ? String(Corpus.fileName).replace(/\.crp$/i, '') : 'Corpus',
+        sections,
+        nomFichier: `corpus_pdf_${opts.anon ? 'anonymise_' : ''}${ts}.pdf`,
+        entete: opts.entete,
+    });
+
+    if (res && res.success) question('Export PDF unique réussi.', ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export PDF unique : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusReouvrable(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+
+    const Corpus = (await window.electronAPI.getCorpus()) || {};
+    const tabThm = (await window.electronAPI.getThm()) || [];
+    const tabVar = (await window.electronAPI.getVar()) || [];
+    const tabDic = (await window.electronAPI.getDic()) || [];
+    const tabAnonGlobal = opts.anon ? [] : (await window.electronAPI.getAnon() || []);
+    let htmlFrais = [];
+    if (opts.anon) {
+        try { htmlFrais = (await window.electronAPI.getHtml()) || []; } catch (e) {}
+    }
+
+    const fichiers = [];
+    const tabEntExport = [];
+    const nomsUtilises = new Set();
+    const erreurs = [];
+
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'archive Sonal');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const libelle = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
+
+            let chemin;
+            try {
+                chemin = (Corpus.type === 'local')
+                    ? await window.electronAPI.createPath(Corpus.folder, ent.rtrPath)
+                    : [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
+            } catch (e) { chemin = null; }
+
+            let contenu = null;
+            try { contenu = chemin ? await window.electronAPI.readFileContent(chemin) : null; } catch (e) { contenu = null; }
+            if (!contenu) {
+                erreurs.push(libelle);
+                _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'archive Sonal');
+                continue;
+            }
+
+            const data = extractFichierSonal(contenu);
+            const aCacheFrais = opts.anon && htmlFrais[i] != null;
+            let html = aCacheFrais ? htmlFrais[i] : (data.html || '');
+            if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+
+            let htmlOut = html;
+            let tabLocOut = data.tabLoc;
+            if (opts.anon) {
+                const baseLoc = aCacheFrais ? (ent.tabLoc || data.tabLoc) : (data.tabLoc || ent.tabLoc);
+                const documentAnon = avecContexteIntegriteAnonymisation(
+                    () => preparerDocumentAnonymise(html, baseLoc),
+                    { entretienIndex: i, entretienNom: libelle }
+                );
+                htmlOut = documentAnon.html;
+                tabLocOut = documentAnon.tabLoc;
+            }
+
+            const sonalOut = sauvHtml(
+                tabLocOut, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
+                data.tabDat, data.notes, htmlOut, opts.anon ? [] : (data.tabAnon || []));
+
+            const nomFichier = _nomExportEntretien(ent, i, '.Sonal', nomsUtilises);
+            fichiers.push({ nom: nomFichier, contenu: sonalOut });
+
+            const entExport = {
+                ...ent,
+                tabAnon: opts.anon ? [] : (ent.tabAnon || []),
+                tabLoc: opts.anon ? tabLocOut : ent.tabLoc,
+                rtrPath: nomFichier
+            };
+            delete entExport.html;
+            if (opts.anon) {
+                entExport.audioPath = '';
+                entExport.imgPath = '';
+            }
+            tabEntExport.push(entExport);
+
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'archive Sonal');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    if (fichiers.length === 0) {
+        dialog('Erreur', "Aucun entretien lisible : export annulé.\n\nFichiers introuvables :\n" + erreurs.join('\n'));
+        return;
+    }
+
+    const crp = JSON.stringify({ tabThm, tabEnt: tabEntExport, tabVar, tabDic, tabAnon: tabAnonGlobal });
+    const nomCrp = opts.anon ? 'corpus_anonymise.crp' : 'corpus_copie.crp';
+    fichiers.push({ nom: nomCrp, contenu: crp });
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_sonal_${opts.anon ? 'anonymise_' : 'copie_'}${ts}.zip`);
+    if (res && res.success) {
+        const avert = erreurs.length > 0
+            ? `\n\n⚠️ ${erreurs.length} entretien(s) introuvable(s), ignoré(s) :\n${erreurs.join('\n')}`
+            : '';
+        const quoi = opts.anon ? 'corpus anonymisé irréversible' : 'copie du corpus';
+        question(`Export réussi : ${quoi} (${tabEntExport.length} entretien(s)), réouvrable dans SonalPi.${avert}`, ['OK']);
+    } else if (!res || !res.canceled) {
+        dialog('Erreur', `Échec de l'export Sonal : ${(res && res.error) || 'erreur inconnue'}`);
+    }
+}
+
+async function exporterCorpusPartage(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export HTML');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
+            const suffixeTitre = opts.anon ? ' (anonymisé)' : '';
+            const nomFichier = _nomExportEntretien(ent, i, '.html', nomsUtilises);
+
+            const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: nomEnt,
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, locAff, '');
+
+            let notesHtml = '';
+            if (opts.notes && ent && ent.notes) {
+                const txt = String(ent.notes).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                notesHtml = `\n  <section class="sec-export"><h3>Notes</h3><p style="white-space:pre-wrap">${txt}</p></section>`;
+            }
+
+            let varsHtml = '';
+            if (opts.vars) {
+                const vH = (await varsPubliquesEnt(i, opts.anon ? locAff : null))[0];
+                if (vH) varsHtml = `\n  <section class="sec-export"><h3>Variables</h3>${vH}</section>`;
+            }
+
+            const doc = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>${escapeHtml(nomEnt)}${suffixeTitre}</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222;line-height:1.5}
+.ligloc-header{margin-top:16px;color:#838383;font-style:italic}
+.sec-export{background:#f4f4f4;border-left:4px solid #548dc1;border-radius:3px;padding:10px 14px;margin-bottom:16px}
+.sec-export h3{color:#548dc1;margin-bottom:6px;font-size:1em}
+${cssThm}</style>
+</head><body><h1>${escapeHtml(nomEnt)}</h1>${notesHtml}${varsHtml}
+<div id="contenu">${contenuTraite}</div>
+</body></html>`;
+
+            fichiers.push({ nom: nomFichier, contenu: doc });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export HTML');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_html_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} entretien(s) (HTML de partage, hors SonalPi).`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export HTML : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusHtmlUnique(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation du fichier HTML unique');
+    let sections = '';
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
+            const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: nomEnt,
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, locAff, '');
+
+            let notesHtml = '';
+            if (opts.notes && ent && ent.notes) {
+                const txt = String(ent.notes).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                notesHtml = `\n<div class="sec-export"><h3>Notes</h3><p style="white-space:pre-wrap">${txt}</p></div>`;
+            }
+            let varsHtml = '';
+            if (opts.vars) {
+                const vH = (await varsPubliquesEnt(i, opts.anon ? locAff : null))[0];
+                if (vH) varsHtml = `\n<div class="sec-export"><h3>Variables</h3>${vH}</div>`;
+            }
+
+            sections += `\n<section style="margin-bottom:32px;border-bottom:1px solid #ddd;padding-bottom:18px;">`;
+            sections += `\n<h2>${escapeHtml(nomEnt)}</h2>${notesHtml}${varsHtml}`;
+            sections += `\n<style>${cssThm}</style>`;
+            sections += `\n<div>${contenuTraite}</div>`;
+            sections += `\n</section>`;
+
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation du fichier HTML unique');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const nomCorpus = (Corpus && Corpus.fileName) ? String(Corpus.fileName).replace(/\.crp$/i, '') : 'Corpus';
+    const htmlFinal = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(nomCorpus)}</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:960px;margin:24px auto;padding:0 16px;color:#222;line-height:1.5}
+.sec-export{background:#f4f4f4;border-left:4px solid #548dc1;border-radius:3px;padding:10px 14px;margin:10px 0}
+h1{margin-bottom:18px}</style></head><body><h1>${escapeHtml(nomCorpus)}</h1>${sections}</body></html>`;
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.saveFileDialog({
+        filename: `corpus_html_${opts.anon ? 'anonymise_' : ''}${ts}.html`,
+        content: htmlFinal,
+        encoding: 'utf8'
+    });
+
+    if (res && res.success) question('Export HTML unique réussi.', ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export HTML unique : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusDocxZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation de l\'export DOCX');
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomFichier = _nomExportEntretien(ent, i, '.docx', nomsUtilises);
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
+
+            fichiers.push({
+                nom: nomFichier,
+                nomEntretien: (ent && ent.nom) ? ent.nom : nomFichier,
+                contenuTxt,
+                notes: (opts.notes && ent && ent.notes) ? ent.notes : '',
+                variables: txtvars,
+                entete: opts.entete,
+            });
+
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation de l\'export DOCX');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exportCorpusDocxZip(fichiers, `corpus_docx_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) question(`Export réussi : ${fichiers.length} fichier(s) .docx dans l'archive.`, ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export DOCX : ${(res && res.error) || 'erreur inconnue'}`);
+}
+
+async function exporterCorpusDocxUnique(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = [];
+    try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    _demarrerProgressionExportCorpus(tabEnt.length, 'Préparation du DOCX unique');
+    const sections = [];
+    try {
+        for (let i = 0; i < tabEnt.length; i++) {
+            const ent = tabEnt[i];
+            const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
+            const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+                entretienIndex: i,
+                entretienNom: nomEnt,
+            });
+            const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+            const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+            const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
+            sections.push({ nomEntretien: nomEnt, contenuTxt });
+            _majProgressionExportCorpus(i + 1, tabEnt.length, 'Préparation du DOCX unique');
+        }
+    } finally {
+        _terminerProgressionExportCorpus();
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exportCorpusDocxSingle({
+        nomCorpus: (Corpus && Corpus.fileName) ? String(Corpus.fileName).replace(/\.crp$/i, '') : 'Corpus',
+        sections,
+        nomFichier: `corpus_docx_${opts.anon ? 'anonymise_' : ''}${ts}.docx`,
+        entete: opts.entete,
+    });
+
+    if (res && res.success) question('Export DOCX unique réussi.', ['OK']);
+    else if (!res || !res.canceled) dialog('Erreur', `Échec de l'export DOCX unique : ${(res && res.error) || 'erreur inconnue'}`);
+}

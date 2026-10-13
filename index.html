@@ -40,7 +40,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.80";
+    const version = "1.0.81";
   </script>
 
 <body>
@@ -502,6 +502,13 @@ function hidepanG(){
           if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
       });
   }
+
+    // Menu Entretiens -> Exporter tous les entretiens : réutiliser la même modale d'export corpus
+    if (window.electronAPI && window.electronAPI.onMenuExporterTousEntretiens) {
+      window.electronAPI.onMenuExporterTousEntretiens(() => {
+        if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
+      });
+    }
 
   // ==============================================
   // REDIMENSIONNEMENT COLONNE GAUCHE
