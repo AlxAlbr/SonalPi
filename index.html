@@ -18,6 +18,7 @@
   <script  src="modules/utilitaires.js"></script>
   <script  src="modules/conversions.js"></script>
   <script  src="modules/gestion_data.js"></script>
+  <script  src="modules/refi_qda.js"></script>
   <script  src="modules/recueil.js"></script>
   <script  src="modules/export_recueil.js"></script>
   <script  src="modules/Anonymisation/anon-export-document.js"></script>
@@ -500,6 +501,14 @@ function hidepanG(){
   if (window.electronAPI && window.electronAPI.onMenuExporterCorpus) {
       window.electronAPI.onMenuExporterCorpus(() => {
           if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
+          else if (typeof dialog === 'function') dialog('Export');
+      });
+  }
+
+  // Menu Corpus -> Importer un projet REFI-QDA (.qdpx)
+  if (window.electronAPI && window.electronAPI.on) {
+      window.electronAPI.on('menu:importer-refiqda', () => {
+          if (typeof importerRefiQda === 'function') importerRefiQda();
       });
   }
 
@@ -883,6 +892,7 @@ function dialog(type, message){
                 <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
                 <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div>
                 <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exporterRefiQda()"> <label class = "lblformat"> .qdpx </label> <span class="lbldetails"> REFI-QDA (NVivo, Atlas.ti, MAXQDA, Quirkos)</span> <br></div>
                
                  
         </div>`
