@@ -156,6 +156,11 @@ export class ServiceOuvertureGitLab {
     return this.ouvrirNouvelleDestination(demande)
   }
 
+  /** N'installe une migration qu'après vérification de tous les médias du dépôt. */
+  async ouvrirMigration(demande: DemandeOuvertureGitLab, signal?: AbortSignal): Promise<OuvertureDistante> {
+    return this.ouvrirNouvelleDestination(demande, undefined, true, signal)
+  }
+
   /** Ouvre une destination enregistrée avec le credential du compte connecté. */
   async ouvrir(id: string): Promise<OuvertureDistante> {
     const destination = this.options.coffre.listerDestinationsGitLab()
@@ -174,11 +179,18 @@ export class ServiceOuvertureGitLab {
   private async ouvrirNouvelleDestination(
     demande: DemandeOuvertureGitLab,
     baseMedia?: BaseMediaVerifiee,
+    exigerMediasComplets = false,
+    signal?: AbortSignal,
   ): Promise<OuvertureDistante> {
     const compte = this.compte(demande.compteId)
     const destination = this.candidatDestination(demande, compte.id)
     const client = await this.options.authentification.client(compte.id, demande.projetId)
-    const preparation = await this.preparer(compte, destination, client)
+    signal?.throwIfAborted()
+    const preparation = await this.preparer(compte, destination, client, signal)
+    signal?.throwIfAborted()
+    if (exigerMediasComplets && preparation.inaccessibles?.length) {
+      throw new Error('Le corpus est publié, mais des médias ne sont pas accessibles. Corrigez l’accès puis reprenez l’ouverture.')
+    }
     const destinationEnregistree = this.options.coffre.enregistrerDestinationGitLab({
       compteId: compte.id,
       projetId: demande.projetId,
@@ -192,7 +204,7 @@ export class ServiceOuvertureGitLab {
         ...baseMedia,
       })
     }
-    return this.installer(destinationEnregistree, preparation)
+    return this.installer(destinationEnregistree, preparation, signal)
   }
 
   /** Ferme l'ancien contexte, fait installer le préparé puis construit
@@ -200,7 +212,9 @@ export class ServiceOuvertureGitLab {
   private async installer(
     destination: ConfigDestinationGitLab,
     preparation: PreparationOuvertureGitLab,
+    signal?: AbortSignal,
   ): Promise<OuvertureDistante> {
+    signal?.throwIfAborted()
     await this.options.fermerContexte()
     this.options.installer(destination, preparation)
     const destinationPublique = destinationGitLabPublique(
@@ -225,6 +239,7 @@ export class ServiceOuvertureGitLab {
     compte: ConfigCompteGitLab,
     destination: ConfigDestinationGitLab,
     client: ClientGitLab,
+    signal?: AbortSignal,
   ): Promise<PreparationOuvertureGitLab> {
     if (this.options.preparer) {
       return this.options.preparer(compte, destination, client)
@@ -233,6 +248,7 @@ export class ServiceOuvertureGitLab {
       destination,
       client,
       dirProfil: this.options.dirProfil,
+      signal,
       identite: () => ({
         userId: compte.utilisateur,
         machineId: this.options.identiteSession.machineId,
@@ -285,6 +301,7 @@ async function preparerOuvertureDestination(options: {
   client: ClientGitLab
   dirProfil: string
   identite: () => IdentiteBailGitLab
+  signal?: AbortSignal
 }): Promise<PreparationOuvertureGitLab> {
   const { client } = options
   const dirMiroir = join(options.dirProfil, 'miroirs', options.destination.id)
@@ -366,6 +383,6 @@ async function preparerOuvertureDestination(options: {
         journal,
       })
     },
-  })
+  }, options.signal)
   return { ...preparation, dirMiroir }
 }

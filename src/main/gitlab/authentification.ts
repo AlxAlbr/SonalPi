@@ -16,6 +16,7 @@ import {
   autorisationOAuth,
 } from './client'
 import { ClientOAuthGitLab } from './oauth/clientOAuth'
+import { ClientLfsGitLab } from './lfs'
 import { credentialExpire, credentialExpireLe } from './oauth/credential'
 import { GestionnaireCredentialsGitLab } from './oauth/credentialProvider'
 import { connecterGitLabOAuth } from './oauth/connexion'
@@ -147,6 +148,24 @@ export class ServiceAuthentificationGitLab {
       urlInstance: compte.urlInstance,
       ...(projetId === undefined ? {} : { projetId }),
       autorisation,
+    }, this.options.fetchImpl)
+  }
+
+  /** Fournit le transport LFS du projet avec un accès renouvelé si nécessaire. */
+  async clientLfs(compteId: string, projetId: number): Promise<ClientLfsGitLab> {
+    const compte = this.compteParId(compteId)
+    const client = await this.client(compteId, projetId)
+    const { corps: projet } = await client.lireJson<{ lfs_enabled?: boolean; http_url_to_repo?: string }>(
+      client.cheminProjet(''),
+    )
+    if (projet.lfs_enabled !== true || typeof projet.http_url_to_repo !== 'string') {
+      throw new Error('Le stockage LFS des médias n’est pas disponible dans ce projet GitLab.')
+    }
+    const autorisation = compte.authentification === 'oauth'
+      ? await this.autorisationOAuth(compteId) : this.autorisationJetonPersonnel(compteId)
+    return new ClientLfsGitLab({
+      urlInstance: compte.urlInstance, urlDepot: projet.http_url_to_repo,
+      utilisateur: compte.utilisateur, autorisation,
     }, this.options.fetchImpl)
   }
 

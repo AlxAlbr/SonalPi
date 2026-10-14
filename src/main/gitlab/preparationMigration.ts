@@ -1,0 +1,219 @@
+import { createHash, randomUUID } from 'node:crypto'
+import { posix } from 'node:path'
+import type {
+  BilanMigrationGitLab,
+  CibleMigrationGitLab,
+  DemandeBilanMigrationGitLab,
+  DemandeSourceMigrationGitLab,
+  SourceMigrationGitLab,
+} from '../../shared/corpus/migrationGitLab'
+import { analyserCrp, mapperEntretiensV1 } from '../../shared/corpus/migrationCrp'
+import type { CoffreComptes } from '../distant/coffre'
+import { preparerBaseMediaVerifiee, type BaseMediaVerifiee } from '../medias/baseMedia'
+import { verifierCheminMediaRelatif } from '../medias/designation'
+import type { ServiceAuthentificationGitLab } from './authentification'
+import { LecteurGitLab } from './lecture'
+import { LectureV1GitLab, resoudreCheminV1GitLab } from './lectureV1'
+import { preparerCibleMigrationGitLab, preparerProjetGitLab, preparerProjetEnregistreMigrationGitLab } from './preparationProjet'
+
+interface Preparation {
+  source: SourceMigrationGitLab
+  lecture: LectureV1GitLab
+  bilan?: BilanMigrationGitLab
+  baseMedia?: BaseMediaVerifiee
+}
+
+/** Inventorie les fichiers sans suivre les liens ni modifier le dépôt. */
+export async function inventorierDepotMigration(lecteur: LecteurGitLab): Promise<Record<string, string>> {
+  const dossiers = ['']
+  const fichiers: Record<string, string> = {}
+  while (dossiers.length) {
+    const dossier = dossiers.pop()!
+    for (const entree of await lecteur.inventorier(dossier)) {
+      const chemin = [dossier, entree.chemin].filter(Boolean).join('/')
+      if (entree.dossier) dossiers.push(chemin)
+      else {
+        if (entree.empreinte?.type !== 'gitlab-blob') throw new Error('Une empreinte de fichier manque dans le dépôt.')
+        fichiers[chemin] = entree.empreinte.valeur
+      }
+    }
+  }
+  return fichiers
+}
+
+export async function fichiersDepot(lecteur: LecteurGitLab): Promise<string[]> {
+  return Object.keys(await inventorierDepotMigration(lecteur)).sort()
+}
+
+/** Seuls les fichiers d'initialisation usuels sont admis dans une cible. */
+export async function verifierCibleMigrationGitLab(
+  cible: CibleMigrationGitLab,
+  authentification: ServiceAuthentificationGitLab,
+): Promise<string | null> {
+  const client = await authentification.client(cible.compteId, cible.projetId)
+  if (cible.branche === null) {
+    const { corps } = await client.lireJson<unknown[]>(client.cheminProjet('/repository/branches'))
+    if (!Array.isArray(corps) || corps.length !== 0) {
+      throw new Error('La destination possède déjà des branches. Choisissez un dépôt vierge.')
+    }
+    return null
+  }
+  const lecteur = await LecteurGitLab.depuisBranche(client, cible.branche)
+  for (const chemin of await fichiersDepot(lecteur)) {
+    if (!/^(?:(?:README|LICEN[CS]E|COPYING)(?:\.(?:md|markdown|txt|rst|adoc))?|\.gitignore|\.gitattributes)$/i.test(chemin)) {
+      throw new Error(`La destination contient déjà « ${chemin} ». Choisissez un dépôt vierge de données utilisateur.`)
+    }
+  }
+  return lecteur.commit
+}
+
+/** Un seul bilan actif, lié au compte et au commit source préparés. */
+export class PreparateurMigrationGitLab {
+  private preparation: Preparation | null = null
+  private generation = 0
+
+  constructor(
+    private readonly authentification: ServiceAuthentificationGitLab,
+    private readonly verifierBase = preparerBaseMediaVerifiee,
+    private readonly coffre?: Pick<CoffreComptes, 'listerDestinationsGitLab'>,
+  ) {}
+
+  async decouvrir(demande: DemandeSourceMigrationGitLab): Promise<SourceMigrationGitLab> {
+    const generation = ++this.generation
+    this.preparation = null
+    const destination = 'destinationId' in demande
+      ? this.coffre?.listerDestinationsGitLab().find((d) => d.id === demande.destinationId)
+      : null
+    if ('destinationId' in demande && !destination) throw new Error('Ce projet GitLab n’est plus enregistré sur ce poste.')
+    const projet = 'destinationId' in demande
+      ? await preparerProjetEnregistreMigrationGitLab(destination!, this.authentification)
+      : await preparerProjetGitLab(demande, this.authentification)
+    const client = await this.authentification.client(projet.compteId, projet.projetId)
+    const lecteur = await LecteurGitLab.depuisBranche(client, projet.branche)
+    const racine = destination?.racine ? `${destination.racine}/` : ''
+    const corpus = (await fichiersDepot(lecteur)).filter((chemin) => chemin.startsWith(racine) && /\.crp$/i.test(chemin))
+    if (!corpus.length) throw new Error('Aucun corpus SonalPi1 (.crp) trouvé dans ce dépôt.')
+    if (generation !== this.generation) throw new Error('La source a changé. Préparez de nouveau la migration.')
+    const source: SourceMigrationGitLab = {
+      preparationId: randomUUID(), projet, commit: lecteur.commit, corpus,
+    }
+    this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit) }
+    return structuredClone(source)
+  }
+
+  async preparer(demande: DemandeBilanMigrationGitLab): Promise<BilanMigrationGitLab> {
+    const preparation = this.exigerPreparation(demande.preparationId)
+    const generation = ++this.generation
+    preparation.bilan = undefined
+    preparation.baseMedia = undefined
+    const { source, lecture } = preparation
+    if (!source.corpus.includes(demande.cheminCrp)) throw new Error('Choisissez un corpus de la source préparée.')
+    const cible = await preparerCibleMigrationGitLab(demande.cible, this.authentification)
+    if (cible.projetId === source.projet.projetId && cible.urlInstance === source.projet.urlInstance) {
+      throw new Error('La source et la destination doivent être deux dépôts différents.')
+    }
+    const commitCible = await verifierCibleMigrationGitLab(cible, this.authentification)
+    const analyse = analyserCrp(await lecture.lireDocument(demande.cheminCrp), posix.basename(demande.cheminCrp))
+    if (!analyse.ok) throw new Error(analyse.message)
+    const bilan: BilanMigrationGitLab = {
+      bilanId: randomUUID(),
+      preparationId: source.preparationId,
+      source: source.projet,
+      commitSource: source.commit,
+      cheminCrp: demande.cheminCrp,
+      cible,
+      commitCible,
+      apercu: analyse.apercu,
+      entretiens: [],
+      medias: [],
+      volumeOctets: 0,
+      destinationMedia: demande.baseMedia ? 'externe' : 'depot',
+    }
+    const dossierMigration = demande.baseMedia
+      ? `migrations/${createHash('sha256').update(JSON.stringify([
+          source.projet.urlInstance, source.projet.projetId, source.commit,
+          demande.cheminCrp, cible.urlInstance, cible.projetId,
+        ])).digest('hex')}/`
+      : ''
+    const medias = new Map<string, number>()
+    for (const entretien of mapperEntretiensV1(analyse.apercu.raw.tabEnt)) {
+      const cheminSonal = entretien.rtrPath
+        ? resoudreCheminV1GitLab(demande.cheminCrp, entretien.rtrPath) : null
+      if (cheminSonal) await lecture.information(cheminSonal)
+      let media: number | null = null
+      if (entretien.audioRef) {
+        const cheminSource = resoudreCheminV1GitLab(demande.cheminCrp, entretien.audioRef)
+        media = medias.get(cheminSource) ?? null
+        if (media === null) {
+          const information = await lecture.information(cheminSource)
+          const identite = createHash('sha256').update(cheminSource).digest('hex')
+          const nom = posix.basename(cheminSource).replace(/[?#%\u0000-\u001f\u007f]/g, '_')
+          const cheminDestination = verifierCheminMediaRelatif(`${dossierMigration}medias/${identite}/${nom}`)
+          media = bilan.medias.length
+          medias.set(cheminSource, media)
+          bilan.medias.push({
+            cheminSource, cheminDestination,
+            taille: information.taille,
+            sha256: information.sha256,
+            stockageSource: information.stockage,
+          })
+          bilan.volumeOctets += information.taille
+          if (!Number.isSafeInteger(bilan.volumeOctets)) throw new Error('Volume média trop important.')
+        }
+      }
+      bilan.entretiens.push({ titre: entretien.titre, cheminSonal, media })
+    }
+    let baseMedia: BaseMediaVerifiee | undefined
+    if (demande.baseMedia) {
+      const resultat = await this.verifierBase(demande.baseMedia)
+      if (!resultat.ok) {
+        const messages = {
+          droits: 'Accès à l’espace média refusé. Vérifiez le compte et le mot de passe d’application.',
+          'dossier-absent': 'Le dossier média externe n’existe pas ou n’est pas accessible.',
+          indisponible: 'L’espace média externe ne répond pas. Réessayez plus tard.',
+        }
+        throw new Error(messages[resultat.motif])
+      }
+      baseMedia = resultat.base
+    }
+    if (generation !== this.generation || this.preparation !== preparation) {
+      throw new Error('La préparation a changé. Recommencez le bilan.')
+    }
+    preparation.bilan = bilan
+    preparation.baseMedia = baseMedia
+    return structuredClone(bilan)
+  }
+
+  async lireEntretien(preparationId: string, index: number): Promise<{ nom: string; contenu: string } | null> {
+    const preparation = this.exigerPreparation(preparationId)
+    const bilan = preparation.bilan
+    if (!bilan || !Number.isSafeInteger(index) || index < 0 || index >= bilan.entretiens.length) {
+      throw new Error('Entretien absent du bilan préparé.')
+    }
+    const chemin = bilan.entretiens[index].cheminSonal
+    if (!chemin) return null
+    const contenu = await preparation.lecture.lireDocument(chemin)
+    if (this.preparation !== preparation || preparation.bilan !== bilan) throw new Error('Le bilan a changé.')
+    return { nom: posix.basename(chemin), contenu }
+  }
+
+  capturerBilan(bilanId: string): { bilan: BilanMigrationGitLab; baseMedia?: BaseMediaVerifiee } {
+    if (!this.preparation?.bilan || this.preparation.bilan.bilanId !== bilanId) {
+      throw new Error('Ce bilan a changé. Préparez de nouveau la migration.')
+    }
+    return structuredClone({ bilan: this.preparation.bilan, baseMedia: this.preparation.baseMedia })
+  }
+
+  abandonner(preparationId: string): void {
+    if (this.preparation?.source.preparationId !== preparationId) return
+    this.generation += 1
+    this.preparation = null
+  }
+
+  private exigerPreparation(id: string): Preparation {
+    if (!this.preparation || this.preparation.source.preparationId !== id) {
+      throw new Error('Cette préparation n’est plus disponible. Sélectionnez de nouveau la source.')
+    }
+    return this.preparation
+  }
+}

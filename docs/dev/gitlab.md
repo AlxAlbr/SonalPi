@@ -4,6 +4,13 @@
 bail versionné, reprise locale et transferts LFS streamés qualifiés sur le banc Docker.**
 **La CI et le quota LFS institutionnels restent à qualifier.**
 
+**Migration SonalPi1 GitLab : parcours implémenté, préparation disponible, envoi et reprise désactivés.**
+Conversion privée, copies, publication, suivi durable, annulation et réouverture sont
+raccordés et testés sur transports simulés ; la qualification réelle reste à faire.
+Les raccordements et leurs limites sont décrits dans
+[migration-gitlab-v1.md](migration-gitlab-v1.md). Les qualifications historiques
+ci-dessous ne valent pas qualification de ce nouveau parcours.
+
 Le [plan directeur](../../plans/encours/plan-gitlab3.md) fixe la cible : miroir
 commun, édition exclusive, publications conditionnelles, médias selon les
 capacités du projet, sans serveur Sonal ni clone Git.

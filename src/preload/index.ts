@@ -76,6 +76,7 @@ import type {
   ResultatFermetureSession,
 } from '../shared/distant'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
 import { CORPUS_SUPPRIME } from '../shared/format'
 
 // Invocation IPC avec garde « corpus courant supprimé » :
@@ -557,6 +558,23 @@ contextBridge.exposeInMainWorld('sonal', {
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
   },
   migrer: {
+    gitlab: {
+      decouvrir: (demande) => invoquer('migrer:gitlab:decouvrir', demande),
+      preparer: (demande) => invoquer('migrer:gitlab:preparer', demande),
+      lireEntretien: (preparationId, index) =>
+        invoquer('migrer:gitlab:lireEntretien', preparationId, index),
+      abandonner: (preparationId) => invoquer('migrer:gitlab:abandonner', preparationId),
+      ajouterConversion: (bilanId, index, conversion) => invoquer('migrer:gitlab:ajouterConversion', bilanId, index, conversion),
+      executer: (bilanId, confirmee) => invoquer('migrer:gitlab:executer', bilanId, confirmee),
+      listerSuivis: () => invoquer('migrer:gitlab:listerSuivis'),
+      reprendre: (operationId, confirmee, baseMedia) => invoquer('migrer:gitlab:reprendre', operationId, confirmee, baseMedia),
+      annuler: (operationId) => invoquer('migrer:gitlab:annuler', operationId),
+      surProgression: (cb) => {
+        const ecouteur = (_e: Electron.IpcRendererEvent, p: ProgressionMigrationGitLab) => cb(p)
+        ipcRenderer.on('migrer:gitlab:progression', ecouteur)
+        return () => ipcRenderer.removeListener('migrer:gitlab:progression', ecouteur)
+      },
+    } satisfies ApiMigrationGitLab,
     /** Choix d'un `.crp` SonalPi1 : dialogue + lecture + analyse (aperçu). */
     choisirCrp: (): Promise<{ chemin: string; analyse: AnalyseCrp } | null> =>
       invoquer('migrer:choisirCrp'),

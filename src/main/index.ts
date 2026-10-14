@@ -38,6 +38,8 @@ import {
   ServiceOuvertureGitLab,
 } from './gitlab/ouverture'
 import { preparerProjetGitLab } from './gitlab/preparationProjet'
+import { ServiceMigrationGitLab } from './gitlab/migration'
+import type { ConversionEntretienMigrationGitLab, DemandeBilanMigrationGitLab, DemandeSourceMigrationGitLab } from '../shared/corpus/migrationGitLab'
 import {
   exigerGeste,
   gesteAutorise,
@@ -119,6 +121,7 @@ import type {
   ResultatConnexionWebDAV,
 } from '../shared/webdav'
 import type {
+  DemandeConfigurationBaseMedia,
   DemandeCreationGitLab,
   DemandeOuvertureGitLab,
   DemandePreparationProjetGitLab,
@@ -2141,6 +2144,26 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     },
   })
 
+  const migrationGitLab = new ServiceMigrationGitLab({
+    authentification: authentificationGitLab, coffre, dirProfil: app.getPath('userData'),
+    identite: { machineId, sessionId: SESSION_ID },
+    ouvrir: (demande, signal) => ouvertureGitLab.ouvrirMigration(demande, signal),
+    progression: (progression) => {
+      for (const fenetre of BrowserWindow.getAllWindows()) {
+        if (!fenetre.isDestroyed()) fenetre.webContents.send('migrer:gitlab:progression', progression)
+      }
+    },
+  })
+  ipcMain.handle('migrer:gitlab:decouvrir', (_e, demande: DemandeSourceMigrationGitLab) => migrationGitLab.decouvrir(demande))
+  ipcMain.handle('migrer:gitlab:preparer', (_e, demande: DemandeBilanMigrationGitLab) => migrationGitLab.preparer(demande))
+  ipcMain.handle('migrer:gitlab:lireEntretien', (_e, preparationId: string, index: number) => migrationGitLab.preparation.lireEntretien(preparationId, index))
+  ipcMain.handle('migrer:gitlab:ajouterConversion', (_e, bilanId: string, index: number, conversion: ConversionEntretienMigrationGitLab) => migrationGitLab.ajouterConversion(bilanId, index, conversion))
+  ipcMain.handle('migrer:gitlab:abandonner', (_e, preparationId: string) => migrationGitLab.abandonner(preparationId))
+  ipcMain.handle('migrer:gitlab:listerSuivis', () => migrationGitLab.listerSuivis())
+  ipcMain.handle('migrer:gitlab:executer', (_e, bilanId: string, confirmee: boolean) => transitionner(() => migrationGitLab.executer(bilanId, confirmee)))
+  ipcMain.handle('migrer:gitlab:reprendre', (_e, operationId: string, confirmee: boolean, baseMedia?: DemandeConfigurationBaseMedia) => transitionner(() => migrationGitLab.reprendre(operationId, confirmee, baseMedia)))
+  ipcMain.handle('migrer:gitlab:annuler', (_e, operationId: string) => migrationGitLab.annuler(operationId))
+
   ipcMain.handle(
     'gitlab:creerEtOuvrir',
     (_e, demande: DemandeCreationGitLab) => transitionner(() => ouvertureGitLab.creerEtOuvrir(demande)),
@@ -2250,12 +2273,18 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         if (!entretien.ok || !contexte.store.ouvrir().membership[id]) {
           return { ok: false, raison: 'fichier-absent' }
         }
-        const chemin = entretien.data.meta.audioDistant?.chemin
+        const designation = entretien.data.meta.audioDistant
+        const chemin = designation?.chemin
         if (!chemin) return { ok: false, raison: 'fichier-absent' }
         try {
           verifierCheminMediaRelatif(chemin)
         } catch {
           return { ok: false, raison: 'chemin-invalide' }
+        }
+        if (designation.fournisseur === 'gitlab') {
+          const audio = contexte.store.audios()[id]?.audio
+          if (!audio || !contexte.store.cheminMediaAbs(audio)) return { ok: false, raison: 'fichier-absent' }
+          return { ok: true, url: `sonal-media://abs/${encodeURIComponent(audio)}` }
         }
         if (!EXT_AUDIO.includes(extensionDe(chemin))) {
           return { ok: false, raison: 'format-non-pris-en-charge' }

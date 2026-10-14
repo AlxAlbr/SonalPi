@@ -29,6 +29,7 @@ export interface ConfigurationClientGitLab {
   projetId?: number
   autorisation: AutorisationGitLab
   delaiMs?: number
+  delaiTransfertMs?: number
   tailleMaxReponseOctets?: number
   tailleMaxRequeteOctets?: number
   nombreRelances429?: number
@@ -107,6 +108,7 @@ export class ClientGitLab {
   private readonly racineApi: string
   private readonly projet: string | null
   private readonly delaiMs: number
+  private readonly delaiTransfertMs: number
   private readonly entetesAutorisation: Record<string, string>
   private readonly tailleMaxReponseOctets: number
   private readonly tailleMaxRequeteOctets: number
@@ -146,11 +148,13 @@ export class ClientGitLab {
       ? null
       : encodeURIComponent(String(configuration.projetId))
     this.delaiMs = configuration.delaiMs ?? 15_000
+    this.delaiTransfertMs = configuration.delaiTransfertMs ?? 30 * 60_000
     this.tailleMaxReponseOctets = configuration.tailleMaxReponseOctets ?? 64 * 1024 * 1024
     this.tailleMaxRequeteOctets = configuration.tailleMaxRequeteOctets ?? 2 * 1024 * 1024
     this.nombreRelances429 = configuration.nombreRelances429 ?? 2
     this.delaiRelanceMaxMs = configuration.delaiRelanceMaxMs ?? 2_000
     if (
+      !Number.isFinite(this.delaiTransfertMs) || this.delaiTransfertMs <= 0 ||
       !Number.isSafeInteger(this.tailleMaxReponseOctets) ||
       this.tailleMaxReponseOctets <= 0 ||
       !Number.isSafeInteger(this.tailleMaxRequeteOctets) ||
@@ -181,11 +185,12 @@ export class ClientGitLab {
     parametres: Record<string, string | undefined> | undefined,
     options: OptionsLectureGitLab,
     methode: 'GET' | 'HEAD' = 'GET',
+    delaiMs = this.delaiMs,
   ): Promise<Response> {
     for (let tentative = 0; ; tentative += 1) {
       const signal = options.signal
-        ? AbortSignal.any([options.signal, AbortSignal.timeout(this.delaiMs)])
-        : AbortSignal.timeout(this.delaiMs)
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(delaiMs)])
+        : AbortSignal.timeout(delaiMs)
       const reponse = await this.fetchImpl(this.url(chemin, parametres), {
         method: methode,
         headers: this.entetesAutorisation,
@@ -225,6 +230,25 @@ export class ClientGitLab {
   ): Promise<string> {
     const reponse = await this.lireReponse(chemin, parametres, options)
     return this.lireCorpsBorne(reponse, options.tailleMaxOctets)
+  }
+
+  /** Ouvre un transfert binaire sans appliquer les limites des documents JSON. */
+  async lireFlux(
+    chemin: string,
+    parametres?: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    return this.lireReponse(chemin, parametres, { signal }, 'GET', this.delaiTransfertMs)
+  }
+
+  /** Lit un document brut borné, avant détection de son encodage. */
+  async lireOctets(
+    chemin: string,
+    parametres?: Record<string, string | undefined>,
+    options: OptionsLectureGitLab = {},
+  ): Promise<Uint8Array> {
+    const reponse = await this.lireReponse(chemin, parametres, options)
+    return this.lireOctetsBornes(reponse, options.tailleMaxOctets)
   }
 
   /** Lit seulement les métadonnées HTTP d'une ressource GitLab. */
@@ -288,6 +312,13 @@ export class ClientGitLab {
     reponse: Response,
     limiteDemandee?: number,
   ): Promise<string> {
+    return new TextDecoder().decode(await this.lireOctetsBornes(reponse, limiteDemandee))
+  }
+
+  private async lireOctetsBornes(
+    reponse: Response,
+    limiteDemandee?: number,
+  ): Promise<Uint8Array> {
     const limite = limiteDemandee ?? this.tailleMaxReponseOctets
     if (!Number.isSafeInteger(limite) || limite <= 0) {
       await reponse.body?.cancel()
@@ -298,12 +329,11 @@ export class ClientGitLab {
       await reponse.body?.cancel()
       throw new ErreurReponseTropVolumineuseGitLab(limite)
     }
-    if (!reponse.body) return ''
+    if (!reponse.body) return new Uint8Array()
 
     const lecteur = reponse.body.getReader()
-    const decodeur = new TextDecoder()
     let taille = 0
-    let texte = ''
+    const morceaux: Uint8Array[] = []
     try {
       for (;;) {
         const { done, value } = await lecteur.read()
@@ -313,9 +343,15 @@ export class ClientGitLab {
           await lecteur.cancel()
           throw new ErreurReponseTropVolumineuseGitLab(limite)
         }
-        texte += decodeur.decode(value, { stream: true })
+        morceaux.push(value)
       }
-      return texte + decodeur.decode()
+      const octets = new Uint8Array(taille)
+      let offset = 0
+      for (const morceau of morceaux) {
+        octets.set(morceau, offset)
+        offset += morceau.byteLength
+      }
+      return octets
     } finally {
       lecteur.releaseLock()
     }

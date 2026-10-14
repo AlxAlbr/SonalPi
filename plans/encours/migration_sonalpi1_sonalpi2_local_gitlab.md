@@ -1,7 +1,9 @@
 # Migration SonalPi1 → SonalPi2 — ajout de la carte GitLab
 
 **Date :** 12 octobre 2026.  
-**Statut :** plan demandé par l’utilisateur, à exécuter dans une nouvelle session. Aucun développement de cette migration GitLab ni transfert de données utilisateur n’a été lancé.
+**Statut :** travaux préalables à la qualification terminés : préparation, conversion privée, copies médias, publication protégée, suivi durable, reprise, annulation et réouverture implémentés et raccordés ; documentation actualisée. **850 tests simulés / 49 fichiers réussis**, typecheck, build et contrôle des espaces réussis sur le dernier état. Reste la qualification réelle sur l’autre ordinateur, puis activation et acceptation utilisateur. Action de migration désactivée dans l’interface et envoi bloqué côté main ; aucun transfert de données utilisateur lancé.
+
+**Contrainte précisée par l’utilisateur :** le banc GitLab est sur un autre ordinateur. Avancer sur l’implémentation et les tests simulés, sans installer de banc ici ; ne pas déclarer la qualification réelle acquise.
 
 ## 1. Demande utilisateur et périmètre
 
@@ -142,7 +144,9 @@ La copie des médias et la publication du corpus ne sont pas une transaction uni
 
 Le détail technique de ces contrôles doit rester proportionné. Ne pas construire un framework de migration ni recopier les protocoles complets de renommage/retrait de variantes.
 
-## 7. Ordre d’exécution dans la prochaine session
+## 7. Ordre d’exécution initial
+
+Les étapes d’implémentation ci-dessous sont désormais largement réalisées. Pour reprendre le chantier, suivre le bilan et les tâches restantes de la section 10, sans reconstruire les raccordements déjà présents.
 
 1. **Relire ce plan et l’existant** : cartographier uniquement les raccordements manquants, confirmer les contrats médias et le traitement des dépôts sans branche.
 2. **Ajouter uniquement la sous-carte GitLab** à côté de Local, déjà implémentée, et préparer le nouveau parcours GitLab avec bilan sans publication.
@@ -189,7 +193,7 @@ Qualifier sur GitLab réel les deux choix de destination média, plus les correc
 
 ## 9. Contexte de reprise et travaux déjà présents
 
-Le dépôt de travail est `/home/belignem/Vscode/SonalPiTestV2`. Il contient des modifications non commitées à conserver ; ne pas reset, commit ou push sans demande.
+Le dépôt de travail de cette session est `/home/belignem/Vscode/sonalpitestv2`. Il contient des modifications non commitées et des fichiers nouveaux à conserver ; ne pas reset, commit ou push sans demande.
 
 - Retrait de variante WebDAV terminé et activé : preuves documentées dans `plans/encours/pseudonymisation_v1_vers_v2.md` et `docs/dev/variantes-anon.md`.
 - Vérifications complémentaires récentes : **164 tests/13 fichiers réussis**, typecheck/build/espaces vérifiés.
@@ -199,3 +203,94 @@ Le dépôt de travail est `/home/belignem/Vscode/SonalPiTestV2`. Il contient des
 - Documentation à mettre à jour lors de la livraison : `docs/user/migration-v1.md`, `docs/user/corpus-distant.md`, documentation GitLab/médias concernée, ce plan.
 
 Ce plan constitue une **nouvelle demande fonctionnelle**, pas un audit restant de pseudonymisation. Il reste dans `plans/encours/` jusqu’à sa réalisation et à l’acceptation utilisateur.
+
+## 10. Avancement sans banc — bilan de cette session et reprise
+
+### 10.1. Réalisé : préparation et données
+
+- [x] Sous-carte GitLab et modale dédiées ; carte, modale et politique média Local conservées.
+- [x] Authentification existante, découverte des `.crp` au commit source figé, sélection d’un corpus sans fusion et refus source/cible identiques.
+- [x] Choix d’un projet déjà enregistré ou d’une nouvelle adresse, réutilisation des accès OAuth/jeton sans nouvelle saisie. Pour une source connue, compte, projet, branche et racine retrouvés dans le coffre côté main ; aucun autre compte choisi silencieusement, aucune ouverture ni modification du corpus enregistré.
+- [x] Cible réellement vide ou initialisée uniquement par des fichiers techniques usuels acceptée ; données utilisateur préexistantes refusées.
+- [x] Bilan des entretiens et des seuls médias référencés, dédoublonnage des références résolues, taille et SHA-256, chemins scellés et invalidation des réponses tardives.
+- [x] Lecture des octets et décodage existant ; `.Sonal` et médias LFS résolus vers leur contenu réel. Références hors dépôt ou inaccessibles refusées, sans entretien vide de remplacement pour une erreur réseau.
+- [x] Conversions SAS/DOM conservées dans une préparation privée avec `CorpusStore`, sans ouvrir le corpus ni ajouter de récent pendant le bilan. Chaque conversion est liée à un `bilanId`, distinct de l’identifiant de découverte.
+- [x] Transfert GitLab binaire en flux et client LFS ; copies WebDAV conditionnelles et relecture de confirmation. Les copies existantes différentes ne sont pas écrasées.
+- [x] Références explicites `gitlab` / `webdav`, résolution historique conservée, miroir et lecteur existants raccordés. Un cache homonyme ne transforme pas un média externe en média du dépôt ; aucun nouveau lecteur créé.
+
+### 10.2. Réalisé : opération, publication et reprise
+
+- [x] `ServiceMigrationGitLab` relie préparation, conversion privée, confirmation, copie, publication et réouverture ; IPC, preload et composable renderer raccordés.
+- [x] `OperationMigrationGitLab` copie et confirme les médias avant de publier les références. Les contenus natifs et leurs identifiants sont figés localement avant le premier transfert.
+- [x] Initialisation automatique prévue sur `main` pour un dépôt sans branche, par le premier commit de coordination ; branche par défaut conservée pour une cible déjà initialisée. Le comportement des autres parcours de création GitLab n’est pas changé.
+- [x] Recontrôle de la destination avant copies et publications, à chaque tentative d’envoi et avant ouverture d’une migration en attente. Les fichiers techniques initiaux restent inchangés ; créations natives conditionnelles, sans remplacement de données utilisateur.
+- [x] Publieur, droits et limites existants réutilisés. Publication groupée lorsqu’elle tient ; fractionnement seulement si nécessaire, avec `corpus.json` publié en dernier. Attributs LFS limités à `medias/.gitattributes` ; JSON natifs hors LFS.
+- [x] Un suivi local de migration dans le profil, complété par le `JournalPublicationGitLab` existant pour les candidats d’envoi. Il conserve source, cible, chemins/identifiants, empreintes, copies confirmées, lots publiés et éventuelle intention inconnue ; pas de journal par type de donnée.
+- [x] Reprise explicite depuis les contenus privés conservés, sans reconstruire les identifiants. Réconciliation d’un envoi accepté à réponse perdue ; pas de relance aveugle. Une reprise d’envoi déclaré absent neutralise l’ancienne tentative avant de refaire des créations conditionnelles.
+- [x] Nouvelle session empêchée de reprendre un droit précédent encore actif. Reprise liée au poste, au compte, à la destination et à la branche enregistrés ; suivi illisible ou incohérent refusé.
+- [x] Configuration média externe stockée uniquement dans le coffre du poste. Destination enregistrée après confirmation pour permettre la reprise ; récents ajoutés par l’installation finale existante, pas par le bilan.
+- [x] Ouverture via `ServiceOuvertureGitLab`, puis application du résultat dans le cycle de corpus existant. Les médias du dépôt inaccessibles empêchent l’installation d’une migration ; un échec d’ouverture reste réessayable sans republier les métadonnées.
+- [x] Progression et arrêt aux frontières sûres ; copies acquises conservées, sans suppression des originaux ni retour arrière automatique.
+- [x] Annulation finale raccordée et testée : signal transmis à la vérification finale et à la préparation du miroir, arrêt avant le fichier suivant et absence d’installation tardive. La reprise de l’ouverture ne copie ni ne publie à nouveau ; un arrêt reçu après réussite ne bloque pas une réouverture suivante. La fermeture de la modale demande l’arrêt et ignore les réponses tardives.
+- [x] Action toujours désactivée dans l’interface, y compris la reprise ; blocage côté main avant toute exécution publique. L’autorisation interne utilisée par les tests isolés n’active pas le parcours dans l’application.
+
+### 10.3. Vérifications réellement effectuées
+
+**Dernière campagne consolidée : 850 tests / 49 fichiers réussis**, uniquement sur transports simulés et fichiers synthétiques. Elle inclut les tests GitLab hors qualification réelle, la préparation renderer, la migration `.crp` locale, les commentaires, la projection de pseudonymisation et la lecture WebDAV existante.
+
+Commande de la campagne :
+
+```sh
+npx vitest run test/gitlab test/migrationCrp.test.ts test/migrationGitLabRenderer.test.ts test/projetGitLabRenderer.test.ts test/pseudonymisationProjection.test.ts test/commentairesMigration.test.ts test/webdav/lectureMedia.test.ts --exclude '**/qualification*.test.ts' --exclude '**/contrat-gitlab.test.ts'
+```
+
+Cette campagne couvre notamment :
+
+- copie de plusieurs Mio vers les deux destinations simulées, références partagées et homonymes ;
+- conservation des fichiers techniques, de la source et des identifiants après reprise ;
+- publication fractionnée, interruption après un premier lot et métadonnées finales publiées en dernier ;
+- réponse perdue après acceptation, absence de réenvoi automatique et reprise contrôlée ;
+- refus d’une cible modifiée, d’un contenu privé altéré ou d’un ancien bilan ;
+- reprise sur une nouvelle instance du service avec octets déjà conservés et source devenue inaccessible ;
+- protection contre une reprise de droit encore actif, ouverture échouée sans republication et non-installation avec médias du dépôt manquants ;
+- contrôle de confirmation et conservation des conversions côté renderer ; références média historiques et non-régression Local ;
+- annulation pendant le miroir avant le média suivant et sans installation partielle ;
+- annulation pendant la préparation d’ouverture, sans fermeture ni remplacement du contexte courant ;
+- transmission de l’arrêt à l’ouverture, reprise sans copie/publication supplémentaire, et réouverture après arrêt tardif ;
+- fermeture du formulaire avec arrêt de l’opération, retrait de l’écoute et ignorance des réponses tardives.
+
+La campagne ciblée d’annulation a réussi : **46 tests / 4 fichiers** (`miroirMedias`, `ouverture`, `serviceMigration`, `migrationGitLabRenderer`). La campagne consolidée de **831 tests / 49 fichiers**, `npm run typecheck`, `npm run build` et `git diff --check` ont ensuite réussi sur le dernier état. Les cinq tests d’annulation supplémentaires portent la campagne précédente de 826 à 831 tests.
+
+Correctif d’affichage ultérieur : le voile de `MigrationGitLab.vue` reçoit le même positionnement fixe et centré que les autres modales. **Un test Electron local réussi** dans `e2e/migration-v1.e2e.ts` vérifie le centrage et la couverture de la fenêtre en 1000×800 et 640×480, puis la fermeture. Build, typecheck et contrôle des espaces réussis après ce correctif. Ce test ne se connecte à aucun serveur et ne qualifie pas la migration réelle ; la campagne de 831 tests n’a pas été relancée pour ce seul changement CSS.
+
+Après ajout du choix d’une source déjà enregistrée : **850 tests / 49 fichiers réussis** sur la même commande consolidée, soit 19 tests supplémentaires sur la réutilisation OAuth/jeton, les accès manquants ou refusés, le compte imposé, les réponses tardives et la branche/racine du coffre. Typecheck, build et contrôle des espaces réussis.
+
+**8 tests Electron locaux réussis** avec `npx playwright test e2e/migration-v1.e2e.ts --project=local --workers=1` : centrage de la modale, deux parcours de sélection d’un projet connu (OAuth et jeton, réponses IPC simulées), retour à une nouvelle adresse et cinq scénarios Local existants. Ces deux tests GitLab ne contactent aucun serveur et ne qualifient ni les credentials réels ni la migration distante. Un premier essai à deux workers a rencontré deux fermetures inattendues d’Electron, dont une avec `Failed to shutdown` ; la relance complète à un worker a réussi. Aucun changement du harnais ni du parcours Local pour contourner cet incident.
+
+La première campagne de 300 tests / 20 fichiers portait sur les primitives et les raccordements initiaux ; les campagnes consolidées étendent ces contrôles à l’orchestration et à l’annulation finale. Elles ne constituent pas une migration qualifiée de bout en bout dans Electron sur GitLab réel.
+
+**Aucune qualification réelle exécutée.** Le banc GitLab reste sur l’autre ordinateur. L’ancienne tentative de préparation locale échouait faute de `~/TestGitlabLocal/qualification.env` ; aucun banc installé, image téléchargée ou volume reprovisionné. Aucun banc réel n’a été lancé pour cette campagne simulée.
+
+### 10.4. Restant, dans l’ordre
+
+1. [x] **Terminer la couverture de l’annulation finale** : cinq tests dédiés ajoutés aux fichiers existants, sans nouvelle fonctionnalité ni refonte des parcours. Arrêt du miroir, non-installation tardive, fermeture du formulaire, reprise sans republication et arrêt après réussite couverts.
+2. [x] **Relancer les vérifications sur le dernier état** : tests ciblés, campagne consolidée de 850 tests, typecheck, build et contrôle des espaces réussis.
+3. [x] **Actualiser les autres documents** : `docs/dev/migration-gitlab-v1.md`, `docs/user/migration-v1.md`, `docs/user/corpus-distant.md` et l’entrée de `docs/dev/gitlab.md` décrivent maintenant le parcours raccordé, ses protections et ses limites, sans le présenter comme activé ou qualifié.
+4. [ ] **Sur l’autre ordinateur uniquement, qualifier sur des données synthétiques isolées** :
+   - cible sans branche et cible avec README/attributs techniques conservés ; refus source=cible, cible occupée et cible modifiée ;
+   - copies réelles vers GitLab/LFS et vers Nextcloud/WebDAV, médias réutilisés, homonymes, accents et gros binaire ; `.Sonal` et média source LFS ;
+   - fidélité des conversions, dont choix de pseudonymes mémorisés, alias, exceptions, variantes locales et locuteurs sans tour de parole ;
+   - ouverture dans l’application puis sur un **profil neuf sans sources locales**, accès externes déclarés sur ce profil, audio/vidéo et navigation temporelle dans le lecteur existant ;
+   - au moins un **arrêt réel de l’application pendant une migration engagée**, reprise depuis le suivi local, interruption pendant copie et après publication acceptée, sans duplication ni annonce de réussite avec médias manquants.
+   Avant les tests réels, appeler `preparer_bancs_docker` pour les seuls bancs nécessaires. Ne pas installer de banc ici, télécharger d’images ou reprovisionner.
+5. [ ] **Après ces preuves seulement**, consigner les résultats et limites, activer l’action et son autorisation main, mettre à jour les guides puis demander l’acceptation utilisateur. Le plan reste dans `plans/encours/` jusque-là.
+
+### 10.5. Limites et précautions de reprise
+
+- Les actions LFS vers une autre origine restent refusées ; le stockage objet externe d’une instance institutionnelle n’est pas couvert. Ne pas élargir ce chantier sans besoin constaté.
+- Les documents V1 et publications gardent les bornes existantes ; les médias sont streamés sans plafond JSON. Un document natif individuel trop gros est refusé, pas découpé arbitrairement.
+- Les contrôles de cible et les gardes de fichiers ne sont pas une transaction globale GitLab + WebDAV. Une interruption conserve les copies confirmées ; aucun nettoyage distant automatique pour annuler l’opération.
+- La reprise repose sur les fichiers privés conservés dans le profil du poste. Ouvrir un corpus publié sur un profil neuf ne signifie pas transporter son suivi de migration vers un autre poste.
+- Aucun commit, push ou reset effectué. Conserver l’arbre de travail existant, y compris les modifications qui ne proviennent pas de cette migration.
+
+**Fichiers principaux pour reprendre :** `src/main/gitlab/{migration,operationMigration,suiviMigration,documentsMigration,preparationMigration,copieMediasMigration}.ts`, `src/renderer/composables/corpus/useMigrationGitLab.ts`, `src/renderer/components/accueil/MigrationGitLab.vue`, `src/main/gitlab/ouverture.ts` et les tests `test/gitlab/{operationMigration,serviceMigration}.test.ts`. Pour l’annulation finale, examiner aussi `src/main/distant/miroir.ts` et `src/main/gitlab/contexte.ts`.

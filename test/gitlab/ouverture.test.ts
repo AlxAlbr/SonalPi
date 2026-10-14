@@ -269,6 +269,41 @@ afterEach(() => {
 })
 
 describe('ouverture GitLab — orchestration du service', () => {
+  test('un arrêt pendant la préparation interdit une installation tardive et permet une nouvelle ouverture', async () => {
+    const annulation = new AbortController()
+    let terminer!: () => void
+    const attente = new Promise<void>((resolve) => { terminer = resolve })
+    const preparer = vi.fn(async (_compte, destination) => {
+      await attente
+      return preparationFactice(destination, '/miroir-test')
+    })
+    const { service, coffre, installées, traces } = bancOuverture({ preparer })
+    connecterCompte(coffre)
+    const ouverture = service.ouvrirMigration(demande, annulation.signal)
+    await vi.waitFor(() => expect(preparer).toHaveBeenCalledOnce())
+    annulation.abort()
+    terminer()
+    await expect(ouverture).rejects.toMatchObject({ name: 'AbortError' })
+    expect(installées).toHaveLength(0)
+    expect(traces).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+    await service.ouvrirMigration(demande, new AbortController().signal)
+    expect(installées).toHaveLength(1)
+    expect(traces).toEqual(['fermer', 'installer'])
+  })
+
+  test('une migration ne remplace pas le contexte si ses médias du dépôt sont inaccessibles', async () => {
+    const { service, coffre, installées, traces } = bancOuverture({
+      preparer: async (_compte, destination) => ({ ...preparationFactice(destination, '/miroir-test'),
+        inaccessibles: [{ chemin: 'medias/voix.mp3', raison: 'indisponible' }] }),
+    })
+    connecterCompte(coffre)
+    await expect(service.ouvrirMigration(demande)).rejects.toThrow(/médias ne sont pas accessibles/)
+    expect(installées).toHaveLength(0)
+    expect(traces).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+  })
+
   test('nouvelle destination : préparation avant coffre, fermeture avant installation', async () => {
     const { service, coffre, dirProfil, traces, installées } = bancOuverture({
       preparer: async (compte, destination, client) => {

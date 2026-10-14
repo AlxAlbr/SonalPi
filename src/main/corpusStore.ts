@@ -277,6 +277,9 @@ export class CorpusStore {
    *  Les dérivés locaux purs (PNG waveform) restent permis. */
   lectureSeule = false
 
+  /** Transport dont le miroir contient les médias ; absent pour un corpus local. */
+  fournisseurMiroir?: 'webdav' | 'gitlab'
+
   /** Préparation d'une transaction de définitions : ce store ne connaît que
    *  `corpus.json`, et les seuls entretiens qui lui sont confiés comme sources.
    *  Voir `ErreurCorpusSeul`. */
@@ -2506,7 +2509,12 @@ export class CorpusStore {
       try {
         const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
         const d = data.meta?.audioDistant
-        if (d && typeof d.chemin === 'string' && d.chemin) out.set(id, { chemin: d.chemin })
+        if (
+          d && typeof d.chemin === 'string' && d.chemin &&
+          !d.chemin.startsWith('/') && !d.chemin.includes('\\') && !d.chemin.includes('\0') &&
+          !d.chemin.split('/').some((segment) => !segment || segment === '.' || segment === '..') &&
+          (this.fournisseurMiroir !== 'gitlab' || d.fournisseur === 'gitlab')
+        ) out.set(id, { chemin: d.chemin })
       } catch {
         /* fichier illisible : pas de désignation retenue */
       }

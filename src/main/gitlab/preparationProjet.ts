@@ -3,6 +3,8 @@ import type {
   ProjetGitLabPrepare,
 } from '../../shared/gitlab'
 import type { ServiceAuthentificationGitLab } from './authentification'
+import type { ConfigDestinationGitLab } from '../distant/coffre'
+import type { CibleMigrationGitLab } from '../../shared/corpus/migrationGitLab'
 
 function estObjet(valeur: unknown): valeur is Record<string, unknown> {
   return typeof valeur === 'object' && valeur !== null && !Array.isArray(valeur)
@@ -35,6 +37,46 @@ export async function preparerProjetGitLab(
   demande: DemandePreparationProjetGitLab,
   authentification: ServiceAuthentificationGitLab,
 ): Promise<ProjetGitLabPrepare> {
+  const projet = await lireProjetGitLab(demande, authentification)
+  if (projet.branche === null) {
+    throw new Error('Ce projet GitLab n’a pas de branche par défaut. Initialisez le dépôt dans GitLab, par exemple avec un README.')
+  }
+  return { ...projet, branche: projet.branche }
+}
+
+/** Réutilise le compte et la branche enregistrés, sans ouvrir ni modifier le corpus. */
+export async function preparerProjetEnregistreMigrationGitLab(
+  destination: ConfigDestinationGitLab,
+  authentification: ServiceAuthentificationGitLab,
+): Promise<ProjetGitLabPrepare> {
+  const compte = authentification.comptePublic(destination.compteId)
+  const client = await authentification.client(destination.compteId, destination.projetId)
+  const { corps: projet } = await client.lireJson<unknown>(client.cheminProjet(''))
+  if (
+    !estObjet(projet) || projet.id !== destination.projetId ||
+    typeof projet.name !== 'string' || !projet.name.trim() ||
+    typeof projet.archived !== 'boolean'
+  ) throw new Error('Projet GitLab invalide.')
+  if (projet.archived) throw new Error('Ce projet GitLab est archivé et ne peut pas être utilisé.')
+  return {
+    compteId: destination.compteId, urlInstance: compte.urlInstance,
+    utilisateur: compte.utilisateur, projetId: destination.projetId,
+    nomProjet: projet.name.trim(), branche: destination.branche,
+  }
+}
+
+/** Accepte un dépôt réellement vide sans modifier les autres parcours. */
+export async function preparerCibleMigrationGitLab(
+  demande: DemandePreparationProjetGitLab,
+  authentification: ServiceAuthentificationGitLab,
+): Promise<CibleMigrationGitLab> {
+  return lireProjetGitLab(demande, authentification)
+}
+
+async function lireProjetGitLab(
+  demande: DemandePreparationProjetGitLab,
+  authentification: ServiceAuthentificationGitLab,
+): Promise<CibleMigrationGitLab> {
   const chemin = cheminProjet(demande.urlProjet)
   const compte = authentification.comptePublic(demande.compteId)
   // Le projet doit appartenir à l'instance du compte connecté : aucun token ne
@@ -63,8 +105,11 @@ export async function preparerProjetGitLab(
   if (projet.archived) {
     throw new Error('Ce projet GitLab est archivé et ne peut pas être utilisé.')
   }
-  if (typeof projet.default_branch !== 'string' || !projet.default_branch.trim()) {
-    throw new Error('Ce projet GitLab n’a pas de branche par défaut. Initialisez le dépôt dans GitLab, par exemple avec un README.')
+  if (typeof projet.default_branch === 'string' && !projet.default_branch.trim()) {
+    throw new Error('Branche GitLab invalide.')
+  }
+  if (projet.default_branch === null && projet.empty_repo !== true) {
+    throw new Error('Ce projet n’a pas de branche par défaut et n’est pas un dépôt vide.')
   }
   return {
     compteId: demande.compteId,
@@ -72,7 +117,7 @@ export async function preparerProjetGitLab(
     utilisateur: compte.utilisateur,
     projetId: projet.id as number,
     nomProjet: projet.name.trim(),
-    branche: projet.default_branch,
+    branche: projet.default_branch as string | null,
   }
 }
 

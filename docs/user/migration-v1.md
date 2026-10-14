@@ -70,9 +70,43 @@ texte (spans `data-obs` / `data-auth` / `data-finobs` → annotations
 
 | Élément SonalPi1 | Statut | Pourquoi |
 |---|---|---|
-| Corpus **distants** (GitLab / serveur) en SonalPi1 | hors périmètre | Migration locale uniquement |
+| Corpus **GitLab** en SonalPi1 | Bilan disponible, migration non activée | Voir le parcours GitLab ci-dessous |
+| Autres corpus **distants** en SonalPi1 | Non pris en charge | Le parcours opérationnel reste la migration locale |
 | Archives / export `.zip` SonalPi1 | hors périmètre | À étudier plus tard |
 | Migration **inverse** SonalPi2 → SonalPi1 | hors périmètre | — |
+
+## GitLab : préparer un bilan (migration pas encore disponible)
+
+Depuis l’entrée **« Migration SonalPi1 vers SonalPi2 »**, la carte **GitLab**
+permet de préparer un bilan. La carte Local et sa politique média restent inchangées.
+
+1. Choisissez un projet GitLab déjà enregistré dans l’application, ou indiquez
+   l’adresse d’un nouveau projet SonalPi1. Les accès enregistrés sont réutilisés,
+   sans redemander de connexion, y compris pour un nouveau projet sur la même
+   instance. Une connexion n’est demandée que si aucun accès utilisable n’est
+   disponible ou si GitLab le refuse. Le projet choisi doit contenir un `.crp`
+   SonalPi1 ; sélectionner un corpus SonalPi2 ne le reconvertit pas sur place.
+2. Si plusieurs `.crp` sont présents, choisissez le corpus à reprendre.
+3. Indiquez un **autre projet GitLab**, accessible au même compte sur la même
+   instance : il doit être vide ou contenir uniquement un README, une licence
+   et des fichiers usuels de configuration Git. Un dépôt sans branche est accepté
+   pour cette préparation.
+4. Choisissez l’emplacement futur des médias : un espace Nextcloud/WebDAV déclaré,
+   ou le nouveau dépôt GitLab. Le parcours de copie est implémenté, mais reste
+   inactif avant vérification sur serveur réel. Il conserve les originaux.
+5. Consultez le bilan : nombre d’entretiens et de médias, volume et destination.
+   Une référence source inaccessible arrête la préparation et affiche une erreur.
+
+**Rien n’est copié ni publié par ce bilan.** La copie, la reprise après arrêt et
+la réouverture sont implémentées, mais attendent leur vérification sur serveur
+réel, notamment la lecture sur un autre profil. Les boutons de migration et de
+reprise restent désactivés. Fermer le bilan ne modifie ni la source ni les destinations.
+
+Après qualification et activation, le parcours ouvrira le nouveau corpus et
+l’ajoutera aux récents. Un arrêt conservera les copies acquises pour une reprise
+confirmée sur le même poste, sans remplacer les fichiers existants ni supprimer
+les originaux. Pour un espace média externe partagé, chaque autre profil devra
+renseigner ses propres accès au même dossier.
 
 ## 5. Détails techniques (pour la curiosité / le dépannage)
 

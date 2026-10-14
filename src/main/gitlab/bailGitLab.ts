@@ -390,6 +390,20 @@ export class BailGitLab {
     }
   }
 
+  /** Retrouve uniquement un droit prouvé par le suivi de ce poste et de cette opération. */
+  async retrouverDroitJournalise(ressource: string, generation: string): Promise<DroitsEditionGitLab | null> {
+    const resourceHash = hacherRessource(ressource)
+    const chemin = cheminBail(resourceHash)
+    const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
+    if (!observe) return null
+    const bail = lireBail(observe.contenu, resourceHash)
+    const identite = this.options.identite()
+    if (bail.generation !== generation || bail.version !== VERSION_BAIL ||
+      bail.holder.userId !== identite.userId || bail.holder.machineId !== identite.machineId ||
+      bail.holder.sessionId !== identite.sessionId || Date.parse(bail.expireLe) <= this.maintenant()) return null
+    return this.creerDroit(chemin, bail, observe.commitId)
+  }
+
   async reprendreRessource(ressource: string): Promise<ResultatAcquisitionBailGitLab> {
     return this.serierCommit(() => this.acquerirInterne(ressource, true))
   }

@@ -85,6 +85,12 @@ export function useMediasCorpus(deps: {
         return { etat: 'format-non-pris-en-charge' as const }
       }
       if (verification && verification.motif === null) return { etat: 'distant-gitlab' as const }
+      if (designation.fournisseur === 'gitlab') {
+        const inaccessible = audiosInaccessibles.value.find((audio) => audio.chemin === designation.chemin)
+        return inaccessible
+          ? { etat: 'inaccessible' as const, raison: inaccessible.raison }
+          : { etat: 'media-absent' as const }
+      }
       const base = deps.etatBaseMedia()
       if (base === 'non-configuree' || verification?.motif === 'non-configuree') {
         return { etat: 'base-non-configuree' as const }

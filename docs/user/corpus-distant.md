@@ -101,6 +101,20 @@ collaborateur configure donc son propre accès au même dossier depuis le bouton
 « Médias… » de l’accueil GitLab. Cette configuration peut aussi être ajoutée après la
 création. Git LFS n’est pas nécessaire.
 
+## Préparer la migration d’un corpus SonalPi1 GitLab
+
+Une carte distincte se trouve dans **« Migration SonalPi1 vers SonalPi2 »** à
+l’accueil. Elle permet actuellement de lire la source et de préparer un bilan
+vers un nouveau dépôt, avec choix de l’emplacement futur des médias.
+**La migration n’est pas encore activée : le bilan ne copie ni ne publie rien.**
+La copie, la reprise après arrêt et la réouverture sont implémentées, mais attendent
+leur vérification sur serveur réel et sur un profil neuf. Les actions restent
+indisponibles jusque-là. Après activation, les médias seront copiés dans le nouveau
+dépôt GitLab ou dans l’espace externe choisi, sans supprimer les originaux.
+Voir [migration-v1.md](migration-v1.md) pour le parcours disponible et ses limites.
+Cette préparation accepte un dépôt sans branche ; elle ne change pas les
+conditions de création et d’ouverture des corpus GitLab décrites ci-dessus.
+
 ## Opérations portant sur tout un corpus GitLab
 
 Certaines suppressions de définitions et certaines dérivations doivent vérifier

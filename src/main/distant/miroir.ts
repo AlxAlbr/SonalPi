@@ -142,7 +142,8 @@ export class MiroirDistant {
    *  La divergence sera tranchée par les gardes du connecteur à la publication,
    *  pas par un pull sauvage.
    */
-  async tirer(exclus: string[] = []): Promise<ResultatTirage> {
+  async tirer(exclus: string[] = [], signal?: AbortSignal): Promise<ResultatTirage> {
+    signal?.throwIfAborted()
     const horsJeu = new Set(exclus)
     if (!existsSync(this.dirLocal)) mkdirSync(this.dirLocal, { recursive: true })
     this.installationLocale.reprendre()
@@ -181,6 +182,7 @@ export class MiroirDistant {
 
     try {
       for (const entree of candidats) {
+        signal?.throwIfAborted()
         if (!entree.empreinte) continue
         if (
           this.memeEmpreinte(manifeste.empreintes[entree.chemin], entree.empreinte) &&
@@ -199,6 +201,7 @@ export class MiroirDistant {
         telecharges.push(entree.chemin)
       }
 
+      signal?.throwIfAborted()
       validerCandidatsMiroir({
         dirLocal: this.dirLocal,
         candidats,
@@ -206,10 +209,9 @@ export class MiroirDistant {
         exclus: horsJeu,
       })
 
-      const designations = this.resoutDesignationsMedia()
-        ? this.designationsAudio(candidats, horsJeu, contenusPrepares)
-        : []
+      const designations = this.designationsAudio(candidats, horsJeu, contenusPrepares)
       for (const chemin of designations) {
+        signal?.throwIfAborted()
         try {
           const entree = await this.entreeDistanteFichier(lecture, chemin)
           if (!entree?.empreinte) {
@@ -235,10 +237,12 @@ export class MiroirDistant {
           manifesteFinal.empreintes[chemin] = entree.empreinte
           telecharges.push(chemin)
         } catch (e) {
+          signal?.throwIfAborted()
           inaccessibles.push({ chemin, raison: this.raisonErreurTransfert(e) })
         }
       }
 
+      signal?.throwIfAborted()
       const cheminsDistants = new Set([...candidats.map((c) => c.chemin), ...designations])
       const corbeille: string[] = []
       const archives: { chemin: string; destination: string }[] = []
@@ -268,19 +272,10 @@ export class MiroirDistant {
     }
   }
 
-  /* ── Audios désignés ───────────────────────────────────────────────────
-   *  Un média désigné est cherché dans le BACKEND DU CORPUS, dont le miroir
-   *  est le miroir : c'est le cas d'un corpus WebDAV, où la désignation est
-   *  rapatriée à chaque tirage. Un dépôt GitLab n'est pas le magasin des
-   *  médias : le média y vit dans la base déclarée par la personne, résolue
-   *  par le module média, jamais ici.
-   *  Lecture défensive : un JSON illisible ne doit jamais faire échouer le
-   *  tirage. */
-
-  /** Le miroir rapporte-t-il lui-même les médias désignés par les entretiens ? */
-  private resoutDesignationsMedia(): boolean {
-    return this.identiteMiroir.fournisseur === 'webdav'
-  }
+  /** Les médias du dépôt sont rapportés dans le miroir.
+   *  Les références GitLab historiques et WebDAV restent dans la base externe.
+   *  Un entretien illisible ne bloque pas cette recherche.
+   */
 
   /** Chemins RELATIFS désignés par les entretiens locaux, dédoublonnés et assainis.
    *  Relatifs purs : pas de remontée `..`, pas d'absolu. */
@@ -303,10 +298,14 @@ export class MiroirDistant {
         const contenu = contenusPrepares.get(cheminEntretien) ??
           readFileSync(join(this.dirLocal, cheminEntretien), 'utf8')
         const data = JSON.parse(contenu) as {
-          meta?: { audioDistant?: { chemin?: unknown } }
+          meta?: { audioDistant?: { chemin?: unknown; fournisseur?: unknown } }
         }
-        const chemin = data.meta?.audioDistant?.chemin
-        if (typeof chemin === 'string' && this.cheminSurEstSain(chemin)) out.add(chemin)
+        const designation = data.meta?.audioDistant
+        const chemin = designation?.chemin
+        const dansDepot = this.identiteMiroir.fournisseur === 'gitlab'
+          ? designation?.fournisseur === 'gitlab'
+          : designation?.fournisseur === undefined || designation.fournisseur === 'webdav'
+        if (dansDepot && typeof chemin === 'string' && this.cheminSurEstSain(chemin)) out.add(chemin)
       } catch {
         /* Entretien illisible ou incomplet : ignoré, pas bloquant. */
       }

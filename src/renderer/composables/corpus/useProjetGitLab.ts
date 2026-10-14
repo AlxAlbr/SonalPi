@@ -4,6 +4,7 @@ import type {
   AuthentificationGitLab,
   ConnexionGitLabPublique,
   DemandeOuvertureGitLab,
+  DestinationGitLabPublic,
   ProjetGitLabPrepare,
 } from '../../../shared/gitlab'
 
@@ -51,6 +52,9 @@ export function useProjetGitLab(
   const compteChoisi = ref<string | null>(null)
   let generation = 0
   let actif = true
+  let compteImpose: string | null = null
+  let authentificationManuelle = false
+  let selectionAutomatique = false
 
   const comptes = computed(() => (connexion.value?.comptes ?? [])
     .filter((compte) => compte.authentification === authentification.value))
@@ -69,6 +73,10 @@ export function useProjetGitLab(
 
   /** Un compte déjà connecté sur l'instance est repris automatiquement. */
   function choisirCompteParDefaut(): void {
+    if (compteImpose) {
+      compteChoisi.value = compteImpose
+      return
+    }
     if (
       compteChoisi.value &&
       comptes.value.some((compte) => compte.id === compteChoisi.value && compte.connecte)
@@ -76,13 +84,15 @@ export function useProjetGitLab(
     compteChoisi.value = comptes.value.find((compte) => compte.connecte)?.id ?? null
   }
 
-  watch(connexion, () => choisirCompteParDefaut())
+  watch(connexion, () => choisirCompteParDefaut(), { flush: 'sync' })
   watch(authentification, () => {
+    generation += 1
+    if (!selectionAutomatique) authentificationManuelle = true
     projet.value = null
     compteChoisi.value = null
     choisirCompteParDefaut()
     etat.erreur.value = null
-  })
+  }, { flush: 'sync' })
 
   onScopeDispose(() => {
     actif = false
@@ -122,10 +132,36 @@ export function useProjetGitLab(
       return
     }
     const cible = instance.value
+    const courante = generation
     const courant = await api.etat(cible)
-    if (!actif || cible !== instance.value) return
+    if (!actif || courante !== generation || cible !== instance.value) return
+    if (!compteImpose && !authentificationManuelle) {
+      const disponible = courant.comptes.find((c) => c.connecte && c.authentification === authentification.value)
+        ?? courant.comptes.find((c) => c.connecte)
+      if (disponible) {
+        selectionAutomatique = true
+        authentification.value = disponible.authentification
+        selectionAutomatique = false
+      }
+    }
     connexion.value = courant
     choisirCompteParDefaut()
+  }
+
+  /** Reprend le compte du projet choisi, sans demander de secret. */
+  async function utiliserConnexionEnregistree(destination: DestinationGitLabPublic | null): Promise<void> {
+    compteImpose = destination?.compteId ?? null
+    authentificationManuelle = false
+    connexion.value = null
+    compteChoisi.value = compteImpose
+    clientId.value = ''
+    jetonPersonnel.value = ''
+    selectionAutomatique = true
+    authentification.value = destination?.authentification ?? 'oauth'
+    selectionAutomatique = false
+    instance.value = destination?.urlInstance ?? ''
+    generation += 1
+    if (destination) await rafraichirEtat()
   }
 
   /** Ouvre le navigateur GitLab et attend le retour du consentement. */
@@ -133,10 +169,12 @@ export function useProjetGitLab(
     if (!pretConnexion.value || !instance.value) return false
     connexionEnCours.value = true
     etat.erreur.value = null
+    const courante = generation
     try {
       const resultat = authentification.value === 'oauth'
         ? await api.connecter(instance.value, clientId.value.trim() || undefined)
         : await api.connecterAvecJeton(instance.value, jetonPersonnel.value)
+      if (!actif || courante !== generation) return false
       connexion.value = resultat
       if (authentification.value === 'oauth') clientId.value = ''
       else jetonPersonnel.value = ''
@@ -144,6 +182,7 @@ export function useProjetGitLab(
       await rafraichirEtat()
       return compteCourant.value?.connecte === true
     } catch (e) {
+      if (!actif || courante !== generation) return false
       etat.erreur.value = e instanceof Error
         ? e.message
         : 'Connexion à GitLab impossible.'
@@ -243,6 +282,7 @@ export function useProjetGitLab(
     pretConnexion,
     detecter,
     rafraichirEtat,
+    utiliserConnexionEnregistree,
     connecter,
     deconnecter,
     charger,

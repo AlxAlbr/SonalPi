@@ -5,7 +5,8 @@ import type {
   EtatSessionPublic,
   OuvertureDistante,
 } from '../../../shared/distant'
-import type { DemandeCreationGitLab, DemandeOuvertureGitLab } from '../../../shared/gitlab'
+import type { ResultatMigrationGitLab } from '../../../shared/corpus/migrationGitLab'
+import type { DemandeConfigurationBaseMedia, DemandeCreationGitLab, DemandeOuvertureGitLab } from '../../../shared/gitlab'
 import type { DemandeCreationWebDAV } from '../../../shared/webdav'
 import type {
   CorpusFichier,
@@ -293,6 +294,19 @@ export function useCycleCorpus(deps: {
     )
   }
 
+  async function appliquerMigrationGitLab(operation: () => Promise<ResultatMigrationGitLab>): Promise<ResultatMigrationGitLab> {
+    await preparerBascule()
+    const resultat = await operation()
+    if (resultat.etat === 'terminee') {
+      await appliquerOuvertureDistante(resultat.ouverture)
+      await deps.profil.rafraichirRecents()
+    }
+    return resultat
+  }
+
+  const migrerGitLab = (bilanId: string, confirmee: boolean) => appliquerMigrationGitLab(() => window.sonal.migrer.gitlab.executer(bilanId, confirmee))
+  const reprendreMigrationGitLab = (id: string, confirmee: boolean, baseMedia?: DemandeConfigurationBaseMedia) => appliquerMigrationGitLab(() => window.sonal.migrer.gitlab.reprendre(id, confirmee, baseMedia))
+
   async function creerCorpusWebDAV(params: DemandeCreationWebDAV) {
     const resultat = await window.sonal.webdav.creer(params)
     if (!resultat.ok) throw new Error(resultat.note)
@@ -456,6 +470,8 @@ export function useCycleCorpus(deps: {
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,
     creerEtOuvrirGitLab,
+    migrerGitLab,
+    reprendreMigrationGitLab,
     creerCorpusWebDAV,
     oublierDestinationWebDAV,
     rafraichirCorpusSansFermer,

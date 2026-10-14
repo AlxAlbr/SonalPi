@@ -66,6 +66,12 @@ export interface OptionsPublieurGitLab {
   depot: DepotCommitsGitLab
   coordination: BailGitLab
   journal?: JournalPublicationGitLab
+  /** La progression d'une opération composée doit être durable avant retrait du candidat. */
+  conserverJournalConfirme?: boolean
+  /** Une recherche de commit vide ne prouve pas l'absence d'une réponse perdue. */
+  absenceIndeterminee?: boolean
+  /** Revérifie une cible dédiée à chaque tentative, sans remplacer les gardes de fichiers. */
+  verifierAvantEnvoi?: () => Promise<void>
   /** Attente avant le réessai d'une collision de branche, et avant tout. */
   attendre?: (delaiMs: number) => Promise<void>
 }
@@ -258,6 +264,13 @@ export class PublieurGitLab {
     try {
       let reessai = false
       for (;;) {
+        if (this.options.verifierAvantEnvoi) {
+          try { await this.options.verifierAvantEnvoi() } catch {
+            this.refuserTous(transitions, false)
+            this.supprimerJournal(plan.operationId)
+            return { statut: 'refuse', raison: 'conflit' }
+          }
+        }
         try {
           const commit = await this.options.depot.publierCommit(
             this.options.branche,
@@ -394,7 +407,7 @@ export class PublieurGitLab {
     if (resultat.statut === 'indetermine') {
       return { statut: 'indetermine', operationId: plan.operationId }
     }
-    if (resultat.statut === 'absent' && (plan.operationId.startsWith('ajout-variante-') || plan.operationId.startsWith('retrait-variante-'))) {
+    if (resultat.statut === 'absent' && (this.options.absenceIndeterminee || plan.operationId.startsWith('ajout-variante-') || plan.operationId.startsWith('retrait-variante-'))) {
       return { statut: 'indetermine', operationId: plan.operationId }
     }
     if (resultat.statut === 'absent') {
@@ -428,7 +441,7 @@ export class PublieurGitLab {
       }
       return
     }
-    this.supprimerJournal(plan.operationId)
+    if (!this.options.conserverJournalConfirme) this.supprimerJournal(plan.operationId)
   }
 
   /** Reprend l'état de bail que la publication reconciliée portait. */

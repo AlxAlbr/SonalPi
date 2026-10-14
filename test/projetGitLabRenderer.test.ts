@@ -92,6 +92,25 @@ describe('formulaire partagé de projet GitLab', () => {
     expect(f.preparerProjet).toHaveBeenCalledTimes(1)
   })
 
+  it('reprend automatiquement un jeton déjà disponible sur l’instance', async () => {
+    const compte = { ...connexion().comptes[0], authentification: 'jeton-personnel' as const }
+    const f = formulaire(api({ etat: vi.fn(async () => connexion({ comptes: [compte] })) }))
+    await expect(f.charger()).resolves.toBe(true)
+    expect(f.authentification.value).toBe('jeton-personnel')
+    expect(f.compteChoisi.value).toBe(compte.id)
+    expect(f.api.connecter).not.toHaveBeenCalled()
+    expect(f.api.connecterAvecJeton).not.toHaveBeenCalled()
+    expect(f.preparerProjet).toHaveBeenCalledOnce()
+  })
+
+  it('respecte le mode d’authentification explicitement choisi', async () => {
+    const f = formulaire()
+    f.authentification.value = 'jeton-personnel'
+    await f.detecter()
+    expect(f.authentification.value).toBe('jeton-personnel')
+    expect(f.compteCourant.value).toBeNull()
+  })
+
   it('enchaîne détection, OAuth et vérification depuis une seule action', async () => {
     const sansCompte = connexion({ applicationConnue: false, comptes: [] })
     const f = formulaire(api({

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import ModaleDemo from './ModaleDemo.vue'
 import MigrationCorpus from './MigrationCorpus.vue'
+import MigrationGitLab from './MigrationGitLab.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
 import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
@@ -33,6 +34,7 @@ const modaleDemo = ref<ModeDemo | null>(null)
 // Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
 // avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
 const modaleMigration = ref(false)
+const modaleMigrationGitLab = ref(false)
 // Modales « Nouveau corpus… » et « Ouvrir un corpus distant » : état partagé
 // (déclenchées par les cartes ci-dessous ou par le menu applicatif).
 const modaleNouveau = modaleNouveauCorpus
@@ -141,6 +143,10 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
             <div class="carte-titre">Tester SonalPi2 tout en gardant le contenu lié à SonalPi1 intact</div>
             <div class="carte-sous">Migration locale — l’ancien dossier SonalPi1 reste intact, tout le contenu est repris</div>
           </button>
+          <button class="carte-demo migrer-gitlab" @click="modaleMigrationGitLab = true">
+            <div class="carte-titre">GitLab — préparer une migration</div>
+            <div class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Bilan disponible ; migration pas encore activée.</div>
+          </button>
         </div>
       </div>
 
@@ -168,6 +174,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
 
       <!-- Modale de migration SonalPi1 → SonalPi2 (aperçu → dossier dédié → exécution) -->
       <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
+      <MigrationGitLab v-if="modaleMigrationGitLab" @fermer="modaleMigrationGitLab = false" />
 
       <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
       <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />

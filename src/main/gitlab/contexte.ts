@@ -30,6 +30,7 @@ import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
 import { FileOperationsContexte } from './fileOperations'
 import { InstantaneLectureGitLab } from './lecture'
+import { TransfertGitLab } from './transfert'
 import { ObservationBailsGitLab } from './observationBails'
 import { ApercusThemesGitLab } from './apercusThemes'
 import type { OperationsThemesGitLab } from './operationsThemes'
@@ -124,6 +125,7 @@ export class ContexteGitLab {
     private readonly instantane?: InstantaneLectureGitLab,
     optionsApercus?: Pick<OptionsContexteGitLabLectureSeule, 'client' | 'branche' | 'racine' | 'cheminsRecuperables'>,
   ) {
+    store.fournisseurMiroir = 'gitlab'
     this.file = transactions?.file ?? new FileOperationsContexte()
     this.cheminsRecuperables = [...(optionsApercus?.cheminsRecuperables ?? [])]
     if (optionsApercus) {
@@ -1041,7 +1043,9 @@ function raisonLisible(raison: string): string {
 /** Prépare une consultation GitLab sans sonde ni mutation du projet. */
 export async function preparerContexteGitLabLectureSeule(
   options: OptionsContexteGitLabLectureSeule,
+  signal?: AbortSignal,
 ): Promise<PreparationContexteGitLabLectureSeule> {
+  signal?.throwIfAborted()
   const instantane = new InstantaneLectureGitLab(
     options.client,
     options.branche,
@@ -1051,6 +1055,7 @@ export async function preparerContexteGitLabLectureSeule(
     options.dirLocal,
     () => instantane.ouvrir(),
     { fournisseur: 'gitlab', destinationId: options.id },
+    new TransfertGitLab(options.client, async () => (await instantane.ouvrir()).commit, options.racine),
   )
   const racine = normaliserRacineGitLab(options.racine ?? '')
   const journalRetrait = new JournalRetraitVarianteAnonGitLab(options.dirLocal,
@@ -1066,7 +1071,7 @@ export async function preparerContexteGitLabLectureSeule(
   const tirage = retraitEnAttente || journalSuppression && (journalSuppression.publication || !journalSuppression.miroirComplet)
     ? { telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
     : await miroir.tirer([...(options.cheminsRecuperables ?? []), ...ciblesDissociation, ...ciblesSuppression,
-      ...(journalSuppression?.nouvellesCibles.map((id) => `entretiens/${id}.json`) ?? [])])
+      ...(journalSuppression?.nouvellesCibles.map((id) => `entretiens/${id}.json`) ?? [])], signal)
   const cheminCorpus = join(options.dirLocal, 'corpus.json')
   if (!existsSync(cheminCorpus)) {
     throw new Error("Le dépôt GitLab ne contient pas de corpus.json.")

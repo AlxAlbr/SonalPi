@@ -296,6 +296,7 @@ declare global {
         cheminDe: (f: File) => string
       }
       migrer: {
+        gitlab: import('../shared/corpus/migrationGitLab').ApiMigrationGitLab
         choisirCrp: () => Promise<{ chemin: string; analyse: AnalyseCrp } | null>
         choisirDossier: (nom: string) => Promise<string | null>
         verifierDossier: (dir: string) => Promise<VerificationDossierMigration>

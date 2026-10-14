@@ -71,6 +71,24 @@ function bail(
 }
 
 describe('bail GitLab versionné', () => {
+  test('un suivi ne retrouve que le droit du même détenteur, de la même génération et encore valide', async () => {
+    const depot = new DepotMemoire()
+    let maintenant = Date.now()
+    const identite = { userId: 'alice', machineId: 'poste-a', sessionId: 'session-a' }
+    const creer = (holder = identite) => new BailGitLab({ branche: 'main', depot, identite: () => holder, maintenant: () => maintenant })
+    const coordinateur = creer()
+    const resultat = await coordinateur.acquireRessource('migration-test')
+    if (!resultat.ok) throw new Error('Droit attendu')
+    const generation = resultat.droit.generation
+    expect(await creer().retrouverDroitJournalise('migration-test', generation)).not.toBeNull()
+    expect(await creer().retrouverDroitJournalise('migration-test', 'autre-generation')).toBeNull()
+    expect(await creer({ ...identite, sessionId: 'autre-session' }).retrouverDroitJournalise('migration-test', generation)).toBeNull()
+    expect(await creer({ ...identite, machineId: 'autre-poste' }).retrouverDroitJournalise('migration-test', generation)).toBeNull()
+    maintenant += 24 * 3600_000
+    expect(await creer().retrouverDroitJournalise('migration-test', generation)).toBeNull()
+    expect(depot.commits).toHaveLength(1)
+  })
+
   test('acquisition exclusive et séparation des sessions du même compte', async () => {
     const depot = new DepotMemoire()
     const maintenant = () => Date.UTC(2026, 0, 1)

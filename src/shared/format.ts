@@ -107,11 +107,14 @@ export interface RegleAnon {
   categorie?: string
 }
 
-/** Trace d'une migration SonalPi1 → SonalPi2 : identité du `.crp` (nom + dateCreation), et chemin absolu vers le fichier d'origine, en mémoire.
- *  Champ ADDITIF optionnel. */
+/** Identité du `.crp` d'origine et, pour GitLab, version source figée.
+ *  Champ additif optionnel.
+ */
 export interface SourceV1 {
-  /** Chemin absolu du `.crp` migré. */
+  /** Chemin local du `.crp`, ou chemin dans le dépôt lorsque la source est GitLab. */
   cheminCrp: string
+  /** Source GitLab figée ; aucune information d'accès ne voyage ici. */
+  gitlab?: { urlInstance: string; projetId: number; commit: string }
   /** `dateCreation` portée par le `.crp` (nouveauCorpus), sinon null. */
   dateCreation: string | null
 }
@@ -258,31 +261,31 @@ export interface BrouillonAnon {
   pseudo?: string
 }
 
-/** Référence d'un média qui vit HORS du corpus, dans un magasin WebDAV.
- *  Elle ne porte qu'un chemin RELATIF au dossier servi : la taille, le type,
- *  l'ETag et la date sont des observations d'exécution, et le chemin reste
- *  valable si le fichier est remplacé.
- *
- *  `fournisseur` est ADDITIF : les références plus anciennes, qui n'en
- *  portent pas, restent lisibles. Le dossier visé dépend du fournisseur DU
- *  CORPUS — le backend du corpus pour un corpus WebDAV, la base média
- *  déclarée par la personne pour un corpus GitLab. */
+/** Chemin relatif d'un média partagé, sans adresse ni secret.
+ *  `gitlab` désigne le dépôt ; `webdav` désigne le dossier WebDAV associé.
+ *  Sans fournisseur, le comportement historique reste conservé :
+ *  dossier du corpus WebDAV, ou base externe du corpus GitLab.
+ */
 export interface ReferenceMediaDistant {
   chemin: string
-  fournisseur?: 'webdav'
+  fournisseur?: 'webdav' | 'gitlab'
 }
 
 /** Forme canonique d'une désignation neuve : le transport y est explicite. */
-export function referenceMediaDistant(chemin: string): ReferenceMediaDistant {
-  return { chemin, fournisseur: 'webdav' }
+export function referenceMediaDistant(
+  chemin: string,
+  fournisseur: 'webdav' | 'gitlab' = 'webdav',
+): ReferenceMediaDistant {
+  return { chemin, fournisseur }
 }
 
 /** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration SonalPi1 — champ ADDITIF optionnel, sans bump de formatVersion. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
-  /** Média désigné hors du corpus : c'est la désignation qui porte l'information, pas un dossier.
-   *  Champ ADDITIF optionnel. */
+  /** Média partagé dont la référence indique la destination.
+   *  Champ additif optionnel.
+   */
   audioDistant?: ReferenceMediaDistant
   /** Chemin RELATIF du `.sonal` SonalPi1 d'origine au dossier du `.crp` — trace seule, jamais utilisée pour relire. */
   sourceV1?: { rtrPath: string | null }
