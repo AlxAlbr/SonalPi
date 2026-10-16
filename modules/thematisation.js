@@ -14,6 +14,25 @@ var taille_def = 18; // taille de police par défaut
 var dragO = null; // thématique en cours de déplacement 
 var dragA = null; // thématique cible du déplacement
 
+/**
+ * Met à jour les catégories partagées puis persiste immédiatement le .crp.
+ *
+ * `setThm` seul ne modifie que la mémoire du process principal. Sur GitLab, le
+ * rafraîchissement périodique relit ensuite le .crp distant et annule toute
+ * création/modification qui n'a pas été sauvegardée.
+ */
+async function persisterCategoriesCorpus(categories) {
+    await window.electronAPI.setThm(categories);
+
+    if (typeof window.sauvegarderCorpus !== 'function') {
+        const erreur = 'La sauvegarde du corpus est indisponible.';
+        console.error(erreur);
+        return { success: false, error: erreur };
+    }
+
+    return await window.sauvegarderCorpus(false);
+}
+
 let filigraneActif = true;
 const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
 const THM_STYLE_ID = 'sonal-thm-style';
@@ -781,7 +800,7 @@ async function affichListThmEdit(tabThm){
                 });
 
         // handle actual drop on the target
-        div.addEventListener('drop', (event) => {
+        div.addEventListener('drop', async (event) => {
             event.preventDefault();
             div.classList.remove('dragging');
 
@@ -794,6 +813,7 @@ async function affichListThmEdit(tabThm){
             // perform move only when valid and different
             if (!isNaN(from) && !isNaN(to) && from !== to) {
                 moveThm(tabThm, from, to);
+                await persisterCategoriesCorpus(tabThm);
                 affichListThmEdit(tabThm);
             }
 
@@ -956,9 +976,10 @@ async function validerModifsThm(){
  
     
 
-    // enregistrement du tabThm dans le main
+    // Enregistrement en mémoire puis sauvegarde immédiate du .crp. Sans cette
+    // sauvegarde, la synchronisation GitLab restaure la version distante.
     console.log("enregistrement des modifs de thématiques ", tabThm[rangthm]);
-    let envoi = await window.electronAPI.setThm(tabThm);
+    let envoi = await persisterCategoriesCorpus(tabThm);
 
     // Recalcul des styles après édition : recrée les règles mono et multi-catégories
     // pour éviter les traces de l'ancienne couleur dans l'éditeur.
@@ -1498,9 +1519,9 @@ async function supprStyle(){
     // Mise à jour du tableau des thématiques
     tabThm = tabThm.filter(item => item.code !== "cat_" + code);
 
-    // enregistrement du tabThm dans le main
+    // Enregistrement en mémoire puis sauvegarde immédiate du .crp.
     console.log("enregistrement des modifs de thématiques après suppression ", tabThm);
-    await window.electronAPI.setThm(tabThm);
+    await persisterCategoriesCorpus(tabThm);
     
     return true;
 }
@@ -3131,7 +3152,8 @@ if (typeof module !== 'undefined' && module.exports) {
         ajoutThmApres,
         catsEnFiligrane,
         removeCatsEnFiligrane,
-        ouvrirModalCategories
+        ouvrirModalCategories,
+        persisterCategoriesCorpus
 
     };
 }
@@ -3165,6 +3187,7 @@ if (typeof window !== 'undefined') {
     window.catsEnFiligrane = catsEnFiligrane;
     window.removeCatsEnFiligrane = removeCatsEnFiligrane;
     window.ouvrirModalCategories = ouvrirModalCategories;
+    window.persisterCategoriesCorpus = persisterCategoriesCorpus;
     
     // listener IPC pour rafraîchir la liste des thématiques
     if (window.electronAPI && typeof window.electronAPI.onThematisationRefresh === 'function') {
