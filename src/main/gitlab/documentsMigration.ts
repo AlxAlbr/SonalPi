@@ -34,7 +34,7 @@ export class DocumentsMigrationGitLab {
       dateCreation: bilan.apercu.dateCreation,
       gitlab: { urlInstance: bilan.source.urlInstance, projetId: bilan.source.projetId, commit: bilan.commitSource },
     }, codebook, variables, mapperTabAnon(bilan.apercu.raw.tabAnon, () => `reg-crp-${++numeroRegle}`),
-    mapperParamsAnon(bilan.apercu.raw.paramsAnonCorpus))
+    mapperParamsAnon(bilan.apercu.raw.paramsAnonCorpus), bilan.lexicoV1?.traitements)
   }
 
   get nombreEntretiens(): number { return this.ids.length }

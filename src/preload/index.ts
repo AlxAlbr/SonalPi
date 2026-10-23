@@ -68,6 +68,7 @@ import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
+import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
   ApiDistant,
@@ -75,7 +76,7 @@ import type {
   ProgressionTransfert,
   ResultatFermetureSession,
 } from '../shared/distant'
-import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
 import { CORPUS_SUPPRIME } from '../shared/format'
 
@@ -313,6 +314,22 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:casCommander', commande),
     tableaubordCommander: (commande: CommandeTableauBord): Promise<CorpusFichier> =>
       invoquer('corpus:tableaubordCommander', commande),
+    lexicoCommander: (commande: CommandeTraitementsLexico): Promise<CorpusFichier> =>
+      invoquer('corpus:lexicoCommander', commande),
+    lexicoExporterTableau: (demande: {
+      nom: string
+      contenu: string
+      format: 'csv' | 'tsv'
+    }): Promise<{ annule: boolean; chemin?: string }> =>
+      invoquer('corpus:lexicoExporterTableau', demande),
+    analysesCroiseesExporter: (demande: {
+      nom: string
+      contenu: string
+      format: 'csv' | 'tsv'
+    }): Promise<{ annule: boolean; chemin?: string }> =>
+      invoquer('corpus:analysesCroiseesExporter', demande),
+    syntheseExporterTxt: (demande: { nom: string; contenu: string }): Promise<{ annule: boolean; chemin?: string }> =>
+      invoquer('corpus:syntheseExporterTxt', demande),
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
     notesInventaire: (): Promise<InventaireNotes> => invoquer('corpus:notesInventaire'),
@@ -576,7 +593,7 @@ contextBridge.exposeInMainWorld('sonal', {
       },
     } satisfies ApiMigrationGitLab,
     /** Choix d'un `.crp` SonalPi1 : dialogue + lecture + analyse (aperçu). */
-    choisirCrp: (): Promise<{ chemin: string; analyse: AnalyseCrp } | null> =>
+    choisirCrp: (): Promise<ChoixCrpMigration | null> =>
       invoquer('migrer:choisirCrp'),
     /** Choix du dossier DÉDIÉ, pré-rempli Documents/Sonal/<nom>. */
     choisirDossier: (nom: string): Promise<string | null> =>

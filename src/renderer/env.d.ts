@@ -67,8 +67,9 @@ import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
+import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
-import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   ApiDistant,
   EtatSessionPublic,
@@ -175,6 +176,21 @@ declare global {
         recueilsCommander: (commande: CommandeRecueils) => Promise<CorpusFichier>
         casCommander: (commande: CommandeCas) => Promise<CorpusFichier>
         tableaubordCommander: (commande: CommandeTableauBord) => Promise<CorpusFichier>
+        lexicoCommander: (commande: CommandeTraitementsLexico) => Promise<CorpusFichier>
+        lexicoExporterTableau: (demande: {
+          nom: string
+          contenu: string
+          format: 'csv' | 'tsv'
+        }) => Promise<{ annule: boolean; chemin?: string }>
+        analysesCroiseesExporter: (demande: {
+          nom: string
+          contenu: string
+          format: 'csv' | 'tsv'
+        }) => Promise<{ annule: boolean; chemin?: string }>
+        syntheseExporterTxt: (demande: {
+          nom: string
+          contenu: string
+        }) => Promise<{ annule: boolean; chemin?: string }>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>
@@ -297,7 +313,7 @@ declare global {
       }
       migrer: {
         gitlab: import('../shared/corpus/migrationGitLab').ApiMigrationGitLab
-        choisirCrp: () => Promise<{ chemin: string; analyse: AnalyseCrp } | null>
+        choisirCrp: () => Promise<ChoixCrpMigration | null>
         choisirDossier: (nom: string) => Promise<string | null>
         verifierDossier: (dir: string) => Promise<VerificationDossierMigration>
         executer: (req: DemandeMigration) => Promise<OuvertureCorpus>

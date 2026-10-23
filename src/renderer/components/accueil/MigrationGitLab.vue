@@ -125,6 +125,15 @@ const volume = computed(() => bilan.value
             <summary>Détails de la source</summary>
             <p>Version source : <code>{{ bilan.commitSource }}</code></p>
             <p>{{ bilan.apercu.themes.length }} thème(s), {{ bilan.apercu.variables.length }} variable(s).</p>
+            <p v-if="bilan.lexicoV1?.fichiers.length">
+              Réglages Lexico {{ bilan.lexicoV1.fichiers.join(', ') }} :
+              {{ bilan.lexicoV1.traitements.motsOutils.length }} mot(s) outil(s),
+              {{ bilan.lexicoV1.traitements.regroupements.length }} regroupement(s),
+              {{ bilan.lexicoV1.traitements.concatenations.length }} concaténation(s).
+            </p>
+            <ul v-if="bilan.lexicoV1?.diagnostics.length">
+              <li v-for="diagnostic in bilan.lexicoV1.diagnostics" :key="diagnostic">{{ diagnostic }}</li>
+            </ul>
           </details>
           <button type="button" :disabled="occupe || !MIGRATION_GITLAB_QUALIFIEE" @click="migration.executer">{{ MIGRATION_GITLAB_QUALIFIEE ? 'Copier les médias et créer le corpus' : 'Migrer (pas encore disponible)' }}</button>
         </section>

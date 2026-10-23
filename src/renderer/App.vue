@@ -15,6 +15,9 @@ import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.
 import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
+import LexicoModale from './components/lexico/LexicoModale.vue'
+import SyntheseModale from './components/synthese/SyntheseModale.vue'
+import AnalysesCroiseesModale from './components/analyses/AnalysesCroiseesModale.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -105,6 +108,9 @@ const {
     <RecueilsModale />
     <TableauBordModale />
     <DocsCadreModale />
+    <LexicoModale />
+    <SyntheseModale />
+    <AnalysesCroiseesModale />
     <ModaleExportEntretien />
     <ModaleExportCorpus />
   </main>

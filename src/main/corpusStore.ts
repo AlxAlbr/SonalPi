@@ -37,6 +37,8 @@ import {
   type InventaireNotes,
 } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
+import { appliquerCommandeTraitementsLexico, normaliserTraitementsLexico, type CommandeTraitementsLexico } from '../shared/lexico/traitements'
+import type { TraitementsLexico } from '../shared/lexico/types'
 import { aplatir, appliquerRegleAnonEntretienAvecBilan, bilanAnonVide } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
@@ -99,6 +101,7 @@ import {
  *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
  *  - formatVersion 3 → 4 : recueils partagés et repères autonomes de passages.
  *  - formatVersion 4 → 5 : cas analytiques partageant les repères de passages.
+ *  - formatVersion 8 → 9 : réglages Lexico persistés au niveau du corpus.
  *  Voir shared/entretien/migration.ts pour la mécanique de migration.
  */
 
@@ -462,7 +465,7 @@ export class CorpusStore {
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     corpus.personnes ??= {}
     const versionInitiale = corpus.formatVersion as number
-    if (versionInitiale >= 1 && versionInitiale <= 7) {
+    if (versionInitiale >= 1 && versionInitiale <= 8) {
       corpus.recueils = normaliserRecueils(corpus.recueils)
       corpus.cas = normaliserCas(corpus.cas)
     } else if (versionInitiale === FORMAT_VERSION && corpus.cas !== undefined) {
@@ -474,12 +477,15 @@ export class CorpusStore {
     if (versionInitiale < FORMAT_VERSION || corpus.attributsCas !== undefined) {
       corpus.attributsCas = normaliserAttributsCas(corpus.attributsCas)
     }
+    if (versionInitiale < FORMAT_VERSION || corpus.lexico !== undefined) {
+      corpus.lexico = normaliserTraitementsLexico(corpus.lexico)
+    }
     const entretiensV2: EntretienV2Prepare[] = []
     const deplacementsPng: DeplacementPngPrepare[] = []
 
     if (versionInitiale === 1) {
       corpus.formatVersion = FORMAT_VERSION
-    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6 || versionInitiale === 7) {
+    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6 || versionInitiale === 7 || versionInitiale === 8) {
       for (const id of Object.keys(corpus.membership)) {
         const fichier = this.entretienFile(id)
         if (!existsSync(fichier)) continue
@@ -491,7 +497,7 @@ export class CorpusStore {
           if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
             data.meta.audioRef = resolve(this.dir, ref)
           }
-        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6 && versionEntretien !== 7) {
+        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6 && versionEntretien !== 7 && versionEntretien !== 8) {
           continue
         }
         data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
@@ -572,7 +578,8 @@ export class CorpusStore {
     if (cible.nouveau || cible.versionInitiale === 1
       || cible.versionInitiale === 2 || cible.versionInitiale === 3
       || cible.versionInitiale === 4 || cible.versionInitiale === 5
-      || cible.versionInitiale === 6 || cible.versionInitiale === 7) {
+      || cible.versionInitiale === 6 || cible.versionInitiale === 7
+      || cible.versionInitiale === 8) {
       this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
       this.invaliderRefsAudio()
     }
@@ -711,6 +718,7 @@ export class CorpusStore {
     variables: Variable[],
     reglesAnonV1?: RegleAnon[],
     paramsAnon?: ParamsAnon,
+    traitementsLexico?: TraitementsLexico,
   ): PreparationOuvertureCorpus {
     this.verifierDossiersOuverture()
     if (existsSync(this.corpusFile)) {
@@ -728,6 +736,7 @@ export class CorpusStore {
       cas: {},
       famillesCas: {},
       attributsCas: {},
+      lexico: normaliserTraitementsLexico(traitementsLexico),
       nom,
       meta: { sourceV1 },
     }
@@ -753,6 +762,7 @@ export class CorpusStore {
     variables: Variable[],
     reglesAnonV1?: RegleAnon[],
     paramsAnon?: ParamsAnon,
+    traitementsLexico?: TraitementsLexico,
   ): CorpusFichier {
     const preparation = this.preparerMigrationDepuisV1(
       nom,
@@ -761,6 +771,7 @@ export class CorpusStore {
       variables,
       reglesAnonV1,
       paramsAnon,
+      traitementsLexico,
     )
     return this.finaliserOuverture(preparation)
   }
@@ -796,7 +807,7 @@ export class CorpusStore {
     }
     if ((data.formatVersion as number) === 3 || (data.formatVersion as number) === 4
       || (data.formatVersion as number) === 5 || (data.formatVersion as number) === 6
-      || (data.formatVersion as number) === 7) {
+      || (data.formatVersion as number) === 7 || (data.formatVersion as number) === 8) {
       data.formatVersion = FORMAT_VERSION
     }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
@@ -1800,6 +1811,15 @@ export class CorpusStore {
    *  Fonction `usagesParCategorie` de shared/corpus. */
   usagesParCategorie(): Record<string, number> {
     return corpusModel.usagesParCategorie(this.datas())
+  }
+
+  // Les réglages Lexico sont des définitions partagées du corpus.
+  traitementsLexicoCommander(commande: CommandeTraitementsLexico): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    corpus.lexico = appliquerCommandeTraitementsLexico(corpus.lexico, commande)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
   }
 
   // ── Tableau de bord (définitions corpus) — lire → muter → écrire ─────────

@@ -7,9 +7,9 @@ Deux états : ce qui est **stocké** / ce qui est **reconstruit, recalculé**.
 
 | Nature | Exemple | Plan technique | Stockée ? |
 |---|---|---|---|
-| **Définition** (existe avant tout usage) | `Categorie`, `RegleAnon`, `Variable`/`Modalite` | `corpus.json` | oui (primaire) |
+| **Définition** (existe avant tout usage) | `Categorie`, `RegleAnon`, `Variable`/`Modalite`, réglages Lexico | `corpus.json` | oui (primaire) |
 | **Application** (décision portée par un entretien) | codage, masquage, métadonnée (données d'une variable), commentaire | `entretiens/<id>.json` | oui (primaire) |
-| **Requête** (agrégation dérivable) | `Extrait`, matrice EAV, passage « à anonymiser »| — | non — **calculée** |
+| **Requête** (agrégation dérivable) | `Extrait`, matrice EAV, passage « à anonymiser », index et tableaux Lexico | — | non — **calculée** |
 
 L'objectif, c'est d'éviter la redondance des informations qui existe malheureusement dans la version actuelle de SonalPi1.
 

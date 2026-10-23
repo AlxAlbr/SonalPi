@@ -65,6 +65,7 @@ describe('portée des gestes du corpus', () => {
     for (const mode of ['alpha', 'ajout', 'modif', 'longueur'] as const) {
       expect(porteeGeste(gestureTri(mode)), mode).not.toBeNull()
     }
+    expect(porteeGeste('lexico.modifier-traitements')).toBe('definitions-corpus')
   })
 
   test('créer un cas avec un passage est un geste qui lit les entretiens', () => {

@@ -9,6 +9,7 @@ import type {
 import type { EntreeVerrouPublic, ResultatTiragePublic } from '../../shared/distant'
 import {
   FORMAT_VERSION,
+  versionSupportee,
   type Categorie,
   type CibleRegleAnon,
   type CorpusFichier,
@@ -1077,7 +1078,7 @@ export async function preparerContexteGitLabLectureSeule(
     throw new Error("Le dépôt GitLab ne contient pas de corpus.json.")
   }
   const corpusBrut = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
-  if (corpusBrut.formatVersion !== FORMAT_VERSION) {
+  if (!versionSupportee(corpusBrut.formatVersion)) {
     throw new Error(
       'Ce corpus nécessite une migration explicite avant sa consultation depuis GitLab.',
     )

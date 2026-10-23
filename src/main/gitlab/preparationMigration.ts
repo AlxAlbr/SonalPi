@@ -8,6 +8,7 @@ import type {
   SourceMigrationGitLab,
 } from '../../shared/corpus/migrationGitLab'
 import { analyserCrp, mapperEntretiensV1 } from '../../shared/corpus/migrationCrp'
+import { importerTraitementsLexicoV1 } from '../../shared/lexico/traitements'
 import type { CoffreComptes } from '../distant/coffre'
 import { preparerBaseMediaVerifiee, type BaseMediaVerifiee } from '../medias/baseMedia'
 import { verifierCheminMediaRelatif } from '../medias/designation'
@@ -19,6 +20,7 @@ import { preparerCibleMigrationGitLab, preparerProjetGitLab, preparerProjetEnreg
 interface Preparation {
   source: SourceMigrationGitLab
   lecture: LectureV1GitLab
+  fichiers: string[]
   bilan?: BilanMigrationGitLab
   baseMedia?: BaseMediaVerifiee
 }
@@ -91,13 +93,14 @@ export class PreparateurMigrationGitLab {
     const client = await this.authentification.client(projet.compteId, projet.projetId)
     const lecteur = await LecteurGitLab.depuisBranche(client, projet.branche)
     const racine = destination?.racine ? `${destination.racine}/` : ''
-    const corpus = (await fichiersDepot(lecteur)).filter((chemin) => chemin.startsWith(racine) && /\.crp$/i.test(chemin))
+    const fichiers = await fichiersDepot(lecteur)
+    const corpus = fichiers.filter((chemin) => chemin.startsWith(racine) && /\.crp$/i.test(chemin))
     if (!corpus.length) throw new Error('Aucun corpus SonalPi1 (.crp) trouvé dans ce dépôt.')
     if (generation !== this.generation) throw new Error('La source a changé. Préparez de nouveau la migration.')
     const source: SourceMigrationGitLab = {
       preparationId: randomUUID(), projet, commit: lecteur.commit, corpus,
     }
-    this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit) }
+    this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit), fichiers }
     return structuredClone(source)
   }
 
@@ -106,7 +109,7 @@ export class PreparateurMigrationGitLab {
     const generation = ++this.generation
     preparation.bilan = undefined
     preparation.baseMedia = undefined
-    const { source, lecture } = preparation
+    const { source, lecture, fichiers } = preparation
     if (!source.corpus.includes(demande.cheminCrp)) throw new Error('Choisissez un corpus de la source préparée.')
     const cible = await preparerCibleMigrationGitLab(demande.cible, this.authentification)
     if (cible.projetId === source.projet.projetId && cible.urlInstance === source.projet.urlInstance) {
@@ -115,6 +118,21 @@ export class PreparateurMigrationGitLab {
     const commitCible = await verifierCibleMigrationGitLab(cible, this.authentification)
     const analyse = analyserCrp(await lecture.lireDocument(demande.cheminCrp), posix.basename(demande.cheminCrp))
     if (!analyse.ok) throw new Error(analyse.message)
+    const baseLexico = demande.cheminCrp.slice(0, -posix.extname(demande.cheminCrp).length)
+    const annexes: Partial<Record<'out' | 'lem' | 'cnct', string>> = {}
+    const diagnosticsLexico: string[] = []
+    for (const extension of ['out', 'lem', 'cnct'] as const) {
+      const chemin = `${baseLexico}.${extension}`
+      if (!fichiers.includes(chemin)) continue
+      const information = await lecture.information(chemin)
+      if (information.taille > 5 * 1024 * 1024) {
+        diagnosticsLexico.push(`.${extension} ignoré : le fichier dépasse 5 Mio.`)
+        continue
+      }
+      annexes[extension] = await lecture.lireDocument(chemin)
+    }
+    const lexicoV1 = importerTraitementsLexicoV1(annexes)
+    lexicoV1.diagnostics.unshift(...diagnosticsLexico)
     const bilan: BilanMigrationGitLab = {
       bilanId: randomUUID(),
       preparationId: source.preparationId,
@@ -124,6 +142,7 @@ export class PreparateurMigrationGitLab {
       cible,
       commitCible,
       apercu: analyse.apercu,
+      lexicoV1,
       entretiens: [],
       medias: [],
       volumeOctets: 0,

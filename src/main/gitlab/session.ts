@@ -17,7 +17,7 @@ import {
   ReconciliateurPublicationGitLab,
   type JournalPublicationGitLab,
 } from './journalPublication'
-import { FORMAT_VERSION } from '../../shared/format'
+import { versionSupportee } from '../../shared/format'
 import type { RaisonDegradationSession } from '../../shared/distant'
 import { JournalSessionsGitLab, sha256Session } from './journalSession'
 
@@ -131,7 +131,7 @@ export class SessionGitLab {
         } catch {
           throw new Error('Entretien GitLab illisible après acquisition.')
         }
-        if (!contenu || typeof contenu !== 'object' || (contenu as { formatVersion?: unknown }).formatVersion !== FORMAT_VERSION) {
+        if (!contenu || typeof contenu !== 'object' || !versionSupportee((contenu as { formatVersion?: unknown }).formatVersion)) {
           throw new Error('Version d’entretien GitLab non prise en charge.')
         }
         let contenuLocal = distant.contenu
@@ -144,7 +144,7 @@ export class SessionGitLab {
           contenuLocal = candidat
           try {
             const contenuCandidat = JSON.parse(candidat) as { formatVersion?: unknown }
-            if (contenuCandidat.formatVersion !== FORMAT_VERSION) {
+            if (!versionSupportee(contenuCandidat.formatVersion)) {
               throw new Error('Version de reprise GitLab non prise en charge.')
             }
           } catch {

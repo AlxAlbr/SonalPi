@@ -28,8 +28,9 @@ HTTP 403 n’est pas présenté comme une demande de nouveau credential. Une abs
 de credential après échec du renouvellement OAuth est relue depuis l’état public.
 
 `PreparateurMigrationGitLab` découvre les `.crp` à un commit source figé ; plusieurs
-fichiers impliquent un choix, jamais une fusion. Le corpus enregistré n’est ni
-modifié ni ajouté de nouveau aux récents.
+fichiers impliquent un choix, jamais une fusion. Pour le corpus choisi, les annexes
+Lexico `.out`, `.lem` et `.cnct` de même nom sont lues au même commit et intégrées au
+bilan. Le corpus enregistré n’est ni modifié ni ajouté de nouveau aux récents.
 
 Un `bilanId` identifie le bilan, distinct de la découverte. Les conversions
 renderer sont conservées côté main dans une préparation privée liée à ce bilan.

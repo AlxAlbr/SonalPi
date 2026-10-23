@@ -137,6 +137,17 @@ describe('contexte de corpus distant', () => {
       preparation.contexte.store.renommerEntretien(ID, 'Titre modifié'))
     expect(preparation.contexte.store.ouvrir().membership[ID].titre).toBe('Titre modifié')
 
+    const attendu = preparation.contexte.store.ouvrir().lexico!
+    await preparation.contexte.executerDefinitions(() =>
+      preparation.contexte.store.traitementsLexicoCommander({
+        type: 'remplacer',
+        attendu,
+        traitements: { ...attendu, motsOutils: ['le'] },
+      }))
+    expect(preparation.contexte.store.ouvrir().lexico?.motsOutils).toEqual(['le'])
+    const distant = JSON.parse(b.serveur.contenuDe('corpus.json')!) as CorpusFichier
+    expect(distant.lexico?.motsOutils).toEqual(['le'])
+
     await preparation.contexte.fermer()
   })
 

@@ -18,6 +18,7 @@ import type {
 } from '../../../shared/format'
 import { paramsAnonDefaut } from '../../../shared/format'
 import { squeletteCorpus } from '../../../shared/corpus/squelette'
+import { normaliserTraitementsLexico } from '../../../shared/lexico/traitements'
 import type { TableauBord } from '../../../shared/corpus/tableaubord'
 import {
   normaliserTableauBord,
@@ -42,6 +43,7 @@ interface ModeleCycleCorpus {
   famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
   attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   tableaubord: Ref<TableauBord | null>
+  lexico: Ref<NonNullable<CorpusFichier['lexico']>>
   paramsAnon: Ref<ParamsAnon>
   reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
@@ -162,6 +164,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
     deps.corpus.attributsCas.value = corpus.attributsCas ?? {}
     deps.corpus.tableaubord.value = normaliserTableauBord(corpus.tableaubord) ?? tableauBordParDefaut()
+    deps.corpus.lexico.value = normaliserTraitementsLexico(corpus.lexico)
     deps.corpus.majCodebook(corpus.codebook)
     deps.corpus.majVariables(corpus.variables)
     deps.corpus.majCategoriesNote(corpus.categoriesNote)
@@ -328,6 +331,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.famillesCas.value = charge.famillesCas ?? {}
     deps.corpus.attributsCas.value = charge.attributsCas ?? {}
     deps.corpus.tableaubord.value = normaliserTableauBord(charge.tableaubord) ?? tableauBordParDefaut()
+    deps.corpus.lexico.value = normaliserTraitementsLexico(charge.lexico)
     deps.corpus.majCodebook(charge.codebook)
     deps.corpus.majVariables(charge.variables)
     deps.corpus.majCategoriesNote(charge.categoriesNote)

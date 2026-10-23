@@ -14,7 +14,8 @@ modale de migration.
 1. **Choisir le `.crp`** — le fichier est LU (détection d'encodage automatique :
    UTF-8 ou windows-1252, comme SonalPi1). Rien n'est écrit.
 2. **Aperçu** — nom du corpus, date de création, nombre d'entretiens, thèmes,
-   variables et règles d'anonymisation. Si le `.crp` est illisible ou d'une
+   variables, règles d'anonymisation et éventuels réglages Lexico trouvés à côté
+   du `.crp`. Si le `.crp` est illisible ou d'une
    version inconnue, un refus clair s'affiche.
 3. **Choisir le dossier dédié** — un dossier = un corpus. Il est pré-rempli
    avec `Documents/Sonal/<nom-du-corpus>`, modifiable. **On n'écrase jamais** :
@@ -35,12 +36,15 @@ modale de migration.
 | chaque entretien (`.Sonal`) | un entretien SonalPi2 `entretiens/<id>.json` : texte, annotations (thèmes, anon), locuteurs, valeurs — avec la trace `meta.sourceV1.rtrPath` |
 | `audioPath` de chaque entretien | `meta.audioRef` — **chemin absolu référencé, aucune copie** (l'audio reste où il est) |
 | règles d'anonymisation portées par les `.Sonal` (`anon-json`) | `corpus.json.reglesAnon` (dédupliquées par entité) |
+| annexes Lexico `.out`, `.lem` et `.cnct` portant le même nom que le `.crp` | mots outils, regroupements et concaténations dans `corpus.json.lexico` |
 
 ### Cas particuliers
 
 - **`.Sonal` manquant sur disque** : l'entretien est quand même créé — vide, avec
   son audio s'il y en a un. Le corpus SonalPi2 reflète toujours le corpus SonalPi1.
 - **Audio absent** : `audioRef` reste `null`, l'entretien est importé quand même.
+- **Annexe Lexico absente ou partiellement invalide** : la migration continue et le
+  bilan indique les lignes ignorées. Le résultat d’analyse `.lexaf.json` n’est pas repris.
 - **Un seul `.crp` par dossier dédié** : si le dossier SonalPi1 contient plusieurs
   `.crp`, on les migre **un par un**, chacun vers son propre dossier dédié.
 - **Idempotence** : re-migrer le même `.crp` vers le même dossier est refusé par

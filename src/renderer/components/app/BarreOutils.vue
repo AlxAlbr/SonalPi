@@ -9,6 +9,9 @@ const {
   afficherRecueils,
   afficherTableauBord,
   afficherDocsCadre,
+  afficherLexico,
+  afficherSynthese,
+  afficherAnalysesCroisees,
   gesteDisponible,
 } = utiliserSonal()
 </script>
@@ -26,8 +29,9 @@ const {
       >Docs cadre projet</button>
     </div>
     <div class="ligne">
-      <button class="outil avenir" disabled title="À venir">Lexico</button>
-      <button class="outil avenir" disabled title="À venir">Synthèse</button>
+      <button class="outil btn-lexico" title="Ouvrir l’index lexical" @click="afficherLexico">Lexico</button>
+      <button class="outil btn-synthese" title="Ouvrir la synthèse" @click="afficherSynthese">Synthèse</button>
+      <button class="outil btn-analyses" title="Comparer les thèmes entre les entretiens" @click="afficherAnalysesCroisees">Analyses croisées</button>
     </div>
     <div class="ligne">
       <button class="outil btn-recueils" title="Ouvrir les recueils" @click="afficherRecueils">Recueils</button>
@@ -57,21 +61,18 @@ const {
   position: relative;
   white-space: nowrap;
 }
-.outil.avenir {
-  color: #8a8f9c;
-  border-style: dashed;
-  cursor: default;
-  padding-left: 0.55rem;
-}
 .outil::before {
   position: absolute;
   left: 0.4rem;
   font-size: 0.68rem;
 }
 .btn-cas::before { content: '🗂'; }
+.btn-lexico::before { content: '🔤'; }
+.btn-synthese::before { content: '🧩'; }
+.btn-analyses::before { content: '▦'; }
 .btn-tableau::before { content: '📊'; }
 .btn-recueils::before { content: '📌'; }
 /* Même icône que l'en-tête de DocsCadreModale.vue (test e2e : les deux doivent rester identiques). */
 .btn-docs-cadre::before { content: '🖼️'; }
-.btn-recueils:hover, .btn-cas:hover, .btn-docs-cadre:hover, .btn-tableau:hover { background: #f4f7fd; }
+.btn-recueils:hover, .btn-cas:hover, .btn-docs-cadre:hover, .btn-tableau:hover, .btn-lexico:hover, .btn-synthese:hover, .btn-analyses:hover { background: #f4f7fd; }
 </style>

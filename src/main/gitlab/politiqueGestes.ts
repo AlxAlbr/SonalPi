@@ -158,8 +158,9 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
   /** Un recueil qui reprend un passage : il dépend de l'entretien publié. */
   'recueil.passage': 'definitions-avec-sources',
 
-  // Tableau de bord.
+  // Tableau de bord et réglages Lexico.
   'tableau-bord.modifier': 'definitions-corpus',
+  'lexico.modifier-traitements': 'definitions-corpus',
 
   // CAS : un rattachement et une dérivation lisent les entretiens publiés.
   'cas.creer-famille': 'definitions-corpus',

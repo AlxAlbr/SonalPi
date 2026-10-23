@@ -5,6 +5,7 @@ import type { ReperePassage } from './entretien/reperesPassages'
 import type { Recueil } from './corpus/recueils'
 import type { Cas, FamilleCas, DefinitionAttributCas } from './corpus/cas'
 import type { TableauBord } from './corpus/tableaubord'
+import type { TraitementsLexico } from './lexico/types'
 
 /**
  *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
@@ -28,11 +29,13 @@ import type { TableauBord } from './corpus/tableaubord'
  *  formatVersion 6 : les règles de cas réunissent des personnes ou des entretiens entiers.
  */
 /** Format 7 : familles et règles de modalités, sans copie des textes projetés.
- *  Format 8 : définitions d'attributs de cas, valeurs saisies et recettes de dérivation. */
-export const FORMAT_VERSION = 8
+ *  Format 8 : définitions d'attributs de cas, valeurs saisies et recettes de dérivation.
+ *  Format 9 : réglages Lexico partagés, sans copie de l'index ni des résultats. */
+export const FORMAT_VERSION = 9
 
 export function versionSupportee(v: unknown): boolean {
-  return v === FORMAT_VERSION
+  // Le format 9 est additif ; le format 8 reste lisible pour permettre sa migration.
+  return v === 8 || v === FORMAT_VERSION
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -161,6 +164,8 @@ export interface CorpusFichier {
   /** Tableau de bord d'avancement (suivi d'étapes par entretien suivi). Un corpus ancien sans ce champ est normalisé vers le tableau par défaut.
    *  Champ ADDITIF optionnel — corpus-ONLY, sans bump de version (comme `categoriesNote`). */
   tableaubord?: TableauBord
+  /** Décisions lexicales partagées ; l'index et les exports restent dérivés. */
+  lexico?: TraitementsLexico
 }
 
 /** Paramètres de pseudonymisation au niveau corpus : `prioriteValidation` est la portée appliquée par ENTRÉE à la validation d'une ligne du tableau anon (Maj+Entrée = l'autre ; défaut 'corpus').

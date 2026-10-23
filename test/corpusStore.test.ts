@@ -60,6 +60,38 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(enfants.every((c) => c.couleur === '#ffffff')).toBe(true) // soulignement invisible
   })
 
+  test('migre le format 8 avec des réglages Lexico vides', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-store-lexico-v8-'))
+    new CorpusStore(dir).ouvrir()
+    const chemin = join(dir, 'corpus.json')
+    const ancien = JSON.parse(readFileSync(chemin, 'utf8'))
+    ancien.formatVersion = 8
+    delete ancien.lexico
+    writeFileSync(chemin, JSON.stringify(ancien, null, 2))
+
+    const migre = new CorpusStore(dir).ouvrir()
+    expect(migre.formatVersion).toBe(FORMAT_VERSION)
+    expect(migre.lexico).toEqual({ motsOutils: [], regroupements: [], concatenations: [] })
+  })
+
+  test('enregistre les traitements Lexico et refuse une base devenue obsolète', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-store-lexico-'))
+    const store = new CorpusStore(dir)
+    const initial = store.ouvrir().lexico!
+    const traitements = { ...initial, motsOutils: ['le'], listesMotsOutils: { Articles: ['le', 'l’'] } }
+    const modifie = store.traitementsLexicoCommander({ type: 'remplacer', attendu: initial, traitements })
+    expect(modifie.lexico?.motsOutils).toEqual(['le'])
+    expect(new CorpusStore(dir).ouvrir().lexico).toMatchObject({
+      motsOutils: ['le'],
+      listesMotsOutils: { Articles: ['le', 'l’'] },
+    })
+    expect(() => store.traitementsLexicoCommander({
+      type: 'remplacer',
+      attendu: initial,
+      traitements: { ...initial, motsOutils: ['la'] },
+    })).toThrow('ont changé')
+  })
+
   test('poserNom pose le `nom` de projet et le persiste (indépendant du dossier)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-nom-'))
     const store = new CorpusStore(dir)
@@ -1213,6 +1245,28 @@ describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () 
     // Structure sur disque : corpus.json + entretiens/ (png/ créés plus tard).
     expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
     expect(existsSync(join(dir, 'entretiens'))).toBe(true)
+  })
+
+  test('intègre les réglages Lexico détectés pendant la migration', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migre-lexico-'))
+    const { codebook, variables } = definitionsDepuisFixture()
+    const traitements = {
+      motsOutils: ['le'],
+      regroupements: [{ id: 'g1', forme: 'aller', membres: ['allais'] }],
+      concatenations: [{ id: 'c1', forme: 'prise en charge', sequence: ['prise', 'en', 'charge'] }],
+    }
+    const corpus = new CorpusStore(dir).migrerDepuisV1(
+      'Corpus avec Lexico',
+      { cheminCrp: '/source/corpus.crp', dateCreation: null },
+      codebook,
+      variables,
+      undefined,
+      undefined,
+      traitements,
+    )
+
+    expect(corpus.lexico).toEqual(traitements)
+    expect(new CorpusStore(dir).ouvrir().lexico).toEqual(traitements)
   })
 
   test('refuse (throw) un dossier qui est DÉJÀ un corpus — on n’écrase jamais', () => {

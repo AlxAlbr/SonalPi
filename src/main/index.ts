@@ -7,7 +7,7 @@ import type {
   SaveDialogReturnValue,
 } from 'electron'
 import { join, basename, extname, dirname } from 'node:path'
-import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync, copyFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import {
   CorpusStore,
@@ -76,6 +76,8 @@ import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } fro
 import type { CommandeRecueils, SourcePassageRecueil } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
+import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
+import { lireReglagesLexicoV1 } from './migrationLexicoV1'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import { executerCommandeCas, deduireSourcesCas } from './casOrchestration'
 import { creerHandlersOperationsThemes } from './ipcOperationsThemes'
@@ -1171,6 +1173,88 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:tableaubordCommander', (_e, commande: CommandeTableauBord) =>
     executerDefinitions('tableau-bord.modifier', (cible) => cible.tableaubordCommander(commande)),
   )
+  ipcMain.handle('corpus:lexicoCommander', (_e, commande: CommandeTraitementsLexico) =>
+    executerDefinitions('lexico.modifier-traitements', (cible) => cible.traitementsLexicoCommander(commande)),
+  )
+  ipcMain.handle('corpus:lexicoExporterTableau', async (
+    e,
+    demande: { nom: string; contenu: string; format: 'csv' | 'tsv' },
+  ) => {
+    if (!demande || typeof demande.nom !== 'string' || typeof demande.contenu !== 'string'
+      || (demande.format !== 'csv' && demande.format !== 'tsv')) {
+      throw new Error('La demande d’export Lexico est invalide.')
+    }
+    if (Buffer.byteLength(demande.contenu, 'utf8') > 50 * 1024 * 1024) {
+      throw new Error('Le tableau à exporter dépasse 50 Mio.')
+    }
+    const extension = demande.format === 'csv' ? 'csv' : 'tsv'
+    const nom = basename(demande.nom).replace(/[^a-zA-Z0-9._-]/g, '-') || `lexico.${extension}`
+    const dossier = contextesDistants.actuel
+      ? app.getPath('documents')
+      : join(store.repertoire, 'resultats', 'lexico')
+    if (!contextesDistants.actuel) mkdirSync(dossier, { recursive: true })
+    const chemin = await choisirDestination(e, {
+      title: 'Exporter le tableau Lexico',
+      defaultPath: join(dossier, nom.endsWith(`.${extension}`) ? nom : `${nom}.${extension}`),
+      filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+    })
+    if (!chemin) return { annule: true }
+    mkdirSync(dirname(chemin), { recursive: true })
+    ecrireFichierAtomique(chemin, demande.contenu)
+    return { annule: false, chemin }
+  })
+  ipcMain.handle('corpus:analysesCroiseesExporter', async (
+    e,
+    demande: { nom: string; contenu: string; format: 'csv' | 'tsv' },
+  ) => {
+    if (!demande || typeof demande.nom !== 'string' || typeof demande.contenu !== 'string'
+      || (demande.format !== 'csv' && demande.format !== 'tsv')) {
+      throw new Error('La demande d’export des analyses croisées est invalide.')
+    }
+    if (Buffer.byteLength(demande.contenu, 'utf8') > 50 * 1024 * 1024) {
+      throw new Error('Le tableau à exporter dépasse 50 Mio.')
+    }
+    const extension = demande.format
+    const nom = basename(demande.nom).replace(/[^a-zA-Z0-9._-]/g, '-') || `analyses-croisees.${extension}`
+    const dossier = contextesDistants.actuel
+      ? app.getPath('documents')
+      : join(store.repertoire, 'resultats', 'analyses-croisees')
+    if (!contextesDistants.actuel) mkdirSync(dossier, { recursive: true })
+    const chemin = await choisirDestination(e, {
+      title: 'Exporter les analyses croisées',
+      defaultPath: join(dossier, nom.endsWith(`.${extension}`) ? nom : `${nom}.${extension}`),
+      filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+    })
+    if (!chemin) return { annule: true }
+    mkdirSync(dirname(chemin), { recursive: true })
+    ecrireFichierAtomique(chemin, demande.contenu)
+    return { annule: false, chemin }
+  })
+  ipcMain.handle('corpus:syntheseExporterTxt', async (
+    e,
+    demande: { nom: string; contenu: string },
+  ) => {
+    if (!demande || typeof demande.nom !== 'string' || typeof demande.contenu !== 'string') {
+      throw new Error('La demande d’export de la synthèse est invalide.')
+    }
+    if (Buffer.byteLength(demande.contenu, 'utf8') > 50 * 1024 * 1024) {
+      throw new Error('La synthèse à exporter dépasse 50 Mio.')
+    }
+    const nom = basename(demande.nom).replace(/[^a-zA-Z0-9._-]/g, '-') || 'synthese.txt'
+    const dossier = contextesDistants.actuel
+      ? app.getPath('documents')
+      : join(store.repertoire, 'resultats', 'synthese')
+    if (!contextesDistants.actuel) mkdirSync(dossier, { recursive: true })
+    const chemin = await choisirDestination(e, {
+      title: 'Exporter la synthèse',
+      defaultPath: join(dossier, nom.endsWith('.txt') ? nom : `${nom}.txt`),
+      filters: [{ name: 'Texte', extensions: ['txt'] }],
+    })
+    if (!chemin) return { annule: true }
+    mkdirSync(dirname(chemin), { recursive: true })
+    ecrireFichierAtomique(chemin, demande.contenu)
+    return { annule: false, chemin }
+  })
   ipcMain.handle('corpus:casCommander', (_e, commande: CommandeCas) => {
     const magasin = store
     const geste = gestureCas(commande)
@@ -2859,7 +2943,11 @@ function enregistrerIpcMigration(): void {
     if (r.canceled || r.filePaths.length === 0) return null
     const chemin = r.filePaths[0]
     const contenu = decoderCrp(readFileSync(chemin))
-    return { chemin, analyse: analyserCrp(contenu, basename(chemin)) }
+    return {
+      chemin,
+      analyse: analyserCrp(contenu, basename(chemin)),
+      lexicoV1: lireReglagesLexicoV1(chemin),
+    }
   })
   /** Choix du dossier DÉDIÉ à la migration (openDirectory + createDirectory),
    *  PRÉ-REMPLI `Documents/Sonal/<nom>` — le nom du corpus, modifiable. */

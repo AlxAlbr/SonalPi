@@ -15,7 +15,7 @@ import type {
   RegleAnon,
   Variable,
 } from '../../shared/format'
-import { FORMAT_VERSION, referenceMediaDistant, versionSupportee } from '../../shared/format'
+import { referenceMediaDistant, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import { poserValeur } from '../../shared/corpus/requetes'
 import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
@@ -973,7 +973,7 @@ export class TransactionsGitLab {
     } catch {
       throw new Error('Le fichier corpus.json de GitLab est illisible.')
     }
-    if (corpus.formatVersion !== FORMAT_VERSION) {
+    if (!versionSupportee(corpus.formatVersion)) {
       throw new Error('La version du corpus GitLab n’est pas prise en charge.')
     }
   }

@@ -37,6 +37,9 @@ function banc(options: {
   const fichiers: Record<string, Fichier> = options.fichiers ?? {
     'terrain/corpus.crp': { octets: b(JSON.stringify(corpus)) },
     'terrain/premier.Sonal': { octets: b('<html>Transcription échantillon</html>') },
+    'terrain/corpus.out': { octets: b('le\nla') },
+    'terrain/corpus.lem': { octets: b('allais\taller\tV') },
+    'terrain/corpus.cnct': { octets: b('prise en charge\tprise en charge\tC') },
     'audio/voix.mp3': { octets: Buffer.alloc(2048, 1) },
     'autre/voix.mp3': { octets: Buffer.alloc(3072, 2) },
     'non-reference.mp3': { octets: Buffer.alloc(10_000) },
@@ -158,6 +161,12 @@ describe('préparation de migration GitLab V1', () => {
     expect(bilan.medias[0].cheminDestination).not.toBe(bilan.medias[1].cheminDestination)
     expect(bilan.medias.every((media) => media.cheminDestination.endsWith('/voix.mp3'))).toBe(true)
     expect(bilan.destinationMedia).toBe('depot')
+    expect(bilan.lexicoV1?.fichiers).toEqual(['.out', '.lem', '.cnct'])
+    expect(bilan.lexicoV1?.traitements).toMatchObject({
+      motsOutils: ['le', 'la'],
+      regroupements: [expect.objectContaining({ forme: 'aller', membres: ['allais'] })],
+      concatenations: [expect.objectContaining({ sequence: ['prise', 'en', 'charge'] })],
+    })
     expect(fetchImpl.mock.calls.every(([, init]) => ['GET', 'HEAD'].includes(init?.method ?? ''))).toBe(true)
     expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('non-reference.mp3'))).toBe(false)
     expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('voix.mp3%2Fraw') || String(url).includes('voix.mp3/raw'))).toBe(false)

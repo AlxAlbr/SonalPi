@@ -10,6 +10,7 @@
 
 import { FORMAT_VERSION, type CorpusFichier } from '../format'
 import { tableauBordParDefaut } from './tableaubord'
+import { traitementsLexicoParDefaut } from '../lexico/traitements'
 
 /** Un corpus SonalPi2 vierge : le codebook par défaut (les 4 catégories Pondérations), tous les autres blocs vides. `nom` est le nom de projet ;
  *  il est absent pour une amorce locale nue, qui le reçoit ensuite par `poserNom`. */
@@ -35,6 +36,7 @@ export function squeletteCorpus(nom?: string): CorpusFichier {
     famillesCas: {},
     attributsCas: {},
     tableaubord: tableauBordParDefaut(),
+    lexico: traitementsLexicoParDefaut(),
   }
   return corpus
 }

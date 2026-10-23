@@ -55,6 +55,7 @@ classDiagram
         +Record reglesAnon «RegleAnon[]»
         +Record personnes «Personne[]»
         +Record membership «EntretienRef[]»
+        +TraitementsLexico lexico? «réglages partagés, pas les résultats»
         +string nom?
         +meta? sourceV1, demo
     }
@@ -603,7 +604,7 @@ classDiagram
 
     class format "contrat" {
         <<corpus.json / entretiens/<id>.json>>
-        +int formatVersion «FORMAT_VERSION = 3»
+        +int formatVersion «FORMAT_VERSION = 9»
         +versionSupportee(v)
     }
 
@@ -623,7 +624,7 @@ classDiagram
 
 - **Deux fichiers** : `corpus.json` (agrégat Corpus : définitions + membership) et
   `entretiens/<id>.json` (agrégat Entretien : texte + annotations + ancres + locuteurs + meta).
-  Le **contrat de format** (types + `FORMAT_VERSION = 3`) est centralisé dans `src/shared/format.ts`,
+  Le **contrat de format** (types + `FORMAT_VERSION = 9`) est centralisé dans `src/shared/format.ts`,
   **partagé main ⇄ renderer**.
 - **Versionnage** : toute évolution de structure = **bump de `FORMAT_VERSION` + migration
   explicite** ; une version inconnue est **refusée poliment**, jamais lue partiellement

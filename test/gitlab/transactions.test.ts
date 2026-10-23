@@ -201,6 +201,26 @@ describe('définitions du corpus GitLab', () => {
       .toBe(false)
   })
 
+  test('publie les réglages Lexico avec les définitions du corpus', async () => {
+    const serveur = corpusAvecTheme()
+    const { transactions, lireLocal, depot } = banc({ serveur })
+    const attendu = serveur.lexico!
+
+    const resultat = await transactions.executerDefinitions((store) =>
+      store.traitementsLexicoCommander({
+        type: 'remplacer',
+        attendu,
+        traitements: { ...attendu, motsOutils: ['le', 'la'] },
+      }),
+    )
+
+    expect(resultat.corpus.lexico?.motsOutils).toEqual(['le', 'la'])
+    expect(lireLocal().lexico?.motsOutils).toEqual(['le', 'la'])
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    expect(publie.lexico?.motsOutils).toEqual(['le', 'la'])
+    expect(commitsDeDonnees(depot)).toHaveLength(1)
+  })
+
   test('un refus métier ne modifie ni le serveur ni le miroir', async () => {
     const { transactions, lireLocal, depot } = banc({ serveur: corpusAvecTheme() })
     const avant = lireLocal()

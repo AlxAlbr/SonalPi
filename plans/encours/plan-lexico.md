@@ -1,6 +1,6 @@
 # Lexico V2 — socle fonctionnel, personnes, cas et lisibilité de la sélection
 
-Statut : proposition après lecture du code V1 et V2 ; aucune implémentation dans ce document.
+Statut : socle, filtres, résumé, traitements manuels, persistance et import V1 réalisés ; fonctions avancées différées.
 
 ## 1. Conclusion et recommandation
 
@@ -520,9 +520,9 @@ les résultats. On peut s’arrêter après B avec un module déjà exploitable.
 
 À prioriser selon les premiers usages, en livraisons indépendantes :
 
-1. Mots outils, regroupements manuels et éventuellement concaténations, avec annulation
-   et convention de sauvegarde explicite ; la migration des fichiers V1 `.out`, `.lem`
-   et `.cnct` est un sujet séparé, pas une dépendance du socle.
+1. **Réalisé :** mots outils, regroupements manuels et concaténations, avec annulation,
+   persistance dans `corpus.json` et reprise des fichiers V1 `.out`, `.lem`
+   et `.cnct` pendant la migration du corpus, sans modification des originaux.
 2. Nuage de mots comme vue du même tableau, sans nouveau filtrage caché.
 3. Spécificités et comparaison au corpus de référence : formule documentée, contrôles
    sur petites tables connues, cas limites et dénominateurs homogènes. Si les spécificités
@@ -581,7 +581,8 @@ les mêmes calculs sur les bancs GitLab et Nextcloud concernés, notamment la le
 seule et les indisponibilités. Utiliser `preparer_bancs_docker` avant ces tests réels,
 sans pull ni reprovisionnement des images.
 
-Aucun test n’est exécuté pour la seule rédaction de ce plan.
+La réalisation est couverte par les tests purs, le store local et les transactions
+GitLab/WebDAV en mémoire. Les bancs réels restent réservés aux recettes distantes dédiées.
 
 ## 9. Décisions à valider au démarrage
 
@@ -594,7 +595,8 @@ Valeurs proposées, pour ne pas multiplier les questions avant un prototype :
 - **Cas :** tous leurs matériaux existants, sans filtre d’attribut ou de provenance au début.
 - **Requête :** bilan permanent et lignes détaillées repliables, sans formule éditable.
 - **Complément :** seulement les entretiens, ajouté après validation du socle.
-- **Persistance :** état de session uniquement ; pas de migration de format pour les filtres.
+- **Persistance :** filtres de vue conservés en session ; traitements analytiques enregistrés
+  dans `corpus.json` au format 9 ; résultats exportés séparément.
 - **Arrêt possible :** après B, ou après C si le raffinement est clairement utile.
 
 ## 10. Références de lecture

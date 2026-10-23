@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../../shared/corpus/migrationCrp'
+import type { ImportTraitementsLexicoV1 } from '../../../shared/lexico/traitements'
 
 /**
  *  Modale de migration SonalPi1 → SonalPi2.
@@ -22,6 +23,7 @@ const { migrerDepuisV1 } = utiliserSonal()
 const cheminCrp = ref<string | null>(null)
 const apercu = ref<ApercuCrp | null>(null)
 const erreurCrp = ref<string | null>(null)
+const lexicoV1 = ref<ImportTraitementsLexicoV1 | null>(null)
 const dossier = ref<string | null>(null)
 const verif = ref<VerificationDossierMigration | null>(null)
 const avertiNonVide = ref(false)
@@ -38,6 +40,7 @@ const dateAffichee = computed(() => {
 async function choisirCrp() {
   erreurCrp.value = null
   apercu.value = null
+  lexicoV1.value = null
   cheminCrp.value = null
   try {
     const r = await window.sonal.migrer.choisirCrp()
@@ -48,6 +51,7 @@ async function choisirCrp() {
     }
     cheminCrp.value = r.chemin
     apercu.value = r.analyse.apercu
+    lexicoV1.value = r.lexicoV1
   } catch (e) {
     // Un échec IPC ne doit pas rester SILENCIEUX (une erreur de préload ou de main sans handler donne un rejet —
     // l'afficher plutôt que « rien »).
@@ -102,6 +106,7 @@ async function migrer() {
         variables,
         reglesAnon: mapperTabAnon(apercu.value.raw.tabAnon, genId),
         paramsAnon: mapperParamsAnon(apercu.value.raw.paramsAnonCorpus),
+        traitementsLexico: lexicoV1.value?.traitements,
       },
       apercu.value.raw.tabEnt ?? [], // entretiens à importer (.Sonal + audio)
     )
@@ -164,6 +169,18 @@ async function migrer() {
             <ul class="ligne-anon">
               <li v-for="(r, i) in apercu.reglesAnon" :key="i">« {{ r.entite }} » → {{ r.remplacement }}</li>
             </ul>
+          </div>
+          <div v-if="lexicoV1 && (lexicoV1.fichiers.length || lexicoV1.diagnostics.length)" class="apercu-bloc">
+            <span class="apercu-lbl">Réglages Lexico SonalPi1</span>
+            <p v-if="lexicoV1.fichiers.length" class="petit">
+              {{ lexicoV1.fichiers.join(', ') }} · {{ lexicoV1.traitements.motsOutils.length }} mot(s) outil(s),
+              {{ lexicoV1.traitements.regroupements.length }} regroupement(s),
+              {{ lexicoV1.traitements.concatenations.length }} concaténation(s) seront importés.
+            </p>
+            <details v-if="lexicoV1.diagnostics.length" class="petit">
+              <summary>{{ lexicoV1.diagnostics.length }} ligne(s) ou fichier(s) ignoré(s)</summary>
+              <ul><li v-for="diagnostic in lexicoV1.diagnostics" :key="diagnostic">{{ diagnostic }}</li></ul>
+            </details>
           </div>
           <p class="note-e2" v-if="apercu.nbEntretiens > 0">
             Les entretiens (.Sonal) et leurs audio sont migrés dans la foulée ; un `.Sonal`

@@ -121,6 +121,7 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
           req.variables,
           req.reglesAnon,
           req.paramsAnon,
+          req.traitementsLexico,
         ),
         deps.fermerContexteActuel,
         (preparation) => deps.finaliser(store, req.dossier, preparation),

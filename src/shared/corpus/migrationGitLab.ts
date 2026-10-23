@@ -1,4 +1,5 @@
 import type { ApercuCrp } from './migrationCrp'
+import type { ImportTraitementsLexicoV1 } from '../lexico/traitements'
 import type { PayloadEntretien, RegleAnon } from '../format'
 import type { DemandeConfigurationBaseMedia, DemandePreparationProjetGitLab, ProjetGitLabPrepare } from '../gitlab'
 import type { OuvertureDistante } from '../distant'
@@ -49,6 +50,7 @@ export interface BilanMigrationGitLab {
   cible: CibleMigrationGitLab
   commitCible: string | null
   apercu: ApercuCrp
+  lexicoV1?: ImportTraitementsLexicoV1
   entretiens: EntretienMigrationGitLab[]
   medias: MediaMigrationGitLab[]
   volumeOctets: number

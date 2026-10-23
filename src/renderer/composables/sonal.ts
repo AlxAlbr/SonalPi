@@ -13,6 +13,10 @@ import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
 import { useDocsCadre } from './corpus/useDocsCadre'
 import { useCasCorpus } from './corpus/useCasCorpus'
 import { useTableauBordCorpus } from './corpus/useTableauBordCorpus'
+import { useLexicoCorpus } from './corpus/useLexicoCorpus'
+import { useSyntheseCorpus } from './corpus/useSyntheseCorpus'
+import { useSourcesAnalyseCorpus } from './corpus/useSourcesAnalyseCorpus'
+import { useAnalysesCroisees } from './corpus/useAnalysesCroisees'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -516,14 +520,91 @@ export function creerSonal() {
   })
   fermerCasPourRecueils = casCorpus.fermerCas
   const tableauBordCorpus = useTableauBordCorpus({ tableaubord: corpus.tableaubord })
+  const sourcesAnalyseCorpus = useSourcesAnalyseCorpus({
+    membership: corpus.membership,
+    ouvertId: ent.ouvertId,
+    sourceOuverte: ent.donneesSourceOuverte,
+  })
+  let fermerSynthesePourLexico: () => void = () => {}
+  let fermerAnalysesPourAutres: () => void = () => {}
+  const lexicoCorpus = useLexicoCorpus({
+    membership: corpus.membership,
+    variables: corpus.variables,
+    codebook: corpus.codebook,
+    cas: corpus.cas,
+    traitements: corpus.lexico,
+    ouvertId: ent.ouvertId,
+    sourceOuverte: ent.donneesSourceOuverte,
+    ouvrirSource: ouvrirAuSegment,
+    fermerAutresFenetres: () => {
+      recueilsCorpus.fermerRecueils()
+      casCorpus.fermerCas()
+      tableauBordCorpus.fermerTableauBord()
+      docsCadre.fermerDocsCadre()
+      fermerSynthesePourLexico()
+      fermerAnalysesPourAutres()
+    },
+  })
+  const syntheseCorpus = useSyntheseCorpus({
+    membership: corpus.membership,
+    variables: corpus.variables,
+    codebook: corpus.codebook,
+    cas: corpus.cas,
+    ouvertId: ent.ouvertId,
+    sourceOuverte: ent.donneesSourceOuverte,
+    ouvrirSource: ouvrirAuSegment,
+    sources: sourcesAnalyseCorpus,
+    fermerAutresFenetres: () => {
+      recueilsCorpus.fermerRecueils()
+      casCorpus.fermerCas()
+      tableauBordCorpus.fermerTableauBord()
+      docsCadre.fermerDocsCadre()
+      lexicoCorpus.fermerLexico()
+      fermerAnalysesPourAutres()
+    },
+  })
+  const analysesCroisees = useAnalysesCroisees({
+    membership: corpus.membership,
+    codebook: corpus.codebook,
+    sources: sourcesAnalyseCorpus,
+    ouvrirSource: ouvrirAuSegment,
+    fermerAutresFenetres: () => {
+      recueilsCorpus.fermerRecueils()
+      casCorpus.fermerCas()
+      tableauBordCorpus.fermerTableauBord()
+      docsCadre.fermerDocsCadre()
+      lexicoCorpus.fermerLexico()
+      syntheseCorpus.fermerSynthese()
+    },
+    afficherDansSynthese: (themeId, entretienId) => {
+      syntheseCorpus.filtresSynthese.value = {
+        ...syntheseCorpus.filtresSynthese.value,
+        themes: { mode: 'choix', ids: [themeId] },
+        entretiens: { mode: 'choix', ids: [entretienId] },
+      }
+      syntheseCorpus.afficherSynthese()
+    },
+  })
+  fermerSynthesePourLexico = syntheseCorpus.fermerSynthese
+  fermerAnalysesPourAutres = analysesCroisees.fermerAnalysesCroisees
   reinitialiserFenetresMetier = () => {
     recueilsCorpus.fermerRecueils()
     casCorpus.reinitialiserCas()
     tableauBordCorpus.fermerTableauBord()
     docsCadre.reinitialiserDocsCadre()
+    lexicoCorpus.reinitialiserLexico()
+    syntheseCorpus.reinitialiserSynthese()
+    analysesCroisees.reinitialiserAnalysesCroisees()
+    sourcesAnalyseCorpus.reinitialiserSourcesAnalyse()
   }
   watch(ent.etatSauvegarde, (etat) => {
-    if (etat !== 'à jour') return
+    if (etat !== 'à jour') {
+      sourcesAnalyseCorpus.invaliderSourceAnalyse(ent.ouvertId.value)
+      lexicoCorpus.perimerLexico()
+      syntheseCorpus.perimerSynthese()
+      analysesCroisees.perimerAnalysesCroisees()
+      return
+    }
     if (recueilsCorpus.recueilOuvertId.value) void recueilsCorpus.resoudreRecueil()
     if (casCorpus.casOuverts.value) void casCorpus.rafraichirProjectionsCas()
   })
@@ -751,6 +832,9 @@ export function creerSonal() {
     ...casCorpus,
     ...tableauBordCorpus,
     ...docsCadre,
+    ...lexicoCorpus,
+    ...syntheseCorpus,
+    ...analysesCroisees,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     audiosManquants,

@@ -16,6 +16,8 @@
  */
 
 import type { Categorie, Variable, RegleAnon, ParamsAnon } from '../format'
+import type { ImportTraitementsLexicoV1 } from '../lexico/traitements'
+import type { TraitementsLexico } from '../lexico/types'
 import { THEMATIQUES_DEFAUT } from '../format'
 import { parentsDepuisRangs } from './categories'
 import { importerVariables } from './eav'
@@ -147,6 +149,13 @@ export interface ApercuCrp {
 export type AnalyseCrp =
   | { ok: true; apercu: ApercuCrp }
   | { ok: false; raison: 'json' | 'version' | 'structure'; message: string }
+
+/** Fichier corpus choisi et éventuelles annexes Lexico portant le même nom. */
+export interface ChoixCrpMigration {
+  chemin: string
+  analyse: AnalyseCrp
+  lexicoV1: ImportTraitementsLexicoV1
+}
 
 // ── Normalisations défensives (types variables de la V1) ──────────────────
 
@@ -443,4 +452,6 @@ export interface DemandeMigration {
   reglesAnon?: RegleAnon[]
   /** Paramètres de pseudonymisation du .crp (E4) — `paramsAnonCorpus` V1 mappé vers `ParamsAnon` V2. */
   paramsAnon?: ParamsAnon
+  /** Réglages Lexico lus dans les annexes placées à côté du `.crp`. */
+  traitementsLexico?: TraitementsLexico
 }

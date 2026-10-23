@@ -11,6 +11,7 @@ import { useVariablesCorpus } from './corpus/useVariablesCorpus'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
+import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -29,6 +30,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const famillesCas = ref<Record<string, FamilleCas>>({})
   const attributsCas = ref<Record<string, DefinitionAttributCas>>({})
   const tableaubord = ref<TableauBord | null>(null)
+  const lexico = ref(traitementsLexicoParDefaut())
   const themes = useThemesCorpus(opts)
   const variables = useVariablesCorpus(opts)
   const anonymisation = useAnonymisationCorpus()
@@ -66,6 +68,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     famillesCas,
     attributsCas,
     tableaubord,
+    lexico,
     codebook: themes.codebook,
     codeCourant: themes.codeCourant,
     usages: themes.usages,

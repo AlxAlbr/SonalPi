@@ -2,7 +2,7 @@ import { lireBarriereRetraitVarianteAnon, memeVarianteAnon } from '../../shared/
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
 import { exigerAbsenceSuppressionAnon, lireBarriereSuppressionAnon } from '../../shared/corpus/barriereSuppressionAnon'
-import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../shared/format'
+import { versionSupportee, type CorpusFichier, type EntretienFichier } from '../../shared/format'
 
 /** Refus d’une publication incompatible avec les définitions courantes. */
 export class ReferencesDefinitionsInvalidesError extends Error {
@@ -24,7 +24,7 @@ export function verifierReferencesDefinitions(
   corpus: CorpusFichier,
   avant?: EntretienFichier,
 ): void {
-  if (entretien.formatVersion !== FORMAT_VERSION) {
+  if (!versionSupportee(entretien.formatVersion)) {
     throw new ReferencesDefinitionsInvalidesError(
       'La version de l’entretien n’est pas prise en charge.',
     )
@@ -122,7 +122,7 @@ export function verifierContenusReferencesDefinitions(
   } catch {
     throw new Error('Le fichier corpus.json de GitLab est illisible.')
   }
-  if (corpus.formatVersion !== FORMAT_VERSION) {
+  if (!versionSupportee(corpus.formatVersion)) {
     throw new Error('La version du corpus GitLab n’est pas prise en charge.')
   }
   let avant: EntretienFichier | undefined
