@@ -427,7 +427,8 @@ classDiagram
 
 **Code** : `src/shared/corpus/reglesAnon.ts`, `src/shared/corpus/scanAnon.ts`,
 `src/shared/entretien/anon/` (`anonymisation.ts`, `brouillonsAnon.ts`, `pseudos.ts`,
-`applicationMasse.ts`, barrel `index.ts`).
+`applicationMasse.ts`, barrel `index.ts`). Le fonctionnement complet est présenté
+dans [`pseudonymisation/`](pseudonymisation/README.md).
 
 L’inventaire pur `corpus/correspondancesLocuteurs.ts` déduplique les couples nom/pseudo en
 conservant les identités et décisions par entretien, même sans tour de parole. Il signale
@@ -443,7 +444,7 @@ conserve les alias, les variantes inutilisées, la catégorie et l’état décl
 Il ne contient ni ID de règle, ni position, ni compteur. Seul un brouillon peut rester sans pseudo.
 Les annotations demeurent la source du pseudo choisi ; l’export rééditable `.sonal` conserve
 cette mémoire locale et tous les alias corpus utilisés. L’export pseudonymisé l’exclut.
-Le numéro de format natif reste inchangé ; l’édition de ce nouveau champ dans les anciens clients V2 n’est pas qualifiée.
+Le numéro de format natif reste inchangé. Aucune compatibilité d’édition avec un ancien exécutable n’est requise avant la première distribution du produit.
 
 Le main mémorise trois aperçus au maximum, pendant cinq minutes, liés au store courant.
 Il n’accepte pas du renderer une table arbitraire à écrire. L’export est celui de l’aperçu,

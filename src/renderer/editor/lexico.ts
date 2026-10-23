@@ -1,5 +1,7 @@
 import { Schema, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EntretienFichier, EntretienRef, Locuteur } from '../../shared/format'
+import type { Annotation } from '../../shared/entretien/annotation'
+import { projeterPortionsAnon } from '../../shared/entretien/anon/projectionTexte'
 import type { OccurrenceLexico } from '../../shared/lexico/types'
 
 const schemaLexico = new Schema({
@@ -24,6 +26,7 @@ interface PlageAnon {
   from: number
   to: number
   pseudo: string
+  annotation: Annotation
 }
 
 interface PlageBloc {
@@ -32,30 +35,23 @@ interface PlageBloc {
   locuteurIndex: number | null
 }
 
-function plagesAnon(data: EntretienFichier): PlageAnon[] {
-  const candidates = data.annotations
-    .filter((annotation) => annotation.type === 'anon'
-      && annotation.etat !== 'exception'
-      && annotation.from < annotation.to)
-    .map((annotation) => ({
-      from: annotation.from,
-      to: annotation.to,
-      pseudo: annotation.pseudo?.trim() || '[anonymisé]',
-    }))
-    .sort((a, b) => a.from - b.from || b.to - a.to)
-  const reunies: PlageAnon[] = []
-  for (const candidate of candidates) {
-    const precedente = reunies.at(-1)
-    if (!precedente || candidate.from >= precedente.to) {
-      reunies.push({ ...candidate })
-      continue
-    }
-    precedente.to = Math.max(precedente.to, candidate.to)
-    if (!precedente.pseudo.split(' / ').includes(candidate.pseudo)) {
-      precedente.pseudo += ` / ${candidate.pseudo}`
+function plagesAnon(data: EntretienFichier, from: number, to: number): PlageAnon[] {
+  // Une décision visible reste une seule occurrence lexicale.
+  const parAnnotation = new Map<Annotation, PlageAnon>()
+  for (const portion of projeterPortionsAnon(data.annotations, { from, to })) {
+    const annotation = portion.annotation
+    const pseudo = annotation?.etat === 'exception' ? '' : annotation?.pseudo?.trim() ?? ''
+    if (!annotation || !pseudo) continue
+    const existante = parAnnotation.get(annotation)
+    if (existante) {
+      existante.from = Math.min(existante.from, portion.from)
+      existante.to = Math.max(existante.to, portion.to)
+    } else {
+      parAnnotation.set(annotation, { ...portion, annotation, pseudo })
     }
   }
-  return reunies
+  return [...parAnnotation.values()].sort((a, b) =>
+    a.from - b.from || a.to - b.to || a.annotation.id.localeCompare(b.annotation.id))
 }
 
 function locuteurPourIndex(data: EntretienFichier, index: number | null): Locuteur | null {
@@ -129,7 +125,9 @@ export function extraireOccurrencesLexico(
     return false
   })
 
-  const anonymisations = plagesAnon(data)
+  const debutTexte = fragments.length ? Math.min(...fragments.map((fragment) => fragment.from)) : 0
+  const finTexte = fragments.length ? Math.max(...fragments.map((fragment) => fragment.to)) : 0
+  const anonymisations = plagesAnon(data, debutTexte, finTexte)
   const occurrences: OccurrenceLexico[] = []
   let ordre = 0
   for (const fragment of fragments) {

@@ -1235,7 +1235,7 @@ de cette qualification sur GitLab CE 18.11.
 ## 14. Import ciblé des correspondances — 9 octobre 2026
 
 `anon.importer-cibles` est disponible en local, sur GitLab et sur WebDAV après qualification A/B.
-Le protocole WebDAV est séquentiel, distinct du commit GitLab ; voir [publication et reprise WebDAV](correspondances-webdav.md).
+Le protocole WebDAV est séquentiel, distinct du commit GitLab ; voir [publication et reprise WebDAV](pseudonymisation/fournisseurs.md#import-ciblé-de-correspondances).
 L’aperçu GitLab lit corpus et entretiens sur un même commit publié, jamais sur le miroir.
 Les cibles sont choisies séparément, sans réassignation des identités importées ni synchronisation de Personne.
 La mémoire locale conserve alias, variantes inutilisées, catégorie et état ; les décisions textuelles ne sont pas modifiées.
@@ -1266,7 +1266,7 @@ La qualification concerne ces petits lots synthétiques, pas encore la charge ma
 
 ## 15. Renommage global d’une variante — 9 octobre 2026
 
-`anon.renommer-variante` et la capacité `pseudonymisationGlobale` sont ouverts sur GitLab après qualification propre au geste. WebDAV était encore refusé à ce point de contrôle ; il est désormais livré séparément. Voir [contrat, inventaire et reprise du renommage](renommage-anon.md).
+`anon.renommer-variante` et la capacité `pseudonymisationGlobale` sont ouverts sur GitLab après qualification propre au geste. WebDAV était encore refusé à ce point de contrôle ; il est désormais livré séparément. Voir [fonctionnement actuel du renommage](pseudonymisation/corpus.md#renommer-une-variante) et [protocoles par fournisseur](pseudonymisation/fournisseurs.md).
 
 Le choix scellé vient d’un inventaire publié de tous les membres, pas du miroir. Le scan complet ne verrouille pas tout le corpus : seuls les fichiers à écrire reçoivent un bail court. La définition est publiée d’abord, puis les entretiens consentis, chacun avec une garde du corpus. Les entretiens étrangers au changement restent ouverts et publiables ; une modification sans rapport ne refuse plus tout le lot. La variante choisie et ses seuls usages attribués changent ; texte, exceptions, autres variantes, attente, mémoire locale et locuteurs restent intacts.
 
@@ -1278,7 +1278,7 @@ Qualification : **13 scénarios réels à deux comptes**, dont **130 membres/deu
 
 ## 16. Dissociation globale — 10 octobre 2026
 
-`anon.dissocier-globalement`, portée `pseudonymisation-dissociation` et capacité `dissociationGlobale` sont ouverts sur GitLab après qualification distincte. WebDAV possède sa qualification séparée. Voir [contrat et reprise de dissociation](dissociation-anon.md).
+`anon.dissocier-globalement`, portée `pseudonymisation-dissociation` et capacité `dissociationGlobale` sont ouverts sur GitLab après qualification distincte. WebDAV possède sa qualification séparée. Voir [fonctionnement actuel de la dissociation](pseudonymisation/corpus.md#dissocier-une-règle) et [protocoles par fournisseur](pseudonymisation/fournisseurs.md).
 
 Inventaire serveur complet, aperçu privé, puis barrière publiée conservant la règle : les chemins coopératifs ne peuvent plus envoyer ses anciens liens, même inchangés. Les seules cibles consenties sont transférées sous corpus puis un bail cible ; chacune reçoit sa déclaration locale complète sans changement des choix, états, positions, textes ou locuteurs. Une cible tenue ou modifiée est différée. Le retrait règle/barrière vient après scan complet et vérification des mémoires acquises ; il garde la version courante de chaque acquis encore membre, sans prendre leurs baux. Le budget Sonal de 250 actions impose au plus 248 cibles transférées encore membres par lot, refus explicite avant début/reprise, sans plafond sur les membres inventoriés ni découpage implicite. Charge maximale à cette borne non qualifiée.
 
@@ -1290,7 +1290,7 @@ Qualification : 11 scénarios réels à deux comptes et quatre nouvelles recette
 
 `anon.supprimer-partout`, portée `pseudonymisation-suppression-globale` et capacité
 `suppressionAnonGlobale` sont ouverts sur GitLab après qualification distincte.
-WebDAV est désormais qualifié et ouvert séparément. Voir [suppression et reprise](suppression-anon.md).
+WebDAV est désormais qualifié et ouvert séparément. Voir [fonctionnement actuel de la suppression](pseudonymisation/corpus.md#supprimer-une-règle-partout) et [protocoles par fournisseur](pseudonymisation/fournisseurs.md).
 
 Barrière publiée gardant la règle, retrait des seules annotations explicitement liées,
 puis preuve finale gardée avant retrait de la règle. Aucune copie de déclaration ni
@@ -1328,8 +1328,8 @@ conservé, autre ajout refusé. SIGKILL réellement testé ; intervention extér
 après preuve de mort/compte/propriétaire/génération/version, jamais autorité produit.
 
 Quatorze parcours GitLab, dont quatre ajouts et dix régressions, plus dix-sept locaux
-réussis. WebDAV, encore fermé à ce point de contrôle, est désormais qualifié séparément ; retrait WebDAV et acceptation finale restent ouverts.
-Voir [contrat, qualification et réserves](variantes-anon.md).
+réussis. WebDAV, encore fermé à ce point de contrôle historique, a depuis été qualifié séparément pour l’ajout et le retrait.
+Voir [ajout et retrait de variante](pseudonymisation/corpus.md#ajouter-ou-retirer-une-variante) et [protocoles par fournisseur](pseudonymisation/fournisseurs.md).
 
 ## Retrait de variante avec remplacement explicite
 
@@ -1354,6 +1354,6 @@ Après reconnexion : acquis et droits persistants intacts, poursuite refusée ; 
 extérieure de fixture après preuve de mort/compte/propriétaire/génération/version, puis
 accord neuf et seuls e2/retrait publiés. Treize parcours GitLab repassés sur le build normal,
 dont cinq retraits et huit régressions ajout/suppression ; 22 cas réels moteur/contexte et
-écritures ordinaires réussis, un informatif sauté. WebDAV reste fermé pour ce geste.
+écritures ordinaires réussis, un informatif sauté. WebDAV était encore fermé à ce point de contrôle GitLab ; il est désormais qualifié et ouvert séparément.
 Charge maximale, anciens clients, autre instance institutionnelle, Windows et révocation
-persistante de rôle non qualifiés. Voir [contrat et preuves](variantes-anon.md).
+persistante de rôle non qualifiés. Voir [ajout et retrait de variante](pseudonymisation/corpus.md#ajouter-ou-retirer-une-variante) et [protocoles par fournisseur](pseudonymisation/fournisseurs.md).

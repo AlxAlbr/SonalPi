@@ -238,6 +238,63 @@ describe('recueils — résolution, pseudonymisation et export', () => {
     expect(JSON.stringify(projection)).not.toContain('cdefghi')
   })
 
+  test.each([false, true])('respecte une exception englobante indépendamment de l’ordre (%s)', (inverse) => {
+    const data = source()
+    ;((data.corpsTexte as any).content[0].content[0] as any).text = 'abcdefghij'
+    const large = { id: 'large', type: 'anon' as const, from: 2, to: 10, auteur: '', etat: 'exception' as const, pseudo: 'Mémoire' }
+    const interne = { id: 'interne', type: 'anon' as const, from: 4, to: 7, auteur: '', etat: 'anonymise' as const, pseudo: 'X' }
+    data.annotations = inverse ? [interne, large] : [large, interne]
+    data.reperesPassages = [{ id: 'p1', from: 1, to: 11 }]
+    const projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data }],
+    ]))
+    expect(projection.items[1]).toMatchObject({ type: 'passage', texte: 'abcdefghij' })
+    expect(JSON.stringify(projection)).not.toContain('Mémoire')
+  })
+
+  test('une décision sans pseudo reste en clair et une sélection interne utilise le pseudo mémorisé', () => {
+    const data = source()
+    ;((data.corpsTexte as any).content[0].content[0] as any).text = 'abcdefghij'
+    data.annotations = [{ id: 'a1', type: 'anon', from: 2, to: 10, auteur: '', etat: 'anonymise' }]
+    data.reperesPassages = [{ id: 'p1', from: 4, to: 7 }]
+    let projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data }],
+    ]))
+    expect(projection.items[1]).toMatchObject({ type: 'passage', texte: 'def' })
+
+    data.annotations[0].pseudo = 'X'
+    projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data }],
+    ]))
+    expect(projection.items[1]).toMatchObject({ type: 'passage', texte: 'X' })
+  })
+
+  test('conserve les sauts de ligne internes et peut pseudonymiser une plage qui les couvre', () => {
+    const data = source()
+    data.corpsTexte = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph', attrs: { loc: 1 }, content: [
+          { type: 'text', text: 'Avant' },
+          { type: 'hardBreak' },
+          { type: 'text', text: 'Après' },
+        ],
+      }],
+    }
+    data.annotations = []
+    data.reperesPassages = [{ id: 'p1', from: 1, to: 12 }]
+    let projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data }],
+    ]))
+    expect(projection.items[1]).toMatchObject({ type: 'passage', texte: 'Avant\nAprès' })
+
+    data.annotations = [{ id: 'a1', type: 'anon', from: 1, to: 12, auteur: '', etat: 'anonymise', pseudo: 'X' }]
+    projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data }],
+    ]))
+    expect(projection.items[1]).toMatchObject({ type: 'passage', texte: 'X' })
+  })
+
   test('le mode original relit la transcription actuelle', () => {
     const data = source()
     ;((data.corpsTexte as any).content[0].content[0] as any).text = 'Bonjour Alice à Rome.'

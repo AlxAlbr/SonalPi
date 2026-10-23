@@ -12,7 +12,8 @@ Guide utilisateur : [Utiliser Lexico](../user/lexico.md).
 | `src/shared/lexico/export.ts` | Sérialisation CSV/TSV et protection des cellules |
 | `src/shared/lexico/traitements.ts` | Mots outils, regroupements manuels et concaténations |
 | `src/main/migrationLexicoV1.ts` | Lecture non destructive des annexes lors d’une migration locale |
-| `src/renderer/editor/lexico.ts` | Lecture ProseMirror, pseudonymisation et positions source |
+| `src/shared/entretien/anon/projectionTexte.ts` | Décisions de pseudonymisation visibles, communes aux passages et exports |
+| `src/renderer/editor/lexico.ts` | Lecture ProseMirror, tokenisation et positions source |
 | `src/renderer/composables/corpus/useLexicoCorpus.ts` | Chargement borné, fraîcheur, cas et navigation |
 | `src/renderer/components/lexico/LexicoModale.vue` | Index, concordances et panneau de filtres |
 
@@ -31,10 +32,12 @@ Le découpage reconnaît les lettres et nombres Unicode. Une apostrophe ou un tr
 interne reste dans la forme. La casse est normalisée en minuscules françaises et les accents
 sont conservés.
 
-En mode pseudonymisé, les caractères couverts par une annotation d’anonymisation ne sont
-jamais tokenisés. Le pseudonyme devient une seule occurrence, même s’il contient plusieurs
-mots. Les annotations anonymes chevauchantes sont réunies. Les concordances sont construites
-avec les occurrences déjà pseudonymisées et ne relisent pas le texte original.
+En mode pseudonymisé, les caractères couverts par une décision visible dotée d’un pseudonyme
+ne sont jamais tokenisés. Le pseudonyme devient une seule occurrence, même s’il contient
+plusieurs mots. Les annotations imbriquées, exceptions et chevauchements suivent la même
+priorité que les passages et exports. Une décision sans pseudonyme reste en clair. Les
+concordances sont construites avec les occurrences déjà pseudonymisées et ne relisent pas
+le texte original.
 
 ## Traitements lexicaux
 
@@ -109,8 +112,9 @@ jamais ajoutés automatiquement aux données partagées du corpus.
 
 ## Tests
 
-`test/lexico.test.ts` couvre la substitution pseudonymisée, les positions, la portée locale
-des variables, l’intersection des thèmes et cas, les traitements lexicaux, l’import V1, le
-résumé par complément et la sécurité de l’export. `test/corpusStore.test.ts` couvre la
+`test/lexico.test.ts` couvre la substitution pseudonymisée, les décisions imbriquées,
+exceptions, chevauchements, sauts internes, positions, portée locale des variables,
+l’intersection des thèmes et cas, les traitements lexicaux, l’import V1, le résumé par
+complément et la sécurité de l’export. `test/corpusStore.test.ts` couvre la
 migration, la persistance et le refus d’une base obsolète. Les projections de cas restent
 couvertes par leurs tests dédiés.

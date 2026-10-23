@@ -426,8 +426,8 @@ onBeforeUnmount(() => {
                 type="button"
                 class="portee-cran"
                 :class="{ actif: l.etat === 'brouillon' }"
-                :disabled="lectureSeuleContenu || l.etat === 'brouillon' || l.etat === 'corpus' || operationGlobaleEnCours"
-                :title="l.etat === 'corpus' ? 'Retrait partagé vers brouillon non qualifié ; la dissociation globale conserve les décisions en entretien' : 'Brouillon — pas encore appliqué'"
+                :disabled="lectureSeuleContenu || l.etat === 'brouillon' || (l.etat === 'corpus' && (lectureSeule || !gesteDisponible('dissociationGlobale'))) || operationGlobaleEnCours"
+                :title="l.etat === 'corpus' ? !gesteDisponible('dissociationGlobale') ? 'Retour en chantier non disponible pour ce fournisseur' : 'Remettre cette règle en chantier dans cet entretien' : 'Brouillon — pas encore appliqué'"
                 @click="changerPorteeAnon(l.entite, 'brouillon')"
               >🚧</button>
               <button
@@ -435,7 +435,7 @@ onBeforeUnmount(() => {
                 class="portee-cran"
                 :class="{ actif: l.etat === 'entretien' }"
                 :disabled="lectureSeuleContenu || l.etat === 'entretien' || (l.etat === 'corpus' && (lectureSeule || !gesteDisponible('dissociationGlobale'))) || operationGlobaleEnCours"
-                :title="l.etat === 'corpus' ? !gesteDisponible('dissociationGlobale') ? 'Dissociation globale non qualifiée pour ce fournisseur' : 'Préparer une dissociation globale, après enregistrement et fermeture de cet entretien' : 'Entretien — occurrences posées'"
+                :title="l.etat === 'corpus' ? !gesteDisponible('dissociationGlobale') ? 'Passage à l’entretien non disponible pour ce fournisseur' : 'Conserver cette règle seulement dans les entretiens qui l’utilisent' : 'Entretien — occurrences posées'"
                 @click="changerPorteeAnon(l.entite, 'entretien')"
               >📄</button>
               <button

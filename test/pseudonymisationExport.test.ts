@@ -52,6 +52,98 @@ describe('etablirRapportPseudonymisation', () => {
     expect(r.appliquees.find((l) => l.code === 'occurrences-remplacees')?.message).toContain('1 occurrence')
   })
 
+  test.each([
+    {
+      nom: 'exception englobante',
+      annotations: [
+        { id: 'large', type: 'anon' as const, from: 2, to: 10, auteur: '', etat: 'exception' as const, pseudo: 'Mémoire' },
+        { id: 'interne', type: 'anon' as const, from: 4, to: 7, auteur: '', etat: 'anonymise' as const, pseudo: 'X' },
+      ],
+      remplacees: 0, sansPseudo: 0, exceptions: 1,
+    },
+    {
+      nom: 'anonymisation englobante',
+      annotations: [
+        { id: 'large', type: 'anon' as const, from: 2, to: 10, auteur: '', etat: 'anonymise' as const, pseudo: 'X' },
+        { id: 'interne', type: 'anon' as const, from: 4, to: 7, auteur: '', etat: 'exception' as const, pseudo: 'Mémoire' },
+      ],
+      remplacees: 1, sansPseudo: 0, exceptions: 0,
+    },
+    {
+      nom: 'décision englobante sans pseudo',
+      annotations: [
+        { id: 'large', type: 'anon' as const, from: 2, to: 10, auteur: '', etat: 'anonymise' as const },
+        { id: 'interne', type: 'anon' as const, from: 4, to: 7, auteur: '', etat: 'anonymise' as const, pseudo: 'X' },
+      ],
+      remplacees: 0, sansPseudo: 1, exceptions: 0,
+    },
+  ])('compte seulement la décision visible : $nom', ({ annotations, remplacees, sansPseudo, exceptions }) => {
+    const e = entreePseudonymisable()
+    e.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'abcdefghij' }] }],
+    }
+    e.annotations = annotations
+    const r = etablirRapportPseudonymisation(e, {
+      format: 'txt', options: OPTIONS, titre: 'Entretien', notes: [],
+    })
+    expect(r.appliquees.find((ligne) => ligne.code === 'occurrences-remplacees')?.message)
+      .toContain(`${remplacees} occurrence`)
+    expect(r.conserves.find((ligne) => ligne.code === 'occurrences-sans-pseudo')?.message)
+      .toContain(`${sansPseudo} occurrence`)
+    expect(r.conserves.find((ligne) => ligne.code === 'exceptions')?.message)
+      .toContain(`${exceptions} exception`)
+  })
+
+  test('compte les décisions partiellement visibles et ignore les plages sans texte', () => {
+    const e = entreePseudonymisable()
+    e.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'abcdefghij' }] }],
+    }
+    e.annotations = [
+      { id: 'a1', type: 'anon', from: 2, to: 7, auteur: '', etat: 'anonymise', pseudo: 'X' },
+      { id: 'a2', type: 'anon', from: 5, to: 10, auteur: '', etat: 'anonymise', pseudo: 'Y' },
+      { id: 'hors-texte', type: 'anon', from: 20, to: 25, auteur: '', etat: 'exception' },
+      { id: 'orpheline', type: 'anon', from: 6, to: 6, auteur: '', etat: 'exception' },
+    ]
+    const r = etablirRapportPseudonymisation(e, {
+      format: 'txt', options: OPTIONS, titre: 'Entretien', notes: [],
+    })
+    expect(r.appliquees.find((ligne) => ligne.code === 'occurrences-remplacees')?.message)
+      .toContain('2 occurrences')
+    expect(r.conserves.find((ligne) => ligne.code === 'exceptions')?.message)
+      .toContain('0 exception')
+  })
+
+  test('un sous-titre ne compte que les décisions et locuteurs de ses cues valides', () => {
+    const e = entreePseudonymisable()
+    e.corpsTexte = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'aaaa' }] },
+        { type: 'paragraph', attrs: { loc: 2 }, content: [{ type: 'text', text: 'bbbb' }] },
+      ],
+    }
+    e.annotations = [
+      { id: 'sans-cue', type: 'anon', from: 7, to: 11, auteur: '', etat: 'anonymise', pseudo: 'X' },
+    ]
+    e.ancres = [{ pos: 1, t: 0 }, { pos: 5, t: 2 }]
+    const srt = etablirRapportPseudonymisation(e, {
+      format: 'srt', options: OPTIONS, titre: 'Entretien', notes: [],
+    })
+    expect(srt.appliquees.find((ligne) => ligne.code === 'occurrences-remplacees')?.message)
+      .toContain('0 occurrence')
+    expect(srt.appliquees.find((ligne) => ligne.code === 'locuteurs-pseudonymises')?.message)
+      .toContain('1 pseudonyme est utilisé')
+
+    const txt = etablirRapportPseudonymisation(e, {
+      format: 'txt', options: OPTIONS, titre: 'Entretien', notes: [],
+    })
+    expect(txt.appliquees.find((ligne) => ligne.code === 'occurrences-remplacees')?.message)
+      .toContain('1 occurrence')
+  })
+
   test('distingue les pseudos configurés de ceux réellement utilisés dans le format', () => {
     const e = entreePseudonymisable()
     const sansNoms = etablirRapportPseudonymisation(e, {

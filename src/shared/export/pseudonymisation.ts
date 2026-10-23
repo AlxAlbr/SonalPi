@@ -1,6 +1,8 @@
 import type { Note, Locuteur } from '../format'
 import type { EntreeExport, FormatExport, OptionsExport } from './types'
 import { optionsEfficaces } from './types'
+import { projeterSegments, type AnonFragment, type SegmentProjete } from './projectionEntretien'
+import { bornesSousTitre } from './sousTitres'
 
 /** Une ligne factuelle du rapport, avec un code stable pour les tests. */
 export interface LigneRapportPseudonymisation {
@@ -31,15 +33,16 @@ export function pseudoUtilisable(l: Locuteur): boolean {
   return p !== '' && l.pseudoEtat !== 'refuse' && p !== l.nom.trim()
 }
 
-/** Index des locuteurs réellement présents dans les blocs de texte. */
-function locuteursDansLeTexte(e: EntreeExport): Set<number> {
-  const doc = e.corpsTexte as { content?: Array<{ attrs?: { loc?: number | null } }> }
-  const presents = new Set<number>()
-  for (const b of doc.content ?? []) {
-    const loc = b.attrs?.loc
-    if (loc != null) presents.add(loc)
-  }
-  return presents
+/** Segments réellement portés par le format demandé. */
+function segmentsInclus(format: FormatExport, segments: SegmentProjete[]): SegmentProjete[] {
+  return format === 'srt' || format === 'vtt'
+    ? segments.filter((segment) => bornesSousTitre(segment.deb, segment.fin) !== null)
+    : segments
+}
+
+/** Index des locuteurs réellement présents dans les segments exportés. */
+function locuteursDansLesSegments(segments: SegmentProjete[]): Set<number> {
+  return new Set(segments.flatMap((segment) => segment.loc == null ? [] : [segment.loc]))
 }
 
 /** Index des locuteurs dont le nom est effectivement porté par le format. */
@@ -47,12 +50,13 @@ function locuteursInclus(
   e: EntreeExport,
   format: FormatExport,
   options: OptionsExport,
+  segments: SegmentProjete[],
 ): Set<number> {
   if (format === 'sonal') return new Set(e.locuteurs.map((l) => l.index))
 
   const inclus = new Set<number>()
   if (options.loc) {
-    for (const index of locuteursDansLeTexte(e)) inclus.add(index)
+    for (const index of locuteursDansLesSegments(segments)) inclus.add(index)
   }
   if (options.vars) {
     const variablesLocuteur = e.variables.filter((v) => !v.priv && v.portee === 'locuteur')
@@ -70,22 +74,32 @@ function quantite(n: number, singulier: string, pluriel: string): string {
   return `${n} ${n === 1 ? singulier : pluriel}`
 }
 
+/** Liste chaque décision effectivement visible une seule fois. */
+function decisionsAnonVisibles(segments: SegmentProjete[]): AnonFragment[] {
+  const visibles = new Set<AnonFragment>()
+  for (const segment of segments) {
+    for (const fragment of segment.fragments) if (fragment.anon) visibles.add(fragment.anon)
+  }
+  return [...visibles]
+}
+
 /** Produit un rapport non bloquant, adapté au contenu réellement demandé. */
 export function etablirRapportPseudonymisation(
   e: EntreeExport,
   demande: OptionsRapportPseudonymisation,
 ): RapportPseudonymisationExport {
   const options = optionsEfficaces(demande.format, demande.options)
-  const annotations = e.annotations.filter((a) => a.type === 'anon')
-  const remplacees = annotations.filter(
-    (a) => a.etat !== 'exception' && (a.pseudo?.trim() ?? '') !== '',
+  const segments = segmentsInclus(demande.format, projeterSegments(e))
+  const decisions = decisionsAnonVisibles(segments)
+  const remplacees = decisions.filter(
+    (decision) => decision.etat !== 'exception' && (decision.pseudo?.trim() ?? '') !== '',
   ).length
-  const sansPseudo = annotations.filter(
-    (a) => a.etat !== 'exception' && (a.pseudo?.trim() ?? '') === '',
+  const sansPseudo = decisions.filter(
+    (decision) => decision.etat !== 'exception' && (decision.pseudo?.trim() ?? '') === '',
   ).length
-  const exceptions = annotations.filter((a) => a.etat === 'exception').length
+  const exceptions = decisions.filter((decision) => decision.etat === 'exception').length
 
-  const indicesLocuteurs = locuteursInclus(e, demande.format, options)
+  const indicesLocuteurs = locuteursInclus(e, demande.format, options, segments)
   const inclus = e.locuteurs.filter((l) => indicesLocuteurs.has(l.index))
   const locuteursAvecPseudo = e.locuteurs.filter(pseudoUtilisable).length
   const locuteursSansPseudo = e.locuteurs.length - locuteursAvecPseudo

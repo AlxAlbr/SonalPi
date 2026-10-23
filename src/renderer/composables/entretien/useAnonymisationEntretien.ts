@@ -35,7 +35,11 @@ export function useAnonymisationEntretien(deps: {
   reglesAnon: () => RegleAnon[]
   rafraichirReglesCorpus?: () => Promise<void>
   publierAvantSuppressionDefinition?: () => Promise<boolean>
-  demanderDissociationCorpus?: (regleId: string) => Promise<boolean>
+  demanderDissociationCorpus?: (
+    regleId: string,
+    cible: 'entretien' | 'brouillon',
+    entite: string,
+  ) => Promise<boolean>
   prioriteAnon: () => 'corpus' | 'entretien'
   motsLiaison?: () => MotsLiaisonParams
   thematiques?: () => { actif: boolean; liste: string[] }
@@ -567,11 +571,8 @@ export function useAnonymisationEntretien(deps: {
   /** Le réglage de portée change l'état d'une ligne sur trois crans.
    *  brouillon → entretien : pose les occurrences standalone (valider).
    *  brouillon/entretien → corpus : crée/réutilise une règle + pose/relie.
-   *  entretien → brouillon : retire les occurrences, recrée un brouillon.
-   *  corpus → entretien : délie (rend standalone) ; la règle est supprimée si elle
-   *    devient isolée, sinon elle reste (partagée par d'autres entretiens).
-   *  corpus → brouillon : retire les occurrences + recrée un brouillon — BLOQUÉ
-   *    si la règle est utilisée ailleurs (message d'isolation). */
+   *  entretien → brouillon : retire les décisions et remet la ligne en chantier.
+   *  quitter le corpus inventorie tous ses usages avant de choisir le parcours. */
   async function changerPorteeAnon(entite: string, cible: 'brouillon' | 'entretien' | 'corpus') {
     const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
     if (!ligne) return
@@ -587,10 +588,15 @@ export function useAnonymisationEntretien(deps: {
           categorie: categorieDeLigne(ligne.entite), etat: 'brouillon',
         })
       } catch (erreur) { hintAnon.value = erreur instanceof Error ? erreur.message : 'Définition locale invalide.'; return }
-      for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
+      const ids = entretien.annotations
+        .filter((annotation) => annotation.type === 'anon' && !estOrpheline(annotation) && annotationDeLigne(annotation, ligne))
+        .map((annotation) => annotation.id)
+      for (const id of ids) retirerAnnotation(entretien, id)
       ajouterBrouillon(brouillonsAnon.value, ligne.entite, pseudo)
       deps.rafraichirProjections()
       deps.rafraichirDecorations()
+      rafraichirCompteursAAAnonymiser()
+      rafraichirReperage()
       deps.planifierSauvegarde()
       return
     }
@@ -862,19 +868,25 @@ export function useAnonymisationEntretien(deps: {
     retirerDefinitionLocale(definitionsAnonLocales.value, ligne.entite)
   }
 
-  /** Corpus → entretien passe par l’inventaire global, jamais par un déliage de la seule copie ouverte. */
-  async function delierCorpus(ligne: LigneAnon) {
+  /** Une sortie du corpus inventorie d’abord tous les usages de la règle.
+   *  Si seul l’entretien courant est concerné, le parcours est réalisé directement. */
+  async function quitterCorpus(ligne: LigneAnon, cible: 'entretien' | 'brouillon') {
     if (!ligne.regle) return
     if (!deps.demanderDissociationCorpus) {
-      hintAnon.value = 'La dissociation exige le parcours global qualifié. Aucun lien local n’a été retiré.'
+      hintAnon.value = 'La modification exige le parcours global qualifié. Aucun changement n’a été effectué.'
       return
     }
-    if (!await deps.demanderDissociationCorpus(ligne.regle)) hintAnon.value = 'Dissociation non engagée : aucun lien local n’a été retiré.'
+    if (!await deps.demanderDissociationCorpus(ligne.regle, cible, ligne.entite)) {
+      hintAnon.value = 'Modification non engagée : aucun lien ni passage n’a été modifié.'
+    }
   }
 
-  /** Le retrait des décisions partagées exige une commande globale distincte de la dissociation. */
-  async function retirerCorpusVersBrouillon(_ligne: LigneAnon) {
-    hintAnon.value = 'Le retrait corpus vers brouillon n’est pas qualifié. Aucun marquage ni variante déclarée n’a été supprimé. Utilisez la dissociation globale pour conserver les décisions en entretien.'
+  async function delierCorpus(ligne: LigneAnon) {
+    await quitterCorpus(ligne, 'entretien')
+  }
+
+  async function retirerCorpusVersBrouillon(ligne: LigneAnon) {
+    await quitterCorpus(ligne, 'brouillon')
   }
 
   async function publierRetraitAvantSuppression(): Promise<boolean> {

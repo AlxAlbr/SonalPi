@@ -17,6 +17,7 @@ import {
 } from './documentExport'
 import { corpsNoteEnTexte } from './notesTexte'
 import { pseudoUtilisable } from './pseudonymisation'
+import { bornesSousTitre } from './sousTitres'
 
 // ----------------------------------------------------------------
 // Projection des segments (JSON), avec pseudonymisation si demandée
@@ -49,15 +50,6 @@ function tempsCourt(sec: number): string {
   const m = Math.floor((t - h * 3600) / 60)
   const s = t - h * 3600 - m * 60
   return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':')
-}
-
-/** Millisecondes entières d'un temps de cue : arrondies AVANT toute
- *  décomposition (59.9999 → 60 000 ms, jamais « 00:00:60.000 »). Un temps
- *  non fini (NaN, ±Infini) est inutilisable : null. Un temps négatif est
- *  ramené à 0. */
-function msCue(sec: unknown): number | null {
-  if (typeof sec !== 'number' || !Number.isFinite(sec)) return null
-  return Math.max(0, Math.round(sec * 1000))
 }
 
 /** Horodatage d'un cue depuis des millisecondes : virgule pour le SRT,
@@ -304,9 +296,8 @@ export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
   let out = ''
   let n = 0
   for (const seg of segments) {
-    const deb = msCue(seg.deb)
-    const fin = msCue(seg.fin)
-    if (deb == null || fin == null || fin <= deb) continue
+    const bornes = bornesSousTitre(seg.deb, seg.fin)
+    if (!bornes) continue
     n++
     const texte = seg.fragments
       .map((f) => texteAvecSauts(f))
@@ -319,7 +310,7 @@ export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
       const nom = noms.get(seg.loc)
       if (nom) prefixe = `${nom}: `
     }
-    out += `${n}\n${horodatageCue(deb, true)} --> ${horodatageCue(fin, true)}\n${prefixe}${texte}\n\n`
+    out += `${n}\n${horodatageCue(bornes.debut, true)} --> ${horodatageCue(bornes.fin, true)}\n${prefixe}${texte}\n\n`
   }
   return out
 }
@@ -338,9 +329,8 @@ export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
   if (notes) out += `NOTE\n${notes.replace(/\n{2,}/g, '\n').trim()}\n\n`
   let n = 0
   for (const seg of segments) {
-    const deb = msCue(seg.deb)
-    const fin = msCue(seg.fin)
-    if (deb == null || fin == null || fin <= deb) continue
+    const bornes = bornesSousTitre(seg.deb, seg.fin)
+    if (!bornes) continue
     let payload = ''
     for (const frag of seg.fragments) {
       // Un fragment multicodé porte chacune de ses catégories : classes
@@ -358,7 +348,7 @@ export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
       const nom = noms.get(seg.loc)
       if (nom) payload = `<v ${echapperVtt(nom)}>${payload}</v>`
     }
-    out += `${++n}\n${horodatageCue(deb, false)} --> ${horodatageCue(fin, false)}\n${payload.trim().replace(/\s+/g, ' ')}\n\n`
+    out += `${++n}\n${horodatageCue(bornes.debut, false)} --> ${horodatageCue(bornes.fin, false)}\n${payload.trim().replace(/\s+/g, ' ')}\n\n`
   }
   return out
 }

@@ -1,13 +1,18 @@
 import { Schema, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { CorpusFichier, EntretienFichier } from '../../shared/format'
+import { projeterPortionsAnon } from '../../shared/entretien/anon/projectionTexte'
 
 const schema = new Schema({
   nodes: {
     doc: { content: 'paragraph+' },
-    paragraph: { content: 'text*', attrs: { loc: { default: null } } },
-    text: {},
+    paragraph: { content: 'inline*', attrs: { loc: { default: null } } },
+    text: { group: 'inline' },
+    hardBreak: { group: 'inline', inline: true },
   },
 })
+
+const texteEntre = (doc: ProseMirrorNode, from: number, to: number): string =>
+  doc.textBetween(from, to, ' ', '\n')
 
 export type ModeTextePassage = 'pseudonymise' | 'original'
 
@@ -52,37 +57,7 @@ export function diagnosticPassage(
   return 'La source ou la plage du passage est invalide.'
 }
 
-function intervallesAnon(data: EntretienFichier, from: number, to: number) {
-  const candidats = data.annotations
-    .filter((annotation) => annotation.type === 'anon'
-      && annotation.etat !== 'exception'
-      && annotation.from < to
-      && annotation.to > from
-      && annotation.from < annotation.to)
-    .map((annotation) => ({
-      from: Math.max(from, annotation.from),
-      to: Math.min(to, annotation.to),
-      pseudo: annotation.pseudo?.trim() || '[anonymisé]',
-      largeur: annotation.to - annotation.from,
-    }))
-    .sort((a, b) => a.from - b.from || b.largeur - a.largeur)
-  const resultat: typeof candidats = []
-  for (const candidat of candidats) {
-    const precedent = resultat[resultat.length - 1]
-    if (!precedent || candidat.from >= precedent.to) {
-      resultat.push(candidat)
-    } else {
-      precedent.to = Math.max(precedent.to, candidat.to)
-      const pseudos = new Set(precedent.pseudo.split(' / '))
-      pseudos.add(candidat.pseudo)
-      precedent.pseudo = [...pseudos].join(' / ')
-      precedent.largeur = Math.max(precedent.largeur, candidat.largeur)
-    }
-  }
-  return resultat
-}
-
-/** Extrait un passage sans conserver le texte original dans la vue pseudonymisée. */
+/** Extrait un passage selon les mêmes décisions visibles que les exports. */
 export function textePassage(
   doc: ProseMirrorNode,
   data: EntretienFichier,
@@ -90,17 +65,26 @@ export function textePassage(
   to: number,
   mode: ModeTextePassage,
 ): string {
-  if (mode === 'original') return doc.textBetween(from, to, ' ')
-  const intervalles = intervallesAnon(data, from, to)
-  if (!intervalles.length) return doc.textBetween(from, to, ' ')
+  if (mode === 'original') return texteEntre(doc, from, to)
+  const portions = projeterPortionsAnon(data.annotations, { from, to })
+  const emises = new Set<object>()
   const morceaux: string[] = []
-  let curseur = from
-  for (const intervalle of intervalles) {
-    if (intervalle.from > curseur) morceaux.push(doc.textBetween(curseur, intervalle.from, ' '))
-    morceaux.push(intervalle.pseudo)
-    curseur = Math.max(curseur, intervalle.to)
+  let pseudoPrecedent = false
+  for (const portion of portions) {
+    const annotation = portion.annotation
+    const pseudo = annotation?.etat === 'exception' ? '' : annotation?.pseudo?.trim() ?? ''
+    if (!annotation || !pseudo) {
+      const texte = texteEntre(doc, portion.from, portion.to)
+      morceaux.push(texte)
+      if (texte) pseudoPrecedent = false
+      continue
+    }
+    if (emises.has(annotation)) continue
+    if (pseudoPrecedent) morceaux.push(' / ')
+    morceaux.push(pseudo)
+    emises.add(annotation)
+    pseudoPrecedent = true
   }
-  if (curseur < to) morceaux.push(doc.textBetween(curseur, to, ' '))
   return morceaux.join('')
 }
 

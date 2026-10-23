@@ -2,7 +2,7 @@
 
 **Date :** 10 octobre 2026.
 
-**Statut :** réalisé et qualifié pour GitLab le 10 octobre 2026. Local inchangé. La déclinaison WebDAV a depuis été raccordée et activée après qualification du contexte, des publications et du dialogue Electron A/B ; voir la livraison 10 de `plans/encours/pseudonymisation_v1_vers_v2.md` et `docs/dev/renommage-anon.md`.
+**Statut :** réalisé et qualifié pour GitLab le 10 octobre 2026. Local inchangé. La déclinaison WebDAV a depuis été raccordée et activée après qualification du contexte, des publications et du dialogue Electron A/B ; voir la livraison 10 de `plans/encours/pseudonymisation_v1_vers_v2.md` et `docs/dev/pseudonymisation/corpus.md`.
 
 **Périmètre initial :** renommage d’une variante sur GitLab, puis déclinaison locale/WebDAV selon leurs garanties.
 

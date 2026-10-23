@@ -1,5 +1,5 @@
 import { debutBloc } from '../entretien/positions'
-import { annotationVisible } from '../entretien/anon/classification'
+import { decisionAnonVisible } from '../entretien/anon/projectionTexte'
 import type { Annotation } from '../entretien/annotation'
 import type { Ancre } from '../entretien/audio'
 import type { EntreeExport } from './types'
@@ -300,9 +300,9 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
         const codes: string[] = []
         for (const { ann } of couvrant) if (ann.type === 'codage' && ann.code) codes.push(ann.code)
         const decisions = couvrant.map(({ ann }) => ann).filter((a) => a.type === 'anon')
-        const visible = decisions.length ? annotationVisible(decisions, {
+        const visible = decisions.length ? decisionAnonVisible(decisions, {
           from: Math.max(...decisions.map((a) => a.from)), to: Math.min(...decisions.map((a) => a.to)),
-        }) : undefined
+        }) : null
         if (visible && !anonymisations.has(visible)) anonymisations.set(visible, {
           etat: visible.etat === 'exception' ? 'exception' : 'anonymise', pseudo: visible.pseudo ?? null,
         })

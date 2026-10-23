@@ -48,6 +48,71 @@ describe('Lexico', () => {
     expect(occurrences.find((occurrence) => occurrence.forme === 'travail')?.themeIds).toEqual(['travail'])
   })
 
+  it.each([false, true])('respecte une exception englobante indépendamment de l’ordre (%s)', (inverse) => {
+    const data = structuredClone(source)
+    data.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'abcdefghij' }] }],
+    }
+    const large = { id: 'large', type: 'anon' as const, from: 2, to: 10, auteur: '', etat: 'exception' as const, pseudo: 'Mémoire' }
+    const interne = { id: 'interne', type: 'anon' as const, from: 4, to: 7, auteur: '', etat: 'anonymise' as const, pseudo: 'X' }
+    data.annotations = inverse ? [interne, large] : [large, interne]
+    const occurrences = extraireOccurrencesLexico('a', reference, data)
+    expect(occurrences.map((occurrence) => occurrence.forme)).toEqual(['abcdefghij'])
+    expect(occurrences.some((occurrence) => occurrence.pseudonyme)).toBe(false)
+  })
+
+  it('une englobante anonymisée masque l’exception interne et une décision sans pseudo reste en clair', () => {
+    const data = structuredClone(source)
+    data.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'abcdefghij' }] }],
+    }
+    data.annotations = [
+      { id: 'large', type: 'anon', from: 2, to: 10, auteur: '', etat: 'anonymise', pseudo: 'X' },
+      { id: 'interne', type: 'anon', from: 4, to: 7, auteur: '', etat: 'exception', pseudo: 'Mémoire' },
+    ]
+    expect(extraireOccurrencesLexico('a', reference, data).map((occurrence) => occurrence.forme))
+      .toEqual(['a', 'x', 'j'])
+
+    data.annotations = [{ id: 'sans-pseudo', type: 'anon', from: 2, to: 10, auteur: '', etat: 'anonymise' }]
+    expect(extraireOccurrencesLexico('a', reference, data).map((occurrence) => occurrence.forme))
+      .toEqual(['abcdefghij'])
+  })
+
+  it('conserve un pseudonyme unique sur une plage traversant un saut de ligne interne', () => {
+    const data = structuredClone(source)
+    data.corpsTexte = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph', attrs: { loc: 0 }, content: [
+          { type: 'text', text: 'Avant' },
+          { type: 'hardBreak' },
+          { type: 'text', text: 'Après' },
+        ],
+      }],
+    }
+    data.annotations = [{ id: 'a1', type: 'anon', from: 1, to: 12, auteur: '', etat: 'anonymise', pseudo: 'X' }]
+    expect(extraireOccurrencesLexico('a', reference, data).map((occurrence) => occurrence.forme))
+      .toEqual(['x'])
+  })
+
+  it('conserve deux décisions visibles lors d’un chevauchement partiel sans révéler le texte couvert', () => {
+    const data = structuredClone(source)
+    data.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'abcdefghij' }] }],
+    }
+    data.annotations = [
+      { id: 'a1', type: 'anon', from: 2, to: 7, auteur: '', etat: 'anonymise', pseudo: 'X' },
+      { id: 'a2', type: 'anon', from: 5, to: 10, auteur: '', etat: 'anonymise', pseudo: 'Y' },
+    ]
+    const occurrences = extraireOccurrencesLexico('a', reference, data)
+    expect(occurrences.map((occurrence) => occurrence.forme)).toEqual(['a', 'x', 'y', 'j'])
+    expect(occurrences.filter((occurrence) => occurrence.pseudonyme).map((occurrence) => [occurrence.from, occurrence.to]))
+      .toEqual([[2, 7], [7, 10]])
+  })
+
   it('évalue les variables et le rôle sur le locuteur de chaque occurrence', () => {
     const occurrences = extraireOccurrencesLexico('a', reference, source)
     const filtres = filtresLexicoParDefaut()

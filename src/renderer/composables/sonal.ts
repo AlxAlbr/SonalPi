@@ -39,7 +39,11 @@ export function creerSonal() {
   // mais l'entretien est créé APRÈS le corpus, qui lui injecte `couleurTrait` ; on route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
   let publierAvantSuppressionDefinition: () => Promise<boolean> = async () => true
-  let demanderDissociationCorpus: (regleId: string) => Promise<boolean> = async () => false
+  let demanderDissociationCorpus: (
+    regleId: string,
+    cible: 'entretien' | 'brouillon',
+    entite: string,
+  ) => Promise<boolean> = async () => false
   const demandeDissociationAnon = ref<{ regleId: string; revision: number } | null>(null)
   // Indirection pour casser un cycle de dépendances :
   //     `appliquerCorpus` doit restaurer le parcours quand le corpus ouvert porte un marqueur `demo`,
@@ -79,7 +83,7 @@ export function creerSonal() {
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirReglesAnon(),
     publierAvantSuppressionDefinition: () => publierAvantSuppressionDefinition(),
-    demanderDissociationCorpus: (id) => demanderDissociationCorpus(id),
+    demanderDissociationCorpus: (id, cible, entite) => demanderDissociationCorpus(id, cible, entite),
     prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
     // Mots de liaison : suggestion d'entité-cœur à la validation d'une entité à affixe.
     motsLiaison: () =>
@@ -379,16 +383,55 @@ export function creerSonal() {
     reprendre,
   } = cycleCorpus
   watch(revisionCorpus, () => { demandeDissociationAnon.value = null })
-  demanderDissociationCorpus = async (regleId) => {
+  demanderDissociationCorpus = async (regleId, cible, entite) => {
     if (!gesteDisponible('dissociationGlobale') || lectureSeule.value) return false
-    if (!window.confirm('Ce changement de portée exige une dissociation globale. L’entretien courant sera enregistré et fermé avant l’aperçu ; aucune règle ni décision n’est dissociée sans le consentement final. Continuer ?')) return false
-    const revision = revisionCorpus.value
-    await retourCorpus()
-    if (vue.value !== 'corpus' || revisionCorpus.value !== revision || !gesteDisponible('dissociationGlobale') || lectureSeule.value) return false
-    await corpus.rafraichirReglesAnon(false)
-    if (revisionCorpus.value !== revision) return false
-    demandeDissociationAnon.value = { regleId, revision }
-    return true
+    const entretienId = ent.ouvertId.value
+    if (!entretienId) return false
+    let engagee = false
+    const executee = await lancerOperationGlobale(async () => {
+      await ent.sauver()
+      const premier = await window.sonal.corpus.apercuDissociationAnon({ regleId })
+      const autres = premier.entretiens.filter((e) => e.id !== entretienId && e.annotations > 0)
+      if (autres.length) {
+        const suite = cible === 'brouillon'
+          ? `Pour remettre cette règle en chantier dans cet entretien, ses usages dans ${autres.length} autre(s) entretien(s) doivent d’abord devenir locaux.`
+          : `Cette règle est aussi utilisée dans ${autres.length} autre(s) entretien(s). Tous ses usages devront devenir locaux.`
+        if (!window.confirm(`${suite}\n\nL’entretien courant sera enregistré et fermé avant le bilan. Continuer ?`)) return
+      }
+      engagee = true
+      const revision = revisionCorpus.value
+      await retourCorpus()
+      if (vue.value !== 'corpus' || revisionCorpus.value !== revision || !gesteDisponible('dissociationGlobale') || lectureSeule.value) return
+      await corpus.rafraichirReglesAnon(false)
+      if (revisionCorpus.value !== revision) return
+      if (autres.length) {
+        demandeDissociationAnon.value = { regleId, revision }
+        return
+      }
+      const frais = await window.sonal.corpus.apercuDissociationAnon({ regleId })
+      const cibles = frais.entretiens.filter((e) => e.annotations > 0)
+      if (!frais.faisable || !frais.applicationDisponible || cibles.length !== 1 || cibles[0].id !== entretienId) {
+        demandeDissociationAnon.value = { regleId, revision }
+        return
+      }
+      const bilan = await window.sonal.corpus.dissocierRegleAnon(frais.token, true)
+      if ('statut' in bilan && bilan.statut !== 'termine') {
+        demandeDissociationAnon.value = { regleId, revision }
+        return
+      }
+      await corpus.rafraichirReglesAnon(false)
+      await reprendre()
+      if (ent.ouvertId.value !== entretienId) throw new Error("L’entretien n’a pas pu être rouvert après la modification.")
+      if (cible === 'brouillon') {
+        const ligneLocale = ent.lignesAnon.value.find((ligne) => ligne.entite === entite)
+        if (!ligneLocale || ligneLocale.etat !== 'entretien') {
+          throw new Error(`La règle dissociée n’est pas disponible comme règle locale (${ligneLocale?.etat ?? 'absente'}).`)
+        }
+        await ent.changerPorteeAnon(entite, 'brouillon')
+        await ent.sauver()
+      }
+    }, { confirmation: 'deja-confirmee', message: '' })
+    return executee && engagee
   }
   rafraichirCorpusDepuisDistant = rafraichirCorpusSansFermer
   nettoyerMiroirDepuisDistant = nettoyerMiroirChange

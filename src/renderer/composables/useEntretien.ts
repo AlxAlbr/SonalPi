@@ -89,7 +89,11 @@ export function useEntretien(deps: {
   rafraichirReglesCorpus?: () => Promise<void>
   /** Publie le retrait local avant de supprimer sa définition partagée. */
   publierAvantSuppressionDefinition?: () => Promise<boolean>
-  demanderDissociationCorpus?: (regleId: string) => Promise<boolean>
+  demanderDissociationCorpus?: (
+    regleId: string,
+    cible: 'entretien' | 'brouillon',
+    entite: string,
+  ) => Promise<boolean>
   /** Priorité de validation définie dans `corpus.json.paramsAnon` : la portée
    *  qu'applique ENTRÉE sur une ligne du tableau ; Maj+Entrée fait l'inverse. */
   prioriteAnon: () => 'corpus' | 'entretien'

@@ -14,7 +14,11 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'sonal')
 })
 
-function banc(texte = 'Rue de la Gare.', regles: RegleAnon[] = [], demanderDissociationCorpus?: (id: string) => Promise<boolean>) {
+function banc(
+  texte = 'Rue de la Gare.',
+  regles: RegleAnon[] = [],
+  demanderDissociationCorpus?: (id: string, cible: 'entretien' | 'brouillon', entite: string) => Promise<boolean>,
+) {
   const ed = new Editor({ extensions: [StarterKit], content: `<p>${texte}</p>` })
   editeurs.push(ed)
   const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
@@ -53,16 +57,18 @@ describe('portée corpus : aucune mutation limitée à l’entretien ouvert', ()
     const avant = structuredClone(b.entretien)
     await b.anon.changerPorteeAnon('Karine', 'entretien')
     expect(b.entretien).toEqual(avant); expect(b.sauvegarder).not.toHaveBeenCalled()
-    if (demande) expect(demande).toHaveBeenCalledExactlyOnceWith('r')
+    if (demande) expect(demande).toHaveBeenCalledExactlyOnceWith('r', 'entretien', 'Karine')
   })
-  test('ancien retrait corpus vers brouillon fermé : aucune décision ou variante inutilisée perdue', async () => {
+  test.each([true, false])('corpus vers brouillon délègue au parcours inventorié sans mutation locale préalable : %s', async (accord) => {
     const regle = { id: 'r', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER' }
-    const b = banc('Karine.', [regle])
+    const demande = vi.fn(async () => accord)
+    const b = banc('Karine.', [regle], demande)
     b.entretien.annotations.push({ id: 'a', type: 'anon', regle: 'r', from: 1, to: 7, pseudo: 'Claire', etat: 'anonymise', auteur: 'test' })
     b.anon.rafraichirLignesAnon(); const avant = structuredClone(b.entretien)
     await b.anon.changerPorteeAnon('Karine', 'brouillon')
     expect(b.entretien).toEqual(avant); expect(regle.pseudos).toEqual(['Claire', 'Rebecca'])
-    expect(b.sauvegarder).not.toHaveBeenCalled(); expect(b.anon.hintAnon.value).toContain('n’est pas qualifié')
+    expect(b.sauvegarder).not.toHaveBeenCalled()
+    expect(demande).toHaveBeenCalledExactlyOnceWith('r', 'brouillon', 'Karine')
   })
 })
 
@@ -73,6 +79,21 @@ function preparerException() {
   b.sauvegarder.mockClear()
   return b
 }
+
+describe('retour en chantier local', () => {
+  test('retire aussi une décision incluse sans retirer la décision englobante', async () => {
+    const b = banc('Rue Karine.')
+    b.entretien.annotations.push(
+      { id: 'large', type: 'anon', from: 1, to: 11, auteur: 'test', pseudo: 'Quartier', etat: 'anonymise' },
+      { id: 'interne', type: 'anon', from: 5, to: 11, auteur: 'test', pseudo: 'Claire', etat: 'anonymise' },
+    )
+    b.anon.rafraichirLignesAnon()
+    expect(b.anon.lignesAnon.value.find((ligne) => ligne.entite === 'Karine')?.nbIncluse).toBe(1)
+    await b.anon.changerPorteeAnon('Karine', 'brouillon')
+    expect(b.entretien.annotations.map((annotation) => annotation.id)).toEqual(['large'])
+    expect(b.anon.lignesAnon.value.find((ligne) => ligne.entite === 'Karine')?.etat).toBe('brouillon')
+  })
+})
 
 describe('couverture des exceptions pendant la promotion', () => {
   test('demande confirmation avant de créer la définition corpus et annuler ne modifie rien', async () => {

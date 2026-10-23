@@ -149,3 +149,64 @@ export function entreePseudonymisable(): EntreeExport {
     })),
   }
 }
+
+export const IDENTITE_TEXTE_SENTINELLE = 'IdentiteTexte-SENTINELLE'
+export const PSEUDO_TEXTE_SENTINELLE = 'PseudoTexte-SENTINELLE'
+export const EXCEPTION_TEXTE_SENTINELLE = 'ExceptionClaire-SENTINELLE'
+export const SANS_PSEUDO_SENTINELLE = 'SansPseudo-SENTINELLE'
+export const PSEUDO_MASQUE_SENTINELLE = 'PseudoMasque-SENTINELLE'
+export const LOCUTEUR_ORIGINAL_SENTINELLE = 'LocuteurReel-SENTINELLE'
+export const LOCUTEUR_PSEUDO_SENTINELLE = 'LocuteurPseudo-SENTINELLE'
+export const MEMOIRE_ANON_SENTINELLE = 'MemoireAnon-SENTINELLE'
+export const REGLE_ANON_SENTINELLE = 'RegleAnon-SENTINELLE'
+export const PSEUDO_REGLE_MEMOIRE_SENTINELLE = 'MemoirePseudo-SENTINELLE'
+export const PSEUDO_LOCAL_MEMOIRE_SENTINELLE = 'MemoireLocale-SENTINELLE'
+
+/** Entretien commun à la matrice des sorties pseudonymisées. */
+export function entreeMatricePseudonymisation(): EntreeExport {
+  const texte = [
+    'Avant',
+    IDENTITE_TEXTE_SENTINELLE,
+    'puis',
+    EXCEPTION_TEXTE_SENTINELLE,
+    'et',
+    SANS_PSEUDO_SENTINELLE,
+    'après.',
+  ].join(' ')
+  const plage = (valeur: string) => {
+    const index = texte.indexOf(valeur)
+    return { from: index + 1, to: index + 1 + valeur.length }
+  }
+  const identite = plage(IDENTITE_TEXTE_SENTINELLE)
+  const exception = plage(EXCEPTION_TEXTE_SENTINELLE)
+  const sansPseudo = plage(SANS_PSEUDO_SENTINELLE)
+  return {
+    corpsTexte: {
+      type: 'doc',
+      content: [{
+        type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: texte }],
+      }],
+    },
+    annotations: [
+      { id: 'identite', type: 'anon', ...identite, auteur: 'test', etat: 'anonymise', pseudo: PSEUDO_TEXTE_SENTINELLE },
+      { id: 'masquee', type: 'anon', from: identite.from + 2, to: identite.to - 2, auteur: 'test', etat: 'exception', pseudo: PSEUDO_MASQUE_SENTINELLE },
+      { id: 'exception', type: 'anon', ...exception, auteur: 'test', etat: 'exception', pseudo: MEMOIRE_ANON_SENTINELLE },
+      { id: 'sans-pseudo', type: 'anon', ...sansPseudo, auteur: 'test', etat: 'anonymise' },
+    ],
+    ancres: [{ pos: 1, t: 0 }, { pos: texte.length + 1, t: 10 }],
+    locuteurs: [{
+      index: 1,
+      nom: LOCUTEUR_ORIGINAL_SENTINELLE,
+      pseudo: LOCUTEUR_PSEUDO_SENTINELLE,
+      pseudoEtat: 'confirme',
+      valeursLoc: {},
+      personneRef: null,
+    }],
+    codebook: [],
+    variables: [],
+    meta: { valeursGen: {} },
+    legacy: { tabAnon: null, notes: '' },
+    reglesAnon: [{ id: 'r', entite: [REGLE_ANON_SENTINELLE], pseudos: [PSEUDO_REGLE_MEMOIRE_SENTINELLE] }],
+    definitionsAnonLocales: [{ entite: [MEMOIRE_ANON_SENTINELLE], pseudos: [PSEUDO_LOCAL_MEMOIRE_SENTINELLE], etat: 'declaration' }],
+  }
+}

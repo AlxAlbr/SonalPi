@@ -195,7 +195,7 @@ Qualifier sur GitLab réel les deux choix de destination média, plus les correc
 
 Le dépôt de travail de cette session est `/home/belignem/Vscode/sonalpitestv2`. Il contient des modifications non commitées et des fichiers nouveaux à conserver ; ne pas reset, commit ou push sans demande.
 
-- Retrait de variante WebDAV terminé et activé : preuves documentées dans `plans/encours/pseudonymisation_v1_vers_v2.md` et `docs/dev/variantes-anon.md`.
+- Retrait de variante WebDAV terminé et activé : preuves documentées dans `plans/encours/pseudonymisation_v1_vers_v2.md` et `docs/dev/pseudonymisation/corpus.md`.
 - Vérifications complémentaires récentes : **164 tests/13 fichiers réussis**, typecheck/build/espaces vérifiés.
 - Petit correctif de fusion déjà présent : `src/shared/entretien/fusion.ts` clone les locuteurs pour ne pas modifier les objets sources pendant une fusion ; assertions dans `test/e3b-fusion-reconciliation.test.ts`.
 - Test supplémentaire de primauté du choix d’entretien : `test/pseudonymisationProjection.test.ts`.

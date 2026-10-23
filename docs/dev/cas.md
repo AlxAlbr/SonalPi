@@ -201,7 +201,9 @@ Le chargement et le parsing sont partagés entre modalités ; aucun registre de 
 La référence `{ entretienId, repereId }` est résolue dans l’entretien courant.
 Les primitives de [passages.ts](../../src/renderer/editor/passages.ts) produisent texte,
 locuteurs et état : disponible, repère orphelin/introuvable, entretien hors corpus,
-source invalide ou indisponible. Les règles diagnostiquent aussi une personne absente.
+source invalide ou indisponible. La décision de pseudonymisation visible vient du module
+partagé `entretien/anon/projectionTexte.ts`, également utilisé par les exports. Les règles
+diagnostiquent aussi une personne absente.
 
 Une source inaccessible n’est pas une preuve d’absence de matériaux.
 Un repère dont `from >= to` reste présent, mais son texte n’est plus exploitable.
@@ -442,6 +444,7 @@ Une appartenance à une famille issue d’une variable privée peut être sensib
 | [shared/corpus/observationsAttributs.ts](../../src/shared/corpus/observationsAttributs.ts) | Observations, diagnostics, politique familiale et projection des attributs |
 | [shared/format.ts](../../src/shared/format.ts) | Format natif et relation corpus/entretiens |
 | [shared/entretien/reperesPassages.ts](../../src/shared/entretien/reperesPassages.ts) | Repères autonomes et orphelins |
+| [shared/entretien/anon/projectionTexte.ts](../../src/shared/entretien/anon/projectionTexte.ts) | Décisions visibles communes aux passages et aux exports |
 | [renderer/editor/remap.ts](../../src/renderer/editor/remap.ts) | Remappage avec les éditions |
 | [renderer/editor/passages.ts](../../src/renderer/editor/passages.ts) | Lecture et diagnostic des passages référencés |
 | [renderer/editor/cas.ts](../../src/renderer/editor/cas.ts) | Projection des règles et rattachements, métriques |

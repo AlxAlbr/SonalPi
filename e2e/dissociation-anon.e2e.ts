@@ -4,12 +4,14 @@ import { join } from 'node:path'
 import { ouvrirSurCorpus, lancer } from './util'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
 
-async function installer(page: Page) {
+async function installer(page: Page, sourcesGardees?: number[]) {
+  const fixture = fixtureDissociationAnon()
+  const sources = sourcesGardees ? fixture.sources.filter((_source, index) => sourcesGardees.includes(index)) : fixture.sources
   const ids = await page.evaluate(async ({ corpus, sources }) => {
     const ids: string[] = []
     for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
     return ids
-  }, fixtureDissociationAnon())
+  }, { corpus: fixture.corpus, sources })
   const regle = await page.evaluate(async () => (await window.sonal.corpus.reglesAnon()).find((r) => r.entite[0] === 'Karine')!)
   await page.reload()
   await page.getByRole('button', { name: 'corpus', exact: true }).click()
@@ -86,6 +88,57 @@ test('dissociation locale : modification non ciblée refuse le lot ; nouvelle pr
     await frais.getByRole('button', { name: 'Confirmer la dissociation globale', exact: true }).click()
     await expect(frais).toHaveCount(0)
     expect(await lire(page, ids.slice(2))).toEqual(tiers)
+  } finally { await app.close() }
+})
+
+test('sortie du corpus utilisée seulement ici : portée entretien appliquée sans dialogue puis entretien rouvert', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-dissociation-directe-entretien-')
+  try {
+    const { ids, regle } = await installer(page, [0, 2])
+    await page.locator(`.carte-ent[data-entretien-id="${ids[0]}"] .crayon`).click()
+    await expect(page.locator('.editeur')).toBeVisible()
+    await page.locator('[data-onglet="anon"]').click()
+    const ligne = page.locator('.ligne-anon.etat-corpus', { hasText: 'Karine' }).first()
+    let dialogues = 0
+    page.on('dialog', async (dialogue) => { dialogues++; await dialogue.dismiss() })
+    await ligne.locator('.portee-cran').nth(1).click()
+    await expect(page.locator('.editeur')).toBeVisible()
+    await expect(page.locator('.ligne-anon.etat-entretien', { hasText: 'Karine' }).first()).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true })).toHaveCount(0)
+    expect(dialogues).toBe(0)
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).some((r) => r.id === regle.id)).toBe(false)
+    const lus = await lire(page, ids)
+    if (!lus[0].ok || !lus[1].ok) throw new Error('Fixture illisible.')
+    expect(lus[0].data.annotations.some((a) => a.regle === regle.id)).toBe(false)
+    expect(lus[0].data.definitionsAnonLocales?.at(-1)).toMatchObject({ entite: regle.entite, pseudos: regle.pseudos, etat: 'declaration' })
+    expect(lus[1].data.definitionsAnonLocales).toEqual(fixtureDissociationAnon().sources[2].data.definitionsAnonLocales)
+  } finally { await app.close() }
+})
+
+test('sortie du corpus utilisée seulement ici : retour en chantier direct et occurrences à anonymiser', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-dissociation-directe-brouillon-')
+  try {
+    const { ids, regle } = await installer(page, [0, 2])
+    await page.locator(`.carte-ent[data-entretien-id="${ids[0]}"] .crayon`).click()
+    await expect(page.locator('.editeur')).toBeVisible()
+    await page.locator('[data-onglet="anon"]').click()
+    const ligne = page.locator('.ligne-anon.etat-corpus', { hasText: 'Karine' }).first()
+    let dialogues = 0
+    page.on('dialog', async (dialogue) => { dialogues++; await dialogue.dismiss() })
+    await ligne.locator('.portee-cran').first().click()
+    await expect(page.locator('.editeur')).toBeVisible()
+    const chantier = page.locator('.ligne-anon.etat-brouillon', { hasText: 'Karine' }).first()
+    await expect(chantier).toBeVisible()
+    await expect(chantier.locator('.cpt-aanon')).toContainText('À ')
+    await expect(page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true })).toHaveCount(0)
+    expect(dialogues).toBe(0)
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).some((r) => r.id === regle.id)).toBe(false)
+    const lus = await lire(page, ids)
+    if (!lus[0].ok) throw new Error('Fixture illisible.')
+    expect(lus[0].data.annotations.some((a) => a.regle === regle.id)).toBe(false)
+    expect(lus[0].data.annotations.filter((a) => a.type === 'anon').map((a) => a.id).sort()).toEqual(['a3', 'englobante'])
+    expect(lus[0].data.brouillonsAnon).toContainEqual({ entite: 'Karine', pseudo: 'Claire / Rebecca' })
+    expect(lus[0].data.definitionsAnonLocales?.at(-1)).toMatchObject({ entite: regle.entite, pseudos: regle.pseudos, etat: 'brouillon' })
   } finally { await app.close() }
 })
 
