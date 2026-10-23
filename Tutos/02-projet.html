@@ -1,0 +1,148 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2 - Ouvrir un projet - Mode d'emploi Sonal Pi</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal Pi</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="00-introduction.html">Introduction</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="02-projet.html">2 - Ouvrir un projet</a>
+                        <div class="tuto-nav-sub">
+                            <a class="active" href="#creer-corpus">2.1 Créer un nouveau projet (corpus)</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="#definir-repertoire">2.1.1 Définir un répertoire de travail</a>
+                                <a href="#nommer-projet">2.1.2 Nommer le projet</a>
+                            </div>
+                            <a href="#ouvrir-corpus">2.2 Ouvrir un corpus existant</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="#ouvrir-local">2.2.1 Ouvrir un corpus local</a>
+                                <a href="#ouvrir-distant">2.2.2 Ouvrir un corpus distant</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="06-modification.html">6 - Modifier une retranscription</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>2 - Ouvrir un projet (corpus)</h1>
+                
+                <section class="tuto-part" id="intro">
+                    <p><b>Un corpus est un cadre de travail permettant de soumettre plusieurs fichiers à une grille d'analyse commune.</b> Il centralise les matériaux et toutes les informations que vous ajoutez à leur sujet (grilles de codage thématique, variables, pseudonymisation etc.).</p>
+                    <p>Travailler dans Sonal suppose donc de créer un corpus, <b>même si vous ne souhaitez travailler que sur un entretien.</b></p>
+                    <p>Dans Sonal, le corpus est stocké dans un fichier dont l'extension est .crp.</p>
+                    
+                    <div style="border-left: 3px solid #0c24a8; padding-left: 1rem; margin: 1.5rem 0;">
+                        <p><b>Bon à savoir :</b></p>
+                        <p>Il s'agit d'un fichier structuré au format .json qui contient toutes les informations sur votre projet, dont <b><u>l'adresse</u></b> des fichiers de données (son et texte) <b>mais pas les fichiers eux-mêmes.</b> Cela implique que pour sauvegarder un projet, il ne suffit pas de copier ce fichier. Une procédure est prévue (voir sauvegarder un projet). Il ne faut pas déplacer le fichier .crp seul non plus.</p>
+                    </div>
+                </section>
+                
+                <section class="tuto-part" id="creer-corpus">
+                    <h2>2.1 Créer un nouveau projet (corpus)</h2>
+                    <p>Au lancement du logiciel, la fenêtre qui apparaît vous propose plusieurs choix. Pour votre première utilisation du logiciel, cliquez sur Créer un nouveau corpus.</p>
+
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/nouveau_corpus.png" alt="nouveau corpus" class="tuto-figure-media">
+                        <figcaption>Créer un nouveau corpus</figcaption>
+                    </figure>
+
+                   
+                    <p>Lorsque vous créez un nouveau corpus, Sonal va vous demander deux choses.</p>
+                    
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/nouveau_corpus2.png" alt="nouveau corpus" class="tuto-figure-media">
+                        <figcaption>Créer un nouveau corpus</figcaption>
+
+                    </figure>
+                    
+                    <section id="definir-repertoire">
+                        <h3>2.1.1 Définir un répertoire de travail</h3>
+                        <p>La première chose à faire est de définir le répertoire de travail dans lequel vous allez travailler.</p>
+                    </section>
+
+                    <section id="nommer-projet">
+                        <h3>2.1.2 Nommer le projet</h3>
+                        <p>La deuxième chose est le nom du projet. Sonal créera un fichier .crp à l'endroit où vous allez travailler.</p>
+                        <p>Après validation, vous arrivez dans une fenêtre vierge, qui ne contient encore que les catégories par défaut et aucun entretien.</p>
+                        <p><b>C'est la fenêtre principale du logiciel, celle qui affiche le projet/corpus.</b></p>
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/corpus_vierge.png" alt="Exemple de corpus vierge" class="tuto-figure-media">
+                            <figcaption>Exemple de corpus vierge</figcaption>
+                        </figure>
+                    </section>
+                </section>
+                
+                <section class="tuto-part" id="ouvrir-corpus">
+                    <h2>2.2 Ouvrir un corpus existant</h2>
+                    <p>Sonal se souvient des corpus récemment ouverts qui apparaissent dans la liste sous les boutons sur la page d'accueil. Cliquez simplement sur la ligne correspondante pour réouvrir un corpus.</p>
+                    
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/corpus_récents.png" alt="corpus récents" class="tuto-figure-media">
+                        <figcaption>Corpus récents</figcaption>
+                    </figure>
+
+                    <p>Ils sont également accessibles depuis le menu « Corpus » sur la page principale</p>
+
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/corpus_récents2.png" alt="menu corpus" class="tuto-figure-media">
+                        <figcaption>Menu « Corpus »</figcaption>
+                    </figure>
+
+                    <section id="ouvrir-local">
+                        <h3>2.2.1 Ouvrir un corpus local</h3>
+                        <p>Vous pouvez ouvrir un corpus hébergé sur votre ordinateur en cliquant sur « ouvrir corpus ». Une fenêtre de dialogue vous demande alors de pointer vers le fichier .crp correspondant.</p>
+                    </section>
+                    
+                    <section id="ouvrir-distant">
+                        <h3>2.2.2 Ouvrir un corpus distant</h3>
+                        <p>Vous pouvez aussi accéder à un corpus partagé en ligne. Cliquez sur « ouvrir corpus distant ». L'interface vous demande l'adresse, votre identifiant et votre mot de passe.</p>
+                        
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/corpus_distants.png" alt="corpus distant" class="tuto-figure-media">
+                            <figcaption>Ouvrir un corpus distant</figcaption>
+                        </figure>
+                    </section>
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="03-entretiens.html">Suite</a>
+                </div>
+
+              
+            </main>
+        </div>
+    </div>
+</body>
+</html>
+

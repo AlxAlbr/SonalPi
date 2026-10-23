@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet" type="text/css">
+    <style>
+        body {
+            background: linear-gradient(180deg, #fafaf8 0%, #f2f0ec 100%);
+        }
+
+        .tuto-index {
+            min-height: 100vh;
+            padding: 4rem 1.5rem;
+        }
+
+        .tuto-index-wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.75);
+            border: 1px solid #e6e2d9;
+            border-radius: 24px;
+            box-shadow: 0 18px 40px rgba(0,0,0,0.05);
+            padding: 2.5rem;
+        }
+
+        .tuto-index h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(2.5rem, 5vw, 4.2rem);
+            margin-bottom: 1rem;
+            letter-spacing: -0.04em;
+        }
+
+        .tuto-index p {
+            color: #707070;
+            line-height: 1.7;
+            margin-bottom: 2rem;
+        }
+
+        .tuto-index-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .tuto-index-card {
+            display: block;
+            text-decoration: none;
+            color: #1a1a1a;
+            border: 1px solid #e6e2d9;
+            background: #fff;
+            border-radius: 16px;
+            padding: 1rem 1.1rem;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .tuto-index-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(12, 36, 168, 0.25);
+        }
+
+        .tuto-index-card strong {
+            display: block;
+            font-size: 1.06rem;
+            margin-bottom: 0.3rem;
+            color: #2d2d2d;
+        }
+
+        .tuto-index-card span {
+            color: #707070;
+            font-size: 0.92rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="tuto-index">
+        <div class="logo">Sonal π</div> 
+        <div class="tuto-index-wrap">
+            <h1>Mode d'emploi </h1>
+            <p>Ce mode d'emploi est relatif à la version 1.0.81. Il est en cours de construction et n'est pas encore complet.</p>
+            <p>Le plan ci-dessous aborde les différentes fonctions du logiciel dans un ordre progressif mais non obligatoire.</p>
+
+            <div class="tuto-index-grid">
+                <a class="tuto-index-card" href="00-introduction.html"><strong>Introduction</strong><span>Présentation générale du logiciel</span></a>
+                <a class="tuto-index-card" href="01-installer.html"><strong>1 - Installer Sonal</strong><span>Installation et compatibilité</span></a>
+                <a class="tuto-index-card" href="02-projet.html"><strong>2 - Ouvrir ou créer un projet/corpus</strong><span>Création d'un nouveau corpus et ouverture de corpus existants</span></a>
+                <a class="tuto-index-card" href="03-entretiens.html"><strong>3 - Ajouter et gérer des entretiens</strong><span>Importation des entretiens et gestion des fichiers</span></a>
+                <a class="tuto-index-card" href="04-bdd.html"><strong>4 - Créer un dictionnaire de variables/modalités</strong><span>Base de données, variables, modalités et exports</span></a>
+                <a class="tuto-index-card" href="05-categories.html"><strong>5 - Créer des catégories thématiques de codage</strong><span>Configuration des catégories de codage</span></a>
+                <a class="tuto-index-card" href="06-modification.html"><strong>6 - Modifier une retranscription</strong><span>Fenêtre d'édition, audio synchronisé et modes de travail</span></a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

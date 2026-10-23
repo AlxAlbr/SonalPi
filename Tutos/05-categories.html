@@ -1,0 +1,173 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5 - Créer des catégories - Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal π</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="00-introduction.html">Introduction</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="05-categories.html">5 - Créer des catégories</a>
+                        <div class="tuto-nav-sub">
+                            <a class="active" href="#options">5.1.1 Options des catégories</a>
+                            <a href="#clones">5.1.2 Créer des clones, des enfants etc.</a>
+                            <a href="#renommer">5.1.3 Renommer une catégorie</a>
+                            <a href="#deplacer">5.1.4 Déplacer une catégorie</a>
+                        </div>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="06-modification.html">6 - Modifier une retranscription</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>5 - Créer des catégories thématiques de codage</h1>
+                
+                <section class="tuto-part" id="intro">
+                    <p>L'un des intérêts de Sonal est de vous permettre de coder vos retranscriptions tout en les corrigeant.</p>
+                    
+                    <p>Sonal vous propose de modifier le format (taille de police, couleur de fond) de passages du texte afin 1/ de repérer visuellement les différentes parties des entretiens dans la représentation synthétique horizontale, 2/ de filtrer ultérieurement les données pour retrouver très simplement tous les passages marqués par un même code.</p>
+                    
+                    <p>C'est en quelque sorte comme si vous disposiez d'une <b>trousse de surligneurs de différentes couleurs pour mettre en relief des passages</b> des transcriptions.</p>
+                    
+                    <p>Les différents formatages disponibles sont appelés « catégories ». L'usage le plus intuitif est d'associer des couleurs aux différents thèmes abordés dans les entretiens - on parle alors de « catégories thématiques » -, mais au-delà de décrire <i>ce qui est dit</i>, les catégories peuvent être utilisées pour caractériser n'importe quelle dimension du discours ou de l'interaction. Elles peuvent aussi servir à mettre en relief les passages auxquels vous apportez de l'intérêt.</p>
+                    
+                    <div style="border-left: 3px solid #0c24a8; padding-left: 1rem; margin: 1.5rem 0;">
+                        <p><b>Bon à savoir : De la pondération aux catégories d'importance</b></p>
+                        <p>Dans les versions ultérieures de Sonal, il existait un système nommé « pondération », représenté par des étoiles, permettant au chercheur de marquer des passages jugés importants, instructifs, dignes d'être cités etc. Dans Sonal π, les pondérations sont remplacées par des catégories fonctionnant sur le même modèle que les catégories thématiques.</p>
+                    </div>
+                </section>
+                
+                <section class="tuto-part" id="defaut">
+                    <p>Par défaut, Sonal propose quatre catégories. Une catégorie globale nommée « Pondération » suivie de trois sous-catégories distinguant les passages importants, assez importants et très importants. Les marqueurs de catégories de pondération permettent de mettre en gras et d'agrandir la police des passages qui vous semblent particulièrement intéressants, révélateurs ou dignes d'être relus.</p>
+                    
+                    <p>Mais vous pouvez aussi créer vos propres catégories contenant notamment des couleurs qui vont vous permettre de distinguer les différents passages du texte sur la base de votre grille d'analyse.</p>
+                    
+                    <p>Pour créer ces marqueurs de couleurs, allez dans le panneau « Catégories » et cliquez sur le bouton ✏️ en haut à droite.</p>
+                    
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/ajout_catégorie.gif" alt="Créer une catégorie" class="tuto-figure-media">
+                        <figcaption>Créer une catégorie</figcaption>
+                    </figure>
+                    
+                    <p>Vous pouvez ensuite ajouter des catégories, choisir un nom et leur couleur.</p>
+                </section>
+                
+                <section class="tuto-part" id="options">
+                    <h2>5.1.1 Options des catégories</h2>
+                    
+                    <section id="code">
+                        <h3>5.1.1.1 Code</h3>
+                        <p>Les catégories ont un identifiant unique basé sur un nombre à trois chiffres. Sonal attribue seul et gère seul ces numéros de catégorie. Il n'est pas utile ni souhaitable de les modifier.</p>
+                    </section>
+                    
+                    <section id="libelle">
+                        <h3>5.1.1.2 Libellé</h3>
+                        <p>Le libellé des catégories est composé d'un texte libre. Il n'y a pas de limite de taille, mais dans la pratique, il vaut mieux un texte relativement court.</p>
+                        
+                        <div style="border-left: 3px solid #0c24a8; padding-left: 1rem; margin: 1.5rem 0;">
+                            <p><b>Bon à savoir : Astuce</b></p>
+                            <p>Vous pouvez mettre un intitulé relativement court, puis après //, des commentaires, des explications ou des intitulés beaucoup plus longues qui n'apparaîtront pas immédiatement dans le panneau des catégories mais seulement au survol de la souris.</p>
+                        </div>
+                    </section>
+                    
+                    <section id="rang">
+                        <h3>5.1.1.3 Rang</h3>
+                        <p>Les catégories peuvent être réunies par familles.</p>
+                        
+                        <p>Sonal gère une arborescence jusqu'à six niveaux, désignées par des rangs.</p>
+                        <ul>
+                            <li>Rang 0</li>
+                            <li>->  Rang 1</li>
+                            <li>-> -> Rang 2</li>
+                        </ul>
+                        
+                        <p>L'organisation des catégories est basée sur leur rang et leur position. Toutes les catégories qui suivent une catégorie de rang inférieur sont considérées comme y étant affiliées, jusqu'à ce qu'une nouvelle catégorie de rangs équivalents apparaisse dans la liste. Par exemple: si une catégorie a le rang 0 (le premier niveau) et qu'elle est suivie d'autres catégories de rangs 1, 2 ou 3, le logiciel considère que ces catégories sont affiliées à la première catégorie jusqu'à ce qu'une nouvelle catégorie de rang 0 apparaisse.</p>
+                        
+                        <p>Vous pouvez définir manuellement le rang des catégories ou utiliser la fonction « ajouter après → enfant » pour directement créer une catégorie subordonnée à celle que vous êtes en train d'éditer.</p>
+                    </section>
+                    
+                    <section id="couleur">
+                        <h3>5.1.1.4 Couleur</h3>
+                        <p>Il est possible d'associer une couleur à une catégorie, mais ce n'est pas obligatoire. Une série de couleurs par défaut sont proposées, mais vous pouvez, en cliquant sur la zone à gauche, créer votre propre couleur personnalisée pour une catégorie.</p>
+                    </section>
+                    
+                    <section id="police">
+                        <h3>5.1.1.5 Taille de police</h3>
+                        <p>Les catégories peuvent avoir des tailles de police différentes. C'est notamment le cas des catégories de pondération qui n'ont pas de couleur spécifique mais une taille de police plus élevée que la police d'affichage par défaut.</p>
+                    </section>
+                </section>
+                
+                <section class="tuto-part" id="clones">
+                    <h2>5.1.2 Créer des clones, des enfants etc.</h2>
+                    <p>Depuis la fenêtre de création d'une catégorie, vous avez la possibilité de créer directement une copie conforme de la catégorie que vous venez d'éditer (clone) ou de lui créer un enfant, c'est-à-dire une catégorie similaire, mais d'un rang supérieur.</p>
+                
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/creer_enfant.png" alt="Créer un clone ou un enfant" class="tuto-figure-media">
+                        <figcaption>Créer un clone ou un enfant</figcaption>
+                    </figure>
+
+                </section>
+                
+                <section class="tuto-part" id="renommer">
+                    <h2>5.1.3 Modifier une catégorie</h2>
+
+                    <p>Pour modifier une catégorie, cliquez sur son intitulé pour la rééditer. Vous pourrez modifier son libellé, sa couleur, la taille de police etc. </p>
+                    
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/modifier_cat.gif" alt="Modifier une catégorie" class="tuto-figure-media">
+                        <figcaption>Modifier une catégorie</figcaption>
+                    </figure>
+                
+                </section>
+                
+                <section class="tuto-part" id="deplacer">
+                    <h2>5.1.4 Déplacer une catégorie</h2>
+                     
+                    <p> Dans la fenêtre d'édition de la catégorie, utilisez le menu déroulant pour définir la nouvelle position de la catégorie.</p>
+                    
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/deplacer_cat.png" alt="Déplacer une catégorie" class="tuto-figure-media">
+                        <figcaption>Déplacer une catégorie</figcaption>
+                    </figure>
+
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="06-modification.html">Suite</a>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
+
+

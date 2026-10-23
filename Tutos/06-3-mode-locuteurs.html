@@ -1,0 +1,136 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6.3 - Corriger les tours de parole - Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal π</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="00-introduction.html">Introduction</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a></div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="06-modification.html">6 - Modifier une retranscription</a>
+                        <div class="tuto-nav-sub">
+                            <a href="06-modification.html">Accéder à la fenêtre d'édition</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="06-1-fonctionnement.html">6.1 Fonctionnement général</a>
+                                <a href="06-2-mode-edition.html">6.2 Le mode édition du texte</a>
+                                <a class="active" href="06-3-mode-locuteurs.html">6.3 Le mode locuteurs</a>
+                                <a href="06-5-mode-categories.html">6.4 Le mode catégories</a>
+                                <a href="06-6-notes.html">6.5 Le mode notes</a>
+                                <a href="06-7-base-donnees.html">6.6 Base de données</a>
+                                <a href="06-8-pseudonymisation.html">6.7 Pseudonymiser</a>
+                                <a href="06-9-export.html">6.8 Exporter l'entretien</a>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>Corriger les tours de parole (mode "Locuteurs")</h1>
+
+                <section id="mode-locuteurs" class="tuto-part">
+                    
+
+                    <p>Ce mode est destiné à gérer les tours de parole. Il vous permet de :</p>
+                    <ul>
+                        <li>Gérer les locuteurs (renommer/ajouter).</li>
+                        <li>Corriger les tours de paroles pour préciser à quel moment chaque locuteur s’exprime.</li>
+                    </ul>
+
+                    <figure>
+                        <img src="media/mode_locuteurs.png" alt="mode locuteurs" class="tuto-figure-media">
+                        <figcaption>Mode locuteurs</figcaption>
+                    </figure>
+
+                    <p>A l’ouverture, Sonal vous affiche une liste des locuteurs identifiés dans le texte. Ce sont les noms repérés dans les fichiers de transcription lors de l’importation. Pour les fichiers issus de Whisper, les identifiants sont généralement « Speaker » suivi d’un numéro.
+                    La première chose à faire est généralement des les renommer.</p>
+
+                    <h2>Renommer les locuteurs</h2>
+                    <p>Toutes les modifications de la liste des locuteurs se font en cliquant sur le bouton ✏️ en haut à droite du panneau des locuteurs.</p>
+
+                    <h3>Renommer un locuteur</h3>
+                    <p>Les noms des locuteurs deviennent alors des zones éditables. Il suffit de modifier le nom puis de valider.</p>
+
+                    <h3>Identifier les interrogateurs</h3>
+                    <p>Il est utile de distinguer les personnes qui posent des questions de celles qui répondent. Cela permettra 1/ d’avoir un formatage qui permette de bien repérer les questions dans le texte, 2/ d’avoir des statistiques sur la dynamique des échanges et 3/ de filtrer les prises de parole dans les analyses lexicométriques (pour se focaliser sur le vocabulaire des questions et non des réponses).
+                    Pour repérer un interrogateur ou une interrogatrice, il suffit d’ajouter un « ? » à la fin de son nom.</p>
+
+                    <figure>
+                        <img src="media/renommer_locuteurs.gif" alt="renommer locuteurs" class="tuto-figure-media">
+                        <figcaption>Renommer les locuteurs</figcaption>
+                    </figure>
+
+                    <h3>Ajouter un locuteur</h3>
+                    <p>Pour ajouter un locuteur, cliquez sur ➕en bas de la liste. Nommez le dans la zone de texte qui apparaît alors puis validez.</p>
+
+                    <figure>
+                        <img src="media/ajouter_loc.gif" alt="ajouter locuteur" class="tuto-figure-media">
+                        <figcaption>Ajouter un locuteur</figcaption>
+                    </figure>
+
+                    <h3>Supprimer un locuteur</h3>
+                    <p>Pour supprimer un locuteur, videz la cellule qui contient son nom puis validez.</p>
+
+                    <figure>
+                        <img src="media/supprimer_loc.gif" alt="supprimer locuteur" class="tuto-figure-media">
+                        <figcaption>Supprimer un locuteur</figcaption>
+                    </figure>
+
+                    <p><strong>Attention :</strong> Après suppression d’un locuteur, tous les segments qui étaient attribués à ce locuteurs deviennent orphelines et affichent ???.</p>
+
+                    <h2>Affecter un locuteur à un passage</h2>
+                    <p>Sonal vous permet très simplement de préciser « qui parle » à quel moment.
+                    Il faut commencer par sélectionner le passage concerné puis cliquer sur le nom du bon locuteur dans la liste à gauche. Le plus souvent ce sont des segments entiers qu’il faut réaffecter. Dans ce cas là, il suffit de cliquer sur un mot de la phrase à réaffecter puis de choisir le locuteur. Parfois ce sont seulement certains mots de la phrase. Dans ce cas-là, il faut d’abord sélectionner les mots à la souris puis, ensuite, préciser qui parle.</p>
+
+                    <figure>
+                        <img src="media/affecter_loc.gif" alt="affecter locuteur" class="tuto-figure-media">
+                        <figcaption>Affecter un locuteur à un passage</figcaption>
+                    </figure>
+
+                    <h2>Statistiques sur les tours de parole</h2>
+                    <p>Sonal vous permet d’objectiver la place des différents locuteurs dans l’entretien. Pour ce faire, cliquez sur 📊 en haut à droite du panneau des locuteurs.
+                    Vous verrez alors apparaître un volet « statistiques » en dessous de la liste des locuteurs.</p>
+
+                    <figure>
+                        <img src="media/stats_loc.png" alt="statistiques locuteurs" class="tuto-figure-media">
+                        <figcaption>Statistiques sur les tours de parole</figcaption>
+                    </figure>
+
+                    <p>Vous aurez ainsi la place (en interventions, en mots et en temps de parole estimé) des différents locuteurs. Information souvent utile : la place prise par la ou les personnes qui interrogent (en % des mots retranscrits).</p>
+
+                    <h3>Naviguer dans les prises de parole d’un locuteur</h3>
+                    <p>En survolant le graphique en barres, vous verrez apparaître une loupe qui vous permet de passer de prise de parole en prise de parole dans l’entretien. C’est très efficace pour retrouver une question précise, ou la prise de parole de quelqu’un en particulier dans un focus group par exemple. Cliquez sur la loupe pour sélectionner ce locuteur puis cliquez à nouveau pour passer à la prise de parole suivante.</p>
+
+                    <figure>
+                        <img src="media/stats_loc.gif" alt="Naviguer dans les prises de parole" class="tuto-figure-media">
+                        <figcaption>Naviguer dans les prises de parole d’un locuteur</figcaption>
+                    </figure>
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="06-5-mode-categories.html">Suite</a>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
+

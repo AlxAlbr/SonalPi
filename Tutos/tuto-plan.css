@@ -1,0 +1,282 @@
+:root {
+    --tuto-bg: #f7f6f3;
+    --tuto-panel: rgba(255,255,255,0.82);
+    --tuto-border: #e6e2d9;
+    --tuto-sidebar: #f4f1eb;
+    --tuto-active: rgba(12, 36, 168, 0.10);
+    --tuto-active-strong: #0c24a8;
+    --tuto-shadow: 0 18px 40px rgba(0, 0, 0, 0.04);
+}
+
+body {
+    background: var(--tuto-bg);
+}
+
+.tuto-page {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #fafaf8 0%, #f3f1ee 100%);
+}
+
+.tuto-layout {
+    position: relative;
+    min-height: 100vh;
+    width: 100%;
+}
+
+.tuto-sidebar {
+    position: fixed;
+    left: 1.25rem;
+    top: 1.25rem;
+    bottom: 1.25rem;
+    width: 375px;
+    background: var(--tuto-sidebar);
+    border: 1px solid var(--tuto-border);
+    border-radius: 22px;
+    box-shadow: var(--tuto-shadow);
+    padding: 1.5rem 1rem 1rem;
+    overflow-y: auto;
+    z-index: 2;
+}
+
+.tuto-main {
+    margin-left: 400px;
+    padding: 2rem 2rem 4rem;
+    min-width: 0;
+    display: grid;
+    gap: 1.4rem;
+}
+
+@media (max-width: 980px) {
+    .tuto-sidebar {
+        position: relative;
+        left: auto;
+        top: auto;
+        bottom: auto;
+        width: auto;
+        margin: 1rem;
+    }
+
+    .tuto-main {
+        margin-left: 0;
+        padding: 0 1rem 2rem;
+    }
+}
+
+.tuto-brand {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.25rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #2d2d2d;
+    margin-bottom: 1.2rem;
+    padding: 0 0.5rem;
+}
+
+.tuto-sommaire {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #707070;
+    font-weight: 600;
+    padding: 0 0.5rem 0.8rem;
+}
+
+.tuto-nav {
+    position: static;
+    top: auto;
+    width: auto;
+    padding: 0;
+    z-index: auto;
+    background: none;
+    backdrop-filter: none;
+    border-bottom: none;
+    animation: none;
+    display: grid;
+    justify-content: normal;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.tuto-nav-group {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.tuto-nav-link {
+	display: block;
+	text-decoration: none;
+	color: #1a1a1a;
+	padding: 0.1rem 0.2rem;
+	border-radius: 12px;
+	transition: all 0.2s ease;
+	border: 1px solid transparent;
+	font-weight: 500;
+}
+
+.tuto-nav-sub {
+    display: grid;
+    gap: 0.15rem;
+    padding-left: 0.5rem;
+    margin-top: 0.15rem;
+}
+
+.tuto-nav-sub a {
+    display: block;
+    font-size: 0.92rem;
+    color: #707070;
+    text-decoration: none;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.tuto-nav-link:hover,
+.tuto-nav-sub a:hover,
+.tuto-nav-link.active,
+.tuto-nav-sub a.active {
+    background: var(--tuto-active);
+    border-color: rgba(12, 36, 168, 0.25);
+    color: var(--tuto-active-strong);
+}
+
+.tuto-main {
+    display: grid;
+    gap: 1.4rem;
+}
+
+.tuto-part {
+    background: var(--tuto-panel);
+    border: 1px solid var(--tuto-border);
+    border-radius: 24px;
+    box-shadow: var(--tuto-shadow);
+    padding: 2rem 2.2rem;
+}
+
+.tuto-part h2 {
+   /* font-family: 'Cormorant Garamond', serif; */
+    font-size: clamp(1.2rem, 3vw, 2.3rem);
+    letter-spacing: -0.04em;
+    color: #2d2d2d;
+    margin-bottom: 1rem;
+}
+
+.tuto-part h3 {
+    /* font-family: 'Cormorant Garamond', serif; */
+    font-size: clamp(1.2rem, 2vw, 2rem);
+    letter-spacing: -0.02em;
+    color: #1a1a1a;
+    margin: 1.6rem 0 0.75rem;
+}
+
+.tuto-part p,
+.tuto-part li {
+    color: #707070;
+    font-size: 1.03rem;
+    line-height: 1.7;
+}
+
+.tuto-part p + p {
+    margin-top: 1rem;
+}
+
+.tuto-part ul {
+	padding-left: 2rem;
+	margin: 0.75rem;
+    list-style: none;
+}
+
+.tuto-part ul li {
+    position: relative;
+}
+
+.tuto-part ul li::before {
+    content: "✓";
+    position: absolute;
+    left: -1.2rem;
+    color: var(--tuto-active-strong);
+    font-weight: 600;
+}
+
+.tuto-part li + li {
+    margin-top: 0.55rem;
+}
+
+.tuto-figure {
+    margin-top: 1.5rem;
+    background: linear-gradient(180deg, #f5f4f1 0%, #eceae4 100%);
+    border: 1px solid var(--tuto-border);
+    border-radius: 18px;
+    padding: 1rem;
+}
+
+.tuto-figure img {
+    display: block;
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+    background: #ffffff;
+}
+
+figcaption {
+    margin-top: 0.7rem;
+    color: #707070;
+    font-size: 0.92rem;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.tuto-figure-media {
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+ 
+
+.tuto-next-wrap {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.tuto-next-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    text-decoration: none;
+    color: #ffffff;
+    background: var(--tuto-active-strong);
+    border: 1px solid var(--tuto-active-strong);
+    border-radius: 999px;
+    padding: 0.68rem 1.05rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.tuto-next-btn::after {
+    content: "→";
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.tuto-next-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(12, 36, 168, 0.2);
+    background: #1a35bf;
+}
+
+@media (max-width: 980px) {
+    .tuto-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .tuto-sidebar {
+        position: static;
+    }
+
+    .tuto-next-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

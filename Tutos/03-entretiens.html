@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3 - Ajout/gestion des entretiens - Mode d'emploi Sonal Pi</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal Pi</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="00-introduction.html">Introduction</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a>
+                        <div class="tuto-nav-sub">
+                            <a class="active" href="#ajouter">3.1 Ajouter un entretien</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="#comment-ajouter">3.1.1 Comment ajouter les entretiens ?</a>
+                                <a href="#formats">3.1.2 Quels types de fichiers sont compatibles ?</a>
+                                <a href="#fichier-sonal">3.1.3 Le fichier .Sonal</a>
+                            </div>
+                            <a href="#gerer">3.2 Gérer ses entretiens</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="#renommer">3.2.1 Renommer un entretien</a>
+                                <a href="#supprimer">3.2.2 Supprimer un entretien</a>
+                                <a href="#audio">3.2.3 Ajouter ou modifier le fichier son</a>
+                                <a href="#trier">3.2.4 Trier les entretiens</a>
+                                <a href="#taille">3.2.5 Afficher à taille proportionnelle</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="06-modification.html">6 - Modifier une retranscription</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>3 - Ajout/gestion des entretiens</h1>
+                
+                <section class="tuto-part" id="intro">
+                    <p>Sonal Pi 1.0.81 vous permet d'ajouter <b>des fichiers audio et/ou des fichiers texte</b>. Les fichiers vidéo seront ajoutés dans une version ultérieure. Le logiciel peut fonctionner avec seulement des fichiers texte ou seulement des fichiers audio, bien qu'avoir les deux ensemble soit idéal.</p>
+                </section>
+                
+                <section class="tuto-part" id="ajouter">
+                    <h2>3.1 Ajouter un entretien</h2>
+                    
+                    <section id="comment-ajouter">
+                        <h3>3.1.1 Comment ajouter les entretiens ?</h3>
+                        <p>Les entretiens sont ajoutés depuis la fenêtre principale. Cliquez sur le menu « Entretien » → ajouter des entretiens, ou directement sur le bouton plus du panneau des entretiens.</p>
+                    
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/ajout_entretien1.png" alt="Ajouter un entretien" class="tuto-figure-media">
+                            <figcaption>Ajouter un entretien</figcaption>
+                        </figure>
+
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/ajout_entretien2.png" alt="Ajouter un entretien" class="tuto-figure-media">
+                            <figcaption>Ajouter un entretien</figcaption>
+                        </figure>
+
+                        <p>Dans la fenêtre d'ajout d'entretien, sélectionnez successivement un fichier texte et un fichier audio. Vous pouvez aussi faire un glisser-déposer de plusieurs fichiers directement dans le logiciel (en version 1.0.81, cela ne fonctionne qu'avec les fichiers texte).</p>
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/ajout_entretien3.png" alt="Ajouter un entretien" class="tuto-figure-media">
+                            <figcaption>fenêtre d'ajout des entretiens</figcaption>
+                        </figure>
+                    
+                    </section>
+
+                    <section id="formats">
+                        <h3>3.1.2 Quels types de fichiers sont compatibles ?</h3>
+                        
+                        <h4>Fichiers audio :</h4>
+                        <ul>
+                            <li>mp3</li>
+                            <li>wav</li>
+                            <li>m4a</li>
+                            <li>ogg</li>
+                        </ul>
+                      
+                        
+                        <h4>Fichiers texte :</h4>
+                        <ul>
+                            <li>srt</li>
+                            <li>vtt</li>
+                            <li>txt</li>
+                            <li>docx</li>
+                            <li>pdf</li>
+                        </ul>
+
+                        <p>Sonal est <b>optimal pour importer des fichiers de sous-titres (format .srt ou .vtt)</b>. Chaque tour de parole est marqué dans le temps, et si la transcription est « diarisée » - c'est-à-dire que le locuteur est indiqué au début de la ligne - cette synchronisation du texte et du son économise un temps considérable pour la correction des fichiers. Des fichiers texte moins détaillés peuvent aussi être ajoutés (txt, .docx, .pdf), mais ils doivent être <b>structurés d'une certaine manière</b> pour que Sonal en tire le maximum d'informations.</p>
+                        
+                        <h4>Structures de fichiers texte :</h4>
+                        <p><b>Type 1 :</b> Une ligne (précédée et suivie d'un saut de ligne) contient la position chronométrique (format hh:mm:ss) puis, après un espace, le nom du locuteur. Après un saut de ligne : le texte de la transcription. Ceci est la meilleure alternative aux fichiers de sous-titres.</p>
+                        
+                        <p><b>Type 2 :</b> Au début de chaque paragraphe, le nom du locuteur suivi d'un deux-points et d'un espace.</p>
+                        
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/types_fichiers.png" alt="Structure des fichiers texte" class="tuto-figure-media">
+                            <figcaption>Structure des fichiers texte correctement interprétés</figcaption>
+                        </figure>
+
+                        <p>Si vos fichiers textes ne sont ni des fichiers de sous-titre, ni des fichiers textes structurés selon le type 1 ou 2, vous pourrez quand même les importer mais en perdant des informations cruciales (la position dans le temps et/ou les tours de parole). Cela ralentira la correction des fichiers.</p>
+                    </section>
+
+                    <section id="fichier-sonal">
+                        <h3>3.1.3 Le fichier .Sonal</h3>
+                        <p>En ajoutant un entretien vous créez dans le répertoire de travail un fichier dont l'extension est « .Sonal » et qui porte le nom du fichier de transcription. Il est placé dans le dossier du projet. C'est dans ce fichier que toutes les informations que vous allez ajouter en codant seront conservées. Concrètement, <b>ce fichier contient tout votre travail</b> sur l'entretien. Si vous faites une sauvegarde de votre projet, c'est ce fichier qui sera copié.</p>
+                        
+                        <div style="border-left: 3px solid #0c24a8; padding-left: 1rem; margin: 1.5rem 0;">
+                            <p><b>Bon à savoir :</b></p>
+                            <p>Les fichiers .Sonal sont des fichiers HTML qui peuvent être ouverts avec un navigateur internet (Firefox, Chrome, Opera etc.)</p>
+                        </div>
+                        
+                        <p>Cela implique que si vous chargez à nouveau un entretien à partir par exemple d'un fichier srt, Sonal va vous demander si vous voulez écraser le fichier .Sonal existant. Soyez prudent(e). Pour recharger un entretien sur lequel vous avez déjà travaillé, le mieux est de charger directement son fichier Sonal.</p>
+                    </section>
+                </section>
+
+                <section class="tuto-part" id="gerer">
+                    <h2>3.2 Gérer ses entretiens</h2>
+                    <p>Une fois qu'un entretien a été ajouté dans le corpus, vous avez accès à un certain nombre de fonctionnalités en cliquant sur son nom dans la fenêtre de corpus. Un panneau latéral apparaît alors avec certaines informations et options de modification.</p>
+                    
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/panneau_lateral_entretien.png" alt="panneau latéral de description d'un entretien" class="tuto-figure-media">
+                            <figcaption>Accéder aux informations sur un entretien</figcaption>
+                        </figure>
+
+                    <section id="renommer">
+                        <h3>3.2.1 Renommer un entretien</h3>
+                        <p>La zone de texte contenant le nom de l'entretien est éditable. <b>Modifiez le nom de l'entretien puis validez avec entrée</b> pour le renommer.</p>
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/changer_nom_entretien.gif" alt="Renommer un entretien" class="tuto-figure-media">
+                            <figcaption>Renommer un entretien</figcaption>
+                        </figure>
+                    </section>
+
+                    <section id="supprimer">
+                        <h3>3.2.2 Supprimer un entretien</h3>
+                        <p>Dans le panneau latéral affichant les détails des entretiens, cliquez sur « Supprimer l'entretien du corpus ». L'entretien ne figure plus dans le corpus.</p>
+                        
+                        <div style="border-left: 3px solid #0c24a8; padding-left: 1rem; margin: 1.5rem 0;">
+                            <p><b>Bon à savoir :</b></p>
+                            <p>Supprimer l'entretien veut seulement dire retirer l'entretien du projet, le déréférencer, pas retirer physiquement les fichiers source ni le fichier .Sonal.</p>
+                        </div>
+                    </section>
+
+                    <section id="audio">
+                        <h3>3.2.3 Ajouter ou modifier le fichier son associé à un entretien</h3>
+                        <p>Dans le panneau latéral, cliquez sur le bouton « ... » au bout de la ligne du fichier audio puis sélectionnez un fichier.</p>
+                    </section>
+
+                    <figure style="text-align: center; margin: 1.5rem 0;">
+                        <img src="media/changer_fichier_son.gif" alt="Ajouter un fichier audio à un entretien" class="tuto-figure-media">
+                        <figcaption>Ajouter ou modifier le fichier son associé à un entretien</figcaption>
+                    </figure>
+
+                    <section id="trier">
+                        <h3>3.2.4 Trier les entretiens</h3>
+                        <p>Lorsque vous avez plusieurs entretiens dans votre projet, il devient possible de les trier de plusieurs manières. Dans la fenêtre principale, faites « Entretiens → Trier les entretiens ».</p>
+                        
+                        <p>Vous pouvez trier vos entretiens par :</p>
+                        <ul>
+                            <li>Ordre alphabétique</li>
+                            <li>Date d'ajout</li>
+                            <li>Durée du fichier audio</li>
+                            <li>Nombre de codes appliqués</li>
+                        </ul>
+
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/tri_entretiens.gif" alt="Trier les entretiens" class="tuto-figure-media">
+                            <figcaption>Trier les entretiens</figcaption>
+                        </figure>
+
+                        <div style="border-left: 3px solid #c00000; padding-left: 1rem; margin: 1.5rem 0;">
+                            <p><b>Attention :</b></p>
+                            <p>Le processus de tri peut prendre quelques secondes. Pour éviter tout problème, il est préférable d'attendre qu'il soit complètement terminé avant de faire autre chose. Attendez que la mention « tri en cours » en haut à droite disparaisse.</p>
+                        </div>
+                    </section>
+
+                    <section id="taille">
+                        <h3>3.2.5 Afficher les entretiens à leur taille proportionnelle</h3>
+                        <p>Par défaut, Sonal représente tous les entretiens de la même largeur. Mais vous pouvez préférer que dans le corpus, les barres symbolisant les entretiens soient d'une largeur proportionnelle à leur durée. Cliquez sur le bouton correspondant pour activer ou désactiver cette option.</p>
+                        
+                        <figure style="text-align: center; margin: 1.5rem 0;">
+                            <img src="media/tri_duree_entretiens.gif" alt="Afficher les entretiens à leur taille proportionnelle" class="tuto-figure-media">
+                            <figcaption>Afficher les entretiens à leur taille proportionnelle</figcaption>
+                        </figure>
+                    </section>
+                </section>
+                
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="04-bdd.html">Suite</a>
+                </div>
+                
+                 
+            </main>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4 - Base de données - Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal π</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="00-introduction.html">Introduction</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="04-bdd.html">4 - Base de données</a>
+                        <div class="tuto-nav-sub">
+                            <a class="active" href="#creer">4 Créer un dictionnaire de variables/modalités</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="#acceder">4.1 Accéder à la base de données</a>
+                                <div style="margin-left: 1rem;">
+                                    <a href="#ajouter-variable">4.1.1 Ajouter une nouvelle variable</a>
+                                    <div style="margin-left: 1rem;">
+                                        <a href="#libelle-variable">4.1.1.1 Choisir un libellé de variable</a>
+                                        <a href="#champ-variable">4.1.1.2 Définir le champ de la variable</a>
+                                        <a href="#publicite-variable">4.1.1.3 Définir le niveau de publicité de la variable</a>
+                                        <a href="#modalites">4.1.1.4 Ajouter des modalités</a>
+                                        <a href="#modele-variable">4.1.1.5 Utiliser un modèle de variable préconçu</a>
+                                        <a href="#position-variable">4.1.1.6 Définir la position de la variable</a>
+                                    </div>
+                                </div>
+                                <a href="#modifier-variable">4.2 Modifier une variable</a>
+                                <a href="#supprimer-variable">4.3 Supprimer une variable</a>
+                                <a href="#exporter-bdd">4.4 Exporter la base de données</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="06-modification.html">6 - Modifier une retranscription</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>4 - Créer un dictionnaire de variables/modalités</h1>
+
+                <section class="tuto-part" id="creer">
+                    <p>Lorsque les corpus d'entretiens atteignent une certaine dimension, il devient particulièrement utile d'y associer une <b>base de données qui décrit les répondants des entretiens sur la base de variables/modalités standardisées.</b></p>
+
+                    <p>Concrètement, Sonal vous permet de créer une sorte de « formulaire » à remplir pour chaque entretien afin de <b>stocker des informations utiles sur les répondants, la date et le contexte de l'entretien, etc.</b></p>
+
+                    <p>Cela n'exclut pas d'ajouter des mémos relatifs aux entretiens pour conserver toutes les informations utiles, mais l'intérêt d'une base de données est que Sonal pourra ensuite s'appuyer sur ces données pour vous <b>donner une vue d'ensemble de votre échantillon</b>, ou encore pour <b>filtrer les réponses</b> en fonction des caractéristiques des locuteurs. Les informations que vous stockerez permettront également d'<b>habiller les citations</b> que vous exporterez du logiciel.</p>
+                </section>
+
+                <section class="tuto-part" id="acceder">
+                    <h2>4.1 Accéder à la base de données</h2>
+                    <p>Les informations relatives aux répondants sont accessibles à différents endroits. Vous pouvez les créer ou les éditer lors du nettoyage ou du codage d'une transcription, dans le mode « variables ». Vous les verrez aussi dans le panneau latéral décrivant chaque entretien dans le corpus. Mais au commencement d'une recherche, le plus simple est sans doute de définir les grandes variables qui seront mobilisées dans votre enquête en allant dans la fenêtre « Base de données » ouverte en cliquant sur le bouton du même nom.</p>
+
+                    <figure>
+                        <img src="media/acces_bdd.png" alt="Accéder à la fenêtre de base de données" class="tuto-figure-media">
+                        <figcaption>Accéder à la fenêtre de base de données</figcaption> 
+                    </figure>
+                    <br>
+                    <p>Vous arrivez alors sur une interface qui liste les entretiens en lignes et les variables de la base de données en colonnes. Au premier chargement, vous ne verrez logiquement que les noms de vos entretiens.</p>
+                
+                    <figure>
+                        <img src="media/bdd_vide.png" alt="Fenêtre de base de données (vide)" class="tuto-figure-media">
+                        <figcaption>Fenêtre de base de données (vide)</figcaption>
+                    </figure>
+                </section>
+
+                <section class="tuto-part" id="ajouter-variable">
+                    <h2>4.1.1 Ajouter une nouvelle variable</h2>
+                    <p>Pour ajouter une nouvelle variable à votre base de données, cliquez sur « ajouter une variable ». Sonal va vous demander un certain nombre d'informations.</p>
+
+                    <figure>
+                        <img src="media/ajout_variable.png" alt="Ajouter une variable" class="tuto-figure-media">
+                        <figcaption>Ajouter une variable</figcaption>
+                    </figure>
+
+                    <section id="libelle-variable">
+                        <h3>4.1.1.1 Choisir un libellé de variable</h3>
+                        <p>Le libellé de la variable figurera en tête de colonne et dans les exports depuis le logiciel. Il n'est pas utile qu'il soit trop long.</p>
+                    </section>
+
+                    <section id="champ-variable">
+                        <h3>4.1.1.2 Définir le champ de la variable</h3>
+                        <p>Les variables peuvent <b>soit décrire tout l'entretien, soit chaque locuteur pris séparément </b>. Si vos entretiens sont systématiquement en face à face et que vous êtes seul·e à les réaliser, cela revient au même, mais dès lors qu'il y a plusieurs répondants, comme dans un focus group, et/ou plusieurs interrogateurs, les variables par locuteur sont utiles.</p>
+
+                        <p>Dans la vue générale de la base de données, <b>les variables générales sont positionnées en premier, à gauche, les variables locuteurs à droite à la suite.</b></p>
+                    
+                        <figure>
+                            <img src="media/bdd_var_loc_gen.png" alt="Variables dans la base de données" class="tuto-figure-media">
+                            <figcaption>Variables générales et variables par locuteur dans la base de données</figcaption>
+                        </figure>
+                    </section>
+
+                    <section id="publicite-variable">
+                        <h3>4.1.1.3 Définir le niveau de publicité de la variable</h3>
+                        <p>Sonal distingue les variables « publiques » des variables « privées ». Seules les variables publiques sont visibles dans les exports issus du logiciel. Les variables publiques habillent également les citations d'entretiens copiées et collées depuis le logiciel.</p>
+                        <p>Un extrait issu de Sonal aura par exemple cette apparence : </p>
+                        <figure>
+                            <img src="media/exemple_citation.png" alt="Exemple de citation" class="tuto-figure-media">
+                            <figcaption>Exemple de variables publiques ajoutées au pied d'une citation</figcaption>
+                        </figure>
+
+                    </section>
+
+                    <section id="modalites">
+                        <h3>4.1.1.4 Ajouter des modalités</h3>
+                        <p>Dans Sonal, vous pouvez ajouter des modalités très simplement en les <b> saisissant directement dans la base de données</b>. Placez-vous dans la cellule correspondante, saisissez la modalité puis <b>validez avec entrée</b>. Elle sera dorénavant disponible pour d'autres cases de la même colonne.</p>
+
+                        <figure>
+                            <img src="media/ajout_modalité.gif" alt="Ajouter une modalité" class="tuto-figure-media">
+                            <figcaption>Ajouter une modalité par saisie directe dans la base de données</figcaption>
+                        </figure>
+
+
+
+
+                        <p>Bon à savoir : Logiquement, le dictionnaire des modalités les fera apparaître dans l'ordre où vous les aurez ajoutées. Par exemple, si votre premier répondant a plus de 65 ans et le second moins de 20, l'ordre d'affichage des modalités pourra paraître incohérent. Donc, si votre variable est ordinale, il peut être plus « propre » de rentrer les modalités directement dans le bon ordre. Pour ce faire, remplissez directement les différentes modalités possibles de votre variable lors de la création.</p>
+                    </section>
+
+                    <section id="modele-variable">
+                        <h3>4.1.1.5 Utiliser un modèle de variable préconçu</h3>
+                        <p>Pour vous faire gagner du temps, Sonal vous propose quelques modèles de variables prêtes à l'emploi, comme Sexe, Age ou PCS, ce qui vous évite de taper toutes les modalités une à une.</p>
+                    
+                        <figure>
+                            <img src="media/modele_variable.png" alt="Utiliser un modèle de variable" class="tuto-figure-media">
+                            <figcaption>Utiliser un modèle de variable</figcaption>
+                        </figure>
+
+                    </section>
+
+                    <section id="position-variable">
+                        <h3>4.1.1.6 Définir la position de la variable</h3>
+                        <p>L'ordre d'affichage des variables est lié à leur ordre d'ajout, mais vous pouvez avoir besoin de les ordonner différemment. Vous pouvez, lors de l'ajout ou de l'édition d'une variable, choisir de la placer à un endroit particulier dans la liste, concrètement dans une « colonne » donnée.</p>
+
+                        <figure>
+                            <img src="media/deplacer_variables.png" alt="Définir la position d'une variable" class="tuto-figure-media">
+                            <figcaption>Définir la position d'une variable</figcaption>
+                        </figure>
+
+                        <p>Bon à savoir : Les variables générales et par locuteurs sont triées séparément. Les variables publiques en premier, les variables par locuteurs en second. Cela veut dire que vous ne pouvez pas déplacer une variable locuteur avant une variable publique.</p>
+                    </section>
+                </section>
+
+                <section class="tuto-part" id="modifier-variable">
+                    <h2>4.2 Modifier une variable</h2>
+                    <p>Dans la fenêtre de base de données, les variables sont modifiables en cliquant sur l'en-tête de colonne. Le menu de création et d'édition s'ouvre alors pour modification.</p>
+
+                    <figure>
+                        <img src="media/modifier_variable.png" alt="Modifier une variable" class="tuto-figure-media">
+                        <figcaption>Modifier une variable</figcaption>
+                    </figure>
+
+                    <p>Vous pouvez également le faire depuis la fenêtre d'édition des entretiens en cliquant sur le libellé de la variable. La fenêtre d'édition des variables s'ouvre alors et vous permettra de modifier la variable.</p>
+                
+                    <figure>
+                        <img src="media/modifier_variable2.png" alt="Modifier une variable depuis la fenêtre d'édition" class="tuto-figure-media">
+                        <figcaption>Modifier une variable depuis la fenêtre d'édition</figcaption>
+                    </figure>
+
+                </section>
+
+                <section class="tuto-part" id="supprimer-variable">
+                    <h2>4.3 Supprimer une variable</h2>
+                    <p>Le bouton supprimer, en bas du menu de création et d'édition des variables, supprime définitivement la variable. Cette action est irréversible, réfléchissez-y à deux fois.</p>
+                    
+                    <figure>
+                        <img src="media/supprimer_var.png" alt="Supprimer une variable" class="tuto-figure-media">
+                        <figcaption>Supprimer une variable</figcaption>
+                    </figure>
+                
+                </section>
+
+                <section class="tuto-part" id="exporter-bdd">
+                    <h2>4.4 Exporter la base de données</h2>
+                    <p>Les variables et modalités que vous remplissez vous permettront de retrouver très rapidement les informations essentielles sur vos répondants, mais bien remplir sa base de données permet aussi et surtout de pouvoir générer un tableau synthétique présentant tous vos entretiens, utile en fin de recherche et généralement demandé en annexes dans les mémoires universitaires.</p>
+
+                    <p>Cliquez sur « exporter » en haut à droite de la fenêtre de gestion de la base de données. Sonal génère un fichier csv, que vous pourrez ouvrir dans un tableur.</p>
+                    
+                    <figure>
+                        <img src="media/exporter_bdd.png" alt="Exporter la base de données" class="tuto-figure-media">
+                        <figcaption>Exporter la base de données</figcaption>
+                    </figure>
+                
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="05-categories.html">Suite</a>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

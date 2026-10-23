@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Introduction - Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal π</div> 
+            
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="00-introduction.html">Introduction</a>
+                        <div class="tuto-nav-sub">
+                            <a class="active" href="#quoi">Qu'est-ce que Sonal ?</a>
+                            <a href="#fonctionnalites">Fonctionnalités principales</a>
+                            <a href="#confidentialite">Confidentialité des données</a>
+                        </div>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a>
+                    </div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link" href="06-modification.html">6 - Modifier une retranscription</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <section class="tuto-part" id="quoi">
+                    <h2>Qu'est-ce que Sonal ?</h2>
+                    <p>Sonal est un logiciel de <b>construction et d'<i>analyse</i> de corpus de données qualitatives</b>.</p>
+                    <p>Il permet d'<b>archiver, encoder, annoter, et d'analyser des documents sonores</b> et des<b> documents textuels</b>.</p>
+                    <p>La version Pi s'inscrit dans la suite de Sonal 2, avec <b>quelques changements importants :</b></p>
+                    <ul>
+                        <li>Sonal n'est <b>plus orienté sur l'aide à la transcription,</b> mais propose des<b> outils avancés pour nettoyer et enrichir des transcriptions réalisées par IA.</b> A ce jour, Sonal ne prend donc pas en charge les transcriptions IA elles-mêmes.</li>
+                        <li>Le <b>codage des matériaux</b> ne s'effectue <b>plus sur les bandes sonores</b> elles-mêmes, mais directement <b>dans le texte</b>.</li>
+                    </ul>
+                </section>
+
+                <section class="tuto-part" id="fonctionnalites">
+                    <h2>Fonctionnalités principales</h2>
+                    <p>Sonal vous permet de :</p>
+                    <ul>
+                        <li>Archiver tous vos matériaux (son et retranscription texte) dans un projet unique (nommé « corpus »)</li>
+                        <li>Relire/réécouter les entretiens pour les corriger, les coder et les annoter</li>
+                        <li>Pseudonymiser/anonymiser vos entretiens</li>
+                        <li>Ajouter des métadonnées relatives aux fichiers (voir « base de données »)</li>
+                        <li>Faire des recherches fines dans les matériaux, les filtrer, exporter les passages qui vous intéressent</li>
+                    </ul>
+                </section>
+
+                <section class="tuto-part" id="confidentialite">
+                    <h2>Confidentialité des données</h2>
+                    <p>Sonal fonctionne localement ne transmet aucune donnée d'aucune sorte sur les réseaux (le code source est disponible pour le vérifier). Vous pouvez, si vous le souhaitez, travailler sur des corpus partagés en ligne, mais il vous reviendra d'héberger ces données (voir travailler sur un corpus partagé).</p>
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="01-installer.html">Suite</a>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

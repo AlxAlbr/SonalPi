@@ -1,0 +1,125 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6.4 - Coder l'entretien - Mode d'emploi Sonal π</title>
+    <link rel="icon" href="../img/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://sonal-info.com/css/style.css" rel="stylesheet" type="text/css">
+    <link href="tuto-plan.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div class="tuto-page">
+        <div class="tuto-layout">
+            <aside class="tuto-sidebar">
+                <div class="logo">Sonal π</div>
+                <div class="tuto-sommaire">Sommaire</div>
+                <nav class="tuto-nav" aria-label="Plan du mode d'emploi">
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="00-introduction.html">Introduction</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="01-installer.html">1 - Installer Sonal</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="02-projet.html">2 - Ouvrir un projet</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="03-entretiens.html">3 - Ajout/gestion des entretiens</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="04-bdd.html">4 - Base de données</a></div>
+                    <div class="tuto-nav-group"><a class="tuto-nav-link" href="05-categories.html">5 - Grille de codage</a></div>
+                    <div class="tuto-nav-group">
+                        <a class="tuto-nav-link active" href="06-modification.html">6 - Modifier une retranscription</a>
+                        <div class="tuto-nav-sub">
+                            <a href="06-modification.html">Accéder à la fenêtre d'édition</a>
+                            <div style="margin-left: 1rem;">
+                                <a href="06-1-fonctionnement.html">6.1 Fonctionnement général</a>
+                                <a href="06-2-mode-edition.html">6.2 Le mode édition du texte</a>
+                                <a href="06-3-mode-locuteurs.html">6.3 Le mode locuteurs</a>
+                                <a class="active" href="06-5-mode-categories.html">6.4 Le mode catégories</a>
+                                <a href="06-6-notes.html">6.5 Le mode notes</a>
+                                <a href="06-7-base-donnees.html">6.6 Base de données</a>
+                                <a href="06-8-pseudonymisation.html">6.7 Pseudonymiser</a>
+                                <a href="06-9-export.html">6.8 Exporter l'entretien</a>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </aside>
+
+            <main class="tuto-main">
+                <h1>Coder l'entretien (mode "Catégories")</h1>
+
+                <section id="mode-categories" class="tuto-part">
+                     
+
+                    <p>La fenêtre d’édition vous permet d’<b>ajouter des marqueurs colorés ou des formatages spécifiques sur le texte</b> pour pouvoir collecter ensuite tous les passages relevant d’une même catégorie.</p>
+                    <p>La manière d’ajouter ces catégories est explicitée dans la partie « Créer des catégories thématiques de codage ». Nous allons voir ici comment concrètement les affecter au texte.</p>
+
+                    <p>Pour accéder à cette fonctionnalité, cliquez sur l'onglet correspondant.</p>
+
+                    <figure>
+                        <img src="media/mode_cat.png" alt="mode catégories" class="tuto-figure-media">
+                        <figcaption>Mode catégories</figcaption>
+                    </figure>
+
+                    <h2>Fonctionnement du mode catégories</h2>
+                    <p>Lorsque vous êtes dans le mode catégorie, Sonal s’attend à ce que vous sélectionniez des passages du texte pour les marquer. Le comportement du sélecteur est donc spécifique.</p>
+
+                    <p>La logique de codage est la suivante :</p>
+
+                    <ul>
+                        <li><b>1 – sélectionner un passage</b></li>
+                        <li><b>2 – choisir une ou plusieurs catégorie(s)</b></li>
+                        <li><b>3 – sortir de la portion catégorisée</b></li>
+                    </ul>
+
+                    <h3>Sélectionner un passage à catégoriser</h3>
+                    <p>La manière la plus simple de sélectionner une partie est de la <b>surligner avec la souris</b>. Sonal sélectionne alors le passage (en incluant l’intégralité du premier et du dernier mot de la sélection — plus la ponctuation finale s’il y en a) et surligne en jaune la partie sélectionnée. Un menu apparaît sur la droite de la fenêtre pour mettre à disposition certaines fonctions et signifier que vous êtes en train de coder.</p>
+
+                    <figure>
+                        <img src="media/affecter_cat.gif" alt="sélectionner un passage à catégoriser" class="tuto-figure-media">
+                        <figcaption>Sélectionner un passage à catégoriser par surlignage</figcaption>
+                    </figure>
+
+                    <p>Vous pouvez également <b>cliquer sur le premier mot que vous voulez sélectionner</b>. Tous les mots suivants que vous survolerez ensuite seront <b>surlignés en jaune jusqu’à ce que vous cliquiez sur le dernier</b>. C’est la solution la plus adaptée aux sélections longues mais cela peut être troublant si ce n’est pas volontaire. <b>Pour vous débarrasser de la sélection, cliquez sur Echap</b> ou cliquez sur un mot au hasard et abandonnez la sélection.</p>
+
+                    <figure>
+                        <img src="media/affecter_cat2.gif" alt="sélectionner un passage à catégoriser" class="tuto-figure-media">
+                        <figcaption>Sélectionner un passage à catégoriser par clic sur le premier puis dernier mot</figcaption>
+                    </figure>
+
+                    <h3>Choisir une ou plusieurs catégorie(s)</h3>
+                    <p>Une fois que vous avez sélectionné la partie voulue, Sonal s’attend à ce que vous sélectionniez une ou plusieurs catégories à affecter au passage. Pour ce faire, il suffit de <b>cliquer sur les catégories voulues dans le panneau à gauche de la fenêtre</b>. La sélection et la désélection se font d’un simple clic. Les catégories non sélectionnées sont légèrement moins lumineuses, les catégories sélectionnées sont précédées d’un ✔️.</p>
+                    <p>Si vous avez beaucoup de catégories, vous pouvez aussi utiliser la <b>fonction « mur » qui vous affiche toutes vos catégories en colonnes dans une fenêtre spécifique</b>. Cliquez sur le + dans le menu de sélection à droite.</p>
+
+                    <figure>
+                        <img src="media/mur_catégories.gif" alt="sélectionner un passage à catégoriser" class="tuto-figure-media">
+                        <figcaption>Choix des catégories</figcaption>
+                    </figure>
+
+                    <h3>Sortir de la portion catégorisée</h3>
+                    <p>Une fois la catégorisation opérée, vous pouvez quitter la portion catégorisée de différentes manières. <b>En tapant « Echap », en fermant le menu contextuel à droite, en cliquant dans la marge à droite du texte ou… en démarrant une nouvelle sélection.</b></p>
+
+                    <h2>Superposer plusieurs catégorisations</h2>
+                    <p>Il est non seulement possible d'affecter plusieurs catégories à un même passage, mais il est aussi tout à fait possible d’emboiter plusieurs catégorisations.</p>
+
+                    <figure>
+                        <img src="media/codage_cat_emboite.gif" alt="superposer plusieurs catégorisations" class="tuto-figure-media">
+                        <figcaption>Superposer plusieurs catégorisations</figcaption>
+                    </figure>
+
+                    <h2>Modifier une catégorisation existante</h2>
+                    <p>Si vous avez catégorisé un passage et que vous voulez revenir sur vos choix, ou annuler la catégorisation, il vous suffit de cliquer sur l’un des mots du passage catégorisé. La partie est rouverte en édition et vous pouvez changer ce qui doit l’être.</p>
+
+                    <figure>
+                        <img src="media/modif_sel_cat.gif" alt="modifier une catégorisation existante" class="tuto-figure-media">
+                        <figcaption>Modifier une catégorisation existante</figcaption>
+                    </figure>
+                </section>
+
+                <div class="tuto-next-wrap">
+                    <a class="tuto-next-btn" href="06-6-notes.html">Suite</a>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
+
