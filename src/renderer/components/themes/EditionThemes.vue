@@ -143,12 +143,12 @@ onMounted(() => {
     <div class="modale-themes">
       <div class="corpus-tete">
         <h3>Édition des thèmes</h3>
-        <button class="mini" title="Ajouter un thème à la racine" @click="creerTheme(false)">+ Thème parent</button>
+        <button class="mini" title="Ajouter un thème de premier niveau" @click="creerTheme(false)">+ Thème</button>
         <button class="fermer" title="Fermer" @click="$emit('fermer')">✕</button>
       </div>
       <p class="aide-thm">
-        Nom, couleur, taille de police des passages codés · « + enfant » pour un sous-thème · ▲▼ pour
-        déplacer dans la fratrie · ⤵ pour changer de thème parent
+        « + Thème » crée un thème de premier niveau · Nom, description, couleur et taille de police des passages codés ·
+        « + enfant » crée un sous-thème · ▲▼ déplacent le thème parmi ceux du même niveau · ⤵ le place sous un autre thème
       </p>
 
       <p v-if="messageTheme" class="msg-thm">{{ messageTheme }}</p>
@@ -177,7 +177,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <p v-if="arbreThemes().length === 0" class="vide">Aucun thème — clique « + Thème parent ».</p>
+      <p v-if="arbreThemes().length === 0" class="vide">Aucun thème — clique « + Thème ».</p>
 
       <!-- En-tête de colonnes : les clones .fantome sont les MÊMES éléments qu'une ligne (boutons, input),
            largeurs identiques par construction (un span n'a ni le padding ni la police par défaut d'un bouton) → chaque
@@ -252,7 +252,7 @@ onMounted(() => {
             :title="n.cat.description ? 'Modifier la description' : 'Ajouter une description'"
             @click="basculerDescription(n.cat.id)"
           >
-            {{ n.cat.description ? '📝' : '+ description' }}
+            {{ n.cat.description ? '📝 description' : '+ description' }}
           </button>
           <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="creerTheme(true, n.cat.id)">
             + enfant

@@ -20,6 +20,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [ouverture-corpus.md](ouverture-corpus.md) | L'ouverture d'un corpus : amorçage, récents auto-ouverts (tagués local 🌐 distant), mémoire démo (« un dossier vide n'est pas un corpus absent »), branche distante (création directe sur serveur), gardes et invariants |
 | [modele-objet.md](modele-objet.md) | Le modèle d'objet (vue à 3 niveaux) : agrégats Corpus / Entretien, patron à 3 étages, sous-schémas par préoccupation (§3–§10), chacun ancré au code actuel |
 | [pseudonymisation/](pseudonymisation/README.md) | Pseudonymisation : synthèse, niveau entretien, règles corpus, fournisseurs et sorties |
+| [thematiques/](thematiques/README.md) | Thématiques : codebook, codages dans les entretiens, opérations corpus et exécution selon le fournisseur |
 | [cas.md](cas.md) | Cas analytiques : modèle actuel, références vivantes, commandes et projection ; modèle cible des règles, familles et attributs, avec état des fonctionnalités |
 | [lexico.md](lexico.md) | Lexico : index pseudonymisé, sélection des matériaux, fraîcheur, concordances et export |
 | [synthese.md](synthese.md) | Synthèse : moteur de plages, double vue, confidentialité, fraîcheur et export TXT |
@@ -53,6 +54,9 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 - **Pour comprendre ou modifier la pseudonymisation** (brouillons, décisions,
   règles corpus, opérations globales, fournisseurs ou exports) :
   [pseudonymisation/README.md](pseudonymisation/README.md).
+- **Pour comprendre ou modifier les thématiques** (codebook, codages,
+  descriptions, hiérarchie, réaffectations ou fournisseurs) :
+  [thematiques/README.md](thematiques/README.md).
 - **Pour toucher à l'éditeur** (rendu, décorations, remap des positions) :
   [donnees.md § 1](donnees.md#1-dom--objet-en-mémoire).
 - **Pour toucher au fonctionnement distant** (verrous, sessions, transactions,

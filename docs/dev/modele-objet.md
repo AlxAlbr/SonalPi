@@ -320,6 +320,7 @@ classDiagram
     class Categorie {
         +string id
         +string nom
+        +string description?
         +string couleur? / int taille?
         +int ordre
         +string parent «null = racine»
@@ -349,7 +350,8 @@ classDiagram
 - `matriceCorpus` — voir §4.
 
 **Code** : `src/shared/corpus/categories.ts`, `src/shared/corpus/requetes.ts`, types dans
-`src/shared/format.ts` (`Categorie`, `SegmentThematique`).
+`src/shared/format.ts` (`Categorie`, `SegmentThematique`). La documentation dédiée
+est dans [`thematiques/`](thematiques/README.md).
 
 ## 6. Anonymisation
 

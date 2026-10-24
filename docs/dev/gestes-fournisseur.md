@@ -76,7 +76,7 @@ restent désactivées. GitLab prend en charge les trois gestes : commits courts
 par entretien, suivi durable, reprise et suppression finale protégée par des
 gardes sur tout le membership (248 membres maximum). Cette ouverture a été
 qualifiée à deux comptes sur GitLab CE 18.11. Détails :
-[operations-themes.md](operations-themes.md).
+[thematiques/fournisseurs.md](thematiques/fournisseurs.md).
 
 Une division avec `effacerSource: true` exige **les deux gestes**
 `theme.diviser` et `theme.diviser-supprimer-source` dans le main, avant préparation.

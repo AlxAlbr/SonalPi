@@ -150,7 +150,7 @@ function basculerToutesDescriptions() {
 .liste-coder {
   list-style: none;
   margin: 0.3rem 0 0;
-  padding: 0;
+  padding: 0 0 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

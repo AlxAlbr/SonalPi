@@ -28,7 +28,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
   // Beaucoup de thèmes : 25 ajouts via la fenêtre d'édition (le seed en a 7) →
   // la liste déborde largement du panneau, les derniers ajouts sont hors écran.
   await ouvrirEditionThemes(page)
-  const ajouter = page.locator('.modale-themes .mini', { hasText: '+ Thème parent' })
+  const ajouter = page.locator('.modale-themes .mini', { hasText: '+ Thème' })
   for (let i = 0; i < 25; i++) await ajouter.click()
   await fermerEditionThemes(page)
   await expect(page.locator('.theme-coder')).toHaveCount(32)
@@ -210,8 +210,8 @@ test('créer un thème : le champ nom est auto-focusé et présélectionné', as
   await page.locator('.onglets button[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
 
-  // « + Thème parent » → le champ nom du nouveau thème reçoit le focus.
-  await page.locator('.modale-themes .mini', { hasText: '+ Thème parent' }).click()
+  // « + Thème » → le champ nom du nouveau thème reçoit le focus.
+  await page.locator('.modale-themes .mini', { hasText: '+ Thème' }).click()
   const nom = page.locator('.liste-thm li[data-nom="Nouveau thème"] .nom-thm')
   await expect(nom).toBeFocused()
 

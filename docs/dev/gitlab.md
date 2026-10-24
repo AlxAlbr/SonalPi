@@ -1218,7 +1218,7 @@ La suppression finale relit le membership et tous ses entretiens au même SHA.
 Elle publie le codebook final, une garde par membre et la transition du bail
 corpus dans un seul commit. Une référence nouvelle ou une publication concurrente
 refuse cette étape seule ; les réaffectations restent acquises et la source reste
-présente. Voir [operations-themes.md](operations-themes.md).
+présente. Voir [thematiques/fournisseurs.md](thematiques/fournisseurs.md).
 
 `apercusThemes.test.ts` couvre les lectures et observations en mémoire.
 `qualificationApercusThemes.test.ts` qualifie leurs lectures réelles à deux comptes :
