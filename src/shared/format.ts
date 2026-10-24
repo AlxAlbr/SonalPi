@@ -444,6 +444,9 @@ export interface Locuteur {
 export interface Categorie {
   id: string
   nom: string
+  /** Précision facultative sur le périmètre du thème.
+   *  Champ ADDITIF optionnel. */
+  description?: string
   couleur?: string
   /** Taille de police (px) des passages codés ; absent = taille du texte.
    *  Champ ADDITIF optionnel. */
@@ -483,10 +486,9 @@ export type ResultatSuppressionCategorie =
   | { ok: true; corpus: CorpusFichier }
   | { ok: false; usages: number }
 
-/** Champs modifiables d'une catégorie (renommer, recolorer, retailler,
- *  activer). `taille: undefined` dans le patch = retour à la taille par défaut
- *  (le spread écrase la valeur). */
-export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'couleur' | 'taille' | 'actif'>>
+/** Champs modifiables d'une catégorie. `taille: undefined` revient à la
+ *  taille par défaut et `description: undefined` retire la description. */
+export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'description' | 'couleur' | 'taille' | 'actif'>>
 
 /** Modèle de modalités réutilisable (nom + libellés), porté par le registre du profil (« Mes modèles » de l'éditeur de variables) et exportable/importable en JSON ;
  *  les modèles INTÉGRÉS (Sexe, Âge, PCS…) restent du code. */

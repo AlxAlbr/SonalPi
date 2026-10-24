@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { useOperationsThemesCorpus } from '../../composables/corpus/useOperationsThemesCorpus'
-import type { DemandeOperationTheme, NouvelleDestinationTheme } from '../../../shared/corpus/themes'
+import type { DemandeOperationTheme } from '../../../shared/corpus/themes'
 import { operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 import RepartitionTheme from './RepartitionTheme.vue'
 
@@ -18,6 +18,7 @@ const titres: Record<TypeOperation, string> = {
 const types: TypeOperation[] = ['transfert', 'fusion', 'division']
 const typeChoisi = ref<TypeOperation | null>(null)
 const source = ref('')
+const secondeFusion = ref('')
 const cible = ref('')
 const cibleNouvelle = ref(false)
 const nomNouvelle = ref('')
@@ -25,9 +26,8 @@ const parentNouvelle = ref('')
 const couleurNouvelle = ref('#598ac8')
 const conserverSource = ref(true)
 const nombreDestinations = ref(2)
+const destinationsDivision = ref(['', '', '', ''])
 const effacerSource = ref(false)
-const noms = ref(['', '', '', ''])
-const couleurs = ref(['#598ac8', '#cb8b4b', '#649b73', '#9a75bc'])
 const dialogue = ref<HTMLElement | null>(null)
 const atelier = ref<HTMLElement | null>(null)
 let focusAvant: HTMLElement | null = null
@@ -45,19 +45,28 @@ const {
   suivi, erreurSuivi, chargementSuivi, peutVerifier,
 } = ops
 const categories = computed(() => arbreThemes().map((n) => ({ ...n.cat, libelle: '— '.repeat(n.profondeur) + n.cat.nom })))
-const sourceCategorie = computed(() => codebook.value.find((c) => c.id === source.value))
-const ciblesExistantes = computed(() => categories.value.filter((c) => {
-  if (c.id === source.value) return false
-  if (typeChoisi.value !== 'fusion') return true
+const ciblesTransfert = computed(() => categories.value.filter((c) => c.id !== source.value))
+const secondesFusion = computed(() => categories.value.filter((c) => c.id !== source.value))
+function estDescendantDe(id: string, ancetre: string): boolean {
   const visites = new Set<string>()
-  let parent = c.parent
-  while (parent !== null && !visites.has(parent)) {
-    if (parent === source.value) return false
-    visites.add(parent)
-    parent = codebook.value.find((c) => c.id === parent)?.parent ?? null
+  let courant: string | null = id
+  while (courant !== null && !visites.has(courant)) {
+    if (courant === ancetre) return true
+    visites.add(courant)
+    courant = codebook.value.find((c) => c.id === courant)?.parent ?? null
   }
-  return true
-}))
+  return false
+}
+const ciblesFusion = computed(() => {
+  if (!source.value || !secondeFusion.value) return []
+  return categories.value.filter((c) => [source.value, secondeFusion.value]
+    .filter((id) => id !== c.id).every((retiree) => !estDescendantDe(c.id, retiree)))
+})
+function ciblesDivision(index: number) {
+  const dejaChoisies = new Set(destinationsDivision.value.slice(0, nombreDestinations.value)
+    .filter((id, i) => i !== index && !!id))
+  return categories.value.filter((c) => c.id !== source.value && !dejaChoisies.has(c.id))
+}
 const titre = computed(() => typeChoisi.value ? titres[typeChoisi.value] : '')
 const verificationAutorisee = computed(() => {
   const d = suivi.value?.demande ?? demande.value
@@ -65,7 +74,12 @@ const verificationAutorisee = computed(() => {
 })
 const bilan = computed(() => resultat.value?.statut === 'partielle' ? resultat.value.bilan
   : resultat.value?.statut === 'indeterminee' ? resultat.value.bilan : undefined)
-const nomSource = computed(() => codebook.value.find((c) => c.id === demande.value?.source)?.nom ?? sourceCategorie.value?.nom ?? source.value)
+const nomSource = computed(() => {
+  const d = demande.value
+  if (d?.type === 'fusion') return d.sources.map((id) => codebook.value.find((c) => c.id === id)?.nom ?? id).join(' + ')
+  const id = d?.source ?? source.value
+  return codebook.value.find((c) => c.id === id)?.nom ?? id
+})
 const suppression = computed(() => demande.value?.type === 'fusion'
   || (demande.value?.type === 'transfert' && !demande.value.conserverSource)
   || (demande.value?.type === 'division' && demande.value.effacerSource))
@@ -81,8 +95,9 @@ const vers = computed(() => {
 })
 
 const destinationsRepartition = computed(() => demande.value?.type === 'division' ? demande.value.cibles.map((c) => {
-  const id = suivi.value?.bilan.ciblesCreees.find((persistante) => persistante.token === c.token)?.id
-  return { ...c, nom: codebook.value.find((cat) => cat.id === id)?.nom ?? c.nom }
+  if (typeof c === 'string') return { id: c, nom: codebook.value.find((cat) => cat.id === c)?.nom ?? c }
+  const id = suivi.value?.bilan.ciblesCreees.find((persistante) => persistante.token === c.token)?.id ?? c.token
+  return { id, nom: codebook.value.find((cat) => cat.id === id)?.nom ?? c.nom }
 }) : [])
 
 function motif(type: TypeOperation): string | null {
@@ -95,6 +110,7 @@ function motif(type: TypeOperation): string | null {
   if (!gesteDisponible(capacite)) return lectureSeule.value ? 'Ce corpus est actuellement en lecture seule ou hors ligne.' : 'Ce parcours n’est pas encore disponible sur ce corpus.'
   if (!codebook.value.length) return 'Créez d’abord une thématique avec le crayon.'
   if (type === 'fusion' && codebook.value.length < 2) return 'Une fusion demande deux thématiques existantes.'
+  if (type === 'division' && codebook.value.length < 3) return 'Une division demande une source et deux destinations existantes.'
   return null
 }
 async function ouvrir(type: TypeOperation): Promise<void> {
@@ -103,14 +119,15 @@ async function ouvrir(type: TypeOperation): Promise<void> {
   ops.reinitialiser()
   typeChoisi.value = type
   source.value = ''
+  secondeFusion.value = ''
   cible.value = ''
   cibleNouvelle.value = false
   nomNouvelle.value = ''
   parentNouvelle.value = ''
   conserverSource.value = true
   nombreDestinations.value = 2
+  destinationsDivision.value = ['', '', '', '']
   effacerSource.value = false
-  noms.value = ['', '', '', '']
   await nextTick()
   dialogue.value?.querySelector<HTMLElement>('select')?.focus()
 }
@@ -130,7 +147,9 @@ function restaurerFocus(): void {
   })
 }
 function requete(): DemandeOperationTheme {
-  if (typeChoisi.value === 'fusion') return { type: 'fusion', source: source.value, cible: cible.value }
+  if (typeChoisi.value === 'fusion') return {
+    type: 'fusion', sources: [source.value, secondeFusion.value], cible: cible.value,
+  }
   if (typeChoisi.value === 'transfert') return {
     type: 'transfert', source: source.value, conserverSource: conserverSource.value,
     cible: cibleNouvelle.value ? {
@@ -138,11 +157,11 @@ function requete(): DemandeOperationTheme {
       parent: parentNouvelle.value || null, couleur: couleurNouvelle.value,
     } : { type: 'existante', id: cible.value },
   }
-  const parent = effacerSource.value ? sourceCategorie.value?.parent ?? null : source.value
-  const cibles: NouvelleDestinationTheme[] = Array.from({ length: nombreDestinations.value }, (_, index) => ({
-    type: 'nouvelle', token: `destination-${index + 1}`, nom: noms.value[index].trim(), parent, couleur: couleurs.value[index],
-  }))
-  return { type: 'division', source: source.value, cibles, choix: [], effacerSource: effacerSource.value }
+  return {
+    type: 'division', source: source.value,
+    cibles: destinationsDivision.value.slice(0, nombreDestinations.value),
+    choix: [], effacerSource: effacerSource.value,
+  }
 }
 async function preparer(): Promise<void> { await ops.commencer(requete()) }
 async function reprendre(): Promise<void> {
@@ -186,7 +205,12 @@ function clavierDialogue(event: KeyboardEvent): void {
   if (event.shiftKey && document.activeElement === premier) { event.preventDefault(); dernier?.focus() }
   else if (!event.shiftKey && document.activeElement === dernier) { event.preventDefault(); premier?.focus() }
 }
-watch(source, () => { cible.value = '' })
+watch(source, () => {
+  secondeFusion.value = ''
+  cible.value = ''
+  destinationsDivision.value = ['', '', '', '']
+})
+watch(secondeFusion, () => { cible.value = '' })
 watch(revisionCorpus, () => {
   typeChoisi.value = null
   ops.changerCorpus()
@@ -208,7 +232,7 @@ watch([etape, () => props.actif, vue], async () => {
     <h3>Atelier des thématiques</h3>
     <p class="intro">Réorganisez les codages du corpus. Les transcriptions, commentaires et pseudonymisations restent inchangés.</p>
     <div v-if="!typeChoisi && (suivi || erreurSuivi || peutVerifier)" class="alerte" role="status">
-      <p v-if="suivi">Un lot précédent {{ suivi.indeterminee ? 'a une publication à vérifier' : 'reste incomplet' }}. {{ suivi.bilan.reussis.length }} entretien(s) réussi(s), {{ suivi.bilan.echecs.length + (suivi.bilan.differes?.length ?? 0) + (suivi.bilan.inconnus?.length ?? 0) }} entretien(s) à vérifier ou reprendre. La source est conservée.</p>
+      <p v-if="suivi">Un lot précédent {{ suivi.indeterminee ? 'a une publication à vérifier' : 'reste incomplet' }}. {{ suivi.bilan.reussis.length }} entretien(s) réussi(s), {{ suivi.bilan.echecs.length + (suivi.bilan.differes?.length ?? 0) + (suivi.bilan.inconnus?.length ?? 0) }} entretien(s) à vérifier ou reprendre. {{ suivi.demande.type === 'fusion' ? 'Les thématiques à retirer sont conservées.' : 'La source est conservée.' }}</p>
       <p v-if="erreurSuivi">{{ erreurSuivi }}</p>
       <button v-if="erreurSuivi" :disabled="occupe || chargementSuivi" @click="ops.chargerSuivi">Réessayer la lecture du suivi</button>
       <button v-if="peutVerifier" :disabled="occupe || chargementSuivi || !verificationAutorisee" @click="verifierPublication">Vérifier la publication</button>
@@ -221,8 +245,8 @@ watch([etape, () => props.actif, vue], async () => {
       <article v-for="type in types" :key="type" class="carte-operation" :class="type">
         <h4>{{ titres[type] }}</h4>
         <p v-if="type === 'transfert'">Déplacer tous les codages vers une autre thématique.</p>
-        <p v-else-if="type === 'fusion'">Réunir les codages, retirer la source et déplacer ses sous-thèmes vers la cible.</p>
-        <p v-else>Répartir manuellement les codages vers deux à quatre nouvelles thématiques.</p>
+        <p v-else-if="type === 'fusion'">Réunir deux thématiques dans l’une d’elles ou dans une troisième thématique existante.</p>
+        <p v-else>Répartir manuellement les codages vers deux à quatre thématiques existantes.</p>
         <p v-if="motif(type)" class="indisponible">{{ motif(type) }}</p>
         <button :disabled="!!motif(type)" :title="motif(type) ?? undefined" @click="ouvrir(type)">{{ type === 'transfert' ? 'Transférer…' : type === 'fusion' ? 'Fusionner…' : 'Diviser…' }}</button>
       </article>
@@ -244,33 +268,48 @@ watch([etape, () => props.actif, vue], async () => {
 
         <form v-if="etape === 'choix'" @submit.prevent="preparer">
           <fieldset :disabled="occupe || !!suivi">
-            <label>Thématique source
-              <select v-model="source" required><option value="">Choisir une thématique…</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.libelle }}</option></select>
-            </label>
-            <template v-if="typeChoisi !== 'division'">
-              <label v-if="typeChoisi === 'transfert'" class="case"><input v-model="cibleNouvelle" type="checkbox" />Créer une nouvelle thématique cible</label>
-              <template v-if="typeChoisi === 'transfert' && cibleNouvelle">
-                <label>Nom de la nouvelle thématique<input v-model="nomNouvelle" required placeholder="Nom de la cible" /></label>
-                <label>Couleur<input v-model="couleurNouvelle" type="color" /></label>
-                <label>Parent de la nouvelle thématique<select v-model="parentNouvelle"><option value="">Racine du codebook</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.libelle }}</option></select></label>
-              </template>
-              <label v-else>Thématique cible<select v-model="cible" required><option value="">Choisir une thématique…</option><option v-for="c in ciblesExistantes" :key="c.id" :value="c.id">{{ c.libelle }}</option></select></label>
+            <template v-if="typeChoisi === 'fusion'">
+              <label>Première thématique
+                <select v-model="source" required><option value="">Choisir une thématique…</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.libelle }}</option></select>
+              </label>
+              <label>Deuxième thématique
+                <select v-model="secondeFusion" required><option value="">Choisir une autre thématique…</option><option v-for="c in secondesFusion" :key="c.id" :value="c.id">{{ c.libelle }}</option></select>
+              </label>
+              <label>Thématique résultante
+                <select v-model="cible" required><option value="">Choisir la thématique résultante…</option><option v-for="c in ciblesFusion" :key="c.id" :value="c.id">{{ c.libelle }}</option></select>
+              </label>
+              <p class="note">La thématique résultante doit déjà exister. Elle peut être l’une des deux thématiques choisies ou une troisième thématique.</p>
+              <p class="note">Une thématique située sous une catégorie retirée n’est pas proposée, pour éviter un cycle.</p>
+            </template>
+            <template v-else>
+              <label>Thématique source
+                <select v-model="source" required><option value="">Choisir une thématique…</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.libelle }}</option></select>
+              </label>
               <template v-if="typeChoisi === 'transfert'">
+                <label class="case"><input v-model="cibleNouvelle" type="checkbox" />Créer une nouvelle thématique cible</label>
+                <template v-if="cibleNouvelle">
+                  <label>Nom de la nouvelle thématique<input v-model="nomNouvelle" required placeholder="Nom de la cible" /></label>
+                  <label>Couleur<input v-model="couleurNouvelle" type="color" /></label>
+                  <label>Parent de la nouvelle thématique<select v-model="parentNouvelle"><option value="">Racine du codebook</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.libelle }}</option></select></label>
+                </template>
+                <label v-else>Thématique cible<select v-model="cible" required><option value="">Choisir une thématique…</option><option v-for="c in ciblesTransfert" :key="c.id" :value="c.id">{{ c.libelle }}</option></select></label>
                 <label class="case"><input v-model="conserverSource" type="checkbox" :disabled="!gesteDisponible('suppressionSourceThemes')" />Conserver la thématique source</label>
                 <p v-if="!gesteDisponible('suppressionSourceThemes')" class="note">La suppression de la source n’est pas disponible sur ce corpus.</p>
               </template>
-              <p v-if="typeChoisi === 'fusion'" class="note">Une cible descendante de la source n’est pas proposée, pour éviter un cycle.</p>
-            </template>
-            <template v-else>
-              <label>Nombre de destinations<select v-model.number="nombreDestinations"><option v-for="n in [2, 3, 4]" :key="n" :value="n">{{ n }}</option></select></label>
-              <div class="nouvelles-destinations">
-                <div v-for="n in nombreDestinations" :key="n">
-                  <label>Nom de la destination {{ n }}<input v-model="noms[n - 1]" required /></label>
-                  <label>Couleur {{ n }}<input v-model="couleurs[n - 1]" type="color" /></label>
+              <template v-else>
+                <label>Nombre de destinations<select v-model.number="nombreDestinations"><option v-for="n in [2, 3, 4]" :key="n" :value="n">{{ n }}</option></select></label>
+                <div class="destinations-division">
+                  <label v-for="n in nombreDestinations" :key="n">Destination {{ n }}
+                    <select v-model="destinationsDivision[n - 1]" required>
+                      <option value="">Choisir une thématique existante…</option>
+                      <option v-for="c in ciblesDivision(n - 1)" :key="c.id" :value="c.id">{{ c.libelle }}</option>
+                    </select>
+                  </label>
                 </div>
-              </div>
-              <label v-if="gesteDisponible('suppressionSourceThemes')" class="case"><input v-model="effacerSource" type="checkbox" />Supprimer la source après répartition complète</label>
-              <p class="note">Les nouvelles catégories seront placées {{ effacerSource ? 'sous l’ancien parent de la source (ou à la racine)' : 'sous la thématique source' }}.</p>
+                <p class="note">Créez au préalable les thématiques nécessaires avec le crayon du codebook.</p>
+                <label v-if="gesteDisponible('suppressionSourceThemes')" class="case"><input v-model="effacerSource" type="checkbox" />Supprimer la source après répartition complète</label>
+                <p v-if="effacerSource" class="note">Les sous-thèmes de la source seront replacés sous son ancien parent.</p>
+              </template>
             </template>
           </fieldset>
           <footer><button type="button" :disabled="occupe" @click="fermer">Annuler</button><button class="principal" type="submit" :disabled="occupe || !!suivi">{{ analyseEnCours ? 'Analyse…' : typeChoisi === 'division' ? 'Préparer la répartition' : 'Voir l’aperçu' }}</button></footer>
@@ -297,14 +336,14 @@ watch([etape, () => props.actif, vue], async () => {
           <p v-if="apercu.execution === 'entretiens-sequentiels' && apercu.obstacles.length" class="note">Les membres indisponibles ne sont pas comptés dans les codages observés et ne seront pas modifiés.</p>
           <p v-if="demande.type === 'fusion'">{{ apercu.totaux.sousThemesDeplaces ?? 0 }} sous-thème(s) direct(s) seront déplacés vers la cible.</p>
           <p v-if="demande.type === 'division'">{{ nonRepartis }} codage(s) resteront sur la source.</p>
-          <p class="consequence">{{ suppression ? 'La source sera retirée après les réaffectations.' : 'La source et sa hiérarchie seront conservées.' }} Les doublons sur une plage exacte seront retirés ; les codages cibles existants seront conservés.</p>
+          <p class="consequence">{{ suppression ? (demande.type === 'fusion' ? 'Les thématiques qui ne sont pas retenues comme résultat seront retirées après les réaffectations.' : 'La source sera retirée après les réaffectations.') : 'La source et sa hiérarchie seront conservées.' }} Les doublons sur une plage exacte seront retirés ; les codages cibles existants seront conservés.</p>
           <ul v-if="apercu.obstacles.length" class="alerte"><li v-for="(obstacle, i) in apercu.obstacles" :key="i">{{ obstacle.entretienId ? (membership[obstacle.entretienId]?.titre ?? obstacle.entretienId) + ' : ' : '' }}{{ obstacle.motif }}</li></ul>
           <p v-if="perime" class="alerte">Cet aperçu n’est plus confirmé. Recalculez-le avant toute écriture.</p>
           <template v-if="apercu.disponibiliteGitLab">
             <p class="note">Disponibilité observée le {{ new Date(apercu.disponibiliteGitLab.observeLe).toLocaleString('fr-FR') }} : {{ libresGitLab }} libre(s), {{ obstaclesGitLab }} indisponible(s) ou inconnu(s). Cette observation ne réserve aucun entretien.</p>
             <ul v-if="obstaclesGitLab" class="alerte"><li v-for="e in disponibilitesGitLab.filter((item) => item.etat !== 'libre-observe')" :key="e.id">{{ membership[e.id]?.titre ?? e.id }} : {{ e.motif ?? e.etat }}<span v-if="e.detenteur"> ({{ e.detenteur }})</span></li></ul>
           </template>
-          <p v-if="apercu.execution === 'entretiens-sequentiels'" class="note">Les entretiens seront traités un par un, sans atomicité globale. Les succès restent acquis si un autre entretien est refusé. <template v-if="suppression">La source ne sera supprimée qu’après la finalisation protégée de tout le membership.</template><template v-else>La source est conservée.</template> Une réponse inconnue arrête le lot ; vérifiez sa publication avant de reprendre explicitement.</p>
+          <p v-if="apercu.execution === 'entretiens-sequentiels'" class="note">Les entretiens seront traités un par un, sans atomicité globale. Les succès restent acquis si un autre entretien est refusé. <template v-if="suppression">Les thématiques à retirer ne seront supprimées qu’après la finalisation protégée de tout le corpus.</template><template v-else>La source est conservée.</template> Une réponse inconnue arrête le lot ; vérifiez sa publication avant de reprendre explicitement.</p>
           <p v-else class="note">Cette confirmation lance la modification. Les fichiers seront relus ; toute modification depuis l’aperçu refusera l’opération locale. Une transaction interrompue sera reprise à l’ouverture du corpus.</p>
           <footer>
             <button :disabled="occupe || (!!suivi && demande.type !== 'division')" @click="demande.type === 'division' ? ops.revenirRepartition() : ops.reinitialiser()">Modifier les choix</button>
@@ -321,7 +360,7 @@ watch([etape, () => props.actif, vue], async () => {
           <template v-else-if="resultat.statut === 'indeterminee'"><h4>Résultat à vérifier</h4><p>{{ resultat.motif }}</p><p>Aucune écriture ne sera rejouée automatiquement. {{ peutVerifier ? 'Vérifiez la publication, puis recalculez une reprise explicite.' : 'Rouvrez ce corpus pour vérifier ou reprendre son état.' }}</p></template>
           <h4 v-else>Opération partielle — les succès restent acquis</h4>
           <template v-if="bilan">
-            <p>Source : {{ bilan.sourceConservee === null ? 'présence inconnue' : bilan.sourceConservee ? 'conservée' : 'supprimée' }}. Finalisation : {{ bilan.finalisation }}.</p>
+            <p>Retrait demandé : {{ bilan.sourceConservee === null ? 'état inconnu' : bilan.sourceConservee ? 'en attente' : 'terminé' }}. Finalisation : {{ bilan.finalisation }}.</p>
             <p v-if="bilan.motifFinalisation">{{ bilan.motifFinalisation }}</p>
             <h5>Entretiens réussis</h5><ul><li v-for="e in bilan.reussis" :key="e.id">{{ membership[e.id]?.titre ?? e.id }} : {{ e.reaffectes }} réaffectation(s), {{ e.doublonsSupprimes }} doublon(s) retiré(s).</li></ul>
             <h5>Entretiens à reprendre</h5><ul><li v-for="e in bilan.echecs" :key="e.id">{{ membership[e.id]?.titre ?? e.id }} : {{ e.motif }}</li></ul>
@@ -366,7 +405,7 @@ label { display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; m
 label.case { flex-direction: row; align-items: center; }
 select, input:not([type=checkbox]):not([type=color]) { font: inherit; border: 1px solid #bdc9db; border-radius: 5px; padding: .5rem; background: white; min-width: 0; }
 input[type=color] { border: 0; width: 3rem; height: 2rem; padding: 0; background: none; }
-.nouvelles-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; }
+.destinations-division { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; }
 footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; margin-top: 1.2rem; border-top: 1px solid #e2e7ee; padding-top: 1rem; }
 .alerte { background: #fff2ed; color: #893f29; border: 1px solid #ecc7b9; border-radius: 6px; padding: .7rem 1rem; font-size: .85rem; }
 .compteurs { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; }
@@ -378,5 +417,5 @@ dd { margin: .3rem 0 0; font-size: 1.3rem; font-weight: 600; }
 .roue { width: .9rem; height: .9rem; border: 2px solid #c8bee0; border-top-color: #533a85; border-radius: 50%; animation: tourner 1s linear infinite; }
 @keyframes tourner { to { transform: rotate(360deg); } }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #356ac3; outline-offset: 2px; }
-@media (max-width: 650px) { .compteurs { grid-template-columns: repeat(2, 1fr); } .nouvelles-destinations { grid-template-columns: 1fr; } .modale-operations-themes { padding: .8rem; } }
+@media (max-width: 650px) { .compteurs { grid-template-columns: repeat(2, 1fr); } .destinations-division { grid-template-columns: 1fr; } .modale-operations-themes { padding: .8rem; } }
 </style>

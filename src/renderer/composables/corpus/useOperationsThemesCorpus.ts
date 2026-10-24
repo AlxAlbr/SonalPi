@@ -1,13 +1,14 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import type { CorpusFichier } from '../../../shared/format'
-import type {
-  ApercuOperationTheme,
-  DemandeOperationTheme,
-  DetailsOperationTheme,
-  ProgressionOperationTheme,
-  ReferenceCodage,
-  ResultatOperationTheme,
-  SuiviOperationTheme,
+import {
+  sourcesOperationTheme,
+  type ApercuOperationTheme,
+  type DemandeOperationTheme,
+  type DetailsOperationTheme,
+  type ProgressionOperationTheme,
+  type ReferenceCodage,
+  type ResultatOperationTheme,
+  type SuiviOperationTheme,
 } from '../../../shared/corpus/themes'
 import { lancerOperationGlobale, operationGlobaleEnCours } from '../../operationGlobaleCorpus'
 
@@ -109,7 +110,8 @@ export function useOperationsThemesCorpus(deps: {
     try {
       const retour = await api.preparerRepriseOperationTheme(lot.operationId)
       if (capture !== generation) return false
-      if (retour.apercu.source !== lot.demande.source || retour.demande.source !== lot.demande.source
+      if (JSON.stringify(retour.apercu.sources) !== JSON.stringify(sourcesOperationTheme(lot.demande))
+        || JSON.stringify(sourcesOperationTheme(retour.demande)) !== JSON.stringify(sourcesOperationTheme(lot.demande))
         || retour.demande.type !== lot.demande.type || !deps.disponible(retour.demande)) throw new Error('La reprise ne correspond pas au lot courant.')
       demande.value = copie(retour.demande)
       apercu.value = retour.apercu
@@ -203,7 +205,9 @@ export function useOperationsThemesCorpus(deps: {
     try {
       const frais = await api.analyserOperationTheme(requete, precedent)
       if (capture !== generation) return false
-      if (frais.source !== requete.source) throw new Error('L’aperçu ne correspond pas à la source demandée.')
+      if (JSON.stringify(frais.sources) !== JSON.stringify(sourcesOperationTheme(requete))) {
+        throw new Error('L’aperçu ne correspond pas aux thématiques demandées.')
+      }
       apercu.value = frais
       details.value = new Map()
       perime.value = false
@@ -256,7 +260,7 @@ export function useOperationsThemesCorpus(deps: {
   function attribuer(codage: ReferenceCodage, destination: string | null): void {
     const d = demande.value
     if (occupe.value || perime.value || etape.value !== 'repartition' || d?.type !== 'division') return
-    if (destination !== null && !d.cibles.some((c) => c.token === destination)) return
+    if (destination !== null && !d.cibles.some((c) => (typeof c === 'string' ? c : c.token) === destination)) return
     if (!details.value.get(codage.entretienId)?.codages.some((c) => cleCodageTheme(c.codage) === cleCodageTheme(codage))) return
     d.choix = d.choix.filter((c) => cleCodageTheme(c.codage) !== cleCodageTheme(codage))
     if (destination !== null) d.choix.push({ codage: { ...codage }, destination })

@@ -106,7 +106,7 @@ function codeExport(
   return {
     id: cat.id,
     nom: cat.nom,
-    memo: '',
+    memo: cat.description ?? '',
     couleur: cat.couleur ?? '#808080',
     categorie: categorie(cat.id, codebook),
   }

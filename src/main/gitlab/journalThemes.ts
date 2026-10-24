@@ -57,12 +57,21 @@ export class JournalLocalThemesGitLab {
     if (j?.demande?.type === 'transfert' && j.demande.conserverSource === undefined) {
       j.demande.conserverSource = true
     }
+    if (j?.demande?.type === 'fusion' && !Array.isArray(j.demande.sources)) {
+      const ancienne = j.demande as unknown as { type: 'fusion'; source?: unknown; cible?: unknown }
+      if (chaine(ancienne.source) && chaine(ancienne.cible)) {
+        j.demande = { type: 'fusion', sources: [ancienne.source, ancienne.cible], cible: ancienne.cible }
+      }
+    }
     const finalisations = ['non-demandee', 'a-faire', 'bloquee', 'indeterminee', 'terminee']
     if (!j || j.version !== 1 || j.destination !== this.destination || !chaine(j.operationId)
       || !Array.isArray(j.tentatives) || !j.tentatives.every(chaine)
       || !j.demande || !['transfert', 'fusion', 'division'].includes(j.demande.type)
       || (j.demande.type === 'transfert' && typeof j.demande.conserverSource !== 'boolean')
-      || !chaine(j.demande.source) || !Array.isArray(j.cibles)
+      || (j.demande.type === 'fusion' && (!Array.isArray(j.demande.sources)
+        || j.demande.sources.length !== 2 || !j.demande.sources.every(chaine)
+        || new Set(j.demande.sources).size !== 2 || !chaine(j.demande.cible)))
+      || (j.demande.type !== 'fusion' && !chaine(j.demande.source)) || !Array.isArray(j.cibles)
       || j.cibles.some((c) => !c || !chaine(c.token) || !chaine(c.id))
       || new Set(j.cibles.map((c) => c.token)).size !== j.cibles.length
       || new Set(j.cibles.map((c) => c.id)).size !== j.cibles.length

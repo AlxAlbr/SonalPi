@@ -151,7 +151,7 @@ async function migrer() {
             <ul class="ligne-theme">
               <li v-for="(t, i) in apercu.themes" :key="i">
                 <span class="pastille" :style="t.couleur ? { background: t.couleur } : {}"></span>
-                {{ t.nom }}<span v-if="t.taille" class="petit"> · {{ t.taille }}px</span>
+                <span :title="t.description || undefined">{{ t.nom }}<template v-if="t.description"> ⓘ</template></span><span v-if="t.taille" class="petit"> · {{ t.taille }}px</span>
               </li>
             </ul>
           </div>

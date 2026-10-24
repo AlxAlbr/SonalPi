@@ -17,8 +17,7 @@ afterEach(() => {
 const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: true, source: 's', cible: { type: 'existante', id: 'c' } }
 function division(effacerSource = false): DemandeOperationTheme {
   return {
-    type: 'division', source: 's', cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: effacerSource ? null : 's' })),
-    choix: [], effacerSource,
+    type: 'division', source: 's', cibles: ['c1', 'c2'], choix: [], effacerSource,
   }
 }
 function corpus(): CorpusFichier {
@@ -34,7 +33,7 @@ function banc() {
       const d = structuredClone(demande)
       const choisis = d.type === 'division' ? d.choix.length : 2
       return {
-        operationId: `op-${++n}`, source: d.source,
+        operationId: `op-${++n}`, sources: d.type === 'fusion' ? d.sources : [d.source],
         parEntretien: ['e1', 'e2'].map((id) => ({ id, titre: id, passages: 1, orphelins: id === 'e2' ? 1 : 0,
           aModifier: d.type !== 'division' || d.choix.some((c) => c.codage.entretienId === id) })),
         totaux: { entretiens: 2, passages: 2, orphelins: 1, doublonsPrevisibles: 0 },
@@ -62,7 +61,7 @@ function banc() {
 function suiviDistant(demande = transfert, indeterminee = false): SuiviOperationTheme {
   return { operationId: 'lot-1', demande: structuredClone(demande), indeterminee,
     bilan: { reussis: [{ id: 'e1', reaffectes: 1, doublonsSupprimes: 0 }], echecs: [{ id: 'e2', motif: 'tenu' }],
-      ciblesCreees: [{ token: 'A', id: 'N1' }, { token: 'B', id: 'N2' }], sourceConservee: true, finalisation: 'non-demandee' } }
+      ciblesCreees: [], sourceConservee: true, finalisation: 'non-demandee' } }
 }
 function avecDistant(b: ReturnType<typeof banc>) {
   let suivi: SuiviOperationTheme | null = null
@@ -89,8 +88,8 @@ describe('atelier des thèmes du renderer', () => {
     expect(b.ops.etape.value).toBe('repartition')
     await b.ops.chargerDetails('e1')
     await b.ops.chargerDetails('e2')
-    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'A')
-    b.ops.attribuer({ entretienId: 'e2', annotationId: 'a' }, 'B')
+    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'c1')
+    b.ops.attribuer({ entretienId: 'e2', annotationId: 'a' }, 'c2')
     expect(b.ops.choixParCodage.value.size).toBe(2)
     expect(b.ops.nonRepartis.value).toBe(0)
     expect(b.api.executerOperationTheme).not.toHaveBeenCalled()
@@ -100,15 +99,15 @@ describe('atelier des thèmes du renderer', () => {
   test('ne répartit que les détails chargés et des destinations connues, sans doublon de choix', async () => {
     const b = banc()
     await b.ops.commencer(division())
-    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'A')
+    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'c1')
     expect(b.ops.nonRepartis.value).toBe(2)
     await b.ops.chargerDetails('e1')
     b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'inconnue')
     expect(b.ops.nonRepartis.value).toBe(2)
-    b.ops.toutAttribuer('e1', 'A')
-    b.ops.toutAttribuer('e1', 'B')
+    b.ops.toutAttribuer('e1', 'c1')
+    b.ops.toutAttribuer('e1', 'c2')
     expect(b.ops.nonRepartis.value).toBe(1)
-    expect(b.ops.demande.value?.type === 'division' && b.ops.demande.value.choix).toEqual([{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'B' }])
+    expect(b.ops.demande.value?.type === 'division' && b.ops.demande.value.choix).toEqual([{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'c2' }])
     b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, null)
     expect(b.ops.nonRepartis.value).toBe(2)
   })
@@ -117,15 +116,15 @@ describe('atelier des thèmes du renderer', () => {
     const b = banc()
     await b.ops.commencer(division(true))
     await b.ops.chargerDetails('e1')
-    b.ops.toutAttribuer('e1', 'A')
+    b.ops.toutAttribuer('e1', 'c1')
     await b.ops.confirmerRepartition()
     expect(b.api.analyserOperationTheme).toHaveBeenCalledTimes(1)
     expect(b.ops.peutExecuter.value).toBe(false)
     await b.ops.chargerDetails('e2')
-    b.ops.toutAttribuer('e2', 'B')
+    b.ops.toutAttribuer('e2', 'c2')
     await b.ops.confirmerRepartition()
     expect(b.api.analyserOperationTheme).toHaveBeenCalledTimes(2)
-    expect(b.api.analyserOperationTheme).toHaveBeenLastCalledWith(expect.objectContaining({ choix: expect.arrayContaining([{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'B' }]) }), 'op-1')
+    expect(b.api.analyserOperationTheme).toHaveBeenLastCalledWith(expect.objectContaining({ choix: expect.arrayContaining([{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'c2' }]) }), 'op-1')
     expect(b.ops.apercu.value?.parEntretien.every((e) => e.aModifier)).toBe(true)
     expect(b.ops.etape.value).toBe('apercu')
     expect(b.ops.peutExecuter.value).toBe(true)
@@ -135,21 +134,21 @@ describe('atelier des thèmes du renderer', () => {
     const b = banc()
     await b.ops.commencer(division())
     await b.ops.chargerDetails('e1')
-    b.ops.toutAttribuer('e1', 'A')
+    b.ops.toutAttribuer('e1', 'c1')
     b.ops.invalider()
     expect(b.ops.perime.value).toBe(true)
-    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'B')
-    expect(b.ops.choixParCodage.value.get('["e1","a"]')).toBe('A')
+    b.ops.attribuer({ entretienId: 'e1', annotationId: 'a' }, 'c2')
+    expect(b.ops.choixParCodage.value.get('["e1","a"]')).toBe('c1')
     await b.ops.analyser()
     expect(b.ops.perime.value).toBe(false)
-    expect(b.ops.choixParCodage.value.get('["e1","a"]')).toBe('A')
+    expect(b.ops.choixParCodage.value.get('["e1","a"]')).toBe('c1')
   })
 
   test('une obsolescence ne rejoue pas les choix sur une nouvelle analyse', async () => {
     const b = banc()
     await b.ops.commencer(division())
     await b.ops.chargerDetails('e1')
-    b.ops.toutAttribuer('e1', 'A')
+    b.ops.toutAttribuer('e1', 'c1')
     vi.mocked(b.api.analyserOperationTheme).mockRejectedValueOnce(new Error('Les fichiers ont changé'))
     await b.ops.confirmerRepartition()
     expect(b.ops.perime.value).toBe(true)
@@ -264,7 +263,7 @@ describe('atelier des thèmes du renderer', () => {
     vi.mocked(b.api.analyserOperationTheme).mockImplementationOnce(() => new Promise((resolve) => { terminer = resolve }))
     const ancien = b.ops.commencer(transfert)
     b.ops.reinitialiser()
-    terminer({ operationId: 'ancien', source: 's' } as ApercuOperationTheme)
+    terminer({ operationId: 'ancien', sources: ['s'] } as ApercuOperationTheme)
     await ancien
     expect(b.ops.apercu.value).toBeNull()
     await b.ops.commencer(transfert)
@@ -292,7 +291,7 @@ describe('atelier des thèmes du renderer', () => {
     vi.mocked(b.api.analyserOperationTheme).mockImplementationOnce(() => new Promise((resolve) => { terminer = resolve }))
     const attente = b.ops.commencer(transfert)
     b.ops.invalider()
-    terminer({ operationId: 'ancien', source: 's' } as ApercuOperationTheme)
+    terminer({ operationId: 'ancien', sources: ['s'] } as ApercuOperationTheme)
     await attente
     expect(b.ops.apercu.value).toBeNull()
     expect(b.ops.perime.value).toBe(true)
@@ -316,20 +315,20 @@ describe('atelier des thèmes du renderer', () => {
     expect(b.api.executerOperationTheme).toHaveBeenCalledOnce()
   })
 
-  test('division après redémarrage : nouvelles observations, mêmes tokens, aucun choix inventé', async () => {
+  test('division après redémarrage : destinations conservées et aucun choix inventé', async () => {
     const b = banc()
     const distant = avecDistant(b)
     const d = division() as Extract<DemandeOperationTheme, { type: 'division' }>
-    d.choix = [{ codage: { entretienId: 'ancien', annotationId: 'a' }, destination: 'A' }]
+    d.choix = [{ codage: { entretienId: 'ancien', annotationId: 'a' }, destination: 'c1' }]
     distant.enregistrer(suiviDistant(d))
     await b.ops.chargerSuivi()
     expect(await b.ops.preparerReprise()).toBe(true)
     expect(b.ops.etape.value).toBe('repartition')
     expect(b.ops.choixParCodage.value.size).toBe(0)
-    expect(b.ops.suivi.value?.bilan.ciblesCreees).toEqual([{ token: 'A', id: 'N1' }, { token: 'B', id: 'N2' }])
+    expect(b.ops.suivi.value?.bilan.ciblesCreees).toEqual([])
     expect(b.ops.peutExecuter.value).toBe(false)
     await b.ops.chargerDetails('e2')
-    b.ops.toutAttribuer('e2', 'B')
+    b.ops.toutAttribuer('e2', 'c2')
     await b.ops.confirmerRepartition()
     expect(b.ops.peutExecuter.value).toBe(true)
     expect(b.api.executerOperationTheme).not.toHaveBeenCalled()

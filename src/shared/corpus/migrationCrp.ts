@@ -19,7 +19,7 @@ import type { Categorie, Variable, RegleAnon, ParamsAnon } from '../format'
 import type { ImportTraitementsLexicoV1 } from '../lexico/traitements'
 import type { TraitementsLexico } from '../lexico/types'
 import { THEMATIQUES_DEFAUT } from '../format'
-import { parentsDepuisRangs } from './categories'
+import { parentsDepuisRangs, scinderNomDescriptionTheme } from './categories'
 import { importerVariables } from './eav'
 
 // ── Types du format `.crp` V1 (tolérants : la V1 écrit des types variables) ──
@@ -116,6 +116,7 @@ export const VERSIONS_CRP_SUPPORTEES: readonly string[] = ['1.0'] as const
 
 export interface ApercuTheme {
   nom: string
+  description?: string
   couleur: string | null // '' ou absent → null (normalisé en hex plus tard)
   taille: number | null // '' → null (le défaut V2), nombre nu préservé
 }
@@ -233,7 +234,9 @@ export function analyserCrp(contenu: string, nomFichier?: string): AnalyseCrp {
   const dateCreation = typeof crp.dateCreation === 'string' && crp.dateCreation !== '' ? crp.dateCreation : null
 
   const themes: ApercuTheme[] = objets(crp.tabThm).map((t) => ({
-    nom: typeof t.nom === 'string' ? t.nom : String(t.nom ?? ''),
+    ...scinderNomDescriptionTheme(
+      typeof t.nom === 'string' ? t.nom : String(t.nom ?? ''),
+    ),
     couleur: normaliserCouleur(t.couleur),
     taille: normaliserTaille(t.taille),
   }))
@@ -297,7 +300,9 @@ export function mapperCodebook(tabThm: unknown): Categorie[] {
   )
   return themes.map((t, i) => ({
     id: t.code as string,
-    nom: typeof t.nom === 'string' && t.nom !== '' ? t.nom : (t.code as string),
+    ...scinderNomDescriptionTheme(
+      typeof t.nom === 'string' && t.nom !== '' ? t.nom : (t.code as string),
+    ),
     couleur: typeof t.couleur === 'string' && t.couleur !== '' ? (t.couleur as string) : undefined,
     taille: normaliserTaillePonderation(t.taille),
     ordre: i,

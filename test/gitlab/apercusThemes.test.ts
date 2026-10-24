@@ -19,11 +19,11 @@ const AUTRE_SHA = '2'.repeat(40)
 const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: true, source: 'source', cible: { type: 'existante', id: 'cible' } }
 function division(): Extract<DemandeOperationTheme, { type: 'division' }> {
   return { type: 'division', source: 'source', effacerSource: false, choix: [],
-    cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 'source' })) }
+    cibles: ['destination-a', 'destination-b'] }
 }
 function corpus(ids = ['e1', 'e2']): string {
   const c = JSON.parse(corpusDistantValide(ids)) as CorpusFichier
-  c.codebook = Object.fromEntries(['source', 'cible'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
+  c.codebook = Object.fromEntries(['source', 'cible', 'destination-a', 'destination-b'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
   return JSON.stringify(c)
 }
 function entretien(): string {
@@ -109,7 +109,7 @@ describe('aperçus des opérations de thèmes GitLab', () => {
     const b = banc()
     b.bail('e2')
     const d = division()
-    d.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }]
+    d.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'destination-a' }]
     const a = await b.service.analyser(d)
     expect(b.observer.mock.calls[0][0]).toEqual(['e1'])
     expect(a.disponibiliteGitLab?.entretiens).toEqual([{ id: 'e1', etat: 'libre-observe' }])
@@ -162,14 +162,14 @@ describe('aperçus des opérations de thèmes GitLab', () => {
     const a = await b.service.analyser(transfert)
     expect(a.faisable).toBe(true)
     expect(a.obstacles).toEqual([expect.objectContaining({ entretienId: 'e2' })])
-    const f = await b.service.analyser({ type: 'fusion', source: 'source', cible: 'cible' })
+    const f = await b.service.analyser({ type: 'fusion', sources: ['source', 'cible'], cible: 'cible' })
     expect(f.faisable).toBe(false)
     expect(f.obstacles.some((o) => o.phase === 'finalisation')).toBe(true)
   })
 
   test('249 membres : suppression infaisable, aucun plafond de lot pour le transfert', async () => {
     const b = banc({ membres: Array.from({ length: 249 }, (_, i) => `e${i}`) })
-    const f = await b.service.analyser({ type: 'fusion', source: 'source', cible: 'cible' })
+    const f = await b.service.analyser({ type: 'fusion', sources: ['source', 'cible'], cible: 'cible' })
     expect(f.faisable).toBe(false)
     expect(f.motif).toContain('248')
     expect((await b.service.analyser(transfert)).faisable).toBe(true)
@@ -203,7 +203,7 @@ describe('aperçus des opérations de thèmes GitLab', () => {
     const d = division()
     const ancien = await b.service.analyser(d)
     b.nouvelleTete({ ...b.fichiers, 'donnees/entretiens/e1.json': entretien().replace('Passage', 'Nouveau passage') })
-    d.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }]
+    d.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'destination-a' }]
     await expect(b.service.analyser(d, ancien.operationId)).rejects.toThrow(/a changé/)
   })
 

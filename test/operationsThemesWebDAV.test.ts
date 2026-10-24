@@ -17,12 +17,12 @@ const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: t
 const options = { entretiens: 'tous-prevus' as const }
 function division(): Extract<DemandeOperationTheme, { type: 'division' }> {
   return { type: 'division', source: 'source', effacerSource: false, choix: ['e1', 'e2', 'e3'].map((entretienId) => ({
-    codage: { entretienId, annotationId: 'a' }, destination: 'A',
-  })), cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 'source' })) }
+    codage: { entretienId, annotationId: 'a' }, destination: 'destination-a',
+  })), cibles: ['destination-a', 'destination-b'] }
 }
 function corpus(): CorpusFichier {
   const c = JSON.parse(corpusDistantValide(['e1', 'e2', 'e3'])) as CorpusFichier
-  c.codebook = Object.fromEntries(['source', 'cible'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
+  c.codebook = Object.fromEntries(['source', 'cible', 'destination-a', 'destination-b'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
   return c
 }
 function entretien(): EntretienFichier {
@@ -106,7 +106,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     expect(b.serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
   })
 
-  test('division partielle puis reprise après redémarrage : mêmes destinations, choix redemandés', async () => {
+  test('division partielle puis reprise après redémarrage : destinations conservées, choix redemandés', async () => {
     const b = await banc()
     let refuser = true
     b.intercepter(async (req) => refuser && req.method === 'PUT' && cible(req, 'e2') ? new Response('refus', { status: 423 }) : undefined)
@@ -114,22 +114,21 @@ describe('publication des opérations de thèmes WebDAV', () => {
     const a = await b.tx.analyserOperationTheme(d)
     const r = await b.tx.executerOperationTheme(a.operationId, d, options)
     expect(r.statut).toBe('partielle')
-    const ids = b.journal().cibles
-    expect(ids).toHaveLength(2)
+    expect(b.journal().cibles).toEqual([])
     expect(Object.values(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook)).toHaveLength(4)
     const tx = b.creerTransactions()
     refuser = false
     const reprise = await tx.preparerRepriseOperationTheme(a.operationId)
     expect(reprise.demande).toMatchObject({ type: 'division', choix: [] })
     const nouvelleDemande = reprise.demande as Extract<DemandeOperationTheme, { type: 'division' }>
-    nouvelleDemande.choix = [{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'B' }]
+    nouvelleDemande.choix = [{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'destination-b' }]
     const final = await tx.analyserOperationTheme(nouvelleDemande, reprise.apercu.operationId)
     const fini = await tx.executerOperationTheme(final.operationId, nouvelleDemande, options)
     expect(fini).toMatchObject({ statut: 'appliquee', entretiens: 3, reaffectes: 3 })
-    expect(b.journal().cibles).toEqual(ids)
-    expect(b.lire('e2').annotations.find((a) => a.id === 'a')?.code).toBe(ids[1].id)
+    expect(b.journal().cibles).toEqual([])
+    expect(b.lire('e2').annotations.find((a) => a.id === 'a')?.code).toBe('destination-b')
     expect(b.lire('e2').annotations.find((a) => a.id === 'orphelin')?.code).toBe('source')
-    expect(b.puts().filter((req) => new URL(req.url).pathname.endsWith('/corpus.json'))).toHaveLength(1)
+    expect(b.puts().filter((req) => new URL(req.url).pathname.endsWith('/corpus.json'))).toHaveLength(0)
   })
 
   test('entretien changé après l’aperçu : aucun écrasement, échec nommé et poursuite du lot', async () => {
@@ -220,33 +219,37 @@ describe('publication des opérations de thèmes WebDAV', () => {
     } finally { writeFileSync(chemin, original) }
   })
 
-  test('création de destinations inconnue : aucune réaffectation avant confirmation', async () => {
+  test('création d’une destination inconnue : aucune réaffectation avant confirmation', async () => {
     const b = await banc()
+    const creation: DemandeOperationTheme = { type: 'transfert', source: 'source', conserverSource: true,
+      cible: { type: 'nouvelle', token: 'nouvelle', nom: 'Nouvelle', parent: null } }
     b.intercepter(async (req) => {
       if (req.method === 'PUT' && new URL(req.url).pathname.endsWith('/corpus.json')) throw new Error('réponse des définitions perdue')
       return undefined
     })
-    const d = division()
-    const a = await b.tx.analyserOperationTheme(d)
-    expect(await b.tx.executerOperationTheme(a.operationId, d, options)).toMatchObject({ statut: 'indeterminee', bilan: { ciblesCreees: [] } })
+    const a = await b.tx.analyserOperationTheme(creation)
+    expect(await b.tx.executerOperationTheme(a.operationId, creation, options)).toMatchObject({ statut: 'indeterminee', bilan: { ciblesCreees: [] } })
     expect(b.puts()).toHaveLength(1)
     for (const id of ['e1', 'e2', 'e3']) expect(b.lire(id)).toEqual(entretien())
     const j = b.journal()
     b.serveur.poser('corpus.json', j.publication.contenu)
     b.intercepter(async () => undefined)
     expect(await b.tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'partielle', bilan: { ciblesCreees: j.cibles } })
-    expect((await b.tx.preparerRepriseOperationTheme(a.operationId)).demande).toMatchObject({ choix: [] })
+    expect((await b.tx.preparerRepriseOperationTheme(a.operationId)).demande).toMatchObject({
+      type: 'transfert', cible: { token: 'nouvelle' },
+    })
     expect(b.puts()).toHaveLength(1)
   })
 
-  test('les définitions restent créées si tous les entretiens refusent la publication', async () => {
+  test('la destination reste créée si tous les entretiens refusent la publication', async () => {
     const b = await banc()
+    const creation: DemandeOperationTheme = { type: 'transfert', source: 'source', conserverSource: true,
+      cible: { type: 'nouvelle', token: 'nouvelle', nom: 'Nouvelle', parent: null } }
     b.intercepter(async (req) => req.method === 'PUT' && /\/entretiens\/e/.test(new URL(req.url).pathname)
       ? new Response('refus', { status: 403 }) : undefined)
-    const d = division()
-    const a = await b.tx.analyserOperationTheme(d)
-    expect(await b.tx.executerOperationTheme(a.operationId, d, options)).toMatchObject({ statut: 'partielle', bilan: { reussis: [], echecs: [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }], ciblesCreees: [{ token: 'A' }, { token: 'B' }] } })
-    expect(Object.keys(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook)).toHaveLength(4)
+    const a = await b.tx.analyserOperationTheme(creation)
+    expect(await b.tx.executerOperationTheme(a.operationId, creation, options)).toMatchObject({ statut: 'partielle', bilan: { reussis: [], echecs: [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }], ciblesCreees: [{ token: 'nouvelle' }] } })
+    expect(Object.keys(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook)).toHaveLength(5)
   })
 
   test('un miroir non actualisable après un commit garde l’intention et ne relance pas le PUT', async () => {

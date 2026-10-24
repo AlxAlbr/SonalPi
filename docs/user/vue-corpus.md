@@ -36,11 +36,13 @@ Dans un corpus distant, le bouton global **Actualiser** renouvelle aussi l’out
   nouvelle. **Conserver la thématique source** est cochée par défaut ; décochez
   cette case pour retirer la source et promouvoir ses sous-thèmes vers son
   ancien parent.
-- **Fusionner…** réunit les codages dans une cible existante, retire la source
-  et déplace ses sous-thèmes directs vers la cible. Une cible descendante de la
-  source n’est pas proposée.
-- **Diviser…** prépare deux à quatre nouvelles thématiques, avec noms et
-  couleurs, puis propose une répartition manuelle des codages.
+- **Fusionner…** réunit deux thématiques dans une thématique résultante déjà
+  existante. Le résultat peut être l’une des deux thématiques ou une troisième.
+  Les thématiques non retenues comme résultat sont retirées et leurs sous-thèmes
+  directs sont déplacés vers le résultat. Une destination qui créerait un cycle
+  dans la hiérarchie n’est pas proposée.
+- **Diviser…** répartit les codages vers deux à quatre thématiques déjà
+  présentes dans le codebook. Créez-les auparavant avec le crayon si nécessaire.
 
 Avant toute écriture, l’aperçu annonce passages, entretiens, orphelins, doublons
 prévisibles et éventuels fichiers indisponibles. Une fusion indique aussi les
@@ -54,8 +56,8 @@ sélectionnée, les touches **1 à 4** choisissent la destination correspondante
 Les codages sans texte, notamment les orphelins, apparaissent séparément.
 Sans destination, un codage reste sur la source. **Supprimer la source après
 répartition complète** exige une destination pour tous les codages, orphelins
-compris. Les nouvelles catégories sont placées sous la source conservée, ou
-sous son ancien parent si elle est supprimée.
+compris. Les destinations conservent leur position actuelle dans le codebook. Si la
+source est supprimée, ses sous-thèmes sont replacés sous son ancien parent.
 
 **Consulter l’entretien** conserve l’atelier mais invalide son aperçu. Au
 retour, recalculez avec les choix existants ; ils ne sont réutilisés que si les
@@ -77,14 +79,14 @@ ou récupérables avant leur réaffectation.
 
 Les entretiens sont traités un par un, sans atomicité globale. Le bilan distingue
 les succès acquis et les entretiens à reprendre. **Recalculer et reprendre** relit
-l’état actuel, conserve les catégories déjà créées et redemande les choix de division.
+l’état actuel, conserve les destinations choisies et redemande les choix de division.
 Seuls les codages encore sur la source sont proposés. Le suivi survit à la fermeture
 du bilan et au redémarrage.
 
 Si une réponse est inconnue, **Vérifier la publication** vérifie le serveur sans
 rejouer l’envoi. Une publication non confirmée reste bloquante. Une fois les issues
 certaines, reprenez explicitement ou choisissez **Clôturer le suivi sans reprendre** :
-les réaffectations réussies et les catégories créées restent en place, sans annulation.
+les réaffectations réussies et l’éventuelle cible créée par un transfert restent en place, sans annulation.
 
 Sur **GitLab connecté**, les trois opérations sont disponibles. L’aperçu indique
 les entretiens observés libres, tenus sur un autre poste, ouverts localement ou
@@ -93,11 +95,11 @@ vérifié de nouveau avant l’écriture. Vous pouvez tenter tous les entretiens
 ou traiter seulement ceux observés libres ; les autres restent dans le suivi.
 
 Un transfert sans conservation, une fusion ou une division avec suppression
-conserve la source jusqu’à ce que toutes les réaffectations aient réussi. GitLab relit alors tout le corpus et
-supprime la source dans un commit protégé. Une nouvelle référence ou une
+conserve les thématiques à retirer jusqu’à ce que toutes les réaffectations aient
+réussi. GitLab relit alors tout le corpus et les supprime dans un commit protégé. Une nouvelle référence ou une
 publication concurrente bloque seulement cette finalisation : les succès restent
 acquis et **Recalculer et reprendre** permet de terminer plus tard. Ce parcours
-est limité aux corpus de 248 entretiens pour une suppression de source ; les
+est limité aux corpus de 248 entretiens lorsqu’il retire des thématiques ; les
 opérations qui conservent la source n’ont pas cette limite globale.
 
 Hors ligne ou en lecture seule, les boutons restent désactivés avec leur motif.

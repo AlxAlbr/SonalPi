@@ -20,8 +20,13 @@ const {
 
 const editerThemes = ref(false)
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
+const descriptionsOuvertes = ref<Set<string>>(new Set())
 const repliesThemes = ref<Set<string>>(new Set())
 const arbreVisible = computed(() => visiblesThemes(arbreThemes(), repliesThemes.value))
+const idsDescriptions = computed(() => arbreThemes().filter((n) => n.cat.description).map((n) => n.cat.id))
+const toutesDescriptionsOuvertes = computed(() =>
+  idsDescriptions.value.length > 0 && idsDescriptions.value.every((id) => descriptionsOuvertes.value.has(id)),
+)
 
 function ouvrirMenuTheme(cat: { id: string; nom: string; actif: boolean }, evt: MouseEvent) {
   if (lectureSeule.value) return
@@ -40,12 +45,33 @@ function basculerRepli(id: string) {
   else replies.add(id)
   repliesThemes.value = replies
 }
+
+function basculerDescription(id: string) {
+  const ouvertes = new Set(descriptionsOuvertes.value)
+  if (ouvertes.has(id)) ouvertes.delete(id)
+  else ouvertes.add(id)
+  descriptionsOuvertes.value = ouvertes
+}
+
+function basculerToutesDescriptions() {
+  descriptionsOuvertes.value = toutesDescriptionsOuvertes.value
+    ? new Set()
+    : new Set(idsDescriptions.value)
+}
 </script>
 
 <template>
   <aside class="panneau themes-coder">
     <div class="corpus-tete">
       <h3>Thématiques</h3>
+      <button
+        v-if="idsDescriptions.length"
+        class="toutes-descriptions"
+        :aria-label="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+        :aria-pressed="toutesDescriptionsOuvertes"
+        :title="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+        @click="basculerToutesDescriptions"
+      >ⓘ tout</button>
       <button
         v-if="!lectureSeule"
         class="crayon"
@@ -79,10 +105,20 @@ function basculerRepli(id: string) {
           <span v-else class="depliant depliant-masque"></span>
           <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
           <span class="theme-nom">{{ n.cat.nom }}</span>
-          <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">
-            {{ usages[n.cat.id] ?? 0 }}
-          </span>
         </button>
+        <button
+          v-if="n.cat.description"
+          class="info-theme"
+          :aria-label="descriptionsOuvertes.has(n.cat.id) ? `Masquer la description de ${n.cat.nom}` : `Afficher la description de ${n.cat.nom}`"
+          :aria-expanded="descriptionsOuvertes.has(n.cat.id)"
+          :title="descriptionsOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
+          @click="basculerDescription(n.cat.id)"
+        >ⓘ</button>
+        <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
+        <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">
+          {{ usages[n.cat.id] ?? 0 }}
+        </span>
+        <p v-if="descriptionsOuvertes.has(n.cat.id)" class="description-theme">{{ n.cat.description }}</p>
       </li>
     </ul>
 
@@ -149,10 +185,12 @@ function basculerRepli(id: string) {
   color: #1565c0;
 }
 .usage {
+  width: 1.8rem;
   font-size: 0.68rem;
   color: #888;
   font-family: monospace;
   flex: none;
+  text-align: center;
 }
 .theme-coder:hover {
   border-color: #2e73d8;
@@ -177,10 +215,60 @@ function basculerRepli(id: string) {
 }
 .ligne-coder {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.2rem;
 }
 .ligne-coder .theme-coder {
+  width: auto;
+  min-width: 0;
   flex: 1;
+}
+.toutes-descriptions {
+  border: 1px solid #d3dae5;
+  border-radius: 5px;
+  background: #fff;
+  color: #55708f;
+  cursor: pointer;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.68rem;
+}
+.toutes-descriptions[aria-pressed="true"],
+.toutes-descriptions:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+  background: #f0f6ff;
+}
+.info-theme {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: -0.1rem;
+  flex: none;
+  border: 1px solid #d3dae5;
+  border-radius: 50%;
+  background: #fff;
+  color: #55708f;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.66rem;
+}
+.info-theme:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+  background: #f0f6ff;
+}
+.info-theme-masque {
+  visibility: hidden;
+}
+.description-theme {
+  flex-basis: 100%;
+  margin: 0 0 0.2rem 1.4rem;
+  padding: 0.4rem 0.5rem;
+  border-left: 3px solid #b8c9df;
+  background: #f7f9fc;
+  color: #4f5966;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
 }
 </style>

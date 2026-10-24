@@ -9,6 +9,34 @@ import type { Categorie, CorpusFichier, PatchCategorie } from '../format'
 
 // ── Codebook (thèmes) ───────────────────────────────────────────────────────
 
+/** Lit la convention SonalPi1 `nom//description`. */
+export function scinderNomDescriptionTheme(valeur: string): { nom: string; description?: string } {
+  const position = valeur.indexOf('//')
+  if (position < 0) return { nom: valeur.trim() }
+  const nom = valeur.slice(0, position).trim()
+  const description = valeur.slice(position + 2).trim()
+  return { nom, ...(description ? { description } : {}) }
+}
+
+/** Recompose le libellé attendu par SonalPi1. */
+export function nomThemePourSonal(categorie: Pick<Categorie, 'nom' | 'description'>): string {
+  const ancien = scinderNomDescriptionTheme(categorie.nom)
+  const description = categorie.description?.trim() || ancien.description
+  return description ? `${ancien.nom}//${description}` : ancien.nom
+}
+
+/** Normalise en mémoire les corpus créés avant le champ `description`. */
+export function normaliserDescriptionsThemes(codebook: Record<string, Categorie> | null | undefined): void {
+  if (!codebook) return
+  for (const categorie of Object.values(codebook)) {
+    const ancien = scinderNomDescriptionTheme(categorie.nom)
+    categorie.nom = ancien.nom
+    const description = categorie.description?.trim() || ancien.description
+    if (description) categorie.description = description
+    else delete categorie.description
+  }
+}
+
 /** Prochain code d'EXPORT libre `cat_NNN` ;
  *  simple attribut de lisibilité à l'export (PAS l'identité — c'est un id
  *  opaque injecté), jamais réutilisé (un code retiré n'est pas repris tant que
@@ -37,7 +65,8 @@ export function ajouterCategorie(
   const id = genId()
   const codeExport = prochainCodeCategorie(corpus.codebook)
   const ordre = Object.values(corpus.codebook).reduce((m, c) => Math.max(m, c.ordre), -1) + 1
-  corpus.codebook[id] = { id, nom, ordre, parent, actif: true, codeExport }
+  const libelle = scinderNomDescriptionTheme(nom)
+  corpus.codebook[id] = { id, ...libelle, ordre, parent, actif: true, codeExport }
   return id
 }
 
@@ -45,7 +74,19 @@ export function ajouterCategorie(
  *  Les entretiens référencent par id → aucun n'est touché (le cœur de l'archi
  *  par-référence). */
 export function modifierCategorie(corpus: CorpusFichier, id: string, patch: PatchCategorie): void {
-  if (corpus.codebook[id]) corpus.codebook[id] = { ...corpus.codebook[id], ...patch }
+  if (!corpus.codebook[id]) return
+  const normalise: PatchCategorie = { ...patch }
+  if (typeof patch.nom === 'string') {
+    const libelle = scinderNomDescriptionTheme(patch.nom)
+    normalise.nom = libelle.nom
+    if (libelle.description !== undefined && patch.description === undefined) {
+      normalise.description = libelle.description
+    }
+  }
+  if (typeof normalise.description === 'string') {
+    normalise.description = normalise.description.trim() || undefined
+  }
+  corpus.codebook[id] = { ...corpus.codebook[id], ...normalise }
 }
 
 /** Réordonne DANS LA FRATRIE (mêmes `parent`).

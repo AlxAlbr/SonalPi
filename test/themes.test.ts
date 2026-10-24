@@ -22,7 +22,7 @@ function corpus(): CorpusFichier {
       e2: { titre: 'Deux', date: null, lastModified: 'hier' },
     },
   }
-  for (const [ordre, id] of ['parent', 'source', 'cible', 'enfant', 'petit-enfant'].entries()) {
+  for (const [ordre, id] of ['parent', 'source', 'cible', 'autre', 'enfant', 'petit-enfant'].entries()) {
     c.codebook[id] = {
       id, nom: id, ordre, actif: true, codeExport: `cat_00${ordre + 1}`,
       parent: id === 'source' ? 'parent' : id === 'enfant' ? 'source' : id === 'petit-enfant' ? 'enfant' : null,
@@ -48,6 +48,12 @@ function nouvelle(token: string, parent: string | null = 'source'): NouvelleDest
 
 function division(effacerSource = false): Extract<DemandeOperationTheme, { type: 'division' }> {
   return {
+    type: 'division', source: 'source', cibles: ['cible', 'autre'], choix: [], effacerSource,
+  }
+}
+
+function ancienneDivision(effacerSource = false): Extract<DemandeOperationTheme, { type: 'division' }> {
+  return {
     type: 'division', source: 'source',
     cibles: [nouvelle('A', effacerSource ? 'parent' : 'source'), nouvelle('B', effacerSource ? 'parent' : 'source')],
     choix: [], effacerSource,
@@ -55,7 +61,7 @@ function division(effacerSource = false): Extract<DemandeOperationTheme, { type:
 }
 
 const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: true, source: 'source', cible: { type: 'existante', id: 'cible' } }
-const fusion: DemandeOperationTheme = { type: 'fusion', source: 'source', cible: 'cible' }
+const fusion: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'cible' }
 
 describe('inventaire des codages', () => {
   test('compte les orphelins et ignore les autres types même avec le même code', () => {
@@ -111,22 +117,22 @@ describe('réaffectations pures', () => {
 
   test('division partielle : les codages sans choix restent sur la source', () => {
     const demande = division()
-    demande.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }]
+    demande.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' }]
     const e = entretien([codage('a'), codage('b')])
-    const plan = construirePlanEntretienTheme(e, 'e1', demande, [{ token: 'A', id: 'cat-A' }])
-    expect(appliquerReaffectationsTheme(e, plan).entretien.annotations.map((a) => a.code)).toEqual(['cat-A', 'source'])
+    const plan = construirePlanEntretienTheme(e, 'e1', demande, [])
+    expect(appliquerReaffectationsTheme(e, plan).entretien.annotations.map((a) => a.code)).toEqual(['cible', 'source'])
   })
 
   test('le même annotationId dans deux entretiens a deux destinations indépendantes', () => {
     const demande = division()
     demande.choix = [
-      { codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' },
-      { codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'B' },
+      { codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' },
+      { codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'autre' },
     ]
     verifierDemandeOperationTheme(corpus(), demande)
     verifierRepartitionOperationTheme(demande, demande.choix.map((choix) => choix.codage))
-    const ids = [{ token: 'A', id: 'cat-A' }, { token: 'B', id: 'cat-B' }]
-    for (const [id, cible] of [['e1', 'cat-A'], ['e2', 'cat-B']]) {
+    const ids: Array<{ token: string; id: string }> = []
+    for (const [id, cible] of [['e1', 'cible'], ['e2', 'autre']]) {
       const e = entretien([codage('a')])
       const plan = construirePlanEntretienTheme(e, id, demande, ids)
       expect(appliquerReaffectationsTheme(e, plan).entretien.annotations[0].code).toBe(cible)
@@ -137,13 +143,13 @@ describe('réaffectations pures', () => {
     entretien([]), entretien([codage('a', 'cible')]),
     entretien([{ ...codage('a'), type: 'anon' }]), entretien([codage('a'), codage('a')]),
   ])('refuse une référence absente, non source ou ambiguë', (e) => {
-    expect(() => appliquerReaffectationsTheme(e, { source: 'source', reaffectations: [{ annotationId: 'a', destination: 'cible' }] })).toThrow(/absent, ambigu/)
+    expect(() => appliquerReaffectationsTheme(e, { sources: ['source'], reaffectations: [{ annotationId: 'a', destination: 'cible' }] })).toThrow(/absent, ambigu/)
   })
 
   test('refuse les choix dupliqués et une destination égale à la source', () => {
     const choix = { annotationId: 'a', destination: 'cible' }
-    expect(() => appliquerReaffectationsTheme(entretien([codage('a')]), { source: 'source', reaffectations: [choix, choix] })).toThrow(/plusieurs fois/)
-    expect(() => appliquerReaffectationsTheme(entretien([codage('a')]), { source: 'source', reaffectations: [{ ...choix, destination: 'source' }] })).toThrow(/invalide/)
+    expect(() => appliquerReaffectationsTheme(entretien([codage('a')]), { sources: ['source'], reaffectations: [choix, choix] })).toThrow(/plusieurs fois/)
+    expect(() => appliquerReaffectationsTheme(entretien([codage('a')]), { sources: ['source'], reaffectations: [{ ...choix, destination: 'source' }] })).toThrow(/invalide/)
   })
 
   test('une destination nouvelle doit être résolue avant une mutation', () => {
@@ -156,12 +162,12 @@ describe('définitions et hiérarchie', () => {
   test('création de destinations : ids injectés, couleur, taille et parents finaux, source conservée', () => {
     const c = corpus()
     const avant = structuredClone(c)
-    const demande = division(true)
-    demande.cibles[0] = { ...demande.cibles[0], nom: '  Premier  ', couleur: '#123456', taille: 18 }
+    const demande = ancienneDivision(true)
+    demande.cibles[0] = { ...demande.cibles[0] as NouvelleDestinationTheme, nom: '  Premier  ', couleur: '#123456', taille: 18 }
     let n = 0
     const prepare = preparerDefinitionsOperationTheme(c, demande, () => `cat-${++n}`)
     expect(prepare.ciblesCreees).toEqual([{ token: 'A', id: 'cat-1' }, { token: 'B', id: 'cat-2' }])
-    expect(prepare.corpus.codebook['cat-1']).toMatchObject({ nom: 'Premier', parent: 'parent', couleur: '#123456', taille: 18, codeExport: 'cat_006' })
+    expect(prepare.corpus.codebook['cat-1']).toMatchObject({ nom: 'Premier', parent: 'parent', couleur: '#123456', taille: 18, codeExport: 'cat_007' })
     expect(prepare.corpus.codebook['cat-2'].parent).toBe('parent')
     expect(prepare.corpus.codebook.source).toEqual(c.codebook.source)
     expect(prepare.corpus.codebook.enfant.parent).toBe('source')
@@ -187,7 +193,7 @@ describe('définitions et hiérarchie', () => {
   test('la fusion déplace les enfants directs et préserve la position de la cible', () => {
     const c = corpus()
     const cible = structuredClone(c.codebook.cible)
-    expect(deplacerEnfantsApresFusion(c, 'source', 'cible')).toBe(1)
+    expect(deplacerEnfantsApresFusion(c, ['source', 'cible'], 'cible')).toBe(1)
     expect(c.codebook.enfant.parent).toBe('cible')
     expect(c.codebook['petit-enfant'].parent).toBe('enfant')
     expect(c.codebook.cible).toEqual(cible)
@@ -197,26 +203,45 @@ describe('définitions et hiérarchie', () => {
     expect(final.codebook.enfant.parent).toBe('cible')
   })
 
-  test('la division destructive promeut les anciens enfants, les nouvelles catégories ont déjà un parent valide', () => {
-    const demande = division(true)
-    let n = 0
-    const prepare = preparerDefinitionsOperationTheme(corpus(), demande, () => `cat-${++n}`)
-    const final = finaliserDefinitionsOperationTheme(prepare.corpus, demande, [])
+  test('une fusion vers une troisième thématique retire les deux sources', () => {
+    const demande: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'autre' }
+    const e = entretien([codage('a'), codage('b', 'cible'), codage('existant', 'autre', 1, 5)])
+    const mutation = appliquerReaffectationsTheme(e, construirePlanEntretienTheme(e, 'e1', demande, []))
+    expect(mutation).toMatchObject({ reaffectes: 0, doublonsSupprimes: 2 })
+    const final = finaliserDefinitionsOperationTheme(corpus(), demande, [])
     expect(final.codebook.source).toBeUndefined()
-    for (const id of ['cat-1', 'cat-2', 'enfant']) expect(final.codebook[id].parent).toBe('parent')
+    expect(final.codebook.cible).toBeUndefined()
+    expect(final.codebook.autre).toBeDefined()
+    expect(final.codebook.enfant.parent).toBe('autre')
+  })
+
+  test('la division destructive ne déplace pas les destinations existantes', () => {
+    const demande = division(true)
+    const genId = vi.fn(() => 'inutilise')
+    const prepare = preparerDefinitionsOperationTheme(corpus(), demande, genId)
+    const final = finaliserDefinitionsOperationTheme(prepare.corpus, demande, [])
+    expect(genId).not.toHaveBeenCalled()
+    expect(prepare.ciblesCreees).toEqual([])
+    expect(final.codebook.source).toBeUndefined()
+    expect(final.codebook.enfant.parent).toBe('parent')
+    expect(final.codebook.cible.parent).toBeNull()
+    expect(final.codebook.autre.parent).toBeNull()
     expect(prepare.corpus.codebook.source).toBeDefined()
   })
 
   test.each([fusion, division(true)])('le retrait est refusé s’il reste un codage ($type)', (demande) => {
-    expect(() => finaliserDefinitionsOperationTheme(corpus(), demande, [{ entretienId: 'e1', annotationId: 'orphelin' }])).toThrow(/encore la source/)
+    expect(() => finaliserDefinitionsOperationTheme(corpus(), demande, [{ entretienId: 'e1', annotationId: 'orphelin' }])).toThrow(/encore une thématique/)
   })
 
   test('refuse un id généré en collision sans écraser le corpus', () => {
     const c = corpus()
     const avant = structuredClone(c)
-    expect(() => preparerDefinitionsOperationTheme(c, division(), () => 'source')).toThrow(/déjà utilisé/)
+    const demande: DemandeOperationTheme = {
+      type: 'transfert', conserverSource: true, source: 'source', cible: nouvelle('A'),
+    }
+    expect(() => preparerDefinitionsOperationTheme(c, demande, () => 'source')).toThrow(/déjà utilisé/)
     expect(c).toEqual(avant)
-    expect(() => preparerDefinitionsOperationTheme(c, division(), () => 'nouveau')).toThrow(/déjà utilisé/)
+    expect(() => preparerDefinitionsOperationTheme(c, demande, () => 'autre')).toThrow(/déjà utilisé/)
   })
 })
 
@@ -224,12 +249,12 @@ describe('validation des demandes', () => {
   test.each([
     { ...transfert, source: 'inconnue' },
     { ...fusion, cible: 'inconnue' },
-    { ...fusion, cible: 'source' },
+    { ...fusion, sources: ['source', 'source'] },
+    { ...fusion, sources: ['toString', 'cible'] },
     { ...transfert, cible: { type: 'existante', id: 'source' } },
     { ...transfert, cible: { type: 'existante', id: 'inconnue' } },
     { ...fusion, cible: 'enfant' },
     { ...fusion, cible: 'petit-enfant' },
-    { ...fusion, source: 'toString' },
   ] as DemandeOperationTheme[])('refuse une source ou cible invalide (%j)', (demande) => {
     expect(() => verifierDemandeOperationTheme(corpus(), demande)).toThrow()
   })
@@ -245,7 +270,7 @@ describe('validation des demandes', () => {
 
   test.each([1, 5])('refuse une division avec %i destinations', (nombre) => {
     const demande = division()
-    demande.cibles = Array.from({ length: nombre }, (_, i) => nouvelle(String(i)))
+    demande.cibles = Array.from({ length: nombre }, (_, i) => `destination-${i}`)
     expect(() => verifierDemandeOperationTheme(corpus(), demande)).toThrow(/deux à quatre/)
   })
 
@@ -256,11 +281,19 @@ describe('validation des demandes', () => {
     [{ ...nouvelle('A'), taille: NaN }, nouvelle('B')],
     [{ ...nouvelle('A'), taille: 0 }, nouvelle('B')],
   ])('refuse des définitions de destination invalides (%j)', (cibles) => {
-    expect(() => verifierDemandeOperationTheme(corpus(), { ...division(), cibles })).toThrow()
+    expect(() => verifierDemandeOperationTheme(corpus(), { ...ancienneDivision(), cibles })).toThrow()
   })
 
   test.each(['source', 'enfant', 'petit-enfant'])('refuse un nouveau parent dépendant de la source supprimée : %s', (parent) => {
-    expect(() => verifierDemandeOperationTheme(corpus(), { ...division(true), cibles: [nouvelle('A', parent), nouvelle('B', 'parent')] })).toThrow(/sous-arbre/)
+    expect(() => verifierDemandeOperationTheme(corpus(), { ...ancienneDivision(true), cibles: [nouvelle('A', parent), nouvelle('B', 'parent')] })).toThrow(/sous-arbre/)
+  })
+
+  test.each([
+    ['cible', 'cible'], ['source', 'cible'], ['inconnue', 'cible'],
+  ])('refuse des destinations existantes invalides (%s, %s)', (premiere, seconde) => {
+    expect(() => verifierDemandeOperationTheme(corpus(), {
+      ...division(), cibles: [premiere, seconde],
+    })).toThrow()
   })
 
   test('refuse un cycle dans les parents sans boucle infinie', () => {
@@ -270,7 +303,7 @@ describe('validation des demandes', () => {
   })
 
   test('refuse un codage choisi deux fois, une destination inconnue et un entretien hors membership', () => {
-    const choix = { codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }
+    const choix = { codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' }
     expect(() => verifierDemandeOperationTheme(corpus(), { ...division(), choix: [choix, choix] })).toThrow(/plusieurs fois/)
     expect(() => verifierDemandeOperationTheme(corpus(), { ...division(), choix: [{ ...choix, destination: 'inconnue' }] })).toThrow(/inconnue/)
     expect(() => verifierDemandeOperationTheme(corpus(), { ...division(), choix: [{ ...choix, codage: { entretienId: 'autre', annotationId: 'a' } }] })).toThrow(/absent/)
@@ -278,10 +311,10 @@ describe('validation des demandes', () => {
 
   test('suppression impossible si un codage, y compris orphelin, est non réparti', () => {
     const demande = division(true)
-    demande.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }]
+    demande.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' }]
     const inventaire = [{ entretienId: 'e1', annotationId: 'a' }, { entretienId: 'e1', annotationId: 'orphelin' }]
     expect(() => verifierRepartitionOperationTheme(demande, inventaire)).toThrow(/non répartis/)
-    demande.choix.push({ codage: inventaire[1], destination: 'B' })
+    demande.choix.push({ codage: inventaire[1], destination: 'autre' })
     expect(() => verifierRepartitionOperationTheme(demande, inventaire)).not.toThrow()
     expect(() => verifierRepartitionOperationTheme(demande, inventaire.slice(0, 1))).toThrow(/absent/)
     expect(() => verifierRepartitionOperationTheme(demande, [...inventaire, inventaire[0]])).toThrow(/ambiguë/)

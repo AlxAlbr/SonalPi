@@ -15,7 +15,7 @@ definirPrefixeBanc('themes-lecture')
 describe.skipIf(!configurationPresente)('aperçus de thèmes GitLab réels à deux comptes', () => {
   test('SHA frais, tiers observé seulement sur le périmètre, aucune publication ni lecture de repli', { timeout: 90_000 }, async () => {
     const corpus = JSON.parse(corpusDistantValide(['e1', 'e2'])) as CorpusFichier
-    corpus.codebook = Object.fromEntries(['source', 'cible'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
+    corpus.codebook = Object.fromEntries(['source', 'cible', 'destination-b'].map((id, ordre) => [id, { id, nom: id, parent: null, ordre, actif: true, codeExport: id }]))
     const racine = await creerRacine('apercu', { corpus })
     const depot = nouveauDepot(configuration.token1!)
     await depot.publierCommit('main', 'qualification des aperçus : entretiens', ['e1', 'e2'].map((id) => ({
@@ -50,8 +50,8 @@ describe.skipIf(!configurationPresente)('aperçus de thèmes GitLab réels à de
       expect(contexte.detailsOperationTheme(a.operationId, 'e1').codages[0].extrait).toBeTruthy()
       expect(readFileSync(cheminLocal, 'utf8')).toBe('miroir non publié')
       const d: DemandeOperationTheme = { type: 'division', source: 'source', effacerSource: false,
-        cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 'source' })),
-        choix: [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }],
+        cibles: ['cible', 'destination-b'],
+        choix: [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' }],
       }
       requetes.length = 0
       const division = await contexte.analyserOperationTheme(d)

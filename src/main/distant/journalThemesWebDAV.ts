@@ -54,7 +54,8 @@ export class JournalLocalThemesWebDAV {
       || !j.demande || !['transfert', 'division'].includes(j.demande.type)
       || (j.demande.type === 'transfert' && j.demande.conserverSource !== true)
       || (j.demande.type === 'division' && j.demande.effacerSource !== false)
-      || !chaine(j.demande.source) || !Array.isArray(j.cibles)
+      || ((j.demande.type === 'transfert' || j.demande.type === 'division') && !chaine(j.demande.source))
+      || !Array.isArray(j.cibles)
       || j.cibles.some((c) => !c || !chaine(c.token) || !chaine(c.id))
       || typeof j.definitionsConfirmees !== 'boolean' || typeof j.termine !== 'boolean'
       || (j.abandonne !== undefined && typeof j.abandonne !== 'boolean')

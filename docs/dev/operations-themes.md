@@ -16,12 +16,15 @@ Le cœur pur est dans `src/shared/corpus/themes.ts` :
 - transfert : réaffectation de tous les codages observés, avec conservation de
   la source cochée par défaut ; si elle est décochée, la source est retirée et
   ses enfants sont promus vers son ancien parent ;
-- fusion : réaffectation puis retrait de la source et déplacement de ses enfants
-  directs vers la cible ; une cible descendante est refusée ;
-- division : deux à quatre nouvelles catégories, choix explicite par couple
+- fusion : deux thématiques et une cible existante ; la cible peut être l’une
+  des deux ou une troisième thématique. Les thématiques non retenues sont
+  retirées après réaffectation et leurs enfants directs rejoignent la cible ;
+  une cible descendante d’une thématique retirée est refusée ;
+- division : deux à quatre catégories existantes, choix explicite par couple
   `(entretienId, annotationId)`, codages sans choix conservés sur la source ;
 - suppression après division : tous les codages doivent être répartis, y compris
-  les orphelins ; les nouvelles catégories ont immédiatement leur parent final ;
+  les orphelins ; les destinations gardent leur position et les enfants de la
+  source sont promus vers son ancien parent ;
 - déduplication : seule la plage exacte d'un codage cible est un doublon. Les
   anciens doublons de la cible ne sont pas nettoyés.
 
@@ -111,7 +114,7 @@ ne rendent pas les choix des autres membres obsolètes.
 
 `OperationsThemesWebDAV` consomme la demande confirmée et son manifeste sans
 conserver les transcriptions de l’aperçu. Sous verrou court du corpus, il relit
-les définitions et crée les destinations avant toute réaffectation. Chaque
+les définitions et crée seulement une éventuelle cible nouvelle de transfert avant toute réaffectation. Chaque
 entretien est ensuite traité seul, sous verrou natif ou PUT conditionnel :
 lecture serveur, empreinte comparée à l’aperçu, mutation pure, contrôle des
 références, battement et PUT avec l’ETag de cette lecture. La garantie restante
@@ -138,8 +141,8 @@ données, sans migration ni rejeu automatique. Une erreur d’actualisation du
 miroir ou de confirmation du journal conserve également l’intention.
 
 Le suivi incomplet reste consultable après redémarrage. **Recalculer et reprendre**
-réinventorie le serveur, conserve les identifiants de destinations confirmées,
-ne reprend que les codages encore sur la source et redemande les choix de division.
+réinventorie le serveur, conserve les destinations existantes, ne reprend que
+les codages encore sur la source et redemande les choix de division.
 **Clôturer le suivi sans reprendre** n’annule rien ; cette action est interdite
 pour une publication inconnue. Le dernier journal terminé permet aussi de retrouver
 un résultat dont la réponse IPC a été perdue, tant qu’un nouveau lot ne l’a pas remplacé.
@@ -170,11 +173,12 @@ l’aperçu temporaire, pas seulement ajoutés à la réponse IPC.
 ## Publication et reprise GitLab
 
 `OperationsThemesGitLab` consomme l’aperçu confirmé et crée un journal local
-`.themes-gitlab.json`, lié à la destination, avant le premier commit. Les ids des
-nouvelles catégories y sont fixés une fois. Un redémarrage ou une reprise réutilise
-ces ids ; aucune réponse perdue ne provoque une nouvelle création.
+`.themes-gitlab.json`, lié à la destination, avant le premier commit. L’id d’une
+éventuelle cible nouvelle de transfert y est fixé une fois. Un redémarrage ou une
+reprise réutilise cet id ; aucune réponse perdue ne provoque une nouvelle création.
 
-La préparation prend seulement le bail de `corpus.json`. Chaque réaffectation
+La préparation prend seulement le bail de `corpus.json`. Une division vers des
+catégories existantes ne publie aucune définition. Chaque réaffectation
 prend ensuite le bail court d’un entretien, relit l’entretien et le corpus à un
 même SHA, compare le manifeste et publie trois actions : contenu complet de
 l’entretien, garde `chmod` sans contenu de `corpus.json`, transition du bail.
@@ -187,12 +191,12 @@ de la confirmation. Les autres restent différés, même si leur bail disparaît
 entre-temps. `tous-prevus` vérifie chaque acquisition réelle. Une session locale
 ou récupérable est toujours refusée sans publication implicite.
 
-Une fusion ou une division destructive ne retire jamais la source pendant les
-réaffectations. Quand tous les entretiens sont confirmés, la finalisation prend
+Une fusion ou une division destructive ne retire jamais les thématiques sources
+pendant les réaffectations. Quand tous les entretiens sont confirmés, la finalisation prend
 le bail corpus, relit le membership frais et chacun de ses membres au même SHA,
 puis publie atomiquement le codebook final et une garde légère par entretien.
 Un membre absent, une nouvelle référence ou une garde périmée bloque uniquement
-la finalisation : les succès restent acquis et la source reste présente. La
+la finalisation : les succès restent acquis et les thématiques à retirer restent présentes. La
 borne est de 248 membres, soit `corpus.json`, 248 gardes et la transition du bail.
 
 Le journal de lot complète le journal de publication GitLab. Avant chaque commit,
@@ -203,8 +207,8 @@ données n’est rejoué. Une finalisation inconnue expose une présence de sour
 inconnue jusqu’à cette vérification.
 
 Les tests simulés couvrent les commits courts, le sous-ensemble observé libre,
-les conflits, la création stable des destinations et les réponses perdues après
-création, réaffectation et finalisation. Les qualifications réelles à deux comptes
+les conflits, la création stable d’une cible de transfert et les réponses perdues
+après création, réaffectation et finalisation. Les qualifications réelles à deux comptes
 confirment l’observation ciblée, le différé puis sa reprise, ainsi qu’une référence
 concurrente refusant la finalisation seule avant une reprise réussie.
 
@@ -249,9 +253,9 @@ confirmer uniquement le sous-ensemble observé libre.
 | Cas | Ordre |
 |---|---|
 | transfert vers une catégorie existante | entretiens seuls |
-| création de destinations, source conservée | corpus puis entretiens |
-| fusion vers une catégorie existante | entretiens puis corpus final |
-| création de destinations et suppression de source | corpus intermédiaire, entretiens, corpus final |
+| transfert vers une cible nouvelle, source conservée | corpus puis entretiens |
+| fusion de deux catégories vers une catégorie existante | entretiens puis corpus final |
+| division vers des destinations existantes et suppression de source | entretiens puis corpus final |
 
 Avant tout changement de données, tous les entretiens du plan sont vérifiés.
 Une suppression inclut aussi les entretiens inchangés, avec un candidat identique

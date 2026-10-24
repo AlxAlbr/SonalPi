@@ -18,6 +18,7 @@ import {
 import { corpsNoteEnTexte } from './notesTexte'
 import { pseudoUtilisable } from './pseudonymisation'
 import { bornesSousTitre } from './sousTitres'
+import { scinderNomDescriptionTheme } from '../corpus/categories'
 
 // ----------------------------------------------------------------
 // Projection des segments (JSON), avec pseudonymisation si demandée
@@ -73,16 +74,16 @@ function echapperVtt(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-/** Nom d'affichage d'un code de catégorie (partie avant `//`, convention V1). */
+/** Nom d'affichage d'un code de catégorie. */
 function nomDeCode(codebook: Categorie[], code: string): string | null {
   const cat = codebook.find((c) => c.codeExport === code)
-  return cat ? cat.nom.split('//')[0].trim() || null : null
+  return cat ? scinderNomDescriptionTheme(cat.nom).nom || null : null
 }
 
-/** Nom d'affichage depuis l'index du codebook (variante indexée de nomDeCode). */
+/** Nom d'affichage depuis l'index du codebook. */
 function nomDeCodeDe(parCode: Map<string, Categorie>, code: string): string | null {
   const cat = parCode.get(code)
-  return cat ? cat.nom.split('//')[0].trim() || null : null
+  return cat ? scinderNomDescriptionTheme(cat.nom).nom || null : null
 }
 
 /** Index d'un codebook par code d'export (premier homonyme gagnant, comme le
@@ -532,7 +533,9 @@ export function piecesPageHtml(ctx: ContexteExport, optsIn: OptionsExport): Piec
     if (avecStyle.length > 0) {
       const lignes = avecStyle
         .map((cat) => {
-          const [nom, desc] = cat.nom.split('//')
+          const ancien = scinderNomDescriptionTheme(cat.nom)
+          const nom = ancien.nom
+          const desc = cat.description?.trim() || ancien.description || ''
           const couleur = couleurCss(cat.couleur)
           const taille = tailleCss(cat.taille)
           const swatch = couleur

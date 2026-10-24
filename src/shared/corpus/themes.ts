@@ -14,6 +14,9 @@ export type DestinationTheme =
   | { type: 'existante'; id: string }
   | NouvelleDestinationTheme
 
+/** Les objets ne subsistent que pour reprendre les anciens lots ayant créé leurs destinations. */
+export type DestinationDivisionTheme = string | NouvelleDestinationTheme
+
 export interface ReferenceCodage {
   entretienId: string
   annotationId: string
@@ -21,18 +24,18 @@ export interface ReferenceCodage {
 
 export type DemandeOperationTheme =
   | { type: 'transfert'; source: string; cible: DestinationTheme; conserverSource: boolean }
-  | { type: 'fusion'; source: string; cible: string }
+  | { type: 'fusion'; sources: [string, string]; cible: string }
   | {
       type: 'division'
       source: string
-      cibles: NouvelleDestinationTheme[]
+      cibles: DestinationDivisionTheme[]
       choix: Array<{ codage: ReferenceCodage; destination: string }>
       effacerSource: boolean
     }
 
 export interface ApercuOperationTheme {
   operationId: string
-  source: string
+  sources: string[]
   execution?: 'transaction-locale' | 'entretiens-sequentiels'
   parEntretien: Array<{
     id: string
@@ -143,7 +146,7 @@ export interface InventaireCodagesTheme {
 }
 
 export interface PlanEntretienTheme {
-  source: string
+  sources: string[]
   reaffectations: Array<{ annotationId: string; destination: string }>
 }
 
@@ -160,10 +163,23 @@ export class RefusOperationTheme extends Error {
   }
 }
 
-export function operationThemeSupprimeSource(demande: DemandeOperationTheme): boolean {
-  return demande.type === 'fusion'
-    || (demande.type === 'transfert' && !demande.conserverSource)
-    || (demande.type === 'division' && demande.effacerSource)
+export function sourcesOperationTheme(demande: DemandeOperationTheme): string[] {
+  return demande.type === 'fusion' ? [...demande.sources] : [demande.source]
+}
+
+export function sourcesReaffecteesOperationTheme(demande: DemandeOperationTheme): string[] {
+  return demande.type === 'fusion' ? demande.sources.filter((id) => id !== demande.cible) : [demande.source]
+}
+
+export function sourcesSupprimeesOperationTheme(demande: DemandeOperationTheme): string[] {
+  if (demande.type === 'fusion') return demande.sources.filter((id) => id !== demande.cible)
+  if (demande.type === 'transfert' && !demande.conserverSource) return [demande.source]
+  if (demande.type === 'division' && demande.effacerSource) return [demande.source]
+  return []
+}
+
+export function operationThemeRetireThemes(demande: DemandeOperationTheme): boolean {
+  return sourcesSupprimeesOperationTheme(demande).length > 0
 }
 
 function exiger(condition: unknown, motif: string): asserts condition {
@@ -192,7 +208,7 @@ function verifierAscendance(corpus: CorpusFichier, id: string, interdit?: string
 }
 
 function nouvellesDestinations(demande: DemandeOperationTheme): NouvelleDestinationTheme[] {
-  if (demande.type === 'division') return demande.cibles
+  if (demande.type === 'division') return demande.cibles.filter((cible): cible is NouvelleDestinationTheme => typeof cible !== 'string')
   if (demande.type === 'transfert' && demande.cible.type === 'nouvelle') return [demande.cible]
   return []
 }
@@ -204,12 +220,20 @@ function cleReference(codage: ReferenceCodage): string {
 /** Valide les définitions et les choix ; la couverture se vérifie avec l'inventaire complet. */
 export function verifierDemandeOperationTheme(corpus: CorpusFichier, demande: DemandeOperationTheme): void {
   exiger(demande && ['transfert', 'fusion', 'division'].includes(demande.type), 'Opération de thématique inconnue.')
-  exigerCategorie(corpus, demande.source)
-  verifierAscendance(corpus, demande.source)
   if (demande.type === 'fusion') {
+    exiger(Array.isArray(demande.sources) && demande.sources.length === 2,
+      'Une fusion exige exactement deux thématiques.')
+    exiger(demande.sources.every(identifiant) && new Set(demande.sources).size === 2,
+      'Les deux thématiques à fusionner doivent être différentes.')
+    for (const source of demande.sources) {
+      exigerCategorie(corpus, source)
+      verifierAscendance(corpus, source)
+    }
     exigerCategorie(corpus, demande.cible)
-    exiger(demande.cible !== demande.source, 'La source et la cible doivent être différentes.')
-    verifierAscendance(corpus, demande.cible, demande.source)
+    for (const source of sourcesSupprimeesOperationTheme(demande)) verifierAscendance(corpus, demande.cible, source)
+  } else {
+    exigerCategorie(corpus, demande.source)
+    verifierAscendance(corpus, demande.source)
   }
   if (demande.type === 'transfert' && demande.cible?.type === 'existante') {
     exigerCategorie(corpus, demande.cible.id)
@@ -225,10 +249,20 @@ export function verifierDemandeOperationTheme(corpus: CorpusFichier, demande: De
       'Une division exige deux à quatre destinations.')
     exiger(Array.isArray(demande.choix), 'Les choix de répartition sont invalides.')
     exiger(typeof demande.effacerSource === 'boolean', 'Le choix de suppression de la source est invalide.')
+    const existantes = demande.cibles.filter((cible): cible is string => typeof cible === 'string')
+    exiger(existantes.length === 0 || existantes.length === demande.cibles.length,
+      'Les destinations existantes et anciennes ne peuvent pas être mélangées.')
+    if (existantes.length) {
+      exiger(new Set(existantes).size === existantes.length, 'Une destination de division est sélectionnée plusieurs fois.')
+      for (const cible of existantes) {
+        exigerCategorie(corpus, cible)
+        exiger(cible !== demande.source, 'La source ne peut pas être une destination de la division.')
+      }
+    }
   }
   const tokens = new Set<string>()
   for (const cible of nouvellesDestinations(demande)) {
-    exiger(cible?.type === 'nouvelle', 'Une division exige de nouvelles destinations.')
+    exiger(cible?.type === 'nouvelle', 'Destination nouvelle invalide.')
     exiger(identifiant(cible.token) && !tokens.has(cible.token), 'Token de destination vide ou dupliqué.')
     exiger(identifiant(cible.nom), 'Le nom de la destination est vide.')
     exiger(cible.parent === null || identifiant(cible.parent), 'Parent de destination invalide.')
@@ -242,12 +276,13 @@ export function verifierDemandeOperationTheme(corpus: CorpusFichier, demande: De
     tokens.add(cible.token)
   }
   if (demande.type !== 'division') return
+  const destinations = new Set(demande.cibles.map((cible) => typeof cible === 'string' ? cible : cible.token))
   const references = new Set<string>()
   for (const choix of demande.choix) {
     exiger(choix?.codage && identifiant(choix.codage.entretienId) && identifiant(choix.codage.annotationId),
       'Référence de codage invalide.')
     exiger(Object.hasOwn(corpus.membership, choix.codage.entretienId), 'Entretien absent du corpus.')
-    exiger(tokens.has(choix.destination), 'Destination de répartition inconnue.')
+    exiger(destinations.has(choix.destination), 'Destination de répartition inconnue.')
     const cle = cleReference(choix.codage)
     exiger(!references.has(cle), 'Le même codage est réparti plusieurs fois.')
     references.add(cle)
@@ -262,7 +297,7 @@ export function verifierRepartitionOperationTheme(
   if (demande.type !== 'division') return
   const connus = new Set(inventaire.map(cleReference))
   exiger(connus.size === inventaire.length, 'Identité de codage ambiguë dans l’inventaire.')
-  const destinations = new Set(demande.cibles.map((cible) => cible.token))
+  const destinations = new Set(demande.cibles.map((cible) => typeof cible === 'string' ? cible : cible.token))
   const repartis = new Set<string>()
   for (const choix of demande.choix) {
     const cle = cleReference(choix.codage)
@@ -275,11 +310,16 @@ export function verifierRepartitionOperationTheme(
     'La source ne peut pas être supprimée avec des codages non répartis.')
 }
 
-export function inventorierCodagesTheme(entretien: EntretienFichier, themeId: string): InventaireCodagesTheme {
+export function inventorierCodagesThemes(entretien: EntretienFichier, themeIds: readonly string[]): InventaireCodagesTheme {
+  const themes = new Set(themeIds)
   const codages = entretien.annotations
-    .filter((a) => a.type === 'codage' && a.code === themeId)
+    .filter((a) => a.type === 'codage' && a.code !== undefined && themes.has(a.code))
     .map((a) => ({ annotationId: a.id, from: a.from, to: a.to, orphelin: a.from >= a.to }))
   return { codages, passages: codages.length, orphelins: codages.filter((a) => a.orphelin).length }
+}
+
+export function inventorierCodagesTheme(entretien: EntretienFichier, themeId: string): InventaireCodagesTheme {
+  return inventorierCodagesThemes(entretien, [themeId])
 }
 
 /** Génère les ids une fois, sans retirer la source ni modifier le corpus fourni. */
@@ -316,17 +356,22 @@ export function construirePlanEntretienTheme(
     return id
   }
   if (demande.type === 'division') {
+    const destinationsExistantes = demande.cibles.every((cible) => typeof cible === 'string')
     return {
-      source: demande.source,
+      sources: [demande.source],
       reaffectations: demande.choix.filter((choix) => choix.codage.entretienId === entretienId)
-        .map((choix) => ({ annotationId: choix.codage.annotationId, destination: resoudre(choix.destination) })),
+        .map((choix) => ({
+          annotationId: choix.codage.annotationId,
+          destination: destinationsExistantes ? choix.destination : resoudre(choix.destination),
+        })),
     }
   }
   const destination = demande.type === 'fusion' ? demande.cible
     : demande.cible.type === 'existante' ? demande.cible.id : resoudre(demande.cible.token)
+  const sources = sourcesReaffecteesOperationTheme(demande)
   return {
-    source: demande.source,
-    reaffectations: inventorierCodagesTheme(entretien, demande.source).codages
+    sources,
+    reaffectations: inventorierCodagesThemes(entretien, sources).codages
       .map((codage) => ({ annotationId: codage.annotationId, destination })),
   }
 }
@@ -337,6 +382,8 @@ export function appliquerReaffectationsTheme(
   plan: PlanEntretienTheme,
 ): { entretien: EntretienFichier; reaffectes: number; doublonsSupprimes: number } {
   const destinations = new Map<string, string>()
+  const sources = new Set(plan.sources)
+  exiger(sources.size === plan.sources.length && sources.size > 0, 'Source de codage invalide.')
   const annotationsParId = new Map<string, typeof entretien.annotations>()
   for (const annotation of entretien.annotations) {
     const annotations = annotationsParId.get(annotation.id) ?? []
@@ -345,20 +392,22 @@ export function appliquerReaffectationsTheme(
   }
   for (const choix of plan.reaffectations) {
     exiger(!destinations.has(choix.annotationId), 'Le même codage est réparti plusieurs fois.')
-    exiger(identifiant(choix.destination) && choix.destination !== plan.source, 'Destination de codage invalide.')
+    exiger(identifiant(choix.destination) && !sources.has(choix.destination), 'Destination de codage invalide.')
     const annotations = annotationsParId.get(choix.annotationId) ?? []
-    exiger(annotations.length === 1 && annotations[0].type === 'codage' && annotations[0].code === plan.source,
-      'Le codage à réaffecter est absent, ambigu ou ne référence plus la source.')
+    exiger(annotations.length === 1 && annotations[0].type === 'codage'
+      && annotations[0].code !== undefined && sources.has(annotations[0].code),
+    'Le codage à réaffecter est absent, ambigu ou ne référence plus une source.')
     destinations.set(choix.annotationId, choix.destination)
   }
   const clePlage = (code: string, from: number, to: number): string => JSON.stringify([code, from, to])
   const plages = new Set(entretien.annotations
-    .filter((a) => a.type === 'codage' && a.code !== undefined && a.code !== plan.source)
+    .filter((a) => a.type === 'codage' && a.code !== undefined && !sources.has(a.code))
     .map((a) => clePlage(a.code!, a.from, a.to)))
   let reaffectes = 0
   let doublonsSupprimes = 0
   const annotations = entretien.annotations.flatMap((a) => {
-    const destination = a.type === 'codage' && a.code === plan.source ? destinations.get(a.id) : undefined
+    const destination = a.type === 'codage' && a.code !== undefined && sources.has(a.code)
+      ? destinations.get(a.id) : undefined
     if (destination === undefined) return [{ ...a }]
     const cle = clePlage(destination, a.from, a.to)
     if (plages.has(cle)) {
@@ -372,12 +421,18 @@ export function appliquerReaffectationsTheme(
   return { entretien: { ...entretien, annotations }, reaffectes, doublonsSupprimes }
 }
 
-/** Déplace les seuls enfants directs, sans changer la position de la cible. */
-export function deplacerEnfantsApresFusion(corpus: CorpusFichier, source: string, cible: string): number {
-  verifierDemandeOperationTheme(corpus, { type: 'fusion', source, cible })
+/** Déplace les enfants directs des thématiques retirées, sans changer la position de la cible. */
+export function deplacerEnfantsApresFusion(
+  corpus: CorpusFichier,
+  sources: [string, string],
+  cible: string,
+): number {
+  const demande = { type: 'fusion', sources, cible } as const
+  verifierDemandeOperationTheme(corpus, demande)
+  const retirees = new Set(sourcesSupprimeesOperationTheme(demande))
   let deplaces = 0
   for (const categorie of Object.values(corpus.codebook)) {
-    if (categorie.parent !== source) continue
+    if (!retirees.has(categorie.parent ?? '') || retirees.has(categorie.id)) continue
     categorie.parent = cible
     deplaces++
   }
@@ -392,9 +447,14 @@ export function finaliserDefinitionsOperationTheme(
 ): CorpusFichier {
   verifierDemandeOperationTheme(corpus, demande)
   const candidat = structuredClone(corpus)
-  if (!operationThemeSupprimeSource(demande)) return candidat
-  exiger(codagesRestants.length === 0, 'Des codages référencent encore la source.')
-  if (demande.type === 'fusion') deplacerEnfantsApresFusion(candidat, demande.source, demande.cible)
-  retirerCategorie(candidat, demande.source)
+  const sourcesSupprimees = sourcesSupprimeesOperationTheme(demande)
+  if (!sourcesSupprimees.length) return candidat
+  exiger(codagesRestants.length === 0, 'Des codages référencent encore une thématique à retirer.')
+  if (demande.type === 'fusion') {
+    deplacerEnfantsApresFusion(candidat, demande.sources, demande.cible)
+    for (const source of sourcesSupprimees) delete candidat.codebook[source]
+  } else {
+    retirerCategorie(candidat, sourcesSupprimees[0])
+  }
   return candidat
 }

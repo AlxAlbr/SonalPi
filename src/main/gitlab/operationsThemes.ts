@@ -5,10 +5,11 @@ import {
   appliquerReaffectationsTheme,
   construirePlanEntretienTheme,
   finaliserDefinitionsOperationTheme,
-  inventorierCodagesTheme,
-  operationThemeSupprimeSource,
+  inventorierCodagesThemes,
+  operationThemeRetireThemes,
   preparerDefinitionsOperationTheme,
   RefusOperationTheme,
+  sourcesSupprimeesOperationTheme,
   verifierDemandeOperationTheme,
   type DemandeOperationTheme,
   type OptionsExecutionOperationTheme,
@@ -59,7 +60,7 @@ function signature(demande: DemandeOperationTheme): string {
   if (copie.type === 'division') copie.choix = []
   return empreinteTheme(copie)
 }
-const destructive = operationThemeSupprimeSource
+const destructive = operationThemeRetireThemes
 
 /** Exécute un lot GitLab par baux courts et protège la suppression finale par tout le membership. */
 export class OperationsThemesGitLab {
@@ -181,7 +182,7 @@ export class OperationsThemesGitLab {
         if (j.bilan.echecs.length || j.differes.length || j.selectionnes.length) {
           j.bilan.finalisation = 'bloquee'
           j.bilan.sourceConservee = true
-          j.bilan.motifFinalisation = 'La source reste présente tant que des entretiens sont en échec ou différés.'
+          j.bilan.motifFinalisation = 'Les thématiques à retirer restent présentes tant que des entretiens sont en échec ou différés.'
         } else {
           signaler('finalisation', termines, reussis, j.bilan.echecs.length)
           await this.finaliser(j, demande)
@@ -378,17 +379,18 @@ export class OperationsThemesGitLab {
       this.verifierDestinations(corpus, j)
       const ids = Object.keys(corpus.membership)
       if (ids.length > MAX_ACTIONS_PUBLICATION - 2) {
-        throw new RefusOperationTheme(`La suppression de source GitLab est limitée à ${MAX_ACTIONS_PUBLICATION - 2} membres.`)
+        throw new RefusOperationTheme(`La suppression de thématiques GitLab est limitée à ${MAX_ACTIONS_PUBLICATION - 2} membres.`)
       }
       const gardes: ActionPlanGitLab[] = []
       const restants: ReferenceCodage[] = []
       const entretiens: EntretienFichier[] = []
+      const sourcesSupprimees = sourcesSupprimeesOperationTheme(demande)
       for (const id of ids) {
         const source = await this.lire(`entretiens/${id}.json`, sha)
         const entretien = this.deps.store.adapterEntretienOperationTheme(JSON.parse(source.contenu) as EntretienFichier)
         validerEntretienTheme(entretien)
         entretiens.push(entretien)
-        restants.push(...inventorierCodagesTheme(entretien, demande.source).codages
+        restants.push(...inventorierCodagesThemes(entretien, sourcesSupprimees).codages
           .map((a) => ({ entretienId: id, annotationId: a.annotationId })))
         gardes.push({ action: 'garde', chemin: this.chemin(`entretiens/${id}.json`),
           commitId: source.commitId, executable: source.executable })

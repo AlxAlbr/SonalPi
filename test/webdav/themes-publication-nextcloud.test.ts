@@ -20,7 +20,7 @@ for (const port of [8080, 8081]) {
   const base = `http://localhost:${port}`
   const pret = await fetch(`${base}/status.php`, { signal: AbortSignal.timeout(800) }).then((r) => r.ok).catch(() => false)
   describe.skipIf(!pret)(`Publication de thèmes Nextcloud réel :${port}`, () => {
-    test('division, refus du tiers, succès acquis et reprise avec mêmes destinations', { timeout: 90_000 }, async () => {
+    test('division, refus du tiers, succès acquis et reprise avec destinations existantes', { timeout: 90_000 }, async () => {
       const parent = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`, identifiants: max })
       const dossier = `sonde/themes-lot-${randomUUID()}`
       await parent.creerDossier('sonde')
@@ -35,7 +35,11 @@ for (const port of [8080, 8081]) {
         await client.creerDossier('entretiens')
         await client.creerDossier('verrous')
         const c = JSON.parse(corpusDistantValide(['e1', 'e2'])) as CorpusFichier
-        c.codebook = { source: { id: 'source', nom: 'Source', ordre: 0, parent: null, actif: true, codeExport: 'source' } }
+        c.codebook = {
+          source: { id: 'source', nom: 'Source', ordre: 0, parent: null, actif: true, codeExport: 'source' },
+          'destination-a': { id: 'destination-a', nom: 'Destination A', ordre: 1, parent: null, actif: true, codeExport: 'destination-a' },
+          'destination-b': { id: 'destination-b', nom: 'Destination B', ordre: 2, parent: null, actif: true, codeExport: 'destination-b' },
+        }
         await client.putTexte('corpus.json', JSON.stringify(c), { ifNoneMatch: '*' })
         const contenu = entretienDistantValide({
           corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Un passage partagé.' }] }] },
@@ -54,31 +58,30 @@ for (const port of [8080, 8081]) {
         const tx = creer()
         expect((await verrou.acquerir(cheminVerrou)).ok).toBe(true)
         const demande: DemandeOperationTheme = { type: 'division', source: 'source', effacerSource: false,
-          cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 'source' })),
-          choix: ['e1', 'e2'].map((entretienId) => ({ codage: { entretienId, annotationId: 'a' }, destination: 'A' })),
+          cibles: ['destination-a', 'destination-b'],
+          choix: ['e1', 'e2'].map((entretienId) => ({ codage: { entretienId, annotationId: 'a' }, destination: 'destination-a' })),
         }
         const a = await tx.analyserOperationTheme(demande)
         const resultat = await tx.executerOperationTheme(a.operationId, demande, { entretiens: 'tous-prevus' })
         expect(resultat, JSON.stringify(resultat)).toMatchObject({ statut: 'partielle', bilan: { reussis: [{ id: 'e1' }], echecs: [{ id: 'e2' }], sourceConservee: true } })
         const suivi = tx.lireSuiviOperationTheme()!
-        const destinations = suivi.bilan.ciblesCreees
-        expect(destinations).toHaveLength(2)
+        expect(suivi.bilan.ciblesCreees).toEqual([])
         expect((await client.getTexteAvecEtag('entretiens/e2.json')).contenu).toBe(contenu)
         const e1Avant = await client.getTexteAvecEtag('entretiens/e1.json')
-        expect(JSON.parse(e1Avant.contenu).annotations[0].code).toBe(destinations[0].id)
+        expect(JSON.parse(e1Avant.contenu).annotations[0].code).toBe('destination-a')
         await verrou.liberer(cheminVerrou)
         const nouveau = creer()
         const reprise = await nouveau.preparerRepriseOperationTheme(a.operationId)
         expect(reprise.demande).toMatchObject({ choix: [] })
         const d = reprise.demande as Extract<DemandeOperationTheme, { type: 'division' }>
-        d.choix = [{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'B' }]
+        d.choix = [{ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'destination-b' }]
         const final = await nouveau.analyserOperationTheme(d, reprise.apercu.operationId)
         expect(await nouveau.executerOperationTheme(final.operationId, d, { entretiens: 'tous-prevus' })).toMatchObject({ statut: 'appliquee', entretiens: 2, reaffectes: 2 })
         expect(await client.getTexteAvecEtag('entretiens/e1.json')).toEqual(e1Avant)
         const dernierCorpus = JSON.parse(await client.getTexte('corpus.json')) as CorpusFichier
         expect(Object.keys(dernierCorpus.codebook)).toHaveLength(3)
         expect(dernierCorpus.codebook.source).toBeDefined()
-        expect(JSON.parse(await tiers.getTexte('entretiens/e2.json')).annotations[0].code).toBe(destinations[1].id)
+        expect(JSON.parse(await tiers.getTexte('entretiens/e2.json')).annotations[0].code).toBe('destination-b')
         expect(JSON.parse(readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')).annotations[1].texte).toBe('Conserver')
         expect(nouveau.lireSuiviOperationTheme()).toBeNull()
       } finally {

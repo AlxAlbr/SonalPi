@@ -38,6 +38,28 @@ describe('corpus — codebook (règles pures)', () => {
     expect(c.codebook['cat-2']).toMatchObject({ codeExport: 'cat_002', ordre: 1 })
   })
 
+  test('la convention V1 nom//description devient deux champs', () => {
+    const c = corpusVide()
+    const id = corpus.ajouterCategorie(c, 'Lieu // Villes citées', null, () => 'cat-1')
+    expect(c.codebook[id]).toMatchObject({ nom: 'Lieu', description: 'Villes citées' })
+    expect(corpus.nomThemePourSonal(c.codebook[id])).toBe('Lieu//Villes citées')
+
+    corpus.modifierCategorie(c, id, { nom: 'Espace//Endroits mentionnés' })
+    expect(c.codebook[id]).toMatchObject({ nom: 'Espace', description: 'Endroits mentionnés' })
+    corpus.modifierCategorie(c, id, { description: '  ' })
+    expect(c.codebook[id].description).toBeUndefined()
+  })
+
+  test('normalise les anciens codebooks qui stockaient la description dans le nom', () => {
+    const c = corpusVide()
+    c.codebook.ancien = {
+      id: 'ancien', nom: 'Travail//Conditions de travail', ordre: 0,
+      parent: null, actif: true, codeExport: 'cat_001',
+    }
+    corpus.normaliserDescriptionsThemes(c.codebook)
+    expect(c.codebook.ancien).toMatchObject({ nom: 'Travail', description: 'Conditions de travail' })
+  })
+
   test('prochainCodeCategorie ne réutilise pas un codeExport retiré (max + 1)', () => {
     const c = corpusVide()
     let n = 0

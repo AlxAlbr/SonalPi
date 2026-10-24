@@ -15,11 +15,11 @@ afterEach(() => vi.restoreAllMocks())
 const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: true, source: 'source', cible: { type: 'existante', id: 'cible' } }
 function division(): Extract<DemandeOperationTheme, { type: 'division' }> {
   return { type: 'division', source: 'source', effacerSource: false, choix: [],
-    cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 'source' })) }
+    cibles: ['destination-a', 'destination-b'] }
 }
 function corpus(): CorpusFichier {
   const c = JSON.parse(corpusDistantValide(['e1', 'e2'])) as CorpusFichier
-  c.codebook = Object.fromEntries(['source', 'cible'].map((id, ordre) => [id, {
+  c.codebook = Object.fromEntries(['source', 'cible', 'destination-a', 'destination-b'].map((id, ordre) => [id, {
     id, nom: id, parent: null, ordre, actif: true, codeExport: id,
   }]))
   return c
@@ -174,7 +174,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     const d = division()
     const initial = await b.apercus.analyser(d)
     expect(initial.parEntretien.every((e) => !e.aModifier)).toBe(true)
-    d.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' })
+    d.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'destination-a' })
     const final = await b.apercus.analyser(d, initial.operationId)
     expect(final.parEntretien.map((e) => e.aModifier)).toEqual([true, false])
     expect(() => b.apercus.details(initial.operationId, 'e1')).toThrow(/absent/)
@@ -186,7 +186,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     await b.client.supprimer('entretiens/e2.json')
     const d = division()
     const initial = await b.apercus.analyser(d)
-    d.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' })
+    d.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'destination-a' })
     const final = await b.apercus.analyser(d, initial.operationId)
     expect(final.faisable).toBe(true)
     expect(final.parEntretien[0].aModifier).toBe(true)
@@ -252,7 +252,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
 
   test('les variantes destructives sont refusées avant tout accès réseau', async () => {
     const b = banc()
-    await expect(b.apercus.analyser({ type: 'fusion', source: 'source', cible: 'cible' })).rejects.toThrow(/transfert et la division/)
+    await expect(b.apercus.analyser({ type: 'fusion', sources: ['source', 'cible'], cible: 'cible' })).rejects.toThrow(/transfert et la division/)
     await expect(b.apercus.analyser({ ...division(), effacerSource: true })).rejects.toThrow(/conserver/)
     expect(b.requetes).toHaveLength(0)
   })

@@ -81,6 +81,18 @@ function changerTaille(id: string, evt: Event) {
   // '' = « Aa » → taille: undefined PRÉSENT dans le patch = retour à la taille du texte (le spread écrase, la clé disparaît à l'écriture).
   modifierTheme(id, { taille: v ? Number(v) : undefined })
 }
+
+const descriptionsOuvertes = ref<Set<string>>(new Set())
+function basculerDescription(id: string) {
+  const ouvertes = new Set(descriptionsOuvertes.value)
+  if (ouvertes.has(id)) ouvertes.delete(id)
+  else ouvertes.add(id)
+  descriptionsOuvertes.value = ouvertes
+}
+function changerDescription(id: string, evt: Event) {
+  const description = (evt.target as HTMLTextAreaElement).value.trim()
+  modifierTheme(id, { description: description || undefined })
+}
 /** ✕ : la politique dépend du contexte (voir en-tête). */
 function supprimer(id: string) {
   if (props.contexte === 'corpus') supprimerTheme(id)
@@ -177,6 +189,7 @@ onMounted(() => {
         <span class="entete-lbl entete-aa" title="Taille de police des passages codés (16 = taille du texte)">Aa</span>
         <span class="entete-lbl entete-usage" title="Nombre de codages dans le corpus">Nbre</span>
         <span class="entete-lbl entete-actif" title="Décoché = thème désactivé (grisé)">Actif</span>
+        <button class="description-action fantome">+ description</button>
         <button class="mini-sous fantome">+ enfant</button>
         <button class="fleche fantome">▲</button>
         <button class="fleche fantome">▼</button>
@@ -233,6 +246,14 @@ onMounted(() => {
               @change="modifierTheme(n.cat.id, { actif: ($event.target as HTMLInputElement).checked })"
             />
           </label>
+          <button
+            class="description-action"
+            :aria-label="n.cat.description ? `Modifier la description de ${n.cat.nom}` : `Ajouter une description à ${n.cat.nom}`"
+            :title="n.cat.description ? 'Modifier la description' : 'Ajouter une description'"
+            @click="basculerDescription(n.cat.id)"
+          >
+            {{ n.cat.description ? '📝' : '+ description' }}
+          </button>
           <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="creerTheme(true, n.cat.id)">
             + enfant
           </button>
@@ -250,6 +271,17 @@ onMounted(() => {
             ⤵
           </button>
           <button class="x" title="Supprimer" :disabled="operationGlobaleEnCours" @click="supprimer(n.cat.id)">✕</button>
+          <div v-if="descriptionsOuvertes.has(n.cat.id)" class="edition-description">
+            <label :for="`description-theme-${n.cat.id}`">Description facultative</label>
+            <textarea
+              :id="`description-theme-${n.cat.id}`"
+              class="description-thm"
+              rows="3"
+              :value="n.cat.description ?? ''"
+              placeholder="Précise ce qui doit être classé dans ce thème."
+              @change="changerDescription(n.cat.id, $event)"
+            ></textarea>
+          </div>
         </li>
       </ul>
     </div>
@@ -288,9 +320,8 @@ onMounted(() => {
 .corpus-tete {
   gap: 0.5rem;
 }
-/* Les deux boutons de création ressortent en GRAS : ce sont les gestes premiers de la fenêtre (nouveau thème racine / nouveau sous-thème). */
-.corpus-tete .mini,
-.mini-sous {
+/* Le bouton principal de création reste mis en avant. */
+.corpus-tete .mini {
   font-weight: bold;
 }
 .corpus-tete h3 {
@@ -313,6 +344,7 @@ onMounted(() => {
 }
 .liste-thm li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
   border: 1px solid transparent;
@@ -435,6 +467,7 @@ onMounted(() => {
 .fleche.migrer {
   font-size: 0.95rem;
 }
+.description-action,
 .mini-sous {
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -445,9 +478,35 @@ onMounted(() => {
   padding: 0 0.25rem;
   flex: none;
 }
+.description-action:hover,
 .mini-sous:hover {
   border-color: #2e73d8;
   color: #1565c0;
+}
+.edition-description {
+  flex-basis: 100%;
+  margin: 0.1rem 0 0.35rem 1.7rem;
+  padding: 0.45rem;
+  border-left: 3px solid #b8c9df;
+  background: #f7f9fc;
+}
+.edition-description label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #5f6875;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.description-thm {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #c8cfda;
+  border-radius: 5px;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 .dest-migration {
   margin-left: 0.4rem;

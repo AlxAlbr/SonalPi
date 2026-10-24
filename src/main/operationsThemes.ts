@@ -5,10 +5,13 @@ import {
   appliquerReaffectationsTheme,
   construirePlanEntretienTheme,
   finaliserDefinitionsOperationTheme,
-  inventorierCodagesTheme,
-  operationThemeSupprimeSource,
+  inventorierCodagesThemes,
+  operationThemeRetireThemes,
   preparerDefinitionsOperationTheme,
   RefusOperationTheme,
+  sourcesOperationTheme,
+  sourcesReaffecteesOperationTheme,
+  sourcesSupprimeesOperationTheme,
   verifierDemandeOperationTheme,
   verifierRepartitionOperationTheme,
   type ApercuOperationTheme,
@@ -68,7 +71,7 @@ function empreinte(valeur: unknown): string {
 /** Les extraits restent courts ; les codages sans texte gardent leur identité et leurs positions. */
 function detailsCodages(
   entree: Extract<EntretienInstantaneTheme, { ok: true }>,
-  source: string,
+  sources: readonly string[],
 ): DetailCodageOperationTheme[] {
   const plat = aplatir(entree.data.corpsTexte)
   let offset = 0
@@ -77,7 +80,7 @@ function detailsCodages(
     offset += bloc.longueur + 1
     return resultat
   })
-  return inventorierCodagesTheme(entree.data, source).codages.map((codage) => {
+  return inventorierCodagesThemes(entree.data, sources).codages.map((codage) => {
     const morceaux = codage.orphelin ? [] : blocs.flatMap((bloc) => {
       const from = Math.max(codage.from, bloc.debut)
       const to = Math.min(codage.to, bloc.debut + bloc.longueur)
@@ -95,9 +98,9 @@ function detailsCodages(
   })
 }
 
-function referencesSource(instantane: InstantaneOperationTheme, source: string): ReferenceCodage[] {
+function referencesSources(instantane: InstantaneOperationTheme, sources: readonly string[]): ReferenceCodage[] {
   return instantane.entretiens.flatMap((e) => e.ok
-    ? inventorierCodagesTheme(e.data, source).codages.map((a) => ({ entretienId: e.id, annotationId: a.annotationId }))
+    ? inventorierCodagesThemes(e.data, sources).codages.map((a) => ({ entretienId: e.id, annotationId: a.annotationId }))
     : [])
 }
 
@@ -196,7 +199,7 @@ export class OperationsThemesCorpus {
       if (destinationsPersistantes.length !== tokens.length
         || new Set(destinationsPersistantes.map((c) => c.token)).size !== tokens.length
         || destinationsPersistantes.some((c) => !tokens.includes(c.token)
-          || c.id === demande.source || !Object.hasOwn(instantane.corpus.codebook, c.id))) {
+          || sourcesOperationTheme(demande).includes(c.id) || !Object.hasOwn(instantane.corpus.codebook, c.id))) {
         throw new RefusOperationTheme('Les destinations persistées ne correspondent pas à la demande.')
       }
     }
@@ -205,13 +208,14 @@ export class OperationsThemesCorpus {
     } catch (erreur) {
       obstacles.push({ phase: 'definitions', motif: messageErreur(erreur) })
     }
+    const sourcesReaffectees = sourcesReaffecteesOperationTheme(demande)
     for (const entree of instantane.entretiens) {
       if (!entree.ok) {
         obstacles.push({ phase: 'entretiens', entretienId: entree.id, motif: entree.motif })
         continue
       }
       manifestes.set(entree.id, empreinte(entree.avant))
-      const codages = detailsCodages(entree, demande.source)
+      const codages = detailsCodages(entree, sourcesReaffectees)
       details.set(entree.id, { operationId, entretienId: entree.id, codages })
       let aModifier = false
       try {
@@ -229,18 +233,21 @@ export class OperationsThemesCorpus {
       })
     }
     try {
-      verifierRepartitionOperationTheme(demande, referencesSource(instantane, demande.source))
+      verifierRepartitionOperationTheme(demande, referencesSources(instantane, sourcesReaffectees))
     } catch (erreur) {
       obstacles.push({ phase: 'finalisation', motif: messageErreur(erreur) })
     }
     const apercu: ApercuOperationTheme = {
-      operationId, source: demande.source, parEntretien,
+      operationId, sources: sourcesOperationTheme(demande), parEntretien,
       totaux: {
         entretiens: parEntretien.filter((e) => e.passages > 0).length,
         passages: parEntretien.reduce((n, e) => n + e.passages, 0),
         orphelins: parEntretien.reduce((n, e) => n + e.orphelins, 0), doublonsPrevisibles,
-        sousThemesDeplaces: demande.type === 'fusion'
-          ? Object.values(instantane.corpus.codebook).filter((c) => c.parent === demande.source).length : 0,
+        sousThemesDeplaces: demande.type === 'fusion' ? (() => {
+          const retirees = new Set(sourcesSupprimeesOperationTheme(demande))
+          return Object.values(instantane.corpus.codebook)
+            .filter((c) => retirees.has(c.parent ?? '') && !retirees.has(c.id)).length
+        })() : 0,
       },
       faisable: this.deps.inventairePartiel
         ? obstacles.every((o) => o.phase === 'entretiens') : obstacles.length === 0,
@@ -310,18 +317,20 @@ export class OperationsThemesCorpus {
       const instantane = this.deps.lire()
       this.verifierFraicheur(memorise, instantane)
       verifierDemandeOperationTheme(instantane.corpus, demande)
-      verifierRepartitionOperationTheme(demande, referencesSource(instantane, demande.source))
+      verifierRepartitionOperationTheme(demande,
+        referencesSources(instantane, sourcesReaffecteesOperationTheme(demande)))
       const definitions = preparerDefinitionsOperationTheme(instantane.corpus, demande, this.deps.genIdCategorie)
-      const suppression = operationThemeSupprimeSource(demande)
+      const suppression = operationThemeRetireThemes(demande)
       const entretiens: PlanRemplacementEntretiens['entretiens'] = []
       const candidats: EntretienFichier[] = []
       const restants: ReferenceCodage[] = []
+      const sourcesSupprimees = sourcesSupprimeesOperationTheme(demande)
       for (const entree of instantane.entretiens) {
         if (!entree.ok) throw new RefusOperationTheme(entree.motif)
         const mutation = appliquerReaffectationsTheme(entree.data,
           construirePlanEntretienTheme(entree.data, entree.id, demande, definitions.ciblesCreees))
         candidats.push(mutation.entretien)
-        restants.push(...inventorierCodagesTheme(mutation.entretien, demande.source).codages
+        restants.push(...inventorierCodagesThemes(mutation.entretien, sourcesSupprimees).codages
           .map((a) => ({ entretienId: entree.id, annotationId: a.annotationId })))
         if (mutation.reaffectes + mutation.doublonsSupprimes === 0) {
           // Une suppression garde aussi les entretiens vérifiés mais inchangés.

@@ -110,6 +110,15 @@ describe('import .sonal — invariants (golden)', () => {
     expect(cat5?.codeExport).toBe('cat_005')
   })
 
+  test('la description après // devient un champ séparé', () => {
+    const html = `<!DOCTYPE html><html><body>
+      <div id="contenuText"></div>
+      <script id="cat-json" type="application/json">[{"code":"cat_001","nom":"Lieu // ville citée","rang":"0","act":true}]</script>
+    </body></html>`
+    const { codebook } = importerSonal(parse(html))
+    expect(codebook[0]).toMatchObject({ nom: 'Lieu', description: 'ville citée' })
+  })
+
   test('la taille de police SonalPi1 est importée (nombre nu ; "" → absente)', () => {
     const { codebook } = importerSonal(parse(html1))
     // entretien1 : cat_002 porte taille 24 ; cat_005 porte '' (pas de taille).

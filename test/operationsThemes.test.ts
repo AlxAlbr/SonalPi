@@ -16,14 +16,13 @@ afterEach(() => {
 })
 
 const transfert: DemandeOperationTheme = { type: 'transfert', conserverSource: true, source: 'source', cible: { type: 'existante', id: 'cible' } }
-const fusion: DemandeOperationTheme = { type: 'fusion', source: 'source', cible: 'cible' }
+const fusion: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'cible' }
 const options = { entretiens: 'tous-prevus' as const }
 
 function division(effacerSource = false): Extract<DemandeOperationTheme, { type: 'division' }> {
   return {
     type: 'division', source: 'source', effacerSource,
-    cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: effacerSource ? null : 'source' })),
-    choix: [],
+    cibles: ['cible', 'resultat'], choix: [],
   }
 }
 
@@ -33,7 +32,8 @@ function corpus(): CorpusFichier {
     codebook: {
       source: { id: 'source', nom: 'Source', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
       cible: { id: 'cible', nom: 'Cible', ordre: 1, parent: null, actif: true, codeExport: 'cat_002' },
-      enfant: { id: 'enfant', nom: 'Enfant', ordre: 2, parent: 'source', actif: true, codeExport: 'cat_003' },
+      resultat: { id: 'resultat', nom: 'Résultat', ordre: 2, parent: null, actif: true, codeExport: 'cat_003' },
+      enfant: { id: 'enfant', nom: 'Enfant', ordre: 3, parent: 'source', actif: true, codeExport: 'cat_004' },
     },
     variables: {}, reglesAnon: {}, personnes: {},
     membership: {
@@ -140,7 +140,7 @@ describe('aperçus main versionnés', () => {
     const demande = division()
     const initial = banc.service.analyser(demande)
     expect(initial.parEntretien.every((e) => !e.aModifier)).toBe(true)
-    demande.choix.push({ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'A' })
+    demande.choix.push({ codage: { entretienId: 'e2', annotationId: 'a' }, destination: 'cible' })
     const actualise = banc.service.analyser(demande, initial.operationId)
     expect(actualise.parEntretien.map((e) => e.aModifier)).toEqual([false, true])
     expect(() => banc.service.details(initial.operationId, 'e1')).toThrow(/absent, expiré/)
@@ -175,7 +175,7 @@ describe('aperçus main versionnés', () => {
   test.each(['ajout', 'suppression', 'deplacement', 'texte', 'definitions', 'membership'])('refuse tout l’opération locale après un changement de %s', (changement) => {
     const banc = bancService()
     const demande = division()
-    demande.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' })
+    demande.choix.push({ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' })
     const apercu = banc.service.analyser(demande)
     const snapshot = banc.snapshot()
     const e = snapshot.entretiens[0]
@@ -218,6 +218,27 @@ describe('aperçus main versionnés', () => {
     banc.appliquer.mockImplementationOnce(() => { banc.suspendre(); throw new Error('disque interrompu') })
     expect(banc.service.executer(suivant.operationId, fusion, options)).toMatchObject({ statut: 'indeterminee', operationId: suivant.operationId })
     expect(() => banc.service.analyser(transfert)).toThrow(/transaction locale/)
+  })
+
+  test('une fusion peut retirer deux thématiques au profit d’une troisième déjà existante', () => {
+    const banc = bancService()
+    const demande: DemandeOperationTheme = {
+      type: 'fusion', sources: ['source', 'cible'], cible: 'resultat',
+    }
+    const apercu = banc.service.analyser(demande)
+    expect(apercu).toMatchObject({
+      sources: ['source', 'cible'],
+      totaux: { passages: 6, doublonsPrevisibles: 2, sousThemesDeplaces: 1 },
+    })
+    expect(banc.service.executer(apercu.operationId, demande, options)).toMatchObject({
+      statut: 'appliquee', entretiens: 2, reaffectes: 4, doublonsSupprimes: 2,
+    })
+    const plan = banc.appliquer.mock.calls[0][0]
+    expect(plan.corpusApres.codebook.source).toBeUndefined()
+    expect(plan.corpusApres.codebook.cible).toBeUndefined()
+    expect(plan.corpusApres.codebook.enfant.parent).toBe('resultat')
+    expect(plan.entretiens.every((e) => e.apres.annotations
+      .filter((a) => a.type === 'codage').every((a) => a.code === 'resultat'))).toBe(true)
   })
 
   test('la suppression protège aussi les entretiens lus sans modification', () => {
@@ -307,26 +328,23 @@ describe('parcours local du store', () => {
     expect(banc.lire('entretiens/e1.json').annotations.filter((a: { code?: string }) => a.code === 'source')).toEqual([])
   })
 
-  test.each([false, true])('division locale avec source supprimée = %s', (effacer) => {
+  test.each([false, true])('division locale vers des destinations existantes, source supprimée = %s', (effacer) => {
     const banc = bancDisque()
     const demande = division(effacer)
     for (const entretienId of ['e1', 'e2']) {
-      demande.choix.push({ codage: { entretienId, annotationId: 'a' }, destination: 'A' })
-      if (effacer) demande.choix.push({ codage: { entretienId, annotationId: 'orphelin' }, destination: 'B' })
+      demande.choix.push({ codage: { entretienId, annotationId: 'a' }, destination: 'cible' })
+      if (effacer) demande.choix.push({ codage: { entretienId, annotationId: 'orphelin' }, destination: 'resultat' })
     }
     const apercu = banc.store.analyserOperationTheme(demande)
     const resultat = banc.store.executerOperationTheme(apercu.operationId, demande, options)
     expect(resultat.statut).toBe('appliquee')
     const c = banc.lire('corpus.json') as CorpusFichier
-    const a = Object.values(c.codebook).find((c) => c.nom === 'A')!
-    const b = Object.values(c.codebook).find((c) => c.nom === 'B')!
-    expect(a.id).toMatch(/^cat-/)
-    expect(a.parent).toBe(effacer ? null : 'source')
-    expect(b.parent).toBe(a.parent)
+    expect(c.codebook.cible.parent).toBeNull()
+    expect(c.codebook.resultat.parent).toBeNull()
     expect(Boolean(c.codebook.source)).toBe(!effacer)
     const annotations = banc.lire('entretiens/e1.json').annotations as EntretienFichier['annotations']
-    expect(annotations.find((a) => a.id === 'a')?.code).toBe(a.id)
-    expect(annotations.find((a) => a.id === 'orphelin')?.code).toBe(effacer ? b.id : 'source')
+    expect(annotations.filter((a) => a.type === 'codage' && a.code === 'cible')).toHaveLength(1)
+    expect(annotations.find((a) => a.id === 'orphelin')?.code).toBe(effacer ? 'resultat' : 'source')
   })
 
   test('un entretien ajouté après l’aperçu interdit la suppression entière', () => {

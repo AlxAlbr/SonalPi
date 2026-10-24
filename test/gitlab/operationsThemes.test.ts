@@ -23,7 +23,8 @@ function corpus(ids = ['e1', 'e2']): CorpusFichier {
   c.codebook = Object.fromEntries([
     ['source', { id: 'source', nom: 'Source', parent: null, ordre: 0, actif: true, codeExport: 'source' }],
     ['cible', { id: 'cible', nom: 'Cible', parent: null, ordre: 1, actif: true, codeExport: 'cible' }],
-    ['enfant', { id: 'enfant', nom: 'Enfant', parent: 'source', ordre: 2, actif: true, codeExport: 'enfant' }],
+    ['resultat', { id: 'resultat', nom: 'Résultat', parent: null, ordre: 2, actif: true, codeExport: 'resultat' }],
+    ['enfant', { id: 'enfant', nom: 'Enfant', parent: 'source', ordre: 3, actif: true, codeExport: 'enfant' }],
   ])
   c.membership = Object.fromEntries(ids.map((id, rangAjout) => [id, {
     titre: id, date: null, lastModified: '2026-01-01T00:00:00.000Z', rangAjout,
@@ -65,7 +66,7 @@ function banc(demande: DemandeOperationTheme = transfert, etats: Record<string, 
   const operationId = 'apercu-1'
   const parEntretien = [...entretiens].map(([id]) => ({ id, titre: id, passages: 1, orphelins: 0, aModifier: true }))
   const apercu: ApercuOperationTheme = {
-    operationId, source: 'source', execution: 'entretiens-sequentiels', parEntretien,
+    operationId, sources: demande.type === 'fusion' ? demande.sources : [demande.source], execution: 'entretiens-sequentiels', parEntretien,
     disponibiliteGitLab: { observeLe: new Date().toISOString(), entretiens: parEntretien.map(({ id }) => ({
       id, etat: etats[id] ?? 'libre-observe', ...(etats[id] === 'tenu-autrui' ? { motif: 'Tenu par bob.' } : {}),
     })) },
@@ -79,7 +80,10 @@ function banc(demande: DemandeOperationTheme = transfert, etats: Record<string, 
   }
   const apercus = {
     consommer: vi.fn(() => structuredClone(manifeste)),
-    analyser: vi.fn(async (d: DemandeOperationTheme) => ({ ...structuredClone(apercu), operationId: `reprise-${Date.now()}`, source: d.source })),
+    analyser: vi.fn(async (d: DemandeOperationTheme) => ({
+      ...structuredClone(apercu), operationId: `reprise-${Date.now()}`,
+      sources: d.type === 'fusion' ? d.sources : [d.source],
+    })),
   }
   const service = new OperationsThemesGitLab({
     destinationId: 'destination', dirLocal: dir, branche: 'main', racine: RACINE,
@@ -119,7 +123,7 @@ describe('lots de thématiques GitLab', () => {
   })
 
   test('fusionne progressivement puis supprime la source sous les gardes de tout le membership', async () => {
-    const fusion: DemandeOperationTheme = { type: 'fusion', source: 'source', cible: 'cible' }
+    const fusion: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'cible' }
     const b = banc(fusion)
     const resultat = await b.service.executer('apercu-1', fusion, { entretiens: 'tous-prevus' })
     expect(resultat.statut).toBe('appliquee')
@@ -131,6 +135,29 @@ describe('lots de thématiques GitLab', () => {
       && c.actions.filter((a) => a.action === 'chmod').length === 2)
     expect(commit).toBeDefined()
     expect(commit!.actions.filter((a) => !a.file_path.startsWith('.sonal/verrous/'))).toHaveLength(3)
+  })
+
+  test('fusionne deux thématiques dans une troisième puis retire les deux sources', async () => {
+    const demande: DemandeOperationTheme = {
+      type: 'fusion', sources: ['source', 'cible'], cible: 'resultat',
+    }
+    const b = banc(demande)
+    for (const id of ['e1', 'e2']) {
+      const data = lireDistant<EntretienFichier>(b, `entretiens/${id}.json`)
+      data.annotations.push({ id: `b-${id}`, type: 'codage', code: 'cible', from: 7, to: 7, auteur: 'test' })
+      b.depot.modifierHorsProtocole(`${RACINE}/entretiens/${id}.json`, JSON.stringify(data, null, 2))
+      b.manifeste.entretiens.set(id, empreinteTheme(data))
+    }
+    const resultat = await b.service.executer('apercu-1', demande, { entretiens: 'tous-prevus' })
+    expect(resultat).toMatchObject({ statut: 'appliquee', entretiens: 2, reaffectes: 4 })
+    const final = lireDistant<CorpusFichier>(b, 'corpus.json')
+    expect(final.codebook.source).toBeUndefined()
+    expect(final.codebook.cible).toBeUndefined()
+    expect(final.codebook.enfant.parent).toBe('resultat')
+    for (const id of ['e1', 'e2']) {
+      expect(lireDistant<EntretienFichier>(b, `entretiens/${id}.json`).annotations
+        .every((a) => a.type !== 'codage' || a.code === 'resultat')).toBe(true)
+    }
   })
 
   test('un transfert peut supprimer la source après les réaffectations', async () => {
@@ -191,7 +218,7 @@ describe('lots de thématiques GitLab', () => {
   })
 
   test('une finalisation acceptée sans réponse est retrouvée et clôt le lot sans rejeu', async () => {
-    const fusion: DemandeOperationTheme = { type: 'fusion', source: 'source', cible: 'cible' }
+    const fusion: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'cible' }
     const b = banc(fusion)
     let pannePosee = false
     b.depot.rendreCommitsIllisibles()

@@ -109,7 +109,7 @@ suite('qualification réelle des lots de thématiques GitLab', () => {
 
   test('une publication concurrente refuse la finalisation seule, puis la reprise supprime la source', async () => {
     const b = await banc('finalisation')
-    const demande: DemandeOperationTheme = { type: 'fusion', source: 'source', cible: 'cible' }
+    const demande: DemandeOperationTheme = { type: 'fusion', sources: ['source', 'cible'], cible: 'cible' }
     const apercu = await b.operations.analyser(demande)
     const concurrencerFinalisation = async (): Promise<void> => {
       const fichier = await b.tiers.depot.lireFichier(`${b.racine}/entretiens/e1.json`, 'main')

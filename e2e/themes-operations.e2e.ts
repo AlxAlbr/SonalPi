@@ -46,8 +46,8 @@ async function lire() {
 async function ouvrirDivision(effacer: boolean) {
   await page.getByRole('button', { name: 'Diviser…', exact: true }).click()
   await modale().getByRole('combobox', { name: 'Thématique source', exact: true }).selectOption('cat_001')
-  await modale().getByLabel('Nom de la destination 1').fill('Vie familiale')
-  await modale().getByLabel('Nom de la destination 2').fill('Famille élargie')
+  await modale().getByRole('combobox', { name: 'Destination 1', exact: true }).selectOption('cat_002')
+  await modale().getByRole('combobox', { name: 'Destination 2', exact: true }).selectOption('cat_003')
   if (effacer) await modale().getByLabel('Supprimer la source après répartition complète').check()
   await modale().getByRole('button', { name: 'Préparer la répartition' }).click()
   await modale().getByRole('button', { name: /▸ Entretien Karine/ }).click()
@@ -114,7 +114,7 @@ test('le focus reste dans la modale à chaque étape ; Échap revient au lanceur
 
 test('changer de corpus vide un ancien atelier conservé pendant la consultation', async () => {
   await ouvrirDivision(false)
-  await modale().getByRole('radio', { name: 'Attribuer a à Vie familiale', exact: true }).check()
+  await modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true }).check()
   await modale().getByRole('button', { name: 'Consulter l’entretien', exact: true }).click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
@@ -129,7 +129,7 @@ test('changer de corpus vide un ancien atelier conservé pendant la consultation
   await expect(modale()).toHaveCount(0)
   await page.getByRole('button', { name: 'Diviser…', exact: true }).click()
   await expect(modale().getByRole('combobox', { name: 'Thématique source', exact: true })).toHaveValue('')
-  await expect(modale().getByLabel('Nom de la destination 1')).toHaveValue('')
+  await expect(modale().getByRole('combobox', { name: 'Destination 1', exact: true })).toHaveValue('')
 })
 
 test('transfert vers une catégorie nouvelle : création au parent demandé et source conservée', async () => {
@@ -149,7 +149,7 @@ test('transfert vers une catégorie nouvelle : création au parent demandé et s
   expect(apres.annotations.filter((a) => a.code === nouvelle.id)).toHaveLength(2)
 })
 
-test('fusion : sous-thème descendant exclu, déplacement annoncé puis appliqué', async () => {
+test('fusion : deux thématiques peuvent rejoindre une troisième thématique existante', async () => {
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Famille"] .mini-sous').click()
   const enfant = page.locator('.liste-thm li[data-nom="Nouveau sous-thème"] .nom-thm')
@@ -158,16 +158,19 @@ test('fusion : sous-thème descendant exclu, déplacement annoncé puis appliqu�
   await expect(page.locator('.liste-thm li[data-nom="Enfant de Famille"]')).toHaveCount(1)
   await fermerEditionThemes(page)
   await page.getByRole('button', { name: 'Fusionner…', exact: true }).click()
-  await modale().getByRole('combobox', { name: 'Thématique source', exact: true }).selectOption('cat_001')
-  await expect(modale().getByRole('combobox', { name: 'Thématique cible', exact: true }).locator('option', { hasText: 'Enfant de Famille' })).toHaveCount(0)
-  await modale().getByRole('combobox', { name: 'Thématique cible', exact: true }).selectOption('cat_002')
+  await modale().getByRole('combobox', { name: 'Première thématique', exact: true }).selectOption('cat_001')
+  await modale().getByRole('combobox', { name: 'Deuxième thématique', exact: true }).selectOption('cat_002')
+  await expect(modale().getByRole('combobox', { name: 'Thématique résultante', exact: true }).locator('option', { hasText: 'Enfant de Famille' })).toHaveCount(0)
+  await modale().getByRole('combobox', { name: 'Thématique résultante', exact: true }).selectOption('cat_003')
   await modale().getByRole('button', { name: 'Voir l’aperçu', exact: true }).click()
   await expect(modale()).toContainText('1 sous-thème(s) direct(s) seront déplacés')
   await modale().getByRole('button', { name: 'Confirmer et appliquer' }).click()
   await expect(modale()).toContainText('Opération appliquée')
   const apres = await lire()
   expect(apres.corpus.codebook.cat_001).toBeUndefined()
-  expect(Object.values(apres.corpus.codebook).find((c) => c.nom === 'Enfant de Famille')?.parent).toBe('cat_002')
+  expect(apres.corpus.codebook.cat_002).toBeUndefined()
+  expect(apres.annotations.filter((a) => a.type === 'codage').every((a) => a.code === 'cat_003')).toBe(true)
+  expect(Object.values(apres.corpus.codebook).find((c) => c.nom === 'Enfant de Famille')?.parent).toBe('cat_003')
 })
 
 test('division destructive : raccourci de ligne, orphelin obligatoire et parents finaux valides', async () => {
@@ -176,25 +179,24 @@ test('division destructive : raccourci de ligne, orphelin obligatoire et parents
   const passage = modale().locator('.passage').filter({ hasText: 'Karine' })
   await passage.focus()
   await passage.press('1')
-  await expect(modale().getByRole('radio', { name: 'Attribuer a à Vie familiale', exact: true })).toBeChecked()
+  await expect(modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true })).toBeChecked()
   await expect(modale().getByRole('button', { name: 'Voir l’aperçu final' })).toBeDisabled()
   await expect(modale()).toContainText('codage orphelin')
-  await modale().getByRole('radio', { name: 'Attribuer orphelin à Famille élargie', exact: true }).check()
+  await modale().getByRole('radio', { name: 'Attribuer orphelin à Lieu', exact: true }).check()
   await modale().getByRole('button', { name: 'Voir l’aperçu final' }).click()
   await expect(modale().getByRole('button', { name: 'Confirmer et appliquer' })).toBeEnabled()
   await modale().getByRole('button', { name: 'Confirmer et appliquer' }).click()
   await expect(modale()).toContainText('Opération appliquée')
   const apres = await lire()
   expect(apres.corpus.codebook.cat_001).toBeUndefined()
-  const nouvelles = Object.values(apres.corpus.codebook).filter((c) => ['Vie familiale', 'Famille élargie'].includes(c.nom))
-  expect(nouvelles).toHaveLength(2)
-  expect(nouvelles.every((c) => c.parent === null)).toBe(true)
-  expect(apres.annotations.find((a) => a.id === 'orphelin')?.code).toBe(nouvelles.find((c) => c.nom === 'Famille élargie')!.id)
+  expect(apres.corpus.codebook.cat_002.parent).toBeNull()
+  expect(apres.corpus.codebook.cat_003.parent).toBeNull()
+  expect(apres.annotations.find((a) => a.id === 'orphelin')?.code).toBe('cat_003')
 })
 
-test('division avec source conservée : codages non répartis conservés et nouvelles catégories enfants', async () => {
+test('division avec source conservée : les codages non répartis restent sur la source', async () => {
   await ouvrirDivision(false)
-  await modale().getByRole('radio', { name: 'Attribuer a à Vie familiale', exact: true }).check()
+  await modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true }).check()
   await modale().getByRole('button', { name: 'Voir l’aperçu final' }).click()
   await expect(modale()).toContainText('1 codage(s) resteront sur la source')
   await modale().getByRole('button', { name: 'Confirmer et appliquer' }).click()
@@ -202,14 +204,13 @@ test('division avec source conservée : codages non répartis conservés et nouv
   const apres = await lire()
   expect(apres.corpus.codebook.cat_001).toBeDefined()
   expect(apres.annotations.find((a) => a.id === 'orphelin')?.code).toBe('cat_001')
-  const nouvelles = Object.values(apres.corpus.codebook).filter((c) => ['Vie familiale', 'Famille élargie'].includes(c.nom))
-  expect(nouvelles).toHaveLength(2)
-  expect(nouvelles.every((c) => c.parent === 'cat_001')).toBe(true)
+  expect(apres.corpus.codebook.cat_002.parent).toBeNull()
+  expect(apres.corpus.codebook.cat_003.parent).toBeNull()
 })
 
 test('la consultation conserve l’atelier mais invalide l’aperçu ; aucun choix obsolète n’est réinventé', async () => {
   await ouvrirDivision(false)
-  await modale().getByRole('radio', { name: 'Attribuer a à Vie familiale', exact: true }).check()
+  await modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true }).check()
   await modale().getByRole('button', { name: 'Consulter l’entretien', exact: true }).click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await retourCorpus(page)

@@ -464,6 +464,7 @@ export class CorpusStore {
     const contenuCorpusInitial = readFileSync(this.corpusFile, 'utf8')
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     corpus.personnes ??= {}
+    corpusModel.normaliserDescriptionsThemes(corpus.codebook)
     const versionInitiale = corpus.formatVersion as number
     if (versionInitiale >= 1 && versionInitiale <= 8) {
       corpus.recueils = normaliserRecueils(corpus.recueils)

@@ -9,7 +9,7 @@ import { pseudoUtilisable } from '../../shared/export/pseudonymisation'
 import type { EntreeExport, LegacyBlobs } from '../../shared/export/types'
 import type { Ancre } from '../../shared/entretien/audio'
 import { exporterVariables, exporterValeurs } from './eav'
-import { ordreThemes } from '../../shared/corpus'
+import { nomThemePourSonal, ordreThemes } from '../../shared/corpus'
 import { couleurCss } from '../../shared/export/secuCss'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
@@ -92,7 +92,7 @@ function tablesSonal(e: EntreeExport, anonymer = false) {
     // Seule une forme HEX valide est transportée (couleur importée hostile =
     // pas de couleur, donc pas d'injection dans le CSS du fichier).
     couleur: couleurCss(cat.couleur) || couleurHexPourCode(cat.codeExport),
-    nom: cat.nom,
+    nom: nomThemePourSonal(cat),
     taille: cat.taille ?? '',
     cmpct: false,
     rang: String(profondeur),

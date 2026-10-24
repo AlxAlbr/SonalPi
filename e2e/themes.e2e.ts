@@ -71,6 +71,31 @@ test('renommer un thème dans la fenêtre d’édition → reflété dans le pan
   await app.close()
 })
 
+test('ajouter une description la rend consultable sans déclencher de codage', async () => {
+  const { app, page } = await ouvrir('sonal-description-theme-')
+  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await ouvrirEditionThemes(page)
+
+  const ligne = page.locator('.liste-thm li[data-nom="Famille"]')
+  await ligne.getByRole('button', { name: 'Ajouter une description à Famille' }).click()
+  const description = ligne.locator('.description-thm')
+  await description.fill('Liens familiaux et relations entre générations.')
+  await description.press('Tab')
+  await expect(ligne.getByRole('button', { name: 'Modifier la description de Famille' })).toBeVisible()
+  await fermerEditionThemes(page)
+
+  const theme = page.locator('.ligne-coder').filter({ has: page.locator('.theme-nom', { hasText: 'Famille' }) })
+  await page.getByRole('button', { name: 'Afficher toutes les descriptions' }).click()
+  await expect(theme.locator('.description-theme')).toHaveText('Liens familiaux et relations entre générations.')
+  await page.getByRole('button', { name: 'Masquer toutes les descriptions' }).click()
+  await expect(theme.locator('.description-theme')).toHaveCount(0)
+
+  await theme.getByRole('button', { name: 'Afficher la description de Famille' }).click()
+  await expect(theme.locator('.description-theme')).toHaveText('Liens familiaux et relations entre générations.')
+  await expect(page.locator('.editeur .annot')).toHaveCount(0)
+  await app.close()
+})
+
 test('poser une taille de police sur un thème → les passages codés la portent', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
   await coderPremierMot(page) // cat_001 sur « Karine »

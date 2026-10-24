@@ -29,7 +29,7 @@ async function monter(suiviInitial: SuiviOperationTheme | null) {
     N1: { id: 'N1', nom: 'Destination renommée', parent: 's', ordre: 2, actif: true, codeExport: 'A' },
     N2: { id: 'N2', nom: 'Deuxième destination', parent: 's', ordre: 3, actif: true, codeExport: 'B' },
   }
-  const apercu: ApercuOperationTheme = { operationId: 'nouvel-apercu', source: 's', execution: 'entretiens-sequentiels',
+  const apercu: ApercuOperationTheme = { operationId: 'nouvel-apercu', sources: ['s'], execution: 'entretiens-sequentiels',
     parEntretien: [{ id: 'e2', titre: 'Entretien 2', passages: 1, orphelins: 0, aModifier: false }],
     totaux: { entretiens: 1, passages: 1, orphelins: 0, doublonsPrevisibles: 0 }, faisable: true, obstacles: [] }
   const api = {
@@ -65,10 +65,10 @@ async function monter(suiviInitial: SuiviOperationTheme | null) {
 }
 function lot(indeterminee = false): SuiviOperationTheme {
   return { operationId: 'lot-durable', indeterminee, demande: { type: 'division', source: 's', effacerSource: false,
-    cibles: ['A', 'B'].map((token) => ({ type: 'nouvelle', token, nom: token, parent: 's' })),
-    choix: [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'A' }] },
+    cibles: ['N1', 'N2'],
+    choix: [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'N1' }] },
     bilan: { reussis: [{ id: 'e1', reaffectes: 1, doublonsSupprimes: 0 }], echecs: [{ id: 'e2', motif: 'tenu par un tiers' }],
-      ciblesCreees: [{ token: 'A', id: 'N1' }, { token: 'B', id: 'N2' }], sourceConservee: true, finalisation: 'non-demandee' } }
+      ciblesCreees: [], sourceConservee: true, finalisation: 'non-demandee' } }
 }
 
 test('le lot durable est visible après ouverture et reprend les destinations existantes', async () => {

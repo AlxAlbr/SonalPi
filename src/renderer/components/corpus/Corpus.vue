@@ -132,6 +132,7 @@ const editerThemes = ref(false)
 // Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition),
 // sur la consultation du Corpus comme sur le panneau Entretien.
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
+const descriptionsThemesOuvertes = ref<Set<string>>(new Set())
 /** Ouvre le menu au clic droit sur un thème (masqué en lecture seule). */
 function ouvrirMenuTheme(cat: { id: string; nom: string; actif: boolean }, evt: MouseEvent) {
   if (lectureSeule.value) return
@@ -148,11 +149,27 @@ function basculerActifTheme() {
 // les catégories repliées restent visibles.
 const repliesThemes = ref<Set<string>>(new Set())
 const arbreVisible = computed(() => visiblesThemes(arbreThemes(), repliesThemes.value))
+const idsDescriptionsThemes = computed(() => arbreThemes().filter((n) => n.cat.description).map((n) => n.cat.id))
+const toutesDescriptionsThemesOuvertes = computed(() =>
+  idsDescriptionsThemes.value.length > 0
+  && idsDescriptionsThemes.value.every((id) => descriptionsThemesOuvertes.value.has(id)),
+)
 function basculerRepli(id: string) {
   const s = new Set(repliesThemes.value)
   if (s.has(id)) s.delete(id)
   else s.add(id)
   repliesThemes.value = s
+}
+function basculerDescriptionTheme(id: string) {
+  const ouvertes = new Set(descriptionsThemesOuvertes.value)
+  if (ouvertes.has(id)) ouvertes.delete(id)
+  else ouvertes.add(id)
+  descriptionsThemesOuvertes.value = ouvertes
+}
+function basculerToutesDescriptionsThemes() {
+  descriptionsThemesOuvertes.value = toutesDescriptionsThemesOuvertes.value
+    ? new Set()
+    : new Set(idsDescriptionsThemes.value)
 }
 
 type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon' | 'journal'
@@ -499,6 +516,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
+              <button
+                v-if="idsDescriptionsThemes.length"
+                class="toutes-descriptions"
+                :aria-label="toutesDescriptionsThemesOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+                :aria-pressed="toutesDescriptionsThemesOuvertes"
+                :title="toutesDescriptionsThemesOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+                @click="basculerToutesDescriptionsThemes"
+              >ⓘ tout</button>
               <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️</button>
             </div>
             <p class="aide-thm">Le codage se fait au niveau des entretiens</p>
@@ -522,7 +547,17 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 <span v-else class="depliant depliant-masque"></span>
                 <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
                 <span class="nom-thm-lecture">{{ n.cat.nom }}</span>
+                <button
+                  v-if="n.cat.description"
+                  class="info-theme"
+                  :aria-label="descriptionsThemesOuvertes.has(n.cat.id) ? `Masquer la description de ${n.cat.nom}` : `Afficher la description de ${n.cat.nom}`"
+                  :aria-expanded="descriptionsThemesOuvertes.has(n.cat.id)"
+                  :title="descriptionsThemesOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
+                  @click="basculerDescriptionTheme(n.cat.id)"
+                >ⓘ</button>
+                <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
                 <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
+                <p v-if="descriptionsThemesOuvertes.has(n.cat.id)" class="description-theme">{{ n.cat.description }}</p>
               </li>
             </ul>
           </aside>
@@ -1317,6 +1352,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .liste-thm-lecture li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
   padding: 0.15rem 0.15rem;
@@ -1363,6 +1399,53 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   font-family: monospace;
   min-width: 1.1rem;
   text-align: right;
+}
+.toutes-descriptions {
+  border: 1px solid #d3dae5;
+  border-radius: 5px;
+  background: #fff;
+  color: #55708f;
+  cursor: pointer;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.68rem;
+}
+.toutes-descriptions[aria-pressed="true"],
+.toutes-descriptions:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+  background: #f0f6ff;
+}
+.info-theme {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: -0.3rem;
+  flex: none;
+  border: 1px solid #d3dae5;
+  border-radius: 50%;
+  background: #fff;
+  color: #55708f;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.66rem;
+}
+.info-theme:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+  background: #f0f6ff;
+}
+.info-theme-masque {
+  visibility: hidden;
+}
+.description-theme {
+  flex-basis: 100%;
+  margin: 0 0 0.2rem 1.8rem;
+  padding: 0.4rem 0.5rem;
+  border-left: 3px solid #b8c9df;
+  background: #f7f9fc;
+  color: #4f5966;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 /* Accueil explicatif du corpus. */

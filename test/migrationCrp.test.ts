@@ -219,6 +219,13 @@ describe('mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () => {
       expect(codebook2.map((c) => c.actif)).toEqual([false, false, true])
     })
 
+    test('description V1 après // séparée du nom', () => {
+      const codebook2 = mapperCodebook([
+        { code: 'cat_010', nom: 'Lieu // ville citée', rang: '0', act: true },
+      ])
+      expect(codebook2[0]).toMatchObject({ nom: 'Lieu', description: 'ville citée' })
+    })
+
     test('thème sans code écarté ; nom absent → repli sur le code', () => {
       const codebook2 = mapperCodebook([
         { nom: 'orphelin', rang: '0' },

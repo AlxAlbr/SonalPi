@@ -4,14 +4,13 @@ import type {
   ApercuOperationTheme,
   DetailCodageOperationTheme,
   DetailsOperationTheme,
-  NouvelleDestinationTheme,
   ReferenceCodage,
 } from '../../../shared/corpus/themes'
 import { cleCodageTheme } from '../../composables/corpus/useOperationsThemesCorpus'
 
 const props = defineProps<{
   apercu: ApercuOperationTheme
-  destinations: NouvelleDestinationTheme[]
+  destinations: Array<{ id: string; nom: string }>
   details: Map<string, DetailsOperationTheme>
   choix: Map<string, string>
   chargements: Set<string>
@@ -49,7 +48,7 @@ function raccourci(event: KeyboardEvent): void {
   const ligne = codages.value.find((c) => cleCodageTheme(c.codage) === selection.value)
   if (!ligne) return
   event.preventDefault()
-  emit('attribuer', ligne.codage, props.destinations[index].token)
+  emit('attribuer', ligne.codage, props.destinations[index].id)
 }
 function tout(): void {
   if (!props.disabled && deplie.value && tousVers.value) emit('toutAttribuer', deplie.value, tousVers.value)
@@ -77,7 +76,7 @@ function tout(): void {
             <label>Tout attribuer à
               <select v-model="tousVers" :disabled="disabled">
                 <option value="">Choisir une destination…</option>
-                <option v-for="destination in destinations" :key="destination.token" :value="destination.token">{{ destination.nom }}</option>
+                <option v-for="destination in destinations" :key="destination.id" :value="destination.id">{{ destination.nom }}</option>
               </select>
             </label>
             <button :disabled="disabled || !tousVers" @click="tout">Attribuer tout cet entretien</button>
@@ -88,7 +87,7 @@ function tout(): void {
               <table>
                 <thead><tr>
                   <th scope="col">Passage</th>
-                  <th v-for="(destination, index) in destinations" :key="destination.token" scope="col">{{ index + 1 }}. {{ destination.nom }}</th>
+                  <th v-for="(destination, index) in destinations" :key="destination.id" scope="col">{{ index + 1 }}. {{ destination.nom }}</th>
                   <th scope="col">Source</th>
                 </tr></thead>
                 <tbody>
@@ -98,10 +97,10 @@ function tout(): void {
                       <template v-if="codage.extrait"><span class="contexte">{{ codage.avant }}</span><strong>{{ codage.extrait }}</strong><span class="contexte">{{ codage.apres }}</span></template>
                       <template v-else>Sans extrait — {{ codage.orphelin ? 'codage orphelin' : 'plage sans texte' }} ({{ codage.from }}–{{ codage.to }})</template>
                     </button></td>
-                    <td v-for="destination in destinations" :key="destination.token">
+                    <td v-for="destination in destinations" :key="destination.id">
                       <input type="radio" :name="cleCodageTheme(codage.codage)" :aria-label="`Attribuer ${codage.annotationId} à ${destination.nom}`"
-                        :checked="choix.get(cleCodageTheme(codage.codage)) === destination.token" :disabled="disabled"
-                        @focus="selectionner(codage)" @change="emit('attribuer', codage.codage, destination.token)" />
+                        :checked="choix.get(cleCodageTheme(codage.codage)) === destination.id" :disabled="disabled"
+                        @focus="selectionner(codage)" @change="emit('attribuer', codage.codage, destination.id)" />
                     </td>
                     <td><input type="radio" :name="cleCodageTheme(codage.codage)" :aria-label="`Conserver ${codage.annotationId} sur la source`"
                       :checked="!choix.has(cleCodageTheme(codage.codage))" :disabled="disabled"

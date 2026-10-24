@@ -3,7 +3,7 @@ import { validerDefinitionAnon } from '../../shared/corpus/definitionsAnon'
 import { charVersPM } from '../../shared/entretien/positions'
 import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
-import { parentsDepuisRangs } from '../../shared/corpus'
+import { parentsDepuisRangs, scinderNomDescriptionTheme } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon, Note } from '../../shared/format'
 import { scinderPseudos } from '../../shared/entretien/anon'
@@ -373,7 +373,7 @@ export function importerSonal(domDoc: Document): ResultatImport {
   const parents = parentsDepuisRangs(tabThm.map((t) => ({ id: t.code, rang: Number(t.rang ?? 0) || 0 })))
   const codebook: Categorie[] = tabThm.map((t, i) => ({
     id: t.code,
-    nom: t.nom ?? t.code,
+    ...scinderNomDescriptionTheme(t.nom ?? t.code),
     couleur: t.couleur || undefined,
     // SonalPi1 stocke un nombre nu (24) ou '' — n'importer qu'un nombre > 0.
     taille: Number(t.taille) > 0 ? Number(t.taille) : undefined,

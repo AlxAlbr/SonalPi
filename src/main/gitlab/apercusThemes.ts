@@ -1,6 +1,6 @@
 import type { EntretienFichier } from '../../shared/format'
 import {
-  operationThemeSupprimeSource,
+  operationThemeRetireThemes,
   RefusOperationTheme,
   type DemandeOperationTheme,
   type ApercuOperationTheme,
@@ -62,9 +62,9 @@ export class ApercusThemesGitLab {
     const preparation = await this.preparer(requete, precedent, lecteur, capture, destinationsPersistantes)
     const apercu = preparation.apercu
     const obstacles = [...apercu.obstacles]
-    const destructive = operationThemeSupprimeSource(requete)
-    if (destructive && preparation.membres > 248) obstacles.push({ phase: 'finalisation', motif: 'La suppression de source GitLab est limitée à 248 membres.' })
-    if (destructive && preparation.incomplet) obstacles.push({ phase: 'finalisation', motif: 'Tous les membres doivent être disponibles pour supprimer la source.' })
+    const destructive = operationThemeRetireThemes(requete)
+    if (destructive && preparation.membres > 248) obstacles.push({ phase: 'finalisation', motif: 'La suppression de thématiques GitLab est limitée à 248 membres.' })
+    if (destructive && preparation.incomplet) obstacles.push({ phase: 'finalisation', motif: 'Tous les membres doivent être disponibles pour retirer les thématiques.' })
     const bloquees = new Set(apercu.obstacles.flatMap((o) => o.entretienId ? [o.entretienId] : []))
     const ids = apercu.parEntretien.filter((e) => e.aModifier && !bloquees.has(e.id)).map((e) => e.id)
     let observation: ResultatObservationVerrous

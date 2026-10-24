@@ -69,7 +69,8 @@ function entreeRiche(): EntreeExport {
     codebook: [
       {
         id: 'c1',
-        nom: 'Lieu//ville citée',
+        nom: 'Lieu',
+        description: 'ville citée',
         couleur: '#ff0000',
         ordre: 0,
         parent: null,
