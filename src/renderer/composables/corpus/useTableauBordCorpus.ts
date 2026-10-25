@@ -11,11 +11,8 @@ import {
 
 const nouvelId = (prefixe: string): string => `${prefixe}-${globalThis.crypto.randomUUID()}`
 
-/** Fenêtre « Tableau de bord » : orchestration des commandes ciblées du tableau
- *  partagé du corpus. Le composant garde la propriété fonctionnelle ; ici,
- *  commande → mise à jour du modèle → sauvegarde via IPC → le rendu suit. */
+/** Applique les commandes du tableau de bord et actualise le modèle sauvegardé. */
 export function useTableauBordCorpus(deps: { tableaubord: Ref<TableauBord | null> }) {
-  const tableauBordOuverts = ref(false)
   const etatSauvegardeTableau = ref<'à jour' | 'enregistrement…' | 'conflit'>('à jour')
   const messageTableau = ref<string | null>(null)
 
@@ -43,8 +40,12 @@ export function useTableauBordCorpus(deps: { tableaubord: Ref<TableauBord | null
     }
   }
 
-  async function ajouterColonne(nom: string, traversante = false): Promise<void> {
-    await commander({ type: 'ajouter-colonne', id: nouvelId('col'), nom, ...(traversante ? { traversante: true } : {}) })
+  async function ajouterColonne(nom: string, traversante = false, apresId?: string | null): Promise<void> {
+    await commander({
+      type: 'ajouter-colonne', id: nouvelId('col'), nom,
+      ...(traversante ? { traversante: true } : {}),
+      ...(apresId !== undefined ? { apresId } : {}),
+    })
   }
   async function renommerColonne(colonneId: string, attendu: string, nom: string): Promise<void> {
     await commander({ type: 'renommer-colonne', colonneId, attendu, nom })
@@ -66,8 +67,11 @@ export function useTableauBordCorpus(deps: { tableaubord: Ref<TableauBord | null
   async function supprimerBadge(badgeId: string, attendu: string): Promise<void> {
     await commander({ type: 'supprimer-badge', badgeId, attendu })
   }
-  async function ajouterLigne(nom: string): Promise<void> {
-    await commander({ type: 'ajouter-ligne', id: nouvelId('ent'), nom })
+  async function ajouterLigne(nom: string, apresId?: string | null): Promise<void> {
+    await commander({
+      type: 'ajouter-ligne', id: nouvelId('ent'), nom,
+      ...(apresId !== undefined ? { apresId } : {}),
+    })
   }
   async function renommerLigne(ligneId: string, attendu: string, nom: string): Promise<void> {
     await commander({ type: 'renommer-ligne', ligneId, attendu, nom })
@@ -101,15 +105,13 @@ export function useTableauBordCorpus(deps: { tableaubord: Ref<TableauBord | null
     })
   }
 
-  async function afficherTableauBord(): Promise<void> {
-    tableauBordOuverts.value = true
-  }
-  function fermerTableauBord(): void {
-    tableauBordOuverts.value = false
+  function reinitialiserTableauBord(): void {
+    etatSauvegardeTableau.value = 'à jour'
+    messageTableau.value = null
   }
 
   return {
-    tableauBordOuverts,
+    reinitialiserTableauBord,
     etatSauvegardeTableau,
     messageTableau,
     commander,
@@ -124,7 +126,5 @@ export function useTableauBordCorpus(deps: { tableaubord: Ref<TableauBord | null
     supprimerLigne,
     deplacerLigne,
     poserCellule,
-    afficherTableauBord,
-    fermerTableauBord,
   }
 }

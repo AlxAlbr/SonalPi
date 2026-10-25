@@ -59,6 +59,9 @@ describe('useTableauBordCorpus — commandes', () => {
     await expect(composable.poserCellule('ent-1', 'contact', { statut: 'ok' })).rejects.toThrow()
     expect(composable.etatSauvegardeTableau.value).toBe('conflit')
     expect(composable.messageTableau.value).toBe('La case a changé.')
+    composable.reinitialiserTableauBord()
+    expect(composable.etatSauvegardeTableau.value).toBe('à jour')
+    expect(composable.messageTableau.value).toBeNull()
   })
 
   test('poser une cellule lit la garde du contenu courant (attendu)', async () => {
@@ -71,5 +74,18 @@ describe('useTableauBordCorpus — commandes', () => {
     expect(commande.type).toBe('poser-cellule')
     expect(commande.attendu).toEqual({ statut: 'encours' })
     expect((stub as unknown as { tableaubord?: unknown }).tableaubord).toBeDefined()
+  })
+
+  test('les ajouts transmettent l’emplacement choisi', async () => {
+    const { composable } = monter()
+    stubCorpus(tableauBordParDefaut())
+    await composable.ajouterColonne('Relance', false, 'contact')
+    await composable.ajouterLigne('Entretien 3')
+    const commandes = vi.mocked(globalThis.window as unknown as { sonal: { corpus: { tableaubordCommander: (c: unknown) => Promise<unknown> } } })
+      .sonal.corpus.tableaubordCommander.mock.calls
+      .map(([commande]) => commande as { type: string; apresId?: string | null })
+    expect(commandes[0]).toMatchObject({ type: 'ajouter-colonne', apresId: 'contact' })
+    expect(commandes[1].type).toBe('ajouter-ligne')
+    expect(commandes[1].apresId).toBeUndefined()
   })
 })

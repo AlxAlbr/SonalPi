@@ -15,7 +15,9 @@ Guide utilisateur : [Utiliser Lexico](../user/lexico.md).
 | `src/shared/entretien/anon/projectionTexte.ts` | Décisions de pseudonymisation visibles, communes aux passages et exports |
 | `src/renderer/editor/lexico.ts` | Lecture ProseMirror, tokenisation et positions source |
 | `src/renderer/composables/corpus/useLexicoCorpus.ts` | Chargement borné, fraîcheur, cas et navigation |
-| `src/renderer/components/lexico/LexicoModale.vue` | Index, concordances et panneau de filtres |
+| `src/renderer/components/lexico/LexicoCote.vue` | Filtres de l’espace « Analyser et interpréter » |
+| `src/renderer/components/lexico/LexicoPanneau.vue` | Index, concordances, traitement lexical et export |
+| `src/renderer/components/analyser/AnalyserInterpreter.vue` | Espace de travail : onglets Synthèse / Lexico / Analyses croisées |
 
 L’index vit uniquement pendant la session. Les décisions analytiques sont enregistrées
 dans `CorpusFichier.lexico` ; les occurrences et tableaux ne le sont pas. Le document ouvert
@@ -98,8 +100,10 @@ locuteur restent admissibles lorsque ce rôle est exclu.
 
 Une modification du modèle marque le calcul comme périmé. L’actualisation remplace
 l’index de façon atomique et ignore les réponses d’une génération antérieure. Un changement
-de corpus annule le calcul et remet les critères à zéro ; fermer puis rouvrir Lexico dans
-le même corpus conserve les critères.
+de corpus annule le calcul et remet les critères, sélections et brouillons à zéro.
+Dans le même corpus, les panneaux restent montés : changer d'onglet ou d'espace conserve
+le contexte. La barre et les onglets partagent la même commande d'ouverture ; elle appelle
+`preparerLexico`, qui réutilise l'index à jour ou recharge un index absent ou périmé.
 
 Une source illisible ou une valeur de variable invalide produit un diagnostic. Un résultat
 incomplet reste lisible, mais `exportLexicoPossible` empêche son export. La recherche de
@@ -117,4 +121,5 @@ exceptions, chevauchements, sauts internes, positions, portée locale des variab
 l’intersection des thèmes et cas, les traitements lexicaux, l’import V1, le résumé par
 complément et la sécurité de l’export. `test/corpusStore.test.ts` couvre la
 migration, la persistance et le refus d’une base obsolète. Les projections de cas restent
-couvertes par leurs tests dédiés.
+couvertes par leurs tests dédiés. `e2e/espaces-contexte.e2e.ts` vérifie la reprise par la
+barre après modification d'une source et l'effacement des brouillons au changement de corpus.

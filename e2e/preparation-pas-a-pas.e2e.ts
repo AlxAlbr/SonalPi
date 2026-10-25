@@ -46,6 +46,11 @@ test('parcours Préparer son terrain : suivi, document, entretien vide et note',
 
   // 1. La problématique est validée sur la cellule métier traversante.
   await page.locator('.liste-pp .ligne-pp').nth(0).click()
+  await spotlightSur(page, '[data-tour="ouvrir-preparer"]')
+  await page.locator('[data-tour="ouvrir-preparer"]').click()
+  await expect(page.locator('.espace-preparation')).toBeVisible()
+  await expect(page.locator('.spotlight-bulle')).toBeVisible()
+  // L'espace s'ouvre sur l'Accueil : le guidage désigne l'onglet à ouvrir.
   await spotlightSur(page, '[data-tour="ouvrir-tableau-bord"]')
   await page.locator('[data-tour="ouvrir-tableau-bord"]').click()
   await expect(page.getByTestId('consigne-pas-a-pas')).toBeVisible()
@@ -55,11 +60,13 @@ test('parcours Préparer son terrain : suivi, document, entretien vide et note',
   await page.locator('[data-tour="note-cellule-tableau"]').fill('Comment évolue l’aide aux devoirs ?')
   await page.locator('[data-tour="appliquer-cellule-tableau"]').click()
   await expect(page.locator('.liste-pp li').nth(0)).toHaveClass(/fait/, { timeout: 5_000 })
-  await expect(page.locator('.fond-tableau')).not.toBeVisible()
+  await expect(page.locator('.espace-preparation')).not.toBeVisible()
 
   // 2. Le vrai sélecteur copie le guide dans Vos Documents.
   await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp .ligne-pp').nth(1).click()
+  await spotlightSur(page, '[data-tour="ouvrir-preparer"]')
+  await page.locator('[data-tour="ouvrir-preparer"]').click()
   await spotlightSur(page, '[data-tour="ouvrir-docs-cadre"]')
   await page.locator('[data-tour="ouvrir-docs-cadre"]').click()
   await expect(page.getByTestId('consigne-pas-a-pas')).toBeVisible()
@@ -68,7 +75,7 @@ test('parcours Préparer son terrain : suivi, document, entretien vide et note',
   }, join(sources, 'docs', 'Guide-entretien-demo.txt'))
   await page.locator('[data-tour="ajouter-document-cadre"]').click()
   await expect(page.locator('.liste-pp li').nth(1)).toHaveClass(/fait/, { timeout: 5_000 })
-  await expect(page.locator('.fond-docs-cadre')).not.toBeVisible()
+  await expect(page.locator('.espace-preparation')).not.toBeVisible()
 
   // 3. Un entretien réellement vide est créé et son identité est mémorisée.
   await ouvrirCatalogueParcours(page)

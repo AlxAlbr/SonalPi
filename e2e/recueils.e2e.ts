@@ -31,7 +31,7 @@ test('recueil vivant accessible par le bouton supérieur, sans onglet dédié', 
   await page.keyboard.type('réside')
   // Le recueil relit l'entretien SUR DISQUE : attendre l'autosave (l'en-tête
   // affiche « à jour » quand l'écriture est terminée).
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
   await page.locator('.btn-recueils').click()
   await expect(page.locator('.passage blockquote')).toContainText('Karine réside Lyon')
   await expect(page.locator('.passage blockquote')).not.toContainText('habite')

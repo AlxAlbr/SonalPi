@@ -1,8 +1,8 @@
 # Utiliser Lexico
 
 Lexico construit un index des mots du corpus et permet de vérifier chaque résultat dans
-son contexte. Il est disponible depuis les vues Corpus et Entretien avec le bouton global
-**Lexico**.
+son contexte. Il est accessible dans l’espace **Analyser et interpréter**, onglet **Lexico** :
+ses filtres occupent la colonne de gauche, l’index et les concordances la colonne de droite.
 
 ## Lire l’index
 

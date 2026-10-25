@@ -9,16 +9,17 @@ import {
   problematiqueRenseignee,
 } from './predicatsPreparation'
 import type { DefinitionParcours, EtapePasAPas } from './types'
+import type { VueApplication } from '../espaces'
 
 export interface DepsParcoursPreparation {
-  vue: Ref<'accueil' | 'corpus' | 'entretien'>
+  vue: Ref<VueApplication>
   ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
   ouvertId: Ref<string | null>
   membership: Ref<Record<string, EntretienRef>>
   notes: Ref<Note[]>
   tableaubord: Ref<TableauBord | null>
-  tableauBordOuverts: Ref<boolean>
-  docsCadreOuverts: Ref<boolean>
+  tableauBordOuverts: Readonly<Ref<boolean>>
+  docsCadreOuverts: Readonly<Ref<boolean>>
   documentsProjet: Ref<ResumeDocumentCadre[]>
   idEntretien: () => string | null
 }
@@ -30,7 +31,11 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
       id: 'organiser-suivi',
       titre: 'Organiser le suivi',
       cible: () => {
-        if (!deps.tableauBordOuverts.value) return '[data-tour="ouvrir-tableau-bord"]'
+        if (!deps.tableauBordOuverts.value) {
+          return deps.vue.value === 'preparer'
+            ? '[data-tour="ouvrir-tableau-bord"]'
+            : '[data-tour="ouvrir-preparer"]'
+        }
         if (!document.querySelector('[data-tour="formulaire-cellule-tableau"]')) {
           return '[data-tour="cellule-problematique"]'
         }
@@ -41,7 +46,11 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
       panneauSur: ['tableau-bord'],
       fait: () => problematiqueRenseignee(deps.tableaubord.value),
       texte: () => {
-        if (!deps.tableauBordOuverts.value) return 'Ouvrez le Tableau de bord depuis la barre d’outils.'
+        if (!deps.tableauBordOuverts.value) {
+          return deps.vue.value === 'preparer'
+            ? 'Ouvrez l’onglet « Tableau de bord ».'
+            : 'Ouvrez « Préparer et suivre » depuis la barre de navigation.'
+        }
         if (!document.querySelector('[data-tour="formulaire-cellule-tableau"]')) {
           return 'Ouvrez la cellule traversante « Problématique ».'
         }
@@ -52,16 +61,24 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
     {
       id: 'documents-cadre',
       titre: 'Ajouter les documents du projet',
-      cible: () => deps.docsCadreOuverts.value
-        ? '[data-tour="ajouter-document-cadre"]'
-        : '[data-tour="ouvrir-docs-cadre"]',
+      cible: () => {
+        if (deps.docsCadreOuverts.value) return '[data-tour="ajouter-document-cadre"]'
+        return deps.vue.value === 'preparer'
+          ? '[data-tour="ouvrir-docs-cadre"]'
+          : '[data-tour="ouvrir-preparer"]'
+      },
       panneau: true,
       panneauAvecTrou: true,
       panneauSur: ['docs-cadre'],
       fait: () => guideDemoPresent(deps.documentsProjet.value),
-      texte: () => deps.docsCadreOuverts.value
-        ? 'Ajoutez docs/Guide-entretien-demo.txt depuis les sources de démonstration et vérifiez sa présence dans « Vos Documents ».'
-        : 'Ouvrez « Docs cadre projet » depuis la barre d’outils.',
+      texte: () => {
+        if (deps.docsCadreOuverts.value) {
+          return 'Ajoutez docs/Guide-entretien-demo.txt depuis les sources de démonstration et vérifiez sa présence dans « Vos Documents ».'
+        }
+        return deps.vue.value === 'preparer'
+          ? 'Ouvrez l’onglet « Documents cadre ».'
+          : 'Ouvrez « Préparer et suivre », puis l’onglet « Documents cadre ».'
+      },
       explication: () => 'Ce document devient un document du projet ; les documents exemples restent une catégorie distincte.',
       fini: () => 'Le guide d’entretien fait maintenant partie des documents du projet.',
     },

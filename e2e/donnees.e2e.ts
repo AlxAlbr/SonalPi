@@ -56,7 +56,7 @@ test('saisir une valeur (entretien) → persistée et reflétée par la matrice 
   await entrerEntretien(page1) // saisie = écran Entretien
   await ongletDonnees(page1)
   await page1.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
-  await expect(page1.locator('.etat')).toHaveText('à jour')
+  await expect(page1.locator('.tete .etat')).toHaveText('à jour')
   await app1.close()
 
   // Réouverture, MÊME dossier : la valeur est là et la matrice (requête) la montre.
@@ -84,7 +84,7 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
   await ongletDonnees(page)
   // Fiche du 1er locuteur → choisir « Femme ».
   await page.locator('.fiche-loc').first().locator('.saisie-eav-sel').first().selectOption({ label: 'Femme' })
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
   // Le fichier entretien : la valeur est sous le locuteur, PAS au niveau entretien.
   const brut = readFileSync(join(dir, 'corpus', 'entretiens', 'e1.json'), 'utf8')
@@ -102,7 +102,7 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await entrerEntretien(page)
   await ongletDonnees(page)
   await page.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
   // Fenêtre d'édition des variables : tenter de supprimer la modalité « Lyon »
   // (utilisée) → refus.

@@ -1,8 +1,9 @@
-# Docs cadre projet
+# Documents cadre
 
-La barre d’outils du corpus propose le bouton **Docs cadre projet**. Il ouvre une grande
-fenêtre composée de deux zones : à gauche la barre latérale **Vos Documents** puis
-**Documents exemples** ; à droite le panneau de consultation du document sélectionné.
+Les documents du projet se consultent depuis **Préparer et suivre**, dans l’onglet
+**Documents cadre** de la colonne de gauche. L’espace reprend son découpage en deux
+zones : à gauche la barre latérale **Vos Documents** puis **Documents exemples** ;
+à droite le panneau de consultation du document sélectionné.
 
 Un corpus d’entretiens s’accompagne souvent de documents de méthode ou de conformité :
 déclaration de traitement DPO, notice de consentement DPO, guide de correction, guide de
@@ -29,14 +30,14 @@ Le dossier `DocsCadre/`, à la racine du corpus, accueille vos documents. Vous p
 accéder via le gestionnaire de fichiers (**Ouvrir le dossier**, dans la barre latérale,
 crée le dossier au besoin) et **déposer un fichier dessus, en le glissant depuis le
 bureau** : SonalPi le copie alors dans `DocsCadre/`. Une fois les documents dans le
-dossier, **Actualiser** les révèle dans la fenêtre ; la liste se rafraîchit aussi
-automatiquement au retour dans la fenêtre.
+dossier, **Actualiser** les révèle dans l’onglet ; la liste se rafraîchit aussi
+automatiquement au retour dans l’espace.
 
 Un bandeau d'aide repliable en haut du panneau droit (« Où sont mes documents ? ») rappelle ces
 règles : les documents d'exemple sont des modèles à remplacer par ceux de votre DPO, et
 SonalPi n'édite jamais le contenu.
 
-Depuis la fenêtre :
+Depuis cet onglet :
 
 - **Ajouter un fichier** copie le document choisi dans `DocsCadre/` : un document cadre fait
   partie du corpus, contrairement à l'audio des entretiens qui n'est que référencé. En cas
@@ -105,4 +106,4 @@ version.
 
 Le renommage et la suppression ne sont plus proposés dans l'interface : ils se font hors
 SonalPi (gestionnaire de fichiers ou Nextcloud), où ils sont définitifs — la corbeille
-douce interne (`corbeille/DocsCadre/`) n'est plus accessible depuis la fenêtre.
+douce interne (`corbeille/DocsCadre/`) n'est plus accessible depuis cet onglet.

@@ -2,6 +2,12 @@
 
 Statut : socle, filtres, résumé, traitements manuels, persistance et import V1 réalisés ; fonctions avancées différées.
 
+> **Mise à jour — espace de travail.** Lexico vit désormais dans l’espace
+> **Analyser et interpréter**, à côté de Synthèse et des Analyses croisées :
+> ses filtres occupent la colonne de gauche et l’index la colonne de droite.
+> Les mentions de « grande fenêtre » ci-dessous décrivent l’état antérieur ;
+> voir [la navigation par espaces](plan-navigation-espaces-travail.md).
+
 ## 1. Conclusion et recommandation
 
 **Réaliser Lexico progressivement, sans porter intégralement le module V1 et sans construire un éditeur de requêtes.**

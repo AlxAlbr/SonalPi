@@ -1,5 +1,31 @@
 # Vue Corpus
 
+La barre supérieure propose trois espaces de travail :
+
+- **Préparer et suivre** réunit l’**Accueil**, le **Tableau de bord** et les
+  **Documents cadre** du projet. Ses onglets à icônes occupent la colonne de
+  gauche ; le contenu de travail reste à droite. L’Accueil présente les autres
+  onglets et garde le tableau de bord sous les yeux. Dans le Tableau de bord, les
+  colonnes, lignes et badges se créent à gauche et la grille s’édite à droite.
+  Une colonne ou une ligne s’ajoute après l’intitulé choisi, par défaut le dernier,
+  ou en premier. La grille défile horizontalement et verticalement plutôt que de
+  se comprimer ; glissez le bord droit d’un intitulé de colonne ou le bord bas
+  d’un intitulé de ligne pour régler sa taille, et double-cliquez pour revenir au défaut.
+- **Importer et traiter** donne accès au corpus et aux entretiens décrits ci-dessous.
+- **Analyser et interpréter** réunit la **Synthèse**, **Lexico** et les
+  **Analyses croisées**. Ses trois onglets occupent la colonne de gauche, avec
+  les filtres de l’outil actif dessous ; les résultats restent à droite.
+  **Masquer les filtres** réduit la colonne à ses onglets. Chaque onglet garde
+  ses critères, ses résultats et ses réglages d’affichage quand on le quitte.
+
+Les boutons **Recueils** et **Cas** ouvrent encore leur fenêtre par-dessus le
+traitement.
+On passe librement d’un espace à l’autre : consulter la préparation ou une
+analyse ne ferme pas l’entretien ouvert, et **Importer et traiter** le retrouve
+tel qu’il a été laissé. Les deux espaces à onglets reprennent le dernier onglet
+visité, y compris après une ouverture dans l’entretien ; **Préparer et suivre**
+s’ouvre d’abord sur son Accueil.
+
 La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne accès à :
 
 - **Notes**, pour consulter les notes de tous les entretiens ;
@@ -15,11 +41,11 @@ Après le choix, la fenêtre se ferme et l’Accueil retrouve la disposition d�
 
 La recherche dans le texte de tous les entretiens reste accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
-La barre d’outils supérieure donne aussi accès à **Docs cadre projet**, l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
+Les **Documents cadre** de l’espace **Préparer et suivre** forment l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
 
 Les cartes d’entretiens restent visibles dans Accueil et Journal. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
-Dans un entretien du parcours, l’Accueil nomme le parcours actif, rappelle sa progression et propose soit de revoir ce parcours, soit de revenir au catalogue. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées. Dans le Tableau de bord et Docs cadre projet, la consigne se place également sous l’en-tête de la grande fenêtre.
+Dans un entretien du parcours, l’Accueil nomme le parcours actif, rappelle sa progression et propose soit de revoir ce parcours, soit de revenir au catalogue. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées. Dans le Tableau de bord et les Documents cadre, la consigne se place également dans le panneau de travail.
 
 ## Chargement et actualisation
 

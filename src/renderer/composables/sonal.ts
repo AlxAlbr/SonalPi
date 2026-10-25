@@ -17,6 +17,8 @@ import { useLexicoCorpus } from './corpus/useLexicoCorpus'
 import { useSyntheseCorpus } from './corpus/useSyntheseCorpus'
 import { useSourcesAnalyseCorpus } from './corpus/useSourcesAnalyseCorpus'
 import { useAnalysesCroisees } from './corpus/useAnalysesCroisees'
+import { useEspacesTravail } from './useEspacesTravail'
+import type { SousEspaceAnalyse, SousEspacePreparation, VueApplication } from './espaces'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -58,7 +60,7 @@ export function creerSonal() {
   let fournisseurPourMedias: () => 'webdav' | 'gitlab' | null = () => null
   let etatBasePourMedias: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = () => 'sans-objet'
   let actualiserDistantPourMedias: (silencieux?: boolean) => Promise<boolean> = async () => false
-  let reinitialiserFenetresMetier: () => void = () => {}
+  let reinitialiserOutilsCorpus: () => void = () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
   // Scope AUDIO : le lecteur de l'entretien ouvert.
@@ -132,8 +134,26 @@ export function creerSonal() {
     if (!u) ent.majPlageLue(null)
   })
 
-  // --- Navigation : Accueil → Corpus → Entretien. ---
-  const vue = ref<'accueil' | 'corpus' | 'entretien'>('corpus')
+  // --- Navigation : Accueil → espaces de travail → traitement (Corpus → Entretien). ---
+  const vue = ref<VueApplication>('corpus')
+  const espaces = useEspacesTravail({ vue })
+  const {
+    vueTraitement,
+    sousEspacePreparation,
+    sousEspaceAnalyse,
+    panneauAnalyseVisible,
+    preparationActive,
+    analyseActive,
+    entrerPreparation: selectionnerPreparation,
+    entrerAnalyse: selectionnerAnalyse,
+    tableauBordOuverts,
+    docsCadreOuverts,
+    analysesCroiseesOuvertes,
+    revenirTraitement,
+    basculerPanneauAnalyse,
+    afficherPanneauAnalyse,
+    reinitialiserEspaces,
+  } = espaces
 
   // La vue Corpus enregistre le gestionnaire de cette navigation.
   // Lui seul sélectionne son Accueil en respectant les gardes locales.
@@ -219,7 +239,8 @@ export function creerSonal() {
   } = mediasCorpus
 
   // Quitter l'écran entretien met la lecture en PAUSE : le lecteur n'est visible
-  // que là, pas de lecture fantôme sans commandes à l'écran.
+  // que là, pas de lecture fantôme sans commandes à l'écran. Consulter un autre
+  // espace suit la même règle ; l'entretien, lui, reste monté en arrière-plan.
   watch(vue, (v) => {
     if (v !== 'entretien') audio.pause()
   })
@@ -350,7 +371,7 @@ export function creerSonal() {
     },
     effets: {
       reinitialiserSelection: reinitialiserSelectionCorpus,
-      reinitialiserFenetresMetier: () => reinitialiserFenetresMetier(),
+      reinitialiserOutilsCorpus: () => reinitialiserOutilsCorpus(),
       deselectionner: deselectionnerCorpus,
       apresOuvertureEntretien: (id) => proposerFusionDepuisCycle(id),
       raccrocherModeCorpus: (marqueur, dir) => raccrocherModeCorpus(marqueur, dir),
@@ -513,21 +534,10 @@ export function creerSonal() {
   proposerFusionDepuisCycle = proposerFusionDivergence
   reinitialiserDivergenceDepuisDistant = reinitialiserDivergence
 
-  // Fenêtre « Docs cadre projet » : l'espace documentaire propre au corpus.
-  // Le mode local/distant est relu au moment de l'ouverture (le corpus
-  // distant actif est le critère ; le main garantit de toute façon la lecture
-  // seule pour les mutations). Elle ferme les autres fenêtres métier,
-  // et est fermée/resetée par chacune d'elles et à la bascule de corpus.
   const docsCadre = useDocsCadre({
     estDistant: () => idDistantCourant.value !== null,
-    fermerAutreFenetre: () => {
-      recueilsCorpus.fermerRecueils()
-      casCorpus.fermerCas()
-      tableauBordCorpus.fermerTableauBord()
-    },
+    actif: docsCadreOuverts,
   })
-  // Closures des autres fenêtres : leur ouverture referme aussi celle-ci.
-  const fermerDocsCadreDepuisFenetre = () => docsCadre.fermerDocsCadre()
 
   let fermerCasPourRecueils: () => void = () => {}
   const recueilsCorpus = useRecueilsCorpus({
@@ -537,10 +547,7 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     ouvrirSource: ouvrirAuSegment,
-    fermerAutreFenetre: () => {
-      fermerCasPourRecueils()
-      fermerDocsCadreDepuisFenetre()
-    },
+    fermerAutreFenetre: () => fermerCasPourRecueils(),
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
   const casCorpus = useCasCorpus({
@@ -555,21 +562,56 @@ export function creerSonal() {
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     lirePersonnes: corpus.lirePersonnes,
     ouvrirSource: ouvrirAuSegment,
-    fermerRecueils: () => {
-      recueilsCorpus.fermerRecueils()
-      fermerDocsCadreDepuisFenetre()
-    },
+    fermerRecueils: recueilsCorpus.fermerRecueils,
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
   fermerCasPourRecueils = casCorpus.fermerCas
   const tableauBordCorpus = useTableauBordCorpus({ tableaubord: corpus.tableaubord })
+
+  /** La barre, les onglets et le guidage partagent la même ouverture. */
+  async function entrerPreparation(
+    sousEspace: SousEspacePreparation = sousEspacePreparation.value,
+  ): Promise<void> {
+    if (vue.value === 'accueil') return
+    const cible = sousEspace === 'docs-cadre' && !gesteDisponible('docsCadre')
+      ? 'tableau-bord' : sousEspace
+    fermerDialoguesOutils()
+    selectionnerPreparation(cible)
+    if (cible === 'docs-cadre') await docsCadre.preparerDocsCadre()
+  }
+
+  function afficherAccueilPreparation(): Promise<void> {
+    return entrerPreparation('accueil')
+  }
+
+  function afficherTableauBord(): Promise<void> {
+    return entrerPreparation('tableau-bord')
+  }
+
+  function afficherDocsCadre(): Promise<void> {
+    return entrerPreparation('docs-cadre')
+  }
+
+  /** Le guidage masque les panneaux sans effacer leur contexte de travail. */
+  function fermerTableauBord(): void {
+    if (tableauBordOuverts.value) revenirTraitement()
+  }
+
+  function fermerDocsCadre(): void {
+    if (docsCadreOuverts.value) revenirTraitement()
+  }
   const sourcesAnalyseCorpus = useSourcesAnalyseCorpus({
     membership: corpus.membership,
     ouvertId: ent.ouvertId,
     sourceOuverte: ent.donneesSourceOuverte,
   })
-  let fermerSynthesePourLexico: () => void = () => {}
-  let fermerAnalysesPourAutres: () => void = () => {}
+
+  /** Seuls Cas et Recueils sont encore des dialogues d'outils. */
+  function fermerDialoguesOutils(): void {
+    recueilsCorpus.fermerRecueils()
+    casCorpus.fermerCas()
+  }
+
   const lexicoCorpus = useLexicoCorpus({
     membership: corpus.membership,
     variables: corpus.variables,
@@ -579,14 +621,6 @@ export function creerSonal() {
     ouvertId: ent.ouvertId,
     sourceOuverte: ent.donneesSourceOuverte,
     ouvrirSource: ouvrirAuSegment,
-    fermerAutresFenetres: () => {
-      recueilsCorpus.fermerRecueils()
-      casCorpus.fermerCas()
-      tableauBordCorpus.fermerTableauBord()
-      docsCadre.fermerDocsCadre()
-      fermerSynthesePourLexico()
-      fermerAnalysesPourAutres()
-    },
   })
   const syntheseCorpus = useSyntheseCorpus({
     membership: corpus.membership,
@@ -597,48 +631,44 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     ouvrirSource: ouvrirAuSegment,
     sources: sourcesAnalyseCorpus,
-    fermerAutresFenetres: () => {
-      recueilsCorpus.fermerRecueils()
-      casCorpus.fermerCas()
-      tableauBordCorpus.fermerTableauBord()
-      docsCadre.fermerDocsCadre()
-      lexicoCorpus.fermerLexico()
-      fermerAnalysesPourAutres()
-    },
   })
   const analysesCroisees = useAnalysesCroisees({
     membership: corpus.membership,
     codebook: corpus.codebook,
     sources: sourcesAnalyseCorpus,
     ouvrirSource: ouvrirAuSegment,
-    fermerAutresFenetres: () => {
-      recueilsCorpus.fermerRecueils()
-      casCorpus.fermerCas()
-      tableauBordCorpus.fermerTableauBord()
-      docsCadre.fermerDocsCadre()
-      lexicoCorpus.fermerLexico()
-      syntheseCorpus.fermerSynthese()
-    },
     afficherDansSynthese: (themeId, entretienId) => {
       syntheseCorpus.filtresSynthese.value = {
         ...syntheseCorpus.filtresSynthese.value,
         themes: { mode: 'choix', ids: [themeId] },
         entretiens: { mode: 'choix', ids: [entretienId] },
       }
-      syntheseCorpus.afficherSynthese()
+      void entrerAnalyse('synthese')
     },
   })
-  fermerSynthesePourLexico = syntheseCorpus.fermerSynthese
-  fermerAnalysesPourAutres = analysesCroisees.fermerAnalysesCroisees
-  reinitialiserFenetresMetier = () => {
+
+  /** Prépare l'outil choisi sans réinitialiser les panneaux quittés. */
+  async function entrerAnalyse(
+    sousEspace: SousEspaceAnalyse = sousEspaceAnalyse.value,
+  ): Promise<void> {
+    if (vue.value === 'accueil') return
+    fermerDialoguesOutils()
+    selectionnerAnalyse(sousEspace)
+    if (sousEspace === 'lexico') await lexicoCorpus.preparerLexico()
+    else if (sousEspace === 'analyses-croisees') analysesCroisees.preparerAnalyseCroisee()
+  }
+
+  reinitialiserOutilsCorpus = () => {
     recueilsCorpus.fermerRecueils()
     casCorpus.reinitialiserCas()
-    tableauBordCorpus.fermerTableauBord()
+    tableauBordCorpus.reinitialiserTableauBord()
     docsCadre.reinitialiserDocsCadre()
     lexicoCorpus.reinitialiserLexico()
     syntheseCorpus.reinitialiserSynthese()
     analysesCroisees.reinitialiserAnalysesCroisees()
     sourcesAnalyseCorpus.reinitialiserSourcesAnalyse()
+    // Un autre corpus repart sur le traitement, onglets initiaux des espaces.
+    reinitialiserEspaces()
   }
   watch(ent.etatSauvegarde, (etat) => {
     if (etat !== 'à jour') {
@@ -680,9 +710,10 @@ export function creerSonal() {
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
-  // La navigation dédiée ferme d'abord l'entretien avec le chemin sécurisé.
-  // La vue Corpus applique ensuite sa garde et met le parcours en vue.
-  async function voirParcours(parcoursId?: import('../../shared/format').ParcoursId): Promise<boolean> {
+  /** La navigation dédiée ferme d'abord l'entretien avec le chemin sécurisé.
+   *  La vue Corpus applique ensuite sa garde et met le parcours en vue. */
+  async function revenirAuCorpusPourParcours(): Promise<boolean> {
+    if (vue.value === 'preparer' || vue.value === 'analyser') revenirTraitement()
     if (vue.value === 'entretien') {
       try {
         await retourCorpus()
@@ -690,21 +721,18 @@ export function creerSonal() {
         return false
       }
     }
-    if (vue.value !== 'corpus' || !gestionnaireParcours) return false
+    return vue.value === 'corpus' && gestionnaireParcours !== null
+  }
+
+  async function voirParcours(parcoursId?: import('../../shared/format').ParcoursId): Promise<boolean> {
+    if (!(await revenirAuCorpusPourParcours()) || !gestionnaireParcours) return false
     return gestionnaireParcours(parcoursId, true)
   }
 
   async function retourAccueilParcours(
     parcoursId?: import('../../shared/format').ParcoursId,
   ): Promise<boolean> {
-    if (vue.value === 'entretien') {
-      try {
-        await retourCorpus()
-      } catch {
-        return false
-      }
-    }
-    if (vue.value !== 'corpus' || !gestionnaireParcours) return false
+    if (!(await revenirAuCorpusPourParcours()) || !gestionnaireParcours) return false
     return gestionnaireParcours(parcoursId, false)
   }
 
@@ -730,11 +758,11 @@ export function creerSonal() {
     corpusSelId,
     corpusSelMeta,
     tableaubord: corpus.tableaubord,
-    tableauBordOuverts: tableauBordCorpus.tableauBordOuverts,
-    docsCadreOuverts: docsCadre.docsCadreOuverts,
+    tableauBordOuverts,
+    docsCadreOuverts,
     documentsProjet: docsCadre.documentsProjet,
-    fermerTableauBord: tableauBordCorpus.fermerTableauBord,
-    fermerDocsCadre: docsCadre.fermerDocsCadre,
+    fermerTableauBord,
+    fermerDocsCadre,
   })
   // Le holder restaure le mode démo des corpus qui portent son marqueur.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
@@ -743,11 +771,11 @@ export function creerSonal() {
   /** Navigation typée utilisée par les retours du guidage, sans clic DOM. */
   async function naviguerGuide(destination: DestinationGuide): Promise<boolean> {
     if (destination.surface === 'tableau-bord') {
-      await tableauBordCorpus.afficherTableauBord()
+      await afficherTableauBord()
       return true
     }
     if (destination.surface === 'docs-cadre') {
-      await docsCadre.afficherDocsCadre()
+      await afficherDocsCadre()
       return true
     }
     if (destination.surface === 'entretien') {
@@ -804,6 +832,7 @@ export function creerSonal() {
         case 'ajouter-entretien': {
           if (!ajoutEntretienPossible.value) break
           // La modale vit dans la vue Corpus : on s'y rend d'abord si besoin.
+          if (vue.value === 'preparer' || vue.value === 'analyser') revenirTraitement()
           if (vue.value === 'entretien') await retourCorpus()
           else if (vue.value === 'accueil' && dossierCourantDir.value) {
             vue.value = 'corpus'
@@ -904,6 +933,37 @@ export function creerSonal() {
     audioLocalDisponible,
     creerEntretienVideDistant,
     vue,
+    vueTraitement,
+    sousEspacePreparation,
+    sousEspaceAnalyse,
+    panneauAnalyseVisible,
+    preparationActive,
+    analyseActive,
+    tableauBordOuverts,
+    docsCadreOuverts,
+    analysesCroiseesOuvertes,
+    entrerPreparation,
+    entrerAnalyse,
+    revenirTraitement,
+    basculerPanneauAnalyse,
+    afficherPanneauAnalyse,
+    afficherAccueilPreparation,
+    afficherTableauBord,
+    afficherDocsCadre,
+    fermerTableauBord,
+    fermerDocsCadre,
+    // Toute ouverture d'outil quitte l'éventuel espace de travail en cours.
+    afficherCas: async () => {
+      revenirTraitement()
+      await casCorpus.afficherCas()
+    },
+    afficherRecueils: async () => {
+      revenirTraitement()
+      await recueilsCorpus.afficherRecueils()
+    },
+    afficherLexico: () => entrerAnalyse('lexico'),
+    afficherSynthese: () => entrerAnalyse('synthese'),
+    afficherAnalysesCroisees: () => entrerAnalyse('analyses-croisees'),
     themeASupprimer,
     corpusSelId,
     corpusSelMeta,

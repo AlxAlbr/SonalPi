@@ -1,6 +1,7 @@
 # Docs cadre projet — carte développeur
 
-Le bouton **Docs cadre projet** ouvre l'espace documentaire propre au corpus courant :
+L'onglet **Documents cadre** de l'espace « Préparer et suivre » ouvre l'espace
+documentaire propre au corpus courant :
 notice de consentement, guides de méthode, consignes internes, fichiers Word ou PDF.
 
 Décision structurante : SonalPi conserve les documents dans leur format d'origine et
@@ -77,10 +78,12 @@ Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une 
   une réponse tardive ne s'affiche jamais après un changement de document), dépôt par
   glisser-déposer (copie, refus d'un homonyme sans renommage automatique), messages,
   confirmation de suppression (IPC conservé, bouton retiré de l'UI). Une erreur réseau
-  préserve la liste chargée et les exemples. Actualisation après retour de focus (locale
-  uniquement) — pas de surveillance continue.
-- `components/DocsCadreModale.vue` (Teleport, Escape), `corpus/DocsCadre.vue` (barre
-  latérale + panneau). La barre latérale porte les actions toujours accessibles (local :
+  préserve la liste chargée et les exemples. `preparerDocsCadre` relit l'inventaire et
+  l'aperçu à chaque accès, sans effacer la sélection encore disponible. La navigation
+  fournit un indicateur actif en lecture seule ; le composable ne pilote pas sa visibilité.
+  Le retour de focus actualise seulement le panneau local actif, sans surveillance continue.
+- `corpus/DocsCadreCote.vue` (barre latérale) et `corpus/DocsCadrePanneau.vue`
+  (panneau de consultation). La barre latérale porte les actions toujours accessibles (local :
   Ajouter, Ouvrir le dossier, Actualiser ; distant : Ouvrir dans Nextcloud, Actualiser) et
   un bandeau d'aide repliable indiquant où vivent les documents. Le double-clic sur un
   document du corpus ouvre l'application externe. `corpus/FicheDocCadre.vue` (métadonnées),
@@ -89,9 +92,13 @@ Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une 
 - La gestion (renommer, supprimer) a été retirée de l'interface : les IPC
   `docsCadre:renommer` et `docsCadre:supprimer` et la corbeille douce restent dans le main
   (tests conservés) mais ne sont plus exposés à l'utilisateur.
-- Coutures : `BarreOutils.vue` (bouton actif), `composables/sonal.ts` (fenêtre unique :
-  ouverture referme cas/recueils/tableau de bord, et réciproquement ; bascule de corpus →
-  `reinitialiserDocsCadre`), `App.vue` (montage de la modale).
+- Coutures : `preparer/PreparerSuivre.vue` (onglet et panneau de travail),
+  `corpus/DocsCadreCote.vue` (actions et listes), `corpus/DocsCadrePanneau.vue`
+  (aperçu), `composables/sonal.ts` (même commande d'ouverture depuis la barre, les
+  onglets et le guidage), `composables/useEspacesTravail.ts` (panneau actif dérivé de
+  la navigation). Les panneaux restent montés entre les onglets ; un changement de
+  corpus réinitialise la session documentaire et les états locaux des espaces.
+  Le glisser-déposer est porté par l'espace.
 
 ## Aperçu PDF
 
@@ -111,12 +118,15 @@ et bornés à 30 Mo avant d’atteindre le renderer. L’ouverture externe reste
   forcé, sous-dossiers exclus), GET réservé aux aperçus acceptés, tailles bornées, copie
   streamée exacte, création du dossier à la publication, URL Nextcloud (sous-chemin,
   accents, HTTP local uniquement).
-- `test/docsCadreRenderer.test.ts` : ouverture/fermeture, listes préservées en cas
-  d'erreur, génération anti-réponse-tardive, garde de forme, mutations et messages,
+- `test/docsCadreRenderer.test.ts` : préparation, sélection conservée au masquage,
+  actualisation au retour, focus du seul panneau actif, listes préservées en cas
+  d'erreur, isolation des réponses tardives, garde de forme, mutations et messages,
   dépôt (copie + sélection, homonyme refusé, source non ordinaire).
 - `e2e/docs-cadre.e2e.ts` : bouton actif, ordre des sections, état vide avec actions
   accessibles, aperçu d'exemple immuable, aperçu PDF avec zoom, ajout et persistance,
   absence de renommage/suppression dans l'interface, dépôt manuel découvert.
+- `e2e/espaces-contexte.e2e.ts` : découverte et relecture au retour par la barre seule,
+  sélection conservée entre les outils et désélection d'un document disparu.
 
 Bancs Nextcloud : `npm run nc:up` / `npm run nc-b:up` suffisent ; ne JAMAIS retélécharger
 ni reprovisionner les images pour ce chantier.

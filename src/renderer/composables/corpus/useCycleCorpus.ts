@@ -18,6 +18,7 @@ import type {
 } from '../../../shared/format'
 import { paramsAnonDefaut } from '../../../shared/format'
 import { squeletteCorpus } from '../../../shared/corpus/squelette'
+import type { VueApplication } from '../espaces'
 import { normaliserTraitementsLexico } from '../../../shared/lexico/traitements'
 import type { TableauBord } from '../../../shared/corpus/tableaubord'
 import {
@@ -104,7 +105,7 @@ interface DistantCycleCorpus {
 
 interface EffetsCycleCorpus {
   reinitialiserSelection: () => void
-  reinitialiserFenetresMetier: () => void
+  reinitialiserOutilsCorpus: () => void
   deselectionner: () => void
   apresOuvertureEntretien: (id: string) => Promise<void>
   raccrocherModeCorpus: (
@@ -112,8 +113,6 @@ interface EffetsCycleCorpus {
     dir: string | null,
   ) => Promise<void>
 }
-
-type VueApplication = 'accueil' | 'corpus' | 'entretien'
 
 /** Coordonne les changements de corpus et le cycle de l'entretien ouvert. */
 export function useCycleCorpus(deps: {
@@ -155,7 +154,7 @@ export function useCycleCorpus(deps: {
     deps.audio.largeurVideo.value = 0
     reprise.value = null
     deps.effets.reinitialiserSelection()
-    deps.effets.reinitialiserFenetresMetier()
+    deps.effets.reinitialiserOutilsCorpus()
     deps.corpus.reinitialiserScanAnon()
     deps.corpus.reinitialiserMatrice()
     deps.corpus.membership.value = corpus.membership

@@ -10,8 +10,7 @@ import type {
 } from '../../../shared/distant'
 import { appliquerStatutSession as appliquerStatutSessionApplication } from '../../couturesApplication'
 import { tirageAutomatiqueSuspendu } from '../../tirageAutomatique'
-
-type VueApplication = 'accueil' | 'corpus' | 'entretien'
+import type { VueApplication } from '../espaces'
 
 /** Un corpus local sait tout faire : c'est la référence des capacités. */
 const TOUTES_CAPACITES: CapacitesCorpus = {

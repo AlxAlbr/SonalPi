@@ -1449,12 +1449,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 
 /* Accueil explicatif du corpus. */
-.accueil-intro {
-  margin: 0.2rem 0 0;
-  color: #666;
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
 .accueil-corpus :deep(.pas-a-pas) {
   border-color: #a9c5e8;
   background: #f8fbff;
@@ -1473,30 +1467,5 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .raccourci b {
   color: #a37000;
-}
-.accueil-outils {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.accueil-outils li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1px solid #e5e5ef;
-  border-radius: 6px;
-  padding: 0.4rem 0.5rem;
-  background: #fff;
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-.accueil-outils img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  flex: none;
 }
 </style>

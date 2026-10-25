@@ -8,16 +8,13 @@ import RepriseCrash from './components/distant/RepriseCrash.vue'
 import DivergenceCopie from './components/distant/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
 import RecueilsModale from './components/app/RecueilsModale.vue'
-import TableauBordModale from './components/app/TableauBordModale.vue'
 import CasModale from './components/app/CasModale.vue'
-import DocsCadreModale from './components/app/DocsCadreModale.vue'
+import PreparerSuivre from './components/preparer/PreparerSuivre.vue'
+import AnalyserInterpreter from './components/analyser/AnalyserInterpreter.vue'
 import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
 import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
-import LexicoModale from './components/lexico/LexicoModale.vue'
-import SyntheseModale from './components/synthese/SyntheseModale.vue'
-import AnalysesCroiseesModale from './components/analyses/AnalysesCroiseesModale.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -33,6 +30,7 @@ const {
   membership,
   refusFormat,
   dossierCourantNom,
+  revisionCorpus,
 } = fournirSonal()
 </script>
 
@@ -52,7 +50,12 @@ const {
       <nav class="fil" v-if="vue !== 'accueil'">
         <button class="lien-nav" @click="allerAccueil">Accueil</button>
         <span class="sep">›</span>
-        <button class="lien-nav" :class="{ courant: vue === 'corpus' }" :disabled="vue === 'corpus'" @click="retourCorpus">
+        <button
+          class="lien-nav"
+          :class="{ courant: vue !== 'entretien' }"
+          :disabled="vue !== 'entretien'"
+          @click="retourCorpus"
+        >
           Corpus{{ dossierCourantNom ? ' (' + dossierCourantNom + ')' : '' }}
         </button>
         <template v-if="vue === 'entretien'">
@@ -88,6 +91,9 @@ const {
 
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
+    <!-- Les brouillons des espaces sont conservés jusqu'au changement de corpus. -->
+    <PreparerSuivre :key="`preparer-${revisionCorpus}`" v-show="vue === 'preparer'" />
+    <AnalyserInterpreter :key="`analyser-${revisionCorpus}`" v-show="vue === 'analyser'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
 
@@ -106,11 +112,6 @@ const {
     <DesignationAudioDistante />
     <CasModale />
     <RecueilsModale />
-    <TableauBordModale />
-    <DocsCadreModale />
-    <LexicoModale />
-    <SyntheseModale />
-    <AnalysesCroiseesModale />
     <ModaleExportEntretien />
     <ModaleExportCorpus />
   </main>
@@ -249,5 +250,9 @@ h1 small {
 }
 .fil .sep {
   color: #bbb;
+}
+/* Sur une fenêtre étroite, on resserre le fil sous la barre d'outils. */
+@media (max-width: 1080px) {
+  .fil { margin-top: 0.2rem; }
 }
 </style>

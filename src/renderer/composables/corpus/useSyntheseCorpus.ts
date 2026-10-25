@@ -14,6 +14,9 @@ import { type ModeTextePassage, type SourcePassagePreparee } from '../../editor/
 import { diagnosticsValeursSynthese, projeterExtraitsSynthese, sourceMoteurSynthese } from '../../editor/synthese'
 import type { SourcesAnalyseCorpus } from './useSourcesAnalyseCorpus'
 
+/** Dimension de critères affichée dans la colonne de gauche de l'espace. */
+export type OngletCriteresSynthese = 'entretiens' | 'variables' | 'personnes' | 'themes' | 'cas'
+
 /** Porte une session Synthèse et conserve un résultat immuable jusqu'au prochain calcul. */
 export function useSyntheseCorpus(deps: {
   membership: Ref<Record<string, EntretienRef>>
@@ -23,13 +26,13 @@ export function useSyntheseCorpus(deps: {
   ouvertId: Ref<string | null>
   sourceOuverte: () => EntretienFichier | null
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
-  fermerAutresFenetres: () => void
   sources: SourcesAnalyseCorpus
 }) {
-  const syntheseOuverte = ref(false)
   const chargementSynthese = ref(false)
   const progressionSynthese = deps.sources.progressionSourcesAnalyse
   const filtresSynthese = ref<FiltresSynthese>(filtresSyntheseParDefaut())
+  /** Onglet de critères courant ; état de vue, réinitialisé avec le corpus. */
+  const ongletCriteresSynthese = ref<OngletCriteresSynthese>('themes')
   const modeTexteSynthese = ref<ModeTextePassage>('pseudonymise')
   const representationSynthese = ref<'ensemble' | 'extraits'>('ensemble')
   const selectionExtraitSynthese = ref<string | null>(null)
@@ -148,17 +151,12 @@ export function useSyntheseCorpus(deps: {
     }
   }
 
-  function afficherSynthese() {
-    deps.fermerAutresFenetres()
-    syntheseOuverte.value = true
-  }
-  function fermerSynthese() { syntheseOuverte.value = false }
   function perimerSynthese() { if (calculeLeSynthese.value) resultatPerimeSynthese.value = true }
   function reinitialiserSynthese() {
     generation++
-    syntheseOuverte.value = false
     chargementSynthese.value = false
     filtresSynthese.value = filtresSyntheseParDefaut()
+    ongletCriteresSynthese.value = 'themes'
     modeTexteSynthese.value = 'pseudonymise'
     representationSynthese.value = 'ensemble'
     selectionExtraitSynthese.value = null
@@ -173,7 +171,6 @@ export function useSyntheseCorpus(deps: {
   }
   async function ouvrirExtraitSynthese(extrait: ExtraitSyntheseBrut) {
     if (resultatPerimeSynthese.value) return
-    syntheseOuverte.value = false
     await deps.ouvrirSource(extrait.entretienId, extrait.from)
   }
 
@@ -183,12 +180,13 @@ export function useSyntheseCorpus(deps: {
   }, { deep: true })
 
   return {
-    syntheseOuverte, chargementSynthese, progressionSynthese, filtresSynthese,
+    chargementSynthese, progressionSynthese, filtresSynthese,
+    ongletCriteresSynthese,
     modeTexteSynthese, representationSynthese, selectionExtraitSynthese,
     personnesSynthese, entretiensCalculSynthese, extraitsSynthese, diagnosticsSynthese, resultatPerimeSynthese,
     calculeLeSynthese, entretiensAvecExtraitsSynthese, volumeTexteSynthese,
     lignesResumeSynthese, criteresActifsSynthese, calculSynthesePossible,
-    exportSynthesePossible, afficherSynthese, fermerSynthese, actualiserSynthese,
+    exportSynthesePossible, actualiserSynthese,
     perimerSynthese, reinitialiserSynthese, ouvrirExtraitSynthese,
   }
 }

@@ -103,7 +103,7 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   // e1 (seed) : coder « Lieu », enregistrer.
   await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
   await coderTheme(page, 'Lieu')
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
   // Nouvel entretien e2 (petit .txt importé via la modale) : coder « Lieu » aussi.
   const txt = join(mkdtempSync(join(tmpdir(), 'sonal-ds10-fix-')), 'second.txt')
@@ -117,7 +117,7 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   await page.locator('.editeur').click()
   await page.locator('.editeur').press('ControlOrMeta+a')
   await coderTheme(page, 'Lieu')
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
   // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » :
   // refus affiché DANS la fenêtre d'édition.

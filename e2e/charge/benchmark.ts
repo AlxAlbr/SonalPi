@@ -311,8 +311,8 @@ test('mesure la réactivité de l’éditeur selon la taille et les annotations'
         scenario.correctionMaxMs = arrondir(Math.max(...scenario.correctionsMs))
 
         const debutSauvegarde = nodePerformance.now()
-        await expect(page.locator('.etat')).toHaveText(/modifié|sauvegarde…/, { timeout: 5_000 })
-        await expect(page.locator('.etat')).toHaveText('à jour', { timeout: 120_000 })
+        await expect(page.locator('.tete .etat')).toHaveText(/modifié|sauvegarde…/, { timeout: 5_000 })
+        await expect(page.locator('.tete .etat')).toHaveText('à jour', { timeout: 120_000 })
         scenario.sauvegardeMs = arrondir(nodePerformance.now() - debutSauvegarde)
         scenario.rechercheMs = arrondir(await mesurerRecherche(page))
         const defilement = await mesurerDefilement(page)

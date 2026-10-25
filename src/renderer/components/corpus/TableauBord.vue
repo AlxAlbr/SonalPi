@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import {
   LIGNE_TRAVERSANTE,
@@ -7,18 +7,18 @@ import {
   type CelluleTableau,
   type ColonneTableau,
   type ContenuCellule,
+  type LigneTableau,
 } from '../../../shared/corpus/tableaubord'
+import { texteLisible } from './tableauBordAffichage'
 
+// Grille du tableau de bord (panneau droit). Les badges, lignes et colonnes se
+// créent dans le panneau gauche (PanneauTableauBord.vue).
 const {
   tableaubord,
   messageTableau,
-  ajouterColonne,
   renommerColonne,
   supprimerColonne,
   deplacerColonne,
-  ajouterBadge,
-  supprimerBadge,
-  ajouterLigne,
   renommerLigne,
   supprimerLigne,
   deplacerLigne,
@@ -27,6 +27,123 @@ const {
 } = utiliserSonal()
 
 const editable = computed(() => !lectureSeule.value)
+
+/* Largeurs de colonnes et hauteurs de lignes : réglages d'affichage du poste.
+ *  Ils sont conservés entre deux sessions et partagés par les corpus. */
+const LARGEUR_ENTETES = 120
+const LARGEUR_COLONNE_DEFAUT = 120
+const LARGEUR_COLONNE_MIN = 60
+const LARGEUR_COLONNE_MAX = 600
+const HAUTEUR_LIGNE_DEFAUT = 30
+const HAUTEUR_LIGNE_MIN = 24
+const HAUTEUR_LIGNE_MAX = 300
+const CLE_LARGEURS = 'sonalpi.tableauBord.largeursColonnes'
+const CLE_HAUTEURS = 'sonalpi.tableauBord.hauteursLignes'
+
+const largeursColonnes = ref<Record<string, number>>({})
+const hauteursLignes = ref<Record<string, number>>({})
+
+function borner(valeur: number, min: number, max: number): number {
+  return Math.max(min, Math.min(valeur, max))
+}
+function largeurColonne(colonne: ColonneTableau): number {
+  return borner(largeursColonnes.value[colonne.id] ?? LARGEUR_COLONNE_DEFAUT, LARGEUR_COLONNE_MIN, LARGEUR_COLONNE_MAX)
+}
+function hauteurLigne(ligne: LigneTableau): number {
+  return borner(hauteursLignes.value[ligne.id] ?? HAUTEUR_LIGNE_DEFAUT, HAUTEUR_LIGNE_MIN, HAUTEUR_LIGNE_MAX)
+}
+/** La table garde la somme des largeurs choisies.
+ *  Elle déborde et défile au lieu de comprimer ses colonnes. */
+const largeurTable = computed(() => LARGEUR_ENTETES
+  + (tableaubord.value?.colonnes.reduce((total, colonne) => total + largeurColonne(colonne), 0) ?? 0))
+
+function lireTailles(cle: string): Record<string, number> {
+  try {
+    const brut = JSON.parse(localStorage.getItem(cle) ?? '{}') as unknown
+    if (!brut || typeof brut !== 'object' || Array.isArray(brut)) return {}
+    return Object.fromEntries(
+      Object.entries(brut).filter(([, valeur]) => typeof valeur === 'number' && Number.isFinite(valeur) && valeur > 0),
+    )
+  } catch {
+    return {}
+  }
+}
+function memoriserTailles(): void {
+  try {
+    localStorage.setItem(CLE_LARGEURS, JSON.stringify(largeursColonnes.value))
+    localStorage.setItem(CLE_HAUTEURS, JSON.stringify(hauteursLignes.value))
+  } catch {
+    // Le stockage est facultatif : les tailles restent valables pour la session.
+  }
+}
+onMounted(() => {
+  largeursColonnes.value = lireTailles(CLE_LARGEURS)
+  hauteursLignes.value = lireTailles(CLE_HAUTEURS)
+})
+
+let redimensionnementColonne: { id: string; depart: number; taille: number } | null = null
+function commencerRedimensionnementColonne(event: PointerEvent, colonne: ColonneTableau): void {
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  redimensionnementColonne = { id: colonne.id, depart: event.clientX, taille: largeurColonne(colonne) }
+}
+function redimensionnerColonne(event: PointerEvent): void {
+  const etat = redimensionnementColonne
+  if (!etat || !(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) return
+  largeursColonnes.value[etat.id] = borner(
+    etat.taille + event.clientX - etat.depart, LARGEUR_COLONNE_MIN, LARGEUR_COLONNE_MAX,
+  )
+}
+function terminerRedimensionnementColonne(event: PointerEvent): void {
+  const cible = event.currentTarget as HTMLElement
+  if (cible.hasPointerCapture(event.pointerId)) cible.releasePointerCapture(event.pointerId)
+  redimensionnementColonne = null
+  memoriserTailles()
+}
+function ajusterLargeurColonneAuClavier(event: KeyboardEvent, colonne: ColonneTableau): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return
+  event.preventDefault()
+  const largeur = event.key === 'Home'
+    ? LARGEUR_COLONNE_DEFAUT
+    : largeurColonne(colonne) + (event.key === 'ArrowLeft' ? -10 : 10)
+  largeursColonnes.value[colonne.id] = borner(largeur, LARGEUR_COLONNE_MIN, LARGEUR_COLONNE_MAX)
+  memoriserTailles()
+}
+function reinitialiserLargeurColonne(colonne: ColonneTableau): void {
+  delete largeursColonnes.value[colonne.id]
+  memoriserTailles()
+}
+
+let redimensionnementLigne: { id: string; depart: number; taille: number } | null = null
+function commencerRedimensionnementLigne(event: PointerEvent, ligne: LigneTableau): void {
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  redimensionnementLigne = { id: ligne.id, depart: event.clientY, taille: hauteurLigne(ligne) }
+}
+function redimensionnerLigne(event: PointerEvent): void {
+  const etat = redimensionnementLigne
+  if (!etat || !(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) return
+  hauteursLignes.value[etat.id] = borner(
+    etat.taille + event.clientY - etat.depart, HAUTEUR_LIGNE_MIN, HAUTEUR_LIGNE_MAX,
+  )
+}
+function terminerRedimensionnementLigne(event: PointerEvent): void {
+  const cible = event.currentTarget as HTMLElement
+  if (cible.hasPointerCapture(event.pointerId)) cible.releasePointerCapture(event.pointerId)
+  redimensionnementLigne = null
+  memoriserTailles()
+}
+function ajusterHauteurLigneAuClavier(event: KeyboardEvent, ligne: LigneTableau): void {
+  if (!['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return
+  event.preventDefault()
+  const hauteur = event.key === 'Home'
+    ? HAUTEUR_LIGNE_DEFAUT
+    : hauteurLigne(ligne) + (event.key === 'ArrowUp' ? -5 : 5)
+  hauteursLignes.value[ligne.id] = borner(hauteur, HAUTEUR_LIGNE_MIN, HAUTEUR_LIGNE_MAX)
+  memoriserTailles()
+}
+function reinitialiserHauteurLigne(ligne: LigneTableau): void {
+  delete hauteursLignes.value[ligne.id]
+  memoriserTailles()
+}
 
 /* Édition en ligne des noms : la case libellé devient un champ, Entrée confirme. */
 const editionColonne = ref<string | null>(null)
@@ -57,24 +174,6 @@ async function validerEdition() {
   }
   editionColonne.value = null
   editionLigne.value = null
-}
-
-/* Ajouts : un champ à la fin de la grille. */
-const nomNouvelleColonne = ref('')
-const nouvelleTraversante = ref(false)
-const nomNouvelleLigne = ref('')
-async function creerColonne() {
-  const nom = nomNouvelleColonne.value.trim()
-  if (!nom) return
-  await ajouterColonne(nom, nouvelleTraversante.value)
-  nomNouvelleColonne.value = ''
-  nouvelleTraversante.value = false
-}
-async function creerLigne() {
-  const nom = nomNouvelleLigne.value.trim()
-  if (!nom) return
-  await ajouterLigne(nom)
-  nomNouvelleLigne.value = ''
 }
 
 /* Suppressions : confirmée seulement si des cellules renseignées disparaissent. */
@@ -186,39 +285,6 @@ function cleCellule(colonne: ColonneTableau, ligneId: string): string {
 function badgeDe(badgeId: string | undefined): BadgeTableau | undefined {
   return badgeId ? tableaubord.value?.badges.find((badge) => badge.id === badgeId) : undefined
 }
-/** Texte du badge en sombre sur couleur claire, blanc sur couleur sombre. */
-function texteLisible(couleur: string): string {
-  const hex = /^#([0-9a-f]{6})$/i.exec(couleur)?.[1]
-  if (!hex) return '#fff'
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
-  return (0.2126 * lin(r!) + 0.7152 * lin(g!) + 0.0722 * lin(b!)) > 0.55 ? '#1a1a1a' : '#fff'
-}
-/** Badges jamais posés dans une case : seuls ceux-là sont supprimables. */
-const badgesUtilises = computed(() => new Set(
-  Object.values(tableaubord.value?.cellules ?? {})
-    .flatMap((rangee) => Object.values(rangee))
-    .map((cellule) => cellule.badgeId)
-    .filter((id): id is string => id !== undefined),
-))
-const nomNouveauBadge = ref('')
-const couleurNouveauBadge = ref('#3399ff')
-async function creerBadge() {
-  const nom = nomNouveauBadge.value.trim()
-  if (!nom) return
-  try {
-    await ajouterBadge(nom, couleurNouveauBadge.value)
-    nomNouveauBadge.value = ''
-  } catch {
-    // Le message du composable est affiché au-dessus de la grille.
-  }
-}
-async function retirerBadge(id: string) {
-  if (!editable.value || badgesUtilises.value.has(id)) return
-  const badge = tableaubord.value!.badges.find((badge) => badge.id === id)
-  if (!badge) return
-  await supprimerBadge(id, badge.nom)
-}
 function infoBulle(ligneId: string, colonneId: string): string | undefined {
   const c = celluleDe(ligneId, colonneId)
   if (!c) return undefined
@@ -256,9 +322,14 @@ function afficherDate(iso: string): string {
       <p>Clique sur une cellule pour éditer son contenu.</p>
       <p>Les notes apparaissent au survol de la case avec la souris.</p>
       <p>Les intitulés des lignes et des colonnes sont modifiables (Alt+Entrée pour un retour à la ligne).</p>
+      <p>Fais glisser le bord droit d'une colonne ou le bord bas d'une ligne pour ajuster sa taille ; double-clique pour revenir au défaut.</p>
     </div>
     <div v-if="tableaubord" class="conteneur">
-      <table class="grille">
+      <table class="grille" :style="{ width: largeurTable + 'px' }">
+        <colgroup>
+          <col :style="{ width: LARGEUR_ENTETES + 'px' }" />
+          <col v-for="colonne in tableaubord.colonnes" :key="colonne.id" :style="{ width: largeurColonne(colonne) + 'px' }" />
+        </colgroup>
         <thead>
           <tr>
             <th class="coin"></th>
@@ -276,11 +347,28 @@ function afficherDate(iso: string): string {
                 <button class="mini" title="Déplacer à droite" @click="deplacerColonne(colonne.id, tableaubord.colonnes[tableaubord.colonnes.indexOf(colonne) + 1]?.id ?? null)">▶</button>
                 <button class="mini" title="Supprimer la colonne" @click="retirerColonne(colonne.id)">✕</button>
               </span>
+              <span
+                class="poignee poignee-colonne"
+                role="separator"
+                aria-orientation="vertical"
+                :aria-label="`Largeur de la colonne ${colonne.nom}`"
+                :aria-valuenow="largeurColonne(colonne)"
+                :aria-valuemin="LARGEUR_COLONNE_MIN"
+                :aria-valuemax="LARGEUR_COLONNE_MAX"
+                tabindex="0"
+                title="Glisser pour régler la largeur ; double-clic pour revenir au défaut"
+                @pointerdown.stop="commencerRedimensionnementColonne($event, colonne)"
+                @pointermove="redimensionnerColonne"
+                @pointerup="terminerRedimensionnementColonne"
+                @pointercancel="terminerRedimensionnementColonne"
+                @keydown="ajusterLargeurColonneAuClavier($event, colonne)"
+                @dblclick.stop.prevent="reinitialiserLargeurColonne(colonne)"
+              ></span>
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ligne in tableaubord.lignes" :key="ligne.id">
+          <tr v-for="ligne in tableaubord.lignes" :key="ligne.id" :style="{ height: hauteurLigne(ligne) + 'px' }">
             <th class="entete-ligne">
               <template v-if="editionLigne === ligne.id">
                 <textarea v-model="brouillonNom" class="saisie-nom" rows="1"
@@ -295,6 +383,23 @@ function afficherDate(iso: string): string {
                 <button class="mini" title="Déplacer vers le bas" @click="deplacerLigne(ligne.id, tableaubord.lignes[tableaubord.lignes.indexOf(ligne) + 1]?.id ?? null)">▼</button>
                 <button class="mini" title="Supprimer la ligne" @click="retirerLigne(ligne.id)">✕</button>
               </span>
+              <span
+                class="poignee poignee-ligne"
+                role="separator"
+                aria-orientation="horizontal"
+                :aria-label="`Hauteur de la ligne ${ligne.nom}`"
+                :aria-valuenow="hauteurLigne(ligne)"
+                :aria-valuemin="HAUTEUR_LIGNE_MIN"
+                :aria-valuemax="HAUTEUR_LIGNE_MAX"
+                tabindex="0"
+                title="Glisser pour régler la hauteur ; double-clic pour revenir au défaut"
+                @pointerdown.stop="commencerRedimensionnementLigne($event, ligne)"
+                @pointermove="redimensionnerLigne"
+                @pointerup="terminerRedimensionnementLigne"
+                @pointercancel="terminerRedimensionnementLigne"
+                @keydown="ajusterHauteurLigneAuClavier($event, ligne)"
+                @dblclick.stop.prevent="reinitialiserHauteurLigne(ligne)"
+              ></span>
             </th>
             <template v-for="colonne in tableaubord.colonnes" :key="colonne.id">
               <td v-if="!colonne.traversante || tableaubord.lignes.indexOf(ligne) === 0"
@@ -314,40 +419,6 @@ function afficherDate(iso: string): string {
           </tr>
         </tbody>
       </table>
-
-      <div v-if="editable" class="cartes">
-        <section class="carte">
-          <h3>Badges</h3>
-          <div class="rang-badges">
-            <span v-for="badge in tableaubord.badges" :key="badge.id" class="badge" :style="{ background: badge.couleur, color: texteLisible(badge.couleur) }">
-              {{ badge.nom }}
-              <button v-if="!badgesUtilises.has(badge.id)" class="mini" title="Supprimer ce badge" @click="retirerBadge(badge.id)">✕</button>
-            </span>
-          </div>
-          <div class="rang-creer">
-            <input v-model="nomNouveauBadge" class="badge-nom" placeholder="Nom du badge…" @keydown.enter="creerBadge" />
-            <input v-model="couleurNouveauBadge" type="color" class="badge-couleur" title="Couleur du nouveau badge" />
-            <button @click="creerBadge">+ Créer</button>
-          </div>
-        </section>
-        <section class="carte">
-          <h3>Ligne</h3>
-          <div class="rang-creer">
-            <input v-model="nomNouvelleLigne" placeholder="Nom de la ligne…" @keydown.enter="creerLigne" />
-            <button @click="creerLigne">+ Ajouter</button>
-          </div>
-        </section>
-        <section class="carte">
-          <h3>Colonne</h3>
-          <div class="rang-creer">
-            <input v-model="nomNouvelleColonne" placeholder="Nom de la colonne…" @keydown.enter="creerColonne" />
-            <button @click="creerColonne">+ Ajouter</button>
-          </div>
-          <label class="choix-traversante" title="Une seule case pour tous les entretiens">
-            <input v-model="nouvelleTraversante" type="checkbox" /> traversante
-          </label>
-        </section>
-      </div>
     </div>
 
     <div v-if="caseActive" class="voile-case" @click.self="fermerCase">
@@ -388,23 +459,27 @@ function afficherDate(iso: string): string {
 </template>
 
 <style scoped>
-.tableau-bord { position: relative; height: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
-.conteneur { overflow: auto; flex: 1; }
+.tableau-bord { position: relative; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+.conteneur { overflow: auto; flex: 1; min-height: 0; }
 .message-tableau { color: #b03030; margin: 0; font-size: 0.8rem; }
 .aide-tableau { flex: none; margin: 0; color: #66707f; font-size: 0.74rem; }
 .aide-tableau p { margin: 0 0 0.1rem; }
-.grille { border-collapse: collapse; background: #fff; }
+.grille { border-collapse: collapse; background: #fff; table-layout: fixed; }
 .grille th, .grille td { border: 1px solid #c8ccd4; padding: 0.15rem 0.3rem; font-size: 0.72rem; }
 .coin { width: 7.5rem; }
 .entete-colonne { background: #eef1f6; text-align: center; vertical-align: bottom; }
-.entete-colonne .nom { cursor: pointer; font-weight: 600; white-space: pre-line; text-align: center; }
-.entete-ligne { background: #eef1f6; text-align: left; }
-.entete-ligne .nom { cursor: pointer; font-weight: 600; white-space: pre-line; }
+.entete-colonne .nom { cursor: pointer; font-weight: 600; white-space: pre-line; text-align: center; overflow-wrap: anywhere; }
+.entete-ligne { background: #eef1f6; text-align: left; position: relative; }
+.entete-ligne .nom { cursor: pointer; font-weight: 600; white-space: pre-line; overflow-wrap: anywhere; }
+.poignee { position: absolute; z-index: 1; touch-action: none; user-select: none; }
+.poignee-colonne { top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; }
+.poignee-ligne { right: 0; bottom: 0; left: 0; height: 7px; cursor: row-resize; }
+.poignee:hover, .poignee:focus-visible { background: rgba(74, 114, 184, .35); outline: none; }
 .outils-colonne, .outils-ligne { display: inline-flex; gap: 0.1rem; visibility: hidden; }
 .entete-colonne { position: relative; }
 .entete-colonne:hover .outils-colonne, .entete-ligne:hover .outils-ligne { visibility: visible; }
-.outils-colonne { position: absolute; right: 0.1rem; top: 0.1rem; background: #eef1f6; }
-.outils-ligne { margin-left: 0.4rem; }
+.outils-colonne { position: absolute; right: 0.1rem; top: 0.1rem; background: #eef1f6; z-index: 2; }
+.outils-ligne { position: absolute; right: 0.1rem; top: 0.1rem; background: #eef1f6; z-index: 2; }
 .mini { border: none; background: transparent; cursor: pointer; font-size: 0.6rem; padding: 0 0.1rem; color: #8a8f9c; }
 .mini:hover { color: #333; }
 .mini:disabled { visibility: hidden; }
@@ -418,17 +493,6 @@ function afficherDate(iso: string): string {
 .sans-badge { color: #8a8f9c; }
 .details-case { display: block; font-size: 0.6rem; color: #555; line-height: 1.25; margin-top: 0.1rem; }
 .details-case span { display: block; }
-.badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; padding-top: 0.4rem; }
-.cartes { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem; padding-top: 0.6rem; }
-.carte { background: #fff; border: 1px solid #c8ccd4; border-radius: 8px; padding: 0.5rem 0.7rem 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
-.carte h3 { margin: 0; font-size: 0.76rem; color: #444; text-transform: uppercase; letter-spacing: 0.03em; }
-.rang-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
-.rang-creer { display: flex; align-items: center; gap: 0.35rem; }
-.badge-nom { width: 9rem; }
-.badge-couleur { width: 2.2rem; padding: 0 0.1rem; }
-.choix-traversante { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #444; white-space: nowrap; }
-.ajouts { display: flex; gap: 0.4rem; padding-top: 0.5rem; }
-.ajouts input { flex: 1; }
 .saisie-nom { width: 8rem; font-size: 0.78rem; resize: none; field-sizing: content; min-height: 1.8rem; }
 input, button { border: 1px solid #bbb; border-radius: 5px; padding: 0.25rem 0.5rem; font-size: 0.78rem; background: #fff; }
 button { cursor: pointer; }

@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, type Ref } from 'vue'
 import {
   estNomSain,
   type ApercuDocumentCadre,
@@ -42,6 +42,18 @@ export function libelleTypeDocument(type: TypeDocumentCadre): string {
   }
 }
 
+/** Icône minimale d'un document, selon sa famille. */
+export function iconeTypeDocument(type: TypeDocumentCadre): string {
+  switch (type) {
+    case 'pdf': return '📕'
+    case 'texte': return '📝'
+    case 'image': return '🖼️'
+    case 'bureautique': return '📄'
+    case 'html': return '🌐'
+    case 'autre': return '📦'
+  }
+}
+
 /** Taille lisible (octets, Ko, Mo) ; null si inconnue. */
 export function formaterTaille(octets: number | null): string {
   if (octets === null) return 'inconnue'
@@ -50,24 +62,20 @@ export function formaterTaille(octets: number | null): string {
   return `${(octets / (1024 * 1024)).toFixed(1)} Mo`
 }
 
-/** Sélection d'un document dans la fenêtre ; `SelectionDocCadre` est la valeur
- *  partagée entre la barre latérale et le panneau droit. */
+/** Sélection partagée entre la liste des documents et le panneau d'aperçu. */
 export interface SelectionDocCadre {
   source: SourceDocumentCadre
   nom: string
 }
 
 /**
- *  Gère la fenêtre « Docs cadre projet » : inventaire, sélection, aperçu et
- *  commandes. La lecture seule du corpus distant est garantie par le main
- *  process ; ici, seuls les boutons sont masqués ou désactivés.
+ *  Gère l'inventaire, la sélection, l'aperçu et les commandes des documents cadre.
+ *  La lecture seule du corpus distant est aussi garantie par le processus principal.
  */
 export function useDocsCadre(deps: {
   estDistant: () => boolean
-  /** Ferme les autres fenêtres métier (convention : une seule à la fois). */
-  fermerAutreFenetre: () => void
+  actif: Readonly<Ref<boolean>>
 }) {
-  const docsCadreOuverts = ref(false)
   const mode = ref<ModeDocumentsCadre>(deps.estDistant() ? 'distant' : 'local')
   const documentsProjet = ref<ResumeDocumentCadre[]>([])
   const documentsExemples = ref<ResumeDocumentCadre[]>([])
@@ -90,20 +98,18 @@ export function useDocsCadre(deps: {
     return liste.find((d) => d.nom === nom) ?? null
   }
 
-  /** Inventaire : rechargé à chaque ouverture de la fenêtre, à chaque
-   *  actualisation et après une mutation. Une erreur réseau ne JAMAIS efface
-   *  une liste déjà chargée : elle s'affiche et les exemples restent visibles. */
-  async function lister(): Promise<void> {
+  /** Relit l'inventaire sans effacer une liste déjà chargée en cas d'erreur réseau. */
+  async function lister(): Promise<boolean> {
     const maGeneration = ++generationListe
     chargementListe.value = true
     try {
       const inventaire = await window.sonal.docsCadre.lister()
-      if (maGeneration !== generationListe) return
+      if (maGeneration !== generationListe) return false
       mode.value = inventaire.mode
       documentsExemples.value = inventaire.exemples
       if (inventaire.erreurProjet) {
         erreurListe.value = inventaire.erreurProjet
-        return
+        return false
       }
       documentsProjet.value = inventaire.projet
       erreurListe.value = null
@@ -111,32 +117,27 @@ export function useDocsCadre(deps: {
       if (selection.value?.source === 'projet' && !resumePour('projet', selection.value.nom)) {
         selectionner(null)
       }
+      return true
     } catch (erreur) {
-      if (maGeneration !== generationListe) return
+      if (maGeneration !== generationListe) return false
       erreurListe.value =
         erreur instanceof Error && erreur.message
           ? erreur.message
           : 'Impossible de lire les documents du corpus. Vérifiez la connexion ; les documents exemples restent disponibles.'
+      return false
     } finally {
       if (maGeneration === generationListe) chargementListe.value = false
     }
   }
 
-  /** Ouvre la fenêtre : ferme les autres fenêtres métier et reçoit l'inventaire. */
-  async function afficherDocsCadre(): Promise<void> {
-    deps.fermerAutreFenetre()
-    docsCadreOuverts.value = true
+  /** Relit les documents au retour dans l'onglet, en conservant la sélection. */
+  async function preparerDocsCadre(): Promise<void> {
     mode.value = deps.estDistant() ? 'distant' : 'local'
-    messageAction.value = null
-    erreurListe.value = null
-    documentASupprimer.value = null
-    await lister()
+    await rafraichirDocsCadre()
   }
 
-  /** Ferme la fenêtre : la sélection, l'aperçu et les requêtes en cours sont
-   *  abandonnés (une réponse tardive ne réaffichera rien). */
-  function fermerDocsCadre(): void {
-    docsCadreOuverts.value = false
+  /** Libère la session documentaire et invalide les requêtes de l'ancien corpus. */
+  function reinitialiserDocsCadre(): void {
     generation += 1
     generationListe += 1
     selection.value = null
@@ -147,11 +148,6 @@ export function useDocsCadre(deps: {
     erreurListe.value = null
     messageAction.value = null
     documentASupprimer.value = null
-  }
-
-  /** Retour à l'état vide : bascule de corpus (fenêtre fermée, tout libéré). */
-  function reinitialiserDocsCadre(): void {
-    fermerDocsCadre()
     mode.value = deps.estDistant() ? 'distant' : 'local'
     documentsProjet.value = []
     documentsExemples.value = []
@@ -207,11 +203,7 @@ export function useDocsCadre(deps: {
   /** Recharge l'inventaire et l'aperçu courant (action « Actualiser », retour
    *  de focus d'une application externe : pas de surveillance en continu). */
   async function rafraichirDocsCadre(): Promise<void> {
-    await lister()
-    if (selection.value) {
-      // La liste peut avoir changé : on repart d'un aperçu frais, borné par génération.
-      void chargerApercu()
-    }
+    if (await lister() && selection.value) await chargerApercu()
   }
 
   /** Relecture fraîche UNIQUEMENT si l'aperçu courant a été dépassé (écriture
@@ -420,14 +412,13 @@ export function useDocsCadre(deps: {
 
   /* ── Retour de focus : pas de surveillance en continu des écritures tierces ── */
   const surFocus = (): void => {
-    if (!docsCadreOuverts.value || mode.value !== 'local') return
+    if (!deps.actif.value || mode.value !== 'local') return
     void rafraichirDocsCadre()
   }
   window.addEventListener('focus', surFocus)
   onScopeDispose(() => window.removeEventListener('focus', surFocus))
 
   return {
-    docsCadreOuverts,
     mode,
     estDistant,
     documentsProjet,
@@ -441,8 +432,7 @@ export function useDocsCadre(deps: {
     messageAction,
     documentASupprimer,
     selectionCourante,
-    afficherDocsCadre,
-    fermerDocsCadre,
+    preparerDocsCadre,
     reinitialiserDocsCadre,
     lister,
     rafraichirDocsCadre,

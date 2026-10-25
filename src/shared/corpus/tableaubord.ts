@@ -115,11 +115,24 @@ export interface ContenuCellule {
 }
 
 export type CommandeTableauBord =
-  | { type: 'ajouter-colonne'; id: string; nom: string; traversante?: boolean }
+  | {
+      type: 'ajouter-colonne'
+      id: string
+      nom: string
+      traversante?: boolean
+      /** Insertion après cet élément ; null = en tête ; absent = à la fin. */
+      apresId?: string | null
+    }
   | { type: 'renommer-colonne'; colonneId: string; attendu: string; nom: string }
   | { type: 'supprimer-colonne'; colonneId: string; attendu: string }
   | { type: 'deplacer-colonne'; colonneId: string; attenduOrdre: string[]; avantId: string | null }
-  | { type: 'ajouter-ligne'; id: string; nom: string }
+  | {
+      type: 'ajouter-ligne'
+      id: string
+      nom: string
+      /** Insertion après cet élément ; null = en tête ; absent = à la fin. */
+      apresId?: string | null
+    }
   | { type: 'renommer-ligne'; ligneId: string; attendu: string; nom: string }
   | { type: 'supprimer-ligne'; ligneId: string; attendu: string }
   | { type: 'deplacer-ligne'; ligneId: string; attenduOrdre: string[]; avantId: string | null }
@@ -177,6 +190,25 @@ function deplacer(ids: string[], id: string, avantId: string | null): void {
   if (index < 0) throw new Error("Cet élément du tableau n'existe plus.")
   const [retire] = ids.splice(index, 1)
   ids.splice(indexInsertion(ids, avantId), 0, retire)
+}
+
+/** Insère un élément après `apresId`, en tête si null, à la fin s'il est absent. */
+function inserer<T extends { id: string }>(
+  elements: T[],
+  element: T,
+  apresId: string | null | undefined,
+): void {
+  if (apresId === undefined) {
+    elements.push(element)
+    return
+  }
+  if (apresId === null) {
+    elements.unshift(element)
+    return
+  }
+  const index = elements.findIndex((x) => x.id === apresId)
+  if (index < 0) throw new Error("L'emplacement demandé n'existe plus.")
+  elements.splice(index + 1, 0, element)
 }
 
 /** Pose une cellule selon la politique de date convenue :
@@ -247,8 +279,14 @@ export function appliquerCommandeTableauBord(
     const occupant = [...tableau.colonnes, ...tableau.lignes].find((x) => x.id === commande.id)
     if (occupant) throw new Error('Cette identité est déjà utilisée par le tableau.')
     if (commande.type === 'ajouter-colonne') {
-      tableau.colonnes.push({ id: commande.id, nom, ...(commande.traversante ? { traversante: true } : {}) })
-    } else tableau.lignes.push({ id: commande.id, nom })
+      inserer(
+        tableau.colonnes,
+        { id: commande.id, nom, ...(commande.traversante ? { traversante: true } : {}) },
+        commande.apresId,
+      )
+    } else {
+      inserer(tableau.lignes, { id: commande.id, nom }, commande.apresId)
+    }
     return tableau
   }
 

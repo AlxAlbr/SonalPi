@@ -360,7 +360,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await page.locator('.carte-parcours').filter({ hasText: 'Préparer son terrain' }).locator('button').click()
   await expect(page.locator('.liste-pp li')).toHaveCount(4)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
-  await spotlightSur(page, '[data-tour="ouvrir-tableau-bord"]')
+  await spotlightSur(page, '[data-tour="ouvrir-preparer"]')
 
   await app.close()
 })

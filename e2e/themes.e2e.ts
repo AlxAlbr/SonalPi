@@ -28,7 +28,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   const { app, page } = await ouvrir('sonal-thm-')
   await coderPremierMot(page) // code cat_001 sur « Karine » (écran Entretien)
   await expect.poll(() => compterAnnotations(page)).toBe(1)
-  await expect(page.locator('.etat')).toHaveText('à jour') // autosave terminé
+  await expect(page.locator('.tete .etat')).toHaveText('à jour') // autosave terminé
 
   // Retour Corpus (FERME l'entretien, sortir = fermer), puis recolore cat_001 en rouge
   // dans la fenêtre d'édition (fill dispatche input+change).
@@ -43,7 +43,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   // n'a pas été touché par le recoloriage (pas de re-sauvegarde).
   await page.locator('.corpus-ecran .btn-reprise:visible').click()
   await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /rgb\(255, 0, 0\)/)
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('.tete .etat')).toHaveText('à jour')
   await app.close()
 })
 
@@ -127,7 +127,7 @@ test('poser une taille de police sur un thème → les passages codés la porten
 test('coder → la carte Corpus porte le résumé thématique (calque, clic = rouvrir au texte)', async () => {
   const { app, page } = await ouvrir('sonal-resume-')
   await coderPremierMot(page) // « Famille » sur « Karine » (début du texte)
-  await expect(page.locator('.etat')).toHaveText('à jour') // codage sur disque
+  await expect(page.locator('.tete .etat')).toHaveText('à jour') // codage sur disque
 
   // Retour Corpus : la carte porte UN segment de résumé, calé au début,
   // en % du texte (parité SonalPi1), coloré et titré par le thème.
@@ -184,7 +184,7 @@ test('créer un sous-thème → apparaît indenté sous son parent (hiérarchie)
 test('supprimer un thème utilisé est refusé avec un compteur ; un thème inutilisé part', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
   await coderPremierMot(page) // cat_001 utilisé 1×
-  await expect(page.locator('.etat')).toHaveText('à jour') // sur disque → compte fiable
+  await expect(page.locator('.tete .etat')).toHaveText('à jour') // sur disque → compte fiable
 
   await retourCorpus(page)
   await ouvrirEditionThemes(page)

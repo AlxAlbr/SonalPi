@@ -15,19 +15,22 @@ import {
 import type { ModeTextePassage, SourcePassagePreparee } from '../../editor/passages'
 import type { SourcesAnalyseCorpus } from './useSourcesAnalyseCorpus'
 
+/** Liste de sélection affichée dans la colonne de gauche de l'espace. */
+export type OngletSelectionAnalyse = 'themes' | 'entretiens'
+
 /** Porte une analyse calculée explicitement et conserve son résultat jusqu'à l'actualisation. */
 export function useAnalysesCroisees(deps: {
   membership: Ref<Record<string, EntretienRef>>
   codebook: Ref<Categorie[]>
   sources: SourcesAnalyseCorpus
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
-  fermerAutresFenetres: () => void
   afficherDansSynthese: (themeId: string, entretienId: string) => void
 }) {
-  const analysesCroiseesOuvertes = ref(false)
   const chargementAnalysesCroisees = ref(false)
   const themesAnalyseCroisee = ref<string[]>([])
   const entretiensAnalyseCroisee = ref<string[]>([])
+  /** Onglet de sélection courant ; état de vue, réinitialisé avec le corpus. */
+  const ongletSelectionAnalyse = ref<OngletSelectionAnalyse>('themes')
   const mesureAnalyseCroisee = ref<MesureAnalyseCroisee>('passages')
   const afficherEntretiensSansResultatAnalyse = ref(true)
   const modeTexteAnalyseCroisee = ref<ModeTextePassage>('pseudonymise')
@@ -70,12 +73,10 @@ export function useAnalysesCroisees(deps: {
     initialisee = true
   }
 
-  function afficherAnalysesCroisees(): void {
-    deps.fermerAutresFenetres()
+  /** Prépare les sélections au premier accès, sans relancer un calcul. */
+  function preparerAnalyseCroisee(): void {
     if (!initialisee) initialiserSelections()
-    analysesCroiseesOuvertes.value = true
   }
-  function fermerAnalysesCroisees(): void { analysesCroiseesOuvertes.value = false }
   function perimerAnalysesCroisees(): void {
     if (calculeLeAnalyseCroisee.value) resultatPerimeAnalyseCroisee.value = true
   }
@@ -131,7 +132,6 @@ export function useAnalysesCroisees(deps: {
   }
   async function ouvrirPassageAnalyseCroisee(entretienId: string, from: number): Promise<void> {
     if (resultatPerimeAnalyseCroisee.value) return
-    analysesCroiseesOuvertes.value = false
     await deps.ouvrirSource(entretienId, from)
   }
   function envoyerCelluleVersSynthese(): void {
@@ -142,10 +142,10 @@ export function useAnalysesCroisees(deps: {
 
   function reinitialiserAnalysesCroisees(): void {
     generation++
-    analysesCroiseesOuvertes.value = false
     chargementAnalysesCroisees.value = false
     themesAnalyseCroisee.value = []
     entretiensAnalyseCroisee.value = []
+    ongletSelectionAnalyse.value = 'themes'
     mesureAnalyseCroisee.value = 'passages'
     afficherEntretiensSansResultatAnalyse.value = true
     modeTexteAnalyseCroisee.value = 'pseudonymise'
@@ -171,15 +171,15 @@ export function useAnalysesCroisees(deps: {
   }, { deep: true })
 
   return {
-    analysesCroiseesOuvertes, chargementAnalysesCroisees, progressionAnalysesCroisees,
-    themesAnalyseCroisee, entretiensAnalyseCroisee, mesureAnalyseCroisee,
+    chargementAnalysesCroisees, progressionAnalysesCroisees,
+    themesAnalyseCroisee, entretiensAnalyseCroisee, ongletSelectionAnalyse, mesureAnalyseCroisee,
     afficherEntretiensSansResultatAnalyse, modeTexteAnalyseCroisee,
     resultatAnalyseCroisee, cellulesAnalyseCroisee, diagnosticsAnalyseCroisee, selectionAppliquee,
     resultatPerimeAnalyseCroisee, calculeLeAnalyseCroisee, selectionCelluleAnalyseCroisee,
     selectionPassageAnalyseCroisee, celluleSelectionneeAnalyseCroisee, passagesCelluleAnalyseCroisee,
     entretiensAvecResultatAnalyseCroisee, cellulesNonVidesAnalyseCroisee,
     calculAnalyseCroiseePossible, exportAnalyseCroiseePossible,
-    afficherAnalysesCroisees, fermerAnalysesCroisees, actualiserAnalyseCroisee,
+    preparerAnalyseCroisee, actualiserAnalyseCroisee,
     selectionnerCelluleAnalyseCroisee, ouvrirPassageAnalyseCroisee,
     envoyerCelluleVersSynthese, perimerAnalysesCroisees, reinitialiserAnalysesCroisees,
   }

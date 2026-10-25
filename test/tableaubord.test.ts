@@ -81,6 +81,33 @@ describe('tableau de bord — lignes et colonnes', () => {
     expect(() => appliquer(t, { type: 'ajouter-ligne', id: 'contact', nom: 'X' })).toThrow()
   })
 
+  test('les colonnes s’ajoutent à l’emplacement choisi, à la fin par défaut', () => {
+    const t = tableau()
+    appliquer(t, { type: 'ajouter-colonne', id: 'col-debut', nom: 'En premier', apresId: null })
+    expect(t.colonnes[0].id).toBe('col-debut')
+    appliquer(t, { type: 'ajouter-colonne', id: 'col-apres', nom: 'Après contact', apresId: 'contact' })
+    const ids = t.colonnes.map((c) => c.id)
+    expect(ids[ids.indexOf('contact') + 1]).toBe('col-apres')
+    appliquer(t, { type: 'ajouter-colonne', id: 'col-fin', nom: 'À la fin' })
+    expect(t.colonnes.at(-1)!.id).toBe('col-fin')
+    expect(() => appliquer(t, {
+      type: 'ajouter-colonne', id: 'col-x', nom: 'X', apresId: 'absente',
+    })).toThrow(/emplacement/)
+  })
+
+  test('les lignes s’ajoutent à l’emplacement choisi, à la fin par défaut', () => {
+    const t = tableau()
+    appliquer(t, { type: 'ajouter-ligne', id: 'l-debut', nom: 'En premier', apresId: null })
+    expect(t.lignes[0].id).toBe('l-debut')
+    appliquer(t, { type: 'ajouter-ligne', id: 'l-apres', nom: 'Après la première', apresId: 'l-debut' })
+    expect(t.lignes.map((l) => l.id).slice(0, 3)).toEqual(['l-debut', 'l-apres', 'ent-1'])
+    appliquer(t, { type: 'ajouter-ligne', id: 'l-fin', nom: 'À la fin' })
+    expect(t.lignes.at(-1)!.id).toBe('l-fin')
+    expect(() => appliquer(t, {
+      type: 'ajouter-ligne', id: 'l-x', nom: 'X', apresId: 'absente',
+    })).toThrow(/emplacement/)
+  })
+
   test('supprimer une colonne retire ses cellules, les autres restent', () => {
     const t = tableau()
     appliquer(t, { type: 'poser-cellule', ligneId: 'ent-1', colonneId: 'contact', attendu: null, contenu: { badgeId: 'ok' } })

@@ -1,7 +1,84 @@
 # Navigation par espaces de travail — plan d’exécution
 
-Statut : proposition issue de la discussion, prête à être détaillée puis exécutée par lots.
-Ce document ne signifie pas que les changements sont déjà réalisés.
+Statut : exécution en cours. Le premier incrément livre les deux espaces
+**Préparer et suivre** et **Importer et traiter**, avec le tableau de bord et les
+documents cadre dans le premier. Le deuxième livre **Analyser et interpréter**.
+Le quatrième espace, l'onglet Cas et les ajouts contextuels restent à faire.
+
+Stabilisation de l'architecture après les deux premiers incréments :
+
+- la visibilité des panneaux dépend uniquement de la navigation ; les indicateurs
+  utilisés par le guidage et le clavier sont dérivés et en lecture seule ;
+- les composables métier ne gèrent plus l'affichage ou la fermeture des anciens
+  panneaux-modales ; seules les fenêtres Cas et Recueils gardent leur fermeture mutuelle ;
+- la barre, les onglets et le guidage passent par les mêmes commandes d'ouverture ;
+  les documents sont relus à chaque accès et Lexico recharge seulement un index
+  absent ou périmé, sans effacer le contexte des outils quittés ;
+- les panneaux de préparation restent montés entre les onglets ; les deux espaces
+  sont remontés au changement de corpus pour effacer leurs états locaux ;
+- régressions : `test/espacesTravail.test.ts`, `test/docsCadreRenderer.test.ts`,
+  `test/tableaubordRenderer.test.ts` et `e2e/espaces-contexte.e2e.ts` ; les helpers
+  d'e2e ne recliquent plus sur le sous-onglet déjà repris par la barre.
+
+Deuxième incrément livré :
+
+- espace `analyser/AnalyserInterpreter.vue` : onglets **Synthèse**, **Lexico** et
+  **Analyses croisées** en haut de la colonne de gauche, filtres de l'outil actif
+  dessous, résultats à droite ; ordre et onglet par défaut arrêtés sur Synthèse ;
+- parties gauche et droite inversées pour Lexico et Synthèse, inchangées pour
+  Analyses croisées qui avait déjà sa configuration à gauche ;
+- « Masquer les filtres » est commun à l'espace : la colonne se réduit à un rail
+  d'onglets, toujours accessible ;
+- les trois fenêtres (`LexicoModale`, `SyntheseModale`, `AnalysesCroiseesModale`)
+  sont remplacées par six panneaux (`SyntheseCote`, `SynthesePanneau`,
+  `LexicoCote`, `LexicoPanneau`, `AnalysesCote`, `AnalysesPanneau`) ; les boutons
+  correspondants de la barre et les fermetures mutuelles entre analyses
+  disparaissent ;
+- la dimension de filtres choisie rejoint les composables, qui la réinitialisent
+  avec le corpus ; les autres réglages d'affichage restent dans les panneaux,
+  montés en `v-show` pour survivre à un changement d'onglet ;
+- « Afficher dans Synthèse » depuis une cellule bascule sur l'onglet Synthèse avec
+  ses critères préremplis ; ouvrir une source (concordance, extrait, passage)
+  mène au traitement, puis l'espace reprend son onglet et ses résultats ;
+- `afficherCas` et `afficherRecueils` reviennent d'abord au traitement depuis
+  les deux espaces, et non plus depuis la préparation seule ;
+- tests : `test/espacesTravail.test.ts`, `e2e/espaces.e2e.ts`,
+  `e2e/synthese.e2e.ts`, helper `ouvrirAnalyse` dans `e2e/util.ts`.
+
+Vérifications exécutées : `npm run typecheck` et `npm run build` sans erreur ;
+`npm test` — 209 fichiers et 3202 tests réussis (29 fichiers et 254 tests
+ignorés) ;
+la liste d'e2e de la section 7.1 complétée par `e2e/espaces.e2e.ts` — **33 tests
+réussis** sur le projet `local`.
+
+Vérification de la stabilisation : typage et build réussis ; **295 tests unitaires**
+réussis sur 25 suites (espaces, documents cadre, tableau de bord, analyses, cas,
+recueils, journal et parcours) ; **43 tests d'interface** réussis sur `local`
+(espaces, espaces-contexte, docs-cadre, tableaubord, synthese, preparation-pas-a-pas,
+navigation, cas, casLots, casFamilles, casAttributs, recueils, journal-corpus, journal,
+export-corpus, parcours, multi-corpus et pas-a-pas). Aucun banc distant réel utilisé.
+
+Premier incrément livré :
+
+- état de navigation typé (`composables/espaces.ts`, `useEspacesTravail.ts`) distinct
+  de la vue de traitement ; l'entretien ouvert reste monté quand on consulte la
+  préparation, l'audio se met en pause, et **Importer et traiter** y revient ;
+- barre principale à deux entrées ; les cinq outils restants ouvrent encore leur
+  fenêtre et basculent d'abord sur le traitement ;
+- espace `preparer/PreparerSuivre.vue` : onglets **Tableau de bord** et
+  **Documents cadre** à gauche, contenu à droite ;
+- tableau de bord scindé : cartes Badges/Ligne/Colonne à gauche
+  (`corpus/PanneauTableauBord.vue`), grille à droite (`corpus/TableauBord.vue`) ;
+- documents cadre scindés : listes (`corpus/DocsCadreCote.vue`) et aperçu
+  (`corpus/DocsCadrePanneau.vue`) ; les deux modales d'origine sont supprimées ;
+- guidage de préparation et déposer de fichiers réaccordés aux nouveaux ancres ;
+- tests : `test/espacesTravail.test.ts`, `e2e/espaces.e2e.ts`, mises à jour de
+  `tableaubord`, `docs-cadre`, `preparation-pas-a-pas`, `pas-a-pas`.
+
+Restent ouverts : l'espace Rédiger et exporter, Cas à la place de Journal, les
+dialogues d'ajout contextuels, le retour au contexte précédent, le résumé des
+associations. L'emplacement des entrées et le comportement à fenêtre étroite
+restent à valider sur une maquette.
 
 ## 1. Objectif et décisions retenues
 
@@ -9,7 +86,7 @@ Remplacer les nombreux lanceurs de la barre supérieure par quatre entrées lisi
 
 | Entrée principale | Contenu |
 | --- | --- |
-| **Préparer et gérer** | Tableau de bord ; Documents cadre. |
+| **Préparer et suivre** | Tableau de bord ; Documents cadre. |
 | **Importer et traiter** | Organisation existante à deux niveaux : Corpus / Entretien. |
 | **Analyser et interpréter** | Synthèse ; Lexico ; Analyses croisées. |
 | **Rédiger et exporter** | Recueils ; accès aux exports existants. |
@@ -85,7 +162,10 @@ Conserver les boutons contextuels utiles dans l’entretien, les recueils et les
 - Cas : `components/corpus/CasCorpus.vue`, `components/app/CasModale.vue`, `composables/corpus/useCasCorpus.ts`.
 - Recueils : `components/corpus/RecueilsCorpus.vue`, `components/app/RecueilsModale.vue`, `composables/corpus/useRecueilsCorpus.ts`.
 - Préparation : `components/corpus/TableauBord.vue`, `components/corpus/DocsCadre.vue` et leurs enveloppes modales/composables.
-- Analyses : `components/synthese/SyntheseModale.vue`, `components/lexico/LexicoModale.vue`, `components/analyses/AnalysesCroiseesModale.vue` et leurs composables.
+- Analyses : `components/synthese/` (`SyntheseCote.vue`, `SynthesePanneau.vue`),
+  `components/lexico/` (`LexicoCote.vue`, `LexicoPanneau.vue`),
+  `components/analyses/` (`AnalysesCote.vue`, `AnalysesPanneau.vue`) et leurs
+  composables ; les trois enveloppes modales d'origine sont supprimées.
 - Exports : `components/corpus/ModaleExportCorpus.vue`, `components/entretien/ModaleExportEntretien.vue`, `export/` et les exports propres aux outils.
 
 Les chemins de cette liste sont relatifs à `src/renderer/`, sauf indication contraire. Les composants d’analyse peuvent nécessiter une extraction du contenu hors de leur enveloppe modale : ne pas supposer qu’un panneau autonome existe déjà.
@@ -214,9 +294,9 @@ Depuis un cas, un recueil ou une analyse, ouvrir le bon entretien et le bon pass
 
 Proposer ensuite une action contextualisée, par exemple **Revenir au recueil « Entrée dans le métier »** ou **Revenir à la synthèse**. Elle restitue l’objet, les filtres, le tri et la position de lecture précédents, pas seulement l’espace général. Le même mécanisme permet de revenir au passage de départ après ouverture explicite d’un cas ou d’un recueil depuis l’entretien.
 
-### E. Préparer et exporter
+### E. Préparer, suivre et exporter
 
-Préparer et gérer expose Tableau de bord et Documents cadre, avec les capacités d’accès actuelles. Les parcours guidés qui les ouvrent doivent aboutir dans le nouvel espace.
+Préparer et suivre expose Tableau de bord et Documents cadre, avec les capacités d’accès actuelles. Les parcours guidés qui les ouvrent doivent aboutir dans le nouvel espace.
 
 Rédiger et exporter expose la composition des recueils et les exports existants. Les cas restent gérés dans le corpus, y compris lorsqu’ils sont utilisés par un export CAQDAS.
 
@@ -236,7 +316,7 @@ Utiliser les mêmes repères de vocabulaire et les mêmes destinations pour le t
 
 | Parcours pédagogique | Espace de référence | Articulation |
 | --- | --- | --- |
-| Préparer son terrain, existant | Préparer et gérer | Conserver les étapes qui passent par le corpus et l’entretien. |
+| Préparer son terrain, existant | Préparer et suivre | Conserver les étapes qui passent par le corpus et l’entretien. |
 | Traitement, existant | Importer et traiter | Adapter ses cibles à la navigation réorganisée, sans perdre les acquis. |
 | Analyse, annoncée à venir | Analyser et interpréter | Prévoir sa place et ses destinations ; son contenu pédagogique reste un chantier distinct. |
 | Rédaction/restitution, éventuel | Rédiger et exporter | Piste future, pas un parcours existant à annoncer comme disponible. |
@@ -289,11 +369,14 @@ Les anciennes enveloppes peuvent subsister temporairement pendant les lots suiva
 
 ### Lot 4 — Installer les autres espaces
 
-- [ ] Intégrer Tableau de bord et Documents cadre dans Préparer et gérer.
-- [ ] Intégrer Synthèse, Lexico et Analyses croisées dans Analyser et interpréter, sans perdre les filtres ni les liens entre outils.
+- [x] Intégrer Tableau de bord et Documents cadre dans Préparer et suivre.
+- [x] Intégrer Synthèse, Lexico et Analyses croisées dans Analyser et interpréter :
+  onglets à gauche, filtres de l’outil actif dessous, résultats à droite ; filtres
+  et liens entre outils conservés.
 - [ ] Intégrer Recueils et les accès aux exports dans Rédiger et exporter.
-- [ ] Extraire les contenus réutilisables des grandes modales lorsque nécessaire.
-- [ ] Remplacer les fermetures mutuelles de fenêtres par la navigation commune ; conserver les vrais dialogues de confirmation, d’édition ou d’export.
+- [x] Extraire les contenus réutilisables des modales d’analyse ; ceux de Cas et
+  Recueils restent dans leurs fenêtres.
+- [ ] Remplacer les fermetures mutuelles de fenêtres par la navigation commune ; conserver les vrais dialogues de confirmation, d’édition ou d’export. Fait pour les trois analyses, à poursuivre pour Cas et Recueils.
 - [ ] Brancher les cas, recueils et analyses au retour contextuel : sélection, filtres, tri et position de lecture.
 - [ ] Adapter la navigation guidée et toutes les ouvertures programmatiques ; réviser les surfaces, ancres et textes des étapes existantes.
 - [ ] Préserver la progression du pas à pas et sa validation métier ; rendre sa reprise cohérente avec les espaces sans créer implicitement les parcours encore absents.
@@ -346,7 +429,7 @@ Pour tout test réel GitLab ou Nextcloud, appeler d’abord `preparer_bancs_dock
 - Annulation Personnes devenue incompatible refusée sans écrasement ; aucune confusion avec une action récente de Notes ; limites de session et indisponibilité distante conservées.
 - Exports et filtres d’analyse utilisant les cas inchangés ; exports contextuels toujours accessibles.
 - Parcours guidés et raccourcis cohérents avec les nouvelles destinations.
-- Parcours de préparation traversant Préparer et gérer puis Importer et traiter sans rupture du guidage ; ancres visibles et progression conservée.
+- Parcours de préparation traversant Préparer et suivre puis Importer et traiter sans rupture du guidage ; ancres visibles et progression conservée.
 - Navigation libre sans validation artificielle d’étape ni prérequis entre espaces ; reprise du guide distincte du retour à la consultation précédente.
 
 ## 8. Hors périmètre

@@ -1,7 +1,8 @@
 # Synthèse
 
-La fenêtre **Synthèse** réunit les passages de plusieurs entretiens sans modifier le corpus.
-Elle est accessible depuis la barre d’outils.
+**Synthèse** réunit les passages de plusieurs entretiens sans modifier le corpus.
+Elle est accessible dans l’espace **Analyser et interpréter**, onglet **Synthèse** :
+ses critères occupent la colonne de gauche, les résultats la colonne de droite.
 
 1. Choisissez au moins un thème ou un cas dans le panneau de critères.
 2. Ajoutez si besoin des entretiens, variables ou personnes.

@@ -63,6 +63,33 @@ export async function entrerCorpus(page: Page): Promise<void> {
   await attendreCorpus(page)
 }
 
+/** Ouvre la préparation sans recliquer sur l'onglet déjà repris par la barre. */
+export async function ouvrirPreparation(
+  page: Page,
+  onglet: 'tableau-bord' | 'docs-cadre' = 'tableau-bord',
+): Promise<void> {
+  if (!(await page.locator('.espace-preparation').isVisible())) {
+    await page.locator('[data-tour="ouvrir-preparer"]').click()
+  }
+  await expect(page.locator('.espace-preparation')).toBeVisible({ timeout: 20_000 })
+  const cible = onglet === 'tableau-bord' ? 'ouvrir-tableau-bord' : 'ouvrir-docs-cadre'
+  const bouton = page.locator(`[data-tour="${cible}"]`)
+  if (await bouton.getAttribute('aria-current') !== 'page') await bouton.click()
+}
+
+/** Ouvre l'analyse sans recliquer sur l'onglet déjà repris par la barre. */
+export async function ouvrirAnalyse(
+  page: Page,
+  onglet: 'synthese' | 'lexico' | 'analyses-croisees' = 'synthese',
+): Promise<void> {
+  if (!(await page.locator('.espace-analyse').isVisible())) {
+    await page.locator('[data-tour="ouvrir-analyser"]').click()
+  }
+  await expect(page.locator('.espace-analyse')).toBeVisible({ timeout: 20_000 })
+  const bouton = page.locator(`[data-tour="ouvrir-${onglet}"]`)
+  if (await bouton.getAttribute('aria-current') !== 'page') await bouton.click()
+}
+
 /** Depuis l'ACCUEIL, entre dans le n-ième entretien de la liste (0 = 1er)
  *  via le CRAYON de sa carte, et attend que l'éditeur soit monté (écran Entretien). */
 export async function entrerEntretien(page: Page, nth = 0): Promise<void> {

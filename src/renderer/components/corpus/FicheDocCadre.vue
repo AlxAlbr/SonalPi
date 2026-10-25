@@ -4,7 +4,7 @@ import { libelleTypeDocument, formaterTaille } from '../../composables/corpus/us
 import type { ResumeDocumentCadre } from '../../../shared/docsCadre'
 
 // Fiche d'un document : nom, type, taille et date de modification.
-// Présentation seule — les actions vivent dans DocsCadre.vue, selon la
+// Présentation seule — les actions vivent dans DocsCadrePanneau.vue, selon la
 // source (projet/exemple) et le mode (local/distant).
 const props = defineProps<{ resume: ResumeDocumentCadre }>()
 

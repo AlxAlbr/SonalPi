@@ -15,6 +15,9 @@ interface SourceLexico {
   lecture: SourcePassageChargee
 }
 
+/** Dimension de filtres affichée dans la colonne de gauche de l'espace. */
+export type OngletFiltresLexico = 'entretiens' | 'variables' | 'personnes' | 'themes' | 'cas'
+
 /** Charge une session Lexico et dérive toutes ses vues du même index. */
 export function useLexicoCorpus(deps: {
   membership: Ref<Record<string, EntretienRef>>
@@ -25,9 +28,7 @@ export function useLexicoCorpus(deps: {
   ouvertId: Ref<string | null>
   sourceOuverte: () => EntretienFichier | null
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
-  fermerAutresFenetres: () => void
 }) {
-  const lexicoOuvert = ref(false)
   const chargementLexico = ref(false)
   const progressionLexico = ref({ faits: 0, total: 0 })
   const occurrencesLexico = ref<OccurrenceLexico[]>([])
@@ -36,6 +37,8 @@ export function useLexicoCorpus(deps: {
   const personnesLexico = ref<Personne[]>([])
   const plagesCasLexico = ref<Record<string, PlageLexico[]>>({})
   const filtresLexico = ref<FiltresLexico>(filtresLexicoParDefaut())
+  /** Onglet de filtres courant ; état de vue, réinitialisé avec le corpus. */
+  const ongletFiltresLexico = ref<OngletFiltresLexico>('entretiens')
   const traitementsLexico = deps.traitements
   const historiqueTraitementsLexico = ref<TraitementsLexico[]>([])
   const enregistrementTraitementsLexico = ref(false)
@@ -211,14 +214,10 @@ export function useLexicoCorpus(deps: {
     }
   }
 
-  async function afficherLexico(): Promise<void> {
-    deps.fermerAutresFenetres()
-    lexicoOuvert.value = true
+  /** Charge l'index au premier accès ou lorsque les sources ont changé. */
+  async function preparerLexico(): Promise<void> {
+    if (chargementLexico.value) return
     if (!calculeLeLexico.value || resultatsPerimesLexico.value) await actualiserLexico()
-  }
-
-  function fermerLexico(): void {
-    lexicoOuvert.value = false
   }
 
   function perimerLexico(): void {
@@ -342,7 +341,6 @@ export function useLexicoCorpus(deps: {
 
   function reinitialiserLexico(): void {
     generation++
-    lexicoOuvert.value = false
     chargementLexico.value = false
     progressionLexico.value = { faits: 0, total: 0 }
     occurrencesLexico.value = []
@@ -351,6 +349,7 @@ export function useLexicoCorpus(deps: {
     personnesLexico.value = []
     plagesCasLexico.value = {}
     filtresLexico.value = filtresLexicoParDefaut()
+    ongletFiltresLexico.value = 'entretiens'
     traitementsLexico.value = traitementsLexicoParDefaut()
     historiqueTraitementsLexico.value = []
     enregistrementTraitementsLexico.value = false
@@ -359,19 +358,18 @@ export function useLexicoCorpus(deps: {
   }
 
   async function voirOccurrenceLexico(occurrence: OccurrenceLexico): Promise<void> {
-    lexicoOuvert.value = false
     await deps.ouvrirSource(occurrence.entretienId, occurrence.from)
   }
 
   watch([deps.membership, deps.variables, deps.codebook, deps.cas], perimerLexico, { deep: true })
 
   return {
-    lexicoOuvert, chargementLexico, progressionLexico, occurrencesLexico,
+    chargementLexico, progressionLexico, occurrencesLexico,
     occurrencesTraiteesLexico, occurrencesRetenuesLexico, lignesLexico, diagnosticsLexico, personnesLexico,
-    filtresLexico, traitementsLexico, historiqueTraitementsLexico, enregistrementTraitementsLexico,
+    filtresLexico, ongletFiltresLexico, traitementsLexico, historiqueTraitementsLexico, enregistrementTraitementsLexico,
     resultatsPerimesLexico, calculeLeLexico,
     entretiensAvecResultatsLexico, lignesResumeLexico, criteresActifsLexico,
-    exportLexicoPossible, afficherLexico, fermerLexico, actualiserLexico,
+    exportLexicoPossible, preparerLexico, actualiserLexico,
     perimerLexico, reinitialiserSelectionLexico, reinitialiserLexico,
     ajouterMotsOutilsLexico, retirerMotOutilLexico,
     personnaliserListeMotsOutilsLexico, restaurerListeMotsOutilsLexico,

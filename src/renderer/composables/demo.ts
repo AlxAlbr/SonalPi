@@ -12,6 +12,7 @@ import type {
 } from '../../shared/format'
 import type { ModeDemo, EtatDemo } from '../../shared/format'
 export type { ModeDemo, EtatDemo }
+import type { VueApplication } from './espaces'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { TableauBord } from '../../shared/corpus/tableaubord'
 import type { ResumeDocumentCadre } from '../../shared/docsCadre'
@@ -60,7 +61,7 @@ export interface DepsDemo {
   /** Affiche le parcours dans l'Accueil du corpus après une fermeture sécurisée. */
   retourParcours: () => Promise<boolean>
   preparerBascule: () => Promise<void>
-  vue: Ref<'accueil' | 'corpus' | 'entretien'>
+  vue: Ref<VueApplication>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
   membership: Ref<Record<string, EntretienRef>>
   entretien: { annotations: Annotation[] } // reactive (useEntretien)
@@ -86,8 +87,8 @@ export interface DepsDemo {
   corpusSelId: Ref<string | null>
   corpusSelMeta: Ref<{ srt: boolean } | null>
   tableaubord: Ref<TableauBord | null>
-  tableauBordOuverts: Ref<boolean>
-  docsCadreOuverts: Ref<boolean>
+  tableauBordOuverts: Readonly<Ref<boolean>>
+  docsCadreOuverts: Readonly<Ref<boolean>>
   documentsProjet: Ref<ResumeDocumentCadre[]>
   fermerTableauBord: () => void
   fermerDocsCadre: () => void

@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../formatSonal/sas'
+import type { VueApplication } from '../espaces'
 import {
   enregistrerRapportPseudonymisation,
   exporterEntretien,
@@ -89,7 +90,7 @@ const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: nul
 export function useOperationsCorpus(deps: {
   corpus: CorpusOperations
   entretien: EntretienOperations
-  vue: Ref<'accueil' | 'corpus' | 'entretien'>
+  vue: Ref<VueApplication>
   cycle: {
     appliquerCorpus: (corpus: CorpusFichier, dir?: string) => Promise<void>
     preparerBascule: () => Promise<void>

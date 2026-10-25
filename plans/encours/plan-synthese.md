@@ -3,6 +3,12 @@
 Statut : proposition de réalisation après lecture de la Synthèse SonalPi1, de Lexico V2,
 des passages, des cas et des recueils V2.
 
+> **Mise à jour — espace de travail.** Synthèse vit désormais dans l’espace
+> **Analyser et interpréter**, à côté de Lexico et des Analyses croisées : ses
+> critères occupent la colonne de gauche et les résultats la colonne de droite.
+> Les mentions de « fenêtre de travail » ci-dessous décrivent l’état antérieur ;
+> voir [la navigation par espaces](plan-navigation-espaces-travail.md).
+
 Ce plan concerne la fonction **Synthèse** de la barre d’outils. Le document
 `synthese-corpus-onglets.md` traite pour sa part de l’harmonisation des onglets du corpus :
 ce sont deux sujets distincts.
@@ -417,7 +423,8 @@ Le glisser-déposer ne sera qu’un raccourci éventuel de cette commande, jamai
 | `src/shared/synthese/export.ts` | Projection commune des exports |
 | `src/renderer/editor/synthese.ts` | Préparation ProseMirror, modes de texte et contexte |
 | `src/renderer/composables/corpus/useSyntheseCorpus.ts` | Chargement, générations, fraîcheur et navigation |
-| `src/renderer/components/synthese/SyntheseModale.vue` | Fenêtre, double vue et panneau de critères |
+| `src/renderer/components/synthese/SyntheseCote.vue` | Critères de sélection |
+| `src/renderer/components/synthese/SynthesePanneau.vue` | Bilan, double vue et détail |
 | `src/renderer/components/synthese/VueEnsembleSynthese.vue` | Mur des entretiens |
 | `src/renderer/components/synthese/ListeExtraitsSynthese.vue` | Liste et détail des extraits |
 

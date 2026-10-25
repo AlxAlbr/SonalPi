@@ -24,7 +24,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [cas.md](cas.md) | Cas analytiques : modèle actuel, références vivantes, commandes et projection ; modèle cible des règles, familles et attributs, avec état des fonctionnalités |
 | [lexico.md](lexico.md) | Lexico : index pseudonymisé, sélection des matériaux, fraîcheur, concordances et export |
 | [synthese.md](synthese.md) | Synthèse : moteur de plages, double vue, confidentialité, fraîcheur et export TXT |
-| [docs-cadre.md](docs-cadre.md) | « Docs cadre projet » : l'espace documentaire propre au corpus (stockage local, lecture WebDAV directe sans miroir, aperçus, sécurité des chemins, décision PDF) |
+| [docs-cadre.md](docs-cadre.md) | « Documents cadre » : l'espace documentaire propre au corpus (stockage local, lecture WebDAV directe sans miroir, aperçus, sécurité des chemins, décision PDF) |
 | [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [gitlab.md](gitlab.md) | Connecteur GitLab : acquis V1, architecture V2, transactions gardées, lots reprenables et résultats des qualifications réelles |

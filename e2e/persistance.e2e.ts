@@ -39,7 +39,7 @@ test('round-trip : coder + éditer → fermer → rouvrir, tout est conservé', 
   await page1.keyboard.type(' MODIF-PERSISTEE')
 
   // L'autosave a écrit l'entretien (« à jour » dans l'en-tête) avant la fermeture.
-  await expect(page1.locator('.etat')).toHaveText('à jour')
+  await expect(page1.locator('.tete .etat')).toHaveText('à jour')
   await app1.close()
 
   // 2e lancement, MÊME dossier : annotation ET texte sont là.

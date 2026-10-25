@@ -1,39 +1,51 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 
-// Lanceurs des outils transverses du corpus. Le composable garde la propriété
-// fonctionnelle ; ce composant ne fait que déclencher l'ouverture des fenêtres.
+// La barre déclenche les mêmes ouvertures que les onglets et le guidage.
 const {
   vue,
-  afficherCas,
+  preparationActive,
+  analyseActive,
+  entrerPreparation,
+  entrerAnalyse,
+  revenirTraitement,
   afficherRecueils,
-  afficherTableauBord,
-  afficherDocsCadre,
-  afficherLexico,
-  afficherSynthese,
-  afficherAnalysesCroisees,
-  gesteDisponible,
+  afficherCas,
 } = utiliserSonal()
+
+/** L'espace « Importer et traiter » est actif dans le traitement. */
+const traitementActif = computed(() => vue.value === 'corpus' || vue.value === 'entretien')
 </script>
 
 <template>
   <div v-if="vue !== 'accueil'" class="barre-outils">
-    <div class="ligne">
-      <button class="outil btn-tableau" data-tour="ouvrir-tableau-bord" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
+    <div class="ligne espaces">
       <button
-        v-if="gesteDisponible('docsCadre')"
-        class="outil btn-docs-cadre"
-        data-tour="ouvrir-docs-cadre"
-        title="Ouvrir les documents du projet"
-        @click="afficherDocsCadre()"
-      >Docs cadre projet</button>
+        class="outil espace"
+        data-tour="ouvrir-preparer"
+        :class="{ actif: preparationActive }"
+        title="Accueil, tableau de bord et documents du projet"
+        :aria-current="preparationActive ? 'page' : undefined"
+        @click="entrerPreparation()"
+      >Préparer et suivre</button>
+      <button
+        class="outil espace"
+        :class="{ actif: traitementActif }"
+        title="Corpus et entretiens"
+        :aria-current="traitementActif ? 'page' : undefined"
+        @click="revenirTraitement()"
+      >Importer et traiter</button>
+      <button
+        class="outil espace"
+        data-tour="ouvrir-analyser"
+        :class="{ actif: analyseActive }"
+        title="Synthèse, lexico et analyses croisées"
+        :aria-current="analyseActive ? 'page' : undefined"
+        @click="entrerAnalyse()"
+      >Analyser et interpréter</button>
     </div>
-    <div class="ligne">
-      <button class="outil btn-lexico" title="Ouvrir l’index lexical" @click="afficherLexico">Lexico</button>
-      <button class="outil btn-synthese" title="Ouvrir la synthèse" @click="afficherSynthese">Synthèse</button>
-      <button class="outil btn-analyses" title="Comparer les thèmes entre les entretiens" @click="afficherAnalysesCroisees">Analyses croisées</button>
-    </div>
-    <div class="ligne">
+    <div class="ligne outils">
       <button class="outil btn-recueils" title="Ouvrir les recueils" @click="afficherRecueils">Recueils</button>
       <button class="outil btn-cas" title="Ouvrir les cas" @click="afficherCas">Cas</button>
     </div>
@@ -43,13 +55,28 @@ const {
 <style scoped>
 .barre-outils {
   display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
+  align-items: center;
+  gap: 0.4rem;
   margin-left: 1rem;
+  min-width: 0;
 }
 .ligne {
   display: flex;
   gap: 0.35rem;
+}
+/* Sur une fenêtre étroite, les espaces passent au-dessus des autres outils. */
+@media (max-width: 1080px) {
+  .barre-outils { flex-direction: column; align-items: flex-start; gap: 0.18rem; }
+  .outil { padding-left: 1.25rem; padding-right: 0.35rem; font-size: 0.72rem; }
+  .outil.espace { padding-left: 0.5rem; padding-right: 0.5rem; font-size: 0.78rem; }
+  .ligne { gap: 0.2rem; }
+  .ligne.outils { flex-wrap: wrap; max-width: 22rem; }
+}
+/* Sur une fenêtre très étroite, les boutons occupent moins de place. */
+@media (max-width: 720px) {
+  .outil { padding-left: 1.1rem; padding-right: 0.3rem; font-size: 0.7rem; }
+  .outil.espace { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.72rem; }
+  .ligne { gap: 0.15rem; }
 }
 .outil {
   border: 1px solid #bbb;
@@ -66,13 +93,20 @@ const {
   left: 0.4rem;
   font-size: 0.68rem;
 }
+/* Entrées principales : plus larges et lisibles, avec leur état actif. */
+.outil.espace {
+  font-size: 0.8rem;
+  padding: 0.22rem 0.7rem;
+  font-weight: 600;
+  color: #2c3a5e;
+}
+.outil.espace.actif {
+  background: #e3ebf9;
+  border-color: #4a6fa5;
+  color: #1a3a6b;
+  box-shadow: inset 0 -2px 0 #2f5aa8;
+}
 .btn-cas::before { content: '🗂'; }
-.btn-lexico::before { content: '🔤'; }
-.btn-synthese::before { content: '🧩'; }
-.btn-analyses::before { content: '▦'; }
-.btn-tableau::before { content: '📊'; }
 .btn-recueils::before { content: '📌'; }
-/* Même icône que l'en-tête de DocsCadreModale.vue (test e2e : les deux doivent rester identiques). */
-.btn-docs-cadre::before { content: '🖼️'; }
-.btn-recueils:hover, .btn-cas:hover, .btn-docs-cadre:hover, .btn-tableau:hover, .btn-lexico:hover, .btn-synthese:hover, .btn-analyses:hover { background: #f4f7fd; }
+.btn-recueils:hover, .btn-cas:hover, .outil.espace:hover { background: #f4f7fd; }
 </style>
