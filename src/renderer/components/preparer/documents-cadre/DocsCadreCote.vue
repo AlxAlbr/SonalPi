@@ -1,124 +1,128 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { iconeTypeDocument } from '../../../composables/corpus/useDocsCadre'
-import type { SourceDocumentCadre } from '../../../../shared/docsCadre'
+import type { EntreeDocsCadre, SourceDocumentCadre } from '../../../../shared/docsCadre'
 
 const props = defineProps<{ source: SourceDocumentCadre }>()
-
-// La liste accompagne l'aperçu ; le contenu des documents n'est jamais modifié.
 const {
-  estDistant,
-  documentsProjet,
-  documentsExemples,
-  selection,
-  erreurListe,
-  selectionner,
-  rafraichirDocsCadre,
-  ajouterFichier,
-  ouvrirAvecApplication,
-  ouvrirDossierLocal,
-  ouvrirDansNextcloud,
+  estDistant, entreesProjet, entreesExemples, dossiersDocsCadre, dossierDocsAbsent,
+  selection, erreurListe, chargementListe, selectionner, rafraichirDocsCadre,
+  naviguerDocsCadre, ajouterFichier, creerDossier, ouvrirAvecApplication,
+  ouvrirDossierLocal, ouvrirDansNextcloud,
 } = utiliserSonal()
-
 const estProjet = computed(() => props.source === 'projet')
+const dossier = computed(() => dossiersDocsCadre.value[props.source])
+const entrees = computed(() => estProjet.value ? entreesProjet.value : entreesExemples.value)
+const miettes = computed(() => [
+  { nom: estProjet.value ? 'Documents' : 'Documents exemples', chemin: '' },
+  ...dossier.value.split('/').filter(Boolean).map((nom, i, segments) => ({ nom, chemin: segments.slice(0, i + 1).join('/') })),
+])
+const saisieDossier = ref(false)
+const nomDossier = ref('')
+const champDossier = ref<HTMLInputElement | null>(null)
+const navigation = ref<HTMLElement | null>(null)
+const titre = ref<HTMLElement | null>(null)
 
-function choisir(source: SourceDocumentCadre, nom: string): void {
-  selectionner({ source, nom })
+function focaliserDossier(): void {
+  const cible = navigation.value?.querySelector<HTMLElement>('[aria-current]') ?? titre.value
+  cible?.focus()
 }
+watch([() => props.source, dossier], () => { saisieDossier.value = false; nomDossier.value = '' })
 
-/** Double-clic = ouvrir avec l'application (même action que le panneau) ;
- *  réservé aux documents du corpus local. */
-function ouvrirAuDoubleClic(source: SourceDocumentCadre, nom: string): void {
-  if (source !== 'projet' || estDistant.value) return
-  void ouvrirAvecApplication(nom)
+async function nouveauDossier(): Promise<void> {
+  saisieDossier.value = true
+  await nextTick()
+  champDossier.value?.focus()
+}
+async function confirmerDossier(): Promise<void> {
+  if (await creerDossier(nomDossier.value.trim())) {
+    saisieDossier.value = false
+    nomDossier.value = ''
+    await nextTick()
+    focaliserDossier()
+  }
+}
+async function naviguer(chemin: string): Promise<void> {
+  await naviguerDocsCadre(props.source, chemin)
+  await nextTick()
+  focaliserDossier()
+}
+function choisir(entree: EntreeDocsCadre): void {
+  if (entree.nature === 'dossier') void naviguer(entree.chemin)
+  else selectionner({ source: props.source, chemin: entree.chemin })
+}
+function ouvrirAuDoubleClic(entree: EntreeDocsCadre): void {
+  if (entree.nature === 'document' && estProjet.value && !estDistant.value) void ouvrirAvecApplication(entree.chemin)
 }
 </script>
 
 <template>
   <div class="panneau cote-docs">
-    <div class="corpus-tete">
-      <h3>{{ estProjet ? 'Documents du projet' : 'Documents exemples' }}</h3>
+    <div class="corpus-tete"><h3 ref="titre" tabindex="-1">{{ estProjet ? 'Documents du projet' : 'Documents exemples' }}</h3></div>
+    <div class="actions-liste">
+      <template v-if="estProjet && !estDistant">
+        <button class="primaire" data-tour="ajouter-document-cadre" @click="ajouterFichier()">＋ Ajouter un fichier</button>
+        <button @click="nouveauDossier()">Nouveau dossier</button>
+        <button title="Ouvrir dans le gestionnaire de fichiers" @click="ouvrirDossierLocal()">Ouvrir ce dossier</button>
+      </template>
+      <button v-else-if="estProjet" @click="ouvrirDansNextcloud()">Organiser ce dossier dans Nextcloud</button>
+      <button @click="rafraichirDocsCadre()">⟳ Actualiser</button>
     </div>
-
-    <template v-if="estProjet">
-      <div class="actions-liste">
-        <template v-if="!estDistant">
-          <button class="primaire" data-tour="ajouter-document-cadre" @click="ajouterFichier()">＋ Ajouter un fichier</button>
-          <button title="Ouvrir DocsCadre/ dans le gestionnaire de fichiers" @click="ouvrirDossierLocal()">Ouvrir le dossier</button>
-        </template>
-        <button v-else title="Ouvrir le corpus dans l'application Fichiers de Nextcloud" @click="ouvrirDansNextcloud()">Ouvrir dans Nextcloud</button>
-        <button title="Recharger la liste depuis le corpus" @click="rafraichirDocsCadre()">⟳ Actualiser</button>
-      </div>
-
-      <div v-if="erreurListe" class="erreur-reseau">{{ erreurListe }}</div>
-
-      <div class="liste" data-tour="documents-projet">
-        <p v-if="documentsProjet.length === 0" class="vide">Vous n’avez pas encore de document.</p>
-        <button
-          v-for="doc in documentsProjet"
-          :key="doc.nom"
-          class="document"
-          :class="{ choisi: selection?.source === 'projet' && selection?.nom === doc.nom }"
-          :title="`${doc.nom} (double-clic : ouvrir avec l’application)`"
-          @click="choisir('projet', doc.nom)"
-          @dblclick="ouvrirAuDoubleClic('projet', doc.nom)"
-        >
-          <span class="icone">{{ iconeTypeDocument(doc.type) }}</span>
-          <span class="nom">{{ doc.nom }}</span>
-        </button>
-      </div>
-    </template>
-
-    <template v-else>
-      <p class="introduction-exemples">
-        Ces modèles sont fournis avec SonalPi. Consultez-les ou enregistrez-en une copie pour l’adapter à votre projet.
+    <form v-if="saisieDossier && estProjet && !estDistant" class="creation-dossier" @submit.prevent="confirmerDossier()">
+      <label for="nom-dossier-docs">Nom du nouveau dossier</label>
+      <input id="nom-dossier-docs" ref="champDossier" v-model="nomDossier" maxlength="255" required @keydown.esc="saisieDossier = false" />
+      <button type="submit">Créer le dossier</button>
+      <button type="button" @click="saisieDossier = false">Annuler</button>
+    </form>
+    <p v-if="!estProjet" class="introduction-exemples">
+      Ces modèles sont fournis avec SonalPi. Consultez-les ou enregistrez-en une copie pour l’adapter à votre projet.
+    </p>
+    <nav v-if="dossier" ref="navigation" class="fil-ariane" aria-label="Dossier des documents">
+      <template v-for="(miette, index) in miettes" :key="miette.chemin">
+        <span v-if="index" aria-hidden="true"> › </span>
+        <span v-if="index === miettes.length - 1" class="dossier-courant" aria-current="location" tabindex="-1">{{ miette.nom }}</span>
+        <button v-else @click="naviguer(miette.chemin)">{{ miette.nom }}</button>
+      </template>
+    </nav>
+    <p class="annonce-dossier" role="status">{{ chargementListe ? 'Chargement…' : `Dossier courant : ${miettes[miettes.length - 1]?.nom}` }}</p>
+    <div v-if="erreurListe" class="erreur-reseau" role="alert">{{ erreurListe }}</div>
+    <div class="liste" :data-tour="estProjet ? 'documents-projet' : 'documents-exemples'" :aria-busy="chargementListe">
+      <p v-if="!entrees.length && !chargementListe" class="vide">
+        {{ dossierDocsAbsent && estProjet ? 'Vous n’avez pas encore de dossier de documents.' : 'Ce dossier est vide.' }}
       </p>
-      <div class="liste" data-tour="documents-exemples">
-        <p v-if="documentsExemples.length === 0" class="vide">Aucun exemple embarqué.</p>
-        <button
-          v-for="doc in documentsExemples"
-          :key="doc.nom"
-          class="document exemple"
-          :class="{ choisi: selection?.source === 'exemple' && selection?.nom === doc.nom }"
-          :title="doc.nom"
-          @click="choisir('exemple', doc.nom)"
-        >
-          <span class="icone">{{ iconeTypeDocument(doc.type) }}</span>
-          <span class="nom">{{ doc.nom }}</span>
-        </button>
-      </div>
-    </template>
+      <button
+        v-for="entree in entrees" :key="entree.chemin" class="document"
+        :class="{ choisi: selection?.source === source && selection?.chemin === entree.chemin, exemple: !estProjet }"
+        :title="entree.nom" @click="choisir(entree)" @dblclick="ouvrirAuDoubleClic(entree)"
+      >
+        <span class="icone" aria-hidden="true">{{ entree.nature === 'dossier' ? '📁' : iconeTypeDocument(entree.type) }}</span>
+        <span v-if="entree.nature === 'dossier'" class="annonce-dossier">Dossier : </span>
+        <span class="nom">{{ entree.nom }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .cote-docs { display: flex; flex-direction: column; gap: .35rem; }
 .cote-docs .corpus-tete { margin-bottom: 0; }
-.actions-liste { display: flex; gap: .35rem; flex-wrap: wrap; }
-.erreur-reseau {
-  background: #fdecea;
-  color: #b3261e;
-  border: 1px solid #f3b4ad;
-  border-radius: 6px;
-  font-size: .8rem;
-  padding: .5rem .6rem;
-}
+.actions-liste, .fil-ariane { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+.fil-ariane { font-size: .8rem; }
+.fil-ariane button, .dossier-courant { padding: .1rem .2rem; overflow-wrap: anywhere; min-width: 0; }
+.fil-ariane button { border: none; background: none; color: #1565c0; cursor: pointer; font: inherit; }
+.fil-ariane button:hover { text-decoration: underline; }
+.fil-ariane button:focus-visible, .dossier-courant:focus-visible { outline: 2px solid #1565c0; outline-offset: 2px; }
+.fil-ariane > span[aria-hidden] { color: #bbb; }
+.dossier-courant { color: #1a1a1a; font-weight: 600; }
+.creation-dossier { display: flex; flex-wrap: wrap; gap: .35rem; font-size: .82rem; }
+.creation-dossier input { width: 100%; min-width: 0; }
+.annonce-dossier { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+.erreur-reseau { background: #fdecea; color: #b3261e; border: 1px solid #f3b4ad; border-radius: 6px; font-size: .8rem; padding: .5rem .6rem; }
 .introduction-exemples { margin: .2rem 0 .45rem; color: #44506a; font-size: .82rem; line-height: 1.35; }
 .liste { display: flex; flex-direction: column; gap: .25rem; }
 .vide { color: #8a8f9c; font-size: .82rem; margin: .2rem 0; }
-.document {
-  display: flex;
-  align-items: center;
-  gap: .45rem;
-  text-align: left;
-  border: 1px solid #dde2ee;
-  border-radius: 6px;
-  background: #fff;
-  padding: .35rem .5rem;
-  cursor: pointer;
-  font-size: .82rem;
-}
+.document { display: flex; align-items: center; gap: .45rem; text-align: left; border: 1px solid #dde2ee; border-radius: 6px; background: #fff; padding: .35rem .5rem; cursor: pointer; font-size: .82rem; }
 .document:hover { background: #f4f7fd; }
 .document.choisi { border-color: #1565c0; box-shadow: inset 0 0 0 1px #1565c0; }
 .document.exemple { border-style: dashed; }

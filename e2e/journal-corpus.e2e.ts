@@ -65,7 +65,7 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
       await (window as any).sonal.corpus.personnesCommander({ type: 'modifier', personneId: id, nom: 'Modification extérieure' })
     }, personneId)
 
-    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
+    await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
     await expect(journal.getByRole('button', { name: 'Annuler : Personne renommée' })).toBeDisabled()
     await page.getByRole('button', { name: 'Fermer', exact: true }).click()
@@ -74,7 +74,8 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     // Retour au corpus par le fil d'Ariane (la barre d'actions de l'entretien
     // n'a plus de bouton « ← Corpus »).
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
+    await onglets.getByRole('button', { name: 'Personnes', exact: true }).click()
+    await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()
     await expect(journal).toBeVisible()
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
 
@@ -85,7 +86,8 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
     await page.locator('.carte-demo.ouvrir-corpus').click()
     await attendreCorpus(page)
-    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
+    await onglets.getByRole('button', { name: 'Personnes', exact: true }).click()
+    await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()
     await expect(page.locator('.journal-corpus')).toContainText('Aucune action enregistrée.')
   } finally {
     await app.close()

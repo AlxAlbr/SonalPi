@@ -1,60 +1,37 @@
-import { computed, onScopeDispose, ref, type Ref } from 'vue'
+import { computed, onScopeDispose, reactive, ref, type Ref } from 'vue'
 import {
-  estNomSain,
+  estCheminDocsCadre,
+  estListable,
   type ApercuDocumentCadre,
+  type EntreeDocsCadre,
   type ModeDocumentsCadre,
   type RaisonSansApercu,
   type TypeDocumentCadre,
-  type ResultatLectureDocsCadre,
   type ResumeDocumentCadre,
   type SourceDocumentCadre,
 } from '../../../shared/docsCadre'
 
-/** Message humain d'une absence d'aperçu (affiché dans la fiche du document). */
+/** Message humain d'une absence d'aperçu. */
 export function libelleSansApercu(raison: RaisonSansApercu): string {
   switch (raison) {
-    case 'format':
-      return "Aucun aperçu intégré pour ce format : SonalPi conserve le fichier dans son format d'origine et délègue son affichage à l'outil approprié."
-    case 'taille':
-      return 'Fichier trop volumineux pour un aperçu intégré. Il reste listé, et peut être ouvert dans son application ou enregistré comme copie.'
-    case 'signature':
-      return "Le contenu du fichier ne correspond pas à son extension : aucun aperçu affiché par prudence."
-    case 'encodage':
-      return "Ce fichier n'est pas du texte UTF-8 : aucun aperçu intégré. Il reste ouvrable avec son application habituelle."
-    case 'absent':
-      return 'Ce document a disparu du corpus. Actualisez la liste.'
-    case 'invalide':
-      return 'Nom de document refusé par la sécurité.'
-    case 'lecture':
-      return 'Lecture impossible (droits, disque ou réseau).'
+    case 'format': return "Aucun aperçu intégré pour ce format. Enregistrez une copie ou ouvrez le document avec son application habituelle."
+    case 'taille': return 'Fichier trop volumineux pour un aperçu intégré. Vous pouvez enregistrer une copie.'
+    case 'signature': return 'Le contenu du fichier ne correspond pas à son extension : aucun aperçu affiché par prudence.'
+    case 'encodage': return 'Ce fichier ne peut pas être affiché comme texte. Vous pouvez enregistrer une copie.'
+    case 'absent': return 'Ce document a disparu du corpus. Actualisez la liste.'
+    case 'invalide': return 'Ce document ne peut pas être consulté.'
+    case 'lecture': return 'Lecture impossible. Vérifiez les droits ou la connexion.'
   }
 }
 
-/** Libellé humain d'une famille de document. */
 export function libelleTypeDocument(type: TypeDocumentCadre): string {
-  switch (type) {
-    case 'pdf': return 'PDF'
-    case 'texte': return 'Texte'
-    case 'image': return 'Image'
-    case 'bureautique': return 'Document bureautique'
-    case 'html': return 'HTML'
-    case 'autre': return 'Fichier'
-  }
+  return { pdf: 'PDF', texte: 'Texte', image: 'Image', bureautique: 'Document bureautique', html: 'HTML', autre: 'Fichier' }[type]
 }
 
-/** Icône minimale d'un document, selon sa famille. */
 export function iconeTypeDocument(type: TypeDocumentCadre): string {
-  switch (type) {
-    case 'pdf': return '📕'
-    case 'texte': return '📝'
-    case 'image': return '🖼️'
-    case 'bureautique': return '📄'
-    case 'html': return '🌐'
-    case 'autre': return '📦'
-  }
+  return { pdf: '📕', texte: '📝', image: '🖼️', bureautique: '📄', html: '🌐', autre: '📦' }[type]
 }
 
-/** Taille lisible (octets, Ko, Mo) ; null si inconnue. */
 export function formaterTaille(octets: number | null): string {
   if (octets === null) return 'inconnue'
   if (octets < 1024) return `${octets} octets`
@@ -62,407 +39,281 @@ export function formaterTaille(octets: number | null): string {
   return `${(octets / (1024 * 1024)).toFixed(1)} Mo`
 }
 
-/** Sélection partagée entre la liste des documents et le panneau d'aperçu. */
 export interface SelectionDocCadre {
   source: SourceDocumentCadre
-  nom: string
+  chemin: string
 }
 
-/**
- *  Gère les documents du projet et les exemples fournis avec l'application.
- *  La lecture seule du corpus distant est aussi garantie par le processus principal.
- */
+/** Navigation indépendante des documents du projet et des exemples en lecture seule. */
 export function useDocsCadre(deps: {
   estDistant: () => boolean
   actif: Readonly<Ref<boolean>>
 }) {
   const mode = ref<ModeDocumentsCadre>(deps.estDistant() ? 'distant' : 'local')
-  const documentsProjet = ref<ResumeDocumentCadre[]>([])
-  const documentsExemples = ref<ResumeDocumentCadre[]>([])
+  const sourceActive = ref<SourceDocumentCadre>('projet')
+  const etats = reactive({ projet: creerEtat(), exemple: creerEtat() })
+  function creerEtat() {
+    return { dossier: '', entrees: [] as EntreeDocsCadre[], selection: null as string | null,
+      generation: 0, charge: false, chargement: false, absent: false, erreur: null as string | null }
+  }
+  const dossiersDocsCadre = computed(() => ({ projet: etats.projet.dossier, exemple: etats.exemple.dossier }))
+  const entreesProjet = computed(() => etats.projet.entrees)
+  const entreesExemples = computed(() => etats.exemple.entrees)
+  const documentsProjet = computed(() => etats.projet.entrees.filter((e): e is ResumeDocumentCadre => e.nature === 'document'))
+  const documentsExemples = computed(() => etats.exemple.entrees.filter((e): e is ResumeDocumentCadre => e.nature === 'document'))
   const selection = ref<SelectionDocCadre | null>(null)
   const resumeSelection = ref<ResumeDocumentCadre | null>(null)
   const apercu = ref<ApercuDocumentCadre | null>(null)
-  const chargementListe = ref(false)
+  const chargementListe = computed(() => etats[sourceActive.value].chargement)
   const chargementApercu = ref(false)
-  const erreurListe = ref<string | null>(null)
+  const erreurListe = computed(() => etats[sourceActive.value].erreur)
+  const dossierDocsAbsent = computed(() => etats[sourceActive.value].absent)
   const messageAction = ref<string | null>(null)
-  /** Suppression en attente de confirmation (motif « Supprimer/Confirmer »). */
-  const documentASupprimer = ref<string | null>(null)
-  const derniereSelection: Record<SourceDocumentCadre, string | null> = {
-    projet: null,
-    exemple: null,
-  }
-  let generation = 0
-  let generationListe = 0
-
+  let session = 0
+  let generationApercu = 0
   const estDistant = computed(() => mode.value === 'distant')
+  const selectionCourante = computed(() => selection.value)
 
-  const resumePour = (source: SourceDocumentCadre, nom: string): ResumeDocumentCadre | null => {
-    const liste = source === 'projet' ? documentsProjet.value : documentsExemples.value
-    return liste.find((d) => d.nom === nom) ?? null
+  function resumePour(source: SourceDocumentCadre, chemin: string): ResumeDocumentCadre | null {
+    return etats[source].entrees.find((e): e is ResumeDocumentCadre => e.nature === 'document' && e.chemin === chemin) ?? null
   }
 
-  /** Relit l'inventaire sans effacer une liste déjà chargée en cas d'erreur réseau. */
-  async function lister(): Promise<boolean> {
-    const maGeneration = ++generationListe
-    chargementListe.value = true
+  /** En cas de disparition, remonte au premier parent encore disponible. */
+  async function lister(source = sourceActive.value, cible = etats[source].dossier): Promise<boolean> {
+    const etat = etats[source]
+    const maSession = session
+    const generation = ++etat.generation
+    etat.chargement = true
     try {
-      const inventaire = await window.sonal.docsCadre.lister()
-      if (maGeneration !== generationListe) return false
-      mode.value = inventaire.mode
-      documentsExemples.value = inventaire.exemples
-      if (inventaire.erreurProjet) {
-        erreurListe.value = inventaire.erreurProjet
-        return false
+      while (true) {
+        const inventaire = await window.sonal.docsCadre.lister(source, cible)
+        if (maSession !== session || generation !== etat.generation) return false
+        if (inventaire.erreur) {
+          etat.erreur = inventaire.erreur
+          return false
+        }
+        if (inventaire.absent && cible) {
+          cible = cible.split('/').slice(0, -1).join('/')
+          continue
+        }
+        if (source === 'projet') mode.value = inventaire.mode
+        etat.entrees = inventaire.entrees
+        etat.dossier = cible
+        etat.absent = !!inventaire.absent
+        etat.charge = true
+        etat.erreur = null
+        if (etat.selection && !resumePour(source, etat.selection)) etat.selection = null
+        if (selection.value?.source === source && !resumePour(source, selection.value.chemin)) selectionner(null)
+        return true
       }
-      documentsProjet.value = inventaire.projet
-      erreurListe.value = null
-      // Une sélection disparue de sa liste est désélectionnée.
-      if (selection.value && !resumePour(selection.value.source, selection.value.nom)) {
-        selectionner(null)
-      }
-      return true
     } catch (erreur) {
-      if (maGeneration !== generationListe) return false
-      erreurListe.value =
-        erreur instanceof Error && erreur.message
-          ? erreur.message
-          : 'Impossible de lire les documents du corpus. Vérifiez la connexion ; les documents exemples restent disponibles.'
+      if (maSession === session && generation === etat.generation) etat.erreur = messageErreur(erreur)
       return false
     } finally {
-      if (maGeneration === generationListe) chargementListe.value = false
+      if (maSession === session && generation === etat.generation) etat.chargement = false
     }
   }
 
-  /** Relit les documents au retour dans un onglet, puis restaure sa sélection. */
   async function preparerDocsCadre(source: SourceDocumentCadre = 'projet'): Promise<void> {
+    const maSession = session
     mode.value = deps.estDistant() ? 'distant' : 'local'
+    sourceActive.value = source
     if (selection.value?.source !== source) selectionner(null)
-    await rafraichirDocsCadre()
-    activerSource(source)
+    // Les exemples restent disponibles même quand la première lecture projet échoue.
+    const lectures = [lister(source)]
+    if (source === 'projet' && !etats.exemple.charge) lectures.push(lister('exemple'))
+    await Promise.all(lectures)
+    if (maSession !== session || sourceActive.value !== source) return
+    const chemin = etats[source].selection
+    selectionner(chemin && resumePour(source, chemin) ? { source, chemin } : null, false)
+    if (selection.value) await chargerApercu()
   }
 
-  /** Libère la session documentaire et invalide les requêtes de l'ancien corpus. */
   function reinitialiserDocsCadre(): void {
-    generation += 1
-    generationListe += 1
+    session += 1
+    generationApercu += 1
+    etats.projet = creerEtat()
+    etats.exemple = creerEtat()
     selection.value = null
     resumeSelection.value = null
     apercu.value = null
-    chargementListe.value = false
     chargementApercu.value = false
-    erreurListe.value = null
     messageAction.value = null
-    documentASupprimer.value = null
-    derniereSelection.projet = null
-    derniereSelection.exemple = null
+    sourceActive.value = 'projet'
     mode.value = deps.estDistant() ? 'distant' : 'local'
-    documentsProjet.value = []
-    documentsExemples.value = []
   }
 
-  /** Sélectionne (ou désélectionne) un document, puis charge son aperçu frais.
-   *  Une réponse tardive d'un document quitté ne s'affiche jamais (génération). */
-  function selectionner(cible: SelectionDocCadre | null): void {
-    if (
-      selection.value &&
-      cible &&
-      selection.value.source === cible.source &&
-      selection.value.nom === cible.nom
-    ) {
-      return
-    }
-    documentASupprimer.value = null
-    messageAction.value = null
-    generation += 1
+  function selectionner(cible: SelectionDocCadre | null, lire = true): void {
+    if (cible && selection.value?.source === cible.source && selection.value.chemin === cible.chemin) return
+    generationApercu += 1
     selection.value = cible
-    if (cible) derniereSelection[cible.source] = cible.nom
-    resumeSelection.value = cible ? resumePour(cible.source, cible.nom) : null
+    messageAction.value = null
+    if (cible) etats[cible.source].selection = cible.chemin
+    resumeSelection.value = cible ? resumePour(cible.source, cible.chemin) : null
     apercu.value = null
-    if (!cible) {
-      chargementApercu.value = false
-      return
-    }
-    void chargerApercu()
-  }
-
-  /** Affiche uniquement la famille demandée et restaure son dernier document. */
-  function activerSource(source: SourceDocumentCadre): void {
-    if (selection.value?.source === source) return
-    const nom = derniereSelection[source]
-    selectionner(nom && resumePour(source, nom) ? { source, nom } : null)
+    chargementApercu.value = false
+    if (cible && lire) void chargerApercu()
   }
 
   async function chargerApercu(): Promise<void> {
     const sel = selection.value
     if (!sel) return
-    const maGeneration = ++generation
+    const generation = ++generationApercu
     chargementApercu.value = true
-    apercu.value = null
     try {
-      const resultat = await window.sonal.docsCadre.lireApercu(sel.source, sel.nom)
-      if (maGeneration !== generation || selection.value !== sel) return
+      const resultat = await window.sonal.docsCadre.lireApercu(sel.source, sel.chemin)
+      if (generation !== generationApercu) return
       resumeSelection.value = resultat.resume
       apercu.value = resultat.apercu
     } catch (erreur) {
-      if (maGeneration !== generation || selection.value !== sel) return
+      if (generation !== generationApercu) return
       apercu.value = { genre: 'aucun', raison: 'lecture' }
-      messageAction.value =
-        erreur instanceof Error && erreur.message
-          ? erreur.message
-          : 'Lecture impossible (droits, disque ou réseau).'
+      messageAction.value = messageErreur(erreur)
     } finally {
-      if (maGeneration === generation) chargementApercu.value = false
+      if (generation === generationApercu) chargementApercu.value = false
     }
   }
 
-  /** Recharge l'inventaire et l'aperçu courant (action « Actualiser », retour
-   *  de focus d'une application externe : pas de surveillance en continu). */
+  async function naviguerDocsCadre(source: SourceDocumentCadre, dossier: string): Promise<void> {
+    if (!estCheminDocsCadre(dossier, true)) return
+    sourceActive.value = source
+    selectionner(null)
+    etats[source].selection = null
+    await lister(source, dossier)
+  }
+
   async function rafraichirDocsCadre(): Promise<void> {
     if (await lister() && selection.value) await chargerApercu()
   }
 
-  /** Relecture fraîche UNIQUEMENT si l'aperçu courant a été dépassé (écriture
-   *  externe) — la fonction renvoie la sélection courante pour l'appelant. */
-  const selectionCourante = computed(() => selection.value)
-
-  /* ── Actions locales (aucune en corpus distant, garanti aussi par le main) ── */
+  function contexteAction() {
+    const maSession = session
+    const dossier = etats.projet.dossier
+    return { dossier, actuelle: () => maSession === session && dossier === etats.projet.dossier && sourceActive.value === 'projet' }
+  }
 
   async function ajouterFichier(): Promise<void> {
+    if (estDistant.value || sourceActive.value !== 'projet') return
+    const action = contexteAction()
     messageAction.value = null
     try {
-      let resultat = await window.sonal.docsCadre.ajouterFichier()
+      let resultat = await window.sonal.docsCadre.ajouterFichier(action.dossier)
+      if (!action.actuelle()) return
+      if (!resultat.ok && resultat.raison === 'existe' && resultat.suggere) {
+        resultat = await window.sonal.docsCadre.ajouterFichier(action.dossier, resultat.suggere)
+      }
+      if (!action.actuelle()) return
       if (resultat.ok) {
-        await lister()
-        selectionner({ source: 'projet', nom: resultat.nom })
-        messageAction.value = `« ${resultat.nom} » a été ajouté au corpus.`
-        return
-      }
-      if (resultat.raison === 'annule') return
-      if (resultat.raison === 'existe' && resultat.suggere) {
-        // Collision : on reprend avec le premier nom libre proposé.
-        const reprise = await window.sonal.docsCadre.ajouterFichier(resultat.suggere)
-        if (reprise.ok) {
-          await lister()
-          selectionner({ source: 'projet', nom: reprise.nom })
-          messageAction.value =
-            `Un homonyme existait : le document a été ajouté sous le nom « ${reprise.nom} ».`
-          return
-        }
-        resultat = reprise
-      }
-      messageAction.value = messageMutation(resultat, 'ajout impossible')
+        await lister('projet', action.dossier)
+        if (!action.actuelle()) return
+        selectionner({ source: 'projet', chemin: cheminEnfant(action.dossier, resultat.nom) })
+        messageAction.value = `« ${resultat.nom} » a été ajouté au dossier.`
+      } else if (resultat.raison !== 'annule') messageAction.value = messageMutation(resultat.raison)
     } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
+      if (action.actuelle()) messageAction.value = messageErreur(erreur)
     }
   }
 
-  /** Glisser-déposer : copie exacte d'un ou plusieurs fichiers vers
-   *  `DocsCadre/`. Jamais d'écrasement : un homonyme est REFUSÉ (pas de
-   *  renommage automatique), message explicite dans le panneau. */
+  async function creerDossier(nom: string): Promise<boolean> {
+    if (estDistant.value || sourceActive.value !== 'projet') return false
+    if (!estListable(nom)) {
+      messageAction.value = 'Choisissez un nom sans caractère réservé ni séparateur de chemin.'
+      return false
+    }
+    const action = contexteAction()
+    try {
+      const resultat = await window.sonal.docsCadre.creerDossier(action.dossier, nom)
+      if (!action.actuelle()) return false
+      if (!resultat.ok) {
+        messageAction.value = messageMutation(resultat.raison)
+        return false
+      }
+      await lister('projet', action.dossier)
+      if (!action.actuelle()) return false
+      messageAction.value = `Le dossier « ${nom} » a été créé.`
+      return true
+    } catch (erreur) {
+      if (action.actuelle()) messageAction.value = messageErreur(erreur)
+      return false
+    }
+  }
+
+  /** Chaque dépôt garde la destination initiale, même pendant une navigation. */
   async function deposerFichiers(chemins: string[]): Promise<void> {
-    messageAction.value = null
-    if (chemins.length === 0) return
-    const ajoutes: string[] = []
+    if (estDistant.value || sourceActive.value !== 'projet' || !chemins.length) return
+    const action = contexteAction()
+    const maSession = session
+    let dernier: string | null = null
     const refus: string[] = []
+    let ajoutes = 0
     for (const chemin of chemins) {
+      if (maSession !== session) return
       try {
-        const resultat = await window.sonal.docsCadre.deposer(chemin)
-        if (resultat.ok) {
-          ajoutes.push(resultat.nom)
-          continue
-        }
-        if (resultat.raison === 'existe') {
-          refus.push('un fichier porte déjà ce nom dans DocsCadre, rien n’a été copié')
-          continue
-        }
-        refus.push(messageMutation(resultat, 'dépôt refusé'))
-      } catch (erreur) {
-        refus.push(messageErreur(erreur))
-      }
+        const resultat = await window.sonal.docsCadre.deposer(chemin, action.dossier)
+        if (resultat.ok) { dernier = resultat.nom; ajoutes += 1 }
+        else refus.push(messageMutation(resultat.raison))
+      } catch (erreur) { refus.push(messageErreur(erreur)) }
     }
-    if (ajoutes.length > 0) {
-      await lister()
-      selectionner({ source: 'projet', nom: ajoutes[ajoutes.length - 1] })
-      messageAction.value =
-        ajoutes.length === 1
-          ? `« ${ajoutes[0]} » a été ajouté au corpus.`
-          : `${ajoutes.length} documents ont été ajoutés au corpus.`
+    if (!action.actuelle()) return
+    if (ajoutes) {
+      await lister('projet', action.dossier)
+      if (!action.actuelle()) return
+      selectionner({ source: 'projet', chemin: cheminEnfant(action.dossier, dernier!) })
     }
-    if (refus.length > 0) {
-      messageAction.value = messageAction.value
-        ? `${messageAction.value} ${refus.length} élément(s) refusé(s) : ${refus[0]}.`
-        : `Dépôt refusé : ${refus[0]}.`
-    }
+    messageAction.value = [ajoutes ? `${ajoutes} document(s) ajouté(s).` : '', ...refus].filter(Boolean).join(' ')
   }
 
-  /** Saisie d'un nouveau nom : la garde de forme est jouée ici ET au main. */
-  function nomRenommageValide(nouveau: string): boolean {
-    return estNomSain(nouveau)
-  }
-
-  async function renommerDocCadre(ancienNom: string, nouveauNom: string): Promise<void> {
-    messageAction.value = null
-    const cible = nouveauNom.trim()
-    if (cible === ancienNom) return
-    if (!estNomSain(cible)) {
-      messageAction.value =
-        'Nom refusé : conservez espaces, accents, extension et casse, sans séparateur de chemin ni caractère réservé.'
-      return
-    }
-    try {
-      const resultat = await window.sonal.docsCadre.renommer(ancienNom, cible)
-      if (resultat.ok) {
-        // Sélection mise à jour AVANT le rechargement : la liste fraîche la
-        // retrouve sous son nouveau nom (sinon elle serait désélectionnée).
-        if (selection.value?.source === 'projet' && selection.value.nom === ancienNom) {
-          selection.value = { source: 'projet', nom: resultat.nom }
-        }
-        await lister()
-        if (selection.value?.nom === resultat.nom) {
-          resumeSelection.value = resumePour('projet', resultat.nom)
-        }
-        messageAction.value = `Document renommé en « ${resultat.nom} » (contenu inchangé).`
-        return
-      }
-      messageAction.value = messageMutation(resultat, 'renommage impossible')
-    } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
-    }
-  }
-
-  function demanderSuppression(nom: string): void {
-    messageAction.value = null
-    documentASupprimer.value = nom
-  }
-
-  function annulerSuppression(): void {
-    documentASupprimer.value = null
-  }
-
-  async function confirmerSuppression(): Promise<void> {
-    const nom = documentASupprimer.value
-    if (!nom) return
-    documentASupprimer.value = null
+  async function executerAction(action: () => Promise<unknown>, message?: string): Promise<void> {
+    const maSession = session
     messageAction.value = null
     try {
-      const resultat = await window.sonal.docsCadre.supprimer(nom)
-      if (resultat.ok) {
-        await lister()
-        if (selection.value?.source === 'projet' && selection.value.nom === nom) {
-          selectionner(null)
-        }
-        messageAction.value = `« ${nom} » a été déplacé dans la corbeille du corpus.`
-        return
-      }
-      messageAction.value = messageMutation(resultat, 'suppression impossible')
+      await action()
+      if (maSession === session && message) messageAction.value = message
     } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
+      if (maSession === session) messageAction.value = messageErreur(erreur)
     }
   }
 
-  async function ouvrirAvecApplication(nom: string): Promise<void> {
-    messageAction.value = null
-    try {
-      await window.sonal.docsCadre.ouvrirAvecApplication(nom)
-    } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
+  const ouvrirAvecApplication = (chemin: string) => executerAction(() => window.sonal.docsCadre.ouvrirAvecApplication(chemin))
+  const afficherDansDossier = (chemin: string) => executerAction(() => window.sonal.docsCadre.afficherDansDossier(chemin))
+  const ouvrirDossierLocal = () => executerAction(
+    () => window.sonal.docsCadre.ouvrirDossierLocal(etats.projet.dossier),
+    'Le dossier a été ouvert dans le gestionnaire de fichiers.',
+  )
+  const ouvrirDansNextcloud = () => executerAction(() => window.sonal.docsCadre.ouvrirDansNextcloud(etats.projet.dossier))
+  const enregistrerCopie = (source: SourceDocumentCadre, chemin: string) => executerAction(async () => {
+    const maSession = session
+    if (await window.sonal.docsCadre.enregistrerCopie(source, chemin) && maSession === session) {
+      messageAction.value = 'Une copie exacte du fichier original a été enregistrée.'
     }
-  }
+  })
 
-  async function ouvrirDossierLocal(): Promise<void> {
-    messageAction.value = null
-    try {
-      await window.sonal.docsCadre.ouvrirDossierLocal()
-      messageAction.value = 'Le dossier DocsCadre a été ouvert dans le gestionnaire de fichiers.'
-    } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
-    }
-  }
-
-  async function enregistrerCopie(source: SourceDocumentCadre, nom: string): Promise<void> {
-    messageAction.value = null
-    try {
-      const ok = await window.sonal.docsCadre.enregistrerCopie(source, nom)
-      if (ok) {
-        messageAction.value = 'Une copie exacte du fichier original a été enregistrée.'
-      }
-    } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
-    }
-  }
-
-  async function ouvrirDansNextcloud(): Promise<void> {
-    messageAction.value = null
-    try {
-      await window.sonal.docsCadre.ouvrirDansNextcloud()
-    } catch (erreur) {
-      messageAction.value = messageErreur(erreur)
-    }
-  }
-
-  /* ── Messages ────────────────────────────────────────────────────────── */
-
-  function messageMutation(resultat: { raison: string; suggere?: string }, contexte: string): string {
-    switch (resultat.raison) {
-      case 'existe':
-        return `Un document de ce nom existe déjà (${contexte}). Nom libre proposé : ${resultat.suggere ?? '—'}.`
-      case 'source':
-        return 'La source n’est pas un fichier ordinaire (dossier, lien ou fichier illisible) : rien n’a été copié.'
-      case 'invalide':
-        return 'Nom refusé : séparateur de chemin, caractère réservé ou forme non portable.'
-      case 'absent':
-        return `Le document n'existe plus (${contexte}). Actualisez la liste.`
-      case 'lecture':
-        return `Opération impossible (${contexte}) : erreur de lecture sur le disque.`
-      default:
-        return `Opération impossible (${contexte}).`
-    }
-  }
-
-  function messageErreur(erreur: unknown): string {
-    return erreur instanceof Error && erreur.message
-      ? erreur.message
-      : 'Opération impossible : erreur inattendue.'
-  }
-
-  /* ── Retour de focus : pas de surveillance en continu des écritures tierces ── */
   const surFocus = (): void => {
-    if (!deps.actif.value || mode.value !== 'local') return
-    void rafraichirDocsCadre()
+    if (deps.actif.value && mode.value === 'local') void rafraichirDocsCadre()
   }
   window.addEventListener('focus', surFocus)
-  onScopeDispose(() => window.removeEventListener('focus', surFocus))
+  onScopeDispose(() => { session += 1; generationApercu += 1; window.removeEventListener('focus', surFocus) })
 
   return {
-    mode,
-    estDistant,
-    documentsProjet,
-    documentsExemples,
-    selection,
-    resumeSelection,
-    apercu,
-    chargementListe,
-    chargementApercu,
-    erreurListe,
-    messageAction,
-    documentASupprimer,
-    selectionCourante,
-    preparerDocsCadre,
-    reinitialiserDocsCadre,
-    lister,
-    rafraichirDocsCadre,
-    selectionner,
-    nomRenommageValide,
-    ajouterFichier,
-    deposerFichiers,
-    renommerDocCadre,
-    demanderSuppression,
-    annulerSuppression,
-    confirmerSuppression,
-    ouvrirAvecApplication,
-    ouvrirDossierLocal,
-    enregistrerCopie,
-    ouvrirDansNextcloud,
+    mode, estDistant, documentsProjet, documentsExemples, entreesProjet, entreesExemples,
+    dossiersDocsCadre, dossierDocsAbsent, selection, resumeSelection, apercu, chargementListe,
+    chargementApercu, erreurListe, messageAction, selectionCourante,
+    preparerDocsCadre, reinitialiserDocsCadre, lister, rafraichirDocsCadre, selectionner,
+    naviguerDocsCadre, ajouterFichier, creerDossier, deposerFichiers, ouvrirAvecApplication,
+    afficherDansDossier, ouvrirDossierLocal, enregistrerCopie, ouvrirDansNextcloud,
+  }
+}
+
+function cheminEnfant(dossier: string, nom: string): string { return dossier ? `${dossier}/${nom}` : nom }
+function messageErreur(erreur: unknown): string {
+  return erreur instanceof Error && erreur.message ? erreur.message : 'Opération impossible. Vérifiez les droits ou la connexion.'
+}
+function messageMutation(raison: string): string {
+  switch (raison) {
+    case 'existe': return 'Un fichier ou dossier porte déjà ce nom : rien n’a été remplacé.'
+    case 'source': return 'La source n’est pas un fichier ordinaire : les dossiers et liens ne sont pas copiés.'
+    case 'invalide': return 'Nom refusé. Choisissez un nom sans caractère réservé ni séparateur de chemin.'
+    case 'absent': return 'Ce fichier ou dossier n’existe plus. Actualisez la liste.'
+    default: return 'Opération impossible. Vérifiez les droits et actualisez la liste.'
   }
 }

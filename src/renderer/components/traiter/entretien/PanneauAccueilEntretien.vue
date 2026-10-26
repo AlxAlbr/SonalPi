@@ -8,6 +8,7 @@ import icoNotes from '../../../assets/icones/notes.png'
 import icoThemes from '../../../assets/icones/themes.png'
 
 const {
+  ongletDroite,
   pasAPas,
   parcoursActif,
   parcoursActifId,
@@ -47,28 +48,40 @@ const {
     </p>
     <ul class="liste-tours">
       <li>
-        <img class="ico-onglet" :src="icoNotes" alt="" />
-        <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) ; mettez un passage en GRAS (important) ou en ITALIQUE lié à un commentaire.</span>
+        <button type="button" @click="ongletDroite = 'notes'">
+          <img class="ico-onglet" :src="icoNotes" alt="" />
+          <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) ; mettez un passage en GRAS (important) ou en ITALIQUE lié à un commentaire.</span>
+        </button>
       </li>
       <li>
-        <img class="ico-onglet" :src="icoLocuteurs" alt="" />
-        <span><b>Locuteurs</b> — noms, interviewer, attribution des tours de parole.</span>
+        <button type="button" @click="ongletDroite = 'locuteurs'">
+          <img class="ico-onglet" :src="icoLocuteurs" alt="" />
+          <span><b>Locuteurs</b> — noms, interviewer, attribution des tours de parole.</span>
+        </button>
       </li>
       <li>
-        <img class="ico-onglet" :src="icoAnon" alt="" />
-        <span><b>Pseudonymisation du texte</b> — masquer les noms (barré + pseudo).</span>
+        <button type="button" @click="ongletDroite = 'anon'">
+          <img class="ico-onglet" :src="icoAnon" alt="" />
+          <span><b>Pseudonymisation du texte</b> — masquer les noms (barré + pseudo).</span>
+        </button>
       </li>
       <li>
-        <img class="ico-onglet" :src="icoThemes" alt="" />
-        <span><b>Thématiques</b> — sélectionnez du texte puis cliquez un thème pour le coder.</span>
+        <button type="button" @click="ongletDroite = 'themes'">
+          <img class="ico-onglet" :src="icoThemes" alt="" />
+          <span><b>Thématiques</b> — sélectionnez du texte puis cliquez un thème pour le coder.</span>
+        </button>
       </li>
       <li>
-        <img class="ico-onglet" :src="icoDonnees" alt="" />
-        <span><b>Données</b> — valeurs de l'entretien et de chaque locuteur.</span>
+        <button type="button" @click="ongletDroite = 'donnees'">
+          <img class="ico-onglet" :src="icoDonnees" alt="" />
+          <span><b>Données</b> — valeurs de l'entretien et de chaque locuteur.</span>
+        </button>
       </li>
       <li>
-        <img class="ico-onglet" :src="icoJournal" alt="" />
-        <span><b>Journal</b> — suivi et annulation des actions de la session.</span>
+        <button type="button" @click="ongletDroite = 'journal'">
+          <img class="ico-onglet" :src="icoJournal" alt="" />
+          <span><b>Journal</b> — suivi et annulation des actions de la session.</span>
+        </button>
       </li>
     </ul>
   </aside>
@@ -132,7 +145,9 @@ const {
   flex-direction: column;
   gap: 0.4rem;
 }
-.liste-tours li {
+.liste-tours li { margin: 0; }
+.liste-tours button {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -140,8 +155,14 @@ const {
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
   background: #fff;
+  color: inherit;
+  font: inherit;
   font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
 }
+.liste-tours button:hover { background: #f5f5fa; border-color: #cfd1df; }
+.liste-tours button:focus-visible { outline: 2px solid #596b9f; outline-offset: 1px; }
 .ico-onglet {
   width: 20px;
   height: 20px;

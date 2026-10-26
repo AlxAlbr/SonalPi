@@ -315,8 +315,10 @@ l’ajout d’une recette ; une modification concurrente impose de refaire l’a
 
 ## 3. Export vers QualCoder
 
-Depuis **Organiser et exporter → Exporter le corpus**, choisis **Projet QualCoder (.qda)**, les
-entretiens puis les cas à inclure. Le dossier produit s’ouvre comme un projet
+Depuis **Organiser et exporter → Exporter le corpus**, choisis les entretiens,
+**Projet QualCoder (.qda)** et les cas à inclure dans le panneau de gauche.
+Vérifie le récapitulatif à droite, puis lance l’export et choisis sa destination.
+Le dossier produit s’ouvre comme un projet
 QualCoder et contient les transcriptions complètes, les passages des cas et les
 attributs disponibles. Les ajouts manuels font partie des matériaux exportés.
 

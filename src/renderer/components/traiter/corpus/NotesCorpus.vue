@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, toRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
 import { useNotesCorpus } from '../../../composables/corpus/useNotesCorpus'
 import ModaleNoteCorpus from './ModaleNoteCorpus.vue'
 import type { ChampsNote, LienCommentaireNoteCorpus, VueNoteCorpus } from '../../../../shared/corpus/notes'
@@ -10,6 +10,7 @@ const {
   badgeVerrou,
   categories,
   categoriesNote,
+  categorieResume,
   charge,
   chargement,
   corpsAffiche,
@@ -29,7 +30,7 @@ const {
   modifier,
   motCle,
   nomCategorieNote,
-  notesChronologiques,
+  notesPlusRecentes,
   notesFiltrees,
   notesParEntretien,
   notesResume,
@@ -42,6 +43,26 @@ const {
   supprimer,
   toutAfficher,
 } = useNotesCorpus(toRef(props, 'actif'))
+
+const nombreFiltres = computed(() =>
+  Number(!!recherche.value.trim()) + Number(!!motCle.value.trim())
+  + categories.value.length + entretiens.value.length + Number(statut.value !== 'tous')
+  + Number(!!dateDebut.value) + Number(!!dateFin.value) + Number(importants.value) + Number(avecLiens.value),
+)
+const nombreFiltresDetailles = computed(() => nombreFiltres.value - Number(!!recherche.value.trim()))
+const resumesSeuls = computed(() => nombreFiltres.value === 1
+  && categories.value.length === 1 && categories.value[0] === categorieResume.value?.id)
+const triParDate = computed(() => ['creeLe', 'date', 'modifieLe'].includes(critereTri.value))
+const sensTri = computed(() => {
+  if (triParDate.value) return { asc: 'Plus anciennes d’abord', desc: 'Plus récentes d’abord' }
+  if (critereTri.value === 'statut') return { asc: 'Public puis privé', desc: 'Privé puis public' }
+  return { asc: 'A → Z', desc: 'Z → A' }
+})
+const libelleSensTri = computed(() => sensTri.value[ordreTri.value])
+const libelleCritereTri = computed(() => ({
+  entretienTitre: 'Entretien', categorie: 'Catégorie', statut: 'Statut', titre: 'Titre',
+  creeLe: 'Date de création', date: 'Date de la note', modifieLe: 'Dernière modification',
+})[critereTri.value])
 
 const noteEditee = ref<VueNoteCorpus | null>(null)
 const commandeEnCours = ref(false)
@@ -161,9 +182,9 @@ onBeforeUnmount(() => observateur?.disconnect())
 
 <template>
   <section class="notes-corpus" aria-label="Notes du corpus" :aria-busy="chargement">
-    <header class="entete-notes">
-      <div>
-        <h2>Notes</h2>
+    <header class="entete-notes" :class="{ panneau: replie }">
+      <div v-if="replie">
+        <h2 class="titre-panneau">Notes</h2>
         <span>{{ notesFiltrees.length }} affichée{{ notesFiltrees.length === 1 ? '' : 's' }} sur {{ inventaire.notes.length }}</span>
       </div>
       <div class="actions-entete-notes">
@@ -209,78 +230,91 @@ onBeforeUnmount(() => observateur?.disconnect())
       :class="{ verticale, replie }"
       :style="{ '--largeur-notes': largeur + 'px' }"
     >
-      <aside v-if="!replie" class="filtres-notes" aria-label="Filtres et tri des notes">
-        <h3>Filtres</h3>
-        <label>
-          Recherche
+      <aside v-if="!replie" class="panneau filtres-notes" aria-label="Filtres et tri des notes">
+        <div class="corpus-tete"><h2 class="titre-panneau">Notes</h2></div>
+        <p class="accueil-intro">{{ notesFiltrees.length }} affichée{{ notesFiltrees.length === 1 ? '' : 's' }} sur {{ inventaire.notes.length }}</p>
+        <section class="section-notes" aria-labelledby="titre-acces-notes">
+          <h3 id="titre-acces-notes">Accès rapides</h3>
+          <div class="raccourcis" role="group" aria-label="Accès rapides aux notes">
+            <button type="button" :aria-pressed="nombreFiltres === 0" @click="toutAfficher">Toutes les notes</button>
+            <button type="button" :aria-pressed="resumesSeuls" :disabled="!categorieResume" @click="notesResume">Résumés</button>
+          </div>
+        </section>
+        <label class="recherche-notes">
+          Rechercher dans les notes
           <input v-model="recherche" type="search" placeholder="Titre, corps, catégorie…" />
         </label>
 
-        <fieldset v-if="categoriesNote.length">
-          <legend>Catégories</legend>
-          <label v-for="categorie in categoriesNote" :key="categorie.id" class="choix">
-            <input v-model="categories" type="checkbox" :value="categorie.id" />
-            <span class="pastille" :style="{ background: categorie.couleur }"></span>
-            <span>{{ categorie.nom }}</span>
-          </label>
-        </fieldset>
-
-        <fieldset v-if="entretiensDisponibles.length">
-          <legend>Entretiens</legend>
-          <div class="choix-defilants">
-            <label v-for="entretien in entretiensDisponibles" :key="entretien.id" class="choix">
-              <input v-model="entretiens" type="checkbox" :value="entretien.id" />
-              <span>{{ entretien.titre }}</span>
-            </label>
+        <section class="section-notes" aria-labelledby="titre-ordre-notes">
+          <h3 id="titre-ordre-notes">Ordre d’affichage</h3>
+          <div class="raccourcis" role="group" aria-label="Ordre des notes">
+            <button type="button" :aria-pressed="critereTri === 'creeLe' && ordreTri === 'desc'" @click="notesPlusRecentes">Plus récentes d’abord</button>
+            <button type="button" :aria-pressed="critereTri === 'entretienTitre' && ordreTri === 'asc'" @click="notesParEntretien">Par entretien</button>
           </div>
-        </fieldset>
+          <p class="aide-notes">{{ libelleCritereTri }} · {{ libelleSensTri }}.</p>
+          <details class="autre-tri">
+            <summary>Autre ordre…</summary>
+            <label>
+              <span id="notes-critere-tri">Trier par</span>
+              <select v-model="critereTri" aria-labelledby="notes-critere-tri">
+                <option value="entretienTitre">Entretien</option>
+                <option value="categorie">Catégorie</option>
+                <option value="statut">Statut</option>
+                <option value="titre">Titre</option>
+                <option value="creeLe">Date de création</option>
+                <option value="date">Date de la note</option>
+                <option value="modifieLe">Dernière modification</option>
+              </select>
+            </label>
+            <label>
+              <span id="notes-sens-tri">Sens</span>
+              <select v-model="ordreTri" aria-labelledby="notes-sens-tri">
+                <option value="asc">{{ sensTri.asc }}</option>
+                <option value="desc">{{ sensTri.desc }}</option>
+              </select>
+            </label>
+          </details>
+        </section>
 
-        <label>
-          Statut
-          <select v-model="statut">
-            <option value="tous">Tous</option>
-            <option value="public">Public</option>
-            <option value="prive">Privé</option>
-          </select>
-        </label>
+        <details class="filtres-detailles section-notes">
+          <summary>Filtres détaillés<span v-if="nombreFiltresDetailles"> ({{ nombreFiltresDetailles }})</span></summary>
+          <fieldset v-if="categoriesNote.length">
+            <legend>Catégories</legend>
+            <label v-for="categorie in categoriesNote" :key="categorie.id" class="choix">
+              <input v-model="categories" type="checkbox" :value="categorie.id" />
+              <span class="pastille" :style="{ background: categorie.couleur }"></span>
+              <span>{{ categorie.nom }}</span>
+            </label>
+          </fieldset>
 
-        <div class="dates">
-          <label>Du<input v-model="dateDebut" type="date" /></label>
-          <label>Au<input v-model="dateFin" type="date" /></label>
-        </div>
+          <fieldset v-if="entretiensDisponibles.length">
+            <legend>Entretiens</legend>
+            <div class="choix-defilants">
+              <label v-for="entretien in entretiensDisponibles" :key="entretien.id" class="choix">
+                <input v-model="entretiens" type="checkbox" :value="entretien.id" />
+                <span>{{ entretien.titre }}</span>
+              </label>
+            </div>
+          </fieldset>
 
-        <label class="choix"><input v-model="importants" type="checkbox" /> Passages importants</label>
-        <label class="choix"><input v-model="avecLiens" type="checkbox" /> Liens vers des commentaires</label>
-        <label>Mot-clé dans le corps<input v-model="motCle" type="search" /></label>
+          <label>
+            Statut
+            <select v-model="statut">
+              <option value="tous">Tous</option>
+              <option value="public">Public</option>
+              <option value="prive">Privé</option>
+            </select>
+          </label>
 
-        <h3>Tri</h3>
-        <label>
-          Critère
-          <select v-model="critereTri">
-            <option value="entretienTitre">Entretien</option>
-            <option value="categorie">Catégorie</option>
-            <option value="statut">Statut</option>
-            <option value="titre">Titre</option>
-            <option value="creeLe">Date de création</option>
-            <option value="date">Date de la note</option>
-            <option value="modifieLe">Dernière modification</option>
-          </select>
-        </label>
-        <label>
-          Ordre
-          <select v-model="ordreTri">
-            <option value="asc">Croissant</option>
-            <option value="desc">Décroissant</option>
-          </select>
-        </label>
+          <div class="dates">
+            <label>Du<input v-model="dateDebut" type="date" /></label>
+            <label>Au<input v-model="dateFin" type="date" /></label>
+          </div>
 
-        <h3>Filtres rapides</h3>
-        <div class="raccourcis">
-          <button type="button" @click="toutAfficher">Toutes les notes</button>
-          <button type="button" @click="notesResume">Notes « résumé »</button>
-          <button type="button" @click="notesChronologiques">Notes chronologiques</button>
-          <button type="button" @click="notesParEntretien">Notes par entretien</button>
-        </div>
+          <label class="choix"><input v-model="importants" type="checkbox" /> Passages importants</label>
+          <label class="choix"><input v-model="avecLiens" type="checkbox" /> Liens vers des commentaires</label>
+          <label>Mot-clé dans le corps<input v-model="motCle" type="search" /></label>
+        </details>
       </aside>
 
       <div
@@ -441,8 +475,9 @@ onBeforeUnmount(() => observateur?.disconnect())
 </template>
 
 <style scoped>
-.notes-corpus { min-width: 0; padding: 16px; }
-.entete-notes { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notes-corpus { min-width: 0; }
+.entete-notes { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.entete-notes.panneau { justify-content: space-between; }
 .entete-notes > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .entete-notes h2 { margin: 0; }
 .entete-notes span { color: #52606d; font-size: 0.85rem; }
@@ -458,10 +493,15 @@ button:disabled { cursor: default; }
 .deux-colonnes-notes { display: grid; grid-template-columns: var(--largeur-notes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
 .deux-colonnes-notes.verticale, .deux-colonnes-notes.replie { grid-template-columns: minmax(0, 1fr); }
 .filtres-notes, .liste-notes { min-width: 0; }
-.filtres-notes { max-height: 74vh; overflow: auto; padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; }
-.filtres-notes h3 { margin: 12px 0 6px; font-size: 0.95rem; }
-.filtres-notes h3:first-child { margin-top: 0; }
+.filtres-notes { max-height: 74vh; overflow: auto; }
+.section-notes { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e5ef; }
+.filtres-notes .section-notes > :not(h3):not(summary) { margin-inline-start: .75rem; }
+.filtres-notes h3, .filtres-detailles > summary { margin: 0 0 8px; font-size: 0.82rem; font-weight: 600; color: #44506a; }
+.filtres-notes summary { cursor: pointer; }
+.autre-tri { font-size: 0.78rem; }
+.aide-notes { margin: 8px 0; font-size: 0.76rem; color: #626b7d; line-height: 1.4; }
 .filtres-notes label:not(.choix) { display: flex; flex-direction: column; gap: 5px; margin: 9px 0; font-size: 0.82rem; }
+.filtres-notes > label.recherche-notes { margin-inline-start: .75rem; }
 input[type="search"], input[type="date"], select { box-sizing: border-box; width: 100%; padding: 7px; font: inherit; }
 fieldset { margin: 10px 0; border: 1px solid #d4dce6; border-radius: 5px; }
 legend { font-size: 0.82rem; }
@@ -470,7 +510,10 @@ legend { font-size: 0.82rem; }
 .choix-defilants { max-height: 130px; overflow: auto; }
 .dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .raccourcis { display: flex; flex-wrap: wrap; gap: 6px; }
-.raccourcis button { font-size: 0.76rem; }
+.raccourcis button { border: 1px solid #d5d5df; border-radius: 5px; background: #fff; color: #44506a; font: inherit; font-size: 0.78rem; text-align: left; }
+.raccourcis button[aria-pressed="true"] { background: #e8eaf5; border-color: #8994ba; color: #263b68; }
+.raccourcis button:disabled { color: #8a8f9c; }
+.raccourcis button:focus-visible { outline: 2px solid #596b9f; outline-offset: 2px; }
 .separateur-notes { background: #e8edf5; cursor: col-resize; touch-action: none; border-radius: 5px; }
 .separateur-notes:focus-visible { outline: 2px solid #1565c0; }
 .liste-notes { min-width: 0; }

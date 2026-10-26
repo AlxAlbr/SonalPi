@@ -112,6 +112,9 @@ interface EffetsCycleCorpus {
     marqueur: MarqueurDemo | undefined,
     dir: string | null,
   ) => Promise<void>
+  suspendreNavigationProjet: () => void
+  restaurerNavigationProjet: () => Promise<void>
+  reactiverNavigationProjet: () => void
 }
 
 /** Coordonne les changements de corpus et le cycle de l'entretien ouvert. */
@@ -208,22 +211,37 @@ export function useCycleCorpus(deps: {
     }
   }
 
+  async function restaurerApresOuverture(operation: () => Promise<void>): Promise<void> {
+    deps.effets.suspendreNavigationProjet()
+    try {
+      await operation()
+      await deps.effets.restaurerNavigationProjet()
+    } catch (erreur) {
+      deps.effets.reactiverNavigationProjet()
+      throw erreur
+    }
+  }
+
   async function choisirDossier(): Promise<void> {
     await preparerBascule()
     const resultat = await deps.profil.choisirDossier()
     if (!resultat) return
-    deps.distant.quitter()
-    await appliquerCorpus(resultat.corpus, resultat.dir)
-    deps.vue.value = 'corpus'
+    await restaurerApresOuverture(async () => {
+      deps.distant.quitter()
+      await appliquerCorpus(resultat.corpus, resultat.dir)
+      deps.vue.value = 'corpus'
+    })
   }
 
   async function creerNouveauCorpus(dir: string, nom: string): Promise<void> {
     await preparerBascule()
     const resultat = await window.sonal.corpus.creerNouveau(dir, nom)
     deps.profil.dossierCourantNom.value = resultat.nom
-    deps.distant.quitter()
-    await appliquerCorpus(resultat.corpus, resultat.dir)
-    deps.vue.value = 'corpus'
+    await restaurerApresOuverture(async () => {
+      deps.distant.quitter()
+      await appliquerCorpus(resultat.corpus, resultat.dir)
+      deps.vue.value = 'corpus'
+    })
   }
 
   async function ouvrirRecent(entree: EntreeRecent): Promise<void> {
@@ -233,35 +251,39 @@ export function useCycleCorpus(deps: {
       else await ouvrirCorpusWebDAV(entree.id)
       return
     }
-    deps.distant.quitter()
-    await appliquerCorpus(await deps.profil.ouvrirDossier(entree.dir), entree.dir)
-    deps.vue.value = 'corpus'
+    await restaurerApresOuverture(async () => {
+      deps.distant.quitter()
+      await appliquerCorpus(await deps.profil.ouvrirDossier(entree.dir), entree.dir)
+      deps.vue.value = 'corpus'
+    })
   }
 
   async function appliquerOuvertureDistante(
     resultat: OuvertureDistante,
     consultationSeule = false,
   ): Promise<void> {
-    deps.distant.activer(
-      resultat.distant.id,
-      resultat.verrous,
-      resultat.inaccessibles,
-      consultationSeule,
-      resultat.capacites,
-      resultat.distant.fournisseur,
-      resultat.verrousIndisponibles,
-      resultat.distant.fournisseur === 'gitlab'
-        ? resultat.distant.baseMedia === null
-          ? 'non-configuree'
-          : resultat.distant.baseMedia.secretDisponible
-            ? 'configuree'
-            : 'secret-indisponible'
-        : 'sans-objet',
-    )
-    deps.profil.dossierCourantNom.value = resultat.nom
-    await appliquerCorpus(resultat.corpus, resultat.dir)
-    if (!consultationSeule) await deps.distant.rafraichirOrphelins()
-    deps.vue.value = 'corpus'
+    await restaurerApresOuverture(async () => {
+      deps.distant.activer(
+        resultat.distant.id,
+        resultat.verrous,
+        resultat.inaccessibles,
+        consultationSeule,
+        resultat.capacites,
+        resultat.distant.fournisseur,
+        resultat.verrousIndisponibles,
+        resultat.distant.fournisseur === 'gitlab'
+          ? resultat.distant.baseMedia === null
+            ? 'non-configuree'
+            : resultat.distant.baseMedia.secretDisponible
+              ? 'configuree'
+              : 'secret-indisponible'
+          : 'sans-objet',
+      )
+      deps.profil.dossierCourantNom.value = resultat.nom
+      await appliquerCorpus(resultat.corpus, resultat.dir)
+      if (!consultationSeule) await deps.distant.rafraichirOrphelins()
+      deps.vue.value = 'corpus'
+    })
   }
 
   async function ouvrirCorpusWebDAV(id: string, motDePasse?: string): Promise<void> {

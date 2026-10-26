@@ -6,6 +6,7 @@ import type { DemandeAjoutVarianteAnon, ResultatAjoutVarianteAnon } from '../sha
 import type { DemandeRetraitVarianteAnon, ApercuRetraitVarianteAnon, BilanRetraitVarianteAnon, BilanRetraitVarianteDistant, SuiviRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
 import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAnon, BilanSuppressionDistant, SuiviSuppressionAnon } from '../shared/corpus/suppressionAnon'
 import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
+import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -78,7 +79,7 @@ import type {
 import type { ApiGitLab } from '../shared/gitlab'
 import type { ApiWebDAV } from '../shared/webdav'
 import type {
-  InventaireDocsCadre,
+  InventaireDossierDocsCadre,
   ResultatLectureDocsCadre,
   ResultatMutationDocsCadre,
   SourceDocumentCadre,
@@ -98,16 +99,18 @@ declare global {
         surOuvrirRecent: (cb: (entree: EntreeRecent) => void) => () => void
       }
       docsCadre: {
-        lister: () => Promise<InventaireDocsCadre>
+        lister: (source: SourceDocumentCadre, dossier: string) => Promise<InventaireDossierDocsCadre>
         lireApercu: (source: SourceDocumentCadre, nom: string) => Promise<ResultatLectureDocsCadre>
-        ajouterFichier: (nomSouhaite?: string) => Promise<ResultatMutationDocsCadre>
-        deposer: (cheminSource: string) => Promise<ResultatMutationDocsCadre>
+        ajouterFichier: (dossier: string, nomSouhaite?: string) => Promise<ResultatMutationDocsCadre>
+        creerDossier: (parent: string, nom: string) => Promise<ResultatMutationDocsCadre>
+        deposer: (cheminSource: string, dossier: string) => Promise<ResultatMutationDocsCadre>
         renommer: (ancienNom: string, nouveauNom: string) => Promise<ResultatMutationDocsCadre>
         supprimer: (nom: string) => Promise<ResultatMutationDocsCadre>
         ouvrirAvecApplication: (nom: string) => Promise<void>
-        ouvrirDossierLocal: () => Promise<void>
+        ouvrirDossierLocal: (dossier: string) => Promise<void>
+        afficherDansDossier: (chemin: string) => Promise<void>
         enregistrerCopie: (source: SourceDocumentCadre, nom: string) => Promise<boolean>
-        ouvrirDansNextcloud: () => Promise<void>
+        ouvrirDansNextcloud: (dossier: string) => Promise<void>
       }
       corpus: {
         surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void) => () => void
@@ -305,6 +308,8 @@ declare global {
         ecrireLargeurVideo: (dir: string, largeur: number) => Promise<void>
       }
       profil: {
+        lireNavigationProjet: () => Promise<MemoireNavigationProjet>
+        memoriserNavigationProjet: (cle: string, navigation: NavigationProjet) => Promise<void>
         signataire: () => Promise<string>
         memoriserSignataire: (nom: string) => Promise<void>
       }

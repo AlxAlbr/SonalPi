@@ -3,7 +3,7 @@
  *  directe, sans miroir).
  *
  *  Le miroir actuel n'inventorie que la racine, `entretiens/` et les JSON
- *  attendus ; `DocsCadre/` n'y entre pas. Volontairement : la lecture directe
+ *  attendus ; les documents de préparation restent lus directement sur le serveur.
  *  donne la version présente sur le serveur au moment de la lecture, aucune
  *  copie locale ne peut être confondue avec une version éditable, et les
  *  fichiers binaires ne gonflent pas le tirage.
@@ -16,46 +16,65 @@
 import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import {
   categoriserDocument,
+  DOSSIER_DOCS_PROJET,
+  DOSSIER_DOCS_PROJET_ANCIEN,
+  type RacineDocsProjet,
   estListable,
+  estCheminDocsCadre,
   extensionDe,
   LIMITE_APERCU_BINAIRE_OCTETS,
   LIMITE_APERCU_PDF_OCTETS,
   LIMITE_APERCU_TEXTE_OCTETS,
   mimeImage,
-  trierDocuments,
+  trierEntreesDocsCadre,
   type ResultatLectureDocsCadre,
-  type ResumeDocumentCadre,
+  type EntreeDocsCadre,
+  type InventaireDossierDocsCadre,
 } from '../shared/docsCadre'
 
-/** Dossier distant des documents cadre, à la racine du corpus. */
-const DOSSIER_DISTANT = 'DocsCadre'
+/** Détecte l'ancien dossier sans aucune migration ni écriture sur le serveur. */
+export async function racineDocsProjetDistant(client: ClientWebDAV): Promise<RacineDocsProjet> {
+  let entrees
+  try { entrees = await client.propfind('') }
+  catch (erreur) {
+    if (erreur instanceof ErreurHttp && erreur.statut === 404) return DOSSIER_DOCS_PROJET
+    throw erreur
+  }
+  if (entrees.some((e) => e.chemin === DOSSIER_DOCS_PROJET)) return DOSSIER_DOCS_PROJET
+  return entrees.some((e) => e.chemin === DOSSIER_DOCS_PROJET_ANCIEN)
+    ? DOSSIER_DOCS_PROJET_ANCIEN : DOSSIER_DOCS_PROJET
+}
 
 /** Inventaire des documents du dossier distant. Dossier absent (corpus créé
  *  avant ce chantier) → liste vide, sans création cachée. */
-export async function inventaireDocsCadreDistant(client: ClientWebDAV): Promise<ResumeDocumentCadre[]> {
+export async function listerDossierDistant(client: ClientWebDAV, dossier = ''): Promise<InventaireDossierDocsCadre> {
+  if (!estCheminDocsCadre(dossier, true)) throw new Error('Dossier documentaire invalide.')
+  const resultat: InventaireDossierDocsCadre = { mode: 'distant', source: 'projet', dossier, entrees: [] }
+  const racine = await racineDocsProjetDistant(client)
   let entrees
   try {
-    entrees = await client.propfind(DOSSIER_DISTANT)
+    entrees = await client.propfind(dossier ? `${racine}/${dossier}` : racine)
   } catch (e) {
-    if (e instanceof ErreurHttp && e.statut === 404) return []
+    if (e instanceof ErreurHttp && e.statut === 404) return { ...resultat, absent: true }
     throw e
   }
-  const resultats: ResumeDocumentCadre[] = []
+  const enfants: EntreeDocsCadre[] = []
   for (const entree of entrees) {
-    // Un PROPFIND Depth:1 ne garantit pas partout l'exclusion des petits-enfants :
-    // seuls les fichiers DIRECTS du dossier sont retenus.
-    if (entree.chemin.includes('/') || entree.dossier) continue
-    const nom = entree.chemin.split('/').pop() ?? entree.chemin
+    const nom = entree.chemin
+    // Même si le serveur renvoie trop d'entrées, seuls les enfants directs comptent.
     if (!estListable(nom)) continue
-    resultats.push({
-      source: 'projet',
-      nom,
-      type: categoriserDocument(nom),
-      taille: entree.taille ?? null,
-      modifieLe: null,
+    const chemin = dossier ? `${dossier}/${nom}` : nom
+    if (!estCheminDocsCadre(chemin)) continue
+    enfants.push(entree.dossier ? { nature: 'dossier', source: 'projet', nom, chemin } : {
+      nature: 'document', source: 'projet', nom, chemin,
+      type: categoriserDocument(nom), taille: entree.taille ?? null, modifieLe: null,
     })
   }
-  return trierDocuments(resultats)
+  return { ...resultat, entrees: trierEntreesDocsCadre(enfants) }
+}
+
+export async function inventaireDocsCadreDistant(client: ClientWebDAV, dossier = ''): Promise<EntreeDocsCadre[]> {
+  return (await listerDossierDistant(client, dossier)).entrees
 }
 
 /** Décode strictement en UTF-8 : contenu binaire ou autre encodage refusé,
@@ -96,16 +115,20 @@ function signaturePdfValide(octets: Uint8Array): boolean {
 /** Lecture d'un aperçu distant : PROPFIND du dossier (fiche + taille), puis
  *  GET des octets SEULEMENT si un aperçu est possible et la taille acceptable.
  *  Le 404 du fichier (disparu entre deux listes) est expliqué, pas levé. */
-export async function lireApercuDistant(client: ClientWebDAV, nom: string): Promise<ResultatLectureDocsCadre> {
+export async function lireApercuDistant(client: ClientWebDAV, relatif: string): Promise<ResultatLectureDocsCadre> {
+  const segments = relatif.split('/')
+  const nom = segments.pop() ?? ''
+  const dossier = segments.join('/')
   let taille: number | null = null
   const aucun = (raison: Extract<ResultatLectureDocsCadre['apercu'], { genre: 'aucun' }>['raison']): ResultatLectureDocsCadre => ({
-    resume: { source: 'projet', nom, type: categoriserDocument(nom), taille, modifieLe: null },
+    resume: { nature: 'document', chemin: relatif, source: 'projet', nom, type: categoriserDocument(nom), taille, modifieLe: null },
     apercu: { genre: 'aucun', raison },
   })
-  if (!estListable(nom)) return aucun('invalide')
+  if (!estCheminDocsCadre(relatif)) return aucun('invalide')
+  const racine = await racineDocsProjetDistant(client)
   try {
-    const entrees = await client.propfind(DOSSIER_DISTANT)
-    const entree = entrees.find((e) => !e.dossier && e.chemin.split('/').pop() === nom)
+    const entrees = await client.propfind(dossier ? `${racine}/${dossier}` : racine)
+    const entree = entrees.find((e) => !e.dossier && e.chemin === nom)
     if (!entree) return aucun('absent')
     taille = entree.taille ?? null
   } catch (e) {
@@ -113,7 +136,7 @@ export async function lireApercuDistant(client: ClientWebDAV, nom: string): Prom
     throw e
   }
   const type = categoriserDocument(nom)
-  const chemin = `${DOSSIER_DISTANT}/${nom}`
+  const chemin = `${racine}/${relatif}`
   const lireBorne = async (limite: number): Promise<Uint8Array | null | 'absent'> => {
     try {
       return await client.getBinaireBorne(chemin, limite)
@@ -130,7 +153,7 @@ export async function lireApercuDistant(client: ClientWebDAV, nom: string): Prom
     const contenu = decoderTexteStrict(octets)
     if (contenu === null) return aucun('encodage')
     return {
-      resume: { source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
+      resume: { nature: 'document', chemin: relatif, source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
       apercu: { genre: 'texte', contenu },
     }
   }
@@ -141,7 +164,7 @@ export async function lireApercuDistant(client: ClientWebDAV, nom: string): Prom
     if (octets === null) return aucun('taille')
     if (!signatureImageValide(octets, extensionDe(nom))) return aucun('signature')
     return {
-      resume: { source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
+      resume: { nature: 'document', chemin: relatif, source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
       apercu: { genre: 'image', octets, mime: mimeImage(extensionDe(nom)) },
     }
   }
@@ -152,7 +175,7 @@ export async function lireApercuDistant(client: ClientWebDAV, nom: string): Prom
     if (octets === null) return aucun('taille')
     if (!signaturePdfValide(octets)) return aucun('signature')
     return {
-      resume: { source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
+      resume: { nature: 'document', chemin: relatif, source: 'projet', nom, type, taille: taille ?? octets.byteLength, modifieLe: null },
       apercu: { genre: 'pdf', octets },
     }
   }
@@ -163,22 +186,24 @@ export async function lireApercuDistant(client: ClientWebDAV, nom: string): Prom
 /** Enregistre une COPIE EXACTE d'un fichier distant, EN FLUX vers la
  *  destination : la mémoire du poste ne porte jamais le fichier entier. */
 export async function enregistrerCopieDistant(client: ClientWebDAV, nom: string, destination: string): Promise<void> {
-  if (!estListable(nom)) throw new Error('Nom de document invalide.')
-  await client.getBinaireFichier(`${DOSSIER_DISTANT}/${nom}`, destination)
+  if (!estCheminDocsCadre(nom)) throw new Error('Nom de document invalide.')
+  const racine = await racineDocsProjetDistant(client)
+  await client.getBinaireFichier(`${racine}/${nom}`, destination)
 }
 
 /**
  *  Construit l'URL de l'application Fichiers Nextcloud vers le dossier du
  *  corpus. À partir d'une racine DAV de forme :
  *  `https://hote[/sous-chemin]/remote.php/dav/files/<utilisateur>/<corpus>`
- *  → `https://hote[/sous-chemin]/apps/files/?dir=/<corpus>/DocsCadre`.
+ *  → `https://hote[/sous-chemin]/apps/files/?dir=/<corpus>/DocsPrepaProjet`.
  *
  *  Seul HTTPS est accepté (HTTP seulement sur un hôte local, comme le client).
  *  Toute racine non reconnue renvoie null : on refuse proprement plutôt que
  *  d'ouvrir une URL approximative. Le fichier précis n'est pas adressable
  *  (identifiant interne Nextcloud) — le dossier est le contrat fiable.
  */
-export function urlNextcloudPourCorpus(baseUrl: string): string | null {
+export function urlNextcloudPourCorpus(baseUrl: string, dossier = '', racine: RacineDocsProjet = DOSSIER_DOCS_PROJET): string | null {
+  if (!estCheminDocsCadre(dossier, true) || ![DOSSIER_DOCS_PROJET, DOSSIER_DOCS_PROJET_ANCIEN].includes(racine)) return null
   let url: URL
   try {
     url = new URL(baseUrl)
@@ -197,9 +222,13 @@ export function urlNextcloudPourCorpus(baseUrl: string): string | null {
   const prefixe = segments.slice(0, i)
   // Les segments arrivent déjà encodés dans `pathname` : on décode avant
   // d'encoder une seule fois, pour éviter le double %25.
-  const dir = [...corpus, DOSSIER_DISTANT]
-    .map((seg) => encodeURIComponent(decodeURIComponent(seg)))
-    .join('/')
+  let dir: string
+  try {
+    dir = [...corpus.map(decodeURIComponent), racine, ...(dossier ? dossier.split('/') : [])]
+      .map(encodeURIComponent).join('/')
+  } catch {
+    return null
+  }
   const prefixeApp = prefixe.length > 0 ? `/${prefixe.join('/')}` : ''
   return `${url.origin}${prefixeApp}/apps/files/?dir=/${dir}`
 }

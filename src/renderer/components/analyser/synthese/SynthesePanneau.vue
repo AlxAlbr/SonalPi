@@ -5,6 +5,7 @@ import type { ExtraitSynthese } from '../../../../shared/synthese/types'
 import { utiliserSonal } from '../../../composables/sonal'
 import ListeExtraitsSynthese from './ListeExtraitsSynthese.vue'
 import VueEnsembleSynthese from './VueEnsembleSynthese.vue'
+import icoSynthese from '../../../assets/icones/synthese.svg'
 
 // Panneau droit de la synthèse : bilan, calcul, double vue et détail.
 // Les critères sont dans SyntheseCote.vue.
@@ -38,7 +39,7 @@ async function exporterTxt() {
   messageExport.value = ''
   try {
     const contenu = exporterSyntheseTxt({
-      titre: 'Synthèse',
+      titre: 'Tri et synthèse',
       date: calculeLeSynthese.value,
       criteres: [...lignesResumeSynthese.value, `Texte ${modeTexteSynthese.value === 'original' ? 'original' : 'pseudonymisé'}`],
       extraits: extraitsSynthese.value,
@@ -46,7 +47,7 @@ async function exporterTxt() {
       nomTheme: (id) => codebook.value.find((item) => item.id === id)?.nom ?? id,
     })
     const resultat = await window.sonal.corpus.syntheseExporterTxt({ nom: `synthese-${new Date().toISOString().slice(0, 10)}.txt`, contenu })
-    if (!resultat.annule) messageExport.value = `Synthèse exportée : ${resultat.chemin ?? 'destination choisie'}`
+    if (!resultat.annule) messageExport.value = `Export « Tri et synthèse » enregistré : ${resultat.chemin ?? 'destination choisie'}`
   } catch (erreur) {
     messageExport.value = erreur instanceof Error ? erreur.message : String(erreur)
   }
@@ -61,9 +62,9 @@ function afficherDansExtraits() {
 </script>
 
 <template>
-  <div class="panneau-synthese" aria-label="Synthèse">
+  <div class="panneau-synthese" aria-label="Tri et synthèse">
     <header class="entete">
-      <div><h2>🧩 Synthèse</h2><small>{{ dateCalcul }}</small></div>
+      <div><h2><img class="icone-titre" :src="icoSynthese" alt="" />Tri et synthèse</h2><small>{{ dateCalcul }}</small></div>
       <div class="actions">
         <label>Affichage
           <select v-model="modeTexteSynthese">
@@ -130,7 +131,8 @@ function afficherDansExtraits() {
 .bilan { align-items: flex-start; font-size: 0.84rem; }
 .bilan strong { display: block; }
 .bilan details { max-width: 42%; }
-h2 { margin: 0; }
+h2 { display: flex; align-items: center; gap: 0.45rem; margin: 0; }
+.icone-titre { width: 22px; height: 22px; object-fit: contain; }
 .actions { display: flex; align-items: center; gap: 0.6rem; }
 .actions label { font-size: 0.8rem; }
 .etat { margin: 0.5rem 0.85rem 0; padding: 0.45rem 0.7rem; background: #edf5ff; border-radius: 5px; }

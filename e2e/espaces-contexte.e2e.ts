@@ -69,7 +69,7 @@ test('le retour par la barre relit les documents et conserve la sélection entre
     rmSync(join(dossier, 'Suivi.txt'))
     await page.locator('[data-tour="ouvrir-preparer"]').click()
     await expect(document).toHaveCount(0)
-    await expect(page.locator('.panneau-docs')).toContainText('Choisissez un document dans la liste.')
+    await expect(page.locator('.panneau-docs')).toContainText('Choisissez un document du projet dans la liste.')
   } finally {
     await app.close()
   }

@@ -192,9 +192,9 @@ async function changerCommentaire(item: ItemRecueil) {
 
 <template>
   <section class="recueils-corpus">
-    <aside class="liste-recueils">
-      <div class="tete">
-        <h2>Recueils</h2>
+    <aside class="panneau liste-recueils">
+      <div class="corpus-tete">
+        <h3>Recueils</h3>
       </div>
       <form class="creation" @submit.prevent="creer">
         <input v-model="nouveauNom" :disabled="lectureSeule" placeholder="Nom du nouveau recueil" />
@@ -390,9 +390,14 @@ async function changerCommentaire(item: ItemRecueil) {
 </template>
 
 <style scoped>
-.recueils-corpus { display: grid; grid-template-columns: 260px 1fr; gap: 1rem; min-height: 65vh; }
-.liste-recueils, .document-recueil { border: 1px solid #ddd; border-radius: 8px; background: #fff; padding: .8rem; }
-.tete h2 { margin: 0 0 .7rem; }
+.recueils-corpus { display: grid; grid-template-columns: var(--largeur-organisation) minmax(0, 1fr); gap: 1rem; height: 100%; min-height: 0; }
+.liste-recueils, .document-recueil { min-height: 0; min-width: 0; overflow-y: auto; }
+.document-recueil { border: 1px solid #ddd; border-radius: 8px; background: #fff; padding: .8rem; }
+.liste-recueils { font-size: .82rem; }
+@media (max-width: 780px) {
+  .recueils-corpus { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .liste-recueils, .document-recueil { overflow: visible; }
+}
 .creation { display: flex; gap: .3rem; margin-bottom: .7rem; }
 .creation input { min-width: 0; flex: 1; }
 .carte-recueil { width: 100%; display: flex; flex-direction: column; align-items: flex-start; margin: .3rem 0; padding: .5rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; }

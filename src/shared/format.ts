@@ -46,8 +46,9 @@ export function versionSupportee(v: unknown): boolean {
  *  ou `'autonomie'` (les 4 entretiens + audios importés d'un coup). */
 export type ModeDemo = 'pas-a-pas' | 'autonomie'
 
-/** Mémoire démo persistée dans `settings.json` (niveau profil) : la racine des sources de démo, copiées une fois depuis `CorpusTest/` ;
- *  et le dossier du corpus de test de chaque mode, indépendants. */
+/** Mémoire démo persistée dans `settings.json` (niveau profil).
+ *  Les sources sont copiées une fois depuis `CorpusTest/CorpusSynth/`.
+ *  Chaque mode conserve son propre dossier de corpus. */
 export interface EtatDemo {
   racineSources: string
   /** Corpus de test du mode pas-à-pas (dossier choisi directement). */

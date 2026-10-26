@@ -290,16 +290,8 @@ export function useOperationsCorpus(deps: {
     exportOuvert.value = false
   }
 
-  /** Fenêtre d'export du CORPUS (lot d'entretiens) : le bouton de la barre
-   *  du corpus l'ouvre ; la modale pilote la sélection, la progression et
-   *  l'annulation. */
-  const exportCorpusOuvert = ref(false)
-  function ouvrirExportCorpus(): void {
-    exportCorpusOuvert.value = true
-  }
-  function fermerExportCorpus(): void {
-    exportCorpusOuvert.value = false
-  }
+  /** Empêche une navigation qui changerait les sources pendant l'export. */
+  const exportCorpusEnCours = ref(false)
 
   /** Source du service d'export : l'entretien OUVERT (état mémoire) et les
    *  définitions du corpus courant ; les écritures et la résolution audio
@@ -350,8 +342,8 @@ export function useOperationsCorpus(deps: {
   }
 
   /** Export d'un lot d'entretiens : délégation au service d'orchestration.
- *  La modale fournit la progression à afficher et la consultation
- *  d'annulation ; le lot avance entretien par entretien. */
+   *  Le panneau fournit la progression et la demande d'arrêt.
+   *  Le lot avance entretien par entretien. */
   function exporterCorpusLot(
     demande: DemandeLotCorpus,
     extras: {
@@ -528,9 +520,7 @@ export function useOperationsCorpus(deps: {
     exportOuvert,
     ouvrirExport,
     fermerExport,
-    exportCorpusOuvert,
-    ouvrirExportCorpus,
-    fermerExportCorpus,
+    exportCorpusEnCours,
     exporterCorpusLot,
     exporterQualcoderLot,
     preparerRapportCorpus,

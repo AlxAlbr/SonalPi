@@ -6,6 +6,7 @@ import type { CelluleAnalyseCroisee } from '../../../../shared/analysesCroisees/
 import { utiliserSonal } from '../../../composables/sonal'
 import DetailCelluleAnalyse from './DetailCelluleAnalyse.vue'
 import MatriceThemesMateriaux from './MatriceThemesMateriaux.vue'
+import icoAnalysesCroisees from '../../../assets/icones/analyses-croisees.svg'
 
 // Panneau droit des analyses croisées : matrice et détail d'une cellule.
 // La sélection des thèmes et des entretiens est dans AnalysesCote.vue.
@@ -106,7 +107,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 <template>
   <div class="panneau-analyses" aria-label="Analyses croisées">
     <header class="entete">
-      <div><h2>▦ Analyses croisées</h2><small>Dernier calcul : {{ dateCalcul }}</small></div>
+      <div><h2><img class="icone-titre" :src="icoAnalysesCroisees" alt="" />Analyses croisées</h2><small>Dernier calcul : {{ dateCalcul }}</small></div>
       <div class="actions">
         <label>Texte des justificatifs <select v-model="modeTexteAnalyseCroisee"><option value="pseudonymise">Pseudonymisé</option><option value="original">Original — peut contenir des identités</option></select></label>
         <select v-model="formatExport" aria-label="Format d’export"><option value="csv">CSV</option><option value="tsv">TSV</option></select>
@@ -147,7 +148,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 <style scoped>
 .panneau-analyses { display: flex; flex-direction: column; min-height: 0; height: 100%; background: #fff; border-radius: 8px; overflow: hidden; }
 .entete, .bilan, .commandes { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid #dce2ea; flex-wrap: wrap; }
-.entete h2 { margin: 0; font-size: 1.15rem; }
+.entete h2 { display: flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 1.15rem; }
+.icone-titre { width: 22px; height: 22px; object-fit: contain; }
 .actions, .commandes, .actions-liste { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; }
 .actions label { font-size: 0.8rem; }
 .bilan { font-size: 0.8rem; }

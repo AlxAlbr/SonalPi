@@ -14,13 +14,12 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
    *  L'Accueil présente les outils ; il ne lance aucun chargement. */
   const sousEspacePreparation = ref<SousEspacePreparation>('accueil')
   /** Onglet actif de « Analyser et interpréter ».
-   *  Synthèse par défaut : elle ne lance aucun calcul à l'ouverture,
-   *  contrairement à Lexico. */
-  const sousEspaceAnalyse = ref<SousEspaceAnalyse>('synthese')
+   *  L'Accueil présente les outils sans lancer de calcul. */
+  const sousEspaceAnalyse = ref<SousEspaceAnalyse>('accueil')
   /** Les filtres de l'onglet d'analyse occupent-ils la colonne de gauche ? */
   const panneauAnalyseVisible = ref(true)
   const ongletCorpus = ref<OngletCorpus>('accueil')
-  const sousEspaceOrganisation = ref<SousEspaceOrganisation>('cas')
+  const sousEspaceOrganisation = ref<SousEspaceOrganisation>('accueil')
   const organisationActive = computed(() => deps.vue.value === 'organiser')
   const panneauCasActif = computed(() => organisationActive.value && sousEspaceOrganisation.value === 'cas')
   const panneauRecueilsActif = computed(() => organisationActive.value && sousEspaceOrganisation.value === 'recueils')
@@ -95,8 +94,8 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
     if (preparationActive.value || analyseActive.value || organisationActive.value) deps.vue.value = 'corpus'
     ongletCorpus.value = 'accueil'
     sousEspacePreparation.value = 'accueil'
-    sousEspaceAnalyse.value = 'synthese'
-    sousEspaceOrganisation.value = 'cas'
+    sousEspaceAnalyse.value = 'accueil'
+    sousEspaceOrganisation.value = 'accueil'
     panneauAnalyseVisible.value = true
   }
 

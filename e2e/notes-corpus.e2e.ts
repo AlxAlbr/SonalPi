@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { entrerCorpus, entrerEntretien, lancer } from './util'
 
-test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec annulation', async () => {
+test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note locale', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-notes-corpus-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -41,28 +41,12 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await modale.getByRole('button', { name: 'Valider' }).click()
   await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note modifiée' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
-  const entree = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note modifiée' })
-  await expect(entree).toBeVisible()
-  await entree.locator('.annuler-action').click()
-
-  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
-  const ligneRestauree = page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })
-  await expect(ligneRestauree).toBeVisible()
-
-  page.once('dialog', async (dialog) => {
-    expect(dialog.message()).toContain("Supprimer la note 'Note initiale'")
-    await dialog.accept()
-  })
-  await ligneRestauree.getByRole('button', { name: /Supprimer la note/ }).click()
-  await expect(ligneRestauree).toHaveCount(0)
-
-  await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
-  const suppression = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note supprimée' })
-  await expect(suppression).toBeVisible()
-  await suppression.locator('.annuler-action').click()
-  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
-  await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Historique des actions…', exact: true })).toHaveCount(0)
+  await page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note modifiée' })
+    .getByRole('button', { name: /Modifier la note/ }).click()
+  await modale.getByLabel('Titre').fill('Note initiale')
+  await modale.getByRole('button', { name: 'Valider' }).click()
+  await expect(ligneNote).toBeVisible()
 
   await page.getByPlaceholder('Titre, corps, catégorie…').fill('Note initiale')
   await page.evaluate(() => {
@@ -110,5 +94,13 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await page.getByRole('button', { name: /Feuille/ }).click()
   await expect(page.locator('.notes-corpus .feuille-notes')).toBeVisible()
   await expect(page.locator('.bloc-feuille-note .corps-note-complet')).toContainText('Corps initial')
+
+  await page.locator('.notes-corpus').getByRole('button', { name: '📊 Tableau' }).click()
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain("Supprimer la note 'Note initiale'")
+    await dialog.accept()
+  })
+  await ligneNote.getByRole('button', { name: /Supprimer la note/ }).click()
+  await expect(ligneNote).toHaveCount(0)
   await app.close()
 })

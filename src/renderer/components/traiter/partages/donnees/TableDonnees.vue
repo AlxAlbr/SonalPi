@@ -252,9 +252,9 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
     :style="{ '--donnees-gauche-w': largeurGauche + 'px' }"
     :aria-busy="matriceEnCours"
   >
-    <aside v-if="!panneauReplie" class="donnees-gauche">
+    <aside v-if="!panneauReplie" class="panneau donnees-gauche">
       <div class="variables-tete">
-        <h2>Variables</h2>
+        <h2 class="titre-panneau">Variables</h2>
         <button
           v-if="!lectureSeule"
           class="crayon"
@@ -519,8 +519,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .donnees-gauche {
   min-width: 0;
   min-height: 0;
-  padding: 0.8rem;
-  border-right: 1px solid #eee;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -534,7 +532,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .variables-tete {
   margin-bottom: 0.65rem;
 }
-.variables-tete h2,
 .table-tete h2 {
   font-size: 1.05rem;
   margin: 0;

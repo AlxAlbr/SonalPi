@@ -19,6 +19,7 @@ import {
   type ImplementationFetch,
 } from '../webdav/client'
 import { squeletteCorpus } from '../../shared/corpus/squelette'
+import { DOSSIER_DOCS_PROJET } from '../../shared/docsCadre'
 
 /** La cible contient déjà un corpus (`corpus.json` présent au moment du PUT :
  *  soit il y était avant l'appel, soit un collègue a publié entre-temps —
@@ -103,10 +104,8 @@ export class PublieurCorpus {
     await client.mkcol('verrous')
     await client.mkcol('presence')
     await client.mkcol('corbeille')
-    // Dossier des « Docs cadre projet » : vidé à la création, rempli par
-    // l'utilisateur sur Nextcloud ; un corpus antérieur sans ce dossier le
-    // traite simplement comme vide (404 → liste vide).
-    await client.mkcol('DocsCadre')
+    // Les documents de préparation sont ajoutés par l'utilisateur dans Nextcloud.
+    await client.mkcol(DOSSIER_DOCS_PROJET)
     try {
       await client.putTexte('corpus.json', JSON.stringify(squeletteCorpus(nom), null, 2), {
         ifNoneMatch: '*',

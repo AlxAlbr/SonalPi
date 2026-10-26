@@ -202,6 +202,8 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-'))
   const { cheminCrp, audioPath } = ecrireCorpusV1(profil)
   const dirCible = join(profil, 'MonCorpus') // dossier dédié, VIDE
+  writeFileSync(cheminCrp.replace(/\.crp$/, '.out'), 'le\nla')
+  writeFileSync(cheminCrp.replace(/\.crp$/, '.lem'), 'allais\taller\tV')
 
   const app = await lancer(profil)
   const page = await app.firstWindow()
@@ -244,6 +246,11 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
   expect(corpus.formatVersion).toBe(FORMAT_VERSION)
   expect(corpus.nom).toBe('MonCorpus')
   expect(corpus.meta).toEqual({ sourceV1: { cheminCrp, dateCreation: null } })
+  expect(corpus.lexico).toMatchObject({
+    motsOutils: ['le', 'la'],
+    regroupements: [{ forme: 'aller', membres: ['allais'] }],
+    concatenations: [],
+  })
   // Q7 : le codebook = les 5 thèmes que le .crp porte VRAIMENT (cat_004 a été
   // supprimé en V1 → absent en V2, il ne revient pas) ; les 8 cat-json du
   // .sonal N'ONT PAS contaminé les définitions (le .crp fait foi).

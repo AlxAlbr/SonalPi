@@ -101,7 +101,7 @@ test('tableau corpus : quatre colonnes, filtres, variantes et garde des changeme
     await page.getByRole('button', { name: 'Rester', exact: true }).click()
     await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Pseudonymisation')
     await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
-    await expect(page.locator('#contenu-cas-organisation')).toBeVisible()
+    await expect(page.locator('.accueil-organisation')).toBeVisible()
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
     await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Pseudonymisation')
     await expect(page.locator('.occ input[type="checkbox"]').first()).toBeChecked()
@@ -469,7 +469,7 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
 
   // --- Compte des règles après le 1ᵉʳ import (référence anti-doublon) ---
   await retourCorpus(page)
-  await page.getByRole('button', { name: 'Pseudonymisation' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
   await expect(page.locator('.pseudo-panneau')).toBeVisible()
   const nbAvant = await page.locator('.pseudo-table tbody tr').count()
   expect(nbAvant).toBeGreaterThanOrEqual(1)
@@ -486,7 +486,7 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
 
   // --- VÉRIF d'absence de doublon : onglet Pseudonymisation → même nombre de lignes ---
   await retourCorpus(page)
-  await page.getByRole('button', { name: 'Pseudonymisation' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
   await expect(page.locator('.pseudo-panneau')).toBeVisible()
   await expect
     .poll(async () => page.locator('.pseudo-table tbody tr').count(), { timeout: 10_000 })

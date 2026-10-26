@@ -6,7 +6,7 @@ import { entrerCorpus, entrerEntretien, lancer, ouvrirAnalyse, ouvrirOrganisatio
 
 /**
  *  Navigation par espaces : « Préparer et suivre » (tableau de bord, documents
- *  cadre), « Analyser et interpréter » (synthèse, lexico, analyses croisées) et
+ *  cadre), « Analyser et interpréter » (tri et synthèse, Lexico, analyses croisées) et
  *  « Importer et traiter » (corpus, entretien). Changer d'espace ne ferme pas
  *  l'entretien : on le retrouve tel qu'on l'a laissé.
  */
@@ -47,7 +47,7 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   const tailleTitre = await accueil.locator('.corpus-tete h3').evaluate((el) => getComputedStyle(el).fontSize)
 
   // Onglet Tableau de bord : ses cartes à gauche, la grille à droite.
-  await page.locator('[data-tour="ouvrir-tableau-bord"]').click()
+  await accueil.getByRole('button', { name: /^Tableau de bord/ }).click()
   await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
   const panneauTableau = cote.locator('.panneau-tableau-bord')
   await expect(panneauTableau).toHaveCSS('background-color', fondPanneau)
@@ -139,14 +139,14 @@ test('l’organisation reprend son onglet depuis les autres espaces et conserve 
   }
 })
 
-test('l’espace d’analyse : trois onglets, filtres à gauche et résultats à droite', async () => {
+test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et résultats à droite', async () => {
   const app = await lancer(mkdtempSync(join(tmpdir(), 'sonal-espaces-analyse-')))
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
   const barre = page.locator('.barre-outils')
   // Les trois outils ne sont plus des lanceurs de fenêtres dans la barre.
-  await expect(barre.getByRole('button', { name: 'Synthèse' })).toHaveCount(0)
+  await expect(barre.getByRole('button', { name: 'Tri et synthèse' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Lexico' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Analyses croisées' })).toHaveCount(0)
 
@@ -159,12 +159,30 @@ test('l’espace d’analyse : trois onglets, filtres à gauche et résultats à
   await expect(page.locator('.fil')).not.toContainText('Analyser et interpréter')
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
 
-  // Ouverture par défaut : Synthèse, critères à gauche, calcul à droite.
+  // Ouverture par défaut : l'Accueil présente les trois outils.
   const cote = espace.locator('.cote-analyse')
+  const accueil = cote.locator('.accueil-analyse')
+  await expect(cote.locator('[data-tour="ouvrir-accueil-analyse"]')).toHaveAttribute('aria-current', 'page')
+  await expect(accueil).toContainText('Analyse et interprétation')
+  await expect(accueil).toContainText('Tri et synthèse')
+  await expect(accueil).toContainText('Lexico')
+  await expect(accueil).toContainText('Analyses croisées')
+  await expect(espace.locator('.accueil-principal')).toContainText('Choisissez un outil')
+
+  // Les onglets reprennent les dimensions et les icônes des autres espaces.
+  const ongletAccueil = cote.locator('[data-tour="ouvrir-accueil-analyse"]')
+  await expect(ongletAccueil).toHaveCSS('width', '38px')
+  await expect(ongletAccueil).toHaveCSS('height', '34px')
+  await expect(ongletAccueil.locator('img')).toBeVisible()
+  const fondPanneau = await accueil.evaluate((el) => getComputedStyle(el).backgroundColor)
+
+  // Tri et synthèse : critères à gauche, calcul à droite, sur le fond partagé des panneaux.
+  await accueil.getByRole('button', { name: /^Tri et synthèse/ }).click()
   const synthese = espace.locator('.cote-synthese')
   const panneauSynthese = espace.locator('.panneau-synthese')
   await expect(cote.locator('[data-tour="ouvrir-synthese"]')).toHaveAttribute('aria-current', 'page')
   await expect(synthese).toBeVisible()
+  await expect(synthese).toHaveCSS('background-color', fondPanneau)
   await expect(synthese).toContainText('Comment les choix se combinent')
   await expect(panneauSynthese).toBeVisible()
   await expect(panneauSynthese).toContainText('Calculer la synthèse')

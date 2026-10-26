@@ -131,9 +131,11 @@ import type {
 } from '../shared/gitlab'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 import { EXT_AUDIO, EXT_MEDIA, extensionDe } from '../shared/media'
+import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import {
-  inventaireDocsCadreLocal,
-  inventaireExemplesDocsCadre,
+  listerDossierDocsCadre,
+  racineDocsProjetLocal,
+  creerDossierLocal,
   lireApercuLocal,
   lireApercuExemple,
   ajouterFichierLocal,
@@ -146,18 +148,19 @@ import {
   enregistrerCopieLocal,
 } from './docsCadre'
 import {
-  inventaireDocsCadreDistant,
+  listerDossierDistant,
+  racineDocsProjetDistant,
   lireApercuDistant,
   enregistrerCopieDistant,
   urlNextcloudPourCorpus,
 } from './docsCadreDistant'
 import type {
-  InventaireDocsCadre,
+  InventaireDossierDocsCadre,
   ResultatLectureDocsCadre,
   ResultatMutationDocsCadre,
   SourceDocumentCadre,
 } from '../shared/docsCadre'
-import { estListable } from '../shared/docsCadre'
+import { estCheminDocsCadre } from '../shared/docsCadre'
 import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 import { enregistrerBaseMediaVerifiee, resoudreBaseMedia } from './medias/baseMedia'
 import { CapacitePlagesBase } from './medias/capacite'
@@ -226,6 +229,8 @@ interface Settings {
   demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
   // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
   largeurVideo?: Record<string, number>
+  /** Dernier emplacement consulté dans chaque projet, propre à ce profil. */
+  navigationProjets?: Record<string, NavigationProjet>
   /** Dernier signataire d'un commentaire (pré-remplissage de la modale,
    *  parité SonalPi1 — pas d'identité, juste une mémoire locale). */
   signataire?: string
@@ -248,6 +253,31 @@ function estEtatDemo(d: unknown): d is EtatDemo {
     (o.corpusAutonomie === undefined || typeof o.corpusAutonomie === 'string')
   )
 }
+/** Refuse une navigation partielle ou inconnue dans les réglages du profil. */
+function estNavigationProjet(navigation: unknown): navigation is NavigationProjet {
+  if (!navigation || typeof navigation !== 'object') return false
+  const n = navigation as Record<string, unknown>
+  if (n.vue === 'preparer') {
+    return ['accueil', 'tableau-bord', 'docs-cadre', 'documents-exemples'].includes(String(n.onglet))
+  }
+  if (n.vue === 'analyser') {
+    return ['accueil', 'synthese', 'lexico', 'analyses-croisees'].includes(String(n.onglet))
+      && typeof n.panneauVisible === 'boolean'
+  }
+  if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
+  if (n.vue === 'corpus') {
+    return ['accueil', 'themes', 'personnes', 'notes', 'donnees', 'anon'].includes(String(n.onglet))
+  }
+  return false
+}
+
+function lireNavigationsProjets(navigations: unknown): Record<string, NavigationProjet> | undefined {
+  if (!navigations || typeof navigations !== 'object' || Array.isArray(navigations)) return undefined
+  const valides = Object.entries(navigations as Record<string, unknown>)
+    .filter((entree): entree is [string, NavigationProjet] => entree[0] !== '' && estNavigationProjet(entree[1]))
+  return valides.length ? Object.fromEntries(valides) : undefined
+}
+
 /** Garde de forme du registre des modèles (fichier de settings potentiellement écrit à la volée) ;
  *  ne pas hydrater un enregistrement partiel/corrompu. */
 function estListeModeles(d: unknown): d is ModeleEAV[] {
@@ -274,6 +304,7 @@ function lireSettings(): Settings {
       demo: estEtatDemo(s.demo) ? s.demo : undefined,
       largeurVideo:
         s.largeurVideo && typeof s.largeurVideo === 'object' ? s.largeurVideo : undefined,
+      navigationProjets: lireNavigationsProjets(s.navigationProjets),
       signataire: typeof s.signataire === 'string' ? s.signataire : undefined,
       modelesUtilisateur: estListeModeles(s.modelesUtilisateur) ? s.modelesUtilisateur : undefined,
     }
@@ -1811,9 +1842,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
 
   // --- Docs cadre projet : documents de méthode propres au corpus courant ---
-  // Le renderer ne transmet JAMAIS de chemin : une source ('projet' | 'exemple')
-  // et un nom validé côté main. Les racines (corpus courant, exemples embarqués)
-  // sont résolues ICI, à partir du contexte de corpus — jamais depuis l'IPC.
+  // Les chemins relatifs sont validés sous les racines du corpus ou des exemples.
+  // Leurs emplacements absolus restent dans le processus principal.
   // Les exemples n'ont aucune voie de mutation (lecture + copie seulement).
   const REFUS_DOCS_CADRE_DISTANT =
     'Ces documents sont en lecture seule dans un corpus distant. ' +
@@ -1827,39 +1857,30 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return contexte.miroir.accesClient()
   }
 
-  ipcMain.handle('docsCadre:lister', async (): Promise<InventaireDocsCadre> => {
+  ipcMain.handle('docsCadre:lister', async (_e, source: SourceDocumentCadre, dossier = ''): Promise<InventaireDossierDocsCadre> => {
+    if ((source !== 'projet' && source !== 'exemple') || !estCheminDocsCadre(dossier, true)) {
+      throw new Error('Dossier documentaire invalide.')
+    }
+    if (source === 'exemple') return listerDossierDocsCadre(dirExemplesDocs, source, dossier)
     const capture = capturerCorpusCourant()
-    const exemples = inventaireExemplesDocsCadre(dirExemplesDocs)
     if (capture.contexte) {
       try {
-        const projet = await inventaireDocsCadreDistant(
-          clientDocsCadre(capture.contexte),
-        )
+        const resultat = await listerDossierDistant(clientDocsCadre(capture.contexte), dossier)
         verifierCorpusCourant(capture)
-        return { mode: 'distant', projet, exemples }
-      } catch (erreur) {
+        return resultat
+      } catch {
         verifierCorpusCourant(capture)
-        return {
-          mode: 'distant',
-          projet: [],
-          exemples,
-          erreurProjet: erreur instanceof Error
-            ? erreur.message
-            : 'Impossible de lire les documents du corpus distant.',
-        }
+        return { mode: 'distant', source, dossier, entrees: [],
+          erreur: 'Impossible de lire ce dossier. Vérifiez la connexion puis actualisez.' }
       }
     }
-    return {
-      mode: 'local',
-      projet: inventaireDocsCadreLocal(capture.dossier),
-      exemples,
-    }
+    return listerDossierDocsCadre(racineDocsProjetLocal(capture.dossier), source, dossier)
   })
 
   ipcMain.handle(
     'docsCadre:lireApercu',
     async (_e, source: SourceDocumentCadre, nom: string): Promise<ResultatLectureDocsCadre> => {
-      if ((source !== 'projet' && source !== 'exemple') || !estListable(nom)) {
+      if ((source !== 'projet' && source !== 'exemple') || !estCheminDocsCadre(nom)) {
         throw new Error('Document cadre invalide.')
       }
       if (source === 'exemple') return lireApercuExemple(dirExemplesDocs, nom)
@@ -1881,7 +1902,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  après collision) copie sous un autre nom, jamais un écrasement. */
   ipcMain.handle(
     'docsCadre:ajouterFichier',
-    async (e, nomSouhaite?: string): Promise<ResultatMutationDocsCadre> => {
+    async (e, dossier = '', nomSouhaite?: string): Promise<ResultatMutationDocsCadre> => {
+      if (!estCheminDocsCadre(dossier, true)) throw new Error('Dossier invalide.')
       const capture = capturerCorpusCourant()
       if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
       const r = await montrerOuvrir(e, {
@@ -1890,21 +1912,21 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       })
       verifierCorpusCourant(capture)
       if (r.canceled || r.filePaths.length === 0) return { ok: false, raison: 'annule' }
-      return ajouterFichierLocal(capture.dossier, r.filePaths[0], nomSouhaite)
+      return ajouterFichierLocal(capture.dossier, r.filePaths[0], nomSouhaite, dossier)
     },
   )
 
-  /** « Glisser-déposer » : copie du fichier déposé vers `DocsCadre/`.
+  /** « Glisser-déposer » : copie du fichier déposé dans le dossier affiché.
    *  Le chemin vient du drop (pas d'un dialogue) mais n'existe QUE dans le
    *  main : validation fichier régulier, refus distant, jamais d'écrasement. */
   ipcMain.handle(
     'docsCadre:deposer',
-    (_e, cheminSource: string): ResultatMutationDocsCadre => {
+    (_e, cheminSource: string, dossier = ''): ResultatMutationDocsCadre => {
       if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
       if (typeof cheminSource !== 'string' || !cheminSource.trim()) {
         throw new Error('Dépôt invalide : source manquante.')
       }
-      return deposerFichierLocal(dossierCourant, cheminSource)
+      return deposerFichierLocal(dossierCourant, cheminSource, dossier)
     },
   )
 
@@ -1921,23 +1943,33 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return supprimerLocal(dossierCourant, nom)
   })
 
+  ipcMain.handle('docsCadre:creerDossier', (_e, parent: string, nom: string): ResultatMutationDocsCadre => {
+    if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    return creerDossierLocal(dossierCourant, parent, nom)
+  })
+
+  ipcMain.handle('docsCadre:afficherDansDossier', (_e, chemin: string): void => {
+    if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    shell.showItemInFolder(resoudreLocal(dossierCourant, chemin))
+  })
+
   ipcMain.handle('docsCadre:ouvrir', async (_e, nom: string): Promise<void> => {
     const capture = capturerCorpusCourant()
     if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
     const erreur = await shell.openPath(resoudreLocal(capture.dossier, nom))
     verifierCorpusCourant(capture)
-    if (erreur) throw new Error(`Ouverture impossible : ${erreur}.`)
+    if (erreur) throw new Error('Impossible d’ouvrir ce document. Essayez « Afficher dans le dossier ».')
   })
 
-  /** Ouvre le dossier `DocsCadre/` dans le gestionnaire de fichiers ; sa
+  /** Ouvre le dossier documentaire dans le gestionnaire de fichiers ; sa
    *  création explicite ici permet aussi d'y déposer ses documents à la main. */
-  ipcMain.handle('docsCadre:ouvrirDossier', async (): Promise<void> => {
+  ipcMain.handle('docsCadre:ouvrirDossier', async (_e, dossier = ''): Promise<void> => {
     const capture = capturerCorpusCourant()
     if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
-    const dir = resoudreDossierLocal(capture.dossier)
+    const dir = resoudreDossierLocal(capture.dossier, dossier)
     const erreur = await shell.openPath(dir)
     verifierCorpusCourant(capture)
-    if (erreur) throw new Error(`Ouverture du dossier impossible : ${erreur}.`)
+    if (erreur) throw new Error('Impossible d’ouvrir ce dossier dans le gestionnaire de fichiers.')
   })
 
   /** « Enregistrer une copie » : le fichier original, octet pour octet,
@@ -1945,16 +1977,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'docsCadre:enregistrerCopie',
     async (e, source: SourceDocumentCadre, nom: string): Promise<boolean> => {
-      if ((source !== 'projet' && source !== 'exemple') || !estListable(nom)) {
+      if ((source !== 'projet' && source !== 'exemple') || !estCheminDocsCadre(nom)) {
         throw new Error('Document cadre invalide.')
       }
       const capture = capturerCorpusCourant()
       const sourceExemple = source === 'exemple' ? resoudreExemple(dirExemplesDocs, nom) : null
-      const r = await montrerSauver(e, { defaultPath: nom })
+      const r = await montrerSauver(e, { defaultPath: nom.split('/').pop() })
       verifierCorpusCourant(capture)
       if (r.canceled || !r.filePath) return false
       if (sourceExemple) {
-        copyFileSync(sourceExemple, r.filePath)
+        try { copyFileSync(sourceExemple, r.filePath) }
+        catch { throw new Error('Impossible d’enregistrer cette copie. Vérifiez l’emplacement choisi.') }
         return true
       }
       if (capture.contexte) {
@@ -1966,7 +1999,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         verifierCorpusCourant(capture)
         return true
       }
-      enregistrerCopieLocal(capture.dossier, nom, r.filePath)
+      try { enregistrerCopieLocal(capture.dossier, nom, r.filePath) }
+      catch { throw new Error('Impossible d’enregistrer cette copie. Actualisez la liste et vérifiez l’emplacement choisi.') }
       return true
     },
   )
@@ -1974,14 +2008,15 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** « Ouvrir dans Nextcloud » : URL construite et validée côté main,
    *  JAMAIS fournie par le renderer ; le mot de passe d'application n'est
    *  jamais transmis au navigateur. Racine non reconnue → refus propre. */
-  ipcMain.handle('docsCadre:ouvrirDansNextcloud', async (): Promise<void> => {
+  ipcMain.handle('docsCadre:ouvrirDansNextcloud', async (_e, dossier = ''): Promise<void> => {
     const capture = capturerCorpusCourant()
     if (!capture.contexte) {
       throw new Error('Le corpus courant est local : « Ouvrir dans Nextcloud » n’a pas de sens ici.')
     }
-    const url = urlNextcloudPourCorpus(
-      clientDocsCadre(capture.contexte).config.baseUrl,
-    )
+    const client = clientDocsCadre(capture.contexte)
+    const racine = await racineDocsProjetDistant(client)
+    verifierCorpusCourant(capture)
+    const url = urlNextcloudPourCorpus(client.config.baseUrl, dossier, racine)
     if (!url) {
       throw new Error('L’adresse du corpus distant ne correspond pas à un serveur Nextcloud reconnu.')
     }
@@ -2686,6 +2721,26 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     s.largeurVideo = { ...(s.largeurVideo ?? {}), [dir]: largeur }
     ecrireSettings(s)
   })
+  // La navigation est locale au profil : elle ne modifie jamais le corpus partagé.
+  const cleNavigationProjetCourant = () => contextesDistants.actuel
+    ? `distant:${contextesDistants.actuel.id}`
+    : `local:${dossierCourant}`
+  ipcMain.handle('profil:lireNavigationProjet', (): MemoireNavigationProjet => {
+    const cle = cleNavigationProjetCourant()
+    return { cle, navigation: lireSettings().navigationProjets?.[cle] ?? null }
+  })
+  ipcMain.handle('profil:memoriserNavigationProjet', (_e, cle: string, navigation: NavigationProjet) => {
+    if (typeof cle !== 'string' || cle === '' || cle.length > 4096 || !estNavigationProjet(navigation)) {
+      throw new Error('Emplacement de projet invalide.')
+    }
+    const s = lireSettings()
+    const navigations = { ...(s.navigationProjets ?? {}) }
+    delete navigations[cle]
+    navigations[cle] = navigation
+    const recentes = Object.entries(navigations).slice(-64)
+    s.navigationProjets = Object.fromEntries(recentes)
+    ecrireSettings(s)
+  })
   // Dernier signataire des commentaires (settings.json, niveau profil).
   ipcMain.handle('profil:lireSignataire', () => lireSettings().signataire ?? '')
   ipcMain.handle('profil:memoriserSignataire', (_e, nom: string) => {
@@ -2811,15 +2866,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 }
 
 // --- Démo « Mini Corpus Test » : lecture des sources bundled ---
-// Les sources (SRT + audio) de CorpusTest/ NE sont PAS un corpus Sonal (pas de corpus.json,
-// pas d'entretiens/) : elles sont l'AMONT du builder de démo. Il les importe via le vrai pipeline (sas d'import + assignerAudio), dans un dossier choisi ;
-// le builder tourne côté renderer (l'importeur SRT y vit, avec DOMParser), et le main ne fait que LIRE ces fichiers.
+// CorpusTest/CorpusSynth contient les sources, pas un corpus Sonal enregistré.
+// Le renderer les importe dans le dossier choisi via le pipeline habituel.
 function cheminCorpusTest(): string {
-  // Dev : CorpusTest/ à la racine du projet (app.getAppPath() = cwd au lancement).
-  // Prod : copié en ressources par electron-builder (extraResources, hors asar).
-  return app.isPackaged
-    ? join(process.resourcesPath, 'CorpusTest')
-    : join(app.getAppPath(), 'CorpusTest')
+  // En production, les sources sont empaquetées hors de l'asar.
+  const racine = app.isPackaged ? process.resourcesPath : app.getAppPath()
+  return join(racine, 'CorpusTest', 'CorpusSynth')
 }
 
 /** Ressources « Documents exemples » des Docs cadre (même principe que CorpusTest).
@@ -2861,12 +2913,10 @@ function corpusTestPresent(dir: string, mode: ModeDemo): boolean {
 
 function enregistrerIpcDemo(): void {
 
-  /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo),
-   *  dans le dossier choisi : c'est LA seule copie du flow de démo.
-   *  Idempotent : si les 4 sources sont déjà là, on ne recopie pas ;
-   *  un fichier manquant entraîne une recopie fichier-à-fichier,
-   *  les autres étant conservés.
-   *  Le corpus de travail référence ensuite ces fichiers, zéro copie. */
+  /** Copie les sources de `CorpusTest/CorpusSynth/` dans le dossier choisi.
+   *  Si les neuf fichiers sont déjà présents, aucune copie n'est faite.
+   *  Le dossier installé conserve directement ses sous-dossiers srt, audio et docs.
+   *  Le corpus de travail référence ensuite les audios, sans les copier. */
   ipcMain.handle('demo:copierSources', (_e, racine: string) => {
     if (sourcesCompletes(racine)) return
     cpSync(cheminCorpusTest(), racine, { recursive: true })

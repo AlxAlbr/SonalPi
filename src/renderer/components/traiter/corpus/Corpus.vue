@@ -10,7 +10,6 @@ import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
-import ModaleJournalCorpus from './ModaleJournalCorpus.vue'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../../composables/sonal'
@@ -175,7 +174,6 @@ function basculerToutesDescriptionsThemes() {
     : new Set(idsDescriptionsThemes.value)
 }
 
-const historiqueOuvert = ref(false)
 const resumeParcours = ref<HTMLElement | null>(null)
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
 watch(() => demandeDissociationAnon?.value, (demande) => { if (demande) void choisirOnglet('anon') }, { flush: 'post' })
@@ -195,8 +193,6 @@ async function choisirOnglet(onglet: OngletCorpus): Promise<boolean> {
 watch(pasAPas, (actif) => {
   if (actif) void choisirOnglet('accueil')
 })
-watch(revisionCorpus, () => { historiqueOuvert.value = false })
-watch(vue, (destination) => { if (destination !== 'corpus') historiqueOuvert.value = false })
 
 async function afficherParcours(
   parcoursId?: import('../../../../shared/format').ParcoursId,
@@ -367,11 +363,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
       </nav>
-      <div class="actions-secondaires-corpus">
-        <button @click="historiqueOuvert = true">Historique des actions…</button>
-      </div>
-      <ModaleJournalCorpus v-if="historiqueOuvert && vue === 'corpus'" @fermer="historiqueOuvert = false" />
-
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
       <div v-if="pasAPas && ongletCorpus === 'accueil'" ref="resumeParcours" tabindex="-1">
@@ -513,11 +504,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
             <ul class="accueil-outils">
-              <li><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></li>
-              <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
-              <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
-              <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></li>
-              <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
+              <li><button type="button" @click="choisirOnglet('notes')"><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></button></li>
+              <li><button type="button" @click="choisirOnglet('personnes')"><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></button></li>
+              <li><button type="button" @click="choisirOnglet('anon')"><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></button></li>
+              <li><button type="button" @click="choisirOnglet('themes')"><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></button></li>
+              <li><button type="button" @click="choisirOnglet('donnees')"><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></button></li>
             </ul>
             <p class="renvoi-organisation">Retrouvez les fonctionnalités Cas et Recueils dans l’espace Organiser et exporter.</p>
             <div class="liens-organisation">
@@ -787,8 +778,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 </template>
 
 <style scoped>
-.actions-secondaires-corpus { display: flex; justify-content: flex-end; margin: 4px 0; }
-.actions-secondaires-corpus button { border: 0; background: transparent; color: #52606d; cursor: pointer; font-size: .8rem; }
 .renvoi-organisation { margin-top: 1rem; font-size: .85rem; }
 .liens-organisation { display: flex; flex-wrap: wrap; gap: .5rem; }
 .liens-organisation button { cursor: pointer; }

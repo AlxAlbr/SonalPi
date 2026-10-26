@@ -2,14 +2,12 @@
  *  Service des « Docs cadre projet » — corpus LOCAL et exemples embarqués.
  *
  *  Responsabilités : inventaire, catégorisation et tri des fichiers de
- *  `DocsCadre/` ; lecture bornée pour les aperçus (texte, images, PDF) ; copie
+ *  `DocsPrepaProjet/` ; lecture bornée pour les aperçus (texte, images, PDF) ; copie
  *  atomique d'un fichier choisi ; renommage sans écrasement ; déplacement vers
  *  la corbeille douce ; lecture des exemples embarqués.
  *
- *  Le module est PUR de tout Electron : les ouvertures externes
- *  (`shell.openPath`, dialogues) restent dans les handlers IPC de `index.ts`,
- *  qui résolvent ici la cible validée. Le renderer ne transmet jamais qu'une
- *  source et un nom ; aucune opération ne reçoit de chemin arbitraire.
+ *  Les ouvertures externes et les dialogues restent dans les handlers IPC.
+ *  Les cibles sont résolues sous une racine autorisée depuis un chemin relatif.
  */
 
 import {
@@ -31,15 +29,20 @@ import { randomUUID } from 'node:crypto'
 import { basename, join } from 'node:path'
 import {
   categoriserDocument,
+  DOSSIER_DOCS_PROJET,
+  DOSSIER_DOCS_PROJET_ANCIEN,
   estListable,
   estNomSain,
+  estCheminDocsCadre,
   extensionDe,
   LIMITE_APERCU_BINAIRE_OCTETS,
   LIMITE_APERCU_PDF_OCTETS,
   LIMITE_APERCU_TEXTE_OCTETS,
   nomLibre,
-  trierDocuments,
-  trierExemplesDocs,
+  trierEntreesDocsCadre,
+  type EntreeDocsCadre,
+  type InventaireDossierDocsCadre,
+  type SourceDocumentCadre,
   mimeImage,
   type RaisonSansApercu,
   type ResultatLectureDocsCadre,
@@ -60,14 +63,31 @@ function dossierReel(dir: string, creer = false): boolean {
   }
 }
 
+/** Le nouveau nom est prioritaire ; l'ancien reste utilisé s'il est seul présent. */
+export function racineDocsProjetLocal(racineCorpus: string): string {
+  for (const nom of [DOSSIER_DOCS_PROJET, DOSSIER_DOCS_PROJET_ANCIEN]) {
+    const dir = join(racineCorpus, nom)
+    try {
+      lstatSync(dir)
+      return dir
+    } catch (erreur) {
+      if ((erreur as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Dossier documentaire inaccessible.')
+    }
+  }
+  return join(racineCorpus, DOSSIER_DOCS_PROJET)
+}
+
 function dossierDocsCadre(racineCorpus: string, creer = false): string {
-  const dir = join(racineCorpus, 'DocsCadre')
-  if (!dossierReel(dir, creer)) throw new Error('Le dossier DocsCadre est absent ou non sûr.')
+  const dir = racineDocsProjetLocal(racineCorpus)
+  if (!dossierReel(dir, creer)) throw new Error('Le dossier de documents est absent ou non sûr.')
   return dir
 }
 
-function resume(nom: string, taille: number | null, modifieLe: Date | null): ResumeDocumentCadre {
+function resume(chemin: string, taille: number | null, modifieLe: Date | null): ResumeDocumentCadre {
+  const nom = basename(chemin)
   return {
+    nature: 'document',
+    chemin,
     source: 'projet',
     nom,
     type: categoriserDocument(nom),
@@ -76,8 +96,11 @@ function resume(nom: string, taille: number | null, modifieLe: Date | null): Res
   }
 }
 
-function resumeExemple(nom: string, taille: number | null): ResumeDocumentCadre {
+function resumeExemple(chemin: string, taille: number | null): ResumeDocumentCadre {
+  const nom = basename(chemin)
   return {
+    nature: 'document',
+    chemin,
     source: 'exemple',
     nom,
     type: categoriserDocument(nom),
@@ -86,28 +109,58 @@ function resumeExemple(nom: string, taille: number | null): ResumeDocumentCadre 
   }
 }
 
-/** Inventaire des fichiers réguliers de PREMIER niveau d'un dossier, triés
- *  alphabétiquement. Dossier absent, fichier ou non-dossier → liste vide. */
-function inventaireDossier(dir: string): ResumeDocumentCadre[] {
-  let entrees: string[]
+/** Vérifie chaque composant sans suivre les liens symboliques. */
+function resoudreSousRacine(racine: string, relatif: string, fichier = false): string {
+  if (!estCheminDocsCadre(relatif, !fichier)) throw new Error('Chemin documentaire invalide.')
   try {
-    if (!dossierReel(dir)) return []
-    entrees = readdirSync(dir)
-  } catch {
-    return [] // dossier pas encore créé : état vide, jamais une erreur
+    const racineStat = lstatSync(racine)
+    if (!racineStat.isDirectory() || racineStat.isSymbolicLink()) throw new Error('Dossier documentaire non sûr.')
+    let cible = racine
+    const segments = relatif ? relatif.split('/') : []
+    for (const [index, segment] of segments.entries()) {
+      cible = join(cible, segment)
+      const st = lstatSync(cible)
+      const finalFichier = fichier && index === segments.length - 1
+      if (st.isSymbolicLink()) throw new Error('Document ou dossier non sûr.')
+      if (!(finalFichier ? st.isFile() : st.isDirectory())) {
+        throw Object.assign(new Error('Document ou dossier absent.'), { code: 'ENOENT' })
+      }
+    }
+    return cible
+  } catch (erreur) {
+    const code = (erreur as NodeJS.ErrnoException).code
+    throw Object.assign(new Error(code === 'ENOENT' ? 'Document ou dossier absent.' : 'Document ou dossier inaccessible.'), { code })
   }
-  const resultats: ResumeDocumentCadre[] = []
-  for (const nom of entrees) {
+}
+
+/** Lit uniquement les enfants directs d'une racine documentaire autorisée. */
+export function listerDossierDocsCadre(
+  racine: string, source: SourceDocumentCadre, dossier = '',
+): InventaireDossierDocsCadre {
+  const resultat: InventaireDossierDocsCadre = { mode: 'local', source, dossier, entrees: [] }
+  let dir: string
+  try {
+    dir = resoudreSousRacine(racine, dossier)
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === 'ENOENT') return { ...resultat, absent: true }
+    throw erreur
+  }
+  const entrees: EntreeDocsCadre[] = []
+  let noms: string[]
+  try { noms = readdirSync(dir) } catch { throw new Error('Impossible de lire ce dossier.') }
+  for (const nom of noms) {
     if (!estListable(nom)) continue
     try {
-      const st = statFichier(join(dir, nom))
-      if (!st.estFichier) continue
-      resultats.push(resume(nom, st.taille, st.modifieLe))
+      const st = lstatSync(join(dir, nom))
+      const chemin = dossier ? `${dossier}/${nom}` : nom
+      if (!estCheminDocsCadre(chemin) || st.isSymbolicLink()) continue
+      if (st.isDirectory()) entrees.push({ nature: 'dossier', source, nom, chemin })
+      else if (st.isFile()) entrees.push({ ...resume(chemin, st.size, st.mtime), source })
     } catch {
-      /* entrée disparue ou illisible en cours de liste : on passe */
+      // Une entrée disparue pendant la lecture sera absente de la liste.
     }
   }
-  return trierDocuments(resultats)
+  return { ...resultat, entrees: trierEntreesDocsCadre(entrees) }
 }
 
 function statFichier(chemin: string): { estFichier: boolean; taille: number; modifieLe: Date | null } {
@@ -246,20 +299,14 @@ function lireApercuFichier(dir: string, nom: string, source: 'projet' | 'exemple
 
 /* ── Corpus local ─────────────────────────────────────────────────────────── */
 
-/** Inventaire des documents du corpus local (dossier `DocsCadre/` absent → vide). */
-export function inventaireDocsCadreLocal(racineCorpus: string): ResumeDocumentCadre[] {
-  return inventaireDossier(join(racineCorpus, 'DocsCadre'))
+/** Inventaire des documents locaux ; dossier absent traité comme vide. */
+export function inventaireDocsCadreLocal(racineCorpus: string, dossier = ''): EntreeDocsCadre[] {
+  return listerDossierDocsCadre(racineDocsProjetLocal(racineCorpus), 'projet', dossier).entrees
 }
 
 /** Lecture d'un aperçu sur un document du corpus local. */
 export function lireApercuLocal(racineCorpus: string, nom: string): ResultatLectureDocsCadre {
-  if (!estNomSain(nom)) {
-    return {
-      resume: resume(nom, null, null),
-      apercu: { genre: 'aucun', raison: 'invalide' },
-    }
-  }
-  return lireApercuFichier(join(racineCorpus, 'DocsCadre'), nom, 'projet')
+  return lireApercuSousRacine(racineDocsProjetLocal(racineCorpus), nom, 'projet')
 }
 
 /** Copie complète dans un temporaire, puis création exclusive de la cible. */
@@ -288,18 +335,20 @@ function erreurExiste(erreur: unknown): boolean {
   return (erreur as NodeJS.ErrnoException)?.code === 'EEXIST'
 }
 
-/** « Ajouter un fichier » : COPIE le fichier choisi dans `DocsCadre/`
+/** « Ajouter un fichier » : copie le fichier choisi dans le dossier du projet,
  *  (un document cadre fait partie du corpus, contrairement à l'audio). */
 export function ajouterFichierLocal(
   racineCorpus: string,
   cheminSource: string,
   nomFinal?: string,
+  dossier = '',
 ): ResultatMutationDocsCadre {
   const nom = nomFinal?.trim() || basename(cheminSource)
-  if (!estNomSain(nom)) return { ok: false, raison: 'invalide' }
+  if (!estListable(nom) || !estCheminDocsCadre(dossier, true) ||
+      !estCheminDocsCadre(dossier ? `${dossier}/${nom}` : nom)) return { ok: false, raison: 'invalide' }
   let dir: string
   try {
-    dir = dossierDocsCadre(racineCorpus, true)
+    dir = resoudreSousRacine(dossierDocsCadre(racineCorpus, true), dossier)
     if (!statFichier(cheminSource).estFichier) return { ok: false, raison: 'absent' }
   } catch {
     return { ok: false, raison: 'lecture' }
@@ -320,20 +369,21 @@ export function ajouterFichierLocal(
   return { ok: true, nom }
 }
 
-/** « Glisser-déposer » vers `DocsCadre/` : copie exacte (jamais un
+/** « Glisser-déposer » dans le dossier affiché : copie exacte (jamais un
  *  déplacement), création du dossier à la demande, et JAMAIS d'écrasement :
  *  un homonyme est refusé (aucun renommage automatique). Un dossier, un lien
  *  symbolique ou un fichier manquant est refusé par `raison: 'source'`. */
 export function deposerFichierLocal(
   racineCorpus: string,
   cheminSource: string,
+  dossier = '',
 ): ResultatMutationDocsCadre {
   try {
     if (!statFichier(cheminSource).estFichier) return { ok: false, raison: 'source' }
   } catch {
     return { ok: false, raison: 'source' }
   }
-  return ajouterFichierLocal(racineCorpus, cheminSource)
+  return ajouterFichierLocal(racineCorpus, cheminSource, undefined, dossier)
 }
 
 /** Renommage : le contenu n'est jamais relu ni modifié, seuls les octets
@@ -366,8 +416,7 @@ export function renommerLocal(racineCorpus: string, ancien: string, nouveau: str
   return { ok: true, nom: nouveau }
 }
 
-/** Suppression douce : le fichier part sous `corbeille/DocsCadre/` avec un nom
- *  non destructif. La restauration graphique est hors périmètre. */
+/** Suppression douce dans la corbeille documentaire, sans écrasement. */
 export function supprimerLocal(racineCorpus: string, nom: string): ResultatMutationDocsCadre {
   if (!estNomSain(nom)) return { ok: false, raison: 'invalide' }
   let dir: string
@@ -379,7 +428,7 @@ export function supprimerLocal(racineCorpus: string, nom: string): ResultatMutat
   const source = join(dir, nom)
   if (!existeFichier(source)) return { ok: false, raison: 'absent' }
   const racineCorbeille = join(racineCorpus, 'corbeille')
-  const corbeille = join(racineCorbeille, 'DocsCadre')
+  const corbeille = join(racineCorbeille, basename(dir))
   try {
     if (!dossierReel(racineCorbeille, true) || !dossierReel(corbeille, true)) {
       return { ok: false, raison: 'lecture' }
@@ -400,18 +449,28 @@ export function supprimerLocal(racineCorpus: string, nom: string): ResultatMutat
 }
 
 /** Résout le dossier local, en le créant sans accepter de lien symbolique. */
-export function resoudreDossierLocal(racineCorpus: string): string {
-  return dossierDocsCadre(racineCorpus, true)
+export function resoudreDossierLocal(racineCorpus: string, dossier = ''): string {
+  if (!estCheminDocsCadre(dossier, true)) throw new Error('Dossier invalide.')
+  return resoudreSousRacine(dossierDocsCadre(racineCorpus, true), dossier)
 }
 
-/** Chemin ABSOLU et validé d'un document local, pour une ouverture externe.
- *  Le renderer ne transmet qu'un nom ; l'appelant (handler IPC) passe ce
- *  chemin à `shell.openPath`. */
+/** Création exclusive ; une entrée existante, même d'une autre casse, est refusée. */
+export function creerDossierLocal(racineCorpus: string, parent: string, nom: string): ResultatMutationDocsCadre {
+  if (!estListable(nom) || !estCheminDocsCadre(parent, true) ||
+      !estCheminDocsCadre(parent ? `${parent}/${nom}` : nom)) return { ok: false, raison: 'invalide' }
+  try {
+    const dir = resoudreDossierLocal(racineCorpus, parent)
+    if (collisions(nom, readdirSync(dir))) return { ok: false, raison: 'existe' }
+    mkdirSync(join(dir, nom))
+    return { ok: true, nom }
+  } catch (erreur) {
+    return { ok: false, raison: erreurExiste(erreur) ? 'existe' : 'lecture' }
+  }
+}
+
+/** Chemin local validé, réservé aux actions du processus principal. */
 export function resoudreLocal(racineCorpus: string, nom: string): string {
-  if (!estNomSain(nom)) throw new Error(`Nom de document invalide : ${JSON.stringify(nom)}.`)
-  const chemin = join(dossierDocsCadre(racineCorpus), nom)
-  if (!existeFichier(chemin)) throw new Error(`Le document ${nom} n'existe pas.`)
-  return chemin
+  return resoudreSousRacine(dossierDocsCadre(racineCorpus), nom, true)
 }
 
 /** Enregistre une COPIE EXACTE du fichier original vers une destination choisie
@@ -422,34 +481,40 @@ export function enregistrerCopieLocal(racineCorpus: string, nom: string, destina
 
 /* ── Exemples embarqués ──────────────────────────────────────────────────── */
 
-/** Inventaire des exemples livrés avec l'application, dans l'ordre défini par
- *  `NOMS_EXEMPLES_DOCS`. Toujours consultables, y compris quand un corpus
- *  distant est hors ligne. */
-export function inventaireExemplesDocsCadre(dirExemples: string): ResumeDocumentCadre[] {
-  const resultats = inventaireDossier(dirExemples).map((r) => ({ ...r, source: 'exemple' as const }))
-  return trierExemplesDocs(resultats)
+/** Exemples consultables hors ligne avec la même navigation que le projet. */
+export function inventaireExemplesDocsCadre(dirExemples: string, dossier = ''): EntreeDocsCadre[] {
+  return listerDossierDocsCadre(dirExemples, 'exemple', dossier).entrees
 }
 
 /** Lecture d'un aperçu d'un exemple embarqué. */
 export function lireApercuExemple(dirExemples: string, nom: string): ResultatLectureDocsCadre {
-  if (!estNomSain(nom)) {
-    return { resume: resumeExemple(nom, null), apercu: { genre: 'aucun', raison: 'invalide' } }
-  }
-  return lireApercuFichier(dirExemples, nom, 'exemple')
+  return lireApercuSousRacine(dirExemples, nom, 'exemple')
 }
 
 /** Résout un exemple régulier sans suivre de lien symbolique. */
 export function resoudreExemple(dirExemples: string, nom: string): string {
-  if (!estNomSain(nom) || !dossierReel(dirExemples)) throw new Error('Nom de document invalide.')
-  const chemin = join(dirExemples, nom)
-  if (!existeFichier(chemin)) throw new Error(`L’exemple ${nom} n'existe pas.`)
-  return chemin
+  return resoudreSousRacine(dirExemples, nom, true)
+}
+
+/** L'aperçu garde l'identité relative, jamais le chemin du poste. */
+function lireApercuSousRacine(racine: string, chemin: string, source: SourceDocumentCadre): ResultatLectureDocsCadre {
+  try {
+    resoudreSousRacine(racine, chemin, true)
+    const segments = chemin.split('/')
+    const nom = segments.pop()!
+    const resultat = lireApercuFichier(join(racine, ...segments), nom, source)
+    return { ...resultat, resume: { ...resultat.resume, chemin } }
+  } catch (erreur) {
+    return {
+      resume: { ...resume(chemin, null, null), source },
+      apercu: { genre: 'aucun', raison: (erreur as NodeJS.ErrnoException).code === 'ENOENT' ? 'absent' : 'invalide' },
+    }
+  }
 }
 
 /* ── Helpers internes ────────────────────────────────────────────────────── */
 
-/** Noms listables réels du dossier, en excluant tout ce qui n'est pas un
- *  fichier régulier : dossier, lien symbolique, temporaire, caché. */
+/** Toutes les entrées occupent un nom, y compris les dossiers et liens. */
 function listerNomsSurs(dir: string): string[] {
   if (!dossierReel(dir)) return []
   let noms: string[]
@@ -458,14 +523,7 @@ function listerNomsSurs(dir: string): string[] {
   } catch {
     return []
   }
-  return noms.filter((nom) => {
-    if (!estListable(nom)) return false
-    try {
-      return statFichier(join(dir, nom)).estFichier
-    } catch {
-      return false
-    }
-  })
+  return noms
 }
 
 /** Collision insensible à la casse : le même nom (existant) à la casse près

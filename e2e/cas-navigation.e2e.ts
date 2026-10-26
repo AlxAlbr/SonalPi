@@ -16,7 +16,7 @@ test('Cas occupe l’organisation, conserve ses filtres et relit une source modi
     await expect(cas).toBeVisible()
     const navigation = page.locator('.onglets-organisation')
     await expect(navigation.getByRole('button', { name: 'Cas', exact: true }).locator('img')).toHaveJSProperty('naturalWidth', 32)
-    await expect(navigation.getByRole('button', { name: 'Recueils', exact: true }).locator('[aria-hidden="true"]')).toHaveText('📌')
+    await expect(navigation.getByRole('button', { name: 'Recueils', exact: true }).locator('img')).toHaveJSProperty('complete', true)
     await expect(page.locator('.cartes-ent')).toBeHidden()
     await expect(page.locator('.modale-cas')).toBeHidden()
     await cas.getByRole('button', { name: 'Nouveau cas' }).click()

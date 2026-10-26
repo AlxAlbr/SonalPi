@@ -1,0 +1,1790 @@
+{
+  "formatVersion": 9,
+  "lastModified": "2026-10-26T18:22:46.798Z",
+  "corpsTexte": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Bonjour Marc, merci de m'accueillir à La Halle. Pouvez-vous vous présenter et me dire ce que vous faites ici, le jeudi ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, j'ai 46 ans et je suis cuisinier en restauration collective dans un lycée, depuis 10 ans, le service du midi. Et là, le jeudi soir, j'aide les enfants avec leurs devoirs, à la bibliothèque municipale, du CP au CM2. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et comment vous êtes arrivé ici ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Un poste sur la page de l'assaut, que je suivais depuis un moment. Ils cherchaient des gens pour les soirées de jeudi. Si vous avez envie d'aider les enfants, venez. Alors j'ai envoyé un message, et la bibliothécaire m'a rappelé quelques jours après. Ça fait un an maintenant. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Vous avez arrêté les études. à quel âge ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "15 ans. J'ai commencé dans une boulangerie vers 16 ans. 10 ans là-bas. Ensuite, la restauration collective. Le regret des études ne m'a jamais complètement quitté. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et vos débuts ici, est-ce que ça a été facile ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Non, franchement, j'avais peur. Peur de rien y connaître, de paraître nul devant les gamins. La première semaine, un gamin me demande un truc, je sais pas, et je me suis senti bête. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et alors, comment vous avez trouvé votre place ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "J'ai trouvé mon truc. J'illustre souvent les choses à la cuisine. Les proportions, par exemple. La recette est pour 4, comment on fait pour 12 ? Les gamins adorent. Ils m'appellent « chef ». Et là, je me suis dit, tiens, j'y arrive. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Très bien. Est-ce que vous pouvez me décrire? une de vos soirées, là-bas ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "On arrive vers 17h. Il y a en général une dizaine d'enfants. Il y a un petit coin lecture pour les plus petits. On arrête vers 19h. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Ce sont surtout des enfants du quartier ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui. Les parents déposent les plus petits et reviennent les chercher. Les plus grands, ils viennent seuls. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "L'association, quel est son rôle exactement ? Et entre bénévoles, vous êtes combien, le jeudi ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "4 ou 5 réguliers. Il y a une institutrice à la retraite. Elle prend souvent les plus grands. Et deux étudiants qui viennent quand ils peuvent. C'est sympa. Il n'y a pas de pression. Si vous ne venez pas, personne ne dit rien tant que vous avez prévenu. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et pour vous, personnellement, qu'est-ce que ça a changé ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "J'ai trouvé de la confiance. Il y a eu une fille qui me disait, je ne comprendrai jamais les fractions. Et maintenant, elle y arrive toute seule. Je ne m'attendais pas à ça. Et de la fierté aussi. Quand il m'appelle chef, ça fait du bien. Ma femme me dit que je rentre plus léger. Et mon fils m'a dit un jour, tu fais mieux que ma prof. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et la question des études, elle est née comment ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Un jour, Madame Fontaine m'a dit, faudrait que vous mettiez un diplôme sur ce que vous faites. Et depuis, j'y pense. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Vous en avez parlé avec votre femme ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, bien entendu. Elle m'a dit, vas-y, c'est pas trop tard. Alors je regarde. Il y a un centre qui fait les soirs. J'irai voir. J'ai pas encore signé, mais je regarde. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et pour la suite, le jeudi, ça continue ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui. Tant que mon dos tiendra, et tant que la salle existera. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Un dernier mot ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "S'il y a des gens qui se disent, je ne peux pas car j'en sais pas assez. En fait, ils peuvent. Il ne faut pas être prof. Les enfants, ils ne vous demandent pas ça. Venez un jeudi, c'est tout ce que je dirai. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Merci Marc. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Merci à vous. Ça fait plaisir aussi d'en parler. "
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": [
+    {
+      "id": "import-0",
+      "from": 129,
+      "to": 238,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_028"
+    },
+    {
+      "id": "import-1",
+      "from": 246,
+      "to": 343,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_025"
+    },
+    {
+      "id": "import-2",
+      "from": 346,
+      "to": 380,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-3",
+      "from": 346,
+      "to": 380,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-4",
+      "from": 382,
+      "to": 449,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-5",
+      "from": 382,
+      "to": 449,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-6",
+      "from": 449,
+      "to": 501,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-7",
+      "from": 449,
+      "to": 501,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-8",
+      "from": 501,
+      "to": 548,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-9",
+      "from": 501,
+      "to": 548,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-10",
+      "from": 548,
+      "to": 633,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-11",
+      "from": 548,
+      "to": 633,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-12",
+      "from": 633,
+      "to": 658,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-13",
+      "from": 633,
+      "to": 658,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_006"
+    },
+    {
+      "id": "import-14",
+      "from": 661,
+      "to": 665,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-15",
+      "from": 665,
+      "to": 690,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-16",
+      "from": 690,
+      "to": 703,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-17",
+      "from": 690,
+      "to": 703,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-18",
+      "from": 705,
+      "to": 713,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-19",
+      "from": 705,
+      "to": 713,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-20",
+      "from": 713,
+      "to": 761,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-21",
+      "from": 713,
+      "to": 761,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-22",
+      "from": 761,
+      "to": 776,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-23",
+      "from": 761,
+      "to": 776,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-24",
+      "from": 776,
+      "to": 813,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-25",
+      "from": 776,
+      "to": 813,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-26",
+      "from": 813,
+      "to": 867,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_004"
+    },
+    {
+      "id": "import-27",
+      "from": 813,
+      "to": 867,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-28",
+      "from": 813,
+      "to": 867,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-29",
+      "from": 867,
+      "to": 868,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_004"
+    },
+    {
+      "id": "import-30",
+      "from": 867,
+      "to": 868,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-31",
+      "from": 867,
+      "to": 868,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-32",
+      "from": 871,
+      "to": 873,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-33",
+      "from": 873,
+      "to": 919,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-34",
+      "from": 921,
+      "to": 953,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-35",
+      "from": 953,
+      "to": 1014,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-36",
+      "from": 1014,
+      "to": 1097,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-37",
+      "from": 1097,
+      "to": 1101,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-38",
+      "from": 1105,
+      "to": 1154,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-39",
+      "from": 1156,
+      "to": 1178,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-40",
+      "from": 1178,
+      "to": 1222,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-41",
+      "from": 1222,
+      "to": 1252,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-42",
+      "from": 1252,
+      "to": 1301,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-43",
+      "from": 1301,
+      "to": 1321,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-44",
+      "from": 1321,
+      "to": 1347,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-45",
+      "from": 1347,
+      "to": 1388,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_014"
+    },
+    {
+      "id": "import-46",
+      "from": 1402,
+      "to": 1437,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-47",
+      "from": 1437,
+      "to": 1466,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-48",
+      "from": 1468,
+      "to": 1488,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-49",
+      "from": 1488,
+      "to": 1529,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-50",
+      "from": 1529,
+      "to": 1580,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-51",
+      "from": 1580,
+      "to": 1599,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-52",
+      "from": 1602,
+      "to": 1644,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-53",
+      "from": 1646,
+      "to": 1650,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-54",
+      "from": 1651,
+      "to": 1716,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-55",
+      "from": 1716,
+      "to": 1752,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-56",
+      "from": 1755,
+      "to": 1801,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-57",
+      "from": 1755,
+      "to": 1801,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-58",
+      "from": 1801,
+      "to": 1851,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-59",
+      "from": 1801,
+      "to": 1851,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-60",
+      "from": 1853,
+      "to": 1871,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-61",
+      "from": 1853,
+      "to": 1871,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-62",
+      "from": 1871,
+      "to": 1910,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-63",
+      "from": 1871,
+      "to": 1910,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-64",
+      "from": 1910,
+      "to": 1946,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-65",
+      "from": 1910,
+      "to": 1946,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-66",
+      "from": 1946,
+      "to": 1996,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-67",
+      "from": 1946,
+      "to": 1996,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-68",
+      "from": 1996,
+      "to": 2009,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-69",
+      "from": 1996,
+      "to": 2009,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-70",
+      "from": 2009,
+      "to": 2035,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-71",
+      "from": 2009,
+      "to": 2035,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-72",
+      "from": 2035,
+      "to": 2105,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_016"
+    },
+    {
+      "id": "import-73",
+      "from": 2035,
+      "to": 2105,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-74",
+      "from": 2108,
+      "to": 2167,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-75",
+      "from": 2169,
+      "to": 2198,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-76",
+      "from": 2198,
+      "to": 2273,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-77",
+      "from": 2273,
+      "to": 2315,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-78",
+      "from": 2315,
+      "to": 2343,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-79",
+      "from": 2343,
+      "to": 2366,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-80",
+      "from": 2366,
+      "to": 2408,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-81",
+      "from": 2408,
+      "to": 2450,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-82",
+      "from": 2450,
+      "to": 2504,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-83",
+      "from": 2508,
+      "to": 2558,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-84",
+      "from": 2560,
+      "to": 2655,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-85",
+      "from": 2655,
+      "to": 2677,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-86",
+      "from": 2679,
+      "to": 2717,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-87",
+      "from": 2719,
+      "to": 2738,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-88",
+      "from": 2738,
+      "to": 2780,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-89",
+      "from": 2780,
+      "to": 2798,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-90",
+      "from": 2798,
+      "to": 2835,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-91",
+      "from": 2835,
+      "to": 2848,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-92",
+      "from": 2848,
+      "to": 2887,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_022"
+    },
+    {
+      "id": "import-93",
+      "type": "commentaire",
+      "from": 661,
+      "to": 868,
+      "auteur": "AA",
+      "texte": "Etudes et diplômes (catégorie à ajouter?)"
+    },
+    {
+      "id": "import-94",
+      "type": "commentaire",
+      "from": 871,
+      "to": 1101,
+      "auteur": "AA",
+      "texte": "Sentiment d'illégitimité"
+    }
+  ],
+  "ancres": [
+    {
+      "pos": 1,
+      "t": 0
+    },
+    {
+      "pos": 49,
+      "t": 1.78
+    },
+    {
+      "pos": 49,
+      "t": 2.22
+    },
+    {
+      "pos": 122,
+      "t": 5.36
+    },
+    {
+      "pos": 124,
+      "t": 5.62
+    },
+    {
+      "pos": 239,
+      "t": 12.36
+    },
+    {
+      "pos": 239,
+      "t": 13.24
+    },
+    {
+      "pos": 344,
+      "t": 20.72
+    },
+    {
+      "pos": 346,
+      "t": 21.62
+    },
+    {
+      "pos": 380,
+      "t": 23
+    },
+    {
+      "pos": 382,
+      "t": 23.22
+    },
+    {
+      "pos": 449,
+      "t": 26.48
+    },
+    {
+      "pos": 449,
+      "t": 27.34
+    },
+    {
+      "pos": 501,
+      "t": 29.3
+    },
+    {
+      "pos": 501,
+      "t": 30.1
+    },
+    {
+      "pos": 548,
+      "t": 32.479
+    },
+    {
+      "pos": 548,
+      "t": 33.56
+    },
+    {
+      "pos": 633,
+      "t": 37.8
+    },
+    {
+      "pos": 633,
+      "t": 38.58
+    },
+    {
+      "pos": 659,
+      "t": 39.6
+    },
+    {
+      "pos": 661,
+      "t": 40.16
+    },
+    {
+      "pos": 690,
+      "t": 41.12
+    },
+    {
+      "pos": 690,
+      "t": 41.16
+    },
+    {
+      "pos": 703,
+      "t": 41.8
+    },
+    {
+      "pos": 705,
+      "t": 41.8
+    },
+    {
+      "pos": 713,
+      "t": 42.46
+    },
+    {
+      "pos": 713,
+      "t": 43.24
+    },
+    {
+      "pos": 761,
+      "t": 45.2
+    },
+    {
+      "pos": 761,
+      "t": 45.22
+    },
+    {
+      "pos": 776,
+      "t": 46.58
+    },
+    {
+      "pos": 776,
+      "t": 47.42
+    },
+    {
+      "pos": 813,
+      "t": 49.74
+    },
+    {
+      "pos": 813,
+      "t": 50.68
+    },
+    {
+      "pos": 869,
+      "t": 53.2
+    },
+    {
+      "pos": 871,
+      "t": 53.88
+    },
+    {
+      "pos": 919,
+      "t": 56.1
+    },
+    {
+      "pos": 921,
+      "t": 56.46
+    },
+    {
+      "pos": 953,
+      "t": 58.26
+    },
+    {
+      "pos": 953,
+      "t": 59.26
+    },
+    {
+      "pos": 1014,
+      "t": 62.54
+    },
+    {
+      "pos": 1014,
+      "t": 63.52
+    },
+    {
+      "pos": 1103,
+      "t": 69.03999999999999
+    },
+    {
+      "pos": 1105,
+      "t": 69.8
+    },
+    {
+      "pos": 1154,
+      "t": 72
+    },
+    {
+      "pos": 1156,
+      "t": 72.12
+    },
+    {
+      "pos": 1178,
+      "t": 72.96000000000001
+    },
+    {
+      "pos": 1178,
+      "t": 73.68
+    },
+    {
+      "pos": 1222,
+      "t": 75.6
+    },
+    {
+      "pos": 1222,
+      "t": 76.4
+    },
+    {
+      "pos": 1252,
+      "t": 77.7
+    },
+    {
+      "pos": 1252,
+      "t": 78.34
+    },
+    {
+      "pos": 1301,
+      "t": 82.36
+    },
+    {
+      "pos": 1301,
+      "t": 82.82
+    },
+    {
+      "pos": 1321,
+      "t": 83.7
+    },
+    {
+      "pos": 1321,
+      "t": 84.18
+    },
+    {
+      "pos": 1347,
+      "t": 86.03999999999999
+    },
+    {
+      "pos": 1347,
+      "t": 87.84
+    },
+    {
+      "pos": 1389,
+      "t": 91.24
+    },
+    {
+      "pos": 1391,
+      "t": 91.82
+    },
+    {
+      "pos": 1402,
+      "t": 92.14
+    },
+    {
+      "pos": 1402,
+      "t": 92.36
+    },
+    {
+      "pos": 1437,
+      "t": 93.42
+    },
+    {
+      "pos": 1437,
+      "t": 93.56
+    },
+    {
+      "pos": 1466,
+      "t": 94.8
+    },
+    {
+      "pos": 1468,
+      "t": 95.16
+    },
+    {
+      "pos": 1488,
+      "t": 96.14
+    },
+    {
+      "pos": 1488,
+      "t": 97
+    },
+    {
+      "pos": 1529,
+      "t": 98.72
+    },
+    {
+      "pos": 1529,
+      "t": 99.6
+    },
+    {
+      "pos": 1580,
+      "t": 101.7
+    },
+    {
+      "pos": 1580,
+      "t": 102.72
+    },
+    {
+      "pos": 1600,
+      "t": 103.74000000000001
+    },
+    {
+      "pos": 1602,
+      "t": 104.52000000000001
+    },
+    {
+      "pos": 1644,
+      "t": 106.06
+    },
+    {
+      "pos": 1646,
+      "t": 106.4
+    },
+    {
+      "pos": 1651,
+      "t": 106.47999999999999
+    },
+    {
+      "pos": 1651,
+      "t": 107.32
+    },
+    {
+      "pos": 1716,
+      "t": 110.22
+    },
+    {
+      "pos": 1716,
+      "t": 111.1
+    },
+    {
+      "pos": 1753,
+      "t": 113.03999999999999
+    },
+    {
+      "pos": 1755,
+      "t": 113.5
+    },
+    {
+      "pos": 1801,
+      "t": 118.36
+    },
+    {
+      "pos": 1801,
+      "t": 124.98
+    },
+    {
+      "pos": 1851,
+      "t": 134.5
+    },
+    {
+      "pos": 1853,
+      "t": 134.5
+    },
+    {
+      "pos": 1871,
+      "t": 135.74
+    },
+    {
+      "pos": 1871,
+      "t": 136.62
+    },
+    {
+      "pos": 1910,
+      "t": 138.28
+    },
+    {
+      "pos": 1910,
+      "t": 138.98
+    },
+    {
+      "pos": 1946,
+      "t": 140.28
+    },
+    {
+      "pos": 1946,
+      "t": 140.9
+    },
+    {
+      "pos": 1996,
+      "t": 143.07999999999998
+    },
+    {
+      "pos": 1996,
+      "t": 143.9
+    },
+    {
+      "pos": 2009,
+      "t": 144.32
+    },
+    {
+      "pos": 2009,
+      "t": 145.12
+    },
+    {
+      "pos": 2035,
+      "t": 145.88
+    },
+    {
+      "pos": 2035,
+      "t": 146.78
+    },
+    {
+      "pos": 2106,
+      "t": 150.36
+    },
+    {
+      "pos": 2108,
+      "t": 151.1
+    },
+    {
+      "pos": 2167,
+      "t": 153.26
+    },
+    {
+      "pos": 2169,
+      "t": 153.64
+    },
+    {
+      "pos": 2198,
+      "t": 154.86
+    },
+    {
+      "pos": 2198,
+      "t": 155.9
+    },
+    {
+      "pos": 2273,
+      "t": 159.86
+    },
+    {
+      "pos": 2273,
+      "t": 160.88
+    },
+    {
+      "pos": 2315,
+      "t": 163.04
+    },
+    {
+      "pos": 2315,
+      "t": 164.07999999999998
+    },
+    {
+      "pos": 2343,
+      "t": 164.98
+    },
+    {
+      "pos": 2343,
+      "t": 166.66
+    },
+    {
+      "pos": 2366,
+      "t": 167.68
+    },
+    {
+      "pos": 2366,
+      "t": 168.32
+    },
+    {
+      "pos": 2408,
+      "t": 170.57999999999998
+    },
+    {
+      "pos": 2408,
+      "t": 171.66
+    },
+    {
+      "pos": 2450,
+      "t": 173.57999999999998
+    },
+    {
+      "pos": 2450,
+      "t": 174.28
+    },
+    {
+      "pos": 2506,
+      "t": 177.38
+    },
+    {
+      "pos": 2508,
+      "t": 179.66
+    },
+    {
+      "pos": 2558,
+      "t": 181.54
+    },
+    {
+      "pos": 2560,
+      "t": 182
+    },
+    {
+      "pos": 2655,
+      "t": 187.22
+    },
+    {
+      "pos": 2655,
+      "t": 188.24
+    },
+    {
+      "pos": 2677,
+      "t": 189.74
+    },
+    {
+      "pos": 2679,
+      "t": 190.54
+    },
+    {
+      "pos": 2717,
+      "t": 192.44
+    },
+    {
+      "pos": 2719,
+      "t": 192.64
+    },
+    {
+      "pos": 2738,
+      "t": 193.38
+    },
+    {
+      "pos": 2738,
+      "t": 194.3
+    },
+    {
+      "pos": 2780,
+      "t": 197.06
+    },
+    {
+      "pos": 2780,
+      "t": 198.07999999999998
+    },
+    {
+      "pos": 2798,
+      "t": 198.9
+    },
+    {
+      "pos": 2798,
+      "t": 199.72
+    },
+    {
+      "pos": 2835,
+      "t": 201.28
+    },
+    {
+      "pos": 2835,
+      "t": 202.18
+    },
+    {
+      "pos": 2848,
+      "t": 202.74
+    },
+    {
+      "pos": 2848,
+      "t": 203.72
+    },
+    {
+      "pos": 2888,
+      "t": 205.98
+    },
+    {
+      "pos": 2890,
+      "t": 206.46
+    },
+    {
+      "pos": 2932,
+      "t": 208.28
+    },
+    {
+      "pos": 2934,
+      "t": 208.62
+    },
+    {
+      "pos": 2939,
+      "t": 208.7
+    },
+    {
+      "pos": 2939,
+      "t": 209.42000000000002
+    },
+    {
+      "pos": 2996,
+      "t": 213.38
+    },
+    {
+      "pos": 2998,
+      "t": 214.04
+    },
+    {
+      "pos": 3015,
+      "t": 214.76
+    },
+    {
+      "pos": 3017,
+      "t": 215.12
+    },
+    {
+      "pos": 3090,
+      "t": 218.6
+    },
+    {
+      "pos": 3090,
+      "t": 219.62
+    },
+    {
+      "pos": 3112,
+      "t": 221.26
+    },
+    {
+      "pos": 3112,
+      "t": 222.2
+    },
+    {
+      "pos": 3138,
+      "t": 223.32
+    },
+    {
+      "pos": 3138,
+      "t": 224.36
+    },
+    {
+      "pos": 3181,
+      "t": 226.4
+    },
+    {
+      "pos": 3181,
+      "t": 227.54
+    },
+    {
+      "pos": 3225,
+      "t": 229.92000000000002
+    },
+    {
+      "pos": 3227,
+      "t": 230.52
+    },
+    {
+      "pos": 3239,
+      "t": 231.07999999999998
+    },
+    {
+      "pos": 3241,
+      "t": 231.66
+    },
+    {
+      "pos": 3255,
+      "t": 232.28
+    },
+    {
+      "pos": 3255,
+      "t": 233.1
+    },
+    {
+      "pos": 3290,
+      "t": 234.54
+    }
+  ],
+  "locuteurs": [
+    {
+      "index": 1,
+      "nom": "Réponse",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v4": "v4m3",
+        "v5": "v5m7"
+      },
+      "personneRef": null,
+      "id": "loc-CFmToIDApeVa0YEPukb1JPneQzJd1HiWcsJBR-VGMpw"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "personneRef": null,
+      "id": "loc-lb3OyFF3Cc6Q99J1hBfpm0vhbRDQo60zBnjddGMRWmw"
+    }
+  ],
+  "meta": {
+    "valeursGen": {},
+    "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/3Cuisinier.mp3"
+  },
+  "brouillonsAnon": [],
+  "notes": [
+    {
+      "id": "note_3ah8hf7c",
+      "categorieId": "ncat_generale",
+      "titre": "",
+      "date": null,
+      "statut": "prive",
+      "corps": "Cet entretien est totalement fictif. \nIl est uniquement voué à servir de support de démonstration du logiciel.\n \nSon contenu, ainsi que son codage sont purement illustratifs ne visent pas à servir de modèle en matière de pratique de codage ou d'analyse des matériaux.",
+      "rang": 0,
+      "creeLe": "2026-10-26T18:22:46.607Z",
+      "modifieLe": null
+    }
+  ],
+  "reperesPassages": []
+}

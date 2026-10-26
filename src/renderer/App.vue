@@ -13,7 +13,6 @@ import PreparerSuivre from './components/preparer/PreparerSuivre.vue'
 import AnalyserInterpreter from './components/analyser/AnalyserInterpreter.vue'
 import OrganiserExporter from './components/organiser/OrganiserExporter.vue'
 import ModaleExportEntretien from './components/traiter/entretien/ModaleExportEntretien.vue'
-import ModaleExportCorpus from './components/organiser/export/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
@@ -32,6 +31,7 @@ const {
   refusFormat,
   dossierCourantNom,
   revisionCorpus,
+  exportCorpusEnCours,
   casOuverts, recueilsOuverts,
   confirmationAjout, ouvrirDestinationAjout, fermerConfirmationAjout,
   libelleRetourContexte, revenirContexte, navigationContexteEnCours,
@@ -41,7 +41,7 @@ const {
 
 <template>
   <main class="app">
-    <header>
+    <header :inert="exportCorpusEnCours">
       <div class="tete">
         <h1>
           SonalPi2 —
@@ -93,7 +93,7 @@ const {
       <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
     </div>
 
-    <div v-if="libelleRetourContexte" class="retour-contexte">
+    <div v-if="libelleRetourContexte" class="retour-contexte" :inert="exportCorpusEnCours">
       <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
     </div>
     <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
@@ -126,7 +126,6 @@ const {
     <DialogueAjoutCas v-if="casOuverts" :key="revisionCorpus" />
     <DialogueAjoutRecueil v-if="recueilsOuverts" :key="revisionCorpus" />
     <ModaleExportEntretien />
-    <ModaleExportCorpus />
   </main>
 </template>
 

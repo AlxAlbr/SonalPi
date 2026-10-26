@@ -25,8 +25,8 @@ export type { EtapePasAPas } from './parcours/types'
 
 /**
  *  Scope DÉMO « Mini Corpus Test » : construit puis ouvre des corpus de test,
- *  à partir des sources bundled `CorpusTest/` (SRT + audio), dans des dossiers
- *  choisis par l'utilisateur.
+ *  à partir des sources fournies dans `CorpusTest/CorpusSynth/` (SRT et audio),
+ *  dans des dossiers choisis par l'utilisateur.
  *  Le builder réutilise le vrai pipeline d'import,
  *  soit `importerFichier` puis `corpus:importer` + `corpus:assignerAudio` :
  *  la démo est produite par le même code qu'un corpus utilisateur.
@@ -44,8 +44,8 @@ export type { EtapePasAPas } from './parcours/types'
  *  pour éviter le cycle : `appliquerCorpus` est défini dans `creerSonal`.
  */
 
-// Les 4 entretiens du corpus démo et leurs fichiers sources (`CorpusTest/`,
-// avec srt/ et audio/) : le dossier est copié TEL QUEL chez l'utilisateur,
+// Les 4 entretiens et leurs sources proviennent de CorpusTest/CorpusSynth/.
+// Ses sous-dossiers srt/ et audio/ sont copiés tels quels chez l'utilisateur,
 // et chaque clé ci-dessous EST le nom de fichier et le TITRE de l'entretien.
 // Nommage VOLONTAIREMENT sobre : un numéro + un qualificatif NEUTRE,
 // du rôle/parcours, sans prénom ni phrase ;

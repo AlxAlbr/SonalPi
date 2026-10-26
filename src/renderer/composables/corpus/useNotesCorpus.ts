@@ -223,14 +223,16 @@ export function useNotesCorpus(actif: Ref<boolean>) {
     avecLiens.value = false
   }
 
+  const categorieResume = computed(() => categoriesNote.value.find((categorie) =>
+    cleRecherche(categorie.nom) === cleRecherche('résumé')))
+
   function notesResume(): void {
+    if (!categorieResume.value) return
     toutAfficher()
-    const resume = categoriesNote.value.find((categorie) =>
-      cleRecherche(categorie.nom) === cleRecherche('résumé'))
-    categories.value = resume ? [resume.id] : []
+    categories.value = [categorieResume.value.id]
   }
 
-  function notesChronologiques(): void {
+  function notesPlusRecentes(): void {
     critereTri.value = 'creeLe'
     ordreTri.value = 'desc'
   }
@@ -263,6 +265,7 @@ export function useNotesCorpus(actif: Ref<boolean>) {
     badgeVerrou,
     categories,
     categoriesNote,
+    categorieResume,
     charge,
     chargement,
     corpsAffiche,
@@ -282,7 +285,7 @@ export function useNotesCorpus(actif: Ref<boolean>) {
     modifier,
     motCle,
     nomCategorieNote,
-    notesChronologiques,
+    notesPlusRecentes,
     notesFiltrees,
     notesParEntretien,
     notesResume,

@@ -408,11 +408,6 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 <template>
   <section class="personnes-corpus" aria-label="Personnes du corpus" :aria-busy="occupe">
     <header class="entete">
-      <h2>Personnes</h2>
-      <span>
-        {{ inventaire.personnes.length }} personne{{ inventaire.personnes.length > 1 ? 's' : '' }} ·
-        {{ nonLies.length }} locuteur{{ nonLies.length > 1 ? 's' : '' }} sans lien valide
-      </span>
       <button :disabled="occupe" @click="annulationsOuvertes = true">Annuler une modification…</button>
       <button class="actualiser" :disabled="occupe" @click="actualiser">Actualiser</button>
       <button class="bouton-aide" type="button" aria-label="Aide sur l’onglet Personnes" title="Aide sur l’onglet Personnes" @click="ouvrirAide">
@@ -443,7 +438,15 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
       </ul>
     </details>
     <div v-show="charge" ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
-      <aside class="repertoire" aria-label="Répertoire des personnes">
+      <aside class="panneau repertoire" aria-label="Répertoire des personnes">
+        <header>
+          <div class="corpus-tete"><h2 class="titre-panneau">Personnes</h2></div>
+          <p class="accueil-intro">
+            {{ inventaire.personnes.length }} personne{{ inventaire.personnes.length > 1 ? 's' : '' }} ·
+            {{ nonLies.length }} locuteur{{ nonLies.length > 1 ? 's' : '' }} à associer
+          </p>
+          <p class="aide-repertoire">Retrouvez une même personne d’un entretien à l’autre. Choisissez un nom pour consulter sa fiche.</p>
+        </header>
         <section class="carte-repertoire carte-recherche" aria-labelledby="titre-recherche-personnes">
           <h3 id="titre-recherche-personnes">Rechercher</h3>
           <label>Nom ou entretien<input v-model="recherche" type="search" /></label>
@@ -453,17 +456,6 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
             <button :aria-pressed="filtre === 'refus'" @click="filtre = 'refus'">Écartées {{ decisionsEcartees.length }}</button>
           </div>
         </section>
-        <section v-if="filtre !== 'refus'" class="carte-repertoire carte-rapprochements" aria-label="Suggestions à vérifier">
-          <h3>Rapprochements à vérifier</h3>
-          <ul v-if="rapprochementsAVerifier.length" class="liste-rapprochements"><li v-for="r in rapprochementsAVerifier.filter(r => correspond(`${libelleIdentite(r.cible)} ${libelleIdentite(r.candidat)}`))" :key="r.cle">
-            <button :aria-pressed="rapprochementSelectionne === r.cle" @click="selectionner(`l:${cleLocuteur(r.cible)}`, r.cle)">
-              <span>{{ libelleIdentite(r.cible) }}</span>
-              <span aria-hidden="true">↔</span>
-              <span>{{ libelleIdentite(r.candidat) }}</span>
-            </button>
-          </li></ul>
-          <p v-else>Aucun rapprochement proposé.</p>
-        </section>
         <section v-if="filtre === 'refus'" class="carte-repertoire carte-decisions" aria-label="Locuteurs avec décisions écartées">
           <h3>Décisions écartées</h3>
           <ul><li v-for="l in decisionsEcartees.filter(l => correspond(`${l.nom} ${l.entretienTitre}`))" :key="cleLocuteur(l)">
@@ -471,8 +463,9 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           </li></ul>
           <p v-if="!decisionsEcartees.length">Aucune décision écartée.</p>
         </section>
-        <details class="carte-repertoire carte-personnes" open>
-          <summary>Répertoire ({{ personnesVisibles.length }})</summary>
+        <details v-if="filtre === 'tous' || (filtre === 'problemes' && personnesVisibles.length)" class="carte-repertoire carte-personnes" open>
+          <summary>Personnes identifiées ({{ personnesVisibles.length }})</summary>
+          <p class="aide-repertoire">Les personnes déjà associées à des noms dans les entretiens.</p>
           <ul>
             <li v-for="p in personnesVisibles" :key="p.id">
               <button :aria-pressed="selection === `p:${p.id}`" @click="selectionner(`p:${p.id}`)">
@@ -482,8 +475,9 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           </ul>
           <p v-if="!personnesVisibles.length">Aucune personne dans cette liste.</p>
         </details>
-        <details class="carte-repertoire carte-sans-lien" open>
-          <summary>Locuteurs sans lien valide ({{ nonLies.length }})</summary>
+        <details v-if="filtre === 'tous' || (filtre === 'problemes' && groupesNonLies.length)" class="carte-repertoire carte-sans-lien" open>
+          <summary>Locuteurs à associer ({{ nonLies.length }})</summary>
+          <p class="aide-repertoire">Les noms utilisés dans les entretiens, à rattacher à une personne. Choisissez un nom pour créer une fiche ou l’associer à une personne existante.</p>
           <section v-for="[id, groupe] in groupesNonLies" :key="id">
             <h4>{{ groupe.titre }}</h4>
             <ul><li v-for="l in groupe.locuteurs" :key="cleLocuteur(l)">
@@ -492,7 +486,20 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
               </button>
             </li></ul>
           </section>
+          <p v-if="!groupesNonLies.length">Aucun locuteur à associer dans cette liste.</p>
         </details>
+        <section v-if="filtre !== 'refus'" class="carte-repertoire carte-rapprochements" aria-label="Suggestions à vérifier">
+          <h3>Rapprochements à vérifier</h3>
+          <p class="aide-repertoire">Des noms proches peuvent désigner la même personne. Vérifiez avant de les réunir.</p>
+          <ul v-if="rapprochementsAVerifier.length" class="liste-rapprochements"><li v-for="r in rapprochementsAVerifier.filter(r => correspond(`${libelleIdentite(r.cible)} ${libelleIdentite(r.candidat)}`))" :key="r.cle">
+            <button :aria-pressed="rapprochementSelectionne === r.cle" @click="selectionner(`l:${cleLocuteur(r.cible)}`, r.cle)">
+              <span>{{ libelleIdentite(r.cible) }}</span>
+              <span aria-hidden="true">↔</span>
+              <span>{{ libelleIdentite(r.candidat) }}</span>
+            </button>
+          </li></ul>
+          <p v-else>Aucun rapprochement proposé.</p>
+        </section>
       </aside>
       <div v-if="!verticale" class="separateur" role="separator" aria-label="Largeur du répertoire des personnes" aria-orientation="vertical" tabindex="0"
         :aria-valuenow="largeur" :aria-valuemin="240" :aria-valuemax="borner(Infinity)"
@@ -684,10 +691,9 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 </template>
 
 <style scoped>
-.personnes-corpus { padding: 16px; min-width: 0; }
+.personnes-corpus { min-width: 0; }
 .entete, .actions, .filtres { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.entete h2 { margin: 0; }
-.entete .actualiser { margin-left: auto; }
+.entete { justify-content: flex-end; }
 .bouton-aide {
   display: inline-grid;
   place-items: center;
@@ -704,17 +710,19 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 .deux-colonnes { display: grid; grid-template-columns: var(--largeur-personnes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
 .deux-colonnes.verticale { grid-template-columns: minmax(0, 1fr); }
 .repertoire, .fiche { min-width: 0; }
-.fiche { padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; }
-.repertoire { display: grid; align-content: start; gap: 12px; max-height: 72vh; padding: 1px; overflow: auto; }
-.carte-repertoire { padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; background: #fff; }
-.carte-recherche { border-color: #cadbf2; background: #f4f8ff; }
-.carte-rapprochements { border-color: #ead9a6; background: #fff9e8; }
-.carte-decisions { border-color: #edcccc; background: #fff5f5; }
-.carte-personnes { border-color: #c8e2d1; background: #f3faf6; }
-.carte-sans-lien { border-color: #d9d1e8; background: #f7f5fb; }
-.carte-repertoire h3 { margin: 0 0 8px; }
+.fiche { padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; font-size: 0.85rem; }
+.fiche h3 { font-size: 0.9rem; }
+.fiche h4 { font-size: 0.82rem; font-weight: 600; }
+.fiche h5 { font-size: 0.78rem; font-weight: 600; }
+.repertoire { display: grid; align-content: start; gap: 12px; max-height: 72vh; overflow: auto; font-size: 0.82rem; }
+.aide-repertoire { margin: 6px 0 10px; color: #626b7d; font-size: 0.78rem; line-height: 1.4; }
+.repertoire header .aide-repertoire { margin-bottom: 0; }
+.carte-repertoire + .carte-repertoire { padding-top: 12px; border-top: 1px solid #e5e5ef; }
+.carte-repertoire > :not(h3):not(summary) { margin-inline-start: .75rem; }
+.carte-repertoire h3 { margin: 0 0 8px; font-size: 0.82rem; font-weight: 600; color: #44506a; }
+.carte-repertoire h4 { margin: 12px 0 6px; font-size: 0.78rem; font-weight: 600; color: #626b7d; }
 .carte-repertoire > p:last-child { margin-bottom: 0; }
-.carte-repertoire > summary { cursor: pointer; font-weight: 700; }
+.carte-repertoire > summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #44506a; }
 .carte-repertoire[open] > summary { margin-bottom: 10px; }
 .carte-recherche label { margin-bottom: 10px; }
 .repertoire ul, .liens { list-style: none; padding: 0; }

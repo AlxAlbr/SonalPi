@@ -1,0 +1,1350 @@
+{
+  "formatVersion": 9,
+  "lastModified": "2026-10-26T18:22:46.801Z",
+  "corpsTexte": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Bonjour à vous deux, merci d'avoir accepté. Thomas, tu peux te présenter et nous dire ce que tu fais à la passerelle ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, je suis en troisième année de licence, je prépare le concours de professeur des écoles et le soir je bosse en livraison pour financer mes études. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et comment tu es arrivé à la passerelle ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "C'est Yanis, on est dans la même licence, il venait déjà là, il m'en a parlé et un samedi je suis venu voir. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et toi Yanis, comment es-tu arrivé ici la première fois ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Moi j'ai connu la passerelle en première année, il y avait une affiche à la résidence étudiante, je suis allé voir et je suis resté, j'y vais depuis deux ans maintenant. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Thomas, est-ce que tu pourrais me décrire une séance ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, alors c'est l'après-midi, de 2h à 5h, il y a une vingtaine d'enfants, du primaire au collège, on se met par groupe et chaque bénévole prend un groupe. La dernière fois, j'avais un CM1 et un CE2. Le CE2, il ne comprenait pas un texte. On l'a relu ensemble et je lui ai demandé de me le dire avec ses mots. C'est pas comme en cours, là il faut trouver tout de suite comment faire. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "C'est ta première expérience du terrain, non ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, à part un petit stage, je n'ai eu que des cours en amphi et des TD. Et c'est ça que j'aime. Oui, c'est concret, on voit si ça marche ou pas. En cours, tu regardes le prof. Là, tu dois faire. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et est-ce que tu viens souvent ici ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Franchement, non. Avec le job de livraison, c'est trop tendu. Une fois par mois, parfois même pas. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Est-ce que ça te pèse de ne pas pouvoir venir plus souvent ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Parfois, oui. Je me dis que je vais venir et je suis trop crevé. Et le samedi suivant... Franchement, je me sens un peu... en faute, je sais pas. Ce n'est pas à chaque fois que je ressens ça. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et toi, Yanis, tu viens souvent ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Une fois sur deux. Et en janvier, parfois une fois par semaine. Quand tu commences à connaître les enfants et qu'ils ne te connaissent pas, ça change tout. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Comment ça s'organise, entre vous, les bénévoles ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Le samedi, on est souvent deux ou trois. En majorité, des profs en formation. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et qu'est-ce que t'apportes à toi ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Moi, gamin, je n'avais pas ça. Mes parents, ils bossaient beaucoup. Il n'y avait personne pour faire les devoirs avec moi. Alors j'essaye de donner ce que je n'ai pas eu. Et quand un sixième, il a sa première bonne note, c'est pas rien. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Thomas, et toi, qu'est-ce que tu en retires ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Je garde ça. D'abord, pour le concours. À l'oral, j'ai envie de parler de cette expérience. Les jurys, j'imagine qu'ils aiment bien ce genre de choses. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et toi, Yanis, est-ce que c'est aussi dans l'optique du concours ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Non, ce n'est pas vraiment pour le concours. Ça me plaît vraiment. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Mais je ne dis pas que c'est juste pour le concours. J'aime bien aussi. C'est pour ça que je suis là. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Thomas, est-ce que cette discussion change quelque chose pour toi, là, maintenant ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui. Honnêtement, ça me fait réfléchir. Si le boulot le permet, j'essaierai de venir une fois sur deux au printemps. Comme ça, ils me connaîtront un peu plus, et moi aussi. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Super, ça serait chouette. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Merci à vous deux, c'est très intéressant. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 3
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Merci à vous. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, merci. Merci. "
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": [
+    {
+      "id": "import-0",
+      "from": 122,
+      "to": 272,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_027"
+    },
+    {
+      "id": "import-1",
+      "from": 275,
+      "to": 317,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-2",
+      "from": 319,
+      "to": 427,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-3",
+      "from": 430,
+      "to": 488,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-4",
+      "from": 490,
+      "to": 659,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-5",
+      "from": 662,
+      "to": 717,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-6",
+      "from": 719,
+      "to": 875,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-7",
+      "from": 875,
+      "to": 919,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-8",
+      "from": 919,
+      "to": 958,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-9",
+      "from": 958,
+      "to": 1029,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-10",
+      "from": 1029,
+      "to": 1101,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-11",
+      "from": 1105,
+      "to": 1107,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-12",
+      "from": 1154,
+      "to": 1227,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-13",
+      "from": 1227,
+      "to": 1251,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-14",
+      "from": 1251,
+      "to": 1300,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-15",
+      "from": 1300,
+      "to": 1331,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-16",
+      "from": 1331,
+      "to": 1348,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-17",
+      "from": 1348,
+      "to": 1349,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-18",
+      "from": 1349,
+      "to": 1350,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-19",
+      "from": 1352,
+      "to": 1389,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-20",
+      "from": 1391,
+      "to": 1409,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-21",
+      "from": 1409,
+      "to": 1453,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-22",
+      "from": 1453,
+      "to": 1490,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-23",
+      "from": 1492,
+      "to": 1553,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-24",
+      "from": 1555,
+      "to": 1569,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-25",
+      "from": 1569,
+      "to": 1620,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-26",
+      "from": 1620,
+      "to": 1701,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-27",
+      "from": 1701,
+      "to": 1746,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-28",
+      "from": 1749,
+      "to": 1783,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-29",
+      "from": 1785,
+      "to": 1804,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-30",
+      "from": 1804,
+      "to": 1849,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-31",
+      "from": 1849,
+      "to": 1940,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_030"
+    },
+    {
+      "id": "import-32",
+      "from": 1943,
+      "to": 1994,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-33",
+      "from": 1996,
+      "to": 2037,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-34",
+      "from": 2037,
+      "to": 2073,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_015"
+    },
+    {
+      "id": "import-35",
+      "from": 2076,
+      "to": 2112,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-36",
+      "from": 2114,
+      "to": 2145,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-37",
+      "from": 2145,
+      "to": 2182,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-38",
+      "from": 2182,
+      "to": 2237,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-39",
+      "from": 2237,
+      "to": 2285,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-40",
+      "from": 2285,
+      "to": 2350,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-41",
+      "from": 2353,
+      "to": 2399,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-42",
+      "from": 2401,
+      "to": 2414,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-43",
+      "from": 2414,
+      "to": 2441,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-44",
+      "from": 2441,
+      "to": 2493,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-45",
+      "from": 2493,
+      "to": 2552,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-46",
+      "from": 2555,
+      "to": 2622,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-47",
+      "from": 2624,
+      "to": 2669,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-48",
+      "from": 2669,
+      "to": 2691,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-49",
+      "from": 2693,
+      "to": 2746,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-50",
+      "from": 2746,
+      "to": 2765,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    },
+    {
+      "id": "import-51",
+      "from": 2765,
+      "to": 2794,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_008"
+    }
+  ],
+  "ancres": [
+    {
+      "pos": 1,
+      "t": 0
+    },
+    {
+      "pos": 45,
+      "t": 1.62
+    },
+    {
+      "pos": 45,
+      "t": 2.94
+    },
+    {
+      "pos": 120,
+      "t": 6.58
+    },
+    {
+      "pos": 122,
+      "t": 6.9
+    },
+    {
+      "pos": 273,
+      "t": 17.62
+    },
+    {
+      "pos": 275,
+      "t": 18.7
+    },
+    {
+      "pos": 317,
+      "t": 20.46
+    },
+    {
+      "pos": 319,
+      "t": 21.26
+    },
+    {
+      "pos": 428,
+      "t": 29.22
+    },
+    {
+      "pos": 430,
+      "t": 30.4
+    },
+    {
+      "pos": 488,
+      "t": 32.92
+    },
+    {
+      "pos": 490,
+      "t": 33.64
+    },
+    {
+      "pos": 660,
+      "t": 41.78
+    },
+    {
+      "pos": 662,
+      "t": 42.56
+    },
+    {
+      "pos": 717,
+      "t": 45
+    },
+    {
+      "pos": 719,
+      "t": 45.82
+    },
+    {
+      "pos": 875,
+      "t": 58.82
+    },
+    {
+      "pos": 875,
+      "t": 60.12
+    },
+    {
+      "pos": 919,
+      "t": 62.62
+    },
+    {
+      "pos": 919,
+      "t": 64.36
+    },
+    {
+      "pos": 958,
+      "t": 66.46
+    },
+    {
+      "pos": 958,
+      "t": 67.52
+    },
+    {
+      "pos": 1029,
+      "t": 72.34
+    },
+    {
+      "pos": 1029,
+      "t": 73.72
+    },
+    {
+      "pos": 1103,
+      "t": 77.18
+    },
+    {
+      "pos": 1105,
+      "t": 78.2
+    },
+    {
+      "pos": 1152,
+      "t": 80.2
+    },
+    {
+      "pos": 1154,
+      "t": 80.88
+    },
+    {
+      "pos": 1227,
+      "t": 84.94
+    },
+    {
+      "pos": 1227,
+      "t": 86.3
+    },
+    {
+      "pos": 1251,
+      "t": 87.16
+    },
+    {
+      "pos": 1251,
+      "t": 88.7
+    },
+    {
+      "pos": 1300,
+      "t": 92.08
+    },
+    {
+      "pos": 1300,
+      "t": 93.32
+    },
+    {
+      "pos": 1331,
+      "t": 94.8
+    },
+    {
+      "pos": 1331,
+      "t": 95.74000000000001
+    },
+    {
+      "pos": 1350,
+      "t": 96.86
+    },
+    {
+      "pos": 1352,
+      "t": 97.75999999999999
+    },
+    {
+      "pos": 1389,
+      "t": 99.42
+    },
+    {
+      "pos": 1391,
+      "t": 100.1
+    },
+    {
+      "pos": 1409,
+      "t": 101.08
+    },
+    {
+      "pos": 1409,
+      "t": 102.24000000000001
+    },
+    {
+      "pos": 1453,
+      "t": 104.38
+    },
+    {
+      "pos": 1453,
+      "t": 105.64
+    },
+    {
+      "pos": 1490,
+      "t": 107.7
+    },
+    {
+      "pos": 1492,
+      "t": 108.56
+    },
+    {
+      "pos": 1553,
+      "t": 110.94
+    },
+    {
+      "pos": 1555,
+      "t": 111.8
+    },
+    {
+      "pos": 1569,
+      "t": 112.47999999999999
+    },
+    {
+      "pos": 1569,
+      "t": 113.64
+    },
+    {
+      "pos": 1620,
+      "t": 116.52000000000001
+    },
+    {
+      "pos": 1620,
+      "t": 117.84
+    },
+    {
+      "pos": 1701,
+      "t": 122.66
+    },
+    {
+      "pos": 1701,
+      "t": 124.1
+    },
+    {
+      "pos": 1747,
+      "t": 125.62
+    },
+    {
+      "pos": 1749,
+      "t": 126.66
+    },
+    {
+      "pos": 1783,
+      "t": 128.12
+    },
+    {
+      "pos": 1785,
+      "t": 128.72
+    },
+    {
+      "pos": 1804,
+      "t": 129.52
+    },
+    {
+      "pos": 1804,
+      "t": 129.9
+    },
+    {
+      "pos": 1849,
+      "t": 132.2
+    },
+    {
+      "pos": 1849,
+      "t": 132.94
+    },
+    {
+      "pos": 1941,
+      "t": 136.5
+    },
+    {
+      "pos": 1943,
+      "t": 137.52
+    },
+    {
+      "pos": 1994,
+      "t": 139.86
+    },
+    {
+      "pos": 1996,
+      "t": 140.68
+    },
+    {
+      "pos": 2037,
+      "t": 142.48
+    },
+    {
+      "pos": 2037,
+      "t": 142.92000000000002
+    },
+    {
+      "pos": 2074,
+      "t": 144.88
+    },
+    {
+      "pos": 2076,
+      "t": 145.64
+    },
+    {
+      "pos": 2112,
+      "t": 147.2
+    },
+    {
+      "pos": 2114,
+      "t": 147.82
+    },
+    {
+      "pos": 2145,
+      "t": 148.98
+    },
+    {
+      "pos": 2145,
+      "t": 149.57999999999998
+    },
+    {
+      "pos": 2182,
+      "t": 150.86
+    },
+    {
+      "pos": 2182,
+      "t": 151.12
+    },
+    {
+      "pos": 2237,
+      "t": 153.04
+    },
+    {
+      "pos": 2237,
+      "t": 153.96
+    },
+    {
+      "pos": 2285,
+      "t": 155.54
+    },
+    {
+      "pos": 2285,
+      "t": 156.12
+    },
+    {
+      "pos": 2351,
+      "t": 159.32
+    },
+    {
+      "pos": 2353,
+      "t": 160.12
+    },
+    {
+      "pos": 2399,
+      "t": 162.1
+    },
+    {
+      "pos": 2401,
+      "t": 162.7
+    },
+    {
+      "pos": 2414,
+      "t": 163.34
+    },
+    {
+      "pos": 2414,
+      "t": 163.86
+    },
+    {
+      "pos": 2441,
+      "t": 165.06
+    },
+    {
+      "pos": 2441,
+      "t": 166.48
+    },
+    {
+      "pos": 2493,
+      "t": 169.06
+    },
+    {
+      "pos": 2493,
+      "t": 170.4
+    },
+    {
+      "pos": 2553,
+      "t": 173.52
+    },
+    {
+      "pos": 2555,
+      "t": 174.34
+    },
+    {
+      "pos": 2622,
+      "t": 176.92000000000002
+    },
+    {
+      "pos": 2624,
+      "t": 177.74
+    },
+    {
+      "pos": 2669,
+      "t": 179.44
+    },
+    {
+      "pos": 2669,
+      "t": 179.78
+    },
+    {
+      "pos": 2691,
+      "t": 180.5
+    },
+    {
+      "pos": 2693,
+      "t": 181.38
+    },
+    {
+      "pos": 2746,
+      "t": 183.32
+    },
+    {
+      "pos": 2746,
+      "t": 184.04
+    },
+    {
+      "pos": 2765,
+      "t": 184.66
+    },
+    {
+      "pos": 2765,
+      "t": 185.66
+    },
+    {
+      "pos": 2795,
+      "t": 186.5
+    },
+    {
+      "pos": 2797,
+      "t": 187.5
+    },
+    {
+      "pos": 2881,
+      "t": 191.52
+    },
+    {
+      "pos": 2883,
+      "t": 192.32
+    },
+    {
+      "pos": 2888,
+      "t": 192.4
+    },
+    {
+      "pos": 2888,
+      "t": 193.56
+    },
+    {
+      "pos": 2923,
+      "t": 196.3
+    },
+    {
+      "pos": 2923,
+      "t": 197.84
+    },
+    {
+      "pos": 3000,
+      "t": 202.14
+    },
+    {
+      "pos": 3000,
+      "t": 203.42000000000002
+    },
+    {
+      "pos": 3056,
+      "t": 206.46
+    },
+    {
+      "pos": 3058,
+      "t": 207.4
+    },
+    {
+      "pos": 3085,
+      "t": 208.8
+    },
+    {
+      "pos": 3087,
+      "t": 209.64
+    },
+    {
+      "pos": 3130,
+      "t": 211.36
+    },
+    {
+      "pos": 3132,
+      "t": 212
+    },
+    {
+      "pos": 3146,
+      "t": 212.6
+    },
+    {
+      "pos": 3148,
+      "t": 213.44
+    },
+    {
+      "pos": 3160,
+      "t": 214.24
+    },
+    {
+      "pos": 3160,
+      "t": 214.28
+    },
+    {
+      "pos": 3167,
+      "t": 214.46
+    }
+  ],
+  "locuteurs": [
+    {
+      "index": 1,
+      "nom": "Répondant 1",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v5": "v5m0",
+        "v4": "v4m0"
+      },
+      "personneRef": null,
+      "id": "loc-ktpSKWrStLLEf7OqffA6sw6XHzZ-pEHjJyIkJHsTKB8"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "personneRef": null,
+      "id": "loc-jjm6b3fcBwXcNeoxKhaZPGS88sd1K0DiKZxAE2TqQ4E"
+    },
+    {
+      "index": 3,
+      "nom": "Répondant 2",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v5": "v5m0",
+        "v4": "v4m4"
+      },
+      "personneRef": null,
+      "id": "loc-dflA-lYEOCaNkoFFQov3qfRhZujmtEBbBvBErUCDC_s"
+    }
+  ],
+  "meta": {
+    "valeursGen": {},
+    "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/4Etudiants.mp3"
+  },
+  "brouillonsAnon": [],
+  "notes": [
+    {
+      "id": "note_q2hjd2ew",
+      "categorieId": "ncat_generale",
+      "titre": "",
+      "date": null,
+      "statut": "prive",
+      "corps": "Cet entretien est totalement fictif. \nIl est uniquement voué à servir de support de démonstration du logiciel.\n \nSon contenu, ainsi que son codage sont purement illustratifs ne visent pas à servir de modèle en matière de pratique de codage ou d'analyse des matériaux.",
+      "rang": 0,
+      "creeLe": "2026-10-26T18:22:46.641Z",
+      "modifieLe": null
+    }
+  ],
+  "reperesPassages": []
+}

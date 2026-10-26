@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import {
   LIBELLES_OPTIONS,
@@ -12,11 +12,12 @@ import type {
   ResultatLotCorpus,
 } from '../../../export/exportCorpus'
 
+const props = defineProps<{ actif: boolean }>()
+
 const {
-  exportCorpusOuvert,
-  fermerExportCorpus,
   exporterCorpusLot,
   exporterQualcoderLot,
+  exportCorpusEnCours: occupe,
   listeCas,
   preparerRapportCorpus,
   enregistrerRapportCorpus,
@@ -27,13 +28,13 @@ const {
 /** Liste des entretiens du corpus, dans l'ordre de la grille. */
 const entretiens = computed(() => listeEntretiens())
 
-/** Étape courante : sélection → options → rapport → traitement → résumé. */
-const etape = ref<'selection' | 'options' | 'rapport' | 'traitement' | 'resume'>('selection')
+/** Le rapport et le résultat s'affichent à côté des réglages. */
+const etape = ref<'options' | 'rapport' | 'traitement' | 'resume'>('options')
 const modeExport = ref<'lecture' | 'qualcoder'>('lecture')
-const casSelectionnes = ref<Set<string>>(new Set())
+const casSelectionnes = ref<Set<string>>(new Set(listeCas.value.map((cas) => cas.id)))
 
 /** Entretiens cochés (tous par défaut). */
-const selectionnes = ref<Set<string>>(new Set())
+const selectionnes = ref<Set<string>>(new Set(entretiens.value.map((e) => e.id)))
 const tous = computed({
   get: () => entretiens.value.length > 0 && selectionnes.value.size === entretiens.value.length,
   set: (v: boolean) => {
@@ -73,31 +74,28 @@ const resultatQualcoder = ref<
 
 const message = ref<string | null>(null)
 const messageEstErreur = ref(true)
-const occupe = ref(false)
 
-// Chaque ouverture repart de l'étape de sélection, avec TOUS les entretiens.
-watch(exportCorpusOuvert, (ouvert) => {
-  if (!ouvert) return
-  etape.value = 'selection'
-  selectionnes.value = new Set(entretiens.value.map((e) => e.id))
-  modeExport.value = 'lecture'
-  casSelectionnes.value = new Set(listeCas.value.map((cas) => cas.id))
-  formats.value = new Set(['txt'])
-  copierMedias.value = true
-  rapportDemande.value = false
+let generationRapport = 0
+
+// Un changement de réglage demande une nouvelle vérification avant l'export.
+watch([selectionnes, modeExport, casSelectionnes, formats, options, copierMedias, rapportDemande], () => {
+  generationRapport += 1
   apercuRapport.value = null
-  progression.value = null
-  arretDemande.value = false
-  arretPrisEnCompte.value = false
   resultat.value = null
   resultatQualcoder.value = null
   message.value = null
-  messageEstErreur.value = true
-  occupe.value = false
-})
+  etape.value = 'options'
+}, { deep: true, flush: 'sync' })
 
-/** La liste du corpus change pendant un traitement : la sélection reste
- *  bornée aux entretiens qui existent encore. */
+// Les sources peuvent être modifiées dans un autre outil : le rapport devra être relu.
+watch(() => props.actif, (actif) => {
+  if (actif) return
+  generationRapport += 1
+  apercuRapport.value = null
+  if (etape.value === 'rapport') etape.value = 'options'
+}, { flush: 'sync' })
+
+/** La sélection ne conserve que les entretiens encore présents. */
 watch(entretiens, (liste) => {
   for (const id of selectionnes.value) {
     if (!liste.some((e) => e.id === id)) selectionnes.value.delete(id)
@@ -143,19 +141,6 @@ function basculerFormat(f: FormatExport): void {
   }
   apercuRapport.value = null
   message.value = null
-}
-
-function etapeSuivante(): void {
-  if (selectionnes.value.size === 0) return
-  if (modeExport.value === 'lecture' && formats.value.size === 0) return
-  message.value = null
-  etape.value = 'options'
-}
-
-function revenirSelection(): void {
-  apercuRapport.value = null
-  message.value = null
-  etape.value = 'selection'
 }
 
 function demandeCourante(): DemandeLotCorpus | null {
@@ -208,7 +193,9 @@ async function lancerExport(): Promise<void> {
     message.value = null
     messageEstErreur.value = true
     try {
+      const generation = generationRapport
       const preparation = await preparerRapportCorpus(demande)
+      if (generation !== generationRapport) return
       if (preparation.etat === 'erreur') {
         message.value = preparation.message
         return
@@ -277,44 +264,28 @@ function revenirAuxOptions(): void {
   etape.value = 'options'
 }
 
-/** Annulation : le lot s'arrête APRÈS l'entretien courant (jamais au milieu
- *  d'un fichier, les écritures restent atomiques). */
+/** L'arrêt attend la fin de l'entretien courant pour conserver des fichiers complets. */
 function demanderArret(): void {
   arretDemande.value = true
   arretPrisEnCompte.value = true
 }
-
-function fermer(): void {
-  if (occupe.value) return
-  fermerExportCorpus()
-}
-
-function surTouche(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && exportCorpusOuvert.value && !occupe.value) fermer()
-}
-onMounted(() => window.addEventListener('keydown', surTouche))
-onUnmounted(() => window.removeEventListener('keydown', surTouche))
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-show="exportCorpusOuvert" class="fond-export-corpus" role="dialog" aria-modal="true" aria-label="Exporter le corpus">
-      <section class="modale-export-corpus">
-        <header>
-          <h2>📤 Exporter le corpus</h2>
-          <button title="Fermer" :disabled="occupe" @click="fermer">Fermer ✕</button>
-        </header>
-
-        <!-- ÉTAPE 1 — sélection des entretiens (grille multi-colonnes). -->
-        <div v-if="etape === 'selection'" class="corps">
-          <p class="etape">1 — Choisissez les entretiens à exporter</p>
+  <section class="export-corpus">
+    <aside class="panneau reglages-export">
+      <div class="corpus-tete"><h3>Exporter le corpus</h3></div>
+      <p class="accueil-intro">Choisissez les entretiens et leur présentation. Vérifiez le récapitulatif à droite avant d’exporter.</p>
+      <fieldset class="champs-export" :disabled="occupe">
+        <div>
+          <h4>Entretiens à exporter</h4>
           <p v-if="entretiens.length === 0" class="vide">Aucun entretien dans le corpus.</p>
           <template v-else>
             <label class="option tous-option">
               <input type="checkbox" v-model="tous" />
               Tous les entretiens ({{ entretiens.length }})
             </label>
-            <div class="grille-selection" :style="{ '--colonnes': entretiens.length > 20 ? 3 : 2 }">
+            <div class="grille-selection">
               <label v-for="e in entretiens" :key="e.id" class="ligne-entretien">
                 <input
                   type="checkbox"
@@ -336,21 +307,11 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
                 Projet QualCoder (.qda)
               </label>
             </fieldset>
-            <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
-            <div class="actions">
-              <button class="annuler" :disabled="occupe" @click="fermer">Annuler</button>
-              <button
-                class="suivant"
-                :disabled="selectionnes.size === 0"
-                @click="etapeSuivante"
-              >Suivant →</button>
-            </div>
           </template>
         </div>
 
-        <!-- ÉTAPE 2 — formats, options, pseudonymisation, rapport. -->
-        <div v-else-if="etape === 'options'" class="corps">
-          <p class="etape">2 — {{ modeExport === 'qualcoder' ? 'Cas à intégrer au projet QualCoder' : 'Formats et éléments à intégrer' }} (pour {{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }})</p>
+        <div v-if="entretiens.length > 0">
+          <h4>{{ modeExport === 'qualcoder' ? 'Cas à intégrer au projet QualCoder' : 'Formats et éléments à intégrer' }}</h4>
           <template v-if="modeExport === 'qualcoder'">
             <p class="avertissement-anon">
               Le projet QualCoder contiendra les sources sélectionnées, leurs passages,
@@ -410,18 +371,45 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
             </p>
           </div>
           </template>
-          <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
-          <div class="actions">
-            <button class="retour" :disabled="occupe" @click="revenirSelection">← Retour</button>
-            <button class="exporter" :disabled="occupe" @click="lancerExport">
-              {{ occupe ? '⏳ Préparation…' : `📥 Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
-            </button>
-          </div>
         </div>
+      </fieldset>
+    </aside>
 
-        <!-- ÉTAPE 3 — consultation et enregistrement facultatif du rapport. -->
+    <section class="resultats-export" aria-label="Vérifications et résultat de l’export" :aria-busy="occupe">
+      <div v-if="etape === 'options'" class="corps recapitulatif-export">
+        <h2>Préparer l’export</h2>
+        <p class="etape">{{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }} sélectionné{{ selectionnes.size > 1 ? 's' : '' }} sur {{ entretiens.length }}</p>
+        <template v-if="selectionnes.size > 0">
+          <p v-if="modeExport === 'qualcoder'">Un projet QualCoder (.qda), avec {{ casSelectionnes.size }} cas. Le texte source sera exporté sans pseudonymisation.</p>
+          <template v-else>
+            <h3>Fichiers prévus</h3>
+            <ul><li v-for="format in FORMATS_LOT.filter(f => formats.has(f))" :key="format">{{ libellesFormats[format] }}</li></ul>
+            <p>Un index récapitulatif accompagnera les fichiers.</p>
+            <h3>Éléments à intégrer</h3>
+            <ul><li v-for="option in LIBELLES_OPTIONS.filter(o => o.cle !== 'anon' && options[o.cle])" :key="option.cle">{{ option.label }}</li></ul>
+            <p v-if="copierMediasVisible && copierMedias">Les médias accessibles seront copiés avec les pages HTML.</p>
+            <p v-if="options.anon" class="avertissement-anon">Les pseudonymes configurés seront appliqués. Vérifiez les informations restantes avant de partager les fichiers.</p>
+            <p v-else class="avertissement-anon">Les transcriptions seront exportées sans pseudonymisation.</p>
+            <p v-if="options.anon && rapportDemande">Le rapport s’affichera ici pour vérification avant de lancer l’export.</p>
+          </template>
+          <details class="entretiens-recap">
+            <summary>Voir les entretiens sélectionnés</summary>
+            <ul><li v-for="e in entretiens.filter(e => selectionnes.has(e.id))" :key="e.id">{{ e.titre }}</li></ul>
+          </details>
+        </template>
+        <p v-else class="vide">Cochez au moins un entretien dans le panneau de gauche.</p>
+        <p class="destination-export">Le dossier de destination vous sera demandé au lancement. Les entretiens du corpus ne seront pas modifiés.</p>
+        <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
+        <div class="actions">
+          <button class="exporter" :disabled="occupe || selectionnes.size === 0" @click="lancerExport">
+            {{ occupe ? 'Préparation…' : options.anon && rapportDemande && modeExport === 'lecture' ? 'Vérifier le rapport avant l’export' : `Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Le rapport reste consultable à côté des réglages. -->
         <div v-else-if="etape === 'rapport' && apercuRapport" class="corps">
-          <p class="etape">3 — Rapport de pseudonymisation avant l'export</p>
+          <p class="etape">Rapport de pseudonymisation avant l'export</p>
           <p class="limite-rapport">
             Ce rapport décrit les remplacements configurés. Il ne constitue pas une garantie d'anonymat.
           </p>
@@ -454,7 +442,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
             :role="messageEstErreur ? 'alert' : 'status'"
           >{{ message }}</p>
           <div class="actions actions-rapport">
-            <button class="retour" :disabled="occupe" @click="revenirAuxOptions">← Options</button>
+            <button class="retour" :disabled="occupe" @click="revenirAuxOptions">Modifier les réglages</button>
             <button class="enregistrer" :disabled="occupe" @click="sauvegarderRapport">Enregistrer le rapport</button>
             <button class="exporter" :disabled="occupe" @click="lancerExportFinal">
               {{ occupe ? '⏳ Traitement…' : '📥 Lancer l’export' }}
@@ -462,8 +450,8 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           </div>
         </div>
 
-        <!-- ÉTAPE 4 — traitement : progression par entretien, arrêt possible. -->
-        <div v-else-if="etape === 'traitement'" class="corps">
+        <!-- Progression par entretien et arrêt à la fin du fichier courant. -->
+        <div v-else-if="etape === 'traitement'" class="corps" role="status">
           <p class="etape">Export en cours…</p>
           <p class="progression">
             <template v-if="progression">
@@ -474,14 +462,14 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           <p v-if="arretPrisEnCompte" class="avertissement-anon">
             Arrêt demandé : l'export s'arrête après l'entretien en cours.
           </p>
-          <div class="actions">
+          <div v-if="modeExport === 'lecture'" class="actions">
             <button v-if="!arretDemande" class="annuler" @click="demanderArret">Annuler après l'entretien courant</button>
             <button v-else class="annuler" disabled>⏳ Arrêt en cours…</button>
           </div>
         </div>
 
-        <!-- ÉTAPE 5 — résumé du projet QualCoder. -->
-        <div v-else-if="etape === 'resume' && resultatQualcoder" class="corps">
+        <!-- Bilan du projet QualCoder. -->
+        <div v-else-if="etape === 'resume' && resultatQualcoder" class="corps" aria-live="polite">
           <p class="etape">
             <template v-if="resultatQualcoder.etat === 'succes'">Projet QualCoder créé ✅</template>
             <template v-else-if="resultatQualcoder.etat === 'annule'">Export QualCoder annulé</template>
@@ -494,12 +482,12 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
             {{ resultatQualcoder.message }}
           </p>
           <div class="actions">
-            <button class="retour" @click="fermerExportCorpus">Fermer</button>
+            <button class="retour" @click="revenirAuxOptions">Préparer un autre export</button>
           </div>
         </div>
 
-        <!-- ÉTAPE 5 — résumé final : réussites, échecs expliqués, dossier. -->
-        <div v-else-if="etape === 'resume' && resultat" class="corps">
+        <!-- Bilan du lot : réussites, échecs expliqués et dossier de destination. -->
+        <div v-else-if="etape === 'resume' && resultat" class="corps" aria-live="polite">
           <p class="etape">
             <template v-if="resultat.etat === 'succes'">Export terminé ✅</template>
             <template v-else-if="resultat.etat === 'annule'">Export arrêté ⏹</template>
@@ -525,7 +513,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
               <summary>Rapport de pseudonymisation ({{ resultat.rapportResume.length }} entretien{{ resultat.rapportResume.length > 1 ? 's' : '' }})</summary>
               <p class="limite-rapport">
                 Ce rapport décrit les remplacements configurés. Il ne constitue pas une garantie d'anonymat.
-                Le rapport détaillé par entretien peut être enregistré à l'étape précédente.
+                Le rapport détaillé par entretien peut être enregistré avant le lancement de l’export.
               </p>
               <div v-for="r in resultat.rapportResume" :key="r.id" class="ligne-rapport">
                 <b>{{ r.titre }}</b> — {{ r.appliquees }} appliqué(s), {{ r.conserves }} conservé(s),
@@ -535,29 +523,38 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           </template>
 
           <div class="actions">
-            <button class="retour" @click="fermerExportCorpus">Fermer</button>
+            <button class="retour" @click="revenirAuxOptions">Préparer un autre export</button>
           </div>
         </div>
-      </section>
-    </div>
-  </Teleport>
+    </section>
+  </section>
 </template>
 
 <style scoped>
-.fond-export-corpus { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, .45); box-sizing: border-box; }
-.modale-export-corpus { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: min(720px, 94vw); max-height: 84vh; background: #fff; border-radius: 10px; box-shadow: 0 8px 35px rgba(0, 0, 0, .3); overflow: hidden; display: flex; flex-direction: column; }
-.modale-export-corpus > header { display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 1rem; border-bottom: 1px solid #ccc; flex: 0 0 auto; }
+.export-corpus { display: grid; grid-template-columns: var(--largeur-organisation) minmax(0, 1fr); gap: 1rem; height: 100%; min-height: 0; }
+.reglages-export, .resultats-export { min-width: 0; min-height: 0; overflow-y: auto; }
+.reglages-export { font-size: .82rem; }
+.champs-export { border: 0; padding: 0; margin: 0; min-width: 0; }
+h4 { margin: 1rem 0 .5rem; font-size: .85rem; }
+.resultats-export { border: 1px solid #ddd; border-radius: 8px; background: #fff; }
 h2 { margin: 0; font-size: 1.1rem; }
-.modale-export-corpus > header button { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .4rem .8rem; cursor: pointer; }
-.modale-export-corpus > header button:disabled { opacity: .5; cursor: default; }
-.corps { padding: 0 1rem 1rem; overflow-y: auto; }
+.corps { padding: 1rem 1.2rem; }
+.recapitulatif-export { max-width: 52rem; line-height: 1.45; }
+.recapitulatif-export h3 { font-size: .95rem; }
+.entretiens-recap { margin-top: 1rem; }
+.entretiens-recap summary { cursor: pointer; }
+.destination-export { color: #666; font-size: .85rem; }
+@media (max-width: 780px) {
+  .export-corpus { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .reglages-export, .resultats-export { overflow: visible; }
+}
 .etape { font-size: .95rem; margin: 1rem 0 .8rem; color: #333; }
 .vide { color: #777; }
 .grille-selection {
   display: grid;
-  grid-template-columns: repeat(var(--colonnes, 2), 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: .15rem 1rem;
-  max-height: 46vh;
+  max-height: 28vh;
   overflow-y: auto;
   border: 1px solid #ddd;
   border-radius: 5px;
@@ -593,9 +590,9 @@ hr { border: none; border-top: 1px solid #eee; margin: .8rem 0; }
 .actions .retour { flex: 1; border: 1px solid #bbb; background: #fff; }
 .actions .annuler { flex: 1; border: 1px solid #b71c1c; color: #b71c1c; background: #fff; }
 .actions .enregistrer { flex: 2; border: 1px solid #1565c0; color: #0d47a1; background: #e3f2fd; }
-.actions .suivant, .actions .exporter { flex: 2; border: 1px solid #2e7d32; color: #fff; background: #2e7d32; }
+.actions .exporter { flex: 2; border: 1px solid #2e7d32; color: #fff; background: #2e7d32; }
 .actions-rapport { flex-wrap: wrap; }
-.actions .exporter:hover:not(:disabled), .actions .suivant:hover:not(:disabled) { background: #256a28; }
+.actions .exporter:hover:not(:disabled) { background: #256a28; }
 .limite-rapport { padding: .5rem .7rem; border-radius: 5px; background: #fff8e1; color: #5f4900; font-size: .85rem; }
 .rapport-contenu article { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #ddd; }
 .rapport-contenu h3 { margin: 0 0 .5rem; font-size: 1rem; }

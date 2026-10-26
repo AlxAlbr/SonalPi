@@ -41,8 +41,9 @@ components/
 - Ne pas créer de dossier partagé tant qu’aucun composant ne le nécessite.
 
 La distinction Corpus/Entretien organise ici les vues de traitement seulement.
-Les noms existants tels que `CasCorpus.vue` ou `ModaleExportCorpus.vue` indiquent
-la portée de la fonctionnalité et sont conservés.
+Les noms tels que `CasCorpus.vue` ou `ExportCorpus.vue` indiquent la portée de
+la fonctionnalité. L’export du corpus est un outil gauche/droite de `organiser/`,
+monté à la demande et conservé entre les onglets, pas un dialogue global.
 
 Les composables, les projections et les modèles métier gardent leur organisation
 propre, indépendante de l’emplacement des composants. Un changement de dossier

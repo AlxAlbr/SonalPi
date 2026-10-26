@@ -14,6 +14,8 @@ import { ServeurWebDAVMemoire } from './webdav/serveurWebdavMemoire'
 import {
   enregistrerCopieDistant,
   inventaireDocsCadreDistant,
+  listerDossierDistant,
+  racineDocsProjetDistant,
   lireApercuDistant,
   urlNextcloudPourCorpus,
 } from '../src/main/docsCadreDistant'
@@ -64,11 +66,12 @@ describe('inventaire distant', () => {
     expect(await inventaireDocsCadreDistant(client(serveur, fetch404))).toEqual([])
   })
 
-  it('inventaire de plusieurs formats, sous-dossiers exclus, tri alphabétique', async () => {
+  it('inventaire de plusieurs formats, dossiers en premier, petits-enfants exclus', async () => {
     const serveur = new ServeurWebDAVMemoire()
     amorcer(serveur)
     const inventaire = await inventaireDocsCadreDistant(client(serveur))
     expect(inventaire.map((d) => d.nom)).toEqual([
+      'sous-dossier',
       'consignes.txt',
       'École.txt',
       'Notice de consentement.docx',
@@ -86,6 +89,80 @@ describe('inventaire distant', () => {
       throw new Error('réseau coupé')
     }
     await expect(inventaireDocsCadreDistant(client(serveur, fetchFaille))).rejects.toThrow('réseau coupé')
+  })
+})
+
+describe('sous-dossiers WebDAV', () => {
+  it('navigue sur trois niveaux, filtre les petits-enfants et encode une fois les chemins', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    for (const chemin of ['DocsCadre', 'DocsCadre/DPO', 'DocsCadre/DPO/École 2', 'DocsCadre/DPO/École 2/100% modèles']) serveur.creerDossierRelatif(chemin)
+    const relatif = 'DPO/École 2/100% modèles/Notice é.txt'
+    serveur.poser(`DocsCadre/${relatif}`, 'Octets exacts éà')
+    const requetes: { methode: string; url: string; depth: string | null }[] = []
+    const c = client(serveur, async (entree, init) => {
+      const r = new Request(entree, init)
+      requetes.push({ methode: r.method, url: r.url, depth: r.headers.get('Depth') })
+      return serveur.fetch(entree, init)
+    })
+    expect((await listerDossierDistant(c, 'DPO')).entrees).toMatchObject([{ nature: 'dossier', chemin: 'DPO/École 2' }])
+    expect((await listerDossierDistant(c, 'DPO/École 2')).entrees).toMatchObject([{ nature: 'dossier', chemin: 'DPO/École 2/100% modèles' }])
+    expect((await listerDossierDistant(c, 'DPO/École 2/100% modèles')).entrees).toMatchObject([{ nature: 'document', chemin: relatif, nom: 'Notice é.txt' }])
+    const lecture = await lireApercuDistant(c, relatif)
+    expect(lecture).toMatchObject({ resume: { chemin: relatif, nom: 'Notice é.txt' }, apercu: { genre: 'texte', contenu: 'Octets exacts éà' } })
+    const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-dav-')), 'copie.txt')
+    await enregistrerCopieDistant(c, relatif, destination)
+    expect(readFileSync(destination, 'utf8')).toBe('Octets exacts éà')
+    expect(requetes.filter((r) => r.methode === 'PROPFIND').every((r) => r.depth === '1')).toBe(true)
+    expect(requetes.every((r) => ['GET', 'PROPFIND'].includes(r.methode))).toBe(true)
+    expect(requetes.some((r) => r.url.endsWith('/DPO/%C3%89cole%202/100%25%20mod%C3%A8les/Notice%20%C3%A9.txt'))).toBe(true)
+  })
+
+  it('404 d’un sous-dossier signalé et chemins dangereux refusés avant le réseau', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    const c = client(serveur, async () => new Response('', { status: 404 }))
+    expect(await listerDossierDistant(c, 'DPO/Disparu')).toMatchObject({ absent: true, dossier: 'DPO/Disparu' })
+    expect((await lireApercuDistant(c, 'DPO/disparu.txt')).apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+    await expect(listerDossierDistant(c, 'DPO/../secret')).rejects.toThrow()
+    expect((await lireApercuDistant(c, 'DPO/../secret')).apercu).toEqual({ genre: 'aucun', raison: 'invalide' })
+  })
+
+  it('URL du dossier courant : accents, espaces, pourcentages littéraux et validation', () => {
+    const base = 'https://nuage.exemple.org/nextcloud/remote.php/dav/files/max/Mon%20Corpus'
+    expect(urlNextcloudPourCorpus(base, 'DPO/École 2/100% modèles')).toBe('https://nuage.exemple.org/nextcloud/apps/files/?dir=/Mon%20Corpus/DocsPrepaProjet/DPO/%C3%89cole%202/100%25%20mod%C3%A8les')
+    expect(urlNextcloudPourCorpus(base, 'DPO/%20')).toContain('/DPO/%2520')
+    expect(urlNextcloudPourCorpus(base, '../secret')).toBeNull()
+    expect(urlNextcloudPourCorpus(base + '/%ZZ')).toBeNull()
+  })
+})
+
+describe('compatibilité du nom documentaire distant', () => {
+  it.each(['DocsPrepaProjet', 'DocsCadre'] as const)('liste, aperçu, copie et URL sous %s sans mutation', async (racine) => {
+    const serveur = new ServeurWebDAVMemoire()
+    serveur.creerDossierRelatif(racine)
+    serveur.creerDossierRelatif(`${racine}/DPO`)
+    serveur.poser(`${racine}/DPO/notice.txt`, 'Document inchangé')
+    const methodes: string[] = []
+    const c = client(serveur, async (input, init) => {
+      methodes.push(new Request(input, init).method)
+      return serveur.fetch(input, init)
+    })
+    expect(await racineDocsProjetDistant(c)).toBe(racine)
+    expect((await listerDossierDistant(c, 'DPO')).entrees).toMatchObject([{ chemin: 'DPO/notice.txt' }])
+    expect((await lireApercuDistant(c, 'DPO/notice.txt')).apercu).toEqual({ genre: 'texte', contenu: 'Document inchangé' })
+    const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-nom-')), 'copie.txt')
+    await enregistrerCopieDistant(c, 'DPO/notice.txt', destination)
+    expect(readFileSync(destination, 'utf8')).toBe('Document inchangé')
+    expect(urlNextcloudPourCorpus('https://nuage.org/remote.php/dav/files/max/Corpus', 'DPO', racine)).toBe(`https://nuage.org/apps/files/?dir=/Corpus/${racine}/DPO`)
+    expect(methodes.every((m) => ['GET', 'PROPFIND'].includes(m))).toBe(true)
+  })
+
+  it('le nouveau nom est prioritaire et un enfant absent ne déclenche pas un repli sur l’ancien', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    serveur.creerDossierRelatif('DocsCadre')
+    serveur.creerDossierRelatif('DocsPrepaProjet')
+    serveur.poser('DocsCadre/ancien.txt', 'Ancien')
+    expect(await racineDocsProjetDistant(client(serveur))).toBe('DocsPrepaProjet')
+    expect((await lireApercuDistant(client(serveur), 'ancien.txt')).apercu).toEqual({ genre: 'aucun', raison: 'absent' })
   })
 })
 
@@ -226,8 +303,8 @@ describe('aucune écriture distante disponible', () => {
   })
 })
 
-describe('création du dossier DocsCadre pour un nouveau corpus distant', () => {
-  it('PublieurCorpus crée DocsCadre/ avec le squelette', async () => {
+describe('création du dossier DocsPrepaProjet pour un nouveau corpus distant', () => {
+  it('PublieurCorpus crée DocsPrepaProjet/ avec le squelette', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const publieur = new PublieurCorpus(
       { baseUrl: serveur.baseUrl + '/Equipe/MonNouveau', identifiants: serveur.identifiants },
@@ -239,7 +316,8 @@ describe('création du dossier DocsCadre pour un nouveau corpus distant', () => 
       serveur.fetch,
     )
     const noms = (await clientCible.propfind('')).filter((e) => e.dossier).map((e) => e.chemin)
-    expect(noms).toContain('DocsCadre')
+    expect(noms).toContain('DocsPrepaProjet')
+    expect(noms).not.toContain('DocsCadre')
     // Nouveau corpus : l'inventaire part bien de ce dossier désormais présent.
     expect(await inventaireDocsCadreDistant(clientCible)).toEqual([])
   })
@@ -249,18 +327,18 @@ describe('URL Nextcloud de l’application Fichiers', () => {
   it('racine DAV simple, sous-chemin serveur inclus', () => {
     expect(
       urlNextcloudPourCorpus('https://nuage.exemple.org/remote.php/dav/files/max/MonCorpus'),
-    ).toBe('https://nuage.exemple.org/apps/files/?dir=/MonCorpus/DocsCadre')
+    ).toBe('https://nuage.exemple.org/apps/files/?dir=/MonCorpus/DocsPrepaProjet')
     expect(
       urlNextcloudPourCorpus('https://nuage.exemple.org/nextcloud/remote.php/dav/files/max/MonCorpus'),
-    ).toBe('https://nuage.exemple.org/nextcloud/apps/files/?dir=/MonCorpus/DocsCadre')
+    ).toBe('https://nuage.exemple.org/nextcloud/apps/files/?dir=/MonCorpus/DocsPrepaProjet')
     expect(
       urlNextcloudPourCorpus('https://nuage.exemple.org/remote.php/dav/files/max/École/Cycle 2'),
-    ).toBe('https://nuage.exemple.org/apps/files/?dir=/%C3%89cole/Cycle%202/DocsCadre')
+    ).toBe('https://nuage.exemple.org/apps/files/?dir=/%C3%89cole/Cycle%202/DocsPrepaProjet')
   })
 
   it('HTTP n’est accepté que sur un hôte local ; toute autre racine est refusée', () => {
     expect(urlNextcloudPourCorpus('http://localhost:9000/remote.php/dav/files/max/C')).toBe(
-      'http://localhost:9000/apps/files/?dir=/C/DocsCadre',
+      'http://localhost:9000/apps/files/?dir=/C/DocsPrepaProjet',
     )
     expect(urlNextcloudPourCorpus('http://nuage.exemple.org/remote.php/dav/files/max/C')).toBeNull()
     expect(urlNextcloudPourCorpus('https://nuage.exemple.org/dossier/profondeur')).toBeNull()

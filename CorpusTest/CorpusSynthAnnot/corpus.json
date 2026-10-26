@@ -1,0 +1,454 @@
+{
+  "formatVersion": 9,
+  "codebook": {
+    "cat_001": {
+      "id": "cat_001",
+      "nom": "Pondérations",
+      "ordre": 0,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_001"
+    },
+    "cat_002": {
+      "id": "cat_002",
+      "nom": "★★★ Très important",
+      "taille": 24,
+      "ordre": 1,
+      "parent": "cat_001",
+      "actif": true,
+      "codeExport": "cat_002"
+    },
+    "cat_003": {
+      "id": "cat_003",
+      "nom": "★★☆ Assez important",
+      "taille": 22,
+      "ordre": 2,
+      "parent": "cat_001",
+      "actif": true,
+      "codeExport": "cat_003"
+    },
+    "cat_004": {
+      "id": "cat_004",
+      "nom": "★☆☆ Important",
+      "taille": 20,
+      "ordre": 3,
+      "parent": "cat_001",
+      "actif": true,
+      "codeExport": "cat_004"
+    },
+    "cat_026": {
+      "id": "cat_026",
+      "nom": "Caractéristiques du répondant",
+      "couleur": "#ffab91",
+      "ordre": 4,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_026"
+    },
+    "cat_027": {
+      "id": "cat_027",
+      "nom": "Parcours scolaire",
+      "couleur": "#ffab91",
+      "ordre": 5,
+      "parent": "cat_026",
+      "actif": true,
+      "codeExport": "cat_027"
+    },
+    "cat_025": {
+      "id": "cat_025",
+      "nom": "Fonctions occupées",
+      "couleur": "#ffab91",
+      "ordre": 6,
+      "parent": "cat_026",
+      "actif": true,
+      "codeExport": "cat_025"
+    },
+    "cat_028": {
+      "id": "cat_028",
+      "nom": "Activité professionnelle",
+      "couleur": "#ffab91",
+      "ordre": 7,
+      "parent": "cat_026",
+      "actif": true,
+      "codeExport": "cat_028"
+    },
+    "cat_005": {
+      "id": "cat_005",
+      "nom": "Recrutement & premiers pas",
+      "couleur": "#0331ff",
+      "ordre": 8,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_005"
+    },
+    "cat_007": {
+      "id": "cat_007",
+      "nom": "En entendre parler",
+      "description": "l'annonce, le post, le bouche-à-oreille",
+      "couleur": "#0331ff",
+      "ordre": 9,
+      "parent": "cat_005",
+      "actif": true,
+      "codeExport": "cat_007"
+    },
+    "cat_006": {
+      "id": "cat_006",
+      "nom": "Le premier contact",
+      "couleur": "#0331ff",
+      "ordre": 10,
+      "parent": "cat_005",
+      "actif": true,
+      "codeExport": "cat_006"
+    },
+    "cat_029": {
+      "id": "cat_029",
+      "nom": "Description des publics",
+      "couleur": "#7588ae",
+      "ordre": 11,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_029"
+    },
+    "cat_008": {
+      "id": "cat_008",
+      "nom": "Sens & motivations",
+      "couleur": "#00ad6b",
+      "ordre": 12,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_008"
+    },
+    "cat_009": {
+      "id": "cat_009",
+      "nom": "Sens de l'utilité",
+      "couleur": "#00ad6b",
+      "ordre": 13,
+      "parent": "cat_008",
+      "actif": true,
+      "codeExport": "cat_009"
+    },
+    "cat_010": {
+      "id": "cat_010",
+      "nom": "Foi et valeurs",
+      "couleur": "#89facf",
+      "ordre": 14,
+      "parent": "cat_008",
+      "actif": true,
+      "codeExport": "cat_010"
+    },
+    "cat_011": {
+      "id": "cat_011",
+      "nom": "La dette envers l'école",
+      "couleur": "#89facf",
+      "ordre": 15,
+      "parent": "cat_008",
+      "actif": true,
+      "codeExport": "cat_011"
+    },
+    "cat_012": {
+      "id": "cat_012",
+      "nom": "Pratique & savoir-faire",
+      "couleur": "#ff802b",
+      "ordre": 16,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_012"
+    },
+    "cat_013": {
+      "id": "cat_013",
+      "nom": "Déroulement d'une séance",
+      "couleur": "#ff802b",
+      "ordre": 17,
+      "parent": "cat_012",
+      "actif": true,
+      "codeExport": "cat_013"
+    },
+    "cat_014": {
+      "id": "cat_014",
+      "nom": "Trouver sa méthode",
+      "couleur": "#ff802b",
+      "ordre": 18,
+      "parent": "cat_012",
+      "actif": true,
+      "codeExport": "cat_014"
+    },
+    "cat_030": {
+      "id": "cat_030",
+      "nom": "Degré d'implication",
+      "couleur": "#eba4a4",
+      "ordre": 19,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_030"
+    },
+    "cat_015": {
+      "id": "cat_015",
+      "nom": "Vie collective & soutien",
+      "couleur": "#e94747",
+      "ordre": 20,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_015"
+    },
+    "cat_016": {
+      "id": "cat_016",
+      "nom": "Ambiance entre bénévoles",
+      "couleur": "#e94747",
+      "ordre": 21,
+      "parent": "cat_015",
+      "actif": true,
+      "codeExport": "cat_016"
+    },
+    "cat_017": {
+      "id": "cat_017",
+      "nom": "Manque de bénévoles / de soutien",
+      "couleur": "#e94747",
+      "ordre": 22,
+      "parent": "cat_015",
+      "actif": true,
+      "codeExport": "cat_017"
+    },
+    "cat_018": {
+      "id": "cat_018",
+      "nom": "Difficultés & doutes",
+      "couleur": "#fffb03",
+      "ordre": 23,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_018"
+    },
+    "cat_019": {
+      "id": "cat_019",
+      "nom": "Peur de ne pas savoir faire",
+      "couleur": "#fffb03",
+      "ordre": 24,
+      "parent": "cat_018",
+      "actif": true,
+      "codeExport": "cat_019"
+    },
+    "cat_020": {
+      "id": "cat_020",
+      "nom": "Les tensions avec les enfants",
+      "couleur": "#fffb03",
+      "ordre": 25,
+      "parent": "cat_018",
+      "actif": true,
+      "codeExport": "cat_020"
+    },
+    "cat_021": {
+      "id": "cat_021",
+      "nom": "Projets & avenir",
+      "couleur": "#6a1b9a",
+      "ordre": 26,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_021"
+    },
+    "cat_022": {
+      "id": "cat_022",
+      "nom": "Reprendre des études",
+      "couleur": "#6a1b9a",
+      "ordre": 27,
+      "parent": "cat_021",
+      "actif": true,
+      "codeExport": "cat_022"
+    },
+    "cat_023": {
+      "id": "cat_023",
+      "nom": "Le concours",
+      "couleur": "#6a1b9a",
+      "ordre": 28,
+      "parent": "cat_021",
+      "actif": true,
+      "codeExport": "cat_023"
+    },
+    "cat_024": {
+      "id": "cat_024",
+      "nom": "La pérennité de l'association",
+      "couleur": "#6a1b9a",
+      "ordre": 29,
+      "parent": "cat_021",
+      "actif": true,
+      "codeExport": "cat_024"
+    }
+  },
+  "variables": {
+    "v3": {
+      "id": "v3",
+      "lib": "Sexe",
+      "portee": "locuteur",
+      "priv": false,
+      "ordre": 0,
+      "vExport": 3,
+      "modalites": [
+        {
+          "id": "v3m0",
+          "lib": "",
+          "mExport": 0
+        },
+        {
+          "id": "v3m1",
+          "lib": "F",
+          "mExport": 1
+        },
+        {
+          "id": "v3m3",
+          "lib": "H",
+          "mExport": 3
+        }
+      ]
+    },
+    "v5": {
+      "id": "v5",
+      "lib": "age",
+      "portee": "locuteur",
+      "priv": false,
+      "ordre": 1,
+      "vExport": 5,
+      "modalites": [
+        {
+          "id": "v5m0",
+          "lib": "",
+          "mExport": 0
+        },
+        {
+          "id": "v5m1",
+          "lib": "Moins de 20 ans",
+          "mExport": 1
+        },
+        {
+          "id": "v5m2",
+          "lib": "20-24 ans",
+          "mExport": 2
+        },
+        {
+          "id": "v5m3",
+          "lib": "25-29 ans",
+          "mExport": 3
+        },
+        {
+          "id": "v5m4",
+          "lib": "30-34 ans",
+          "mExport": 4
+        },
+        {
+          "id": "v5m5",
+          "lib": "35-39 ans",
+          "mExport": 5
+        },
+        {
+          "id": "v5m6",
+          "lib": "40-44 ans",
+          "mExport": 6
+        },
+        {
+          "id": "v5m7",
+          "lib": "45-49 ans",
+          "mExport": 7
+        },
+        {
+          "id": "v5m8",
+          "lib": "50-54 ans",
+          "mExport": 8
+        },
+        {
+          "id": "v5m9",
+          "lib": "55-59 ans",
+          "mExport": 9
+        },
+        {
+          "id": "v5m10",
+          "lib": "60-64 ans",
+          "mExport": 10
+        },
+        {
+          "id": "v5m11",
+          "lib": "65 ans et plus",
+          "mExport": 11
+        }
+      ]
+    },
+    "v4": {
+      "id": "v4",
+      "lib": "Ancienneté ",
+      "portee": "locuteur",
+      "priv": false,
+      "ordre": 2,
+      "vExport": 4,
+      "modalites": [
+        {
+          "id": "v4m0",
+          "lib": "",
+          "mExport": 0
+        },
+        {
+          "id": "v4m1",
+          "lib": "+ de 20 ans",
+          "mExport": 1
+        },
+        {
+          "id": "v4m2",
+          "lib": "- de 5 ans",
+          "mExport": 2
+        },
+        {
+          "id": "v4m3",
+          "lib": "- de 1 an",
+          "mExport": 3
+        },
+        {
+          "id": "v4m4",
+          "lib": "2 ans",
+          "mExport": 4
+        }
+      ]
+    }
+  },
+  "reglesAnon": {},
+  "personnes": {},
+  "membership": {
+    "1Coordinatrice_uw22m0yv": {
+      "titre": "1Coordinatrice",
+      "date": null,
+      "lastModified": "2026-10-26T18:22:46.542Z",
+      "rangAjout": 0
+    },
+    "2RetraiteAnticipee_jwzpwor0": {
+      "titre": "2RetraiteAnticipee",
+      "date": null,
+      "lastModified": "2026-10-26T18:22:46.577Z",
+      "rangAjout": 1
+    },
+    "3Cuisinier_2k0quf2k": {
+      "titre": "3Cuisinier",
+      "date": null,
+      "lastModified": "2026-10-26T18:22:46.608Z",
+      "rangAjout": 2
+    },
+    "4Etudiants_oywi72ng": {
+      "titre": "4Etudiants",
+      "date": null,
+      "lastModified": "2026-10-26T18:22:46.643Z",
+      "rangAjout": 3
+    }
+  },
+  "ordreEntretiens": [
+    "1Coordinatrice_uw22m0yv",
+    "2RetraiteAnticipee_jwzpwor0",
+    "3Cuisinier_2k0quf2k",
+    "4Etudiants_oywi72ng"
+  ],
+  "recueils": {},
+  "cas": {},
+  "famillesCas": {},
+  "attributsCas": {},
+  "lexico": {
+    "motsOutils": [],
+    "regroupements": [],
+    "concatenations": []
+  },
+  "nom": "CorpusSynthAnnot",
+  "paramsAnon": {
+    "prioriteValidation": "corpus"
+  }
+}

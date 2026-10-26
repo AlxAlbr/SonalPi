@@ -30,7 +30,7 @@ const emit = defineEmits<{
         <button :disabled="perime" @click="emit('ouvrir', cellule.entretienId, passage.from)">Ouvrir dans l’entretien</button>
       </li>
     </ol>
-    <div class="actions"><button :disabled="perime" @click="emit('synthese')">Afficher dans Synthèse</button></div>
+    <div class="actions"><button :disabled="perime" @click="emit('synthese')">Afficher dans Tri et synthèse</button></div>
   </aside>
 </template>
 

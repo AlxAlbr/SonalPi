@@ -38,6 +38,10 @@ describe('espaces de travail', () => {
     const { vue, espaces, arreter } = creer('entretien')
     espaces.entrerOrganisation()
     expect(vue.value).toBe('organiser')
+    expect(espaces.sousEspaceOrganisation.value).toBe('accueil')
+    expect(espaces.panneauCasActif.value).toBe(false)
+    expect(espaces.panneauRecueilsActif.value).toBe(false)
+    espaces.entrerOrganisation('cas')
     expect(espaces.panneauCasActif.value).toBe(true)
     expect(isReadonly(espaces.panneauCasActif)).toBe(true)
     espaces.entrerOrganisation('recueils')
@@ -52,12 +56,12 @@ describe('espaces de travail', () => {
     espaces.entrerOrganisation('export')
     espaces.reinitialiserEspaces()
     expect(vue.value).toBe('corpus')
-    expect(espaces.sousEspaceOrganisation.value).toBe('cas')
+    expect(espaces.sousEspaceOrganisation.value).toBe('accueil')
     expect(espaces.ongletCorpus.value).toBe('accueil')
     vue.value = 'accueil'
     espaces.entrerOrganisation('recueils')
     expect(vue.value).toBe('accueil')
-    expect(espaces.sousEspaceOrganisation.value).toBe('cas')
+    expect(espaces.sousEspaceOrganisation.value).toBe('accueil')
     arreter()
   })
 
@@ -165,12 +169,12 @@ describe('espaces de travail', () => {
     arreter()
   })
 
-  test('l’espace d’analyse s’ouvre sur Synthèse et mémorise l’onglet visité', () => {
+  test('l’espace d’analyse s’ouvre sur son Accueil et mémorise l’onglet visité', () => {
     const { vue, espaces, arreter } = creer('entretien')
     espaces.entrerAnalyse()
     expect(vue.value).toBe('analyser')
     expect(espaces.analyseActive.value).toBe(true)
-    expect(espaces.sousEspaceAnalyse.value).toBe('synthese')
+    expect(espaces.sousEspaceAnalyse.value).toBe('accueil')
 
     espaces.entrerAnalyse('lexico')
     expect(espaces.sousEspaceAnalyse.value).toBe('lexico')
@@ -203,12 +207,12 @@ describe('espaces de travail', () => {
     arreter()
   })
 
-  test('la réinitialisation ramène l’analyse sur Synthèse, filtres visibles', () => {
+  test('la réinitialisation ramène l’analyse sur l’Accueil, filtres visibles', () => {
     const { espaces, arreter } = creer()
     espaces.entrerAnalyse('analyses-croisees')
     espaces.basculerPanneauAnalyse()
     espaces.reinitialiserEspaces()
-    expect(espaces.sousEspaceAnalyse.value).toBe('synthese')
+    expect(espaces.sousEspaceAnalyse.value).toBe('accueil')
     expect(espaces.panneauAnalyseVisible.value).toBe(true)
     arreter()
   })

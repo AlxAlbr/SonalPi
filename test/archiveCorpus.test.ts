@@ -85,6 +85,16 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
     )
   })
 
+  test('conserve les documents imbriqués octet pour octet', async () => {
+    const dir = corpusSurDisque()
+    mkdirSync(join(dir, 'DocsCadre', 'DPO', 'École 2'), { recursive: true })
+    const octets = Buffer.from([0, 255, 42, 13, 10])
+    writeFileSync(join(dir, 'DocsCadre', 'DPO', 'École 2', 'notice.docx'), octets)
+    const { buffer } = await construireZipCorpus(dir)
+    const zip = await JSZip.loadAsync(buffer)
+    expect(await zip.file('DocsCadre/DPO/École 2/notice.docx')!.async('nodebuffer')).toEqual(octets)
+  })
+
   test('le nom par défaut unit le nom du corpus et la date', () => {
     expect(nomArchiveCorpus('Mon corpus', new Date('2024-05-03T12:00:00Z'))).toBe(
       'Mon corpus_2024-05-03.zip',

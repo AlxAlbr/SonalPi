@@ -8,6 +8,7 @@ import type { ResumeDocumentCadre } from '../../../../shared/docsCadre'
 // source (projet/exemple) et le mode (local/distant).
 const props = defineProps<{ resume: ResumeDocumentCadre }>()
 
+const dossier = computed(() => props.resume.chemin.split('/').slice(0, -1).join(' › '))
 const taille = computed(() => formaterTaille(props.resume.taille))
 const date = computed(() => {
   if (!props.resume.modifieLe) return null
@@ -25,6 +26,7 @@ const source = computed(() =>
 <template>
   <div class="fiche">
     <p class="ligne"><span class="cle">Nom</span> <span class="val">{{ resume.nom }}</span></p>
+    <p v-if="dossier" class="ligne"><span class="cle">Dossier</span> <span class="val">{{ dossier }}</span></p>
     <p class="ligne"><span class="cle">Type</span> <span class="val">{{ libelleTypeDocument(resume.type) }}</span></p>
     <p class="ligne"><span class="cle">Taille</span> <span class="val">{{ taille }}</span></p>
     <p v-if="date" class="ligne"><span class="cle">Modifié le</span> <span class="val">{{ date }}</span></p>
@@ -42,5 +44,5 @@ const source = computed(() =>
 }
 .ligne { margin: .15rem 0; }
 .cle { display: inline-block; width: 7.5rem; color: #7a8299; font-weight: 600; }
-.val { color: #1c2333; }
+.val { color: #1c2333; overflow-wrap: anywhere; }
 </style>

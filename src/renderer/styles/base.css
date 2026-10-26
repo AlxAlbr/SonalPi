@@ -95,7 +95,7 @@ body {
   color: #fff;
 }
 
-/* Panneau latéral (Corpus, Entretien). */
+/* Panneau latéral commun aux espaces de travail. */
 .panneau {
   border: 1px solid #ddd;
   border-radius: 0 8px 8px 8px;
@@ -110,9 +110,12 @@ body {
   justify-content: space-between;
   margin-bottom: 0.5rem;
 }
-.corpus-tete h3 {
+.corpus-tete h3,
+.titre-panneau {
   margin: 0;
+  font-family: inherit;
   font-size: 0.95rem;
+  font-weight: 700;
 }
 
 /* Accueil explicatif d'un panneau de gauche (Corpus, Préparer et suivre). */
@@ -130,7 +133,9 @@ body {
   flex-direction: column;
   gap: 0.4rem;
 }
-.accueil-outils li {
+.accueil-outils li { margin: 0; }
+.accueil-outils button {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -138,9 +143,15 @@ body {
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
   background: #fff;
+  color: inherit;
+  font: inherit;
   font-size: 0.8rem;
   line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
 }
+.accueil-outils button:hover { background: #f5f5fa; border-color: #cfd1df; }
+.accueil-outils button:focus-visible { outline: 2px solid #596b9f; outline-offset: 1px; }
 .accueil-outils img {
   width: 20px;
   height: 20px;

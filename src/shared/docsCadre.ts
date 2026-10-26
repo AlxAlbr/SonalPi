@@ -11,10 +11,11 @@
  *  le renderer et les tests.
  */
 
-/** Dossier des documents de méthode, à la racine du corpus. */
-export const DOSSIER_DOCS_CADRE = 'DocsCadre'
-/** Corbeille douce : une suppression déplace le fichier ici, jamais hors corpus. */
-export const DOSSIER_CORBEILLE_DOCS_CADRE = 'corbeille/DocsCadre'
+/** Documents de préparation, distincts des futurs documents de résultats. */
+export const DOSSIER_DOCS_PROJET = 'DocsPrepaProjet'
+/** Ancien nom conservé pour lire les corpus existants sans déplacer leurs fichiers. */
+export const DOSSIER_DOCS_PROJET_ANCIEN = 'DocsCadre'
+export type RacineDocsProjet = typeof DOSSIER_DOCS_PROJET | typeof DOSSIER_DOCS_PROJET_ANCIEN
 
 /** Origine d'un document : fichier du corpus (« projet ») ou ressource embarquée. */
 export type SourceDocumentCadre = 'projet' | 'exemple'
@@ -27,6 +28,8 @@ export type TypeDocumentCadre = 'pdf' | 'texte' | 'image' | 'bureautique' | 'htm
 
 /** Carte d'un document dans les listes de la fenêtre. */
 export interface ResumeDocumentCadre {
+  nature: 'document'
+  chemin: string
   source: SourceDocumentCadre
   /** Nom exact du fichier, extension comprise. */
   nom: string
@@ -67,15 +70,22 @@ export interface ResultatLectureDocsCadre {
   apercu: ApercuDocumentCadre
 }
 
-/** Inventaire complet pour l'ouverture de la fenêtre. */
-export interface InventaireDocsCadre {
+/** Enfant direct d'un dossier documentaire. */
+export type EntreeDocsCadre = ResumeDocumentCadre | {
+  nature: 'dossier'
+  source: SourceDocumentCadre
+  nom: string
+  chemin: string
+}
+
+/** Lecture d'un seul dossier ; une absence se distingue d'un dossier vide. */
+export interface InventaireDossierDocsCadre {
   mode: ModeDocumentsCadre
-  /** Documents du corpus courant. */
-  projet: ResumeDocumentCadre[]
-  /** Exemples embarqués, toujours disponibles (même hors ligne). */
-  exemples: ResumeDocumentCadre[]
-  /** Erreur limitée à l'inventaire distant ; les exemples restent utilisables. */
-  erreurProjet?: string
+  source: SourceDocumentCadre
+  dossier: string
+  entrees: EntreeDocsCadre[]
+  absent?: boolean
+  erreur?: string
 }
 
 /** Résultat d'une mutation de liste (ajout, renommage). */
@@ -150,9 +160,9 @@ const NOMS_RESERVES_WINDOWS = [
  *  contrôle, point/espace final, nom réservé Windows (base, extension incluse).
  *  La casse, les espaces et les accents sont CONSERVÉS (le nom reste identité). */
 export function estNomSain(nom: string): boolean {
-  if (!nom || nom.length > 255) return false
+  if (typeof nom !== 'string' || !nom || nom.length > 255) return false
   if (nom.includes('/') || nom.includes('\\') || nom.includes('..')) return false
-  if (nom.includes('\0')) return false
+  if (/[<>:"|?*\u0000\u007f]/.test(nom)) return false
   for (const c of nom) {
     const code = c.codePointAt(0) ?? 0
     if (code < 0x20) return false
@@ -162,8 +172,7 @@ export function estNomSain(nom: string): boolean {
   return !NOMS_RESERVES_WINDOWS.includes(base.toUpperCase())
 }
 
-/** Fichier listable : ni caché, ni temporaire, ni verrou bureautique.
- *  Les sous-dossiers, liens symboliques et temporaires ne sont pas affichés. */
+/** Nom affichable de fichier ou dossier : ni caché, ni temporaire, ni verrou. */
 export function estListable(nom: string): boolean {
   return (
     estNomSain(nom) &&
@@ -173,6 +182,21 @@ export function estListable(nom: string): boolean {
     !nom.endsWith('.tmp') &&
     !nom.endsWith('.crdownload') &&
     !nom.endsWith('.part')
+  )
+}
+
+/** Chemin IPC canonique ; la chaîne vide désigne uniquement la racine. */
+export function estCheminDocsCadre(chemin: unknown, racineAutorisee = false): chemin is string {
+  return typeof chemin === 'string' && (
+    chemin === '' ? racineAutorisee :
+      chemin.length <= 2048 && chemin.split('/').every(estListable)
+  )
+}
+
+/** Dossiers avant documents, puis ordre alphabétique français stable. */
+export function trierEntreesDocsCadre(liste: EntreeDocsCadre[]): EntreeDocsCadre[] {
+  return [...liste].sort((a, b) =>
+    Number(b.nature === 'dossier') - Number(a.nature === 'dossier') || a.nom.localeCompare(b.nom, 'fr'),
   )
 }
 
@@ -205,30 +229,3 @@ export const LIMITE_APERCU_TEXTE_OCTETS = 2_000_000
 export const LIMITE_APERCU_BINAIRE_OCTETS = 20_000_000
 /** Plafond de lecture mémoire d'un aperçu PDF. */
 export const LIMITE_APERCU_PDF_OCTETS = 30_000_000
-
-/* ── Ressources exemples embarquées ──────────────────────────────────────── */
-
-/** Contenu initial des exemples livrés avec l'application ;
- *  les contenus définitifs les remplaceront sans changer l'API. */
-export const CONTENU_EXEMPLE_A_VENIR = 'À venir.'
-
-/** Ordre d'affichage des exemples, décidé par l'application : les documents de
- *  conformité d'abord, les guides de méthode ensuite. Cet ordre fait foi pour
- *  la fenêtre ; il ne dépend pas du tri alphabétique. */
-export const NOMS_EXEMPLES_DOCS = [
-  'Déclaration traitement DPO.txt',
-  'Notice de consentement DPO.txt',
-  'Guide de correction.txt',
-  'Guide de pseudonymisation.txt',
-] as const
-
-/** Range des exemples dans l'ordre de `NOMS_EXEMPLES_DOCS`. Un fichier non
- *  déclaré (déposé à la main dans le dossier des exemples) vient après les
- *  documents connus, trié alphabétiquement. */
-export function trierExemplesDocs(liste: ResumeDocumentCadre[]): ResumeDocumentCadre[] {
-  const rang = (nom: string): number => {
-    const index = NOMS_EXEMPLES_DOCS.indexOf(nom as (typeof NOMS_EXEMPLES_DOCS)[number])
-    return index === -1 ? NOMS_EXEMPLES_DOCS.length : index
-  }
-  return [...liste].sort((a, b) => rang(a.nom) - rang(b.nom) || a.nom.localeCompare(b.nom, 'fr'))
-}

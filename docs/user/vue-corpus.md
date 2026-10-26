@@ -12,26 +12,41 @@ La barre supérieure propose quatre espaces de travail :
   se comprimer ; glissez le bord droit d’un intitulé de colonne ou le bord bas
   d’un intitulé de ligne pour régler sa taille, et double-cliquez pour revenir au défaut.
 - **Importer et traiter** donne accès au corpus et aux entretiens décrits ci-dessous.
-- **Analyser et interpréter** réunit la **Synthèse**, **Lexico** et les
-  **Analyses croisées**. Ses trois onglets occupent la colonne de gauche, avec
-  les filtres de l’outil actif dessous ; les résultats restent à droite.
+- **Analyser et interpréter** réunit un **Accueil**, **Tri et synthèse**, **Lexico**
+  et les **Analyses croisées**. Ses onglets à icônes occupent la colonne de
+  gauche. L’Accueil présente les trois outils ; dans chacun d’eux, les filtres
+  restent à gauche sur un panneau gris violet clair et les résultats à droite.
   **Masquer les filtres** réduit la colonne à ses onglets. Chaque onglet garde
   ses critères, ses résultats et ses réglages d’affichage quand on le quitte.
-  Dans Synthèse et Lexico, les critères **Cas** apparaissent seulement si le
+  Dans **Tri et synthèse** et **Lexico**, les critères **Cas** apparaissent seulement si le
   corpus contient un cas, même vide. Leur apparition ne sélectionne rien.
   Si un filtre utilise des cas supprimés, un avertissement le garde visible et
   propose de le retirer explicitement ; l’analyse n’est pas élargie en silence.
 
-- **Organiser et exporter** réunit les **Cas**, les **Recueils** et
-  **Exporter le corpus**. Cas rassemble les matériaux d’une unité étudiée ;
-  Recueils compose des documents à partir de citations et de textes de liaison.
-  L’entrée d’export donne accès aux formats et choix habituels, dont QualCoder.
+- **Organiser et exporter** s’ouvre sur un **Accueil** et réunit les **Cas**,
+  les **Recueils** et **Exporter le corpus**, accessibles par des onglets à icônes.
+  Cas rassemble les matériaux d’une unité étudiée ; Recueils compose des documents
+  à partir de citations et de textes de liaison. Le répertoire reste à gauche,
+  sur un panneau gris violet clair, et le document de travail à droite.
+  Pour l’export, les entretiens, formats et options se choisissent à gauche ;
+  le récapitulatif, le rapport éventuel et le bilan s’affichent à droite,
+  sans succession de fenêtres. Les choix sont conservés entre les onglets.
+  Le dossier de destination est demandé au lancement de l’export.
+  Pendant la préparation et l’écriture, la navigation est suspendue pour ne pas
+  changer les données en cours d’export.
+  Modifier les réglages ou quitter l’outil impose de préparer à nouveau le rapport
+  avant d’exporter, si sa consultation a été demandée.
 
-On passe librement d’un espace à l’autre sans fermer l’entretien ouvert.
-**Importer et traiter** retrouve le travail tel qu’il a été laissé ; l’audio
-reste en pause. Les autres espaces reprennent leur dernier onglet visité.
-**Préparer et suivre** s’ouvre d’abord sur son Accueil et **Organiser et exporter**
-sur Cas. Fermer réellement un entretien reste une action distincte.
+À la première ouverture d’un projet sur le poste, **Préparer et suivre** affiche
+son Accueil. Les ouvertures suivantes retrouvent le dernier espace et le dernier
+onglet consultés. Cette mémoire reste sur le poste et n’est pas partagée avec le
+corpus. Un entretien n’est jamais rouvert automatiquement : le projet revient
+alors à l’Accueil du corpus.
+
+Pendant une session, on passe librement d’un espace à l’autre sans fermer
+l’entretien ouvert. **Importer et traiter** retrouve cet entretien tel qu’il a
+été laissé ; l’audio reste en pause. Fermer réellement un entretien reste une
+action distincte.
 
 Après **Voir dans l’entretien** depuis un cas, un recueil ou une analyse, une
 commande **Revenir à…** retrouve le travail précédent : objet, filtres, tri et
@@ -41,7 +56,7 @@ objet du répertoire termine cette chaîne. Un changement de corpus l’efface.
 Le retour ne relance jamais l’audio et ne recalcule pas automatiquement une analyse.
 Si son résultat est périmé, son avertissement reste affiché.
 
-La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne accès à :
+L’onglet **Accueil** de la vue Corpus présente sa barre d’icônes, qui donne accès à :
 
 - **Notes**, pour consulter les notes de tous les entretiens ;
 - **Personnes**, pour relier les locuteurs d’entretiens différents ;
@@ -180,9 +195,11 @@ L’édition habituelle du codebook par le crayon conserve ses capacités propre
 
 ## Notes
 
-L’onglet Notes rassemble les notes de tous les entretiens. Le panneau de gauche permet de rechercher, filtrer et trier les résultats. Les filtres portent notamment sur la catégorie, l’entretien, le statut, la date, les passages importants et les liens vers des commentaires. Les affichages **Tableau** (par défaut) et **Feuille** présentent le même inventaire. **Exporter** produit un fichier Markdown avec les seules notes actuellement affichées.
+L’onglet Notes rassemble les notes de tous les entretiens. En haut du panneau de gauche, les accès rapides **Toutes les notes** et **Résumés** retirent les autres filtres, sans changer l’ordre d’affichage. **Résumés** conserve uniquement les notes de la catégorie « résumé » ; ce bouton est désactivé si cette catégorie n’existe pas. La recherche reste directement accessible. **Filtres détaillés**, replié au départ, permet de préciser la catégorie, l’entretien, le statut, la date, les passages importants et les liens vers des commentaires. Son compteur rappelle les filtres actifs, même lorsqu’il est replié.
 
-Dans un corpus local, le crayon modifie le titre, le corps, la catégorie, la date et le statut d’une note existante. La croix la supprime après confirmation. Ces deux gestes alimentent le Journal du corpus et peuvent être annulés tant que la note ou son ordre n’a pas changé depuis. La création, l’ordre, les locuteurs concernés et les liens vers les commentaires restent gérés dans l’entretien.
+Par défaut, les notes sont triées par **date de création, des plus récentes aux plus anciennes** : il ne s’agit pas de la date renseignée dans la note. **Plus récentes d’abord** rétablit cet ordre ; **Par entretien** classe les entretiens de A à Z. Ces choix ne changent pas les filtres. **Autre ordre…** donne accès aux autres tris, notamment à la date de la note. L’ordre courant est toujours indiqué sous les raccourcis. Les affichages **Tableau** (par défaut) et **Feuille** présentent le même inventaire. **Exporter** produit un fichier Markdown avec les seules notes actuellement affichées.
+
+Dans un corpus local, le crayon modifie le titre, le corps, la catégorie, la date et le statut d’une note existante. La croix la supprime après confirmation. L’annulation de ces deux gestes n’est pas proposée dans l’interface pour le moment. La création, l’ordre, les locuteurs concernés et les liens vers les commentaires restent gérés dans l’entretien.
 
 Dans un corpus distant, l’onglet consulte les notes du dernier miroir synchronisé. L’édition et la suppression directes sont désactivées : **Ouvrir dans l’entretien** utilise le verrou habituel et constitue le chemin d’édition. Le cadenas signale qu’un entretien risque de s’ouvrir en lecture seule. Le bouton global **Actualiser** tire les changements du serveur puis renouvelle l’inventaire ; en cas d’échec, le dernier inventaire lisible reste affiché.
 
@@ -192,7 +209,7 @@ Les filtres, le tri, le mode d’affichage et la largeur du panneau sont conserv
 
 Le répertoire distingue les **personnes du corpus** et les **locuteurs locaux**. Choisissez un locuteur non lié pour créer une personne, ou pour l’associer à une personne existante. Deux homonymes peuvent rester distincts. Une personne ne peut être associée qu’à un locuteur par entretien.
 
-Le volet gauche sépare la recherche, les rapprochements à vérifier, le répertoire et les locuteurs sans lien valide dans des cartes aux teintes douces. Les cartes **Répertoire** et **Locuteurs sans lien valide** peuvent être repliées pour faciliter la consultation des corpus volumineux. L’aide générale de l’onglet est accessible à côté du bouton **Actualiser**.
+Le panneau de gauche présente d’abord la recherche, puis les **Personnes identifiées**, les **Locuteurs à associer** et les **Rapprochements à vérifier**. De courtes explications distinguent les personnes déjà constituées des noms utilisés dans les entretiens qui restent à associer. Les deux premières listes peuvent être repliées pour faciliter la consultation des corpus volumineux. **À vérifier** se concentre sur les associations à corriger et les rapprochements proposés ; **Écartées** affiche uniquement les décisions écartées. Les titres de section restent plus discrets que le titre principal. L’aide générale de l’onglet est accessible à côté du bouton **Actualiser**.
 
 La personne sélectionnée possède un nom de référence modifiable. Les noms locaux, pseudonymes et valeurs des variables ne sont jamais modifiés par cette opération. Les variables de locuteur sont présentées côte à côte : une différence d’âge ou de profession entre entretiens peut être légitime.
 
@@ -230,15 +247,15 @@ deux objets distincts.
 Le guide [Utiliser les cas](cas.md) décrit la création individuelle ou en lot, les cas
 collectifs, les familles, les attributs et les vues des matériaux.
 
-## Historique des actions
+## Annuler une modification de personnes
 
-La commande **Historique des actions…**, sous les onglets du corpus, ouvre le journal en dialogue sans changer d’onglet. Dans **Personnes**, **Annuler une modification…** affiche uniquement les actions récentes de Personnes, jamais celles de Notes. Choisissez l’action à annuler grâce à son libellé ; les actions devenues incompatibles restent désactivées.
+Le corpus ne propose pas d’accès général à l’historique des actions pour le moment. Dans **Personnes**, **Annuler une modification…** reste disponible et affiche uniquement les actions récentes de Personnes, jamais celles de Notes. Choisissez l’action à annuler grâce à son libellé ; les actions devenues incompatibles restent désactivées.
 
 Le journal propre à l’entretien conserve son onglet et son fonctionnement.
 
-Le Journal du corpus conserve en mémoire jusqu’aux dix dernières actions annulables prises en charge pendant la session. Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Le Journal survit aux changements d’onglet et à un aller-retour dans un entretien, mais il est vidé au changement de corpus et au redémarrage de l’application.
+Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Elles restent disponibles après un changement d’onglet ou un aller-retour dans un entretien, mais sont effacées au changement de corpus et au redémarrage de l’application.
 
-Le Journal couvre les actions simples réalisées depuis Personnes : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Il couvre aussi la modification et la suppression d’une note réalisées depuis l’onglet Notes du corpus. Les créations de notes, reprises de données, réunions et opérations partiellement réussies n’apparaissent pas. Les actions effectuées dans un entretien restent rattachées à cet entretien et ne sont pas ajoutées au Journal du corpus.
+Les actions simples prises en charge sont : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Les reprises de données, réunions et opérations partiellement réussies n’apparaissent pas. Les actions effectuées dans un entretien restent rattachées à cet entretien.
 
 Une action dont la cible a changé depuis reste visible mais ne peut plus être annulée. Le Journal n’écrase jamais cette modification plus récente. Il ne constitue pas un historique d’audit, n’est enregistré dans aucun fichier et ne propose pas de rétablissement après une annulation. L’annulation des actions d’un corpus distant n’est pas encore disponible.
 

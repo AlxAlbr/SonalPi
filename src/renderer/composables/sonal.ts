@@ -8,6 +8,7 @@ import {
 } from '../editor/associationsPassage'
 import { preparerFermetureEntretien } from '../couturesApplication'
 import type { MarqueurDemo, ModeTriEntretiens } from '../../shared/format'
+import type { NavigationProjet } from '../../shared/navigationProjet'
 import { MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { useProfil } from './useProfil'
 import { afficherErreurGlobale, infoGlobale } from '../erreurs'
@@ -175,6 +176,95 @@ export function creerSonal() {
     afficherPanneauAnalyse,
     reinitialiserEspaces,
   } = espaces
+
+  let navigationProjetActive = false
+  let cleNavigationProjet: string | null = null
+  let ecrituresNavigation = Promise.resolve()
+
+  function navigationProjetCourante(): NavigationProjet | null {
+    if (vue.value === 'accueil') return null
+    if (vue.value === 'entretien') return { vue: 'corpus', onglet: 'accueil' }
+    if (vue.value === 'preparer') {
+      return { vue: 'preparer', onglet: sousEspacePreparation.value }
+    }
+    if (vue.value === 'analyser') {
+      return {
+        vue: 'analyser',
+        onglet: sousEspaceAnalyse.value,
+        panneauVisible: panneauAnalyseVisible.value,
+      }
+    }
+    if (vue.value === 'organiser') {
+      return { vue: 'organiser', onglet: sousEspaceOrganisation.value }
+    }
+    return {
+      vue: 'corpus',
+      onglet: ongletCorpus.value === 'recherche' ? 'accueil' : ongletCorpus.value,
+    }
+  }
+
+  function memoriserNavigationProjet(): void {
+    if (!navigationProjetActive || !cleNavigationProjet) return
+    const navigation = navigationProjetCourante()
+    if (!navigation) return
+    const cle = cleNavigationProjet
+    ecrituresNavigation = ecrituresNavigation
+      .catch(() => undefined)
+      .then(() => window.sonal.profil.memoriserNavigationProjet(cle, navigation))
+      .catch(() => undefined)
+  }
+
+  function suspendreNavigationProjet(): void {
+    navigationProjetActive = false
+  }
+
+  function reactiverNavigationProjet(): void {
+    navigationProjetActive = cleNavigationProjet !== null
+    memoriserNavigationProjet()
+  }
+
+  async function restaurerNavigationProjet(): Promise<void> {
+    let navigation: NavigationProjet | null = null
+    try {
+      const memoire = await window.sonal.profil.lireNavigationProjet()
+      cleNavigationProjet = memoire.cle
+      navigation = memoire.navigation
+    } catch {
+      cleNavigationProjet = null
+    }
+
+    try {
+      if (!navigation) await entrerPreparation('accueil')
+      else if (navigation.vue === 'preparer') await entrerPreparation(navigation.onglet)
+      else if (navigation.vue === 'analyser') {
+        panneauAnalyseVisible.value = navigation.panneauVisible
+        await entrerAnalyse(navigation.onglet)
+      } else if (navigation.vue === 'organiser') {
+        await entrerOrganisation(navigation.onglet)
+      } else {
+        ongletCorpus.value = navigation.onglet
+        vue.value = 'corpus'
+      }
+    } catch {
+      selectionnerPreparation('accueil')
+    }
+
+    navigationProjetActive = cleNavigationProjet !== null
+    memoriserNavigationProjet()
+  }
+
+  watch(
+    [
+      vue,
+      sousEspacePreparation,
+      sousEspaceAnalyse,
+      sousEspaceOrganisation,
+      ongletCorpus,
+      panneauAnalyseVisible,
+    ],
+    memoriserNavigationProjet,
+    { flush: 'sync' },
+  )
 
   // La vue Corpus enregistre le gestionnaire de cette navigation.
   // Lui seul sélectionne son Accueil en respectant les gardes locales.
@@ -396,6 +486,9 @@ export function creerSonal() {
       deselectionner: deselectionnerCorpus,
       apresOuvertureEntretien: (id) => proposerFusionDepuisCycle(id),
       raccrocherModeCorpus: (marqueur, dir) => raccrocherModeCorpus(marqueur, dir),
+      suspendreNavigationProjet,
+      restaurerNavigationProjet,
+      reactiverNavigationProjet,
     },
   })
   const {
@@ -532,9 +625,7 @@ export function creerSonal() {
     exportOuvert,
     ouvrirExport,
     fermerExport,
-    exportCorpusOuvert,
-    ouvrirExportCorpus,
-    fermerExportCorpus,
+    exportCorpusEnCours,
     exporterCorpusLot,
     exporterQualcoderLot,
     preparerRapportCorpus,
@@ -744,7 +835,7 @@ export function creerSonal() {
     const selecteur = ecran === 'entretien' ? '.entretien-ecran' : ecran === 'corpus' ? '.corpus-ecran'
       : ecran === 'analyser' ? '.espace-analyse' : ecran === 'preparer' ? '.espace-preparation' : '.organisation-ecran'
     const nom = ecran === 'analyser'
-      ? ({ synthese: 'à la synthèse', lexico: 'à Lexico', 'analyses-croisees': 'aux analyses croisées' }[sousEspaceAnalyse.value])
+      ? ({ accueil: 'à l’accueil de l’analyse', synthese: 'au tri et à la synthèse', lexico: 'à Lexico', 'analyses-croisees': 'aux analyses croisées' }[sousEspaceAnalyse.value])
       : ecran === 'organiser' && sousEspaceOrganisation.value === 'cas'
         ? `au cas « ${casCorpus.casOuvert.value?.nom ?? 'Cas'} »`
         : ecran === 'organiser' && sousEspaceOrganisation.value === 'recueils'
@@ -1200,6 +1291,7 @@ export function creerSonal() {
   const demandeAjoutEntretien = ref(false)
 
   window.sonal.menu.surAction(async (action, modeTri) => {
+    if (exportCorpusEnCours.value) return
     try {
       switch (action) {
         case 'nouveau-corpus':
@@ -1262,9 +1354,7 @@ export function creerSonal() {
           break
         }
         case 'exporter-corpus': {
-          // La modale d'export vit sur l'App.
-          // Elle s'ouvre depuis n'importe quelle vue et laisse choisir les entretiens du lot.
-          ouvrirExportCorpus()
+          await entrerOrganisation('export')
           break
         }
         case 'sauvegarde-zip': {
@@ -1292,6 +1382,7 @@ export function creerSonal() {
     }
   })
   window.sonal.menu.surOuvrirRecent((entree) => {
+    if (exportCorpusEnCours.value) return
     void ouvrirRecent(entree).catch((erreur) =>
       afficherErreurGlobale(erreur, 'L’ouverture du corpus récent a échoué'),
     )
@@ -1377,6 +1468,7 @@ export function creerSonal() {
     sousEspaceOrganisation,
     organisationActive,
     panneauRecueilsActif,
+    afficherAccueilAnalyse: () => entrerAnalyse('accueil'),
     afficherLexico: () => entrerAnalyse('lexico'),
     afficherSynthese: () => entrerAnalyse('synthese'),
     afficherAnalysesCroisees: () => entrerAnalyse('analyses-croisees'),
@@ -1451,9 +1543,7 @@ export function creerSonal() {
     exportOuvert,
     ouvrirExport,
     fermerExport,
-    exportCorpusOuvert,
-    ouvrirExportCorpus,
-    fermerExportCorpus,
+    exportCorpusEnCours,
     exporterCorpusLot,
     exporterQualcoderLot,
     preparerRapportCorpus,

@@ -97,8 +97,11 @@ Déclenché par un clic de carte, soit direct (« un clic » si mémoire + prés
 cf. `pretUnClic`), soit via la modale adaptative (`ModaleDemo.vue`). Cinq étapes :
 
 1. **Copier les sources** (`demo:copierSources`) — idempotent : no-op si les 9 fichiers
-   sont là ; sinon recopie complète depuis les sources bundled `CorpusTest/`
-   (dev : racine du projet ; prod : `extraResources`).
+   sont là ; sinon recopie complète depuis les sources fournies dans
+   `CorpusTest/CorpusSynth/` (dev : racine du projet ; prod : `extraResources`).
+   Seul le contenu de ce sous-dossier est copié : la destination conserve directement
+   `srt/`, `audio/` et `docs/`. Les anciens emplacements mémorisés restent valides,
+   sans déplacement ni réinstallation des sources déjà complètes.
 2. **Ouvrir le dossier du mode** (`corpus:ouvrirDossier`) — amorce si neuf.
 3. **Importer les entretiens** (mode autonomie) — idempotent PAR TITRE : un titre
    déjà présent dans `membership` n'est jamais réimporté. L'audio est *référencé*

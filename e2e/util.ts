@@ -31,7 +31,12 @@ export async function lancer(
   if (!opts?.preserverSettings) {
     writeFileSync(
       join(userDataDir, 'settings.json'),
-      JSON.stringify({ recents: [join(userDataDir, 'corpus')] }, null, 2),
+      JSON.stringify({
+        recents: [join(userDataDir, 'corpus')],
+        navigationProjets: {
+          [`local:${join(userDataDir, 'corpus')}`]: { vue: 'corpus', onglet: 'accueil' },
+        },
+      }, null, 2),
       'utf8',
     )
   }

@@ -729,7 +729,7 @@ test.describe('Consultation GitLab à deux profils', () => {
     const cheminMedia = `audio-gitlab-${idExecution}.mp3`
     const racineMedia = `${racine}-media`
     const clientMedia = new ClientWebDAV({ baseUrl: urlWebDAV, identifiants: identifiantsWebDAV })
-    const octets = new Uint8Array(readFileSync(join(process.cwd(), 'CorpusTest/audio/1Coordinatrice.mp3')))
+    const octets = new Uint8Array(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynth/audio/1Coordinatrice.mp3')))
     await clientMedia.putBinaire(cheminMedia, octets, { contentType: 'audio/mpeg' })
     await amorcerConsultation(
       configuration.token1 as string,

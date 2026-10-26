@@ -17,6 +17,7 @@ const {
   messageAction,
   enregistrerCopie,
   ouvrirAvecApplication,
+  afficherDansDossier,
 } = utiliserSonal()
 
 const selectionEstProjet = computed(() => selection.value?.source === 'projet')
@@ -40,9 +41,10 @@ const aideOuverte = computed({
       <div v-if="aideOuverte" class="aide-texte">
         <template v-if="estProjet">
           <p v-if="!estDistant">
-            Déposez vos documents dans le sous-dossier <strong>DocsCadre</strong> de votre corpus
-            (glisser-déposer ou bouton « Ouvrir le dossier »). SonalPi ne modifie jamais leur
-            contenu ; pour éditer, renommer ou supprimer, utilisez leur application habituelle.
+            Vos documents sont rangés dans le sous-dossier <strong>DocsPrepaProjet</strong> du corpus
+            (ou <strong>DocsCadre</strong> pour un ancien corpus). « Ouvrir ce dossier » vous y conduit. « Ajouter un fichier » et le glisser-déposer copient dans le dossier affiché.
+            Créez un sous-dossier avec « Nouveau dossier ». SonalPi ne modifie jamais le contenu des documents.
+            Pour déplacer, renommer ou supprimer, utilisez « Ouvrir ce dossier ».
             La liste se rafraîchit au retour dans cet onglet, ou avec « Actualiser ».
           </p>
           <p v-else>
@@ -67,9 +69,11 @@ const aideOuverte = computed({
           <button
             v-if="selectionEstProjet && !estDistant"
             class="primaire"
-            @click="ouvrirAvecApplication(selection.nom)"
-          >Ouvrir avec l’application</button>
-          <button @click="enregistrerCopie(selection.source, selection.nom)">Enregistrer une copie</button>
+            title="Ouvrir avec l’application habituelle"
+            @click="ouvrirAvecApplication(selection.chemin)"
+          >Ouvrir</button>
+          <button v-if="selectionEstProjet && !estDistant" @click="afficherDansDossier(selection.chemin)">Afficher dans le dossier</button>
+          <button @click="enregistrerCopie(selection.source, selection.chemin)">Enregistrer une copie</button>
         </div>
 
         <ApercuDocCadre :apercu="apercu" :chargement="chargementApercu" />

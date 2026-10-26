@@ -1,313 +1,282 @@
-/**
- *  Session documentaire : inventaire, sélection, actualisation et isolation des corpus.
- *  La visibilité du panneau est fournie par la navigation.
- */
-
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { effectScope, ref, type EffectScope } from 'vue'
 import { useDocsCadre } from '../src/renderer/composables/corpus/useDocsCadre'
-import type { InventaireDocsCadre, ResultatLectureDocsCadre } from '../src/shared/docsCadre'
+import type { EntreeDocsCadre, InventaireDossierDocsCadre, ResultatLectureDocsCadre, SourceDocumentCadre } from '../src/shared/docsCadre'
 
 const fenetreInitiale = globalThis.window
 const scopes: EffectScope[] = []
-
 afterEach(() => {
   for (const scope of scopes.splice(0)) scope.stop()
   vi.restoreAllMocks()
   Object.defineProperty(globalThis, 'window', { value: fenetreInitiale, configurable: true })
 })
 
-const inventaireComplet: InventaireDocsCadre = {
-  mode: 'local',
-  projet: [{ source: 'projet', nom: 'consignes.txt', type: 'texte', taille: 3, modifieLe: null }],
-  exemples: [{ source: 'exemple', nom: 'Guide de correction.txt', type: 'texte', taille: 3, modifieLe: null }],
+function document(chemin: string, source: SourceDocumentCadre = 'projet'): EntreeDocsCadre {
+  return { nature: 'document', chemin, source, nom: chemin.split('/').pop()!, type: 'texte', taille: 3, modifieLe: null }
 }
-
-function contexte(inventaire: InventaireDocsCadre = inventaireComplet, distant = false) {
+function dossier(chemin: string, source: SourceDocumentCadre = 'projet'): EntreeDocsCadre {
+  return { nature: 'dossier', chemin, source, nom: chemin.split('/').pop()! }
+}
+function inventaire(source: SourceDocumentCadre, chemin = '', entrees: EntreeDocsCadre[] = []): InventaireDossierDocsCadre {
+  return { mode: 'local', source, dossier: chemin, entrees }
+}
+const arbre: Record<string, EntreeDocsCadre[]> = {
+  'projet:': [dossier('DPO'), dossier('Guides'), document('consignes.txt')],
+  'projet:DPO': [dossier('DPO/École'), document('DPO/notice.txt')],
+  'projet:DPO/École': [document('DPO/École/notice.txt')],
+  'projet:Guides': [document('Guides/notice.txt')],
+  'exemple:': [dossier('DPO', 'exemple'), document('Guide.txt', 'exemple')],
+  'exemple:DPO': [document('DPO/Modèle.txt', 'exemple')],
+}
+function contexte(distant = false) {
   const actif = ref(true)
   let surFocus: (() => void) | undefined
   const docsCadre = {
-    lister: vi.fn(async () => inventaire),
-    lireApercu: vi.fn(async (_source: string, nom: string): Promise<ResultatLectureDocsCadre> => ({
-      resume: { source: 'projet', nom, type: 'texte', taille: 3, modifieLe: null },
-      apercu: { genre: 'texte', contenu: nom },
+    lister: vi.fn(async (source: SourceDocumentCadre, chemin: string): Promise<InventaireDossierDocsCadre> => ({
+      ...inventaire(source, chemin, arbre[`${source}:${chemin}`] ?? []), mode: distant && source === 'projet' ? 'distant' : 'local',
     })),
-    renommer: vi.fn(),
-    supprimer: vi.fn(),
-    ajouterFichier: vi.fn(),
-    deposer: vi.fn(),
+    lireApercu: vi.fn(async (source: SourceDocumentCadre, chemin: string): Promise<ResultatLectureDocsCadre> => ({
+      resume: { ...document(chemin, source), nature: 'document', type: 'texte', taille: 3, modifieLe: null },
+      apercu: { genre: 'texte', contenu: chemin },
+    })),
+    ajouterFichier: vi.fn(), deposer: vi.fn(), creerDossier: vi.fn(),
+    ouvrirAvecApplication: vi.fn(), ouvrirDossierLocal: vi.fn(), afficherDansDossier: vi.fn(),
+    ouvrirDansNextcloud: vi.fn(), enregistrerCopie: vi.fn(),
   }
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      sonal: { docsCadre },
-      addEventListener: vi.fn((nom, ecouteur) => {
-        if (nom === 'focus') surFocus = ecouteur
-      }),
-      removeEventListener: vi.fn(),
-    },
-  })
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    sonal: { docsCadre }, addEventListener: vi.fn((nom, cb) => { if (nom === 'focus') surFocus = cb }), removeEventListener: vi.fn(),
+  } })
   const scope = effectScope()
   const d = scope.run(() => useDocsCadre({ estDistant: () => distant, actif }))!
   scopes.push(scope)
   return { d, docsCadre, actif, reprendreFocus: () => surFocus?.() }
 }
-
-async function terminerRequetes() {
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
+async function terminerRequetes() { for (let i = 0; i < 8; i++) await Promise.resolve() }
+function differee<T>() {
+  let terminer!: (value: T) => void
+  const promesse = new Promise<T>((resolve) => { terminer = resolve })
+  return { promesse, terminer }
 }
 
-describe('inventaire et sélection', () => {
-  test('la préparation reçoit l’inventaire sans choisir de document', async () => {
+describe('navigation documentaire', () => {
+  test('corpus plat compatible et exemples disponibles sans sélection automatique', async () => {
+    const { d } = contexte()
+    await d.preparerDocsCadre()
+    expect(d.documentsProjet.value.map((e) => e.nom)).toEqual(['consignes.txt'])
+    expect(d.entreesProjet.value[0].nature).toBe('dossier')
+    expect(d.documentsExemples.value[0].nom).toBe('Guide.txt')
+    expect(d.selection.value).toBeNull()
+  })
+
+  test('navigation, fil d’Ariane et désélection à l’entrée', async () => {
     const { d, docsCadre } = contexte()
     await d.preparerDocsCadre()
-    expect(d.documentsProjet.value.map((x) => x.nom)).toEqual(['consignes.txt'])
-    expect(d.documentsExemples.value.map((x) => x.nom)).toEqual(['Guide de correction.txt'])
+    d.selectionner({ source: 'projet', chemin: 'consignes.txt' })
+    await d.naviguerDocsCadre('projet', 'DPO/École')
     expect(d.selection.value).toBeNull()
-    d.selectionner({ source: 'exemple', nom: 'Guide de correction.txt' })
-    expect(d.selection.value).toEqual({ source: 'exemple', nom: 'Guide de correction.txt' })
-    expect(docsCadre.lireApercu).toHaveBeenCalledWith('exemple', 'Guide de correction.txt')
+    expect(d.dossiersDocsCadre.value.projet).toBe('DPO/École')
+    expect(docsCadre.lister).toHaveBeenLastCalledWith('projet', 'DPO/École')
+    await d.naviguerDocsCadre('projet', '')
+    expect(d.dossiersDocsCadre.value.projet).toBe('')
   })
 
-  test('chaque onglet retrouve sa dernière sélection', async () => {
-    const { d } = contexte()
-    await d.preparerDocsCadre('projet')
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
+  test('dossiers et sélections indépendants par onglet, identité par chemin', async () => {
+    const { d, docsCadre } = contexte()
+    await d.preparerDocsCadre()
+    await d.naviguerDocsCadre('projet', 'DPO')
+    d.selectionner({ source: 'projet', chemin: 'DPO/notice.txt' })
     await d.preparerDocsCadre('exemple')
-    expect(d.selection.value).toBeNull()
-    d.selectionner({ source: 'exemple', nom: 'Guide de correction.txt' })
+    await d.naviguerDocsCadre('exemple', 'DPO')
+    d.selectionner({ source: 'exemple', chemin: 'DPO/Modèle.txt' })
     await d.preparerDocsCadre('projet')
-    expect(d.selection.value).toEqual({ source: 'projet', nom: 'consignes.txt' })
+    expect(d.selection.value).toEqual({ source: 'projet', chemin: 'DPO/notice.txt' })
+    await d.naviguerDocsCadre('projet', 'Guides')
+    d.selectionner({ source: 'projet', chemin: 'Guides/notice.txt' })
+    expect(docsCadre.lireApercu).toHaveBeenLastCalledWith('projet', 'Guides/notice.txt')
     await d.preparerDocsCadre('exemple')
-    expect(d.selection.value).toEqual({ source: 'exemple', nom: 'Guide de correction.txt' })
+    expect(d.selection.value).toEqual({ source: 'exemple', chemin: 'DPO/Modèle.txt' })
+    expect(d.dossiersDocsCadre.value).toEqual({ projet: 'Guides', exemple: 'DPO' })
   })
 
-  test('masquer le panneau conserve sa sélection ; le retour relit liste et aperçu', async () => {
+  test('le retour relit liste et aperçu ; un fichier disparu est désélectionné', async () => {
     const { d, docsCadre, actif } = contexte()
     await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    await terminerRequetes()
+    d.selectionner({ source: 'projet', chemin: 'consignes.txt' })
     actif.value = false
-    expect(d.selection.value?.nom).toBe('consignes.txt')
-    expect(d.apercu.value).toEqual({ genre: 'texte', contenu: 'consignes.txt' })
+    expect(d.selection.value?.chemin).toBe('consignes.txt')
     actif.value = true
-    docsCadre.lireApercu.mockResolvedValueOnce({
-      resume: inventaireComplet.projet[0],
-      apercu: { genre: 'texte', contenu: 'Contenu modifié' },
-    })
     await d.preparerDocsCadre()
-    expect(docsCadre.lister).toHaveBeenCalledTimes(2)
-    expect(d.selection.value?.nom).toBe('consignes.txt')
-    expect(d.apercu.value).toEqual({ genre: 'texte', contenu: 'Contenu modifié' })
-  })
-
-  test('un document absent de la liste actualisée est désélectionné', async () => {
-    const { d, docsCadre } = contexte()
-    await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    docsCadre.lister.mockResolvedValue({ mode: 'local', projet: [], exemples: inventaireComplet.exemples })
+    expect(d.apercu.value).toEqual({ genre: 'texte', contenu: 'consignes.txt' })
+    docsCadre.lister.mockResolvedValueOnce(inventaire('projet'))
     await d.rafraichirDocsCadre()
     expect(d.selection.value).toBeNull()
     expect(d.apercu.value).toBeNull()
   })
 
-  test('le retour de focus ne relit que le panneau local actif', async () => {
+  test('dossier disparu : remonte plusieurs niveaux jusqu’au premier parent disponible', async () => {
+    const { d, docsCadre } = contexte()
+    await d.preparerDocsCadre()
+    await d.naviguerDocsCadre('projet', 'DPO/École')
+    docsCadre.lister.mockResolvedValueOnce({ ...inventaire('projet', 'DPO/École'), absent: true })
+      .mockResolvedValueOnce({ ...inventaire('projet', 'DPO'), absent: true })
+    await d.rafraichirDocsCadre()
+    expect(d.dossiersDocsCadre.value.projet).toBe('')
+    expect(d.entreesProjet.value).toEqual(arbre['projet:'])
+  })
+
+  test('focus réservé au panneau local actif', async () => {
     const { d, docsCadre, actif, reprendreFocus } = contexte()
     await d.preparerDocsCadre()
+    docsCadre.lister.mockClear()
     actif.value = false
     reprendreFocus()
-    expect(docsCadre.lister).toHaveBeenCalledOnce()
+    expect(docsCadre.lister).not.toHaveBeenCalled()
     actif.value = true
     reprendreFocus()
     await terminerRequetes()
-    expect(docsCadre.lister).toHaveBeenCalledTimes(2)
-  })
-
-  test('le retour de focus ne relit pas les documents distants', async () => {
-    const { d, docsCadre, reprendreFocus } = contexte({ ...inventaireComplet, mode: 'distant' }, true)
-    await d.preparerDocsCadre()
-    reprendreFocus()
     expect(docsCadre.lister).toHaveBeenCalledOnce()
   })
 })
 
-describe('erreurs qui préservent la liste', () => {
-  test('premier accès distant hors ligne : mode et exemples restent disponibles', async () => {
-    const { d } = contexte({
-      mode: 'distant', projet: [], exemples: inventaireComplet.exemples, erreurProjet: 'Serveur injoignable',
-    }, true)
+describe('réseau et réponses tardives', () => {
+  test('premier accès distant hors ligne : exemples et mode préservés', async () => {
+    const { d, docsCadre, reprendreFocus } = contexte(true)
+    docsCadre.lister.mockRejectedValueOnce(new Error('Hors ligne'))
     await d.preparerDocsCadre()
     expect(d.estDistant.value).toBe(true)
-    expect(d.documentsProjet.value).toEqual([])
-    expect(d.documentsExemples.value.map((x) => x.nom)).toEqual(['Guide de correction.txt'])
-    expect(d.erreurListe.value).toBe('Serveur injoignable')
+    expect(d.erreurListe.value).toBe('Hors ligne')
+    expect(d.entreesExemples.value).toEqual(arbre['exemple:'])
+    docsCadre.lister.mockClear()
+    reprendreFocus()
+    expect(docsCadre.lister).not.toHaveBeenCalled()
+    await d.preparerDocsCadre('exemple')
+    expect(d.estDistant.value).toBe(true)
   })
 
-  test('échec de lister : message explicite et listes déjà chargées intactes', async () => {
-    const { d, docsCadre } = contexte()
+  test('navigation distante impossible : dossier et dernière liste inchangés', async () => {
+    const { d, docsCadre } = contexte(true)
     await d.preparerDocsCadre()
-    docsCadre.lister.mockRejectedValueOnce(new Error('Serveur injoignable'))
-    await d.rafraichirDocsCadre()
-    expect(d.erreurListe.value).toBe('Serveur injoignable')
-    expect(d.documentsProjet.value.map((x) => x.nom)).toEqual(['consignes.txt'])
-    expect(d.documentsExemples.value.map((x) => x.nom)).toEqual(['Guide de correction.txt'])
-  })
-})
-
-describe('réponses tardives', () => {
-  test('une lecture lente ne remplace pas le document sélectionné ensuite', async () => {
-    const { d, docsCadre } = contexte()
-    let terminer: ((lecture: ResultatLectureDocsCadre) => void) | undefined
-    docsCadre.lireApercu.mockImplementationOnce(
-      () => new Promise<ResultatLectureDocsCadre>((resolve) => { terminer = resolve }),
-    )
-    await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'lent.txt' })
-    d.selectionner({ source: 'projet', nom: 'rapide.txt' })
-    await terminerRequetes()
-    terminer?.({ resume: inventaireComplet.projet[0], apercu: { genre: 'texte', contenu: 'Lent' } })
-    await terminerRequetes()
-    expect(d.apercu.value).toEqual({ genre: 'texte', contenu: 'rapide.txt' })
-    expect(d.selection.value?.nom).toBe('rapide.txt')
+    docsCadre.lister.mockResolvedValueOnce({ ...inventaire('projet', 'DPO'), erreur: 'Réseau coupé' })
+    await d.naviguerDocsCadre('projet', 'DPO')
+    expect(d.dossiersDocsCadre.value.projet).toBe('')
+    expect(d.entreesProjet.value).toEqual(arbre['projet:'])
+    expect(d.erreurListe.value).toBe('Réseau coupé')
   })
 
-  test('un inventaire de l’ancien corpus ne déclenche pas une lecture dans le nouveau', async () => {
+  test('navigation lente dépassée par une autre navigation', async () => {
     const { d, docsCadre } = contexte()
-    let terminer: ((inventaire: InventaireDocsCadre) => void) | undefined
-    docsCadre.lister.mockImplementationOnce(
-      () => new Promise<InventaireDocsCadre>((resolve) => { terminer = resolve }),
-    )
-    const ancienneOuverture = d.preparerDocsCadre()
-    d.reinitialiserDocsCadre()
     await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    await terminerRequetes()
-    const lectures = docsCadre.lireApercu.mock.calls.length
-    terminer?.({ mode: 'local', projet: [], exemples: [] })
-    await ancienneOuverture
-    expect(docsCadre.lireApercu).toHaveBeenCalledTimes(lectures)
-    expect(d.documentsProjet.value).toEqual(inventaireComplet.projet)
-    expect(d.selection.value?.nom).toBe('consignes.txt')
+    const lente = differee<InventaireDossierDocsCadre>()
+    docsCadre.lister.mockReturnValueOnce(lente.promesse)
+    const navigation = d.naviguerDocsCadre('projet', 'DPO')
+    await d.naviguerDocsCadre('projet', 'Guides')
+    lente.terminer(inventaire('projet', 'DPO', arbre['projet:DPO']))
+    await navigation
+    expect(d.dossiersDocsCadre.value.projet).toBe('Guides')
   })
 
-  test('une lecture de l’ancien corpus ne remplit pas le panneau réinitialisé', async () => {
+  test('aperçu tardif ignoré après navigation', async () => {
     const { d, docsCadre } = contexte()
-    let terminer: ((lecture: ResultatLectureDocsCadre) => void) | undefined
-    docsCadre.lireApercu.mockImplementationOnce(
-      () => new Promise<ResultatLectureDocsCadre>((resolve) => { terminer = resolve }),
-    )
     await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    d.reinitialiserDocsCadre()
-    terminer?.({ resume: inventaireComplet.projet[0], apercu: { genre: 'texte', contenu: 'Ancien corpus' } })
+    const lente = differee<ResultatLectureDocsCadre>()
+    docsCadre.lireApercu.mockReturnValueOnce(lente.promesse)
+    d.selectionner({ source: 'projet', chemin: 'consignes.txt' })
+    await d.naviguerDocsCadre('projet', 'DPO')
+    lente.terminer({ resume: document('consignes.txt') as ResultatLectureDocsCadre['resume'], apercu: { genre: 'texte', contenu: 'Ancien' } })
     await terminerRequetes()
-    expect(d.documentsProjet.value).toEqual([])
     expect(d.selection.value).toBeNull()
     expect(d.apercu.value).toBeNull()
   })
+
+  test('ancien corpus : liste et aperçu ne reviennent pas après réinitialisation', async () => {
+    const { d, docsCadre } = contexte()
+    const lente = differee<InventaireDossierDocsCadre>()
+    docsCadre.lister.mockReturnValueOnce(lente.promesse)
+    const ancienne = d.preparerDocsCadre()
+    d.reinitialiserDocsCadre()
+    await d.preparerDocsCadre()
+    d.selectionner({ source: 'projet', chemin: 'consignes.txt' })
+    lente.terminer(inventaire('projet'))
+    await ancienne
+    expect(d.entreesProjet.value).toEqual(arbre['projet:'])
+    expect(d.selection.value?.chemin).toBe('consignes.txt')
+    d.reinitialiserDocsCadre()
+    expect(d.dossiersDocsCadre.value).toEqual({ projet: '', exemple: '' })
+    expect(d.entreesProjet.value).toEqual([])
+    expect(d.selection.value).toBeNull()
+    expect(d.chargementListe.value).toBe(false)
+  })
 })
 
-describe('mutations locales', () => {
-  test('renommage : garde de forme locale et collision expliquée', async () => {
+describe('actions ciblées', () => {
+  test('ajout, collision, création et dépôt ciblent le dossier projet courant', async () => {
     const { d, docsCadre } = contexte()
     await d.preparerDocsCadre()
-    expect(d.nomRenommageValide('Notice (2).txt')).toBe(true)
-    expect(d.nomRenommageValide('a/b.txt')).toBe(false)
-    await d.renommerDocCadre('consignes.txt', 'a/b.txt')
-    expect(docsCadre.renommer).not.toHaveBeenCalled()
-    docsCadre.renommer.mockResolvedValue({ ok: false, raison: 'existe', suggere: 'consignes-2.txt' })
-    await d.renommerDocCadre('consignes.txt', 'notice.txt')
-    expect(d.messageAction.value).toContain('consignes-2.txt')
-  })
-
-  test('suppression confirmée : sélection libérée et message affiché', async () => {
-    const { d, docsCadre } = contexte()
-    await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    docsCadre.supprimer.mockResolvedValue({ ok: true, nom: 'consignes.txt' })
-    docsCadre.lister.mockResolvedValue({ mode: 'local', projet: [], exemples: inventaireComplet.exemples })
-    d.demanderSuppression('consignes.txt')
-    expect(d.documentASupprimer.value).toBe('consignes.txt')
-    await d.confirmerSuppression()
-    expect(docsCadre.supprimer).toHaveBeenCalledWith('consignes.txt')
-    expect(d.messageAction.value).toContain('corbeille')
-    expect(d.selection.value).toBeNull()
-  })
-
-  test('ajout : collision reprise avec le nom libre proposé', async () => {
-    const { d, docsCadre } = contexte()
-    await d.preparerDocsCadre()
-    docsCadre.ajouterFichier
-      .mockResolvedValueOnce({ ok: false, raison: 'existe', suggere: 'notice-2.txt' })
+    await d.naviguerDocsCadre('projet', 'DPO')
+    docsCadre.ajouterFichier.mockResolvedValueOnce({ ok: false, raison: 'existe', suggere: 'notice-2.txt' })
       .mockResolvedValueOnce({ ok: true, nom: 'notice-2.txt' })
     await d.ajouterFichier()
-    expect(docsCadre.ajouterFichier).toHaveBeenCalledTimes(2)
-    expect(docsCadre.ajouterFichier).toHaveBeenLastCalledWith('notice-2.txt')
-    expect(d.messageAction.value).toContain('notice-2.txt')
+    expect(docsCadre.ajouterFichier).toHaveBeenLastCalledWith('DPO', 'notice-2.txt')
+    expect(d.selection.value?.chemin).toBe('DPO/notice-2.txt')
+    docsCadre.creerDossier.mockResolvedValue({ ok: true, nom: 'Consentements' })
+    expect(await d.creerDossier('Consentements')).toBe(true)
+    expect(docsCadre.creerDossier).toHaveBeenCalledWith('DPO', 'Consentements')
+    expect(await d.creerDossier('../refus')).toBe(false)
+    docsCadre.deposer.mockResolvedValue({ ok: true, nom: 'notice.txt' })
+    await d.deposerFichiers(['/tmp/notice.txt', '/tmp/autre.txt'])
+    expect(docsCadre.deposer).toHaveBeenCalledWith('/tmp/notice.txt', 'DPO')
+    expect(d.selection.value?.chemin).toBe('DPO/notice.txt')
   })
 
-  test('corpus distant : les refus de mutation sont relayés', async () => {
-    const { d, docsCadre } = contexte({ ...inventaireComplet, mode: 'distant' }, true)
-    await d.preparerDocsCadre()
-    docsCadre.supprimer.mockRejectedValue(new Error('Ces documents sont en lecture seule dans un corpus distant.'))
-    d.demanderSuppression('consignes.txt')
-    await d.confirmerSuppression()
-    expect(d.messageAction.value).toContain('lecture seule')
-  })
-})
-
-describe('dépôt par glisser-déposer', () => {
-  test('copie, reçoit la liste et sélectionne le dernier fichier déposé', async () => {
+  test('dépôt refusé : homonyme et source non ordinaire expliqués', async () => {
     const { d, docsCadre } = contexte()
     await d.preparerDocsCadre()
-    docsCadre.deposer.mockResolvedValue({ ok: true, nom: 'depose.txt' })
-    docsCadre.lister.mockResolvedValue({
-      ...inventaireComplet,
-      projet: [...inventaireComplet.projet,
-        { source: 'projet', nom: 'depose.txt', type: 'texte', taille: 1, modifieLe: null }],
-    })
-    await d.deposerFichiers(['/tmp/depose.txt'])
-    expect(docsCadre.deposer).toHaveBeenCalledWith('/tmp/depose.txt')
-    expect(d.selection.value).toEqual({ source: 'projet', nom: 'depose.txt' })
-    expect(d.messageAction.value).toContain('depose.txt')
-  })
-
-  test('homonyme : refus explicite, pas de renommage automatique', async () => {
-    const { d, docsCadre } = contexte()
-    await d.preparerDocsCadre()
-    docsCadre.deposer.mockResolvedValue({ ok: false, raison: 'existe', suggere: 'notice-2.txt' })
-    await d.deposerFichiers(['/tmp/notice.txt'])
-    expect(docsCadre.deposer).toHaveBeenCalledTimes(1)
+    docsCadre.deposer.mockResolvedValueOnce({ ok: false, raison: 'existe' }).mockResolvedValueOnce({ ok: false, raison: 'source' })
+    await d.deposerFichiers(['/tmp/a', '/tmp/b'])
     expect(d.messageAction.value).toContain('porte déjà ce nom')
+    expect(d.messageAction.value).toContain('fichier ordinaire')
     expect(d.selection.value).toBeNull()
   })
 
-  test('source non ordinaire : message explicite, rien de copié', async () => {
+  test('ouverture, affichage et copie utilisent le chemin complet', async () => {
     const { d, docsCadre } = contexte()
     await d.preparerDocsCadre()
-    docsCadre.deposer.mockResolvedValue({ ok: false, raison: 'source' })
-    await d.deposerFichiers(['/tmp/dossier'])
-    expect(d.messageAction.value).toContain('fichier ordinaire')
+    await d.naviguerDocsCadre('projet', 'DPO')
+    await d.ouvrirDossierLocal()
+    await d.ouvrirDansNextcloud()
+    await d.ouvrirAvecApplication('DPO/notice.txt')
+    await d.afficherDansDossier('DPO/notice.txt')
+    await d.enregistrerCopie('projet', 'DPO/notice.txt')
+    expect(docsCadre.ouvrirDossierLocal).toHaveBeenCalledWith('DPO')
+    expect(docsCadre.ouvrirDansNextcloud).toHaveBeenCalledWith('DPO')
+    expect(docsCadre.ouvrirAvecApplication).toHaveBeenCalledWith('DPO/notice.txt')
+    expect(docsCadre.afficherDansDossier).toHaveBeenCalledWith('DPO/notice.txt')
+    expect(docsCadre.enregistrerCopie).toHaveBeenCalledWith('projet', 'DPO/notice.txt')
   })
-})
 
-describe('bascule de corpus', () => {
-  test('réinitialisation : listes, sélection, messages et requêtes vidés', async () => {
-    const { d } = contexte()
+  test('aucune mutation depuis les exemples ou un projet distant', async () => {
+    for (const distant of [false, true]) {
+      const { d, docsCadre } = contexte(distant)
+      await d.preparerDocsCadre(distant ? 'projet' : 'exemple')
+      await d.ajouterFichier()
+      await d.creerDossier('Refus')
+      await d.deposerFichiers(['/tmp/a'])
+      expect(docsCadre.ajouterFichier).not.toHaveBeenCalled()
+      expect(docsCadre.creerDossier).not.toHaveBeenCalled()
+      expect(docsCadre.deposer).not.toHaveBeenCalled()
+    }
+  })
+
+  test('un changement de corpus interrompt les dépôts restants', async () => {
+    const { d, docsCadre } = contexte()
     await d.preparerDocsCadre()
-    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
-    d.demanderSuppression('consignes.txt')
+    const lente = differee<{ ok: true; nom: string }>()
+    docsCadre.deposer.mockReturnValueOnce(lente.promesse)
+    const depot = d.deposerFichiers(['/tmp/a', '/tmp/b'])
     d.reinitialiserDocsCadre()
-    expect(d.documentsProjet.value).toEqual([])
-    expect(d.documentsExemples.value).toEqual([])
-    expect(d.selection.value).toBeNull()
-    expect(d.apercu.value).toBeNull()
-    expect(d.documentASupprimer.value).toBeNull()
+    lente.terminer({ ok: true, nom: 'a' })
+    await depot
+    expect(docsCadre.deposer).toHaveBeenCalledOnce()
     expect(d.messageAction.value).toBeNull()
-    expect(d.chargementListe.value).toBe(false)
-    expect(d.chargementApercu.value).toBe(false)
-    expect(d.mode.value).toBe('local')
   })
 })

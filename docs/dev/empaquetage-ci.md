@@ -25,6 +25,8 @@ npm run pack    (electron-builder → dist/ + paquet natif de la plateforme)
 - `extraResources` : `ressources/docsCadreExemples` → `resources/docsCadreExemples`
   et `CorpusTest` → `resources/CorpusTest`. C'est ce que lisent `cheminExemplesDocsCadre()`
   et `cheminCorpusTest()` quand `app.isPackaged` (jamais de chemin dans l'asar).
+  Les sources de la démo sont dans `CorpusTest/CorpusSynth/` ; seul le contenu de
+  ce sous-dossier est installé dans le dossier de sources choisi par l'utilisateur.
 - Icône : `build/icon.ico` (Windows) et `build/icon.png` (Linux et macOS), reprise de
   l'icône v1 badgée « 2 » (distinction V1/V2).
 - Linux : cibles AppImage + deb (catégorie AudioVideo) ; Windows : NSIS avec choix du
@@ -36,7 +38,8 @@ npm run pack    (electron-builder → dist/ + paquet natif de la plateforme)
 
 `npm run pack:dir` puis vérifier :
 
-- `dist/<plateforme>-unpacked/resources/` contient `CorpusTest` et `docsCadreExemples` ;
+- `dist/<plateforme>-unpacked/resources/` contient `CorpusTest/CorpusSynth/`
+  (avec `srt/`, `audio/` et `docs/`) et `docsCadreExemples` ;
 - `app.asar.unpacked/out/renderer/assets/pdf.worker*.mjs` présent.
 
 Le smoke test final (installer, ouvrir DocsCadre, vérifier l'aperçu PDF et le vrai

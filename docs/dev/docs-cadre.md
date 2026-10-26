@@ -1,134 +1,154 @@
-# Docs cadre projet — carte développeur
+# Documents du projet — carte développeur
 
-L'espace « Préparer et suivre » sépare **Documents du projet**, propres au corpus
-courant, et **Documents exemples**, embarqués avec l'application. Les documents du projet
-regroupent notamment notices de consentement, guides de méthode, consignes internes et
-fichiers Word ou PDF.
+Les onglets **Documents du projet** et **Documents exemples** de « Préparer et suivre »
+utilisent le même explorateur par dossier. Le contenu des documents n'est jamais modifié
+ni converti. `corpus.json` ne change pas et les corpus plats restent compatibles.
 
-Décision structurante : SonalPi conserve les documents dans leur format d'origine et
-ne modifie JAMAIS leur contenu, en local comme à distance. L'édition est confiée à
-l'application habituelle du poste ou à Nextcloud ; SonalPi assure l'inventaire, quelques
-aperçus fiables et l'accès aux fichiers. Il n'existe aucune conversion et aucun doublon.
-
-## Stockage
+## Stockage et empaquetage
 
 ```text
-<corpus>/
-├── corpus.json            (aucun champ ajouté, aucune migration)
-├── entretiens/
-├── DocsCadre/             ← documents du corpus (premier niveau uniquement)
-└── corbeille/
-    └── DocsCadre/         ← suppression douce (nom non destructif)
+<corpus>/DocsCadre/
+├── consignes.txt
+└── DPO/
+    └── Consentements/notice.docx
+
+ressources/docsCadreExemples/
+├── DPO/
+│   ├── Déclaration traitement DPO.txt
+│   └── Notice de consentement DPO.txt
+├── Guide de correction.txt
+└── Guide de pseudonymisation.txt
 ```
 
-- `DocsCadre/` est créé à la première ouverture explicite du dossier, au premier ajout
-  ou à la première copie ; l'utilisateur peut ensuite y déposer ses fichiers à la main.
-- Copies et renommages locaux créent leur cible de façon exclusive et n'écrasent jamais
-  une cible existante : les collisions sont retournées à l'interface avec un nom libre proposé.
-- Aucun fichier dérivé persistant n'est produit pour les aperçus.
+La racine locale est créée à l'ouverture explicite du dossier, à la création d'un dossier
+ou à l'ajout d'un fichier. La consultation ne crée rien. Aucun parcours récursif n'est
+nécessaire pour afficher un dossier. `extraResources` d'Electron Builder copie récursivement
+les exemples vers `process.resourcesPath/docsCadreExemples` ; `archiveCorpus.ts` conserve
+également les fichiers imbriqués, sans conversion.
 
-### Corpus distant : absence volontaire de miroir
+## Contrats et sécurité
 
-Le miroir n'inventorie que la racine, `entretiens/` et les JSON attendus ; `DocsCadre/`
-n'y entre pas et la politique n'est PAS étendue. La consultation est une lecture WebDAV
-directe : version du serveur au moment de la lecture, aucune copie locale confondable
-avec une version éditable, aucun verrou ni conflit documentaire, binaires hors du tirage.
-Contrepartie assumée : pas de consultation hors ligne (erreur explicite, exemples toujours
-disponibles). `PublieurCorpus` crée `DocsCadre/` pour un nouveau corpus ; un ancien corpus
-sans ce dossier est traité comme vide (404 → liste vide, jamais de création cachée).
+`src/shared/docsCadre.ts` est pur et partagé par main, preload et renderer :
 
-## Contrats partagés (`src/shared/docsCadre.ts`)
+- `EntreeDocsCadre` distingue dossiers et documents (`nature`). Chaque entrée porte
+  `source`, `nom` et `chemin`, relatif à sa racine documentaire ;
+- `InventaireDossierDocsCadre` contient `mode`, `source`, `dossier`, `entrees` et, au besoin,
+  `absent` ou `erreur`. Il décrit un seul dossier ;
+- `estCheminDocsCadre` accepte uniquement des segments listables et portables, séparés par
+  `/`, avec une limite de 2 048 caractères. La chaîne vide désigne la racine uniquement
+  si l'appel l'autorise. Chemins absolus, segments vides, `.` et `..`, antislashs, noms
+  réservés Windows, caractères de contrôle et noms cachés ou temporaires sont refusés ;
+- `trierEntreesDocsCadre` place les dossiers avant les documents, puis trie en français.
 
-Module pur partagé main/preload/renderer/tests : `SourceDocumentCadre`, `ModeDocumentsCadre`,
-`TypeDocumentCadre`, `ResumeDocumentCadre`, `InventaireDocsCadre`, `ApercuDocumentCadre`
-(texte / octets d’image ou PDF / absence expliquée) et `ResultatMutationDocsCadre` (collisions
-explicites, jamais d'écrasement). Fonctions pures : `estNomSain` (portabilité : séparateurs,
-noms réservés Windows, contrôle, point/espace final — casse et accents conservés),
-`estListable` (cachés, `~$…`, temporaires exclus), `categoriserDocument`, `nomLibre`,
-`trierDocuments` (locale fr), `trierExemplesDocs` (ordre défini des exemples : les noms
-déclarés dans `NOMS_EXEMPLES_DOCS` d'abord, les autres ensuite par ordre alphabétique) et
-les limites d'aperçu (`LIMITE_APERCU_TEXTE_OCTETS`,
-`LIMITE_APERCU_BINAIRE_OCTETS`, `LIMITE_APERCU_PDF_OCTETS`).
+Le main résout les cibles sous les racines autorisées. Chaque dossier intermédiaire est
+vérifié par `lstat`, ainsi que le fichier final : aucun lien symbolique n'est accepté.
+Les erreurs de résolution ne renvoient pas le chemin absolu du poste. Comme les autres
+opérations locales, ces contrôles ne constituent pas un verrou contre un autre processus
+qui remplacerait simultanément les dossiers pendant une opération.
 
-Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une source
-(`'projet' | 'exemple'`) et un nom validé par le main.
+Les copies d'ajout passent par un temporaire et une création exclusive par lien physique.
+Les collisions insensibles à la casse comptent toutes les entrées, y compris dossiers et
+liens. Le sélecteur propose un nom libre ; le dépôt refuse l'homonyme. Aucun dossier déposé
+n'est importé récursivement. Les anciennes opérations internes de renommage et corbeille
+restent limitées aux fichiers de racine et ne sont pas proposées dans l'interface.
 
-## Côté main
+## IPC et actions système
 
-- `src/main/docsCadre.ts` — service local, PUR d'Electron (fs seul, testable headless) :
-  inventaire du premier niveau, lecture bornée (texte UTF-8 strict ; images et PDF avec
-  contrôle de signature), ajout copié, dépôt glisser-déposer (`deposerFichierLocal` :
-  fichier régulier exigé, homonyme refusé sans écrasement), renommage sans écrasement,
-  corbeille (logiques conservées, boutons retirés), résolution de chemin validée pour
-  l'ouverture externe, exemples embarqués (inventaire dans l'ordre de `NOMS_EXEMPLES_DOCS`).
-- `src/main/docsCadreDistant.ts` : inventaire et aperçu par `ClientWebDAV` du miroir actif
-  (`PROPFIND DocsCadre` ; `GET` streamé et borné pour les aperçus acceptés ; copie exacte
-  streamée via `getBinaireFichier`), `urlNextcloudPourCorpus` (HTTPS ou hôte local ;
-  racine non reconnue → null, refus propre).
-- Handlers IPC dans `enregistrerIpcCorpus` (`docsCadre:*`) : les racines (corpus courant,
-  exemples embarqués) sont résolues ICI, jamais depuis l'IPC. Les mutations refusent un
-  corpus distant dans le main, même si le renderer appelle l'IPC par erreur. Le dépôt
-  (`docsCadre:deposer`) reçoit le chemin d'un fichier glissé — il n'existe que dans le
-  main (validation fichier régulier, refus distant). Les dialogues natifs (ajout, destination
-  de copie) vivent côté main ; leur chemin ne traverse pas le pont. `shell.openPath` /
-  `shell.openExternal` ne reçoivent que des cibles construites et validées côté main.
+Les chemins documentaires échangés sont relatifs, jamais absolus :
 
-## Côté renderer
+```text
+docsCadre:lister(source, dossier)
+docsCadre:lireApercu(source, chemin)
+docsCadre:ajouterFichier(dossier, nomSouhaite?)
+docsCadre:deposer(cheminSource, dossier)
+docsCadre:creerDossier(parent, nom)
+docsCadre:ouvrir(chemin)
+docsCadre:ouvrirDossier(dossier)
+docsCadre:afficherDansDossier(chemin)
+docsCadre:enregistrerCopie(source, chemin)
+docsCadre:ouvrirDansNextcloud(dossier)
+```
 
-- `composables/corpus/useDocsCadre.ts` : inventaire, sélection (compteur de génération :
-  une réponse tardive ne s'affiche jamais après un changement de document), dépôt par
-  glisser-déposer (copie, refus d'un homonyme sans renommage automatique), messages,
-  confirmation de suppression (IPC conservé, bouton retiré de l'UI). Une erreur réseau
-  préserve la liste chargée et les exemples. `preparerDocsCadre` relit l'inventaire et
-  l'aperçu à chaque accès, puis restaure la dernière sélection propre à l'onglet demandé.
-  La navigation fournit un indicateur actif en lecture seule ; le composable ne pilote pas
-  sa visibilité.
-  Le retour de focus actualise seulement le panneau local actif, sans surveillance continue.
-- `components/preparer/documents-cadre/DocsCadreCote.vue` (barre latérale) et
-  `DocsCadrePanneau.vue` (panneau de consultation) servent les deux onglets. Seul l'onglet
-  projet porte les actions de gestion (local : Ajouter, Ouvrir le dossier, Actualiser ;
-  distant : Ouvrir dans Nextcloud, Actualiser). Chaque onglet dispose de son aide adaptée. Le double-clic sur un
-  document du corpus ouvre l'application externe. `corpus/FicheDocCadre.vue` (métadonnées),
-  `corpus/ApercuDocCadre.vue` (texte mustache-échappé ; URL d'objet image créée et révoquée
-  au composant), `corpus/ApercuPdf.vue` (PDF.js local, rendu canvas, navigation et zoom).
-- La gestion (renommer, supprimer) a été retirée de l'interface : les IPC
-  `docsCadre:renommer` et `docsCadre:supprimer` et la corbeille douce restent dans le main
-  (tests conservés) mais ne sont plus exposés à l'utilisateur.
-- Coutures : `preparer/PreparerSuivre.vue` (onglet et panneau de travail),
-  `corpus/DocsCadreCote.vue` (actions et listes), `corpus/DocsCadrePanneau.vue`
-  (aperçu), `composables/sonal.ts` (même commande d'ouverture depuis la barre, les
-  onglets et le guidage), `composables/useEspacesTravail.ts` (panneau actif dérivé de
-  la navigation). Les panneaux restent montés entre les onglets ; un changement de
-  corpus réinitialise la session documentaire et les états locaux des espaces.
-  Le glisser-déposer est porté par l'espace.
+Le chemin source d'un dépôt est l'exception : il est obtenu par `webUtils.getPathForFile`
+pour un fichier natif glissé depuis le poste. Le main vérifie qu'il s'agit d'un fichier
+régulier, non symbolique. Les chemins des dialogues et les cibles documentaires absolues
+ne sont pas retournés au renderer. Le nom par défaut du dialogue de copie est le nom du
+fichier seul, sans ses dossiers.
 
-## Aperçu PDF
+`src/main/index.ts` capture le corpus avant les opérations asynchrones et vérifie qu'il
+est toujours courant après les attentes. Les mutations sont refusées à distance dans
+le main, indépendamment de l'interface. Les exemples n'exposent aucune mutation.
 
-La visionneuse PDF native de Chromium n’existe pas dans le paquet Electron distribué.
-L’aperçu utilise donc `pdfjs-dist`, embarqué localement avec son worker. Le composant rend
-une page à la fois dans un canvas et expose uniquement navigation et zoom. Il ne monte pas
-les couches de liens, formulaires, annotations ou pièces jointes. Les octets sont contrôlés
-et bornés à 30 Mo avant d’atteindre le renderer. L’ouverture externe reste disponible.
+- **Ouvrir** : `shell.openPath` sur un fichier local validé ;
+- **Ouvrir ce dossier** : `shell.openPath` sur le dossier courant validé ;
+- **Afficher dans le dossier** : `shell.showItemInFolder` sur le fichier validé ;
+- **Organiser ce dossier dans Nextcloud** : URL construite par le main, `shell.openExternal`.
 
-## Tests
+Il n'y a pas de bouton de choix d'application. Voir
+[l'étude d'ouverture native](docs-cadre-ouverture-native.md).
 
-- `test/docsCadre.test.ts` : noms portables, inventaire, ajout binaire sans altération,
-  collisions, dépôt glisser-déposer (fichier exigé, homonyme refusé), corbeille, aperçus
-  (texte échappé, encodage refusé, signatures, limites), exemples embarqués, sécurité des
-  chemins, PDF valide/corrompu/trop volumineux.
-- `test/docsCadreDistant.test.ts` : inventaire WebDAV (dossier absent = liste vide, 404
-  forcé, sous-dossiers exclus), GET réservé aux aperçus acceptés, tailles bornées, copie
-  streamée exacte, création du dossier à la publication, URL Nextcloud (sous-chemin,
-  accents, HTTP local uniquement).
-- `test/docsCadreRenderer.test.ts` : préparation, sélection conservée au masquage,
-  actualisation au retour, focus du seul panneau actif, listes préservées en cas
-  d'erreur, isolation des réponses tardives, garde de forme, mutations et messages,
-  dépôt (copie + sélection, homonyme refusé, source non ordinaire).
-- `e2e/docs-cadre.e2e.ts` : bouton actif, ordre des sections, état vide avec actions
-  accessibles, aperçu d'exemple immuable, aperçu PDF avec zoom, ajout et persistance,
-  absence de renommage/suppression dans l'interface, dépôt manuel découvert.
-- `e2e/espaces-contexte.e2e.ts` : découverte et relecture au retour par la barre seule,
-  sélection conservée entre les outils et désélection d'un document disparu.
+## Nextcloud
 
-Bancs Nextcloud : `npm run nc:up` / `npm run nc-b:up` suffisent ; ne JAMAIS retélécharger
-ni reprovisionner les images pour ce chantier.
+`src/main/docsCadreDistant.ts` consulte directement le serveur, sans miroir documentaire :
+
+- `PROPFIND Depth: 1` sur `DocsCadre/<dossier>` ; seuls les enfants directs sont retenus,
+  même si le serveur renvoie aussi des petits-enfants ;
+- 404 : résultat `absent`, distinct d'un dossier vide ; les autres erreurs conservent
+  le dernier inventaire lisible dans le renderer ;
+- aperçus : inventaire du parent, puis GET borné du chemin complet si le format le permet ;
+- copie : GET en flux vers la destination, octets inchangés ;
+- aucune mutation documentaire WebDAV (PUT, MKCOL, MOVE ou DELETE).
+
+`urlNextcloudPourCorpus(baseUrl, dossier)` ouvre le dossier courant dans Fichiers.
+Les segments de la racine DAV sont décodés puis réencodés ; les segments relatifs du
+contrat, déjà décodés, sont encodés une seule fois, y compris les pourcentages littéraux.
+HTTPS est exigé sauf sur un hôte local. Les URL non reconnues sont refusées.
+GitLab ne propose pas le service documentaire ; ses exemples restent disponibles.
+
+## Renderer
+
+`useDocsCadre` mémorise séparément pour projet et exemples le dossier, les entrées, la
+sélection par chemin, la génération de liste et la dernière erreur. La sélection visible
+porte `{ source, chemin }`. Un compteur d'aperçu et une session de corpus empêchent les
+réponses tardives de remplir un panneau quitté ou un autre corpus.
+
+Une navigation désélectionne le document, puis ne remplace dossier et liste qu'après
+une lecture réussie. Si le dossier disparaît, la lecture remonte jusqu'au premier parent
+disponible. En cas de panne réseau, dossier et dernière liste restent affichés. Chaque
+onglet retrouve son dossier et son document ; un changement de corpus remet les deux à
+la racine. Le retour de focus relit seulement le panneau local actif.
+
+`DocsCadreCote.vue` fournit des boutons de dossier, un fil d'Ariane accessible et une
+création de dossier par formulaire. Le fil d'Ariane est masqué à la racine.
+Ses parents ont l'apparence de liens, comme la navigation principale ; le dossier courant
+est un texte non cliquable. Après navigation, le focus revient au dossier courant,
+ou au titre à la racine.
+Le dépôt de `PreparerSuivre.vue` est actif seulement dans l'onglet projet local ; sa
+destination est capturée au début du dépôt. Un changement de corpus interrompt les dépôts
+restants. Les exemples n'offrent qu'aperçu et copie ; aucun emplacement d'installation
+n'est ouvert. Les documents distants ne lancent pas d'application locale implicitement.
+
+## Aperçus et tests
+
+Texte UTF-8 strict et échappé ; images avec contrôle de signature ; PDF.js embarqué et
+worker local, rendu canvas sans liens, formulaires ni pièces jointes. Limites : texte
+2 Mo, image 20 Mo, PDF 30 Mo. Ces plafonds ne limitent pas le stockage.
+
+- `test/docsCadre.test.ts` : chemins, liens, tri, mutations ciblées, collisions, aperçus,
+  copies exactes et ressources DPO ;
+- `test/docsCadreDistant.test.ts` : parcours imbriqué, petits-enfants ignorés, 404,
+  encodage, copies et URL Nextcloud ;
+- `test/docsCadreRenderer.test.ts` : navigation, mémoire indépendante, disparition,
+  erreurs réseau, réponses tardives et destinations des actions ;
+- `test/webdav/docsCadre-nextcloud.test.ts` : navigation, lecture et copie sur les deux
+  bancs réels, sans écriture par le service documentaire ;
+- `test/archiveCorpus.test.ts` : conservation d'un document sur plusieurs niveaux ;
+- `e2e/docs-cadre.e2e.ts` : parcours local, clavier, création, ajout, dépôt via IPC,
+  actions Electron simulées, exemples DPO, noms longs et remontée après suppression externe ;
+- `e2e/docs-cadre-nextcloud.e2e.ts` : navigation réelle sur les deux bancs, actions adaptées,
+  panne documentaire simulée, liste préservée et exemples consultables hors ligne ;
+- `e2e/docs-cadre-paquet.e2e.ts` : lance le paquet et lit les deux modèles DPO.
+  Après `npm run pack:dir`, définir `DOCS_E2E_EXECUTABLE` vers son exécutable.
+
+Préparer les bancs réels avec `preparer_bancs_docker` dans pi. Ne pas télécharger ni
+reprovisionner leurs images.

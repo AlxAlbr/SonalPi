@@ -781,8 +781,8 @@ onUnmounted(() => {
       <section ref="panneau" class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }" :aria-busy="scanAnonEnCours">
         <div class="pseudo-haut">
           <p v-if="messagePseudo && !scanPourRegle" class="pseudo-message" role="status">{{ messagePseudo }}</p>
-          <header class="pseudo-tete">
-            <h3>Pseudonymisation <span class="pseudo-sous">— règles d'anonymisation du corpus</span></h3>
+          <header class="pseudo-tete" :class="{ panneau: !reglesAnon.length }">
+            <h3 v-if="!reglesAnon.length" class="titre-panneau">Pseudonymisation</h3>
             <div class="pseudo-tete-actions">
               <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="actualiserPanneau">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
               <div class="pseudo-outils-regles">
@@ -881,7 +881,9 @@ onUnmounted(() => {
 
           <template v-else>
             <!-- Partie GAUCHE : recherche + table des règles, loupe par ligne. -->
-            <div class="pseudo-gauche">
+            <div class="panneau pseudo-gauche">
+              <div class="corpus-tete"><h3 class="titre-panneau">Pseudonymisation</h3></div>
+              <p class="accueil-intro pseudo-intro">Règles d’anonymisation du corpus.</p>
               <div class="pseudo-filtres">
                 <select v-model="filtreEtat" aria-label="Filtre d’état">
                   <option value="toutes">Toutes les règles</option>
@@ -1069,8 +1071,7 @@ onUnmounted(() => {
 .pseudo-vide { grid-column: 1 / -1; grid-row: 2; }
 .pseudo-gauche {
   box-sizing: border-box;
-  border-right: 1px solid #eee;
-  padding-right: 1rem;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1354,7 +1355,6 @@ onUnmounted(() => {
   grid-column: 1 / -1;
   grid-row: 1;
 }
-.pseudo-tete h3 { margin: 0; font-size: 1.05rem; }
 .pseudo-tete-actions { display: flex; width: 100%; align-items: center; gap: .4rem; }
 .pseudo-outils-regles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .4rem; margin-left: auto; }
 .pseudo-params {
@@ -1393,7 +1393,7 @@ onUnmounted(() => {
   border-radius: 6px;
   font-size: 0.82rem;
 }
-.pseudo-sous { color: #888; font-weight: normal; font-size: 0.85rem; }
+.pseudo-intro { margin-bottom: .7rem; }
 .pseudo-vide { color: #666; font-size: 0.9rem; }
 .pseudo-hint { color: #999; font-size: 0.78rem; margin-top: 0.4rem; }
 .pseudo-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -1422,7 +1422,8 @@ onUnmounted(() => {
 .pseudo-separateur { grid-column: 2; grid-row: 2; cursor: col-resize; background: #e8edf5; border-radius: 5px; touch-action: none; }
 .pseudo-separateur:focus { outline: 2px solid #1565c0; }
 .pseudo-deux-col.vertical { display: flex; flex-direction: column; height: auto; min-height: 620px; }
-.vertical .pseudo-gauche, .vertical .pseudo-droite { width: 100%; min-height: 280px; padding: .5rem 0; border: 0; }
+.vertical .pseudo-gauche, .vertical .pseudo-droite { width: 100%; min-height: 280px; }
+.vertical .pseudo-droite { padding: .5rem 0; }
 .vertical .pseudo-gauche { height: 380px; flex: none; }
 .vertical .pseudo-droite { max-height: 480px; }
 .pseudo-tete { flex-wrap: wrap; gap: .5rem; }

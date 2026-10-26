@@ -15,7 +15,6 @@ import icoExemples from '../../assets/icones/exemples.svg'
 // Les panneaux restent montés pour conserver les brouillons entre deux onglets.
 const {
   sousEspacePreparation,
-  docsCadreOuverts,
   afficherAccueilPreparation,
   afficherTableauBord,
   afficherDocsCadre,
@@ -23,6 +22,7 @@ const {
   estDistant,
   gesteDisponible,
   deposerFichiers,
+  dossiersDocsCadre,
 } = utiliserSonal()
 
 /** Un fournisseur peut ne pas proposer les documents du projet (GitLab). */
@@ -42,10 +42,10 @@ const survolDepot = ref(false)
 let profondeurDrag = 0
 
 function depotAutorise(): boolean {
-  return docsCadreOuverts.value && !estDistant.value
+  return surDocsProjet.value && !estDistant.value
 }
 
-watch(docsCadreOuverts, (actif) => {
+watch(surDocsProjet, (actif) => {
   if (actif) return
   profondeurDrag = 0
   survolDepot.value = false
@@ -159,7 +159,7 @@ async function surDepot(event: DragEvent): Promise<void> {
     </section>
 
     <div v-if="survolDepot && depotAutorise()" class="depot-surlignage">
-      Déposez vos fichiers ici
+      Ajouter dans « {{ dossiersDocsCadre.projet.split('/').pop() || 'Documents du projet' }} »
     </div>
   </section>
 </template>

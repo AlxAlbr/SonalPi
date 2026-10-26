@@ -1,7 +1,7 @@
-# Synthèse
+# Tri et synthèse
 
-**Synthèse** réunit les passages de plusieurs entretiens sans modifier le corpus.
-Elle est accessible dans l’espace **Analyser et interpréter**, onglet **Synthèse** :
+**Tri et synthèse** réunit les passages de plusieurs entretiens sans modifier le corpus.
+L’outil est accessible dans l’espace **Analyser et interpréter**, onglet **Tri et synthèse** :
 ses critères occupent la colonne de gauche, les résultats la colonne de droite.
 
 1. Choisissez au moins un thème ou un cas dans le panneau de critères.

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SonalPi — maquette des corpus exemples</title>
+  <style>
+    :root { font: 15px/1.5 system-ui, sans-serif; color: #25364a; background: #f5f7fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select { font: inherit; }
+    button, select, summary { cursor: pointer; }
+    button { padding: .55rem .85rem; color: #245186; background: white; border: 1px solid #bdcde0; border-radius: 7px; }
+    button:hover:not(:disabled) { background: #edf5ff; border-color: #3775bc; }
+    button:disabled { cursor: default; color: #687483; background: #f1f3f5; }
+    :focus-visible { outline: 3px solid #ae5b00; outline-offset: 3px; }
+    h1 { font-size: 1.35rem; margin: 0; }
+    h2 { font-size: 1.2rem; margin: 0 0 .8rem; }
+    h3 { font-size: 1.05rem; margin: 0 0 .45rem; }
+    p { margin: .5rem 0 1rem; }
+    small, .muted { color: #536477; }
+    header, main, .prototype { max-width: 1020px; margin: auto; padding: 1rem 1.4rem; }
+    .prototype { max-width: none; background: #fff4d9; border-bottom: 1px solid #e4cc92; display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; align-items: center; }
+    .prototype p { margin: 0; flex: 1 1 300px; }
+    header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center; }
+    #courant { font-size: .9rem; }
+    section.bloc { background: white; border: 1px solid #dae2ed; border-radius: 12px; padding: 1.2rem; margin: 0 0 1.2rem; }
+    .decouverte { background: #f0f6ff !important; }
+    .cartes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .carte { text-align: left; padding: 1rem; }
+    .carte strong, .carte span { display: block; }
+    .carte span { margin-top: .35rem; font-size: .9rem; }
+    .carte[aria-pressed="true"] { background: #e9f3ff; border: 2px solid #2769ad; padding: calc(1rem - 1px); }
+    .parcours-cartes { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1.2rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; margin-top: .8rem; }
+    .primaire { color: white; background: #2368ae; border-color: #2368ae; }
+    .primaire:hover:not(:disabled) { color: white; background: #185589; }
+    dialog { width: min(860px, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid #bdcde0; border-radius: 13px; padding: 1.4rem; color: inherit; }
+    dialog::backdrop { background: #10263e80; }
+    #preparation { width: min(600px, calc(100% - 2rem)); }
+    .entete { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+    .prealable { padding: 1rem; background: #f0f6ff; border: 1px solid #c6d9ee; border-radius: 8px; margin: 1rem 0; }
+    .prealable p:last-child { margin-bottom: 0; }
+    #etapes { padding-left: 1.65rem; }
+    #etapes li { margin: .55rem 0; }
+    #etapes button { text-align: left; }
+    .chemin { overflow-wrap: anywhere; font-size: .9rem; }
+    label { display: block; margin-top: .8rem; font-weight: 600; }
+    input, select { max-width: 100%; padding: .5rem; border: 1px solid #a7b7cb; border-radius: 5px; }
+    input { width: 100%; }
+    input[readonly] { background: #f2f5f8; }
+    .champ { display: flex; gap: .6rem; }
+    details { margin: 1rem 0; }
+    .erreur { padding: .7rem; color: #8c231b; background: #ffebe8; border-radius: 6px; }
+    .repere { border-left: 4px solid #2769ad; padding: .6rem 1rem; background: #f0f6ff; }
+    .recents { list-style: none; padding: 0; }
+    .recents li { margin: .7rem 0; }
+    .recents small { display: block; }
+    #statut { min-height: 1.5rem; font-size: .9rem; }
+    [hidden] { display: none !important; }
+    @media (max-width: 620px) {
+      .cartes, .parcours-cartes { grid-template-columns: 1fr; }
+      header, main { padding: .8rem; }
+      dialog { padding: 1rem; }
+      .champ { flex-wrap: wrap; }
+      .entete h2 { overflow-wrap: anywhere; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="prototype" aria-label="Commandes de la maquette">
+    <p><strong>Maquette interactive</strong> — aucune donnée réelle n’est ouverte ou modifiée.
+      Les copies et progressions simulées disparaissent au rechargement.</p>
+    <div>
+      <label for="scenario">Situation à essayer</label>
+      <select id="scenario">
+        <option value="neuf">Première découverte</option>
+        <option value="encours">Copie d’apprentissage déjà commencée</option>
+        <option value="termine">Parcours terminé</option>
+        <option value="absent">Dossier d’apprentissage déplacé</option>
+        <option value="erreur">Échec de préparation</option>
+      </select>
+    </div>
+  </aside>
+  <header>
+    <h1>SonalPi</h1>
+    <div id="courant" aria-live="polite">Corpus actif : Mon enquête</div>
+  </header>
+  <main>
+    <div class="actions" style="margin: 0 0 1rem">
+      <button id="accueil" hidden>Accueil</button>
+      <button id="revenir-travail" hidden>Revenir au corpus actif</button>
+    </div>
+    <div id="home">
+      <section class="bloc decouverte" aria-labelledby="decouvrir">
+        <h2 id="decouvrir">Découvrir SonalPi</h2>
+        <div class="cartes">
+          <button class="carte" id="ouvrir-parcours"><strong>Parcours pas à pas</strong><span>Apprendre les gestes, étape par étape.</span></button>
+          <button class="carte" id="ouvrir-exemples"><strong>Explorer les corpus exemples</strong><span>Essayer librement les outils sur un exemple fourni.</span></button>
+        </div>
+        <p class="muted">Un terrain fictif sur l’aide aux devoirs dans les associations.</p>
+      </section>
+      <section class="bloc" aria-labelledby="vos-corpus">
+        <h2 id="vos-corpus">Vos corpus</h2>
+        <p class="muted">Les commandes ordinaires restent inchangées. Elles ne sont pas simulées ici.</p>
+        <div class="actions"><button disabled>Nouveau corpus local</button><button disabled>Ouvrir un corpus local</button><button disabled>Ouvrir un corpus distant</button></div>
+      </section>
+      <section class="bloc" aria-labelledby="titre-recents">
+        <h2 id="titre-recents">Récents</h2>
+        <p class="muted">Vos recherches et vos explorations libres. Retrouvez les copies d’apprentissage dans les parcours.</p>
+        <ul class="recents" id="recents"></ul>
+      </section>
+    </div>
+    <section class="bloc" id="travail" hidden aria-labelledby="travail-titre">
+      <h2 id="travail-titre" tabindex="-1"></h2>
+      <div class="actions" id="espaces" aria-label="Espaces de travail">
+        <button data-espace="Préparer et suivre">Préparer et suivre</button>
+        <button data-espace="Importer et traiter">Importer et traiter</button>
+        <button data-espace="Analyser et interpréter">Analyser et interpréter</button>
+      </div>
+      <p id="espace-actif"></p>
+      <div id="guide"></div>
+      <details id="fichiers-exercice" hidden><summary>Voir les fichiers d’exercice</summary><p>Transcriptions, audios et guide d’entretien : Documents/Sonal/Exemples/Sources/CorpusSynth. Dans l’application, cette action ouvrira le dossier réel.</p></details>
+      <div id="repere-analyse" class="repere" hidden>
+        <div class="entete"><strong>Corpus exemple pour l’analyse</strong><button id="masquer-repere">Masquer ce repère</button></div>
+        <p>Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</p>
+      </div>
+      <p class="muted">L’espace de travail est représenté ici, pas les outils métier ni leurs calculs.</p>
+    </section>
+    <p id="statut" role="status"></p>
+  </main>
+
+  <dialog id="catalogue" aria-labelledby="catalogue-titre">
+    <div class="entete"><h2 id="catalogue-titre" tabindex="-1">Choisir un parcours pas à pas</h2><button data-fermer="catalogue">Fermer les parcours</button></div>
+    <p>Choisissez ce que vous voulez apprendre. Votre corpus actuel reste ouvert tant que vous ne commencez pas ou ne reprenez pas un parcours.</p>
+    <div class="cartes parcours-cartes" id="cartes-parcours"></div>
+    <div id="detail-parcours"></div>
+  </dialog>
+
+  <dialog id="exemples" aria-labelledby="exemples-titre">
+    <div class="entete"><h2 id="exemples-titre" tabindex="-1">Explorer les corpus exemples</h2><button data-fermer="exemples">Fermer les exemples</button></div>
+    <p>Chaque exemple devient votre copie modifiable. Aucun guide ne démarre.</p>
+    <div class="cartes" id="cartes-exemples"></div>
+  </dialog>
+
+  <dialog id="preparation" aria-labelledby="preparation-titre">
+    <form id="form-preparation">
+      <h2 id="preparation-titre" tabindex="-1"></h2>
+      <p id="preparation-description"></p>
+      <p>Vos modifications seront conservées. Aucun travail existant ne sera remplacé.</p>
+      <p id="nouvelle-copie-info" class="repere" hidden>La nouvelle copie sera proposée pour les parcours Préparer et suivre et Importer et traiter. L’ancienne copie et ses progressions resteront accessibles dans « Autres copies… ».</p>
+      <label for="emplacement">Emplacement de votre copie</label>
+      <div class="champ"><input id="emplacement" required readonly><button type="button" id="modifier-emplacement">Modifier…</button></div>
+      <details><summary>Fichiers d’exercice</summary><p>Les transcriptions, les audios et le guide d’entretien sont préparés automatiquement, séparément de votre travail. Les audios restent communs aux copies.</p><p class="chemin">Sources proposées : Documents/Sonal/Exemples/Sources/CorpusSynth</p></details>
+      <p id="preparation-erreur" class="erreur" role="alert" hidden></p>
+      <div class="actions"><button type="button" data-fermer="preparation" id="retour-selection">Retour aux parcours</button><button class="primaire" type="submit" id="confirmer-preparation">Préparer et commencer</button></div>
+    </form>
+  </dialog>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    const echapper = (texte) => String(texte).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+    const parcours = {
+      preparation: { titre: 'Préparer et suivre', resume: 'Organiser le terrain et les documents du projet.', etapes: [
+        { id: 'suivi', titre: 'Organiser le suivi' }, { id: 'documents', titre: 'Ajouter les documents du projet' },
+        { id: 'entretien', titre: 'Créer l’entretien préparatoire' }, { id: 'note', titre: 'Écrire une note de préparation' },
+      ] },
+      traitement: { titre: 'Importer et traiter', resume: 'Apprendre à importer et travailler les entretiens.', etapes: [
+        { id: 'charger', titre: 'Charger un entretien' }, { id: 'noter', titre: 'Prendre des notes à chaud' },
+        { id: 'lier', titre: 'Lier la transcription', requiere: 'noter' }, { id: 'renommer', titre: 'Renommer un entretien', requiere: 'charger' },
+        { id: 'coder', titre: 'Coder un extrait', requiere: 'charger' }, { id: 'variable', titre: 'Saisir une variable', requiere: 'charger' },
+      ] },
+      analyse: { titre: 'Analyser et interpréter', resume: 'Explorer des entretiens déjà annotés.', etapes: [] },
+    }
+    const exemples = {
+      transcrit: { titre: 'Entretiens déjà importés', description: 'Quatre entretiens transcrits avec leurs audios, sans codage thématique initial.', espace: 'Importer et traiter' },
+      annote: { titre: 'Corpus annoté', description: 'Le même terrain avec ses thèmes, ses extraits codés et ses variables, pour essayer les outils d’analyse.', espace: 'Analyser et interpréter' },
+    }
+    let copies, apprentissageId, actif, guide, selection, demande, sequence, simulerErreur
+    const copieParcours = () => copies.find((copie) => copie.id === apprentissageId)
+    const acquises = (copie, id) => copie?.progressions[id] ?? []
+    const prochaine = (copie, id) => parcours[id].etapes.find((etape) => !acquises(copie, id).includes(etape.id) && (!etape.requiere || acquises(copie, id).includes(etape.requiere)))
+    const signaler = (texte) => { $('statut').textContent = texte }
+    function ouvrir(id) {
+      $(id).showModal()
+      $(id).querySelector('h2').focus()
+    }
+    function initialiser() {
+      copies = []
+      apprentissageId = null
+      actif = { id: 'recherche', nom: 'Mon enquête', espace: 'Préparer et suivre' }
+      guide = null
+      selection = 'preparation'
+      sequence = 0
+      simulerErreur = $('scenario').value === 'erreur'
+      if (['encours', 'termine', 'absent'].includes($('scenario').value)) {
+        const termine = $('scenario').value === 'termine'
+        const copie = creerCopie('apprentissage', 'transcrit', 'Documents/Sonal/Apprentissage/Préparation et traitement')
+        copie.progressions.preparation = termine ? parcours.preparation.etapes.map((e) => e.id) : ['suivi', 'documents']
+        copie.progressions.traitement = ['charger']
+        copie.absente = $('scenario').value === 'absent'
+        apprentissageId = copie.id
+      }
+      $('home').hidden = false
+      $('travail').hidden = true
+      $('accueil').hidden = true
+      $('revenir-travail').hidden = true
+      $('courant').textContent = 'Corpus actif : Mon enquête'
+      signaler('Situation simulée chargée. Aucun fichier créé.')
+      afficherRecents()
+    }
+    function creerCopie(usage, exemple, chemin) {
+      const copie = { id: `copie-${++sequence}`, usage, exemple, chemin, absente: false,
+        nom: usage === 'apprentissage' ? `Apprentissage — Préparation et traitement (${sequence})` : `${exemples[exemple].titre} — ma copie (${sequence})`,
+        progressions: { preparation: [], traitement: [] } }
+      copies.push(copie)
+      return copie
+    }
+    function afficherRecents() {
+      $('recents').innerHTML = '<li><button data-recent="recherche">Mon enquête</button><small>Documents/Recherche/Mon enquête</small></li>' + copies.filter((copie) => copie.usage === 'libre').map((copie) =>
+        `<li><button data-recent="${copie.id}">${echapper(copie.nom)}</button><small>${echapper(copie.chemin)}</small></li>`).join('')
+    }
+    function afficherCatalogue() {
+      const copie = copieParcours()
+      $('cartes-parcours').innerHTML = Object.entries(parcours).map(([id, p]) => {
+        const n = acquises(copie, id).length
+        const libelle = id === 'analyse' ? 'À venir' : n === p.etapes.length ? 'Revoir le parcours' : n ? `Continuer — ${n} étapes sur ${p.etapes.length}` : 'Commencer'
+        return `<button class="carte" data-parcours="${id}" aria-pressed="${id === selection}" aria-controls="detail-parcours"><strong>${p.titre}</strong><span>${p.resume}</span><span>${libelle}</span></button>`
+      }).join('')
+      afficherDetail()
+    }
+    function afficherDetail() {
+      document.querySelectorAll('[data-parcours]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.parcours === selection)))
+      const p = parcours[selection]
+      if (selection === 'analyse') {
+        $('detail-parcours').innerHTML = '<h3>Analyser et interpréter</h3><p>Le parcours guidé d’analyse est à venir. Vous pouvez déjà explorer librement le corpus annoté depuis « Explorer les corpus exemples ».</p>'
+        return
+      }
+      const copie = copieParcours()
+      const validees = acquises(copie, selection)
+      const nouvelle = !copie
+      const suivant = prochaine(copie, selection) ?? p.etapes[0]
+      let prealable
+      if (copie?.absente) {
+        prealable = '<p><strong>Nous ne retrouvons plus votre corpus.</strong> Retrouvez son dossier pour conserver vos modifications et votre progression.</p><button data-action="retrouver">Retrouver le dossier…</button>'
+      } else {
+        prealable = nouvelle ? '<p>Vous partirez d’un corpus d’apprentissage vide. Les fichiers d’exercice seront prêts ; vous réaliserez vous-même les imports proposés.</p>' :
+          `<p><strong>Votre corpus d’apprentissage est prêt.</strong></p><p>Cette copie est commune aux parcours Préparer et suivre et Importer et traiter. Elle sera réutilisée sans remise à zéro.</p><p class="chemin">${echapper(copie.chemin)}</p>`
+        prealable += `<button class="primaire" data-etape="${suivant.id}">${nouvelle ? 'Préparer le corpus et commencer' : validees.length === p.etapes.length ? 'Revoir le parcours' : validees.length ? 'Continuer le parcours' : 'Commencer le parcours'}</button>`
+      }
+      if (copie && copie.id !== actif.id) prealable += `<p>Commencer ou continuer ouvrira « ${echapper(copie.nom)} » à la place de « ${echapper(actif.nom)} », sans supprimer votre travail.</p>`
+      const autres = copies.filter((c) => c.usage === 'apprentissage')
+      $('detail-parcours').innerHTML = `<h3>${p.titre}</h3><div class="prealable"><h3>Pour ce parcours</h3>${prealable}</div>
+        <p>${validees.length} étape(s) sur ${p.etapes.length}. La préparation du corpus ne compte pas comme une étape.</p>
+        <ol id="etapes">${p.etapes.map((e) => `<li><button data-etape="${e.id}" ${copie?.absente || (e.requiere && !validees.includes(e.requiere)) ? 'disabled' : ''}>${validees.includes(e.id) ? '✓ ' : ''}${e.titre}${validees.includes(e.id) ? ' — revoir' : ''}</button></li>`).join('')}</ol>
+        <div class="actions"><button data-action="nouvelle-apprentissage">Créer une nouvelle copie…</button></div>
+        ${autres.length ? `<details><summary>Autres copies…</summary><label for="choix-copie">Copie d’apprentissage associée aux deux parcours</label><select id="choix-copie">${autres.map((c) => `<option value="${c.id}" ${c.id === apprentissageId ? 'selected' : ''}>${echapper(c.nom)} — ${echapper(c.chemin)}</option>`).join('')}</select></details>` : ''}
+        <details><summary>Retrouver une copie d’apprentissage…</summary><p>Dans l’application, un dossier reconnu pourra être rattaché ici, même depuis un autre profil. Cette lecture de fichiers n’est pas simulée.</p></details>`
+    }
+    function afficherExemples() {
+      $('cartes-exemples').innerHTML = Object.entries(exemples).map(([id, exemple]) => {
+        const copie = copies.filter((c) => c.usage === 'libre' && c.exemple === id).at(-1)
+        return `<section><h3>${exemple.titre}</h3><p>${exemple.description}</p><p class="muted">Espace conseillé : ${exemple.espace}${id === 'annote' ? ' → Synthèse' : ''}.</p>
+          ${copie ? `<p class="chemin">${echapper(copie.chemin)}</p>` : ''}
+          <button class="primaire" data-exemple="${id}">${copie ? 'Reprendre mon corpus' : 'Ouvrir ma copie'}</button>
+          ${copie ? `<div class="actions"><button data-nouvel-exemple="${id}">Créer une nouvelle copie…</button></div>` : ''}</section>`
+      }).join('')
+    }
+    function preparer(requete) {
+      demande = requete
+      const libre = requete.usage === 'libre'
+      const retrouver = requete.retrouver
+      $('preparation-titre').textContent = retrouver ? 'Retrouver votre corpus d’apprentissage' : libre ? `Préparer « ${exemples[requete.exemple].titre} »` : `Préparer le corpus pour « ${parcours[requete.parcours].titre} »`
+      $('preparation-description').textContent = (retrouver ? 'Indiquez le nouvel emplacement de votre copie. Son contenu et ses étapes réalisées seront conservés.' : libre ? exemples[requete.exemple].description : 'Vous apprendrez à préparer et à traiter les entretiens dans votre copie d’apprentissage. Les fichiers d’exercice seront préparés pour vous.') + ' L’ouverture de cette copie remplacera le corpus actif, sans supprimer son travail.'
+      $('emplacement').value = retrouver ? copieParcours().chemin : libre ? `Documents/Sonal/Exemples/${requete.exemple === 'annote' ? 'Corpus annoté' : 'Entretiens transcrits'}${requete.nouvelle ? ` ${sequence + 1}` : ''}` : `Documents/Sonal/Apprentissage/Préparation et traitement${requete.nouvelle ? ` ${sequence + 1}` : ''}`
+      $('emplacement').readOnly = true
+      $('nouvelle-copie-info').hidden = libre || !requete.nouvelle || !copieParcours()
+      $('retour-selection').textContent = libre ? 'Retour aux exemples' : 'Retour aux parcours'
+      $('confirmer-preparation').textContent = retrouver ? 'Retrouver et reprendre' : libre ? 'Ouvrir ma copie' : 'Préparer et commencer'
+      $('preparation-erreur').hidden = true
+      $('preparation').querySelector('details').open = false
+      ouvrir('preparation')
+    }
+    function rejoindre(copie, parcoursId, etapeId) {
+      actif = { ...copie, espace: parcoursId ? parcours[parcoursId].titre : exemples[copie.exemple].espace }
+      guide = parcoursId ? { parcours: parcoursId, etape: etapeId, pause: false } : null
+      for (const id of ['preparation', 'catalogue', 'exemples']) if ($(id).open) $(id).close()
+      $('home').hidden = true
+      $('travail').hidden = false
+      $('accueil').hidden = false
+      $('revenir-travail').hidden = true
+      afficherTravail()
+      afficherRecents()
+      $('travail-titre').focus()
+      signaler('Ouverture simulée de votre copie. Les autres travaux sont conservés.')
+    }
+    function afficherTravail() {
+      $('courant').textContent = `Corpus actif : ${actif.nom}`
+      $('travail-titre').textContent = actif.nom
+      $('espace-actif').textContent = `Espace : ${actif.espace}${actif.espace === 'Analyser et interpréter' ? ' → Synthèse' : ''}`
+      $('repere-analyse').hidden = actif.exemple !== 'annote' || actif.espace !== 'Analyser et interpréter'
+      $('fichiers-exercice').hidden = actif.usage !== 'apprentissage'
+      $('guide').innerHTML = guide ? `<div class="prealable"><h3>${guide.pause ? 'Guide en pause' : `Parcours : ${parcours[guide.parcours].titre}`}</h3>
+        <p>${guide.pause ? 'Tous les outils restent utilisables. Votre progression est conservée.' : `Étape choisie : ${parcours[guide.parcours].etapes.find((e) => e.id === guide.etape).titre}`}</p>
+        <div class="actions"><button data-action="pause">${guide.pause ? 'Reprendre le guide' : 'Mettre le guide en pause'}</button><button data-action="retour-parcours">Revenir aux parcours</button>${!guide.pause ? '<button data-action="valider-etape">Valider l’étape (simulation)</button>' : ''}</div></div>` : '<p>Exploration libre — aucun parcours guidé n’est lancé.</p>'
+    }
+    $('scenario').addEventListener('change', initialiser)
+    $('ouvrir-parcours').onclick = () => { afficherCatalogue(); ouvrir('catalogue') }
+    $('ouvrir-exemples').onclick = () => { afficherExemples(); ouvrir('exemples') }
+    $('modifier-emplacement').onclick = () => { $('emplacement').readOnly = false; $('emplacement').focus() }
+    $('masquer-repere').onclick = () => { $('repere-analyse').hidden = true }
+    $('accueil').onclick = () => { $('home').hidden = false; $('travail').hidden = true; $('accueil').hidden = true; $('revenir-travail').hidden = false; $('ouvrir-parcours').focus() }
+    $('revenir-travail').onclick = () => { $('home').hidden = true; $('travail').hidden = false; $('accueil').hidden = false; $('revenir-travail').hidden = true; $('travail-titre').focus() }
+    document.addEventListener('change', (event) => {
+      if (event.target.id === 'choix-copie') {
+        apprentissageId = event.target.value
+        afficherCatalogue()
+        $('choix-copie').closest('details').open = true
+        $('choix-copie').focus()
+        signaler('Copie associée changée. Le corpus actif reste inchangé.')
+      }
+    })
+    document.addEventListener('click', (event) => {
+      const bouton = event.target.closest('button')
+      if (!bouton) return
+      const d = bouton.dataset
+      if (d.fermer) $(d.fermer).close()
+      if (d.parcours) { selection = d.parcours; afficherDetail() }
+      if (d.etape) {
+        const copie = copieParcours()
+        if (copie) rejoindre(copie, selection, d.etape)
+        else preparer({ usage: 'apprentissage', exemple: 'transcrit', parcours: selection, etape: d.etape })
+      }
+      if (d.exemple) {
+        const copie = copies.filter((c) => c.usage === 'libre' && c.exemple === d.exemple).at(-1)
+        if (copie) rejoindre(copie)
+        else preparer({ usage: 'libre', exemple: d.exemple })
+      }
+      if (d.nouvelExemple) preparer({ usage: 'libre', exemple: d.nouvelExemple, nouvelle: true })
+      if (d.action === 'nouvelle-apprentissage') preparer({ usage: 'apprentissage', exemple: 'transcrit', parcours: selection, etape: parcours[selection].etapes[0].id, nouvelle: true })
+      if (d.action === 'retrouver') preparer({ usage: 'apprentissage', parcours: selection, etape: (prochaine(copieParcours(), selection) ?? parcours[selection].etapes[0]).id, retrouver: true })
+      if (d.action === 'pause') { guide.pause = !guide.pause; afficherTravail(); $('guide').querySelector('button').focus() }
+      if (d.action === 'retour-parcours') { selection = guide.parcours; afficherCatalogue(); ouvrir('catalogue') }
+      if (d.action === 'valider-etape') {
+        const copie = copies.find((c) => c.id === actif.id)
+        const validees = copie.progressions[guide.parcours]
+        if (!validees.includes(guide.etape)) validees.push(guide.etape)
+        const suivante = prochaine(copie, guide.parcours)
+        if (suivante) guide.etape = suivante.id
+        else guide.pause = true
+        afficherTravail()
+        $('guide').querySelector('button').focus()
+        signaler('Étape simulée enregistrée dans cette copie uniquement.')
+      }
+      if (d.espace) { actif.espace = d.espace; afficherTravail(); signaler('Espace changé ; le corpus actif reste le même.') }
+      if (d.recent === 'recherche') { actif = { id: 'recherche', nom: 'Mon enquête', espace: 'Préparer et suivre' }; guide = null; $('courant').textContent = 'Corpus actif : Mon enquête'; signaler('Recherche reprise (simulation).') }
+      else if (d.recent) rejoindre(copies.find((c) => c.id === d.recent))
+    })
+    $('form-preparation').onsubmit = (event) => {
+      event.preventDefault()
+      const chemin = $('emplacement').value.trim()
+      let erreur = ''
+      if (!chemin) erreur = 'Choisissez un emplacement pour votre copie.'
+      else if (!demande.retrouver && copies.some((c) => c.chemin === chemin)) erreur = 'Ce dossier contient déjà une copie de travail. Choisissez un autre emplacement.'
+      else if (simulerErreur) { erreur = 'La copie n’a pas pu être préparée. Aucun parcours n’a été lancé. Vous pouvez réessayer.'; simulerErreur = false }
+      if (erreur) { $('preparation-erreur').textContent = erreur; $('preparation-erreur').hidden = false; return }
+      const copie = demande.retrouver ? copieParcours() : creerCopie(demande.usage, demande.exemple, chemin)
+      copie.chemin = chemin
+      copie.absente = false
+      if (copie.usage === 'apprentissage') apprentissageId = copie.id
+      rejoindre(copie, demande.parcours, demande.etape)
+    }
+    initialiser()
+  </script>
+</body>
+</html>

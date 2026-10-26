@@ -10,6 +10,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ajouterFichierLocal,
+  creerDossierLocal,
+  listerDossierDocsCadre,
   deposerFichierLocal,
   enregistrerCopieLocal,
   inventaireDocsCadreLocal,
@@ -26,10 +28,11 @@ import {
   categoriserDocument,
   estListable,
   estNomSain,
+  estCheminDocsCadre,
   LIMITE_APERCU_PDF_OCTETS,
   nomLibre,
   trierDocuments,
-  trierExemplesDocs,
+  trierEntreesDocsCadre,
   type ResumeDocumentCadre,
 } from '../src/shared/docsCadre'
 
@@ -95,7 +98,7 @@ describe('validation des noms de document', () => {
   })
 
   it('tri alphabétique français stable', () => {
-    const l = (nom: string): ResumeDocumentCadre => ({ source: 'projet', nom, type: 'autre', taille: null, modifieLe: null })
+    const l = (nom: string): ResumeDocumentCadre => ({ nature: 'document', chemin: nom, source: 'projet', nom, type: 'autre', taille: null, modifieLe: null })
     const trie = trierDocuments([l('École.txt'), l('ecole 2.txt'), l('Notice.txt'), l('abord.txt')])
     expect(trie.map((d) => d.nom)).toEqual(['abord.txt', 'ecole 2.txt', 'École.txt', 'Notice.txt'])
   })
@@ -113,7 +116,7 @@ describe('inventaire du corpus local', () => {
     expect(inventaireDocsCadreLocal(racine)).toEqual([])
   })
 
-  it('tous les fichiers réguliers de premier niveau, cachés et sous-dossiers exclus', () => {
+  it('dossiers avant fichiers réguliers, cachés exclus', () => {
     const racine = corpusTemporaire()
     const dir = join(racine, 'DocsCadre')
     mkdirSync(dir, { recursive: true })
@@ -123,7 +126,7 @@ describe('inventaire du corpus local', () => {
     writeFileSync(join(dir, '.cache.txt'), 'C')
     writeFileSync(join(dir, '~$notice.docx'), 'D')
     const inventaire = inventaireDocsCadreLocal(racine)
-    expect(inventaire.map((d) => d.nom)).toEqual(['consignes.txt', 'Notice de consentement.docx'])
+    expect(inventaire.map((d) => d.nom)).toEqual(['sous-dossier', 'consignes.txt', 'Notice de consentement.docx'])
     const notice = inventaire.find((d) => d.nom === 'Notice de consentement.docx')!
     expect(notice).toMatchObject({ type: 'bureautique', taille: 1, modifieLe: expect.any(String) })
   })
@@ -136,7 +139,7 @@ describe('ajout, renommage, corbeille', () => {
     writeFileSync(source, PNG_VALIDE)
     const r = ajouterFichierLocal(racine, source)
     expect(r).toEqual({ ok: true, nom: 'original.png' })
-    const lu = readFileSync(join(racine, 'DocsCadre', 'original.png'))
+    const lu = readFileSync(join(racine, 'DocsPrepaProjet', 'original.png'))
     expect([...lu]).toEqual([...PNG_VALIDE])
   })
 
@@ -199,13 +202,13 @@ describe('ajout, renommage, corbeille', () => {
 })
 
 describe('dépôt par glisser-déposer (local)', () => {
-  it('copie un fichier déposé en créant DocsCadre/ à la demande', () => {
+  it('copie un fichier déposé en créant DocsPrepaProjet/ à la demande', () => {
     const racine = corpusTemporaire()
     const source = join(corpusTemporaire(), 'Notice.txt')
     writeFileSync(source, 'Déposé')
     const r = deposerFichierLocal(racine, source)
     expect(r).toEqual({ ok: true, nom: 'Notice.txt' })
-    expect(readFileSync(join(racine, 'DocsCadre', 'Notice.txt'), 'utf8')).toBe('Déposé')
+    expect(readFileSync(join(racine, 'DocsPrepaProjet', 'Notice.txt'), 'utf8')).toBe('Déposé')
   })
 
   it('homonyme : refus SANS écrasement et SANS renommage automatique', () => {
@@ -349,7 +352,7 @@ describe('sécurité des chemins', () => {
 
     const autreRacine = corpusTemporaire()
     symlinkSync(corpusTemporaire(), join(autreRacine, 'DocsCadre'), 'dir')
-    expect(inventaireDocsCadreLocal(autreRacine)).toEqual([])
+    expect(() => inventaireDocsCadreLocal(autreRacine)).toThrow()
     expect(() => resoudreDossierLocal(autreRacine)).toThrow()
   })
 
@@ -360,20 +363,101 @@ describe('sécurité des chemins', () => {
   })
 })
 
+describe('navigation et mutations imbriquées', () => {
+  it('valide les chemins canoniques, avec une racine explicitement autorisée', () => {
+    expect(estCheminDocsCadre('', true)).toBe(true)
+    expect(estCheminDocsCadre('')).toBe(false)
+    expect(estCheminDocsCadre('DPO/École 2/Notice.txt')).toBe(true)
+    for (const chemin of [null, 4, '/etc/passwd', 'C:/a', 'a\\b', '../a', 'a/../b', 'a/./b', 'a//b', 'a/', '.cache/a', 'a/~$notice', 'a/CON.txt', 'a/b:flux', 'a/b?', 'a/b*', 'a/b|', 'a/b<', 'a/b>', 'a/b"', 'a/'.repeat(1100)]) {
+      expect(estCheminDocsCadre(chemin), String(chemin)).toBe(false)
+    }
+  })
+
+  it('crée exclusivement, refuse toutes les collisions et copie dans le dossier affiché', () => {
+    const racine = corpusTemporaire()
+    expect(creerDossierLocal(racine, '', 'DPO')).toEqual({ ok: true, nom: 'DPO' })
+    expect(creerDossierLocal(racine, '', 'dpo')).toMatchObject({ ok: false, raison: 'existe' })
+    expect(creerDossierLocal(racine, 'DPO', 'École 2')).toMatchObject({ ok: true })
+    const source = join(corpusTemporaire(), 'Notice.txt')
+    writeFileSync(source, 'Texte exact éà <br>')
+    expect(ajouterFichierLocal(racine, source, undefined, 'DPO/École 2')).toMatchObject({ ok: true })
+    expect(deposerFichierLocal(racine, source, 'DPO/École 2')).toMatchObject({ ok: false, raison: 'existe' })
+    expect(creerDossierLocal(racine, 'DPO/École 2', 'notice.TXT')).toMatchObject({ ok: false, raison: 'existe' })
+    expect(ajouterFichierLocal(racine, source, 'dpo')).toMatchObject({ ok: false, raison: 'existe' })
+    const chemin = 'DPO/École 2/Notice.txt'
+    expect(inventaireDocsCadreLocal(racine, 'DPO/École 2')).toMatchObject([{ nature: 'document', nom: 'Notice.txt', chemin }])
+    expect(lireApercuLocal(racine, chemin)).toMatchObject({ resume: { chemin, nom: 'Notice.txt' }, apercu: { genre: 'texte', contenu: 'Texte exact éà <br>' } })
+    const cible = join(corpusTemporaire(), 'copie.txt')
+    enregistrerCopieLocal(racine, chemin, cible)
+    expect(readFileSync(cible)).toEqual(readFileSync(source))
+    expect(resoudreDossierLocal(racine, 'DPO/École 2')).toBe(join(racine, 'DocsPrepaProjet', 'DPO', 'École 2'))
+    expect(listerDossierDocsCadre(join(racine, 'DocsPrepaProjet'), 'projet', 'DPO/absent')).toMatchObject({ absent: true })
+    expect(() => resoudreDossierLocal(racine, 'DPO/absent')).toThrow()
+  })
+
+  it('refuse les liens intermédiaires pour toute lecture et mutation', () => {
+    const racine = corpusTemporaire()
+    const exterieur = corpusTemporaire()
+    writeFileSync(join(exterieur, 'secret.txt'), 'secret')
+    creerDossierLocal(racine, '', 'DPO')
+    symlinkSync(exterieur, join(racine, 'DocsPrepaProjet', 'DPO', 'lien'), 'dir')
+    expect(inventaireDocsCadreLocal(racine, 'DPO')).toEqual([])
+    expect(() => inventaireDocsCadreLocal(racine, 'DPO/lien')).toThrow()
+    expect(() => resoudreLocal(racine, 'DPO/lien/secret.txt')).toThrow()
+    expect(lireApercuLocal(racine, 'DPO/lien/secret.txt').apercu).toEqual({ genre: 'aucun', raison: 'invalide' })
+    expect(creerDossierLocal(racine, 'DPO/lien', 'interdit')).toMatchObject({ ok: false })
+    expect(deposerFichierLocal(racine, join(exterieur, 'secret.txt'), 'DPO/lien')).toMatchObject({ ok: false })
+    expect(existsSync(join(exterieur, 'interdit'))).toBe(false)
+    expect(() => enregistrerCopieLocal(racine, 'DPO/lien/secret.txt', join(exterieur, 'copie'))).toThrow()
+    expect(() => resoudreExemple(join(racine, 'DocsPrepaProjet'), 'DPO/lien/secret.txt')).toThrow()
+  })
+})
+
+describe('nom du dossier de préparation', () => {
+  it('un ancien corpus continue à utiliser DocsCadre sans déplacer ni créer de fichiers ailleurs', () => {
+    const racine = corpusTemporaire()
+    mkdirSync(join(racine, 'DocsCadre', 'DPO'), { recursive: true })
+    writeFileSync(join(racine, 'DocsCadre', 'DPO', 'ancien.txt'), 'Ancien document')
+    const source = join(corpusTemporaire(), 'ajout.txt')
+    writeFileSync(source, 'Ajout')
+    expect(lireApercuLocal(racine, 'DPO/ancien.txt').apercu).toEqual({ genre: 'texte', contenu: 'Ancien document' })
+    expect(ajouterFichierLocal(racine, source, undefined, 'DPO')).toMatchObject({ ok: true })
+    expect(creerDossierLocal(racine, 'DPO', 'Consentements')).toMatchObject({ ok: true })
+    expect(resoudreLocal(racine, 'DPO/ajout.txt')).toBe(join(racine, 'DocsCadre', 'DPO', 'ajout.txt'))
+    expect(existsSync(join(racine, 'DocsPrepaProjet'))).toBe(false)
+  })
+
+  it('le nouveau dossier est prioritaire, sans fusion ni repli fichier par fichier', () => {
+    const racine = corpusTemporaire()
+    for (const nom of ['DocsCadre', 'DocsPrepaProjet']) mkdirSync(join(racine, nom))
+    writeFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'Ne pas déplacer')
+    writeFileSync(join(racine, 'DocsPrepaProjet', 'actuel.txt'), 'Actuel')
+    expect(inventaireDocsCadreLocal(racine).map((e) => e.nom)).toEqual(['actuel.txt'])
+    expect(lireApercuLocal(racine, 'ancien.txt').apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+    expect(readFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'utf8')).toBe('Ne pas déplacer')
+  })
+
+  it('un nouveau dossier symbolique ne permet pas de contourner les contrôles par l’ancien', () => {
+    const racine = corpusTemporaire()
+    mkdirSync(join(racine, 'DocsCadre'))
+    symlinkSync(corpusTemporaire(), join(racine, 'DocsPrepaProjet'), 'dir')
+    expect(() => inventaireDocsCadreLocal(racine)).toThrow()
+    expect(() => resoudreDossierLocal(racine)).toThrow()
+  })
+})
+
 describe('exemples embarqués', () => {
   it('inventaire et aperçu des exemples livrés avec l’application', () => {
     const dir = join(__dirname, '..', 'ressources', 'docsCadreExemples')
     const inventaire = inventaireExemplesDocsCadre(dir)
-    // Ordre défini : conformité DPO d'abord, guides ensuite (pas alphabétique).
-    expect(inventaire.map((d) => d.nom)).toEqual([
-      'Déclaration traitement DPO.txt',
-      'Notice de consentement DPO.txt',
-      'Guide de correction.txt',
-      'Guide de pseudonymisation.txt',
-    ])
-    for (const d of inventaire) {
+    expect(inventaire.map((d) => d.nom)).toEqual(['DPO', 'Guide de correction.txt', 'Guide de pseudonymisation.txt'])
+    const dpo = inventaireExemplesDocsCadre(dir, 'DPO')
+    expect(dpo.map((d) => d.chemin)).toEqual(['DPO/Déclaration traitement DPO.txt', 'DPO/Notice de consentement DPO.txt'])
+    for (const d of dpo) {
       expect(d.source).toBe('exemple')
-      expect(d.type).toBe('texte')
+      expect(d.nature).toBe('document')
+      expect(lireApercuExemple(dir, d.chemin).apercu.genre).toBe('texte')
+      expect(resoudreExemple(dir, d.chemin)).toBe(join(dir, ...d.chemin.split('/')))
     }
     const r = lireApercuExemple(dir, 'Guide de correction.txt')
     expect(r.apercu.genre).toBe('texte')
@@ -385,20 +469,20 @@ describe('exemples embarqués', () => {
     expect(lireApercuExemple(dir, 'Fantome.txt').apercu).toEqual({ genre: 'aucun', raison: 'absent' })
   })
 
-  it('exemple non déclaré : rangé après les documents connus, par ordre alphabétique', () => {
+  it('exemples : même tri français que les documents du projet', () => {
     const exemple = (nom: string): ResumeDocumentCadre => ({
-      source: 'exemple', nom, type: 'texte', taille: 1, modifieLe: null,
+      nature: 'document', chemin: nom, source: 'exemple', nom, type: 'texte', taille: 1, modifieLe: null,
     })
-    const liste = trierExemplesDocs([
+    const liste = trierEntreesDocsCadre([
       exemple('Zebre.txt'),
       exemple('Guide de correction.txt'),
       exemple('Aaa.txt'),
       exemple('Déclaration traitement DPO.txt'),
     ])
     expect(liste.map((d) => d.nom)).toEqual([
+      'Aaa.txt',
       'Déclaration traitement DPO.txt',
       'Guide de correction.txt',
-      'Aaa.txt',
       'Zebre.txt',
     ])
   })

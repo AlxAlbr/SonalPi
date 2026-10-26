@@ -273,9 +273,9 @@ function clePassage(passage: PassageCasProjete, index: number): string {
 
 <template>
   <section class="cas-corpus">
-    <aside class="repertoire-cas">
-      <div class="tete-repertoire">
-        <h2>Cas</h2>
+    <aside class="panneau repertoire-cas">
+      <div class="corpus-tete tete-repertoire">
+        <h3>Cas</h3>
         <span class="actions-repertoire">
           <button :disabled="lectureSeule" @click="ouvrirRegistreAttributs">Attributs</button>
           <button :disabled="lectureSeule" @click="commencerCreation">Nouveau cas</button>
@@ -511,12 +511,19 @@ function clePassage(passage: PassageCasProjete, index: number): string {
 .champs-creation { display: grid; gap: .8rem; border: 0; padding: 0; margin: 0; min-width: 0; }
 .mode-cas, .aide-regle { font-size: .9rem; color: #555; }
 .filtre-materiaux { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1rem 0; }
-.cas-corpus { display: grid; grid-template-columns: 280px 1fr; gap: 1rem; min-height: 65vh; }
-.repertoire-cas, .fiche-cas { border: 1px solid #ddd; border-radius: 8px; background: #fff; padding: .8rem; }
+.cas-corpus { display: grid; grid-template-columns: var(--largeur-organisation) minmax(0, 1fr); gap: 1rem; height: 100%; min-height: 0; }
+.repertoire-cas, .fiche-cas { min-height: 0; min-width: 0; overflow-y: auto; }
+.fiche-cas { border: 1px solid #ddd; border-radius: 8px; background: #fff; padding: .8rem; }
+.repertoire-cas { font-size: .82rem; }
+@media (max-width: 780px) {
+  .cas-corpus { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .repertoire-cas, .fiche-cas { overflow: visible; }
+}
 .tete-repertoire, .creation-cas > header, .barre-cas { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .actions-repertoire { display: flex; gap: .3rem; }
 h2, h3 { margin: 0; }
-.tete-repertoire h2 { font-size: 1.1rem; }
+.tete-repertoire { flex-wrap: wrap; }
+.tete-repertoire h3 { font-size: .95rem; }
 .recherche { width: 100%; box-sizing: border-box; margin: .7rem 0; padding: .4rem; }
 .carte-cas { width: 100%; display: flex; flex-direction: column; align-items: flex-start; margin: .3rem 0; padding: .55rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; }
 .carte-cas.actif { border-color: #2e73d8; background: #f0f6ff; }

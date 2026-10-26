@@ -106,7 +106,10 @@ async function migrer() {
         variables,
         reglesAnon: mapperTabAnon(apercu.value.raw.tabAnon, genId),
         paramsAnon: mapperParamsAnon(apercu.value.raw.paramsAnonCorpus),
-        traitementsLexico: lexicoV1.value?.traitements,
+        // Le pont IPC attend des données simples, sans objets réactifs Vue.
+        traitementsLexico: lexicoV1.value
+          ? JSON.parse(JSON.stringify(lexicoV1.value.traitements))
+          : undefined,
       },
       apercu.value.raw.tabEnt ?? [], // entretiens à importer (.Sonal + audio)
     )

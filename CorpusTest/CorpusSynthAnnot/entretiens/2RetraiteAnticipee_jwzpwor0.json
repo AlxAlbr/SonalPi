@@ -1,0 +1,1914 @@
+{
+  "formatVersion": 9,
+  "lastModified": "2026-10-26T18:22:46.794Z",
+  "corpsTexte": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Bonjour Sylvie, merci de me recevoir ici au relais. Pour commencer, est-ce que vous pouvez vous présenter et me dire ce que vous faites ici, le mercredi ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Avec plaisir, moi c'est Sylvie, j'ai 58 ans. Avant, j'étais cadre dans une entreprise d'assurance, et là on va dire que je suis en retraite anticipée depuis deux ans. Le mercredi après-midi, je m'occupe de l'aide aux devoirs, dans le local à côté de la salle paroissiale, pour des élèves du CE2 à la 6e. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et comment vous êtes-vous lancée ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Ben, ça a été une surprise, même pour moi. J'ai vu une petite annonce dans le journal, le relais cherchait des bénévoles pour les devoirs. Un soir, je me suis dit, bon, tu as le temps maintenant. Et puis, il y a mon engagement dans la foi chrétienne. Pour moi, m'occuper des enfants, transmettre, ça veut dire quelque chose. Ce n'est pas un choix qui est sorti de nulle part. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Cet engagement dans l'aide aux devoirs, ça fait longtemps ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui, deux ans. J'ai pris cette décision de la retraite anticipée en février, et j'ai commencé en septembre. Avant, je n'y pensais pas, j'étais à mon bureau du matin au soir. Quand on commence à avoir du temps, au départ, on ne sait pas trop quoi en faire. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et vos débuts, concrètement, ça a été comment ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Au départ, je ne faisais pas grand-chose, je le reconnais. Je surveillais, et quand un enfant bloquait, j'essayais de l'aider. J'étais un peu gênée parce que, moi, l'école, ça fait longtemps. Je ne me sentais plus vraiment à jour. Et puis, on a fait une petite formation, et les enseignants nous ont dit « Vous n'avez pas à connaître les réponses, vous avez à les faire chercher. ». Et ça, ça m'a débloquée. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Une séance, elle se passe comment, d'habitude ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Alors, les enfants arrivent vers 16h30, ils sont une vingtaine. On fait un petit tour de table, comment ça s'est passé à l'école. Et après, on se met par groupe. Moi, j'ai trois ou quatre enfants. On fait les devoirs. Et à la fin, on se réserve toujours un moment pour un jeu ou une lecture à voix haute. Comme ça, ils repartent avec un bon souvenir. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et ces enfants, d'où viennent-ils ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Du quartier, presque tous. Les résidences autour de l'église. Il y a des familles qui n'ont pas les moyens de payer du soutien scolaire. Alors, les enfants viennent chez nous. Pour eux, c'est gratuit. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et avec les enfants, est-ce que c'est toujours facile? ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Ah non, pas du tout. Il y en a qui sont... Comment dire ? Difficile. Ils vous testent. Certains m'ont dit des choses qui m'ont blessée. Et là, je me suis sentie seule. Parmi les autres bénévoles, personne ne m'a demandé « ça va ? ». Le mercredi, on est ensemble. Et après, on ne se voit plus. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Vous pouvez me raconter un moment, par exemple ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui. Un jour, un garçon, en CM1, devant les autres, il m'a dit « tu sers à rien ». Je ne vais pas vous mentir. Quand je suis revenue en voiture, j'ai pleuré. Et puis, une semaine après, le même garçon est venu me mettre un dessin dans la main. Une petite maison. Et il a dit « c'est pour toi ». Et là, j'étais la plus heureuse. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et l'association, est-ce qu'elle vous soutient ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Je dois vous avouer que je n'ai pas osé faire remonter ce problème, mais sinon, l'association, oui, elle nous soutient. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et entre bénévoles, j'ai cru comprendre que vous n'étiez pas complètement satisfaites ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Oui. Et là, j'ai dit « je suis heureuse ». Et là, j'ai dit « je suis heureuse ». Et là, j'ai dit « je suis heureuse ». Et là, j'ai dit « je suis heureuse ». Le mercredi, on est quatre. Geneviève pour les plus petits, Paul, la coordinatrice et moi. Geneviève, c'est une douce, mais elle repart rapidement. Paul, il est timide. La coordinatrice, une fois la séance finie, elle considère qu'elle a terminé. Moi, j'aimerais bien qu'on prenne le temps de parler de ce qu'on vit. Malheureusement, on ne le fait jamais. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et vous, qu'est-ce que tout ça vous apporte au fond ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Une raison de me lever d'abord. Parce que ma santé, ce n'est pas la force. Et puis, il y a un garçon, Adam. En septembre, il ne lisait pas. Là, maintenant, il lit tout seul. Ça me redonne de l'espérance. Mes enfants me disent que je passe plus de temps avec ceux des autres qu'avec eux. C'est un peu vrai. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Votre famille, elle a suivi ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Mon mari a été surpris au début. Il m'a dit « tu ne veux pas te reposer plus tôt ? ». Ma fille trouve que je suis devenue plus patiente. Et je pense que c'est vrai. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Et pour la suite, vous voyez ça comment ? Un dernier mot ? "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Juste que... Il ne faut pas être prof pour être utile. Parfois, rester calme à côté d'un enfant, c'est déjà beaucoup. "
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Merci beaucoup, Sylvie, pour ce témoignage. Et pour votre engagement. "
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": [
+    {
+      "id": "import-0",
+      "from": 325,
+      "to": 460,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_025"
+    },
+    {
+      "id": "import-1",
+      "from": 464,
+      "to": 499,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-2",
+      "from": 464,
+      "to": 499,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-3",
+      "from": 501,
+      "to": 544,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-4",
+      "from": 501,
+      "to": 544,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-5",
+      "from": 544,
+      "to": 640,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-6",
+      "from": 544,
+      "to": 640,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-7",
+      "from": 640,
+      "to": 696,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_007"
+    },
+    {
+      "id": "import-8",
+      "from": 640,
+      "to": 696,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-9",
+      "from": 697,
+      "to": 751,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-10",
+      "from": 697,
+      "to": 751,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_010"
+    },
+    {
+      "id": "import-11",
+      "from": 751,
+      "to": 752,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-12",
+      "from": 752,
+      "to": 826,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-13",
+      "from": 826,
+      "to": 876,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-14",
+      "from": 879,
+      "to": 939,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-15",
+      "from": 941,
+      "to": 955,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_005"
+    },
+    {
+      "id": "import-16",
+      "from": 956,
+      "to": 1048,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_004"
+    },
+    {
+      "id": "import-17",
+      "from": 1199,
+      "to": 1247,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-18",
+      "from": 1249,
+      "to": 1308,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-19",
+      "from": 1308,
+      "to": 1376,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-20",
+      "from": 1376,
+      "to": 1441,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-21",
+      "from": 1441,
+      "to": 1480,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-22",
+      "from": 1480,
+      "to": 1629,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-23",
+      "from": 1629,
+      "to": 1632,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-24",
+      "from": 1632,
+      "to": 1656,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_012"
+    },
+    {
+      "id": "import-25",
+      "from": 1659,
+      "to": 1707,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-26",
+      "from": 1709,
+      "to": 1773,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-27",
+      "from": 1773,
+      "to": 1839,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-28",
+      "from": 1839,
+      "to": 1871,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-29",
+      "from": 1871,
+      "to": 1906,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-30",
+      "from": 1906,
+      "to": 1927,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-31",
+      "from": 1927,
+      "to": 2014,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-32",
+      "from": 2014,
+      "to": 2059,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_013"
+    },
+    {
+      "id": "import-33",
+      "from": 2062,
+      "to": 2098,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-34",
+      "from": 2100,
+      "to": 2127,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-35",
+      "from": 2127,
+      "to": 2162,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-36",
+      "from": 2162,
+      "to": 2237,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-37",
+      "from": 2237,
+      "to": 2276,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-38",
+      "from": 2276,
+      "to": 2299,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-39",
+      "from": 2299,
+      "to": 2300,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_029"
+    },
+    {
+      "id": "import-40",
+      "from": 2303,
+      "to": 2358,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-41",
+      "from": 2358,
+      "to": 2360,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-42",
+      "from": 2362,
+      "to": 2383,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-43",
+      "from": 2383,
+      "to": 2420,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-44",
+      "from": 2420,
+      "to": 2431,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-45",
+      "from": 2431,
+      "to": 2449,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-46",
+      "from": 2449,
+      "to": 2498,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-47",
+      "from": 2498,
+      "to": 2530,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-48",
+      "from": 2530,
+      "to": 2592,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-49",
+      "from": 2530,
+      "to": 2592,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-50",
+      "from": 2592,
+      "to": 2595,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-51",
+      "from": 2592,
+      "to": 2595,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-52",
+      "from": 2595,
+      "to": 2625,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-53",
+      "from": 2595,
+      "to": 2625,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-54",
+      "from": 2625,
+      "to": 2654,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-55",
+      "from": 2625,
+      "to": 2654,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-56",
+      "from": 2654,
+      "to": 2655,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-57",
+      "from": 2657,
+      "to": 2706,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-58",
+      "from": 2708,
+      "to": 2713,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-59",
+      "from": 2713,
+      "to": 2791,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-60",
+      "from": 2791,
+      "to": 2819,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-61",
+      "from": 2819,
+      "to": 2866,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-62",
+      "from": 2866,
+      "to": 2952,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-63",
+      "from": 2952,
+      "to": 2971,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-64",
+      "from": 2971,
+      "to": 3003,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-65",
+      "from": 3003,
+      "to": 3036,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_020"
+    },
+    {
+      "id": "import-66",
+      "from": 3038,
+      "to": 3087,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-67",
+      "from": 3089,
+      "to": 3209,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-68",
+      "from": 3211,
+      "to": 3298,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-69",
+      "from": 3301,
+      "to": 3304,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-70",
+      "from": 3304,
+      "to": 3306,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-71",
+      "from": 3306,
+      "to": 3344,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-72",
+      "from": 3344,
+      "to": 3382,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-73",
+      "from": 3382,
+      "to": 3420,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-74",
+      "from": 3420,
+      "to": 3446,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-75",
+      "from": 3446,
+      "to": 3454,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-76",
+      "from": 3454,
+      "to": 3458,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-77",
+      "from": 3458,
+      "to": 3486,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-78",
+      "from": 3486,
+      "to": 3549,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-79",
+      "from": 3549,
+      "to": 3606,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-80",
+      "from": 3606,
+      "to": 3627,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-81",
+      "from": 3627,
+      "to": 3705,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-82",
+      "from": 3705,
+      "to": 3775,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-83",
+      "from": 3775,
+      "to": 3813,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_017"
+    },
+    {
+      "id": "import-84",
+      "from": 3816,
+      "to": 3870,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-85",
+      "from": 3872,
+      "to": 3904,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-86",
+      "from": 3904,
+      "to": 3947,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-87",
+      "from": 3947,
+      "to": 3980,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-88",
+      "from": 3980,
+      "to": 4012,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-89",
+      "from": 4012,
+      "to": 4046,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-90",
+      "from": 4046,
+      "to": 4076,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-91",
+      "from": 4076,
+      "to": 4159,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-92",
+      "from": 4159,
+      "to": 4176,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_009"
+    },
+    {
+      "id": "import-93",
+      "from": 4379,
+      "to": 4421,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_021"
+    },
+    {
+      "id": "import-94",
+      "from": 4421,
+      "to": 4437,
+      "auteur": "import",
+      "type": "codage",
+      "code": "cat_021"
+    },
+    {
+      "id": "import-95",
+      "type": "commentaire",
+      "from": 3301,
+      "to": 3454,
+      "auteur": "AA",
+      "texte": "Hallucination de whisper..."
+    },
+    {
+      "id": "import-96",
+      "type": "commentaire",
+      "from": 4284,
+      "to": 4292,
+      "auteur": "AA",
+      "texte": "A corriger"
+    }
+  ],
+  "ancres": [
+    {
+      "pos": 1,
+      "t": 0
+    },
+    {
+      "pos": 53,
+      "t": 2.22
+    },
+    {
+      "pos": 53,
+      "t": 2.74
+    },
+    {
+      "pos": 156,
+      "t": 6.84
+    },
+    {
+      "pos": 158,
+      "t": 7.2
+    },
+    {
+      "pos": 203,
+      "t": 10.1
+    },
+    {
+      "pos": 203,
+      "t": 10.94
+    },
+    {
+      "pos": 325,
+      "t": 18.72
+    },
+    {
+      "pos": 325,
+      "t": 20.04
+    },
+    {
+      "pos": 462,
+      "t": 27.92
+    },
+    {
+      "pos": 464,
+      "t": 28.78
+    },
+    {
+      "pos": 499,
+      "t": 30
+    },
+    {
+      "pos": 501,
+      "t": 30.32
+    },
+    {
+      "pos": 544,
+      "t": 34.46
+    },
+    {
+      "pos": 544,
+      "t": 35.34
+    },
+    {
+      "pos": 640,
+      "t": 39.96
+    },
+    {
+      "pos": 640,
+      "t": 40.78
+    },
+    {
+      "pos": 697,
+      "t": 43.72
+    },
+    {
+      "pos": 697,
+      "t": 44.8
+    },
+    {
+      "pos": 752,
+      "t": 47.32
+    },
+    {
+      "pos": 752,
+      "t": 48.06
+    },
+    {
+      "pos": 826,
+      "t": 51.58
+    },
+    {
+      "pos": 826,
+      "t": 52.06
+    },
+    {
+      "pos": 877,
+      "t": 54.06
+    },
+    {
+      "pos": 879,
+      "t": 54.98
+    },
+    {
+      "pos": 939,
+      "t": 57.18
+    },
+    {
+      "pos": 941,
+      "t": 57.78
+    },
+    {
+      "pos": 956,
+      "t": 58.54
+    },
+    {
+      "pos": 956,
+      "t": 59.68
+    },
+    {
+      "pos": 1049,
+      "t": 65.06
+    },
+    {
+      "pos": 1049,
+      "t": 65.96
+    },
+    {
+      "pos": 1115,
+      "t": 68.84
+    },
+    {
+      "pos": 1115,
+      "t": 69.68
+    },
+    {
+      "pos": 1197,
+      "t": 74.03999999999999
+    },
+    {
+      "pos": 1199,
+      "t": 74.96000000000001
+    },
+    {
+      "pos": 1247,
+      "t": 77.26
+    },
+    {
+      "pos": 1249,
+      "t": 77.52
+    },
+    {
+      "pos": 1308,
+      "t": 80.06
+    },
+    {
+      "pos": 1308,
+      "t": 80.72
+    },
+    {
+      "pos": 1376,
+      "t": 84.28
+    },
+    {
+      "pos": 1376,
+      "t": 85.3
+    },
+    {
+      "pos": 1441,
+      "t": 88.48
+    },
+    {
+      "pos": 1441,
+      "t": 89.28
+    },
+    {
+      "pos": 1480,
+      "t": 90.84
+    },
+    {
+      "pos": 1480,
+      "t": 91.66
+    },
+    {
+      "pos": 1629,
+      "t": 98.94
+    },
+    {
+      "pos": 1629,
+      "t": 98.96000000000001
+    },
+    {
+      "pos": 1632,
+      "t": 99.2
+    },
+    {
+      "pos": 1632,
+      "t": 99.84
+    },
+    {
+      "pos": 1657,
+      "t": 101.32
+    },
+    {
+      "pos": 1659,
+      "t": 102.03999999999999
+    },
+    {
+      "pos": 1707,
+      "t": 104.14
+    },
+    {
+      "pos": 1709,
+      "t": 104.8
+    },
+    {
+      "pos": 1773,
+      "t": 108.25999999999999
+    },
+    {
+      "pos": 1773,
+      "t": 109
+    },
+    {
+      "pos": 1839,
+      "t": 111.9
+    },
+    {
+      "pos": 1839,
+      "t": 112.64
+    },
+    {
+      "pos": 1871,
+      "t": 114.28
+    },
+    {
+      "pos": 1871,
+      "t": 114.94
+    },
+    {
+      "pos": 1906,
+      "t": 116.34
+    },
+    {
+      "pos": 1906,
+      "t": 117
+    },
+    {
+      "pos": 1927,
+      "t": 117.9
+    },
+    {
+      "pos": 1927,
+      "t": 118.36
+    },
+    {
+      "pos": 2014,
+      "t": 123.02
+    },
+    {
+      "pos": 2014,
+      "t": 123.88
+    },
+    {
+      "pos": 2060,
+      "t": 126.42
+    },
+    {
+      "pos": 2062,
+      "t": 127.16
+    },
+    {
+      "pos": 2098,
+      "t": 129.18
+    },
+    {
+      "pos": 2100,
+      "t": 129.47899999999998
+    },
+    {
+      "pos": 2127,
+      "t": 130.84
+    },
+    {
+      "pos": 2127,
+      "t": 131.4
+    },
+    {
+      "pos": 2162,
+      "t": 133
+    },
+    {
+      "pos": 2162,
+      "t": 133.9
+    },
+    {
+      "pos": 2237,
+      "t": 137
+    },
+    {
+      "pos": 2237,
+      "t": 137.52
+    },
+    {
+      "pos": 2276,
+      "t": 138.82
+    },
+    {
+      "pos": 2276,
+      "t": 139.62
+    },
+    {
+      "pos": 2301,
+      "t": 140.7
+    },
+    {
+      "pos": 2303,
+      "t": 141.44
+    },
+    {
+      "pos": 2358,
+      "t": 143.3
+    },
+    {
+      "pos": 2358,
+      "t": 143.32
+    },
+    {
+      "pos": 2360,
+      "t": 143.62
+    },
+    {
+      "pos": 2362,
+      "t": 144
+    },
+    {
+      "pos": 2383,
+      "t": 144.84
+    },
+    {
+      "pos": 2383,
+      "t": 145.52
+    },
+    {
+      "pos": 2420,
+      "t": 148
+    },
+    {
+      "pos": 2420,
+      "t": 148.8
+    },
+    {
+      "pos": 2431,
+      "t": 149.42000000000002
+    },
+    {
+      "pos": 2431,
+      "t": 150.22
+    },
+    {
+      "pos": 2449,
+      "t": 151
+    },
+    {
+      "pos": 2449,
+      "t": 151.1
+    },
+    {
+      "pos": 2498,
+      "t": 153
+    },
+    {
+      "pos": 2498,
+      "t": 153.88
+    },
+    {
+      "pos": 2530,
+      "t": 155.54
+    },
+    {
+      "pos": 2530,
+      "t": 156.46
+    },
+    {
+      "pos": 2592,
+      "t": 160.4
+    },
+    {
+      "pos": 2595,
+      "t": 160.48
+    },
+    {
+      "pos": 2595,
+      "t": 161.18
+    },
+    {
+      "pos": 2625,
+      "t": 162.57999999999998
+    },
+    {
+      "pos": 2625,
+      "t": 163.02
+    },
+    {
+      "pos": 2655,
+      "t": 164.2
+    },
+    {
+      "pos": 2657,
+      "t": 165.02
+    },
+    {
+      "pos": 2706,
+      "t": 167.24
+    },
+    {
+      "pos": 2708,
+      "t": 167.76
+    },
+    {
+      "pos": 2713,
+      "t": 167.84
+    },
+    {
+      "pos": 2713,
+      "t": 168.68
+    },
+    {
+      "pos": 2791,
+      "t": 174.52
+    },
+    {
+      "pos": 2791,
+      "t": 175.3
+    },
+    {
+      "pos": 2819,
+      "t": 176.32
+    },
+    {
+      "pos": 2819,
+      "t": 176.88
+    },
+    {
+      "pos": 2866,
+      "t": 179.16
+    },
+    {
+      "pos": 2866,
+      "t": 180.26
+    },
+    {
+      "pos": 2952,
+      "t": 184.86
+    },
+    {
+      "pos": 2952,
+      "t": 185.4
+    },
+    {
+      "pos": 2971,
+      "t": 186.18
+    },
+    {
+      "pos": 2971,
+      "t": 186.78
+    },
+    {
+      "pos": 3003,
+      "t": 188.54
+    },
+    {
+      "pos": 3003,
+      "t": 189.3
+    },
+    {
+      "pos": 3036,
+      "t": 191.1
+    },
+    {
+      "pos": 3038,
+      "t": 191.9
+    },
+    {
+      "pos": 3087,
+      "t": 193.84
+    },
+    {
+      "pos": 3089,
+      "t": 194.32
+    },
+    {
+      "pos": 3209,
+      "t": 200.8
+    },
+    {
+      "pos": 3211,
+      "t": 201.57999999999998
+    },
+    {
+      "pos": 3299,
+      "t": 205.06
+    },
+    {
+      "pos": 3301,
+      "t": 205.1
+    },
+    {
+      "pos": 3306,
+      "t": 205.16
+    },
+    {
+      "pos": 3306,
+      "t": 205.22
+    },
+    {
+      "pos": 3344,
+      "t": 205.96
+    },
+    {
+      "pos": 3344,
+      "t": 206
+    },
+    {
+      "pos": 3382,
+      "t": 206.74
+    },
+    {
+      "pos": 3382,
+      "t": 206.78
+    },
+    {
+      "pos": 3420,
+      "t": 207.56
+    },
+    {
+      "pos": 3420,
+      "t": 207.62
+    },
+    {
+      "pos": 3458,
+      "t": 208.6
+    },
+    {
+      "pos": 3458,
+      "t": 208.64
+    },
+    {
+      "pos": 3486,
+      "t": 209.38
+    },
+    {
+      "pos": 3486,
+      "t": 209.44
+    },
+    {
+      "pos": 3549,
+      "t": 211.82
+    },
+    {
+      "pos": 3549,
+      "t": 212.84
+    },
+    {
+      "pos": 3606,
+      "t": 215.57999999999998
+    },
+    {
+      "pos": 3606,
+      "t": 216.6
+    },
+    {
+      "pos": 3627,
+      "t": 217.78
+    },
+    {
+      "pos": 3627,
+      "t": 218.34
+    },
+    {
+      "pos": 3705,
+      "t": 222.52
+    },
+    {
+      "pos": 3705,
+      "t": 223.5
+    },
+    {
+      "pos": 3775,
+      "t": 225.98
+    },
+    {
+      "pos": 3775,
+      "t": 226.88
+    },
+    {
+      "pos": 3814,
+      "t": 228.68
+    },
+    {
+      "pos": 3816,
+      "t": 229.42000000000002
+    },
+    {
+      "pos": 3870,
+      "t": 231.46
+    },
+    {
+      "pos": 3872,
+      "t": 232.06
+    },
+    {
+      "pos": 3904,
+      "t": 233.6
+    },
+    {
+      "pos": 3904,
+      "t": 234.1
+    },
+    {
+      "pos": 3947,
+      "t": 235.98
+    },
+    {
+      "pos": 3947,
+      "t": 237.06
+    },
+    {
+      "pos": 3980,
+      "t": 239.84
+    },
+    {
+      "pos": 3980,
+      "t": 240.72
+    },
+    {
+      "pos": 4012,
+      "t": 242.34
+    },
+    {
+      "pos": 4012,
+      "t": 243.14
+    },
+    {
+      "pos": 4046,
+      "t": 244.92
+    },
+    {
+      "pos": 4046,
+      "t": 245.72
+    },
+    {
+      "pos": 4076,
+      "t": 247.16
+    },
+    {
+      "pos": 4076,
+      "t": 248.14
+    },
+    {
+      "pos": 4159,
+      "t": 251.6
+    },
+    {
+      "pos": 4159,
+      "t": 252.54
+    },
+    {
+      "pos": 4178,
+      "t": 253.18
+    },
+    {
+      "pos": 4180,
+      "t": 254.02
+    },
+    {
+      "pos": 4210,
+      "t": 255.44
+    },
+    {
+      "pos": 4212,
+      "t": 256.079
+    },
+    {
+      "pos": 4245,
+      "t": 257.779
+    },
+    {
+      "pos": 4245,
+      "t": 258.22
+    },
+    {
+      "pos": 4295,
+      "t": 261.36
+    },
+    {
+      "pos": 4298,
+      "t": 261.42
+    },
+    {
+      "pos": 4298,
+      "t": 261.92
+    },
+    {
+      "pos": 4349,
+      "t": 264.26
+    },
+    {
+      "pos": 4349,
+      "t": 264.78
+    },
+    {
+      "pos": 4377,
+      "t": 265.76
+    },
+    {
+      "pos": 4379,
+      "t": 266.84
+    },
+    {
+      "pos": 4421,
+      "t": 268.56
+    },
+    {
+      "pos": 4421,
+      "t": 283.6
+    },
+    {
+      "pos": 4438,
+      "t": 284.26
+    },
+    {
+      "pos": 4440,
+      "t": 285.02
+    },
+    {
+      "pos": 4495,
+      "t": 288.44
+    },
+    {
+      "pos": 4495,
+      "t": 289.26
+    },
+    {
+      "pos": 4558,
+      "t": 292.94
+    },
+    {
+      "pos": 4560,
+      "t": 293.74
+    },
+    {
+      "pos": 4604,
+      "t": 295.58
+    },
+    {
+      "pos": 4604,
+      "t": 295.82
+    },
+    {
+      "pos": 4630,
+      "t": 296.72
+    }
+  ],
+  "locuteurs": [
+    {
+      "index": 1,
+      "nom": "Réponse",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m1",
+        "v4": "v4m0",
+        "v5": "v5m9"
+      },
+      "personneRef": null,
+      "id": "loc-EqzKpY3thYsF8X4PKyfAi65LqeAjz8tE55xnE0sY02g"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "personneRef": null,
+      "id": "loc-BNW5sC9ghv_IBIS7g6Wj41ZJP1taeka7_9uzMpUE_qw"
+    }
+  ],
+  "meta": {
+    "valeursGen": {},
+    "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/2RetraiteAnticipee.mp3"
+  },
+  "brouillonsAnon": [],
+  "notes": [
+    {
+      "id": "note_n9g6azd4",
+      "categorieId": "ncat_generale",
+      "titre": "",
+      "date": null,
+      "statut": "prive",
+      "corps": "Cet entretien est totalement fictif. \nIl est uniquement voué à servir de support de démonstration du logiciel.\n \nSon contenu, ainsi que son codage sont purement illustratifs ne visent pas à servir de modèle en matière de pratique de codage ou d'analyse des matériaux.",
+      "rang": 0,
+      "creeLe": "2026-10-26T18:22:46.575Z",
+      "modifieLe": null
+    }
+  ],
+  "reperesPassages": []
+}

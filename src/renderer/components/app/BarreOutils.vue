@@ -40,7 +40,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         class="outil espace"
         data-tour="ouvrir-analyser"
         :class="{ actif: analyseActive }"
-        title="Synthèse, lexico et analyses croisées"
+        title="Tri et synthèse, Lexico et analyses croisées"
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
       >Analyser et interpréter</button>

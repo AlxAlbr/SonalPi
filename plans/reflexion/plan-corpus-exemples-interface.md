@@ -1,8 +1,10 @@
 # Plusieurs corpus exemples — interface et parcours d’ouverture
 
-Statut : orientation retenue pour une entrée par le choix du parcours, avant la
-préparation du corpus. Séparation des corpus d’apprentissage et des Récents proposée
-ci-dessous. Plan uniquement, sans modification du fonctionnement de l’application.
+Statut : sources réorganisées et corpus annoté converti en SonalPi2.
+Une [maquette interactive](../maquettes/corpus-exemples-interface.md) permet de
+valider le choix du parcours avant la préparation, la reprise et l'exploration libre.
+La séparation des copies d’apprentissage et des Récents reste proposée ci-dessous.
+Le fonctionnement actuel de l'application n'a pas encore été refondu.
 
 ## 1. Objectif et périmètre
 
@@ -465,8 +467,27 @@ réellement vierge ; refuser également les collisions avec les sources et les a
 
 ## 6. Plan de réalisation proposé
 
+### Préalable — Organiser les contenus fournis
+
+- [x] Déplacer les sources actuelles dans `CorpusTest/CorpusSynth/`.
+- [x] Adapter les accès en développement et dans les paquets, sans changer les
+  emplacements des sources déjà installées ni le fonctionnement de la démo.
+- [x] Réserver `CorpusTest/CorpusSynthAnnot/` pour la variante annotée.
+- [x] Convertir le corpus annoté SonalPi1 en corpus SonalPi2 enregistré.
+- [x] Retirer les originaux SonalPi1 et les références de provenance devenues inutiles.
+  Les contrôles du corpus exemple portent désormais sur ses seules données V2.
+- [ ] Adapter les références audio lors de l'installation de l'exemple annoté
+  sur un autre ordinateur.
+
+Cette organisation des fichiers n'ajoute pas encore d'exemple dans l'interface.
+
 ### Lot 1 — Valider le parcours d’interface
 
+La [maquette interactive et ses scénarios](../maquettes/corpus-exemples-interface.md)
+sont disponibles pour validation. Elle ne manipule aucun corpus réel et ne remplace
+pas les futurs tests d'intégration. Les validations utilisateur ci-dessous restent ouvertes.
+
+- [x] Préparer une maquette interactive autonome des parcours, de la reprise et de l'exploration libre.
 - [x] Retenir le choix du parcours avant la préparation du corpus (variante B).
 - [x] Conserver les cartes cliquables et le détail du parcours sélectionné en dessous.
 - [x] Présenter la préparation comme un préalable visible, hors étapes et progression.
@@ -475,7 +496,8 @@ réellement vierge ; refuser également les collisions avec les sources et les a
 - [ ] Valider la reprise et le rattachement des copies depuis le catalogue, y compris après achèvement.
 - [ ] Valider l’emplacement proposé et l’accès facultatif aux sources.
 - [ ] Définir les intitulés distinguant les variantes et les copies déjà commencées.
-- [ ] Vérifier navigation clavier, fermeture/annulation, retour du focus et fenêtre étroite.
+- [x] Vérifier sur la maquette navigation clavier, fermeture/annulation, retour du focus et fenêtre étroite.
+  Ces vérifications restent à refaire après intégration dans l'application.
 
 ### Lot 2 — Séparer identité, reprise et accompagnement
 

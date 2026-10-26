@@ -43,8 +43,9 @@ import type {
 } from '../shared/format'
 import type { ApiGitLab } from '../shared/gitlab'
 import type { ApiWebDAV } from '../shared/webdav'
+import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import type {
-  InventaireDocsCadre,
+  InventaireDossierDocsCadre,
   ResultatLectureDocsCadre,
   ResultatMutationDocsCadre,
   SourceDocumentCadre,
@@ -149,40 +150,41 @@ contextBridge.exposeInMainWorld('sonal', {
       return () => ipcRenderer.removeListener('menu:ouvrirRecent', ecouteur)
     },
   },
-  /** Docs cadre projet : documents de méthode propres au corpus courant.
-   *  Le renderer ne transmet qu'une source et un nom, jamais un chemin.
-   *  Les mutations sont refusées par le main en corpus distant et pour les
-   *  exemples (lecture + copie seulement). */
+  /** Documents du corpus et exemples ; seuls des chemins relatifs sont échangés. */
   docsCadre: {
-    /** Inventaire complet : mode, documents du corpus, exemples embarqués. */
-    lister: (): Promise<InventaireDocsCadre> => invoquer('docsCadre:lister'),
+    /** Enfants directs du dossier demandé. */
+    lister: (source: SourceDocumentCadre, dossier: string): Promise<InventaireDossierDocsCadre> =>
+      invoquer('docsCadre:lister', source, dossier),
     /** Fiche + aperçu d'un document ; formats non pris en charge expliqués. */
     lireApercu: (source: SourceDocumentCadre, nom: string): Promise<ResultatLectureDocsCadre> =>
       invoquer('docsCadre:lireApercu', source, nom),
-    /** Sélecteur natif + copie du fichier choisi dans DocsCadre/ ;
+    /** Sélecteur natif et copie du fichier dans le dossier affiché ;
      *  un 2e appel avec `nomSouhaite` reprend après collision (suffixe proposé). */
-    ajouterFichier: (nomSouhaite?: string): Promise<ResultatMutationDocsCadre> =>
-      invoquer('docsCadre:ajouterFichier', nomSouhaite),
-    /** Copie d'un fichier glissé-déposé vers DocsCadre/ ; jamais un
+    ajouterFichier: (dossier: string, nomSouhaite?: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:ajouterFichier', dossier, nomSouhaite),
+    creerDossier: (parent: string, nom: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:creerDossier', parent, nom),
+    /** Copie d'un fichier glissé-déposé dans le dossier affiché ; jamais un
      *  écrasement (homonyme refusé). Vaut pour le corpus local uniquement. */
-    deposer: (cheminSource: string): Promise<ResultatMutationDocsCadre> =>
-      invoquer('docsCadre:deposer', cheminSource),
+    deposer: (cheminSource: string, dossier: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:deposer', cheminSource, dossier),
     renommer: (ancienNom: string, nouveauNom: string): Promise<ResultatMutationDocsCadre> =>
       invoquer('docsCadre:renommer', ancienNom, nouveauNom),
-    /** Suppression douce : le fichier part sous corbeille/DocsCadre/. */
+    /** Suppression douce dans la corbeille documentaire du corpus. */
     supprimer: (nom: string): Promise<ResultatMutationDocsCadre> =>
       invoquer('docsCadre:supprimer', nom),
     /** Ouvre le document avec l'application par défaut du poste. */
     ouvrirAvecApplication: (nom: string): Promise<void> =>
       invoquer('docsCadre:ouvrir', nom),
-    /** Ouvre le dossier DocsCadre/ dans le gestionnaire de fichiers. */
-    ouvrirDossierLocal: (): Promise<void> => invoquer('docsCadre:ouvrirDossier'),
+    /** Ouvre le dossier courant dans le gestionnaire de fichiers. */
+    ouvrirDossierLocal: (dossier: string): Promise<void> => invoquer('docsCadre:ouvrirDossier', dossier),
+    afficherDansDossier: (chemin: string): Promise<void> => invoquer('docsCadre:afficherDansDossier', chemin),
     /** Copie EXACTE du fichier original vers une destination choisie
      *  (false si annulé). Flux streamé pour un distant volumineux. */
     enregistrerCopie: (source: SourceDocumentCadre, nom: string): Promise<boolean> =>
       invoquer('docsCadre:enregistrerCopie', source, nom),
     /** Corpus distant : ouvre le dossier du corpus dans l'app Fichiers Nextcloud. */
-    ouvrirDansNextcloud: (): Promise<void> => invoquer('docsCadre:ouvrirDansNextcloud'),
+    ouvrirDansNextcloud: (dossier: string): Promise<void> => invoquer('docsCadre:ouvrirDansNextcloud', dossier),
   },
   corpus: {
     /** S'abonner aux bascules « corpus courant supprimé sur disque ».
@@ -501,6 +503,11 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('media:ecrireLargeurVideo', dir, largeur),
   },
   profil: {
+    /** Dernier emplacement consulté dans le projet courant, sur ce poste. */
+    lireNavigationProjet: (): Promise<MemoireNavigationProjet> =>
+      invoquer('profil:lireNavigationProjet'),
+    memoriserNavigationProjet: (cle: string, navigation: NavigationProjet): Promise<void> =>
+      invoquer('profil:memoriserNavigationProjet', cle, navigation),
     /** Dernier signataire des commentaires (settings.json du profil). */
     signataire: (): Promise<string> => invoquer('profil:lireSignataire'),
     memoriserSignataire: (nom: string): Promise<void> =>
@@ -612,7 +619,7 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('migrer:lireSonal', cheminCrp, rtrPath),
   },
   demo: {
-    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/ + docs/) ;
+    /** Copie les sources de CorpusTest/CorpusSynth/ (srt/ + audio/ + docs/) ;
      *  elles arrivent dans le dossier choisi par l'utilisateur,
      *  puis le corpus les RÉFÉRENCE. */
     copierSources: (racine: string): Promise<void> =>

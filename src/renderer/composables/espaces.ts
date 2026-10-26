@@ -10,10 +10,10 @@ export type VueApplication = 'accueil' | 'preparer' | 'analyser' | 'organiser' |
 export type SousEspacePreparation = 'accueil' | 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
 
 /** Onglets de l'espace « Analyser et interpréter ». */
-export type SousEspaceAnalyse = 'synthese' | 'lexico' | 'analyses-croisees'
+export type SousEspaceAnalyse = 'accueil' | 'synthese' | 'lexico' | 'analyses-croisees'
 
 /** Onglets de l'espace « Organiser et exporter ». */
-export type SousEspaceOrganisation = 'cas' | 'recueils' | 'export'
+export type SousEspaceOrganisation = 'accueil' | 'cas' | 'recueils' | 'export'
 
 /** Onglets du corpus dans « Importer et traiter ». */
 export type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon'
