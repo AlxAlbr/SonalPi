@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { ref, toRaw } from 'vue'
+import { nextTick, ref, toRaw } from 'vue'
 import { appliquerCommandeCas, type Cas, type CommandeCas } from '../src/shared/corpus/cas'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 import { useCasCorpus } from '../src/renderer/composables/corpus/useCasCorpus'
@@ -27,7 +27,7 @@ function source(repereId = 'repere-1'): EntretienFichier {
   }
 }
 
-function outilLot() {
+function outilLot(panneauActif = ref(false)) {
   let numero = 0
   vi.stubGlobal('crypto', { randomUUID: () => `uuid-${++numero}` })
   const personnes = Array.from({ length: 30 }, (_, index) => ({ id: `p${index}`, nom: index < 2 ? 'Homonyme' : `Personne ${index}` }))
@@ -46,6 +46,7 @@ function outilLot() {
   })
   ;(window as any).sonal = { corpus: { lireEntretien, casCommander, ouvrir: async () => ({ cas: structuredClone(disque) }) } }
   const cas = useCasCorpus({
+    panneauActif,
     cas: dictionnaire,
     membership: ref({
       e1: { titre: 'Même titre', date: null, lastModified: maintenant },
@@ -64,6 +65,63 @@ afterEach(() => {
 })
 
 describe('orchestration renderer des cas', () => {
+  test('le panneau charge à l’accès, garde la sélection au masquage et ne crée pas de modale', async () => {
+    const actif = ref(false)
+    const outil = outilLot(actif)
+    expect(outil.lirePersonnes).not.toHaveBeenCalled()
+    actif.value = true
+    await nextTick()
+    await vi.waitFor(() => expect(outil.cas.inventairePersonnesCas.value).not.toBeNull())
+    expect(outil.cas.casOuverts.value).toBe(false)
+    expect(outil.cas.casActifs.value).toBe(true)
+    await outil.cas.creerCasVide({ nom: 'Cas du panneau', memo: '' })
+    const id = outil.cas.casOuvertId.value
+    actif.value = false
+    await nextTick()
+    expect(outil.cas.casOuvertId.value).toBe(id)
+    const lectures = outil.lirePersonnes.mock.calls.length
+    outil.dictionnaire.value = { ...outil.dictionnaire.value }
+    await nextTick()
+    expect(outil.lirePersonnes).toHaveBeenCalledTimes(lectures)
+    actif.value = true
+    await nextTick()
+    await vi.waitFor(() => expect(outil.lirePersonnes).toHaveBeenCalledTimes(lectures + 1))
+    expect(outil.cas.casOuvertId.value).toBe(id)
+  })
+
+  test('après sauvegarde, relire les matériaux ne relance pas la lecture des personnes', async () => {
+    const outil = outilLot()
+    await outil.cas.creerCasVide({ nom: 'Cas sans règle', memo: '' })
+    await outil.cas.actualiserCas()
+    const lectures = outil.lirePersonnes.mock.calls.length
+    await outil.cas.actualiserMateriauxCas()
+    expect(outil.lirePersonnes).toHaveBeenCalledTimes(lectures)
+    expect(outil.cas.chargementCas.value).toBe(false)
+  })
+
+  test('une actualisation échouée conserve la projection précédente', async () => {
+    const outil = outilLot()
+    await outil.cas.creerCasVide({ nom: 'Cas conservé', memo: '' })
+    const projections = outil.cas.projectionsCas.value
+    outil.lirePersonnes.mockRejectedValueOnce(new Error('Lecture impossible'))
+    await outil.cas.actualiserCas()
+    expect(outil.cas.projectionsCas.value).toBe(projections)
+    expect(outil.cas.messageCas.value).toBe('Lecture impossible')
+  })
+
+  test('une lecture de l’ancien corpus ne réintroduit ni inventaire ni erreur', async () => {
+    const outil = outilLot()
+    let terminer!: (valeur: Awaited<ReturnType<typeof outil.lirePersonnes>>) => void
+    outil.lirePersonnes.mockImplementationOnce(() => new Promise((resolve) => { terminer = resolve }))
+    const lecture = outil.cas.actualiserCas()
+    outil.cas.reinitialiserCas()
+    terminer({ personnes: outil.personnes, locuteurs: [], notes: [], indisponibles: [] })
+    await lecture
+    expect(outil.cas.inventairePersonnesCas.value).toBeNull()
+    expect(outil.cas.messageCas.value).toBeNull()
+    expect(outil.cas.projectionsCas.value).toEqual({})
+  })
+
   test('prévisualise 30 personnes avec noms distincts et une seule lecture de chaque source', async () => {
     const outil = outilLot()
     const apercu = await outil.cas.preparerLotCas({ type: 'personnes', ids: outil.personnes.map((personne) => personne.id), inclureEnqueteurs: false }, 'individuel')
@@ -262,7 +320,12 @@ describe('orchestration renderer des cas', () => {
     const premiereCommande = structuredClone(casCommander.mock.calls[0][0])
     expect(cas.ajoutCasEnAttente.value?.rattachement.source.repereId).toBe('repere-1')
 
-    await cas.associerSelectionCas([], { nom: 'Valeurs ignorées au rejeu', memo: 'autre' })
+    cas.fermerCas()
+    await cas.afficherCasPourAssociation()
+    const ids = await cas.associerSelectionCas([], { nom: 'Valeurs ignorées au rejeu', memo: 'autre' })
+    expect(ids).toEqual([premiereCommande.nouveauCas.id])
+    expect(cas.casOuvertId.value).toBeNull()
+    expect(cas.casOuverts.value).toBe(false)
 
     expect(enregistrer).toHaveBeenCalledOnce()
     expect(casCommander).toHaveBeenCalledTimes(2)

@@ -145,7 +145,7 @@ Les boutons d’import, d’ajout, d’édition et d’actions globales sont rac
 - Conserver les gardes, droits et états de chargement V2 ; étendre la garde aux changements de règle/détail et gérer les réponses asynchrones devenues obsolètes.
 - Empêcher un scan démarré sur un ancien corpus de remplir le panneau après changement de corpus.
 
-**Fichiers principaux :** `src/renderer/components/corpus/PseudonymisationCorpus.vue`, `src/renderer/composables/corpus/useAnonymisationCorpus.ts`, modules de présentation purs/tests associés.
+**Fichiers principaux :** `src/renderer/components/traiter/corpus/PseudonymisationCorpus.vue`, `src/renderer/composables/corpus/useAnonymisationCorpus.ts`, modules de présentation purs/tests associés.
 
 **Acceptation :** présentation identifiable à la V1, aucun bouton inaccessible, aucune règle inutilisée verte par défaut, aucune modification en attente perdue en navigation. Les capacités absentes restent clairement absentes, pas simulées.
 
@@ -338,7 +338,7 @@ Les tests de migration et de sécurité commencent dès le lot 0 et accompagnent
 ## 10. Références principales consultées
 
 - V1 : `modules/Anonymisation/{tableau_global,anon-styles,anon-scan,anon-correspondance}.js`, `anon.md`, test de remplacement corpus.
-- V2 interface : `src/renderer/components/corpus/PseudonymisationCorpus.vue`, `useAnonymisationCorpus.ts`, `useAnonymisationEntretien.ts`, `useLocuteursEntretien.ts`.
+- V2 interface : `src/renderer/components/traiter/corpus/PseudonymisationCorpus.vue`, `useAnonymisationCorpus.ts`, `useAnonymisationEntretien.ts`, `useLocuteursEntretien.ts`.
 - V2 domaine : `src/shared/corpus/{reglesAnon,scanAnon}.ts`, `src/shared/entretien/anon/`, `annotation.ts`, `locuteurs.ts`, `format.ts`, `src/shared/corpus/recueils.ts`.
 - V2 persistance : `src/main/corpusStore.ts`, `src/main/distant/transactions.ts`, `src/main/gitlab/{transactions,contexte,politiqueGestes}.ts`, pont IPC.
 - V2 échanges/sorties : `src/renderer/formatSonal/{importSonal,exportSonal}.ts`, `src/shared/corpus/migrationCrp.ts`, `src/shared/export/{projectionEntretien,pseudonymisation,formatsTexte}.ts`, `src/renderer/editor/passages.ts`.

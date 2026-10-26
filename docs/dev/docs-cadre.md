@@ -1,8 +1,9 @@
 # Docs cadre projet — carte développeur
 
-L'onglet **Documents cadre** de l'espace « Préparer et suivre » ouvre l'espace
-documentaire propre au corpus courant :
-notice de consentement, guides de méthode, consignes internes, fichiers Word ou PDF.
+L'espace « Préparer et suivre » sépare **Documents du projet**, propres au corpus
+courant, et **Documents exemples**, embarqués avec l'application. Les documents du projet
+regroupent notamment notices de consentement, guides de méthode, consignes internes et
+fichiers Word ou PDF.
 
 Décision structurante : SonalPi conserve les documents dans leur format d'origine et
 ne modifie JAMAIS leur contenu, en local comme à distance. L'édition est confiée à
@@ -79,13 +80,14 @@ Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une 
   glisser-déposer (copie, refus d'un homonyme sans renommage automatique), messages,
   confirmation de suppression (IPC conservé, bouton retiré de l'UI). Une erreur réseau
   préserve la liste chargée et les exemples. `preparerDocsCadre` relit l'inventaire et
-  l'aperçu à chaque accès, sans effacer la sélection encore disponible. La navigation
-  fournit un indicateur actif en lecture seule ; le composable ne pilote pas sa visibilité.
+  l'aperçu à chaque accès, puis restaure la dernière sélection propre à l'onglet demandé.
+  La navigation fournit un indicateur actif en lecture seule ; le composable ne pilote pas
+  sa visibilité.
   Le retour de focus actualise seulement le panneau local actif, sans surveillance continue.
-- `corpus/DocsCadreCote.vue` (barre latérale) et `corpus/DocsCadrePanneau.vue`
-  (panneau de consultation). La barre latérale porte les actions toujours accessibles (local :
-  Ajouter, Ouvrir le dossier, Actualiser ; distant : Ouvrir dans Nextcloud, Actualiser) et
-  un bandeau d'aide repliable indiquant où vivent les documents. Le double-clic sur un
+- `components/preparer/documents-cadre/DocsCadreCote.vue` (barre latérale) et
+  `DocsCadrePanneau.vue` (panneau de consultation) servent les deux onglets. Seul l'onglet
+  projet porte les actions de gestion (local : Ajouter, Ouvrir le dossier, Actualiser ;
+  distant : Ouvrir dans Nextcloud, Actualiser). Chaque onglet dispose de son aide adaptée. Le double-clic sur un
   document du corpus ouvre l'application externe. `corpus/FicheDocCadre.vue` (métadonnées),
   `corpus/ApercuDocCadre.vue` (texte mustache-échappé ; URL d'objet image créée et révoquée
   au composant), `corpus/ApercuPdf.vue` (PDF.js local, rendu canvas, navigation et zoom).

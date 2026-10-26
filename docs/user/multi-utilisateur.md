@@ -22,7 +22,7 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Valeurs dans la table de données, application de la pseudonymisation | oui | oui |
 | Audio ou SRT d'un entretien fermé | oui | non |
 | Notes du corpus, corrections de personnes, annulation d'une action du journal | non | non |
-| Médias partagés, Docs cadre | oui | non |
+| Médias partagés, documents du projet | oui | non |
 
 Une commande refusée par le fournisseur le dit explicitement, même appelée
 directement : une interface grisée n'est pas la garde.
@@ -179,8 +179,9 @@ l'autre — utilisez le bouton de ligne pour ces cas. Si une divergence survient
 - **La suppression d'un entretien** range son fichier dans `corbeille/` **du
   dépôt**, où il reste consultable dans l'historique du projet. Vos sauvegardes
   et vos images de forme d'onde sont rangées dans la corbeille **de votre poste**.
-- **Médias partagés et Docs cadre** ne sont pas encore pris en charge sur
-  GitLab ; ils le restent sur Nextcloud.
+- **Médias partagés et documents du projet** ne sont pas encore pris en charge sur
+  GitLab ; les documents exemples restent accessibles, et les documents du projet le
+  restent sur Nextcloud.
 
 ## Résumé des bonnes pratiques
 

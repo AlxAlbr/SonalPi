@@ -1,4 +1,5 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
+import type { SelectionAssociationCas } from './useCasCorpus'
 import type { CorpusFichier, EntretienFichier, EntretienRef } from '../../../shared/format'
 import {
   bornesSection,
@@ -22,7 +23,8 @@ export function useRecueilsCorpus(deps: {
   membership: Ref<Record<string, EntretienRef>>
   ouvertId: Ref<string | null>
   sourceOuverte: () => EntretienFichier | null
-  enregistrerRepereSelection: () => Promise<{ id: string; from: number; to: number }>
+  selectionCourante?: () => Omit<SelectionAssociationCas, 'titreEntretien'> | null
+  enregistrerRepereSelection: (attendu?: { entretienId: string; from: number; to: number }) => Promise<{ id: string; from: number; to: number }>
   ouvrirSource: (entretienId: string, pos: number) => void
   fermerAutreFenetre: () => void
   /** Le fournisseur sait-il garder la source publiée d'un passage repris ? */
@@ -30,6 +32,27 @@ export function useRecueilsCorpus(deps: {
 }) {
   const recueilOuvertId = ref<string | null>(null)
   const recueilsOuverts = ref(false)
+  const associationRecueil = ref<SelectionAssociationCas | null>(null)
+  const creationRecueilAssociation = ref<Extract<CommandeRecueils, { type: 'creer' }> | null>(null)
+
+  function afficherRecueilsPourAssociation(): void {
+    if (!ajoutPassageEnAttente.value && !creationRecueilAssociation.value) {
+      const selection = deps.selectionCourante?.()
+      if (!selection) throw new Error('Sélectionnez un passage avant de l’ajouter à un recueil.')
+      associationRecueil.value = { ...selection, titreEntretien: deps.membership.value[selection.entretienId]?.titre ?? selection.entretienId }
+    }
+    deps.fermerAutreFenetre()
+    recueilsOuverts.value = true
+    messageRecueil.value = null
+  }
+
+  async function creerRecueilPourAssociation(nom: string): Promise<string> {
+    if (!deps.definitionsAvecSources()) throw new Error('L’ajout de passages aux recueils n’est pas disponible pour ce corpus.')
+    const commande = creationRecueilAssociation.value ?? { type: 'creer' as const, id: nouvelId('rec'), nom }
+    creationRecueilAssociation.value = commande
+    await commander(commande)
+    return commande.id
+  }
   const projection = ref<ProjectionRecueil | null>(null)
   const chargement = ref(false)
   const messageRecueil = ref<string | null>(null)
@@ -40,6 +63,22 @@ export function useRecueilsCorpus(deps: {
     avantId: string | null
   } | null>(null)
   let generation = 0
+  let generationCorpus = 0
+
+  /** Efface aussi les requêtes en vol et les ajouts du corpus quitté. */
+  function reinitialiserRecueils(): void {
+    generation++
+    generationCorpus++
+    recueilsOuverts.value = false
+    recueilOuvertId.value = null
+    projection.value = null
+    chargement.value = false
+    messageRecueil.value = null
+    etatSauvegardeRecueil.value = 'à jour'
+    ajoutPassageEnAttente.value = null
+    associationRecueil.value = null
+    creationRecueilAssociation.value = null
+  }
 
   const recueilOuvert = computed(() =>
     recueilOuvertId.value ? deps.recueils.value[recueilOuvertId.value] ?? null : null,
@@ -58,19 +97,23 @@ export function useRecueilsCorpus(deps: {
   })
 
   async function commander(commande: CommandeRecueils): Promise<void> {
+    const courant = generationCorpus
     messageRecueil.value = null
     etatSauvegardeRecueil.value = 'enregistrement…'
     try {
       const corpus = await window.sonal.corpus.recueilsCommander(toRaw(commande))
+      if (courant !== generationCorpus) throw new Error('Le corpus a changé.')
       etatSauvegardeRecueil.value = 'à jour'
       deps.recueils.value = corpus.recueils ?? {}
       if (recueilOuvertId.value) await resoudreRecueil(recueilOuvertId.value)
+      if (courant !== generationCorpus) throw new Error('Le corpus a changé.')
     } catch (erreur) {
+      if (courant !== generationCorpus) throw erreur
       etatSauvegardeRecueil.value = 'conflit'
       messageRecueil.value = erreur instanceof Error ? erreur.message : String(erreur)
       try {
         const corpus = await window.sonal.corpus.ouvrir()
-        deps.recueils.value = corpus.recueils ?? {}
+        if (courant === generationCorpus) deps.recueils.value = corpus.recueils ?? {}
       } catch {
         // L'erreur initiale reste celle affichée.
       }
@@ -84,12 +127,6 @@ export function useRecueilsCorpus(deps: {
     recueilOuvertId.value = id
     await resoudreRecueil(id)
     return id
-  }
-
-  async function afficherRecueils(): Promise<void> {
-    deps.fermerAutreFenetre()
-    recueilsOuverts.value = true
-    if (recueilOuvertId.value) await resoudreRecueil(recueilOuvertId.value)
   }
 
   function fermerRecueils(): void {
@@ -168,6 +205,8 @@ export function useRecueilsCorpus(deps: {
   }
 
   async function ajouterSelectionAuRecueil(recueilId: string, avantId: string | null = null): Promise<void> {
+    const courant = generationCorpus
+    const entretienId = deps.ouvertId.value
     // Reprendre un passage écrit une référence : le repère ne doit pas être
     // enregistré dans l'entretien pour une commande que le corpus refuse.
     if (!deps.definitionsAvecSources()) {
@@ -176,20 +215,22 @@ export function useRecueilsCorpus(deps: {
         + 'reprendre un passage n’y est pas disponible.',
       )
     }
-    recueilOuvertId.value = recueilId
     let recueil = deps.recueils.value[recueilId]
     if (!recueil) throw new Error("Ce recueil n'existe plus.")
     messageRecueil.value = null
     let attente = ajoutPassageEnAttente.value
     if (!attente || attente.recueilId !== recueilId) {
-      const repere = await deps.enregistrerRepereSelection()
+      const repere = await deps.enregistrerRepereSelection(associationRecueil.value ?? undefined)
+      if (courant !== generationCorpus || entretienId !== deps.ouvertId.value) {
+        throw new Error('L’entretien a changé. Sélectionnez de nouveau le passage.')
+      }
       attente = {
         recueilId,
         avantId,
         item: {
           id: nouvelId('item'),
           type: 'passage',
-          source: { entretienId: deps.ouvertId.value!, repereId: repere.id },
+          source: { entretienId: entretienId!, repereId: repere.id },
           commentaireEditorial: '',
         },
       }
@@ -209,6 +250,7 @@ export function useRecueilsCorpus(deps: {
       })
       ajoutPassageEnAttente.value = null
     } catch (erreur) {
+      if (courant !== generationCorpus) throw erreur
       messageRecueil.value = 'Le repère et l’item ont été conservés. Réessayez pour terminer l’ajout.'
       throw erreur
     }
@@ -216,6 +258,9 @@ export function useRecueilsCorpus(deps: {
 
   function abandonnerAjoutPassage(): void {
     ajoutPassageEnAttente.value = null
+    creationRecueilAssociation.value = null
+    associationRecueil.value = null
+    recueilsOuverts.value = false
     messageRecueil.value = null
   }
 
@@ -371,9 +416,10 @@ export function useRecueilsCorpus(deps: {
     listeRecueils,
     recueilOuvertId,
     recueilOuvert,
-    recueilsOuverts,
-    afficherRecueils,
+    recueilsOuverts, associationRecueil, creationRecueilAssociation,
+    afficherRecueilsPourAssociation, creerRecueilPourAssociation,
     fermerRecueils,
+    reinitialiserRecueils,
     projection,
     chargement,
     messageRecueil,

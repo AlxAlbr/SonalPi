@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import type { SousEspaceAnalyse, SousEspacePreparation, VueApplication } from './espaces'
+import type { OngletCorpus, SousEspaceAnalyse, SousEspaceOrganisation, SousEspacePreparation, VueApplication } from './espaces'
 
 /**
  *  Navigation des espaces de travail, indépendante du cycle de vie du corpus.
@@ -19,6 +19,24 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
   const sousEspaceAnalyse = ref<SousEspaceAnalyse>('synthese')
   /** Les filtres de l'onglet d'analyse occupent-ils la colonne de gauche ? */
   const panneauAnalyseVisible = ref(true)
+  const ongletCorpus = ref<OngletCorpus>('accueil')
+  const sousEspaceOrganisation = ref<SousEspaceOrganisation>('cas')
+  const organisationActive = computed(() => deps.vue.value === 'organiser')
+  const panneauCasActif = computed(() => organisationActive.value && sousEspaceOrganisation.value === 'cas')
+  const panneauRecueilsActif = computed(() => organisationActive.value && sousEspaceOrganisation.value === 'recueils')
+  let navigationCorpus: ((onglet: OngletCorpus) => Promise<boolean>) | null = null
+
+  /** Le panneau Corpus applique ses protections avant de changer d'onglet. */
+  function enregistrerNavigationCorpus(gestionnaire: NonNullable<typeof navigationCorpus>): () => void {
+    navigationCorpus = gestionnaire
+    return () => {
+      if (navigationCorpus === gestionnaire) navigationCorpus = null
+    }
+  }
+
+  async function choisirOngletCorpus(onglet: OngletCorpus): Promise<boolean> {
+    return navigationCorpus ? navigationCorpus(onglet) : false
+  }
 
   watch(deps.vue, (v) => {
     if (v === 'corpus' || v === 'entretien') vueTraitement.value = v
@@ -30,6 +48,9 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
     && sousEspacePreparation.value === 'tableau-bord')
   const docsCadreOuverts = computed(() => preparationActive.value
     && sousEspacePreparation.value === 'docs-cadre')
+  const documentsExemplesOuverts = computed(() => preparationActive.value
+    && sousEspacePreparation.value === 'documents-exemples')
+  const documentsOuverts = computed(() => docsCadreOuverts.value || documentsExemplesOuverts.value)
   const analysesCroiseesOuvertes = computed(() => analyseActive.value
     && sousEspaceAnalyse.value === 'analyses-croisees')
 
@@ -47,9 +68,16 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
     deps.vue.value = 'analyser'
   }
 
+  /** Ouvre « Organiser et exporter » et reprend son dernier onglet. */
+  function entrerOrganisation(sousEspace?: SousEspaceOrganisation): void {
+    if (deps.vue.value === 'accueil') return
+    if (sousEspace) sousEspaceOrganisation.value = sousEspace
+    deps.vue.value = 'organiser'
+  }
+
   /** Revient à la vue de traitement quittée, sans fermer l'entretien. */
   function revenirTraitement(): void {
-    if (deps.vue.value !== 'preparer' && deps.vue.value !== 'analyser') return
+    if (deps.vue.value !== 'preparer' && deps.vue.value !== 'analyser' && deps.vue.value !== 'organiser') return
     deps.vue.value = vueTraitement.value
   }
 
@@ -64,14 +92,24 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
   /** Retour aux sous-espaces initiaux : changement de corpus. */
   function reinitialiserEspaces(): void {
     vueTraitement.value = 'corpus'
-    if (preparationActive.value || analyseActive.value) deps.vue.value = 'corpus'
+    if (preparationActive.value || analyseActive.value || organisationActive.value) deps.vue.value = 'corpus'
+    ongletCorpus.value = 'accueil'
     sousEspacePreparation.value = 'accueil'
     sousEspaceAnalyse.value = 'synthese'
+    sousEspaceOrganisation.value = 'cas'
     panneauAnalyseVisible.value = true
   }
 
   return {
     vueTraitement,
+    ongletCorpus,
+    panneauCasActif,
+    panneauRecueilsActif,
+    organisationActive,
+    sousEspaceOrganisation,
+    entrerOrganisation,
+    enregistrerNavigationCorpus,
+    choisirOngletCorpus,
     sousEspacePreparation,
     sousEspaceAnalyse,
     panneauAnalyseVisible,
@@ -79,6 +117,8 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
     analyseActive,
     tableauBordOuverts,
     docsCadreOuverts,
+    documentsExemplesOuverts,
+    documentsOuverts,
     analysesCroiseesOuvertes,
     entrerPreparation,
     entrerAnalyse,

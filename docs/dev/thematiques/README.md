@@ -58,9 +58,9 @@ les descriptions disponibles.
 | Compteurs et résumés | `src/shared/corpus/requetes.ts` |
 | Codage dans l’entretien | `src/renderer/composables/entretien/useAnnotationsEntretien.ts` |
 | Orchestration du codebook | `src/renderer/composables/corpus/useThemesCorpus.ts` |
-| Édition des thèmes | `src/renderer/components/themes/EditionThemes.vue` |
-| Panneau de codage | `src/renderer/components/entretien/PanneauThemesEntretien.vue` |
-| Consultation au corpus | `src/renderer/components/corpus/Corpus.vue` |
+| Édition des thèmes | `src/renderer/components/traiter/partages/themes/EditionThemes.vue` |
+| Panneau de codage | `src/renderer/components/traiter/entretien/PanneauThemesEntretien.vue` |
+| Consultation au corpus | `src/renderer/components/traiter/corpus/Corpus.vue` |
 | Opérations de réaffectation pures | `src/shared/corpus/themes.ts` |
 | Services et publications | `src/main/operationsThemes.ts`, `src/main/{gitlab,distant}/` |
 

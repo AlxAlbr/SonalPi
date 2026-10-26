@@ -83,6 +83,7 @@ export interface SelectionAssociationCas {
 }
 
 export function useCasCorpus(deps: {
+  panneauActif?: Ref<boolean>
   cas: Ref<Record<string, Cas>>
   famillesCas?: Ref<Record<string, FamilleCas>>
   attributsCas?: Ref<Record<string, DefinitionAttributCas>>
@@ -111,6 +112,7 @@ export function useCasCorpus(deps: {
     )
   }
   const casOuverts = ref(false)
+  const casActifs = computed(() => Boolean(deps.panneauActif?.value))
   const casOuvertId = ref<string | null>(null)
   const modeTexteCas = ref<ModeTextePassage>('pseudonymise')
   const modeMateriauxCas = ref<ModeMateriauxCas>('tous')
@@ -135,6 +137,8 @@ export function useCasCorpus(deps: {
   const generationsApercus = new WeakMap<object, number>()
   let generation = 0
   let generationCorpus = 0
+  let generationActualisation = 0
+  let generationInventaire = 0
   let creationLotEnCours = false
 
   const casOuvert = computed(() =>
@@ -161,9 +165,10 @@ export function useCasCorpus(deps: {
   async function chargerInventairePersonnes(force = false): Promise<InventairePersonnes> {
     if (!force && inventairePersonnesCas.value) return inventairePersonnesCas.value
     const corpusAttendu = generationCorpus
+    const lecture = ++generationInventaire
     const inventaire = await deps.lirePersonnes()
     if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé pendant la lecture des personnes.')
-    inventairePersonnesCas.value = inventaire
+    if (lecture === generationInventaire) inventairePersonnesCas.value = inventaire
     return inventaire
   }
 
@@ -254,21 +259,36 @@ export function useCasCorpus(deps: {
     }
   }
 
-  async function afficherCas(): Promise<void> {
-    deps.fermerRecueils()
-    if (!ajoutCasEnAttente.value) associationCas.value = null
-    casOuverts.value = true
+  async function actualiserMateriauxCas(): Promise<void> {
+    const corpusAttendu = generationCorpus
+    try {
+      await rafraichirProjections()
+    } catch (erreur) {
+      if (corpusAttendu === generationCorpus) messageCas.value = erreur instanceof Error ? erreur.message : String(erreur)
+    }
+  }
+
+  async function actualiserCas(): Promise<void> {
+    const corpusAttendu = generationCorpus
+    const actualisation = ++generationActualisation
+    chargementCas.value = true
     messageCas.value = null
     try {
       await chargerInventairePersonnes(true)
+      if (corpusAttendu !== generationCorpus || actualisation !== generationActualisation) return
       await rafraichirProjections()
     } catch (erreur) {
-      messageCas.value = erreur instanceof Error ? erreur.message : String(erreur)
+      if (corpusAttendu === generationCorpus && actualisation === generationActualisation) {
+        messageCas.value = erreur instanceof Error ? erreur.message : String(erreur)
+      }
+    } finally {
+      if (corpusAttendu === generationCorpus && actualisation === generationActualisation) chargementCas.value = false
     }
   }
 
   async function afficherCasPourAssociation(): Promise<void> {
-    const selection = deps.selectionCourante()
+    const selection = ajoutCasEnAttente.value && associationCas.value
+      ? associationCas.value : deps.selectionCourante()
     if (!selection) throw new Error('Sélectionnez un passage avant de l’associer à un cas.')
     deps.fermerRecueils()
     associationCas.value = {
@@ -278,8 +298,6 @@ export function useCasCorpus(deps: {
     }
     casOuverts.value = true
     messageCas.value = null
-    await chargerInventairePersonnes(true)
-    await rafraichirProjections()
   }
 
   function fermerCas(): void {
@@ -583,7 +601,8 @@ export function useCasCorpus(deps: {
   async function associerSelectionCas(
     casIds: string[],
     nouveau?: { nom: string; memo: string },
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const corpusAttendu = generationCorpus
     exigerSources()
     const selection = associationCas.value
     if (!selection) throw new Error('La sélection à associer n’est plus disponible.')
@@ -601,6 +620,7 @@ export function useCasCorpus(deps: {
         }
       }
       const repere = await deps.enregistrerRepereSelection(selection)
+      if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé.')
       const date = new Date().toISOString()
       const rattachement: RattachementCas = {
         id: nouvelId('rattachement'),
@@ -628,10 +648,14 @@ export function useCasCorpus(deps: {
     try {
       const commande = structuredClone(toRaw(attente))
       await commanderCas({ type: 'ajouter-rattachements', ...commande })
-      casOuvertId.value = attente.nouveauCas?.id ?? attente.casIds[0] ?? null
+      if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé.')
+      const ids = [...attente.casIds, ...(attente.nouveauCas ? [attente.nouveauCas.id] : [])]
       ajoutCasEnAttente.value = null
       associationCas.value = null
+      casOuverts.value = false
+      return ids
     } catch (erreur) {
+      if (corpusAttendu !== generationCorpus) throw erreur
       messageCas.value = 'Le repère a été conservé. Réessayez pour terminer l’association ou abandonnez la tentative.'
       throw erreur
     }
@@ -903,17 +927,16 @@ export function useCasCorpus(deps: {
 
   watch(casOuvertId, () => { modeMateriauxCas.value = 'tous' }, { flush: 'sync' })
 
-  watch(deps.cas, () => {
+  if (deps.panneauActif) {
+    watch(deps.panneauActif, (actif) => {
+      if (actif) void actualiserCas()
+    }, { immediate: true })
+  }
+  watch([deps.cas, variablesCas, famillesCas, attributsCasRef, deps.membership], () => {
     if (casOuvertId.value && !deps.cas.value[casOuvertId.value]) casOuvertId.value = null
-    if (casOuverts.value && etatSauvegardeCas.value !== 'enregistrement…') {
-      void rafraichirProjections()
+    if (casActifs.value && etatSauvegardeCas.value !== 'enregistrement…') {
+      void actualiserCas()
     }
-  })
-  watch([variablesCas, famillesCas, attributsCasRef], () => {
-    if (casOuverts.value) void rafraichirProjections()
-  })
-  watch(deps.membership, () => {
-    if (casOuverts.value) void rafraichirProjections()
   })
 
   return {
@@ -939,6 +962,9 @@ export function useCasCorpus(deps: {
     casOuvert,
     casOuvertId,
     casOuverts,
+    casActifs,
+    actualiserCas,
+    actualiserMateriauxCas,
     projectionCas,
     projectionsCas,
     inventairePersonnesCas,
@@ -950,7 +976,6 @@ export function useCasCorpus(deps: {
     etatSauvegardeCas,
     associationCas,
     ajoutCasEnAttente,
-    afficherCas,
     afficherCasPourAssociation,
     fermerCas,
     annulerAssociationCas,

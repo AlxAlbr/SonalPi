@@ -1,4 +1,12 @@
-import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
+import { ref, watch, nextTick, onMounted, onScopeDispose, provide, inject, type InjectionKey } from 'vue'
+import { useRetoursContextuels } from './useRetoursContextuels'
+import { useContextesPanneaux } from './useContextesPanneaux'
+import { capturerAffichage, capturerSelection } from './contexteVisuel'
+import {
+  resumerAssociationsPassage,
+  type ResumeAssociationsPassage,
+} from '../editor/associationsPassage'
+import { preparerFermetureEntretien } from '../couturesApplication'
 import type { MarqueurDemo, ModeTriEntretiens } from '../../shared/format'
 import { MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { useProfil } from './useProfil'
@@ -18,7 +26,7 @@ import { useSyntheseCorpus } from './corpus/useSyntheseCorpus'
 import { useSourcesAnalyseCorpus } from './corpus/useSourcesAnalyseCorpus'
 import { useAnalysesCroisees } from './corpus/useAnalysesCroisees'
 import { useEspacesTravail } from './useEspacesTravail'
-import type { SousEspaceAnalyse, SousEspacePreparation, VueApplication } from './espaces'
+import type { SousEspaceAnalyse, SousEspaceOrganisation, SousEspacePreparation, VueApplication } from './espaces'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -67,8 +75,10 @@ export function creerSonal() {
   // Les trois consommateurs (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur)
   // se coordonnent par cet état réactif partagé.
   const audio = useAudio()
+  let entretienActifPourRaccourcis = () => true
 
   const ent = useEntretien({
+    actif: () => entretienActifPourRaccourcis(),
     couleurTrait: corpus.couleurTrait, // le marquage résout la couleur d'un code (corpus)
     tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi1)
     // Un thème inactif est masqué du marquage et refusé au codage (scope entretien).
@@ -136,8 +146,13 @@ export function creerSonal() {
 
   // --- Navigation : Accueil → espaces de travail → traitement (Corpus → Entretien). ---
   const vue = ref<VueApplication>('corpus')
+  entretienActifPourRaccourcis = () => vue.value === 'entretien'
   const espaces = useEspacesTravail({ vue })
   const {
+    ongletCorpus,
+    panneauCasActif,
+    enregistrerNavigationCorpus,
+    choisirOngletCorpus,
     vueTraitement,
     sousEspacePreparation,
     sousEspaceAnalyse,
@@ -145,9 +160,15 @@ export function creerSonal() {
     preparationActive,
     analyseActive,
     entrerPreparation: selectionnerPreparation,
+    sousEspaceOrganisation,
+    organisationActive,
+    panneauRecueilsActif,
     entrerAnalyse: selectionnerAnalyse,
+    entrerOrganisation: selectionnerOrganisation,
     tableauBordOuverts,
     docsCadreOuverts,
+    documentsExemplesOuverts,
+    documentsOuverts,
     analysesCroiseesOuvertes,
     revenirTraitement,
     basculerPanneauAnalyse,
@@ -536,7 +557,7 @@ export function creerSonal() {
 
   const docsCadre = useDocsCadre({
     estDistant: () => idDistantCourant.value !== null,
-    actif: docsCadreOuverts,
+    actif: documentsOuverts,
   })
 
   let fermerCasPourRecueils: () => void = () => {}
@@ -546,11 +567,13 @@ export function creerSonal() {
     ouvertId: ent.ouvertId,
     sourceOuverte: ent.donneesSourceOuverte,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
-    ouvrirSource: ouvrirAuSegment,
+    selectionCourante: ent.selectionPassageCourante,
+    ouvrirSource: ouvrirSourceLiee,
     fermerAutreFenetre: () => fermerCasPourRecueils(),
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
   const casCorpus = useCasCorpus({
+    panneauActif: panneauCasActif,
     cas: corpus.cas,
     famillesCas: corpus.famillesCas,
     attributsCas: corpus.attributsCas,
@@ -561,7 +584,7 @@ export function creerSonal() {
     selectionCourante: ent.selectionPassageCourante,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     lirePersonnes: corpus.lirePersonnes,
-    ouvrirSource: ouvrirAuSegment,
+    ouvrirSource: ouvrirSourceLiee,
     fermerRecueils: recueilsCorpus.fermerRecueils,
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
@@ -577,7 +600,8 @@ export function creerSonal() {
       ? 'tableau-bord' : sousEspace
     fermerDialoguesOutils()
     selectionnerPreparation(cible)
-    if (cible === 'docs-cadre') await docsCadre.preparerDocsCadre()
+    if (cible === 'docs-cadre') await docsCadre.preparerDocsCadre('projet')
+    if (cible === 'documents-exemples') await docsCadre.preparerDocsCadre('exemple')
   }
 
   function afficherAccueilPreparation(): Promise<void> {
@@ -590,6 +614,10 @@ export function creerSonal() {
 
   function afficherDocsCadre(): Promise<void> {
     return entrerPreparation('docs-cadre')
+  }
+
+  function afficherDocumentsExemples(): Promise<void> {
+    return entrerPreparation('documents-exemples')
   }
 
   /** Le guidage masque les panneaux sans effacer leur contexte de travail. */
@@ -606,7 +634,7 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
   })
 
-  /** Seuls Cas et Recueils sont encore des dialogues d'outils. */
+  /** Les dialogues d'ajout ne quittent jamais leur entretien. */
   function fermerDialoguesOutils(): void {
     recueilsCorpus.fermerRecueils()
     casCorpus.fermerCas()
@@ -620,7 +648,7 @@ export function creerSonal() {
     traitements: corpus.lexico,
     ouvertId: ent.ouvertId,
     sourceOuverte: ent.donneesSourceOuverte,
-    ouvrirSource: ouvrirAuSegment,
+    ouvrirSource: ouvrirSourceLiee,
   })
   const syntheseCorpus = useSyntheseCorpus({
     membership: corpus.membership,
@@ -629,14 +657,14 @@ export function creerSonal() {
     cas: corpus.cas,
     ouvertId: ent.ouvertId,
     sourceOuverte: ent.donneesSourceOuverte,
-    ouvrirSource: ouvrirAuSegment,
+    ouvrirSource: ouvrirSourceLiee,
     sources: sourcesAnalyseCorpus,
   })
   const analysesCroisees = useAnalysesCroisees({
     membership: corpus.membership,
     codebook: corpus.codebook,
     sources: sourcesAnalyseCorpus,
-    ouvrirSource: ouvrirAuSegment,
+    ouvrirSource: ouvrirSourceLiee,
     afficherDansSynthese: (themeId, entretienId) => {
       syntheseCorpus.filtresSynthese.value = {
         ...syntheseCorpus.filtresSynthese.value,
@@ -646,6 +674,206 @@ export function creerSonal() {
       void entrerAnalyse('synthese')
     },
   })
+
+  const associationsPassage = ref<ResumeAssociationsPassage>({ cas: [], recueils: [], problemes: [] })
+  const etatAssociationsPassage = ref<'sans-selection' | 'chargement' | 'pret' | 'incomplet'>('sans-selection')
+  let generationAssociations = 0
+  let cachePersonnes: { cle: string; ids: Set<string> } | null = null
+
+  async function actualiserAssociationsPassage(): Promise<void> {
+    const selection = ent.selectionPassage.value
+    if (vue.value !== 'entretien' || !selection || selection.entretienId !== ent.ouvertId.value) {
+      generationAssociations += 1
+      associationsPassage.value = { cas: [], recueils: [], problemes: [] }
+      etatAssociationsPassage.value = 'sans-selection'
+      return
+    }
+    const generationCourante = ++generationAssociations
+    etatAssociationsPassage.value = 'chargement'
+    const utilisePersonnes = Object.values(corpus.cas.value).some((courant) =>
+      courant.regles.some((regle) => regle.type === 'personne' || regle.type === 'personnes'))
+    let personnesConnues: Set<string> | null = new Set<string>()
+    if (utilisePersonnes) {
+      const cle = `${revisionCorpus.value}:${corpus.revisionPersonnesCorpus.value}:${dernierTirage.value ?? ''}`
+      if (cachePersonnes?.cle === cle) personnesConnues = cachePersonnes.ids
+      else {
+        try {
+          const inventaire = await window.sonal.corpus.personnesInventaire()
+          personnesConnues = new Set(inventaire.personnes.map((personne) => personne.id))
+          cachePersonnes = { cle, ids: personnesConnues }
+        } catch {
+          if (generationCourante !== generationAssociations) return
+          personnesConnues = null
+        }
+      }
+    }
+    if (generationCourante !== generationAssociations) return
+    const source = ent.donneesSourceOuverte()
+    if (!source || !ent.ouvertId.value) {
+      etatAssociationsPassage.value = 'sans-selection'
+      return
+    }
+    associationsPassage.value = resumerAssociationsPassage({
+      entretienId: ent.ouvertId.value,
+      source,
+      selection,
+      cas: corpus.cas.value,
+      recueils: corpus.recueils.value,
+      variables: corpus.variables.value,
+      personnesConnues,
+    })
+    etatAssociationsPassage.value = associationsPassage.value.problemes.length ? 'incomplet' : 'pret'
+  }
+
+  watch([
+    ent.selectionPassage,
+    corpus.cas,
+    corpus.recueils,
+    corpus.variables,
+    corpus.revisionPersonnesCorpus,
+    dernierTirage,
+    revisionCorpus,
+    vue,
+  ], () => { void actualiserAssociationsPassage() }, { immediate: true })
+
+  const contextesPanneaux = useContextesPanneaux()
+
+  function capturerContexte() {
+    const ecran = vue.value
+    if (ecran === 'accueil') return null
+    const selecteur = ecran === 'entretien' ? '.entretien-ecran' : ecran === 'corpus' ? '.corpus-ecran'
+      : ecran === 'analyser' ? '.espace-analyse' : ecran === 'preparer' ? '.espace-preparation' : '.organisation-ecran'
+    const nom = ecran === 'analyser'
+      ? ({ synthese: 'à la synthèse', lexico: 'à Lexico', 'analyses-croisees': 'aux analyses croisées' }[sousEspaceAnalyse.value])
+      : ecran === 'organiser' && sousEspaceOrganisation.value === 'cas'
+        ? `au cas « ${casCorpus.casOuvert.value?.nom ?? 'Cas'} »`
+        : ecran === 'organiser' && sousEspaceOrganisation.value === 'recueils'
+          ? `au recueil « ${recueilsCorpus.recueilOuvert.value?.nom ?? 'Recueils'} »`
+          : ecran === 'entretien' ? `au passage de « ${corpus.membership.value[ent.ouvertId.value ?? '']?.titre ?? 'l’entretien'} »`
+            : ecran === 'preparer' ? 'à la préparation' : 'au corpus'
+    const panneau = ecran === 'analyser' ? `analyser-${sousEspaceAnalyse.value}` : ecran === 'organiser' ? `organiser-${sousEspaceOrganisation.value}` : ecran
+    const entretienId = ent.ouvertId.value
+    const selection = capturerSelection(ecran === 'entretien' ? ent.editor.value ?? null : null, () => ent.ouvertId.value === entretienId)
+    return { libelle: `Revenir ${nom}`, contexte: {
+      vue: ecran, revision: revisionCorpus.value,
+      preparation: sousEspacePreparation.value, analyse: sousEspaceAnalyse.value, organisation: sousEspaceOrganisation.value,
+      ongletCorpus: ongletCorpus.value, casId: casCorpus.casOuvertId.value, modeCas: casCorpus.modeMateriauxCas.value,
+      modeTexteCas: casCorpus.modeTexteCas.value,
+      recueilId: recueilsCorpus.recueilOuvertId.value,
+      entretienId: ent.ouvertId.value, ongletEntretien: ent.ongletDroite.value,
+      ...selection,
+      positionAudio: audio.position.value, restaurerAffichage: capturerAffichage(selecteur),
+      restaurerPanneau: contextesPanneaux.capturerContextePanneau(panneau),
+    } }
+  }
+  type ContexteTravail = NonNullable<ReturnType<typeof capturerContexte>>['contexte']
+
+  const retours = useRetoursContextuels<ContexteTravail>({
+    capturer: capturerContexte,
+    restaurer: restaurerContexte,
+    liberer: (contexte) => contexte.liberer(),
+    apresRetour: async (contexte, valide) => {
+      await nextTick()
+      if (valide() && contexte.revision === revisionCorpus.value) contexte.restaurerAffichage()
+    },
+    erreur: (erreur) => afficherErreurGlobale(erreur, 'La consultation n’a pas pu être ouverte'),
+  })
+  watch(revisionCorpus, retours.terminerConsultation, { flush: 'sync' })
+  watch(vue, (ecran) => { if (ecran === 'accueil') retours.terminerConsultation() })
+
+  async function preparerChangementSource(): Promise<void> {
+    if (!ent.ouvertId.value) return
+    await preparerFermetureEntretien({
+      distant: idDistantCourant.value !== null,
+      degrade: statutSession.value.etat === 'degrade',
+      lectureSeule: !entretienEditable.value,
+      verrouAutrui: ent.verrouAutrui.value !== null,
+      annulerSauvegarde: ent.annulerEtAttendreSauvegarde,
+      viderSauvegarde: ent.viderSauvegarde,
+    })
+  }
+
+  async function restaurerContexte(contexte: ContexteTravail, valide: () => boolean): Promise<boolean> {
+    if (contexte.revision !== revisionCorpus.value || !valide()) return false
+    if (contexte.vue === 'entretien') {
+      if (!contexte.entretienId || !corpus.membership.value[contexte.entretienId]) {
+        infoGlobale.value = 'Cet entretien n’est plus dans le corpus.'
+        if (!(await choisirOngletCorpus('accueil')) || !valide()) return false
+        if (ent.ouvertId.value) await retourCorpus()
+        if (!valide()) return false
+        vue.value = 'corpus'
+        return true
+      }
+      if (ent.ouvertId.value !== contexte.entretienId) {
+        await preparerChangementSource()
+        if (!valide() || contexte.revision !== revisionCorpus.value) return false
+        await ouvrirEntretien(contexte.entretienId)
+      }
+      if (!valide() || contexte.revision !== revisionCorpus.value || ent.ouvertId.value !== contexte.entretienId) return false
+      vue.value = 'entretien'
+      ent.ongletDroite.value = contexte.ongletEntretien
+      restaurerSelection(contexte)
+      ent.editor.value?.commands.focus(undefined, { scrollIntoView: false })
+      audio.pause()
+      if (audio.url.value) audio.seek(contexte.positionAudio)
+    } else if (contexte.vue === 'analyser') {
+      fermerDialoguesOutils()
+      selectionnerAnalyse(contexte.analyse)
+    } else if (contexte.vue === 'preparer') {
+      await entrerPreparation(contexte.preparation)
+    } else if (contexte.vue === 'organiser') {
+      await entrerOrganisation(contexte.organisation)
+      if (!valide() || contexte.revision !== revisionCorpus.value) return false
+      if (contexte.organisation === 'cas') {
+        casCorpus.casOuvertId.value = null
+        if (contexte.casId && corpus.cas.value[contexte.casId]) {
+          await casCorpus.ouvrirCas(contexte.casId)
+          casCorpus.modeMateriauxCas.value = contexte.modeCas
+          if (casCorpus.modeTexteCas.value !== contexte.modeTexteCas) await casCorpus.changerModeTexteCas(contexte.modeTexteCas)
+        } else if (contexte.casId) infoGlobale.value = 'Ce cas a été supprimé. Son répertoire reste disponible.'
+      } else if (contexte.organisation === 'recueils') {
+        recueilsCorpus.recueilOuvertId.value = null
+        if (contexte.recueilId && corpus.recueils.value[contexte.recueilId]) await recueilsCorpus.ouvrirRecueil(contexte.recueilId)
+        else if (contexte.recueilId) infoGlobale.value = 'Ce recueil a été supprimé. Sa liste reste disponible.'
+      }
+    } else {
+      if (!(await choisirOngletCorpus(contexte.ongletCorpus)) || !valide()) return false
+      if (ent.ouvertId.value) await retourCorpus()
+      if (!valide()) return false
+      vue.value = 'corpus'
+    }
+    if (!valide() || contexte.revision !== revisionCorpus.value) return false
+    contexte.restaurerPanneau()
+    await nextTick()
+    return valide() && contexte.revision === revisionCorpus.value
+  }
+
+  function restaurerSelection(contexte: ContexteTravail): void {
+    const editeur = ent.editor.value
+    if (!editeur || !contexte.selection || ent.ouvertId.value !== contexte.entretienId) return
+    const borne = (pos: number) => Math.max(1, Math.min(pos, editeur.state.doc.content.size - 1))
+    editeur.commands.setTextSelection({ from: borne(contexte.selection.from), to: borne(contexte.selection.to) })
+    if (contexte.etatSelection.supprimee) infoGlobale.value = 'Le passage sélectionné a été supprimé. L’entretien reste ouvert à son emplacement.'
+  }
+
+  async function ouvrirSourceLiee(entretienId: string, pos: number): Promise<void> {
+    await retours.suivreConsultation(async (valide) => {
+      const revision = revisionCorpus.value
+      if (!corpus.membership.value[entretienId]) {
+        infoGlobale.value = 'Cet entretien n’est plus dans le corpus.'
+        return false
+      }
+      if (ent.ouvertId.value !== entretienId) {
+        await preparerChangementSource()
+        if (revision !== revisionCorpus.value || !valide()) return false
+        await ouvrirEntretien(entretienId)
+      }
+      if (revision !== revisionCorpus.value || ent.ouvertId.value !== entretienId || !valide()) return false
+      vue.value = 'entretien'
+      ent.allerAuTexte(pos)
+      return true
+    })
+  }
 
   /** Prépare l'outil choisi sans réinitialiser les panneaux quittés. */
   async function entrerAnalyse(
@@ -659,7 +887,7 @@ export function creerSonal() {
   }
 
   reinitialiserOutilsCorpus = () => {
-    recueilsCorpus.fermerRecueils()
+    recueilsCorpus.reinitialiserRecueils()
     casCorpus.reinitialiserCas()
     tableauBordCorpus.reinitialiserTableauBord()
     docsCadre.reinitialiserDocsCadre()
@@ -667,6 +895,10 @@ export function creerSonal() {
     syntheseCorpus.reinitialiserSynthese()
     analysesCroisees.reinitialiserAnalysesCroisees()
     sourcesAnalyseCorpus.reinitialiserSourcesAnalyse()
+    confirmationAjout.value = null
+    libererContexteAjout('cas')
+    libererContexteAjout('recueil')
+    retours.terminerConsultation()
     // Un autre corpus repart sur le traitement, onglets initiaux des espaces.
     reinitialiserEspaces()
   }
@@ -679,7 +911,8 @@ export function creerSonal() {
       return
     }
     if (recueilsCorpus.recueilOuvertId.value) void recueilsCorpus.resoudreRecueil()
-    if (casCorpus.casOuverts.value) void casCorpus.rafraichirProjectionsCas()
+    // La sauvegarde vient de finir : ne pas en relancer une en relisant les personnes.
+    if (casCorpus.casActifs.value) void casCorpus.actualiserMateriauxCas()
   })
 
   // --- Suppression d'un thème DEPUIS l'entretien (croise corpus ↔ entretien) ---
@@ -707,13 +940,181 @@ export function creerSonal() {
     })
   }
 
+  watch([dernierTirage, corpus.revisionPersonnesCorpus], () => {
+    if (casCorpus.casActifs.value) void casCorpus.actualiserCas()
+  })
+
+  /** Les outils d'organisation masquent l'entretien sans terminer sa session. */
+  async function entrerOrganisation(
+    sousEspace: SousEspaceOrganisation = sousEspaceOrganisation.value,
+  ): Promise<void> {
+    if (vue.value === 'accueil') return
+    fermerDialoguesOutils()
+    selectionnerOrganisation(sousEspace)
+    if (sousEspace === 'recueils' && recueilsCorpus.recueilOuvertId.value) {
+      await recueilsCorpus.resoudreRecueil()
+    }
+  }
+
+  async function afficherCas(id?: string, valide: () => boolean = () => true): Promise<boolean> {
+    if (vue.value === 'accueil') return false
+    const revision = revisionCorpus.value
+    await entrerOrganisation('cas')
+    if (revision !== revisionCorpus.value || !valide()) return false
+    if (id) await casCorpus.ouvrirCas(id)
+    return revision === revisionCorpus.value
+  }
+
+  async function afficherRecueils(id?: string, valide: () => boolean = () => true): Promise<void> {
+    const revision = revisionCorpus.value
+    if (vue.value === 'accueil') return
+    await entrerOrganisation('recueils')
+    if (id && revision === revisionCorpus.value && valide()) await recueilsCorpus.ouvrirRecueil(id)
+  }
+
+  async function ouvrirCasAssocie(id: string): Promise<void> {
+    await retours.suivreConsultation(async (valide) => {
+      if (!corpus.cas.value[id]) {
+        infoGlobale.value = 'Ce cas a été supprimé.'
+        return false
+      }
+      return afficherCas(id, valide)
+    })
+  }
+
+  async function ouvrirOccurrenceRecueilAssociee(recueilId: string, itemId: string): Promise<void> {
+    await retours.suivreConsultation(async (valide) => {
+      const recueil = corpus.recueils.value[recueilId]
+      if (!recueil) {
+        infoGlobale.value = 'Ce recueil a été supprimé.'
+        return false
+      }
+      if (!recueil.items.some((item) => item.id === itemId)) {
+        infoGlobale.value = 'Cette occurrence a été retirée du recueil.'
+        return false
+      }
+      await afficherRecueils(recueilId, valide)
+      if (!valide() || vue.value !== 'organiser' || recueilsCorpus.recueilOuvertId.value !== recueilId) return false
+      await nextTick()
+      const cible = [...document.querySelectorAll<HTMLElement>('[data-recueil-item]')]
+        .find((element) => element.dataset.recueilItem === itemId)
+      if (!cible) {
+        infoGlobale.value = 'Le recueil est ouvert, mais cette occurrence n’est plus visible.'
+        return true
+      }
+      cible.scrollIntoView({ block: 'center' })
+      cible.focus({ preventScroll: true })
+      return true
+    })
+  }
+
+  const confirmationAjout = ref<{ type: 'cas' | 'recueil'; destinations: Array<{ id: string; nom: string }> } | null>(null)
+  const contextesAjout: Partial<Record<'cas' | 'recueil', ContexteTravail>> = {}
+  function libererContexteAjout(type: 'cas' | 'recueil'): void {
+    contextesAjout[type]?.liberer()
+    delete contextesAjout[type]
+  }
+  function fermerConfirmationAjout(): void {
+    const type = confirmationAjout.value?.type
+    confirmationAjout.value = null
+    if (type) libererContexteAjout(type)
+  }
+
+  onScopeDispose(() => { libererContexteAjout('cas'); libererContexteAjout('recueil') })
+
+  async function afficherCasPourAssociation(): Promise<void> {
+    if (vue.value !== 'entretien' || !entretienEditable.value || lectureSeule.value) return
+    if (!gesteDisponible('definitionsAvecSources')) throw new Error('L’ajout de passages aux cas n’est pas disponible pour ce corpus.')
+    fermerConfirmationAjout()
+    if (!casCorpus.ajoutCasEnAttente.value) {
+      libererContexteAjout('cas')
+      contextesAjout.cas = capturerContexte()?.contexte
+    }
+    confirmationAjout.value = null
+    await casCorpus.afficherCasPourAssociation()
+  }
+
+  function afficherRecueilsPourAssociation(): void {
+    if (vue.value !== 'entretien' || !entretienEditable.value || lectureSeule.value) return
+    if (!gesteDisponible('definitionsAvecSources')) throw new Error('L’ajout de passages aux recueils n’est pas disponible pour ce corpus.')
+    fermerConfirmationAjout()
+    if (!recueilsCorpus.ajoutPassageEnAttente.value && !recueilsCorpus.creationRecueilAssociation.value) {
+      libererContexteAjout('recueil')
+      contextesAjout.recueil = capturerContexte()?.contexte
+    }
+    confirmationAjout.value = null
+    recueilsCorpus.afficherRecueilsPourAssociation()
+  }
+
+  async function retrouverPassageAjout(type: 'cas' | 'recueil'): Promise<void> {
+    const contexte = contextesAjout[type]
+    await nextTick()
+    if (!contexte || contexte.revision !== revisionCorpus.value || vue.value !== 'entretien' || ent.ouvertId.value !== contexte.entretienId) return
+    restaurerSelection(contexte)
+    ent.editor.value?.commands.focus(undefined, { scrollIntoView: false })
+    contexte.restaurerAffichage()
+  }
+
+  async function fermerAjoutCas(abandonner = false): Promise<void> {
+    if (abandonner) casCorpus.annulerAssociationCas()
+    else casCorpus.fermerCas()
+    await retrouverPassageAjout('cas')
+    if (!casCorpus.ajoutCasEnAttente.value) libererContexteAjout('cas')
+  }
+  async function fermerAjoutRecueil(abandonner = false): Promise<void> {
+    recueilsCorpus.fermerRecueils()
+    if (abandonner || (!recueilsCorpus.ajoutPassageEnAttente.value && !recueilsCorpus.creationRecueilAssociation.value)) recueilsCorpus.abandonnerAjoutPassage()
+    await retrouverPassageAjout('recueil')
+    if (!recueilsCorpus.ajoutPassageEnAttente.value && !recueilsCorpus.creationRecueilAssociation.value) libererContexteAjout('recueil')
+  }
+
+  async function confirmerAjoutCas(ids: string[], nouveau?: { nom: string; memo: string }): Promise<void> {
+    if (!entretienEditable.value || lectureSeule.value) throw new Error('Cet entretien est en lecture seule.')
+    const revision = revisionCorpus.value
+    const ajoutes = await casCorpus.associerSelectionCas(ids, nouveau)
+    if (revision !== revisionCorpus.value) return
+    confirmationAjout.value = { type: 'cas', destinations: ajoutes.map((id) => ({ id, nom: corpus.cas.value[id]?.nom ?? id })) }
+    await retrouverPassageAjout('cas')
+  }
+
+  async function confirmerAjoutRecueil(id: string, avantId: string | null, nouveauNom?: string): Promise<void> {
+    if (!entretienEditable.value || lectureSeule.value) throw new Error('Cet entretien est en lecture seule.')
+    const revision = revisionCorpus.value
+    if (nouveauNom !== undefined) id = await recueilsCorpus.creerRecueilPourAssociation(nouveauNom)
+    if (revision !== revisionCorpus.value) return
+    await recueilsCorpus.ajouterSelectionAuRecueil(id, avantId)
+    if (revision !== revisionCorpus.value) return
+    recueilsCorpus.abandonnerAjoutPassage()
+    confirmationAjout.value = { type: 'recueil', destinations: [{ id, nom: corpus.recueils.value[id]?.nom ?? id }] }
+    await retrouverPassageAjout('recueil')
+  }
+
+  async function ouvrirDestinationAjout(id: string): Promise<void> {
+    const confirmation = confirmationAjout.value
+    if (!confirmation) return
+    const origine = contextesAjout[confirmation.type]
+    const ouvert = await retours.suivreConsultation(async (valide) => {
+      if (confirmation.type === 'cas') {
+        if (!corpus.cas.value[id]) { infoGlobale.value = 'Ce cas a été supprimé.'; return false }
+        return afficherCas(id, valide)
+      }
+      if (!corpus.recueils.value[id]) { infoGlobale.value = 'Ce recueil a été supprimé.'; return false }
+      await afficherRecueils(id, valide)
+      return vue.value === 'organiser' && recueilsCorpus.recueilOuvertId.value === id
+    }, origine ? { libelle: `Revenir au passage de « ${corpus.membership.value[origine.entretienId ?? '']?.titre ?? 'l’entretien'} »`, contexte: origine } : undefined)
+    if (ouvert) {
+      confirmationAjout.value = null
+      if (contextesAjout[confirmation.type] === origine) delete contextesAjout[confirmation.type]
+    }
+  }
+
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
   /** La navigation dédiée ferme d'abord l'entretien avec le chemin sécurisé.
    *  La vue Corpus applique ensuite sa garde et met le parcours en vue. */
   async function revenirAuCorpusPourParcours(): Promise<boolean> {
-    if (vue.value === 'preparer' || vue.value === 'analyser') revenirTraitement()
+    revenirTraitement()
     if (vue.value === 'entretien') {
       try {
         await retourCorpus()
@@ -770,6 +1171,7 @@ export function creerSonal() {
 
   /** Navigation typée utilisée par les retours du guidage, sans clic DOM. */
   async function naviguerGuide(destination: DestinationGuide): Promise<boolean> {
+    retours.terminerConsultation()
     if (destination.surface === 'tableau-bord') {
       await afficherTableauBord()
       return true
@@ -832,12 +1234,15 @@ export function creerSonal() {
         case 'ajouter-entretien': {
           if (!ajoutEntretienPossible.value) break
           // La modale vit dans la vue Corpus : on s'y rend d'abord si besoin.
-          if (vue.value === 'preparer' || vue.value === 'analyser') revenirTraitement()
+          revenirTraitement()
           if (vue.value === 'entretien') await retourCorpus()
           else if (vue.value === 'accueil' && dossierCourantDir.value) {
             vue.value = 'corpus'
           }
-          if (vue.value === 'corpus') demandeAjoutEntretien.value = true
+          if (vue.value === 'corpus') {
+            retours.terminerConsultation()
+            demandeAjoutEntretien.value = true
+          }
           break
         }
         case 'trier-entretiens': {
@@ -939,28 +1344,39 @@ export function creerSonal() {
     panneauAnalyseVisible,
     preparationActive,
     analyseActive,
+    ongletCorpus,
+    panneauCasActif,
+    enregistrerNavigationCorpus,
     tableauBordOuverts,
     docsCadreOuverts,
+    documentsExemplesOuverts,
     analysesCroiseesOuvertes,
-    entrerPreparation,
-    entrerAnalyse,
-    revenirTraitement,
+    entrerPreparation: (...args: Parameters<typeof entrerPreparation>) => { retours.terminerConsultation(); return entrerPreparation(...args) },
+    entrerAnalyse: (...args: Parameters<typeof entrerAnalyse>) => { retours.terminerConsultation(); return entrerAnalyse(...args) },
+    revenirTraitement: () => { retours.terminerConsultation(); revenirTraitement() },
     basculerPanneauAnalyse,
     afficherPanneauAnalyse,
     afficherAccueilPreparation,
     afficherTableauBord,
     afficherDocsCadre,
+    afficherDocumentsExemples,
     fermerTableauBord,
     fermerDocsCadre,
-    // Toute ouverture d'outil quitte l'éventuel espace de travail en cours.
-    afficherCas: async () => {
-      revenirTraitement()
-      await casCorpus.afficherCas()
-    },
-    afficherRecueils: async () => {
-      revenirTraitement()
-      await recueilsCorpus.afficherRecueils()
-    },
+    afficherCas: (id?: string) => { retours.terminerConsultation(); return afficherCas(id) },
+    afficherRecueils: (id?: string) => { retours.terminerConsultation(); return afficherRecueils(id) },
+    ouvrirCas: (id: string) => { retours.terminerConsultation(); return casCorpus.ouvrirCas(id) },
+    ouvrirRecueil: (id: string) => { retours.terminerConsultation(); return recueilsCorpus.ouvrirRecueil(id) },
+    afficherRecueilsPourAssociation,
+    entrerOrganisation: (...args: Parameters<typeof entrerOrganisation>) => { retours.terminerConsultation(); return entrerOrganisation(...args) },
+    afficherCasPourAssociation, confirmerAjoutCas, confirmerAjoutRecueil, fermerAjoutCas, fermerAjoutRecueil,
+    confirmationAjout, ouvrirDestinationAjout, fermerConfirmationAjout,
+    associationsPassage, etatAssociationsPassage, ouvrirCasAssocie, ouvrirOccurrenceRecueilAssociee,
+    revenirContexte: retours.revenirContexte, libelleRetourContexte: retours.libelleRetourContexte,
+    enregistrerContextePanneau: contextesPanneaux.enregistrerContextePanneau,
+    navigationContexteEnCours: retours.navigationContexteEnCours,
+    sousEspaceOrganisation,
+    organisationActive,
+    panneauRecueilsActif,
     afficherLexico: () => entrerAnalyse('lexico'),
     afficherSynthese: () => entrerAnalyse('synthese'),
     afficherAnalysesCroisees: () => entrerAnalyse('analyses-croisees'),
@@ -1016,9 +1432,9 @@ export function creerSonal() {
     publiErreur,
     publierMaintenant,
     migrerDepuisV1,
-    retourCorpus,
+    retourCorpus: async () => { await retourCorpus(); retours.terminerConsultation() },
     allerAccueil,
-    ouvrirEntretien,
+    ouvrirEntretien: async (id: string) => { await ouvrirEntretien(id); if (ent.ouvertId.value === id) retours.terminerConsultation() },
     voirParcours,
     naviguerGuide,
     enregistrerNavigationParcours,

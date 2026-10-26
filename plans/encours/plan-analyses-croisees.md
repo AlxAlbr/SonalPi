@@ -7,6 +7,10 @@ Statut : proposition de réalisation.
 > sélection occupe la colonne de gauche et la matrice la colonne de droite.
 > Les mentions de « fenêtre » ci-dessous décrivent l’état antérieur ; voir
 > [la navigation par espaces](plan-navigation-espaces-travail.md).
+> **Organiser et exporter** regroupe désormais Cas, Recueils et l’export du corpus.
+> Ce déplacement n’ajoute aucune dimension Cas aux Analyses croisées.
+> L’ouverture d’une source offre désormais un retour à la matrice consultée,
+> sans recalcul automatique ni réinjection d’un ancien résultat.
 
 Ce plan décrit un nouvel outil **Analyses croisées**, distinct de **Lexico** et de
 **Synthèse**. Il commence par une matrice Thèmes × Entretiens, puis prépare des axes
@@ -299,10 +303,10 @@ le dossier Documents du poste. Aucun résultat n’est synchronisé automatiquem
 | `src/shared/analysesCroisees/export.ts` | CSV et TSV, formats large et long |
 | `src/renderer/composables/corpus/useSourcesAnalyseCorpus.ts` | Cache de session et chargement borné partagé |
 | `src/renderer/composables/corpus/useAnalysesCroisees.ts` | Calcul, générations, fraîcheur et navigation |
-| `src/renderer/components/analyses/AnalysesCote.vue` | Sélection des thèmes et des entretiens |
-| `src/renderer/components/analyses/AnalysesPanneau.vue` | Réglages, matrice, export et détail |
-| `src/renderer/components/analyses/MatriceThemesMateriaux.vue` | Tableau accessible et navigation clavier |
-| `src/renderer/components/analyses/DetailCelluleAnalyse.vue` | Justificatifs et retour aux sources |
+| `src/renderer/components/analyser/analyses-croisees/AnalysesCote.vue` | Sélection des thèmes et des entretiens |
+| `src/renderer/components/analyser/analyses-croisees/AnalysesPanneau.vue` | Réglages, matrice, export et détail |
+| `src/renderer/components/analyser/analyses-croisees/MatriceThemesMateriaux.vue` | Tableau accessible et navigation clavier |
+| `src/renderer/components/analyser/analyses-croisees/DetailCelluleAnalyse.vue` | Justificatifs et retour aux sources |
 
 Raccordements :
 

@@ -2,7 +2,7 @@
 
 > Cette page décrit le socle présent dans le code. Les créations en lot, les règles
 > d’entretiens entiers, les familles et les attributs saisis ou dérivés sont disponibles.
-> L’export QualCoder est accessible depuis Corpus → Exporter le corpus et produit un
+> L’export QualCoder est accessible depuis Organiser et exporter → Exporter le corpus et produit un
 > projet `.qda` textuel ; l’audio reste différé.
 > Guide fonctionnel : [Utiliser les cas](../user/cas.md).
 
@@ -48,7 +48,7 @@ Un rattachement de cas ne référence jamais un identifiant de codage ou de comm
 | Familles | Présentes, création et complément explicites, dissolution sans cascade |
 | Attributs de cas | Présents : définitions, saisies, dérivations propres/familiales et diagnostics frais |
 | Vues séparées automatique/manuelle/ensemble | Présentes, avec métriques et diagnostics par vue |
-| Projet natif QualCoder `.qda` | Présent via Corpus → Exporter le corpus ; audio et REFI-QDA différés |
+| Projet natif QualCoder `.qda` | Présent via Organiser et exporter → Exporter le corpus ; audio et REFI-QDA différés |
 
 Le socle de création vide et de vues séparées est couvert par des tests unitaires,
 de persistance et d’interface Electron. L’export QualCoder est couvert par un modèle
@@ -438,6 +438,47 @@ Une appartenance à une famille issue d’une variable privée peut être sensib
 
 ## 9. Carte du code et validation
 
+La gestion complète se trouve dans **Organiser et exporter / Cas**.
+`panneauCasActif` et `casActifs` suivent le panneau de gestion ; `casOuverts`
+ne désigne que le dialogue ciblé d’ajout depuis l’entretien.
+L’ouvrir ne lit pas tous les matériaux ni l’inventaire des personnes.
+
+`OrganiserExporter.vue` héberge une seule instance de `CasCorpus.vue`, chargée
+au premier accès et conservée pendant les changements d’espace. La révision
+du corpus réinitialise cette instance. `DialogueAjoutCas.vue` partage seulement
+les définitions et commandes nécessaires à l’association, sans gestionnaire complet.
+Le dialogue natif gère Échap, le confinement du focus et son retour à l’entretien.
+
+Les commandes `afficherCas(id?)` et `afficherRecueils(id?)` de `sonal.ts`
+ouvrent leur onglet dans l’espace d’organisation et sélectionnent l’objet demandé.
+Elles masquent l’entretien sans le fermer ; le retour au traitement reprend sa vue
+mémorisée. De même, la pseudonymisation masquée conserve ses choix non validés ;
+sa garde reste appliquée lors d’un véritable changement d’onglet du corpus.
+Les commandes d’association capturent la sélection avant la prise de focus.
+`associerSelectionCas` renvoie les identités des destinations confirmées, sans
+changer le cas ouvert dans le gestionnaire caché. Recueils conserve aussi sa
+sélection de gestion pendant l’ajout ; sa création simple réutilise la même
+identité après une réponse perdue. Les deux dialogues préservent leurs demandes
+en attente après erreur et ne naviguent qu’après un choix explicite de destination.
+
+Les consultations liées utilisent une pile bornée et des restaurations de réglages,
+pas des copies de résultats métier. Voir [Navigation par espaces](navigation-espaces.md).
+Dans les analyses, la présence de cas dépend des définitions déjà chargées avec
+le corpus ; un cas vide compte, une erreur de projection ne les masque pas.
+Les critères visant des cas supprimés restent signalés et retirables explicitement.
+
+Les personnes sont relues à l’accès, lors d’une actualisation explicite ou d’un
+changement pertinent. Après une sauvegarde d’entretien, seuls les matériaux
+sont reprojetés : relire l’inventaire à cet endroit relancerait la sauvegarde.
+Les réponses d’un ancien corpus sont ignorées et une erreur d’actualisation
+conserve les projections précédentes.
+
+Le résumé de la sélection utilise `associationsPassage.ts`. Il projette seulement
+l’entretien ouvert, compare les plages exactes, incluses ou chevauchantes, puis
+regroupe les occurrences de recueil. Les règles de personnes réutilisent un
+inventaire mis en cache. Une référence ou une règle non résolue rend le bilan
+incomplet au lieu d’affirmer qu’aucune association n’existe.
+
 | Fichier | Responsabilité |
 | --- | --- |
 | [shared/corpus/cas.ts](../../src/shared/corpus/cas.ts) | Types, définitions d’attributs, commandes, normalisation et usages |
@@ -448,17 +489,22 @@ Une appartenance à une famille issue d’une variable privée peut être sensib
 | [renderer/editor/remap.ts](../../src/renderer/editor/remap.ts) | Remappage avec les éditions |
 | [renderer/editor/passages.ts](../../src/renderer/editor/passages.ts) | Lecture et diagnostic des passages référencés |
 | [renderer/editor/cas.ts](../../src/renderer/editor/cas.ts) | Projection des règles et rattachements, métriques |
+| [renderer/editor/associationsPassage.ts](../../src/renderer/editor/associationsPassage.ts) | Résumé ciblé des cas et occurrences de recueils pour une sélection |
 | [main/casOrchestration.ts](../../src/main/casOrchestration.ts) | Publication avant commande corpus |
 | [main/corpusStore.ts](../../src/main/corpusStore.ts) | Persistance locale et migration |
 | [main/distant/transactions.ts](../../src/main/distant/transactions.ts) | Transactions de définitions distantes |
 | [renderer/composables/corpus/useCasCorpus.ts](../../src/renderer/composables/corpus/useCasCorpus.ts) | Chargement, sélection, commandes et reprise d’association |
-| [renderer/components/corpus/CasCorpus.vue](../../src/renderer/components/corpus/CasCorpus.vue) | Répertoire, fiche et parcours actuels |
-| [renderer/components/corpus/DefinitionsAttributsCas.vue](../../src/renderer/components/corpus/DefinitionsAttributsCas.vue) | Registre, modalités de saisie et confidentialité |
-| [renderer/components/corpus/AttributsCasFiche.vue](../../src/renderer/components/corpus/AttributsCasFiche.vue) | Saisies, dérivations propres et diagnostics du cas |
-| [renderer/components/corpus/AttributsFamilleFiche.vue](../../src/renderer/components/corpus/AttributsFamilleFiche.vue) | Recettes partagées, disponibilité et valeurs par membre |
-| [renderer/components/corpus/CreationFamilleCas.vue](../../src/renderer/components/corpus/CreationFamilleCas.vue) | Aperçu des deux portées, sélection opt-in et reprise de création/complément |
-| [renderer/components/corpus/CreationLotCas.vue](../../src/renderer/components/corpus/CreationLotCas.vue) | Sélection multiple, aperçu, contrôle des noms et reprise de création |
-| [renderer/components/CasModale.vue](../../src/renderer/components/CasModale.vue) | Fenêtre globale |
+| [renderer/components/organiser/cas/CasCorpus.vue](../../src/renderer/components/organiser/cas/CasCorpus.vue) | Répertoire, fiche et parcours actuels |
+| [renderer/components/organiser/cas/DefinitionsAttributsCas.vue](../../src/renderer/components/organiser/cas/DefinitionsAttributsCas.vue) | Registre, modalités de saisie et confidentialité |
+| [renderer/components/organiser/cas/AttributsCasFiche.vue](../../src/renderer/components/organiser/cas/AttributsCasFiche.vue) | Saisies, dérivations propres et diagnostics du cas |
+| [renderer/components/organiser/cas/AttributsFamilleFiche.vue](../../src/renderer/components/organiser/cas/AttributsFamilleFiche.vue) | Recettes partagées, disponibilité et valeurs par membre |
+| [renderer/components/organiser/cas/CreationFamilleCas.vue](../../src/renderer/components/organiser/cas/CreationFamilleCas.vue) | Aperçu des deux portées, sélection opt-in et reprise de création/complément |
+| [renderer/components/organiser/cas/CreationLotCas.vue](../../src/renderer/components/organiser/cas/CreationLotCas.vue) | Sélection multiple, aperçu, contrôle des noms et reprise de création |
+| [renderer/components/organiser/OrganiserExporter.vue](../../src/renderer/components/organiser/OrganiserExporter.vue) | Gestionnaires uniques, montés au premier accès |
+| [renderer/components/organiser/cas/DialogueAjoutCas.vue](../../src/renderer/components/organiser/cas/DialogueAjoutCas.vue) | Association ciblée, reprise et création manuelle simple |
+| [renderer/components/organiser/recueils/DialogueAjoutRecueil.vue](../../src/renderer/components/organiser/recueils/DialogueAjoutRecueil.vue) | Choix du recueil, emplacement et création simple |
+| [renderer/components/traiter/entretien/ResumeAssociationsPassage.vue](../../src/renderer/components/traiter/entretien/ResumeAssociationsPassage.vue) | Présentation repliable et ouverture des objets associés |
+| [renderer/composables/useRetoursContextuels.ts](../../src/renderer/composables/useRetoursContextuels.ts) | Chaîne bornée des consultations et retour protégé |
 
 Les tests existants se trouvent dans `test/cas*.test.ts`, `test/personnes.test.ts`,
 `test/webdav/transactions.test.ts` et les scénarios `e2e/cas*.e2e.ts`.

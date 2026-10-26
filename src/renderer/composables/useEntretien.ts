@@ -106,6 +106,8 @@ export function useEntretien(deps: {
   /** Assigne/retire la catégorie d'une règle corpus puis rafraîchit le
    *  cache des règles (injection orchestrateur, écriture transactionnée). */
   categoriserRegle?: (regleId: string, categorie: string | null) => Promise<void>
+  /** L'écran Entretien est-il actuellement affiché ? */
+  actif?: () => boolean
   /** Corpus distant : lecture seule des DÉFINITIONS (grisage permanent).
    *  L'éditeur suit `entretienEditable`, pas ce drapeau. */
   lectureSeule?: () => boolean
@@ -169,9 +171,16 @@ export function useEntretien(deps: {
   // stockée — recalculée au moindre déplacement du curseur.
   // --- Recherche / remplacement (Ctrl+F) -------------------------------------
   const ouvertId = ref<string | null>(null)
+  const selectionPassage = ref<{
+    entretienId: string
+    from: number
+    to: number
+    texte: string
+  } | null>(null)
   const recherche = useRechercheEntretien({
     lireEditeur: () => editor.value ?? null,
     ouvertId,
+    actif: deps.actif,
   })
   const {
     rechercheOuverte,
@@ -407,6 +416,7 @@ export function useEntretien(deps: {
     },
     onUpdate: ({ transaction }) => {
       rafraichir()
+      selectionPassage.value = selectionPassageCourante()
       // Boîte recherche/remplacement ouverte : les occurrences suivent le texte.
       if (transaction.docChanged) recherche.surDocumentModifie()
       // Seule une transaction qui CHANGE LE DOCUMENT programme une écriture :
@@ -423,6 +433,7 @@ export function useEntretien(deps: {
     onSelectionUpdate: ({ editor: ed }) => {
       locuteursEntretien.mettreAJourSelection(ed.state.selection.empty)
       anonymisationEntretien.mettreAJourSelection(ed)
+      selectionPassage.value = selectionPassageCourante()
     },
   })
   function rafraichirDecorations() {
@@ -612,11 +623,13 @@ export function useEntretien(deps: {
     rafraichirGouttiere()
     etatSauvegarde.value = 'à jour'
     annotationsEntretien.reinitialiser()
+    selectionPassage.value = selectionPassageCourante()
     return true
   }
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
     ouvertId.value = null
+    selectionPassage.value = null
     recherche.reinitialiser()
     locuteursEntretien.reinitialiser()
     verrouAutrui.value = null
@@ -900,6 +913,7 @@ export function useEntretien(deps: {
     annulerEtAttendreSauvegarde,
     donneesExport,
     selectionPassageCourante,
+    selectionPassage,
     enregistrerRepereSelection,
     donneesSourceOuverte,
     // rafraîchissements (l'App les déclenche après des changements corpus)

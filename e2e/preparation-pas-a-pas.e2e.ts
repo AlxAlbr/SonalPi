@@ -62,7 +62,7 @@ test('parcours Préparer son terrain : suivi, document, entretien vide et note',
   await expect(page.locator('.liste-pp li').nth(0)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.espace-preparation')).not.toBeVisible()
 
-  // 2. Le vrai sélecteur copie le guide dans Vos Documents.
+  // 2. Le vrai sélecteur copie le guide dans Documents du projet.
   await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp .ligne-pp').nth(1).click()
   await spotlightSur(page, '[data-tour="ouvrir-preparer"]')

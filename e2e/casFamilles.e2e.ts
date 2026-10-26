@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirOrganisation } from './util'
 import { corpusFamille, sourceFamille, dateFamille } from '../test/fixtures/casFamilles'
 
 for (const portee of ['locuteur', 'entretien'] as const) {
@@ -20,8 +20,8 @@ for (const portee of ['locuteur', 'entretien'] as const) {
       app = await lancer(dir)
       page = await app.firstWindow()
       await entrerCorpus(page)
-      await page.locator('.btn-cas').click()
-      let modale = page.locator('.modale-cas')
+      await ouvrirOrganisation(page)
+      let modale = page.locator('#contenu-cas-organisation')
       const avant = readFileSync(fichier, 'utf8')
       await modale.getByRole('button', { name: 'Nouveau cas' }).click()
       await modale.getByRole('radio', { name: portee === 'locuteur' ? 'Variable de locuteur' : 'Variable d’entretien', exact: true }).check()
@@ -69,8 +69,8 @@ for (const portee of ['locuteur', 'entretien'] as const) {
       app = await lancer(dir)
       page = await app.firstWindow()
       await entrerCorpus(page)
-      await page.locator('.btn-cas').click()
-      modale = page.locator('.modale-cas')
+      await ouvrirOrganisation(page)
+      modale = page.locator('#contenu-cas-organisation')
       await expect(modale.locator('.carte-cas')).toHaveCount(2)
       await modale.locator('.carte-cas').filter({ has: page.locator('.nom-carte b').filter({ hasText: /^A$/ }) }).click()
       await modale.getByRole('combobox', { name: /Matériaux affichés/ }).selectOption('manuels')

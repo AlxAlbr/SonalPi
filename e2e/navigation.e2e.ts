@@ -22,18 +22,17 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // La navigation du corpus démarre sur son accueil et reste composée d'icônes
-  // (7 onglets + le bouton « Exporter ce corpus » aligné à droite).
+  // Le corpus garde ses six onglets ; l'organisation et l'export ont leur espace.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(8)
+  await expect(onglets).toHaveCount(6)
   await expect(onglets.nth(1)).toHaveAttribute('aria-label', 'Notes')
   await expect(onglets.nth(2)).toHaveAttribute('aria-label', 'Personnes')
-  await expect(onglets.nth(6)).toHaveAttribute('aria-label', 'Journal')
+  await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')
   await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
-  await expect(page.locator('.accueil-corpus')).toContainText('Journal')
+  await expect(page.locator('.accueil-corpus')).toContainText('Cas')
   await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F / Cmd+F')
   await expect(page.locator('.accueil-corpus .accueil-outils')).not.toContainText('Recherche')
   await expect(page.locator('.cartes-ent')).toBeVisible()

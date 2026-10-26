@@ -71,6 +71,19 @@ describe('inventaire et sélection', () => {
     expect(docsCadre.lireApercu).toHaveBeenCalledWith('exemple', 'Guide de correction.txt')
   })
 
+  test('chaque onglet retrouve sa dernière sélection', async () => {
+    const { d } = contexte()
+    await d.preparerDocsCadre('projet')
+    d.selectionner({ source: 'projet', nom: 'consignes.txt' })
+    await d.preparerDocsCadre('exemple')
+    expect(d.selection.value).toBeNull()
+    d.selectionner({ source: 'exemple', nom: 'Guide de correction.txt' })
+    await d.preparerDocsCadre('projet')
+    expect(d.selection.value).toEqual({ source: 'projet', nom: 'consignes.txt' })
+    await d.preparerDocsCadre('exemple')
+    expect(d.selection.value).toEqual({ source: 'exemple', nom: 'Guide de correction.txt' })
+  })
+
   test('masquer le panneau conserve sa sélection ; le retour relit liste et aperçu', async () => {
     const { d, docsCadre, actif } = contexte()
     await d.preparerDocsCadre()

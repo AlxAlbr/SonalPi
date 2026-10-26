@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, entrerEntretien, lancer, ouvrirAnalyse } from './util'
+import { entrerCorpus, entrerEntretien, lancer, ouvrirAnalyse, ouvrirOrganisation } from './util'
 
 /**
  *  Navigation par espaces : « Préparer et suivre » (tableau de bord, documents
@@ -37,10 +37,11 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   const cote = espace.locator('.cote-preparation')
   await expect(cote).toContainText('Préparation')
   await expect(cote).toContainText('Tableau de bord')
-  await expect(cote).toContainText('Documents cadre')
+  await expect(cote).toContainText('Documents du projet')
+  await expect(cote).toContainText('Documents exemples')
   await expect(espace.locator('.principal td.case').first()).toBeVisible()
 
-  // Les trois onglets partagent le fond et la taille de titre des panneaux de l'entretien.
+  // Les quatre onglets partagent le fond et la taille de titre des panneaux de l'entretien.
   const accueil = cote.locator('.accueil-preparation')
   const fondPanneau = await accueil.evaluate((el) => getComputedStyle(el).backgroundColor)
   const tailleTitre = await accueil.locator('.corpus-tete h3').evaluate((el) => getComputedStyle(el).fontSize)
@@ -55,23 +56,29 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(panneauTableau.locator('.carte h3')).toHaveText(['Colonne', 'Ligne', 'Badges'])
   await expect(espace.locator('.principal td.case').first()).toBeVisible()
 
-  // Onglet Documents cadre : liste à gauche, aperçu à droite.
+  // Onglet Documents du projet : liste à gauche, aperçu à droite.
   await page.locator('[data-tour="ouvrir-docs-cadre"]').click()
   await expect(page.locator('[data-tour="ouvrir-docs-cadre"]')).toHaveAttribute('aria-current', 'page')
   const panneauDocs = cote.locator('.cote-docs')
   await expect(panneauDocs).toHaveCSS('background-color', fondPanneau)
   await expect(panneauDocs.locator('.corpus-tete h3')).toHaveCSS('font-size', tailleTitre)
-  await expect(panneauDocs.locator('.corpus-tete h3')).toHaveText('Documents cadre')
-  await expect(cote).toContainText('Documents exemples')
-  await expect(espace.locator('.principal')).toContainText('Choisissez un document dans la liste.')
+  await expect(panneauDocs.locator('.corpus-tete h3')).toHaveText('Documents du projet')
+  await expect(espace.locator('.principal')).toContainText('Choisissez un document du projet dans la liste.')
+
+  // Onglet Documents exemples : seuls les modèles embarqués sont proposés.
+  await page.locator('[data-tour="ouvrir-documents-exemples"]').click()
+  await expect(page.locator('[data-tour="ouvrir-documents-exemples"]')).toHaveAttribute('aria-current', 'page')
+  await expect(panneauDocs.locator('.corpus-tete h3')).toHaveText('Documents exemples')
+  await expect(cote).toContainText('Guide de correction.txt')
+  await expect(espace.locator('.principal')).toContainText('Choisissez un document d’exemple dans la liste.')
 
   // Retour au traitement : on retrouve le corpus, puis l'onglet est mémorisé.
   await traitement.click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(espace).toBeHidden()
   await barre.getByRole('button', { name: 'Préparer et suivre' }).click()
-  await expect(page.locator('[data-tour="ouvrir-docs-cadre"]')).toHaveAttribute('aria-current', 'page')
-  await expect(espace.locator('.principal')).toContainText('Choisissez un document dans la liste.')
+  await expect(page.locator('[data-tour="ouvrir-documents-exemples"]')).toHaveAttribute('aria-current', 'page')
+  await expect(espace.locator('.principal')).toContainText('Choisissez un document d’exemple dans la liste.')
 
   await traitement.click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
@@ -103,34 +110,33 @@ test('depuis un entretien, l’espace ne ferme pas le travail en cours', async (
   await app.close()
 })
 
-test('un outil encore en modale ramène au traitement avant de s’ouvrir', async () => {
+test('l’organisation reprend son onglet depuis les autres espaces et conserve l’entretien', async () => {
   const app = await lancer(mkdtempSync(join(tmpdir(), 'sonal-espaces-outil-')))
-  const page = await app.firstWindow()
-  await entrerCorpus(page)
-
-  await page.locator('.barre-outils').getByRole('button', { name: 'Préparer et suivre' }).click()
-  await expect(page.locator('.espace-preparation')).toBeVisible()
-
-  await page.locator('.btn-cas').click()
-  await expect(page.locator('.modale-cas')).toBeVisible()
-  await expect(page.locator('.espace-preparation')).toBeHidden()
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
-  await expect(page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter' }))
-    .toHaveAttribute('aria-current', 'page')
-  await page.locator('.modale-cas').getByRole('button', { name: 'Quitter ✕' }).click()
-  await expect(page.locator('.modale-cas')).toBeHidden()
-
-  // Même règle depuis l'espace d'analyse : la fenêtre ne s'ouvre pas par-dessus.
-  await page.locator('.barre-outils').getByRole('button', { name: 'Analyser et interpréter' }).click()
-  await expect(page.locator('.espace-analyse')).toBeVisible()
-  await page.locator('.btn-recueils').click()
-  await expect(page.locator('.modale-recueils')).toBeVisible()
-  await expect(page.locator('.espace-analyse')).toBeHidden()
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
-  await expect(page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter' }))
-    .toHaveAttribute('aria-current', 'page')
-
-  await app.close()
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    await page.locator('.barre-outils').getByRole('button', { name: 'Préparer et suivre' }).click()
+    await ouvrirOrganisation(page, 'recueils')
+    await expect(page.locator('#contenu-recueils-organisation')).toBeVisible()
+    await expect(page.locator('.modale-recueils')).toBeHidden()
+    await expect(page.locator('.espace-preparation')).toBeHidden()
+    await expect(page.locator('.corpus-ecran')).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Organiser et exporter', exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
+    await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
+    await expect(page.locator('.onglets-organisation').getByRole('button', { name: 'Recueils', exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await expect(page.locator('.entretien-ecran')).toBeVisible()
+    await expect(page.locator('.editeur')).toContainText('Karine')
+    await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+    await ouvrirOrganisation(page, 'cas')
+    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await expect(page.locator('.corpus-ecran')).toBeVisible()
+    await expect(page.locator('.entretien-ecran')).toBeHidden()
+  } finally {
+    await app.close()
+  }
 })
 
 test('l’espace d’analyse : trois onglets, filtres à gauche et résultats à droite', async () => {

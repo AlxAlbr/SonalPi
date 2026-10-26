@@ -66,13 +66,15 @@ export async function entrerCorpus(page: Page): Promise<void> {
 /** Ouvre la préparation sans recliquer sur l'onglet déjà repris par la barre. */
 export async function ouvrirPreparation(
   page: Page,
-  onglet: 'tableau-bord' | 'docs-cadre' = 'tableau-bord',
+  onglet: 'tableau-bord' | 'docs-cadre' | 'documents-exemples' = 'tableau-bord',
 ): Promise<void> {
   if (!(await page.locator('.espace-preparation').isVisible())) {
     await page.locator('[data-tour="ouvrir-preparer"]').click()
   }
   await expect(page.locator('.espace-preparation')).toBeVisible({ timeout: 20_000 })
-  const cible = onglet === 'tableau-bord' ? 'ouvrir-tableau-bord' : 'ouvrir-docs-cadre'
+  const cible = onglet === 'tableau-bord'
+    ? 'ouvrir-tableau-bord'
+    : onglet === 'docs-cadre' ? 'ouvrir-docs-cadre' : 'ouvrir-documents-exemples'
   const bouton = page.locator(`[data-tour="${cible}"]`)
   if (await bouton.getAttribute('aria-current') !== 'page') await bouton.click()
 }
@@ -87,6 +89,19 @@ export async function ouvrirAnalyse(
   }
   await expect(page.locator('.espace-analyse')).toBeVisible({ timeout: 20_000 })
   const bouton = page.locator(`[data-tour="ouvrir-${onglet}"]`)
+  if (await bouton.getAttribute('aria-current') !== 'page') await bouton.click()
+}
+
+/** Ouvre un outil d'organisation par les commandes communes de navigation. */
+export async function ouvrirOrganisation(
+  page: Page,
+  onglet: 'cas' | 'recueils' | 'export' = 'cas',
+): Promise<void> {
+  if (!(await page.locator('.organisation-ecran').isVisible())) {
+    await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
+  }
+  const nom = { cas: 'Cas', recueils: 'Recueils', export: 'Exporter le corpus' }[onglet]
+  const bouton = page.locator('.onglets-organisation').getByRole('button', { name: nom, exact: true })
   if (await bouton.getAttribute('aria-current') !== 'page') await bouton.click()
 }
 

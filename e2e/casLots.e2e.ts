@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirOrganisation } from './util'
 
 test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et identités persistantes', async () => {
   const userDataDir = mkdtempSync(join(tmpdir(), 'sonal-cas-lots-'))
@@ -16,8 +16,8 @@ test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et ide
         await api.personnesCommander({ type: 'creerDefinition', nom: index < 2 ? 'Homonyme' : `Personne ${index}` }, true)
       }
     })
-    await page.locator('.btn-cas').click()
-    let modale = page.locator('.modale-cas')
+    await ouvrirOrganisation(page)
+    let modale = page.locator('#contenu-cas-organisation')
     const fichier = join(userDataDir, 'corpus', 'corpus.json')
     const source = join(userDataDir, 'corpus', 'entretiens', 'e1.json')
     const avant = readFileSync(fichier, 'utf8')
@@ -59,8 +59,8 @@ test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et ide
     app = await lancer(userDataDir)
     page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.locator('.btn-cas').click()
-    modale = page.locator('.modale-cas')
+    await ouvrirOrganisation(page)
+    modale = page.locator('#contenu-cas-organisation')
     await expect(modale.locator('.carte-cas')).toHaveCount(31)
     expect(JSON.parse(readFileSync(fichier, 'utf8')).cas).toEqual(apres.cas)
   } finally {
@@ -80,8 +80,8 @@ test('entretiens entiers : individuel, collectif, source vide et futurs paragrap
     app = await lancer(userDataDir)
     page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.locator('.btn-cas').click()
-    let modale = page.locator('.modale-cas')
+    await ouvrirOrganisation(page)
+    let modale = page.locator('#contenu-cas-organisation')
     await modale.getByRole('button', { name: 'Nouveau cas' }).click()
     await modale.getByRole('radio', { name: 'Depuis des entretiens' }).check()
     await modale.getByRole('button', { name: 'Tout sélectionner', exact: true }).click()
@@ -117,8 +117,8 @@ test('entretiens entiers : individuel, collectif, source vide et futurs paragrap
     app = await lancer(userDataDir)
     page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.locator('.btn-cas').click()
-    modale = page.locator('.modale-cas')
+    await ouvrirOrganisation(page)
+    modale = page.locator('#contenu-cas-organisation')
     await modale.locator('.carte-cas').filter({ hasText: 'Toutes les sources' }).click()
     await expect(modale.locator('.passage-cas blockquote').first()).toContainText('Paragraphe ajouté après la création.')
     expect(JSON.parse(readFileSync(fichier, 'utf8')).cas).toEqual(avant)

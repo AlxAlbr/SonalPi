@@ -157,7 +157,7 @@ L’exécution locale et les protocoles distants sont décrits dans
 | Aperçus communs | `src/main/operationsThemes.ts` |
 | IPC | `src/main/ipcOperationsThemes.ts` |
 | Orchestration renderer | `src/renderer/composables/corpus/useOperationsThemesCorpus.ts` |
-| Interface | `src/renderer/components/corpus/ThemesOpsCorpus.vue` et `RepartitionTheme.vue` |
+| Interface | `src/renderer/components/traiter/corpus/ThemesOpsCorpus.vue` et `RepartitionTheme.vue` |
 
 Tests principaux :
 

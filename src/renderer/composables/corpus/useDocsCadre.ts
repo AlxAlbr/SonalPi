@@ -69,7 +69,7 @@ export interface SelectionDocCadre {
 }
 
 /**
- *  Gère l'inventaire, la sélection, l'aperçu et les commandes des documents cadre.
+ *  Gère les documents du projet et les exemples fournis avec l'application.
  *  La lecture seule du corpus distant est aussi garantie par le processus principal.
  */
 export function useDocsCadre(deps: {
@@ -88,6 +88,10 @@ export function useDocsCadre(deps: {
   const messageAction = ref<string | null>(null)
   /** Suppression en attente de confirmation (motif « Supprimer/Confirmer »). */
   const documentASupprimer = ref<string | null>(null)
+  const derniereSelection: Record<SourceDocumentCadre, string | null> = {
+    projet: null,
+    exemple: null,
+  }
   let generation = 0
   let generationListe = 0
 
@@ -113,8 +117,8 @@ export function useDocsCadre(deps: {
       }
       documentsProjet.value = inventaire.projet
       erreurListe.value = null
-      // Une sélection qui a disparu du corpus (fichier supprimé ailleurs) est désélectionnée.
-      if (selection.value?.source === 'projet' && !resumePour('projet', selection.value.nom)) {
+      // Une sélection disparue de sa liste est désélectionnée.
+      if (selection.value && !resumePour(selection.value.source, selection.value.nom)) {
         selectionner(null)
       }
       return true
@@ -130,10 +134,12 @@ export function useDocsCadre(deps: {
     }
   }
 
-  /** Relit les documents au retour dans l'onglet, en conservant la sélection. */
-  async function preparerDocsCadre(): Promise<void> {
+  /** Relit les documents au retour dans un onglet, puis restaure sa sélection. */
+  async function preparerDocsCadre(source: SourceDocumentCadre = 'projet'): Promise<void> {
     mode.value = deps.estDistant() ? 'distant' : 'local'
+    if (selection.value?.source !== source) selectionner(null)
     await rafraichirDocsCadre()
+    activerSource(source)
   }
 
   /** Libère la session documentaire et invalide les requêtes de l'ancien corpus. */
@@ -148,6 +154,8 @@ export function useDocsCadre(deps: {
     erreurListe.value = null
     messageAction.value = null
     documentASupprimer.value = null
+    derniereSelection.projet = null
+    derniereSelection.exemple = null
     mode.value = deps.estDistant() ? 'distant' : 'local'
     documentsProjet.value = []
     documentsExemples.value = []
@@ -168,6 +176,7 @@ export function useDocsCadre(deps: {
     messageAction.value = null
     generation += 1
     selection.value = cible
+    if (cible) derniereSelection[cible.source] = cible.nom
     resumeSelection.value = cible ? resumePour(cible.source, cible.nom) : null
     apercu.value = null
     if (!cible) {
@@ -175,6 +184,13 @@ export function useDocsCadre(deps: {
       return
     }
     void chargerApercu()
+  }
+
+  /** Affiche uniquement la famille demandée et restaure son dernier document. */
+  function activerSource(source: SourceDocumentCadre): void {
+    if (selection.value?.source === source) return
+    const nom = derniereSelection[source]
+    selectionner(nom && resumePour(source, nom) ? { source, nom } : null)
   }
 
   async function chargerApercu(): Promise<void> {

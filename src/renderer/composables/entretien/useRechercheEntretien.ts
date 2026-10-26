@@ -12,6 +12,7 @@ export type LireEditeur = () => Editor | null
 export function useRechercheEntretien(deps: {
   lireEditeur: LireEditeur
   ouvertId: Readonly<Ref<string | null>>
+  actif?: () => boolean
 }) {
   const rechercheOuverte = ref(false)
   const rechercheTexte = ref('')
@@ -121,6 +122,7 @@ export function useRechercheEntretien(deps: {
   }
 
   function surRaccourciRecherche(event: KeyboardEvent) {
+    if (deps.actif && !deps.actif()) return
     if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
     if (event.key.toLowerCase() !== 'f' || !deps.ouvertId.value) return
     event.preventDefault()

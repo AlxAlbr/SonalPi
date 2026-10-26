@@ -1,0 +1,57 @@
+import { expect, test } from '@playwright/test'
+import { ouvrirAnalyse, ouvrirOrganisation, ouvrirSurCorpus } from './util'
+
+test('Cas apparaît au premier cas vide et sa disparition ne retire pas les filtres mémorisés', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-filtres-cas-')
+  try {
+    await ouvrirAnalyse(page, 'synthese')
+    const synthese = page.locator('.cote-synthese')
+    const bilanSynthese = page.locator('.panneau-synthese')
+    await expect(synthese.getByRole('tab', { name: /^Cas/ })).toHaveCount(0)
+    await expect(bilanSynthese.locator('.aide')).toHaveText('Choisissez au moins un thème pour lancer le calcul.')
+    await bilanSynthese.getByText('Détail des critères', { exact: true }).click()
+    await expect(bilanSynthese.locator('.bilan')).not.toContainText('Cas :')
+    await ouvrirAnalyse(page, 'lexico')
+    const lexico = page.locator('.cote-lexico')
+    const bilanLexico = page.locator('.panneau-lexico')
+    await expect(lexico.getByRole('tab', { name: /^Cas/ })).toHaveCount(0)
+
+    await ouvrirOrganisation(page, 'cas')
+    const cas = page.locator('.cas-corpus')
+    await cas.getByRole('button', { name: 'Nouveau cas', exact: true }).click()
+    await cas.getByRole('radio', { name: 'Cas manuel vide' }).check()
+    await cas.getByLabel('Nom du cas *').fill('Dossier vide')
+    await cas.getByRole('button', { name: 'Créer le cas', exact: true }).click()
+    await ouvrirAnalyse(page, 'lexico')
+    await expect(lexico.getByRole('tab', { name: /^Cas/ })).toBeVisible()
+    await expect(lexico.getByRole('tab', { name: /^Entretiens/ })).toHaveAttribute('aria-selected', 'true')
+    await lexico.getByRole('tab', { name: /^Cas/ }).click()
+    await lexico.getByRole('checkbox', { name: 'Dossier vide' }).check()
+    await ouvrirAnalyse(page, 'synthese')
+    await expect(synthese.getByRole('tab', { name: /^Thèmes/ })).toHaveAttribute('aria-selected', 'true')
+    await synthese.getByRole('tab', { name: /^Cas/ }).click()
+    await synthese.getByRole('checkbox', { name: 'Dossier vide' }).check()
+    await bilanSynthese.getByRole('button', { name: 'Calculer la synthèse', exact: true }).click()
+    await expect(bilanSynthese.getByRole('button', { name: 'Actualiser la synthèse', exact: true })).toBeVisible()
+
+    await ouvrirOrganisation(page, 'cas')
+    page.once('dialog', (dialogue) => dialogue.accept())
+    await cas.getByRole('button', { name: 'Supprimer', exact: true }).click()
+    await ouvrirAnalyse(page, 'synthese')
+    await expect(synthese.getByRole('tab', { name: /^Cas/ })).toHaveCount(0)
+    await expect(synthese.getByRole('tab', { name: /^Thèmes/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(bilanSynthese.getByText('Un filtre utilise des cas qui ne sont plus disponibles.', { exact: false })).toBeVisible()
+    await expect(bilanSynthese.locator('.bilan')).toContainText('Cas : Introuvable')
+    await bilanSynthese.getByRole('button', { name: 'Retirer le filtre Cas', exact: true }).click()
+    await expect(bilanSynthese).toContainText('actualisez la synthèse pour renouveler le résultat')
+
+    await ouvrirAnalyse(page, 'lexico')
+    await expect(lexico.getByRole('tab', { name: /^Cas/ })).toHaveCount(0)
+    await expect(lexico.getByRole('tab', { name: /^Entretiens/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(bilanLexico.getByRole('button', { name: 'Retirer le filtre Cas', exact: true })).toBeVisible()
+    await bilanLexico.getByRole('button', { name: 'Retirer le filtre Cas', exact: true }).click()
+    await expect(bilanLexico.getByRole('button', { name: 'Retirer le filtre Cas', exact: true })).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})

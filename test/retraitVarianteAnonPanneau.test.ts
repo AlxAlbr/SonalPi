@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
-import PseudonymisationCorpus from '../src/renderer/components/corpus/PseudonymisationCorpus.vue'
+import PseudonymisationCorpus from '../src/renderer/components/traiter/corpus/PseudonymisationCorpus.vue'
 import { fixtureRetraitVarianteAnon } from './fixtures/retraitVarianteAnon'
 import { scannerCorpus } from '../src/shared/corpus/scanAnon'
 import { inventorierRetraitVarianteAnon, type SuiviRetraitVarianteAnon } from '../src/shared/corpus/retraitVarianteAnon'

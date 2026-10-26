@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { CorpusFichier } from '../src/shared/format'
-import { lancer, entrerCorpus } from './util'
+import { lancer, entrerCorpus, ouvrirOrganisation } from './util'
 import { ecrireSeedDemo } from '../test/seedDemo'
 
 // Démarrage à froid d'Electron : les trois scénarios tournent l'un après
@@ -12,8 +12,8 @@ import { ecrireSeedDemo } from '../test/seedDemo'
 test.describe.configure({ mode: 'serial' })
 
 /**
- *  Export au niveau du CORPUS, dans la vraie app : bouton de la barre des
- *  onglets → modale en 4 étapes (sélection, formats/options, traitement,
+ *  Export au niveau du corpus depuis l'espace d'organisation,
+ *  puis dialogue en quatre étapes (sélection, formats/options, traitement,
  *  résumé). Les dialogs natifs sont STUBBÉS via electronApp.evaluate (le
  *  showSaveDialog renvoie le dossier de destination). Vérifications disque :
  *  un fichier par entretien, index récapitulatif, DOCX combiné, succès
@@ -66,8 +66,9 @@ test('export complet : fichier par entretien + index + DOCX combiné', async () 
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
   }, { destination })
 
-  // Bouton de la barre des onglets → modale dédiée, étape sélection.
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
+  // L'espace d'organisation ouvre le parcours d'export existant.
+  await ouvrirOrganisation(page, 'export')
+  await page.getByRole('button', { name: 'Choisir l’export du corpus…', exact: true }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await expect(modale.locator('.option', { hasText: 'Tous les entretiens' })).toBeChecked()
@@ -108,7 +109,8 @@ test('export QualCoder : projet .qda créé depuis Corpus', async () => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
   }, { destination })
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
+  await ouvrirOrganisation(page, 'export')
+  await page.getByRole('button', { name: 'Choisir l’export du corpus…', exact: true }).click()
   const modale = page.locator('.modale-export-corpus')
   await modale.getByRole('radio', { name: 'Projet QualCoder (.qda)' }).check()
   await modale.getByRole('button', { name: /Suivant/ }).click()
@@ -148,7 +150,8 @@ test('sélection partielle + rapport détaillé enregistré', async () => {
     })
   }, { destination, cheminRapport })
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
+  await ouvrirOrganisation(page, 'export')
+  await page.getByRole('button', { name: 'Choisir l’export du corpus…', exact: true }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await expect(modale.locator('.ligne-entretien')).toHaveCount(2)
@@ -197,7 +200,8 @@ test('succès partiel : entretien cassé sauté, expliqué, absent de l’index'
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
   }, { destination })
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
+  await ouvrirOrganisation(page, 'export')
+  await page.getByRole('button', { name: 'Choisir l’export du corpus…', exact: true }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await modale.getByRole('button', { name: /Suivant/ }).click()

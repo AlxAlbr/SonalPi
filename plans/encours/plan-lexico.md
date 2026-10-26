@@ -7,6 +7,10 @@ Statut : socle, filtres, résumé, traitements manuels, persistance et import V1
 > ses filtres occupent la colonne de gauche et l’index la colonne de droite.
 > Les mentions de « grande fenêtre » ci-dessous décrivent l’état antérieur ;
 > voir [la navigation par espaces](plan-navigation-espaces-travail.md).
+> La gestion des cas se trouve dans **Organiser et exporter / Cas**.
+> Les filtres Cas sont masqués sans cas créé ; les critères visant des cas
+> supprimés restent signalés et retirables explicitement, sans élargissement silencieux.
+> Le retour depuis une source reprend filtres, tri et sélection sans recalcul automatique.
 
 ## 1. Conclusion et recommandation
 
@@ -350,7 +354,7 @@ Organisation indicative, à ajuster au moment du développement :
   positions, locuteurs et annotations, en s’appuyant sur les primitives existantes ;
 - `src/renderer/composables/corpus/useLexicoCorpus.ts` : chargement, état de session,
   actualisation, annulation et navigation vers les sources ;
-- `src/renderer/components/lexico/` : fenêtre, filtres, index et concordances ;
+- `src/renderer/components/analyser/lexico/` : panneaux, filtres, index et concordances ;
 - intégration dans `App.vue`, `sonal.ts` et `BarreOutils.vue` selon les fenêtres existantes.
 
 Ne pas analyser le DOM de l’éditeur, ni exporter en HTML V1 pour le relire ensuite.

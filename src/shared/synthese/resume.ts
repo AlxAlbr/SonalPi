@@ -36,7 +36,9 @@ export function resumerFiltresSynthese(
   if (filtres.themes.mode === 'choix') lignes.push(filtres.correspondanceThemes === 'tous-au-meme-endroit'
     ? 'Correspondance thématique : tous les thèmes sélectionnés au même endroit'
     : 'Correspondance thématique : au moins un thème sélectionné')
-  lignes.push(`Cas : ${noms(filtres.cas, contexte.cas, 'Aucun cas sélectionné')}`)
+  if (contexte.cas.length || filtres.cas.mode === 'choix') {
+    lignes.push(`Cas : ${noms(filtres.cas, contexte.cas, 'Aucun cas sélectionné')}`)
+  }
   lignes.push(filtres.inclureEnqueteurs ? 'Paroles des enquêteurs incluses' : 'Paroles des enquêteurs exclues')
   return lignes
 }

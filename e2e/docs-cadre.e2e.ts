@@ -32,36 +32,23 @@ function pdfMinimal(): Buffer {
 }
 
 /**
- *  « Documents cadre » dans la vraie app : onglet de « Préparer et suivre »,
- *  deux zones (Vos Documents / Documents exemples), aperçus fiables (texte
- *  brut), actions locales toujours accessibles (ajout, ouverture du dossier),
- *  lecture seule des exemples et gestion retirée de l'interface
- *  (renommer/supprimer hors SonalPi).
+ *  Les documents du projet et les exemples occupent deux onglets distincts
+ *  dans « Préparer et suivre ». Les aperçus restent fiables (texte brut),
+ *  les actions locales toujours accessibles, et les exemples en lecture seule.
  */
 
-test('onglet actif, sections dans l’ordre, état vide et aperçu d’un exemple', async () => {
+test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-docs-')
 
-  // « Préparer et suivre » ouvre l'espace sur Tableau de bord ; l'onglet
-  // Documents cadre montre la liste à gauche et l'aperçu à droite.
+  // Les documents propres au corpus disposent de leur onglet et de leurs actions.
   await ouvrirPreparation(page, 'docs-cadre')
   const fenetre = page.locator('.espace-preparation')
   await expect(fenetre).toBeVisible()
   await expect(page.locator('[data-tour="ouvrir-docs-cadre"]')).toHaveAttribute('aria-current', 'page')
-  // Le panneau porte son titre, puis les sections : Vos Documents PUIS Documents exemples.
-  await expect(fenetre.locator('.cote-docs .corpus-tete h3')).toHaveText('Documents cadre')
-  await expect(fenetre.locator('.cote-docs .titre-section')).toHaveText(['Vos Documents', 'Documents exemples'])
-  // État vide : « Vous n'avez pas encore de document. »
+  await expect(fenetre.locator('.cote-docs .corpus-tete h3')).toHaveText('Documents du projet')
   await expect(fenetre.locator('.cote-preparation')).toContainText('Vous n’avez pas encore de document.')
+  await expect(fenetre.locator('[data-tour="documents-exemples"]')).toBeHidden()
 
-  // Exemples dans l'ORDRE DÉFINI (conformité DPO, puis les guides), et non
-  // alphabétique : la place de chaque document est un choix de l'application.
-  await expect(fenetre.locator('.liste').nth(1).locator('.document .nom')).toHaveText([
-    'Déclaration traitement DPO.txt',
-    'Notice de consentement DPO.txt',
-    'Guide de correction.txt',
-    'Guide de pseudonymisation.txt',
-  ])
 
   // L'action ouvre directement le sous-dossier DocsCadre du corpus, et elle
   // est accessible dès l'état vide (défaut corrigé : elle vivait dans le
@@ -76,6 +63,18 @@ test('onglet actif, sections dans l’ordre, état vide et aperçu d’un exempl
   await fenetre.locator('.cote-preparation').getByRole('button', { name: 'Ouvrir le dossier' }).click()
   await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_DOSSIER_OUVERT)).toContain('DocsCadre')
   await expect(fenetre.locator('.message-action')).toContainText('gestionnaire de fichiers')
+
+  // Les exemples disposent de leur propre onglet et conservent leur ordre défini.
+  await ouvrirPreparation(page, 'documents-exemples')
+  await expect(page.locator('[data-tour="ouvrir-documents-exemples"]')).toHaveAttribute('aria-current', 'page')
+  await expect(fenetre.locator('.cote-docs .corpus-tete h3')).toHaveText('Documents exemples')
+  await expect(fenetre.locator('[data-tour="documents-exemples"] .document .nom')).toHaveText([
+    'Déclaration traitement DPO.txt',
+    'Notice de consentement DPO.txt',
+    'Guide de correction.txt',
+    'Guide de pseudonymisation.txt',
+  ])
+  await expect(fenetre.getByRole('button', { name: /Ajouter un fichier/ })).toHaveCount(0)
 
   // Aperçu d'un exemple embarqué : texte affiché tel quel.
   await fenetre.locator('.document', { hasText: 'Guide de correction.txt' }).click()

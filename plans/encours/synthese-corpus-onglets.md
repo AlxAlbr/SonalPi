@@ -45,14 +45,28 @@ L’ordre de référence est :
 3. **Personnes** ;
 4. **Pseudonymisation** ;
 5. **Thèmes** ;
-6. **Données** ;
-7. **Journal** ;
-8. **Pas à pas**, uniquement en démonstration.
+6. **Données**.
 
-Les onglets de travail larges — Notes, Personnes, Données et
-Pseudonymisation — masquent les cartes d’entretiens. Thèmes conserve l’arbre à
-gauche et affiche son atelier à droite. Accueil, Recherche, Journal et Pas à pas
-utilisent la grille historique avec les cartes.
+**Cas** et **Recueils** se trouvent dans **Organiser et exporter**, avec l’accès
+principal **Exporter le corpus**. L’Accueil du corpus renvoie vers les deux outils.
+Le pas à pas conserve son accès depuis l’Accueil, uniquement en démonstration.
+
+Les onglets de travail larges — Notes, Personnes, Données et Pseudonymisation —
+masquent les cartes d’entretiens. Thèmes conserve l’arbre à gauche
+et affiche son atelier à droite. Accueil, Recherche et Pas à pas utilisent
+la grille historique avec les cartes.
+
+L’ancien onglet Journal reste remplacé par la commande secondaire
+**Historique des actions…**, qui ouvre son contenu en dialogue.
+Le déplacement de Cas vers l’espace d’organisation ne rétablit pas cet onglet. **Personnes → Annuler une modification…** réutilise le même panneau en
+filtrant les entrées d’origine Personnes. Le journal de l’entretien ne change pas.
+Voir [le chantier de navigation](plan-navigation-espaces-travail.md).
+
+Les ajouts depuis l’entretien utilisent des dialogues ciblés distincts des
+gestionnaires de Cas et Recueils. Les sources ouvertes depuis ces outils ou
+une analyse proposent un retour au contexte précédent, conservé en session.
+Les filtres Cas de Synthèse et Lexico ne sont visibles qu’avec un cas créé ;
+une restriction visant des cas supprimés reste signalée et retirée explicitement.
 
 L’ouverture puis la fermeture d’un entretien conserve l’onglet corpus actif.
 Les composants de travail restent montés : filtres, tri, mode, sélection,
@@ -211,7 +225,7 @@ pas disponible.
 
 Les principaux points d’entrée sont :
 
-- `src/renderer/components/corpus/Corpus.vue` pour la navigation et
+- `src/renderer/components/traiter/corpus/Corpus.vue` pour la navigation et
   l’assemblage des panneaux ;
 - `NotesCorpus.vue`, `ModaleNoteCorpus.vue` et `useNotesCorpus.ts` pour la vue
   agrégée des notes ;
@@ -223,7 +237,7 @@ Les principaux points d’entrée sont :
   et le brouillon d’application ;
 - `ThemesOpsCorpus.vue`, `RepartitionTheme.vue`, `useOperationsThemesCorpus.ts`
   et `src/shared/corpus/themes.ts` pour l’atelier thématique ;
-- `src/renderer/components/donnees/TableDonnees.vue` et
+- `src/renderer/components/traiter/partages/donnees/TableDonnees.vue` et
   `src/renderer/tableNavigation.ts` pour la matrice ;
 - `PanneauJournalCorpus.vue`, `src/main/journalCorpus.ts` et
   `src/shared/corpus/journal.ts` pour le Journal visible ;
@@ -249,7 +263,8 @@ car ils évoluent avec la suite du dépôt.
 | **Pseudonymisation** | Scan et application spécialisée. | Oui selon son moteur actuel. | Gestion des règles uniquement si le besoin est confirmé. |
 | **Thèmes** | Codebook et atelier local de transfert, fusion et division manuelle. | WebDAV : transfert et division sans suppression, bilan partiel et reprise. | GitLab : trois gestes, lots qualifiés et finalisation protégée. |
 | **Données** | Matrice et saisie actuelles. | Conserver les parcours existants. | Journaliser d’abord une cellule locale isolée. |
-| **Journal** | Annulation locale, volatile et partielle. | Non. | Étendre par petites commandes sémantiques. |
+| **Cas** | Dossiers analytiques intégrés au corpus ; familles, lots, attributs et sources conservés. | Capacités existantes inchangées. | Séparer le dialogue d’association de la gestion complète. |
+| **Historique des actions** | Journal secondaire : annulation locale, volatile et partielle. | Non. | Étendre par petites commandes sémantiques. |
 | **Pas à pas** | Outil conditionnel de démonstration. | Sans objet. | Le maintenir séparé des fonctions métier. |
 
 ## 4. Niveau 0 — vérifier et figer le socle

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
-import RenommageVarianteAnon from '../src/renderer/components/corpus/RenommageVarianteAnon.vue'
+import RenommageVarianteAnon from '../src/renderer/components/traiter/corpus/RenommageVarianteAnon.vue'
 import { inventorierRenommageAnon, type ApercuRenommageAnon, type SuiviRenommageAnon, type BilanRenommageAnon } from '../src/shared/corpus/renommageAnon'
 import { fixtureRenommageAnon } from './fixtures/renommageAnon'
 const apps: App[] = []

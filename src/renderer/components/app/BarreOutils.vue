@@ -10,8 +10,8 @@ const {
   entrerPreparation,
   entrerAnalyse,
   revenirTraitement,
-  afficherRecueils,
-  afficherCas,
+  organisationActive,
+  entrerOrganisation,
 } = utiliserSonal()
 
 /** L'espace « Importer et traiter » est actif dans le traitement. */
@@ -44,10 +44,13 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
       >Analyser et interpréter</button>
-    </div>
-    <div class="ligne outils">
-      <button class="outil btn-recueils" title="Ouvrir les recueils" @click="afficherRecueils">Recueils</button>
-      <button class="outil btn-cas" title="Ouvrir les cas" @click="afficherCas">Cas</button>
+      <button
+        class="outil espace"
+        :class="{ actif: organisationActive }"
+        title="Cas, recueils et export du corpus"
+        :aria-current="organisationActive ? 'page' : undefined"
+        @click="entrerOrganisation()"
+      >Organiser et exporter</button>
     </div>
   </div>
 </template>
@@ -57,20 +60,20 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-left: 1rem;
+  margin-top: 0.7rem;
   min-width: 0;
 }
 .ligne {
   display: flex;
   gap: 0.35rem;
+  flex-wrap: wrap;
 }
-/* Sur une fenêtre étroite, les espaces passent au-dessus des autres outils. */
+/* Sur une fenêtre étroite, les espaces se répartissent sur plusieurs lignes. */
 @media (max-width: 1080px) {
-  .barre-outils { flex-direction: column; align-items: flex-start; gap: 0.18rem; }
+  .barre-outils { flex-direction: column; align-items: flex-start; gap: 0.18rem; margin-top: 0.2rem; }
   .outil { padding-left: 1.25rem; padding-right: 0.35rem; font-size: 0.72rem; }
   .outil.espace { padding-left: 0.5rem; padding-right: 0.5rem; font-size: 0.78rem; }
   .ligne { gap: 0.2rem; }
-  .ligne.outils { flex-wrap: wrap; max-width: 22rem; }
 }
 /* Sur une fenêtre très étroite, les boutons occupent moins de place. */
 @media (max-width: 720px) {
@@ -106,7 +109,5 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
   color: #1a3a6b;
   box-shadow: inset 0 -2px 0 #2f5aa8;
 }
-.btn-cas::before { content: '🗂'; }
-.btn-recueils::before { content: '📌'; }
-.btn-recueils:hover, .btn-cas:hover, .outil.espace:hover { background: #f4f7fd; }
+.outil.espace:hover { background: #f4f7fd; }
 </style>

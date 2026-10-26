@@ -1,9 +1,9 @@
-# Documents cadre
+# Documents du projet et documents exemples
 
-Les documents du projet se consultent depuis **Préparer et suivre**, dans l’onglet
-**Documents cadre** de la colonne de gauche. L’espace reprend son découpage en deux
-zones : à gauche la barre latérale **Vos Documents** puis **Documents exemples** ;
-à droite le panneau de consultation du document sélectionné.
+L’espace **Préparer et suivre** distingue deux onglets documentaires. **Documents du
+projet** rassemble les fichiers propres au corpus. **Documents exemples** présente les
+modèles fournis avec SonalPi. Dans chaque onglet, la liste reste à gauche et le document
+sélectionné se consulte à droite.
 
 Un corpus d’entretiens s’accompagne souvent de documents de méthode ou de conformité :
 déclaration de traitement DPO, notice de consentement DPO, guide de correction, guide de
@@ -12,7 +12,7 @@ corpus courant ; ils ne sont ni des notes d’entretien ni des réglages du prof
 
 Le parcours **Préparer son terrain** de la découverte guidée fait ajouter un petit guide
 d’entretien depuis les sources du Mini Corpus Test. Il utilise le véritable sélecteur de
-fichier et place le guide dans **Vos Documents**. Le fichier ajouté devient donc bien un
+fichier et place le guide dans **Documents du projet**. Le fichier ajouté devient donc bien un
 document du projet ; il n’est jamais confondu avec les modèles de **Documents exemples**.
 
 ## Un principe : jamais de modification du contenu
@@ -33,9 +33,8 @@ bureau** : SonalPi le copie alors dans `DocsCadre/`. Une fois les documents dans
 dossier, **Actualiser** les révèle dans l’onglet ; la liste se rafraîchit aussi
 automatiquement au retour dans l’espace.
 
-Un bandeau d'aide repliable en haut du panneau droit (« Où sont mes documents ? ») rappelle ces
-règles : les documents d'exemple sont des modèles à remplacer par ceux de votre DPO, et
-SonalPi n'édite jamais le contenu.
+Un bandeau d'aide repliable en haut du panneau droit (« Où sont mes documents ? ») rappelle
+l’emplacement des fichiers et le fait que SonalPi n’édite jamais leur contenu.
 
 Depuis cet onglet :
 
@@ -77,7 +76,7 @@ décodé au hasard.
 
 ## Documents exemples
 
-La section **Documents exemples** rassemble des exemples livrés avec l’application, dans un
+L’onglet **Documents exemples** rassemble des exemples livrés avec l’application, dans un
 ordre fixe : déclaration de traitement DPO, notice de consentement DPO, guide de correction,
 puis guide de pseudonymisation. Ils sont immuables : consultables et enregistrables comme
 copie, mais jamais modifiables. Ils restent disponibles même quand un corpus distant est

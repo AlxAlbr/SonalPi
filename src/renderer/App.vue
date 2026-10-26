@@ -2,17 +2,18 @@
 import { fournirSonal } from './composables/sonal'
 import { erreurGlobale, effacerErreurGlobale, infoGlobale, effacerInfoGlobale } from './erreurs'
 import Accueil from './components/accueil/Accueil.vue'
-import Corpus from './components/corpus/Corpus.vue'
-import Entretien from './components/entretien/Entretien.vue'
+import Corpus from './components/traiter/corpus/Corpus.vue'
+import Entretien from './components/traiter/entretien/Entretien.vue'
 import RepriseCrash from './components/distant/RepriseCrash.vue'
 import DivergenceCopie from './components/distant/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
-import RecueilsModale from './components/app/RecueilsModale.vue'
-import CasModale from './components/app/CasModale.vue'
+import DialogueAjoutRecueil from './components/organiser/recueils/DialogueAjoutRecueil.vue'
+import DialogueAjoutCas from './components/organiser/cas/DialogueAjoutCas.vue'
 import PreparerSuivre from './components/preparer/PreparerSuivre.vue'
 import AnalyserInterpreter from './components/analyser/AnalyserInterpreter.vue'
-import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
-import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
+import OrganiserExporter from './components/organiser/OrganiserExporter.vue'
+import ModaleExportEntretien from './components/traiter/entretien/ModaleExportEntretien.vue'
+import ModaleExportCorpus from './components/organiser/export/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
@@ -31,6 +32,9 @@ const {
   refusFormat,
   dossierCourantNom,
   revisionCorpus,
+  casOuverts, recueilsOuverts,
+  confirmationAjout, ouvrirDestinationAjout, fermerConfirmationAjout,
+  libelleRetourContexte, revenirContexte, navigationContexteEnCours,
 } = fournirSonal()
 </script>
 
@@ -45,26 +49,26 @@ const {
             {{ etatSauvegarde }}
           </span>
         </h1>
-        <BarreOutils />
-      </div>
-      <nav class="fil" v-if="vue !== 'accueil'">
-        <button class="lien-nav" @click="allerAccueil">Accueil</button>
-        <span class="sep">›</span>
-        <button
-          class="lien-nav"
-          :class="{ courant: vue !== 'entretien' }"
-          :disabled="vue !== 'entretien'"
-          @click="retourCorpus"
-        >
-          Corpus{{ dossierCourantNom ? ' (' + dossierCourantNom + ')' : '' }}
-        </button>
-        <template v-if="vue === 'entretien'">
+        <nav class="fil" v-if="vue !== 'accueil'">
+          <button class="lien-nav" @click="allerAccueil">Accueil</button>
           <span class="sep">›</span>
-          <span class="lien-nav courant">
-            Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
-          </span>
-        </template>
-      </nav>
+          <button
+            class="lien-nav"
+            :class="{ courant: vue !== 'entretien' }"
+            :disabled="vue !== 'entretien'"
+            @click="retourCorpus"
+          >
+            Corpus{{ dossierCourantNom ? ' (' + dossierCourantNom + ')' : '' }}
+          </button>
+          <template v-if="vue === 'entretien'">
+            <span class="sep">›</span>
+            <span class="lien-nav courant">
+              Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
+            </span>
+          </template>
+        </nav>
+      </div>
+      <BarreOutils />
     </header>
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
@@ -89,11 +93,20 @@ const {
       <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
     </div>
 
+    <div v-if="libelleRetourContexte" class="retour-contexte">
+      <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
+    </div>
+    <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
+      Passage ajouté. Ouvrir la destination reste facultatif.
+      <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
+      <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
+    </div>
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
     <!-- Les brouillons des espaces sont conservés jusqu'au changement de corpus. -->
     <PreparerSuivre :key="`preparer-${revisionCorpus}`" v-show="vue === 'preparer'" />
     <AnalyserInterpreter :key="`analyser-${revisionCorpus}`" v-show="vue === 'analyser'" />
+    <OrganiserExporter v-show="vue === 'organiser'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
 
@@ -110,8 +123,8 @@ const {
     <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
          ne s'affiche que si demandée. -->
     <DesignationAudioDistante />
-    <CasModale />
-    <RecueilsModale />
+    <DialogueAjoutCas v-if="casOuverts" :key="revisionCorpus" />
+    <DialogueAjoutRecueil v-if="recueilsOuverts" :key="revisionCorpus" />
     <ModaleExportEntretien />
     <ModaleExportCorpus />
   </main>
@@ -126,7 +139,7 @@ const {
   max-width: 1250px;
   margin: 1.2rem auto 0;
   padding: 0 1rem;
-  /* Hauteur de l'en-tête collant (titre + barre d'outils + fil d'Ariane) ;
+  /* Hauteur de l'en-tête collant (titre + fil d'Ariane + barre d'outils) ;
      elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
   --entete-h: 5.6rem;
 }
@@ -225,14 +238,17 @@ h1 small {
   cursor: pointer;
   padding: 0 0.2rem;
 }
+.retour-contexte { margin: .5rem 0; }
+.retour-contexte button { cursor: pointer; padding: .4rem .7rem; }
+.confirmation-ajout { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+
 /* --- Fil d'Ariane (navigation 3 écrans) --- */
 .fil {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  /* Marge haute : respiration entre la barre d'outils (Recueils, Cas…)
-     et le fil d'Ariane. */
-  margin: 0.7rem 0 0;
+  margin-left: 1rem;
+  min-width: 0;
   font-size: 0.85rem;
 }
 .lien-nav {
@@ -251,8 +267,10 @@ h1 small {
 .fil .sep {
   color: #bbb;
 }
-/* Sur une fenêtre étroite, on resserre le fil sous la barre d'outils. */
+/* Sur une fenêtre étroite, l'en-tête laisse plus de place aux boutons. */
 @media (max-width: 1080px) {
-  .fil { margin-top: 0.2rem; }
+  .fil { margin-left: 0.7rem; }
+  .app { --entete-h: 7rem; }
+  .tete { align-items: flex-start; }
 }
 </style>

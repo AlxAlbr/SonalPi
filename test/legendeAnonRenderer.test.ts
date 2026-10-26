@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test } from 'vitest'
 import { createApp, type App } from 'vue'
-import LegendeAnon from '../src/renderer/components/corpus/LegendeAnon.vue'
+import LegendeAnon from '../src/renderer/components/traiter/corpus/LegendeAnon.vue'
 
 const apps: App[] = []
 afterEach(() => { apps.splice(0).forEach((app) => app.unmount()); document.body.replaceChildren() })

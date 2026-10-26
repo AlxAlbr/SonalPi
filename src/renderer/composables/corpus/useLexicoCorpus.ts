@@ -39,6 +39,17 @@ export function useLexicoCorpus(deps: {
   const filtresLexico = ref<FiltresLexico>(filtresLexicoParDefaut())
   /** Onglet de filtres courant ; état de vue, réinitialisé avec le corpus. */
   const ongletFiltresLexico = ref<OngletFiltresLexico>('entretiens')
+  const casDisponiblesLexico = computed(() => Object.keys(deps.cas.value).length > 0)
+  const ongletsFiltresLexico = computed(() => (['entretiens', 'variables', 'personnes', 'themes', 'cas'] as const)
+    .filter((onglet) => onglet !== 'cas' || casDisponiblesLexico.value))
+  watch(casDisponiblesLexico, (disponibles) => {
+    if (!disponibles && ongletFiltresLexico.value === 'cas') ongletFiltresLexico.value = 'entretiens'
+  }, { flush: 'sync' })
+  const filtreCasIndisponibleLexico = computed(() => filtresLexico.value.cas.mode === 'choix'
+    && (!casDisponiblesLexico.value || filtresLexico.value.cas.ids.some((id) => !deps.cas.value[id])))
+  function retirerFiltreCasLexico(): void {
+    filtresLexico.value = { ...filtresLexico.value, cas: { mode: 'sans-restriction' } }
+  }
   const traitementsLexico = deps.traitements
   const historiqueTraitementsLexico = ref<TraitementsLexico[]>([])
   const enregistrementTraitementsLexico = ref(false)
@@ -62,7 +73,9 @@ export function useLexicoCorpus(deps: {
   const diagnosticsLexico = computed(() => {
     const selection = filtresLexico.value.cas
     const diagnosticsCas = selection.mode === 'choix'
-      ? selection.ids.flatMap((id) => diagnosticsCasLexico.value[id] ?? [])
+      ? selection.ids.flatMap((id) => deps.cas.value[id]
+        ? diagnosticsCasLexico.value[id] ?? []
+        : [{ titre: 'Cas introuvable', message: id }])
       : []
     return [...diagnosticsSourcesLexico.value, ...diagnosticsCas]
   })
@@ -366,6 +379,7 @@ export function useLexicoCorpus(deps: {
   return {
     chargementLexico, progressionLexico, occurrencesLexico,
     occurrencesTraiteesLexico, occurrencesRetenuesLexico, lignesLexico, diagnosticsLexico, personnesLexico,
+    casDisponiblesLexico, ongletsFiltresLexico, filtreCasIndisponibleLexico, retirerFiltreCasLexico,
     filtresLexico, ongletFiltresLexico, traitementsLexico, historiqueTraitementsLexico, enregistrementTraitementsLexico,
     resultatsPerimesLexico, calculeLeLexico,
     entretiensAvecResultatsLexico, lignesResumeLexico, criteresActifsLexico,

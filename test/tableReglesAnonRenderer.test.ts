@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, type App } from 'vue'
-import TableReglesAnon from '../src/renderer/components/corpus/TableReglesAnon.vue'
+import TableReglesAnon from '../src/renderer/components/traiter/corpus/TableReglesAnon.vue'
 import { matriceCapacites } from '../src/main/gitlab/politiqueGestes'
 
 const apps: App[] = []

@@ -384,7 +384,7 @@ cela est nécessaire.
 ### Étape 6 — Finaliser l’interface et la confidentialité
 
 1. Initialiser `commentaires` dans
-   `src/renderer/components/entretien/ModaleExportEntretien.vue`.
+   `src/renderer/components/traiter/entretien/ModaleExportEntretien.vue`.
 2. Afficher l’option seulement pour le DOCX via `CONFIG_OPTIONS`.
 3. Ajouter l’avertissement lorsque `anon && commentaires`, ou implémenter le
    blocage retenu à l’étape 1.

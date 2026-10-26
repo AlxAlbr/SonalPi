@@ -33,6 +33,12 @@ export function useSyntheseCorpus(deps: {
   const filtresSynthese = ref<FiltresSynthese>(filtresSyntheseParDefaut())
   /** Onglet de critères courant ; état de vue, réinitialisé avec le corpus. */
   const ongletCriteresSynthese = ref<OngletCriteresSynthese>('themes')
+  const casDisponiblesSynthese = computed(() => Object.keys(deps.cas.value).length > 0)
+  const ongletsCriteresSynthese = computed(() => (['entretiens', 'variables', 'personnes', 'themes', 'cas'] as const)
+    .filter((onglet) => onglet !== 'cas' || casDisponiblesSynthese.value))
+  watch(casDisponiblesSynthese, (disponibles) => {
+    if (!disponibles && ongletCriteresSynthese.value === 'cas') ongletCriteresSynthese.value = 'themes'
+  }, { flush: 'sync' })
   const modeTexteSynthese = ref<ModeTextePassage>('pseudonymise')
   const representationSynthese = ref<'ensemble' | 'extraits'>('ensemble')
   const selectionExtraitSynthese = ref<string | null>(null)
@@ -45,6 +51,15 @@ export function useSyntheseCorpus(deps: {
   const calculeLeSynthese = ref<Date | null>(null)
   const filtresAppliques = ref<FiltresSynthese | null>(null)
   let generation = 0
+
+  const filtreCasIndisponibleSynthese = computed(() => {
+    const selections = [filtresSynthese.value.cas, filtresAppliques.value?.cas]
+    return selections.some((selection) => selection?.mode === 'choix'
+      && (!casDisponiblesSynthese.value || selection.ids.some((id) => !deps.cas.value[id])))
+  })
+  function retirerFiltreCasSynthese(): void {
+    filtresSynthese.value = { ...filtresSynthese.value, cas: { mode: 'sans-restriction' } }
+  }
 
   // Les filtres Vue peuvent contenir des proxys imbriqués après une modification.
   // Une copie JSON suffit ici car le contrat ne contient que des données sérialisables.
@@ -181,7 +196,8 @@ export function useSyntheseCorpus(deps: {
 
   return {
     chargementSynthese, progressionSynthese, filtresSynthese,
-    ongletCriteresSynthese,
+    ongletCriteresSynthese, ongletsCriteresSynthese, casDisponiblesSynthese,
+    filtreCasIndisponibleSynthese, retirerFiltreCasSynthese,
     modeTexteSynthese, representationSynthese, selectionExtraitSynthese,
     personnesSynthese, entretiensCalculSynthese, extraitsSynthese, diagnosticsSynthese, resultatPerimeSynthese,
     calculeLeSynthese, entretiensAvecExtraitsSynthese, volumeTexteSynthese,

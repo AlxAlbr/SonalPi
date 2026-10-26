@@ -8,6 +8,10 @@ des passages, des cas et des recueils V2.
 > critères occupent la colonne de gauche et les résultats la colonne de droite.
 > Les mentions de « fenêtre de travail » ci-dessous décrivent l’état antérieur ;
 > voir [la navigation par espaces](plan-navigation-espaces-travail.md).
+> La gestion des cas se trouve dans **Organiser et exporter / Cas**.
+> Les critères Cas sont masqués sans cas créé ; une restriction mémorisée visant
+> des cas supprimés reste signalée et retirée seulement sur demande explicite.
+> Le retour depuis une source reprend la synthèse sans recalcul automatique.
 
 Ce plan concerne la fonction **Synthèse** de la barre d’outils. Le document
 `synthese-corpus-onglets.md` traite pour sa part de l’harmonisation des onglets du corpus :
@@ -423,10 +427,10 @@ Le glisser-déposer ne sera qu’un raccourci éventuel de cette commande, jamai
 | `src/shared/synthese/export.ts` | Projection commune des exports |
 | `src/renderer/editor/synthese.ts` | Préparation ProseMirror, modes de texte et contexte |
 | `src/renderer/composables/corpus/useSyntheseCorpus.ts` | Chargement, générations, fraîcheur et navigation |
-| `src/renderer/components/synthese/SyntheseCote.vue` | Critères de sélection |
-| `src/renderer/components/synthese/SynthesePanneau.vue` | Bilan, double vue et détail |
-| `src/renderer/components/synthese/VueEnsembleSynthese.vue` | Mur des entretiens |
-| `src/renderer/components/synthese/ListeExtraitsSynthese.vue` | Liste et détail des extraits |
+| `src/renderer/components/analyser/synthese/SyntheseCote.vue` | Critères de sélection |
+| `src/renderer/components/analyser/synthese/SynthesePanneau.vue` | Bilan, double vue et détail |
+| `src/renderer/components/analyser/synthese/VueEnsembleSynthese.vue` | Mur des entretiens |
+| `src/renderer/components/analyser/synthese/ListeExtraitsSynthese.vue` | Liste et détail des extraits |
 
 Les noms peuvent évoluer, mais le moteur, le chargement et la présentation doivent rester
 séparés.

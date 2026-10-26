@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
-import RetraitVarianteAnon from '../src/renderer/components/corpus/RetraitVarianteAnon.vue'
+import RetraitVarianteAnon from '../src/renderer/components/traiter/corpus/RetraitVarianteAnon.vue'
 import { inventorierRetraitVarianteAnon, type ApercuRetraitVarianteAnon, type BilanRetraitVarianteDistant, type SuiviRetraitVarianteAnon } from '../src/shared/corpus/retraitVarianteAnon'
 import { fixtureRetraitVarianteAnon } from './fixtures/retraitVarianteAnon'
 import { tirageAutomatiqueSuspendu } from '../src/renderer/tirageAutomatique'

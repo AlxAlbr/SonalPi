@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
-import EditionPseudosAnon from '../src/renderer/components/corpus/EditionPseudosAnon.vue'
+import EditionPseudosAnon from '../src/renderer/components/traiter/corpus/EditionPseudosAnon.vue'
 import type { ResultatAjoutVarianteAnon } from '../src/shared/corpus/variantesAnon'
 import { tirageAutomatiqueSuspendu } from '../src/renderer/tirageAutomatique'
 

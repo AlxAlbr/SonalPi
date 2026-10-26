@@ -86,7 +86,7 @@ ne changent pas le modèle de l’annotation.
 | Responsabilité | Emplacement |
 |---|---|
 | Geste de codage | `src/renderer/composables/entretien/useAnnotationsEntretien.ts` |
-| Panneau | `src/renderer/components/entretien/PanneauThemesEntretien.vue` |
+| Panneau | `src/renderer/components/traiter/entretien/PanneauThemesEntretien.vue` |
 | Décorations | `src/renderer/editor/decorations.ts` |
 | Résumé d’un entretien | `src/shared/corpus/requetes.ts` |
 | Sauvegarde | `src/renderer/composables/useEntretien.ts` et `src/main/corpusStore.ts` |

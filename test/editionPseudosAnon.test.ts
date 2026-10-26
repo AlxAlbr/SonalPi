@@ -2,7 +2,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
 import { lirePseudos, preparerEditionPseudos } from '../src/renderer/editionPseudosAnon'
-import FormulaireRegleAnon from '../src/renderer/components/corpus/FormulaireRegleAnon.vue'
+import FormulaireRegleAnon from '../src/renderer/components/traiter/corpus/FormulaireRegleAnon.vue'
 const regle = { id: 'r', entite: ['Karine'], pseudos: ['Claire'] }
 test.each(['Claire / Rebecca', ' Claire/Rebecca ', 'Rebecca / Claire'])('ajout par slash conservant le choix actuel : %s', (texte) => {
   expect(preparerEditionPseudos(regle, texte)).toEqual({ type: 'ajout', pseudo: 'Rebecca' })

@@ -18,9 +18,53 @@ function creer(initial: VueApplication = 'corpus') {
 }
 
 describe('espaces de travail', () => {
+  test('la navigation du corpus conserve sa protection de sortie', async () => {
+    const { espaces, arreter } = creer()
+    const retirer = espaces.enregistrerNavigationCorpus(async (onglet) => {
+      if (espaces.ongletCorpus.value === 'anon') return false
+      espaces.ongletCorpus.value = onglet
+      return true
+    })
+    expect(await espaces.choisirOngletCorpus('notes')).toBe(true)
+    espaces.ongletCorpus.value = 'anon'
+    expect(await espaces.choisirOngletCorpus('notes')).toBe(false)
+    expect(espaces.ongletCorpus.value).toBe('anon')
+    retirer()
+    expect(await espaces.choisirOngletCorpus('notes')).toBe(false)
+    arreter()
+  })
+
+  test('l’organisation mémorise son onglet sans fermer le traitement', () => {
+    const { vue, espaces, arreter } = creer('entretien')
+    espaces.entrerOrganisation()
+    expect(vue.value).toBe('organiser')
+    expect(espaces.panneauCasActif.value).toBe(true)
+    expect(isReadonly(espaces.panneauCasActif)).toBe(true)
+    espaces.entrerOrganisation('recueils')
+    expect(espaces.panneauCasActif.value).toBe(false)
+    expect(espaces.panneauRecueilsActif.value).toBe(true)
+    espaces.entrerAnalyse()
+    expect(espaces.panneauRecueilsActif.value).toBe(false)
+    espaces.entrerOrganisation()
+    expect(espaces.sousEspaceOrganisation.value).toBe('recueils')
+    espaces.revenirTraitement()
+    expect(vue.value).toBe('entretien')
+    espaces.entrerOrganisation('export')
+    espaces.reinitialiserEspaces()
+    expect(vue.value).toBe('corpus')
+    expect(espaces.sousEspaceOrganisation.value).toBe('cas')
+    expect(espaces.ongletCorpus.value).toBe('accueil')
+    vue.value = 'accueil'
+    espaces.entrerOrganisation('recueils')
+    expect(vue.value).toBe('accueil')
+    expect(espaces.sousEspaceOrganisation.value).toBe('cas')
+    arreter()
+  })
+
   test('les panneaux actifs sont dérivés immédiatement de la navigation', () => {
     const { vue, espaces, arreter } = creer()
     expect(isReadonly(espaces.docsCadreOuverts)).toBe(true)
+    expect(isReadonly(espaces.documentsExemplesOuverts)).toBe(true)
     expect(isReadonly(espaces.tableauBordOuverts)).toBe(true)
     expect(isReadonly(espaces.analysesCroiseesOuvertes)).toBe(true)
     // L'espace s'ouvre sur l'Accueil, sans panneau de travail actif.
@@ -31,8 +75,12 @@ describe('espaces de travail', () => {
     espaces.entrerPreparation('docs-cadre')
     expect(espaces.docsCadreOuverts.value).toBe(true)
     expect(espaces.tableauBordOuverts.value).toBe(false)
-    espaces.entrerPreparation('tableau-bord')
+    espaces.entrerPreparation('documents-exemples')
     expect(espaces.docsCadreOuverts.value).toBe(false)
+    expect(espaces.documentsExemplesOuverts.value).toBe(true)
+    expect(espaces.documentsOuverts.value).toBe(true)
+    espaces.entrerPreparation('tableau-bord')
+    expect(espaces.documentsExemplesOuverts.value).toBe(false)
     expect(espaces.tableauBordOuverts.value).toBe(true)
     espaces.entrerAnalyse('analyses-croisees')
     expect(espaces.tableauBordOuverts.value).toBe(false)

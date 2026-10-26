@@ -15,8 +15,8 @@ Guide utilisateur : [Utiliser Lexico](../user/lexico.md).
 | `src/shared/entretien/anon/projectionTexte.ts` | Décisions de pseudonymisation visibles, communes aux passages et exports |
 | `src/renderer/editor/lexico.ts` | Lecture ProseMirror, tokenisation et positions source |
 | `src/renderer/composables/corpus/useLexicoCorpus.ts` | Chargement borné, fraîcheur, cas et navigation |
-| `src/renderer/components/lexico/LexicoCote.vue` | Filtres de l’espace « Analyser et interpréter » |
-| `src/renderer/components/lexico/LexicoPanneau.vue` | Index, concordances, traitement lexical et export |
+| `src/renderer/components/analyser/lexico/LexicoCote.vue` | Filtres de l’espace « Analyser et interpréter » |
+| `src/renderer/components/analyser/lexico/LexicoPanneau.vue` | Index, concordances, traitement lexical et export |
 | `src/renderer/components/analyser/AnalyserInterpreter.vue` | Espace de travail : onglets Synthèse / Lexico / Analyses croisées |
 
 L’index vit uniquement pendant la session. Les décisions analytiques sont enregistrées

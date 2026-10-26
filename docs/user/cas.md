@@ -9,7 +9,7 @@ de les relire et d’ouvrir leur contexte, sans fabriquer une nouvelle transcrip
 
 > La création en lot, les entretiens entiers, les familles de modalités et les
 > attributs de cas sont disponibles. L’export natif QualCoder est accessible depuis
-> Corpus → Exporter le corpus ; il produit un projet `.qda` avec les sources, les cas
+> Organiser et exporter → Exporter le corpus ; il produit un projet `.qda` avec les sources, les cas
 > sélectionnés et les attributs disponibles. L’audio reste différé.
 
 ## Cas, personne, thème ou recueil ?
@@ -28,10 +28,13 @@ le passage du cas.
 
 ## 1. Fonctions présentes
 
-### Ouvrir la fenêtre Cas
+### Ouvrir les cas
 
-Dans un corpus ou un entretien, utilise le bouton global **Cas**, à côté de **Recueils**.
-La fenêtre présente un répertoire à gauche et la fiche du cas choisi à droite.
+Dans **Organiser et exporter**, ouvre l’onglet **Cas**.
+Le panneau occupe toute la largeur, avec un répertoire à gauche et la fiche du cas choisi à droite.
+Depuis un entretien, cet espace masque le texte sans fermer ton travail :
+**Importer et traiter** retrouve l’entretien ouvert, avec l’audio en pause.
+L’ajout d’une sélection reste accessible dans le menu contextuel de l’entretien.
 Tu peux rechercher un cas par son nom ou son mémo.
 
 ### Créer un cas manuel vide
@@ -99,12 +102,25 @@ Les cas individuels comme les collectifs peuvent ensuite recevoir des ajouts man
 3. Coche un ou plusieurs cas existants, ou choisis **Créer un nouveau cas**.
 4. Vérifie les destinations et confirme l’association.
 
+Le dialogue montre seulement le passage et les destinations possibles, pas tout
+le gestionnaire des cas. Après l’ajout, tu restes dans l’entretien avec ta sélection.
+La confirmation propose **Ouvrir le cas…** pour chaque destination ; ce choix est
+facultatif. Après consultation, **Revenir au passage…** retrouve le travail de départ.
+Échap annule sans créer de repère si aucun ajout n’a été confirmé.
+Après un échec, tu peux fermer puis reprendre la tentative avec le même repère,
+ou choisir explicitement **Abandonner la tentative**.
+
 Le passage n’a pas besoin d’être codé ou commenté. Un simple clic sur une annotation
 sans sélection libre ne remplace pas cette sélection.
 
 Tu peux compléter aussi bien un cas manuel qu’un cas créé depuis des personnes ou des entretiens.
 Un nom de cas déjà utilisé est signalé ; l’interface propose alors d’associer le
 passage au cas existant plutôt que de créer un doublon.
+
+Après avoir sélectionné un passage, déplie **Associations du passage** au-dessus
+de la transcription pour retrouver ses cas. Le résumé indique si le lien vient
+d’un ajout manuel, d’une règle automatique ou des deux. Cliquer le nom ouvre le
+cas et conserve un retour vers la sélection.
 
 ### Exemple : les paroles de Marie et les passages sur Marie
 
@@ -120,6 +136,9 @@ Le cas devient enrichi ou « mixte », sans changer de nature ni devoir être co
 
 La fiche permet de modifier le nom et le mémo, de consulter les passages regroupés
 par entretien et de choisir **Voir dans l’entretien** pour retrouver le contexte.
+**Revenir au cas…** retrouve ensuite le cas choisi, ses filtres et sa position de lecture.
+Choisir librement un autre espace ou un autre objet du répertoire termine cette
+chaîne de consultation.
 La provenance distingue **Ajout manuel**, **Règle de personne**, **Règle d’entretien entier** et **Règle de modalité**.
 Le mode du cas est indiqué : **Manuel** ou **Avec règle**. Déplie **Critères automatiques**
 pour voir les membres de la règle et les filtres d’enquêteurs. La modification directe
@@ -245,7 +264,7 @@ Un attribut décrit un cas. Deux origines sont distinguées :
 
 ### Définir et saisir un attribut
 
-Dans la fenêtre **Cas**, choisis **Attributs** pour ouvrir le registre partagé du corpus.
+Dans l’onglet **Cas**, choisis **Attributs** pour ouvrir le registre partagé du corpus.
 Tu peux y créer un attribut de texte libre ou un attribut avec modalités, le renommer,
 modifier son domaine de saisie et le déclarer **privé**. Une modalité encore utilisée
 ne peut pas être retirée. Une définition encore liée à une valeur ou à une recette
@@ -296,7 +315,7 @@ l’ajout d’une recette ; une modification concurrente impose de refaire l’a
 
 ## 3. Export vers QualCoder
 
-Depuis **Corpus → Exporter le corpus**, choisis **Projet QualCoder (.qda)**, les
+Depuis **Organiser et exporter → Exporter le corpus**, choisis **Projet QualCoder (.qda)**, les
 entretiens puis les cas à inclure. Le dossier produit s’ouvre comme un projet
 QualCoder et contient les transcriptions complètes, les passages des cas et les
 attributs disponibles. Les ajouts manuels font partie des matériaux exportés.

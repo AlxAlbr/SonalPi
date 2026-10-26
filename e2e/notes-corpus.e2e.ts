@@ -13,8 +13,8 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   const ordre = await page.locator('.onglets-corpus > button').evaluateAll((boutons) =>
     boutons.map((bouton) => bouton.getAttribute('title')),
   )
-  expect(ordre.slice(0, 7)).toEqual([
-    'Accueil', 'Notes', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Données', 'Journal',
+  expect(ordre).toEqual([
+    'Accueil', 'Notes', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Données',
   ])
 
   await entrerEntretien(page)
@@ -41,12 +41,12 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await modale.getByRole('button', { name: 'Valider' }).click()
   await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note modifiée' })).toBeVisible()
 
-  await page.locator('.onglets-corpus button[data-onglet="journal"]').click()
+  await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
   const entree = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note modifiée' })
   await expect(entree).toBeVisible()
   await entree.locator('.annuler-action').click()
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
+  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
   const ligneRestauree = page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })
   await expect(ligneRestauree).toBeVisible()
 
@@ -57,11 +57,11 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await ligneRestauree.getByRole('button', { name: /Supprimer la note/ }).click()
   await expect(ligneRestauree).toHaveCount(0)
 
-  await page.locator('.onglets-corpus button[data-onglet="journal"]').click()
+  await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
   const suppression = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note supprimée' })
   await expect(suppression).toBeVisible()
   await suppression.locator('.annuler-action').click()
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
+  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
   await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })).toBeVisible()
 
   await page.getByPlaceholder('Titre, corps, catégorie…').fill('Note initiale')

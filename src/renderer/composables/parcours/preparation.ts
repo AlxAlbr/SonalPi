@@ -73,11 +73,11 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
       fait: () => guideDemoPresent(deps.documentsProjet.value),
       texte: () => {
         if (deps.docsCadreOuverts.value) {
-          return 'Ajoutez docs/Guide-entretien-demo.txt depuis les sources de démonstration et vérifiez sa présence dans « Vos Documents ».'
+          return 'Ajoutez docs/Guide-entretien-demo.txt depuis les sources de démonstration et vérifiez sa présence dans « Documents du projet ».'
         }
         return deps.vue.value === 'preparer'
-          ? 'Ouvrez l’onglet « Documents cadre ».'
-          : 'Ouvrez « Préparer et suivre », puis l’onglet « Documents cadre ».'
+          ? 'Ouvrez l’onglet « Documents du projet ».'
+          : 'Ouvrez « Préparer et suivre », puis l’onglet « Documents du projet ».'
       },
       explication: () => 'Ce document devient un document du projet ; les documents exemples restent une catégorie distincte.',
       fini: () => 'Le guide d’entretien fait maintenant partie des documents du projet.',
@@ -131,7 +131,7 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
   return {
     id: 'preparation',
     titre: 'Préparer son terrain',
-    resume: 'Tableau de bord, documents cadre, entretien planifié et note préparatoire.',
+    resume: 'Tableau de bord, documents du projet, entretien planifié et note préparatoire.',
     disponible: () => true,
     etapes,
   }

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
-import EchangesCorrespondances from '../src/renderer/components/corpus/EchangesCorrespondances.vue'
+import EchangesCorrespondances from '../src/renderer/components/traiter/corpus/EchangesCorrespondances.vue'
 import type { SuiviImportCorrespondances } from '../src/shared/corpus/importCorrespondances'
 
 const apps: App[] = []

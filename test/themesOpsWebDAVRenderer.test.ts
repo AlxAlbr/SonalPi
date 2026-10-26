@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, nextTick, ref, type App } from 'vue'
-import ThemesOpsCorpus from '../src/renderer/components/corpus/ThemesOpsCorpus.vue'
+import ThemesOpsCorpus from '../src/renderer/components/traiter/corpus/ThemesOpsCorpus.vue'
 import type { ApercuOperationTheme, SuiviOperationTheme } from '../src/shared/corpus/themes'
 import { FORMAT_VERSION } from '../src/shared/format'
 import { reinitialiserOperationGlobale } from '../src/renderer/operationGlobaleCorpus'

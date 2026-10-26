@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
-import DissociationRegleAnon from '../src/renderer/components/corpus/DissociationRegleAnon.vue'
+import DissociationRegleAnon from '../src/renderer/components/traiter/corpus/DissociationRegleAnon.vue'
 import { inventorierDissociationAnon, type ApercuDissociationAnon, type SuiviDissociationAnon } from '../src/shared/corpus/dissociationAnon'
 import { fixtureDissociationAnon } from './fixtures/dissociationAnon'
 import { tirageAutomatiqueSuspendu } from '../src/renderer/tirageAutomatique'

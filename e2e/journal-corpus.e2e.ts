@@ -31,15 +31,18 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     await personnes.getByLabel('Nom de référence').press('Enter')
     await expect(personnes.getByRole('heading', { name: 'Personne · K. Dupont' })).toBeVisible()
 
-    await onglets.getByRole('button', { name: 'Journal', exact: true }).click()
+    await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()
     const journal = page.locator('.journal-corpus')
     await expect(journal).toBeVisible()
-    await expect(page.locator('.cartes-ent')).toBeVisible()
+    await expect(personnes).toBeVisible()
+    await expect(page.locator('.cartes-ent')).toBeHidden()
     await expect(journal).toContainText('Personne renommée : Karine Dupont → K. Dupont')
     await journal.getByRole('button', { name: 'Annuler : Personne renommée' }).click()
     await expect(journal).toContainText('Aucune action enregistrée.')
 
-    await onglets.getByRole('button', { name: 'Personnes', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Annuler une modification de personnes' })).toHaveCount(0)
+    await expect(personnes.getByRole('button', { name: 'Annuler une modification…' })).toBeFocused()
     await expect(personnes.getByRole('heading', { name: 'Personne · Karine Dupont' })).toBeVisible()
     await personnes.getByRole('button', { name: 'Mme Dupont', exact: true }).click()
     const personneId = await page.evaluate(async () => (await (window as any).sonal.corpus.personnesInventaire()).personnes[0].id)
@@ -48,12 +51,12 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     await personnes.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(personnes).toHaveAttribute('aria-busy', 'false')
 
-    await onglets.getByRole('button', { name: 'Journal', exact: true }).click()
+    await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()
     await expect(journal).toContainText('Locuteur associé à Karine Dupont')
     await journal.getByRole('button', { name: 'Annuler : Locuteur associé' }).click()
     await expect(journal).toContainText('Aucune action enregistrée.')
 
-    await onglets.getByRole('button', { name: 'Personnes', exact: true }).click()
+    await page.getByRole('button', { name: 'Fermer', exact: true }).click()
     await expect(personnes.getByRole('button', { name: 'Mme Dupont', exact: true })).toBeVisible()
     await personnes.locator('.repertoire').getByRole('button', { name: /Karine Dupont/ }).click()
     await personnes.getByLabel('Nom de référence').fill('Karine Journal')
@@ -62,23 +65,27 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
       await (window as any).sonal.corpus.personnesCommander({ type: 'modifier', personneId: id, nom: 'Modification extérieure' })
     }, personneId)
 
-    await onglets.getByRole('button', { name: 'Journal', exact: true }).click()
+    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
     await expect(journal.getByRole('button', { name: 'Annuler : Personne renommée' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Fermer', exact: true }).click()
+    await onglets.getByRole('button', { name: 'Accueil', exact: true }).click()
     await entrerEntretien(page)
     // Retour au corpus par le fil d'Ariane (la barre d'actions de l'entretien
     // n'a plus de bouton « ← Corpus »).
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
     await expect(journal).toBeVisible()
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
 
+    await page.getByRole('button', { name: 'Fermer', exact: true }).click()
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
     }, autreCorpus)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
     await page.locator('.carte-demo.ouvrir-corpus').click()
     await attendreCorpus(page)
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Journal', exact: true }).click()
+    await page.getByRole('button', { name: 'Historique des actions…', exact: true }).click()
     await expect(page.locator('.journal-corpus')).toContainText('Aucune action enregistrée.')
   } finally {
     await app.close()

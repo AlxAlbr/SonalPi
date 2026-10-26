@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirOrganisation } from './util'
 import {
   casModalite,
   corpusFamille,
@@ -58,8 +58,8 @@ test('attributs saisis et dérivés : confidentialité, suspension familiale et 
     app = await lancer(dir)
     page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.locator('.btn-cas').click()
-    const modale = page.locator('.modale-cas')
+    await ouvrirOrganisation(page)
+    const modale = page.locator('#contenu-cas-organisation')
 
     await modale.locator('.tete-repertoire').getByRole('button', { name: 'Attributs', exact: true }).click()
     const registre = modale.locator('.definitions-attributs')

@@ -2,13 +2,14 @@
 import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import AccueilPreparation from './AccueilPreparation.vue'
-import PanneauTableauBord from '../corpus/PanneauTableauBord.vue'
-import TableauBord from '../corpus/TableauBord.vue'
-import DocsCadreCote from '../corpus/DocsCadreCote.vue'
-import DocsCadrePanneau from '../corpus/DocsCadrePanneau.vue'
+import PanneauTableauBord from './tableau-bord/PanneauTableauBord.vue'
+import TableauBord from './tableau-bord/TableauBord.vue'
+import DocsCadreCote from './documents-cadre/DocsCadreCote.vue'
+import DocsCadrePanneau from './documents-cadre/DocsCadrePanneau.vue'
 import icoMaison from '../../assets/icones/maison.png'
 import icoCalendrier from '../../assets/icones/calendrier.png'
 import icoDocuments from '../../assets/icones/documents.png'
+import icoExemples from '../../assets/icones/exemples.svg'
 
 // Les onglets et leurs commandes sont à gauche, le contenu de travail à droite.
 // Les panneaux restent montés pour conserver les brouillons entre deux onglets.
@@ -18,19 +19,23 @@ const {
   afficherAccueilPreparation,
   afficherTableauBord,
   afficherDocsCadre,
+  afficherDocumentsExemples,
   estDistant,
   gesteDisponible,
   deposerFichiers,
 } = utiliserSonal()
 
-/** Un fournisseur peut ne pas proposer les documents cadre (GitLab). */
+/** Un fournisseur peut ne pas proposer les documents du projet (GitLab). */
 const docsDisponibles = computed(() => gesteDisponible('docsCadre'))
 const surAccueil = computed(() => sousEspacePreparation.value === 'accueil')
-const surDocs = computed(
+const surDocsProjet = computed(
   () => sousEspacePreparation.value === 'docs-cadre' && docsDisponibles.value,
 )
-/* Sans documents cadre, « Tableau de bord » reste l'onglet de repli. */
-const surTableau = computed(() => !surAccueil.value && !surDocs.value)
+const surDocumentsExemples = computed(
+  () => sousEspacePreparation.value === 'documents-exemples',
+)
+/* Sans documents du projet, « Tableau de bord » reste l'onglet de repli. */
+const surTableau = computed(() => !surAccueil.value && !surDocsProjet.value && !surDocumentsExemples.value)
 
 /* Le dépôt de documents est réservé à l'onglet actif d'un corpus local. */
 const survolDepot = ref(false)
@@ -114,17 +119,29 @@ async function surDepot(event: DragEvent): Promise<void> {
           v-if="docsDisponibles"
           class="onglet"
           data-tour="ouvrir-docs-cadre"
-          :class="{ actif: surDocs }"
-          :aria-current="surDocs ? 'page' : undefined"
-          title="Documents cadre"
-          aria-label="Documents cadre"
+          :class="{ actif: surDocsProjet }"
+          :aria-current="surDocsProjet ? 'page' : undefined"
+          title="Documents du projet"
+          aria-label="Documents du projet"
           @click="afficherDocsCadre()"
         ><img class="ico-onglet" :src="icoDocuments" alt="" /></button>
+        <button
+          class="onglet"
+          data-tour="ouvrir-documents-exemples"
+          :class="{ actif: surDocumentsExemples }"
+          :aria-current="surDocumentsExemples ? 'page' : undefined"
+          title="Documents exemples"
+          aria-label="Documents exemples"
+          @click="afficherDocumentsExemples()"
+        ><img class="ico-onglet" :src="icoExemples" alt="" /></button>
       </nav>
       <div class="cote-corps">
         <AccueilPreparation v-show="surAccueil" />
         <PanneauTableauBord v-show="surTableau" />
-        <DocsCadreCote v-show="surDocs" />
+        <DocsCadreCote
+          v-show="surDocsProjet || surDocumentsExemples"
+          :source="surDocumentsExemples ? 'exemple' : 'projet'"
+        />
       </div>
     </aside>
 
@@ -135,9 +152,9 @@ async function surDepot(event: DragEvent): Promise<void> {
         <div data-tour="ancre-guide-tableau"></div>
         <TableauBord />
       </div>
-      <div v-show="surDocs" class="outil-preparation">
-        <div data-tour="ancre-guide-docs-cadre"></div>
-        <DocsCadrePanneau />
+      <div v-show="surDocsProjet || surDocumentsExemples" class="outil-preparation">
+        <div v-show="surDocsProjet" data-tour="ancre-guide-docs-cadre"></div>
+        <DocsCadrePanneau :source="surDocumentsExemples ? 'exemple' : 'projet'" />
       </div>
     </section>
 

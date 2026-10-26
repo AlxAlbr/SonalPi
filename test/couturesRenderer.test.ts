@@ -68,6 +68,26 @@ describe('rétrogradation visible du renderer', () => {
   })
 })
 
+describe('préparation d’un changement de source', () => {
+  test.each([
+    { lectureSeule: true, verrouAutrui: false },
+    { lectureSeule: false, verrouAutrui: true },
+  ])('une source consultée sans droit d’écriture ne déclenche pas de sauvegarde : %o', async (acces) => {
+    const vider = vi.fn(async () => {})
+    await preparerFermetureEntretien({
+      distant: true, degrade: false, ...acces,
+      annulerSauvegarde: vi.fn(), viderSauvegarde: vider,
+    })
+    expect(vider).not.toHaveBeenCalled()
+  })
+  test('une sauvegarde refusée interrompt la préparation du changement', async () => {
+    await expect(preparerFermetureEntretien({
+      distant: false, degrade: false, lectureSeule: false, verrouAutrui: false,
+      annulerSauvegarde: vi.fn(), viderSauvegarde: async () => { throw new Error('Enregistrement refusé') },
+    })).rejects.toThrow('Enregistrement refusé')
+  })
+})
+
 describe('sélection d’une transcription SRT', () => {
   test('une annulation du sélecteur ne lance aucune IPC mutante', async () => {
     const choisir = vi.fn(async () => null)

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { utiliserSonal } from '../../composables/sonal'
-import SyntheseCote from '../synthese/SyntheseCote.vue'
-import SynthesePanneau from '../synthese/SynthesePanneau.vue'
-import LexicoCote from '../lexico/LexicoCote.vue'
-import LexicoPanneau from '../lexico/LexicoPanneau.vue'
-import AnalysesCote from '../analyses/AnalysesCote.vue'
-import AnalysesPanneau from '../analyses/AnalysesPanneau.vue'
+import SyntheseCote from './synthese/SyntheseCote.vue'
+import SynthesePanneau from './synthese/SynthesePanneau.vue'
+import LexicoCote from './lexico/LexicoCote.vue'
+import LexicoPanneau from './lexico/LexicoPanneau.vue'
+import AnalysesCote from './analyses-croisees/AnalysesCote.vue'
+import AnalysesPanneau from './analyses-croisees/AnalysesPanneau.vue'
 
 // Espace « Analyser et interpréter » : onglets des trois outils en haut.
 // Les filtres de l'outil actif suivent dessous, les résultats restent à droite.

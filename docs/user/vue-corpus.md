@@ -1,9 +1,9 @@
 # Vue Corpus
 
-La barre supérieure propose trois espaces de travail :
+La barre supérieure propose quatre espaces de travail :
 
-- **Préparer et suivre** réunit l’**Accueil**, le **Tableau de bord** et les
-  **Documents cadre** du projet. Ses onglets à icônes occupent la colonne de
+- **Préparer et suivre** réunit l’**Accueil**, le **Tableau de bord**, les
+  **Documents du projet** et les **Documents exemples**. Ses onglets à icônes occupent la colonne de
   gauche ; le contenu de travail reste à droite. L’Accueil présente les autres
   onglets et garde le tableau de bord sous les yeux. Dans le Tableau de bord, les
   colonnes, lignes et badges se créent à gauche et la grille s’édite à droite.
@@ -17,14 +17,29 @@ La barre supérieure propose trois espaces de travail :
   les filtres de l’outil actif dessous ; les résultats restent à droite.
   **Masquer les filtres** réduit la colonne à ses onglets. Chaque onglet garde
   ses critères, ses résultats et ses réglages d’affichage quand on le quitte.
+  Dans Synthèse et Lexico, les critères **Cas** apparaissent seulement si le
+  corpus contient un cas, même vide. Leur apparition ne sélectionne rien.
+  Si un filtre utilise des cas supprimés, un avertissement le garde visible et
+  propose de le retirer explicitement ; l’analyse n’est pas élargie en silence.
 
-Les boutons **Recueils** et **Cas** ouvrent encore leur fenêtre par-dessus le
-traitement.
-On passe librement d’un espace à l’autre : consulter la préparation ou une
-analyse ne ferme pas l’entretien ouvert, et **Importer et traiter** le retrouve
-tel qu’il a été laissé. Les deux espaces à onglets reprennent le dernier onglet
-visité, y compris après une ouverture dans l’entretien ; **Préparer et suivre**
-s’ouvre d’abord sur son Accueil.
+- **Organiser et exporter** réunit les **Cas**, les **Recueils** et
+  **Exporter le corpus**. Cas rassemble les matériaux d’une unité étudiée ;
+  Recueils compose des documents à partir de citations et de textes de liaison.
+  L’entrée d’export donne accès aux formats et choix habituels, dont QualCoder.
+
+On passe librement d’un espace à l’autre sans fermer l’entretien ouvert.
+**Importer et traiter** retrouve le travail tel qu’il a été laissé ; l’audio
+reste en pause. Les autres espaces reprennent leur dernier onglet visité.
+**Préparer et suivre** s’ouvre d’abord sur son Accueil et **Organiser et exporter**
+sur Cas. Fermer réellement un entretien reste une action distincte.
+
+Après **Voir dans l’entretien** depuis un cas, un recueil ou une analyse, une
+commande **Revenir à…** retrouve le travail précédent : objet, filtres, tri et
+position de lecture. Plusieurs consultations liées peuvent s’enchaîner ; le
+retour les reprend dans l’ordre inverse. Choisir librement un espace ou un autre
+objet du répertoire termine cette chaîne. Un changement de corpus l’efface.
+Le retour ne relance jamais l’audio et ne recalcule pas automatiquement une analyse.
+Si son résultat est périmé, son avertissement reste affiché.
 
 La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne accès à :
 
@@ -32,20 +47,52 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 - **Personnes**, pour relier les locuteurs d’entretiens différents ;
 - **Pseudonymisation**, pour contrôler et appliquer les règles partagées ;
 - **Thèmes**, pour consulter le codebook et réorganiser ses codages ;
-- **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
-- **Journal**, pour annuler les actions récentes prises en charge dans le corpus.
+- **Données**, pour consulter et saisir les variables de l’ensemble du corpus.
 
-Lorsque la découverte pas à pas est active, une fenêtre permet de choisir entre **Préparer son terrain** et **Traiter ses entretiens**. Le premier accompagne le tableau de bord, les documents cadre, la création d’un entretien planifié et sa note préparatoire. Le second reprend les six étapes d’import, de documentation, de transcription et de codage. Chaque parcours conserve sa propre progression et peut être commencé dans n’importe quel ordre. **Analyse** est annoncé comme « à venir », sans action inactive présentée comme utilisable.
+Au bas de l’Accueil, **Ouvrir les cas** et **Ouvrir les recueils** mènent directement
+à ces outils dans **Organiser et exporter**.
+
+Lorsque la découverte pas à pas est active, une fenêtre permet de choisir entre **Préparer son terrain** et **Traiter ses entretiens**. Le premier accompagne le tableau de bord, les documents du projet, la création d’un entretien planifié et sa note préparatoire. Le second reprend les six étapes d’import, de documentation, de transcription et de codage. Chaque parcours conserve sa propre progression et peut être commencé dans n’importe quel ordre. **Analyse** est annoncé comme « à venir », sans action inactive présentée comme utilisable.
 
 Après le choix, la fenêtre se ferme et l’Accueil retrouve la disposition d’un corpus ordinaire. Un bandeau compact indique le parcours retenu et propose **Continuer** ou **Revoir**, ainsi que **Voir les étapes de ce parcours — ou changer de parcours**. Une nouvelle découverte ouvre le choix sans lancer d’étape automatiquement. Une ouverture par **Récents** ne rouvre pas la fenêtre : elle restaure le dernier parcours choisi dans le bandeau, sans relancer son guidage. **Ctrl + F** reste disponible.
 
 La recherche dans le texte de tous les entretiens reste accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
-Les **Documents cadre** de l’espace **Préparer et suivre** forment l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
+Les onglets **Documents du projet** et **Documents exemples** de l’espace **Préparer et suivre** séparent les fichiers propres au corpus des modèles fournis avec SonalPi (voir [docs-cadre.md](docs-cadre.md)).
 
-Les cartes d’entretiens restent visibles dans Accueil et Journal. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+Les cartes d’entretiens restent visibles dans Accueil et Recherche. Un clic sur une carte affiche ses métadonnées à gauche. Dans Thèmes, un atelier remplace les cartes à droite du codebook. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
-Dans un entretien du parcours, l’Accueil nomme le parcours actif, rappelle sa progression et propose soit de revoir ce parcours, soit de revenir au catalogue. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées. Dans le Tableau de bord et les Documents cadre, la consigne se place également dans le panneau de travail.
+Dans un entretien du parcours, l’Accueil nomme le parcours actif, rappelle sa progression et propose soit de revoir ce parcours, soit de revenir au catalogue. La consigne active reste placée sous la barre d’onglets, quel que soit l’outil affiché ; ses explications complémentaires peuvent être dépliées. Dans le Tableau de bord et les Documents du projet, la consigne se place également dans le panneau de travail.
+
+## Ajouter un passage à un cas ou à un recueil
+
+Dans l’entretien, sélectionnez le passage puis ouvrez son menu contextuel.
+**Associer à un cas…** et **Ajouter au recueil…** ouvrent chacun un dialogue
+limité au passage et aux destinations possibles. Vous pouvez créer un cas manuel
+ou un recueil simple ; pour un recueil existant, choisissez aussi l’emplacement.
+
+Confirmer ajoute une référence, sans copier le texte ni quitter l’entretien.
+La confirmation propose d’ouvrir la destination, uniquement si vous le souhaitez.
+**Revenir au passage…** retrouve ensuite la sélection de départ.
+Annuler ou appuyer sur Échap avant confirmation n’ajoute rien.
+Après une erreur, **Réessayer** reprend la tentative sans doublon ; un recueil
+déjà créé reste disponible si vous abandonnez l’ajout du passage.
+
+## Voir où un passage est utilisé
+
+Lorsque vous sélectionnez du texte, le volet **Associations du passage** apparaît
+au-dessus de la transcription. Il reste replié pour ne pas encombrer la lecture.
+Dépliez-le pour voir les cas et recueils qui couvrent exactement la sélection,
+l’englobent ou la chevauchent.
+
+Pour un cas, le résumé distingue **Ajout manuel** et **Inclus automatiquement**,
+avec la règle concernée. Pour un recueil, le nom n’est affiché qu’une fois. Si le
+même passage y figure à plusieurs endroits, choisissez l’occurrence à ouvrir.
+Le retour **Revenir au passage…** restaure ensuite l’entretien et la sélection.
+
+Un message de vérification incomplète signifie qu’une référence ou une règle n’a
+pas pu être contrôlée. Dans ce cas, l’absence de résultat ne signifie pas qu’il
+n’existe aucune association. La consultation reste disponible en lecture seule.
 
 ## Chargement et actualisation
 
@@ -173,16 +220,21 @@ Seul **Confirmer** applique l’association et la reprise proposée. **Plus tard
 
 ## Cas
 
-Le bouton global **Cas**, à côté de **Recueils**, ouvre les dossiers analytiques.
+L’onglet **Cas**, dans **Organiser et exporter**, ouvre les dossiers analytiques.
+Il reste accessible depuis un entretien sans fermer celui-ci.
+La recherche, le cas choisi et les réglages restent conservés pendant les changements d’onglet ou d’espace, puis sont effacés au changement de corpus.
 Ils rassemblent les interventions de personnes, des entretiens entiers et/ou des ajouts manuels,
 sans les copier hors de leurs entretiens. Une personne du répertoire et un cas restent
 deux objets distincts.
 
 Le guide [Utiliser les cas](cas.md) décrit la création individuelle ou en lot, les cas
-collectifs et les vues des matériaux. Il distingue les évolutions encore prévues :
-familles, attributs et export QualCoder.
+collectifs, les familles, les attributs et les vues des matériaux.
 
-## Journal
+## Historique des actions
+
+La commande **Historique des actions…**, sous les onglets du corpus, ouvre le journal en dialogue sans changer d’onglet. Dans **Personnes**, **Annuler une modification…** affiche uniquement les actions récentes de Personnes, jamais celles de Notes. Choisissez l’action à annuler grâce à son libellé ; les actions devenues incompatibles restent désactivées.
+
+Le journal propre à l’entretien conserve son onglet et son fonctionnement.
 
 Le Journal du corpus conserve en mémoire jusqu’aux dix dernières actions annulables prises en charge pendant la session. Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Le Journal survit aux changements d’onglet et à un aller-retour dans un entretien, mais il est vidé au changement de corpus et au redémarrage de l’application.
 
