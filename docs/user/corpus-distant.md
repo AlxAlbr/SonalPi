@@ -101,19 +101,29 @@ collaborateur configure donc son propre accès au même dossier depuis le bouton
 « Médias… » de l’accueil GitLab. Cette configuration peut aussi être ajoutée après la
 création. Git LFS n’est pas nécessaire.
 
-## Préparer la migration d’un corpus SonalPi1 GitLab
+## Migrer un corpus SonalPi1 GitLab
 
 Une carte distincte se trouve dans **« Migration SonalPi1 vers SonalPi2 »** à
-l’accueil. Elle permet actuellement de lire la source et de préparer un bilan
-vers un nouveau dépôt, avec choix de l’emplacement futur des médias.
-**La migration n’est pas encore activée : le bilan ne copie ni ne publie rien.**
-La copie, la reprise après arrêt et la réouverture sont implémentées, mais attendent
-leur vérification sur serveur réel et sur un profil neuf. Les actions restent
-indisponibles jusque-là. Après activation, les médias seront copiés dans le nouveau
-dépôt GitLab ou dans l’espace externe choisi, sans supprimer les originaux.
-Voir [migration-v1.md](migration-v1.md) pour le parcours disponible et ses limites.
-Cette préparation accepte un dépôt sans branche ; elle ne change pas les
-conditions de création et d’ouverture des corpus GitLab décrites ci-dessus.
+l’accueil. Elle prépare un bilan, puis migre le corpus après votre confirmation
+vers un **autre dépôt vierge**. Les médias sont réellement copiés dans le nouveau
+dépôt GitLab ou dans l’espace Nextcloud/WebDAV choisi, sans supprimer les originaux.
+Les résultats anciens et documents supplémentaires non convertis sont conservés
+sous **`Autres/` dans le nouveau dépôt GitLab**, même lorsque les médias vont dans
+un espace externe. Leur nombre et les éventuels éléments non repris sont signalés
+avant confirmation ; les listes restent dans **« Voir les détails »**. Un ancien
+résultat Lexico est conservé comme fichier, pas réimporté comme analyse utilisable.
+Un arrêt conserve les copies acquises : la carte propose **« Vérifier et reprendre »**
+sur le même poste et avec le même profil.
+
+Le nouveau corpus s’ouvre automatiquement et s’ajoute aux récents. Sur un autre
+profil, les médias du dépôt sont retrouvés avec les accès GitLab ; l’espace externe
+demande sa propre configuration depuis **« Médias… »**. La lecture vidéo depuis
+cet espace externe n’est pas encore disponible ; choisissez la copie dans GitLab
+pour lire les vidéos dans l’application, selon les formats pris en charge.
+
+Voir [migration-v1.md](migration-v1.md) pour le parcours et ses limites.
+La migration accepte un dépôt entièrement vide et le prépare automatiquement ;
+elle ne change pas les conditions de création et d’ouverture ordinaires décrites ci-dessus.
 
 ## Opérations portant sur tout un corpus GitLab
 

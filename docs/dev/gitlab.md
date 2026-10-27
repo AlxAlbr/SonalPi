@@ -4,12 +4,19 @@
 bail versionné, reprise locale et transferts LFS streamés qualifiés sur le banc Docker.**
 **La CI et le quota LFS institutionnels restent à qualifier.**
 
-**Migration SonalPi1 GitLab : parcours implémenté, préparation disponible, envoi et reprise désactivés.**
-Conversion privée, copies, publication, suivi durable, annulation et réouverture sont
-raccordés et testés sur transports simulés ; la qualification réelle reste à faire.
-Les raccordements et leurs limites sont décrits dans
-[migration-gitlab-v1.md](migration-gitlab-v1.md). Les qualifications historiques
-ci-dessous ne valent pas qualification de ce nouveau parcours.
+**Migration SonalPi1 GitLab : qualifiée sur le banc réel et activée le 27 octobre 2026.**
+Huit scénarios Electron réels couvrent GitLab/LFS, Nextcloud/WebDAV, profil neuf,
+lecture audio et vidéo du dépôt, arrêts SIGKILL, réponse perdue et publication fractionnée.
+La vidéo WebDAV reste non lisible à distance, sans empêcher sa copie ; cette limite
+est affichée au bilan. Les raccordements sont décrits dans
+[migration-gitlab-v1.md](migration-gitlab-v1.md) et les preuves propres au parcours dans
+[migration-gitlab-v1-qualification.md](migration-gitlab-v1-qualification.md).
+Les documents non convertis sont désormais conservés sous `Autres/` dans le dépôt,
+avec bilan commun concis et reprise des copies dans le suivi existant ;
+voir [conservation et nouvelle vérification](migration-conservation.md).
+Le projet de migration est clôturé avec accord utilisateur le 27 octobre 2026 ;
+son [plan terminé](../../plans/termines/migration_sonalpi1_sonalpi2_local_gitlab.md)
+conserve l’historique. Les qualifications historiques ci-dessous restent distinctes.
 
 Le [plan directeur](../../plans/encours/plan-gitlab3.md) fixe la cible : miroir
 commun, édition exclusive, publications conditionnelles, médias selon les

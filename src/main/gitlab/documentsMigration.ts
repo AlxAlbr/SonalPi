@@ -2,8 +2,12 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BilanMigrationGitLab, ConversionEntretienMigrationGitLab } from '../../shared/corpus/migrationGitLab'
 import { mapperDefinitions, mapperEntretiensV1, mapperParamsAnon, mapperTabAnon } from '../../shared/corpus/migrationCrp'
+import { estDestinationAutreMigration } from '../../shared/corpus/conservationMigration'
 import { referenceMediaDistant, type ReferenceMediaDistant } from '../../shared/format'
 import { CorpusStore } from '../corpusStore'
+import { aplatir } from '../../shared/entretien/anon/anonymisation'
+import { parserAliases, regleEnCollisionAlias } from '../../shared/entretien/anon/alias'
+import { textePlage } from '../../shared/entretien/anon/classification'
 import { pointeurLfsGitLab } from './lfs'
 import type { ActionPlanGitLab } from './publication'
 
@@ -54,9 +58,25 @@ export class DocumentsMigrationGitLab {
         this.bilan.destinationMedia === 'depot' ? 'gitlab' : 'webdav')
     }
     payload.meta.sourceV1 = { rtrPath: mapperEntretiensV1(this.bilan.apercu.raw.tabEnt)[index]?.rtrPath ?? null }
-    const resultat = this.store.importerEntretien(entretien.titre, payload, [], [], conversion.reglesAnon)
-    this.ids.push(resultat.id)
-    return resultat.id
+    const plan = this.store.preparerImportEntretien(entretien.titre, payload, conversion.codebook ?? [], conversion.variables ?? [], conversion.reglesAnon)
+    const regles = Object.values(plan.corpusApres.reglesAnon)
+    const plat = aplatir(payload.corpsTexte)
+    // La fusion conserve les règles existantes, pas les identifiants temporaires de l'import.
+    for (const annotation of plan.entretien.annotations) {
+      if (annotation.type !== 'anon' || !annotation.regle) continue
+      const source = conversion.reglesAnon.find((r) => r.id === annotation.regle)
+      if (!source) throw new Error('La règle d’une décision importée est introuvable.')
+      const correspondances = new Set(source.entite.flatMap(parserAliases)
+        .map((alias) => regleEnCollisionAlias(alias, regles)?.id).filter((id): id is string => !!id))
+      const correspondanceTexte = regleEnCollisionAlias(textePlage(plat, annotation.from, annotation.to), regles)?.id
+      const cible = correspondances.size === 1 ? [...correspondances][0]
+        : correspondanceTexte && correspondances.has(correspondanceTexte) ? correspondanceTexte : undefined
+      if (!cible) throw new Error('Une décision importée ne peut pas être rattachée aux règles du corpus.')
+      annotation.regle = cible
+    }
+    this.store.appliquerTransactionFichiers(plan)
+    this.ids.push(plan.id)
+    return plan.id
   }
 
   /** Rend les créations seulement lorsque tous les médias ont été confirmés. */
@@ -84,6 +104,15 @@ export class DocumentsMigrationGitLab {
       }
       for (const media of this.bilan.medias) {
         yield { action: 'create', chemin: media.cheminDestination, contenu: pointeurLfsGitLab(media) }
+      }
+    }
+    const autres = this.bilan.conservation?.autres ?? []
+    if (autres.length) {
+      yield { action: 'create', chemin: 'Autres/.gitattributes',
+        contenu: '**/* filter=lfs diff=lfs merge=lfs -text\n.gitattributes -filter -diff -merge text\n' }
+      for (const fichier of autres) {
+        if (!estDestinationAutreMigration(fichier.cheminDestination)) throw new Error('Chemin documentaire invalide.')
+        yield { action: 'create', chemin: fichier.cheminDestination, contenu: pointeurLfsGitLab(fichier) }
       }
     }
     for (const id of this.ids) {

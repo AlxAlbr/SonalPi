@@ -50,6 +50,8 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(conversion.payload.pseudosDeclares).toEqual(importCommun.payload.pseudosDeclares)
     expect(conversion.payload.definitionsAnonLocales).toEqual(importCommun.payload.definitionsAnonLocales)
     expect(conversion.payload.legacy).toEqual(importCommun.legacy)
+    expect(conversion.codebook).toEqual(importCommun.codebook)
+    expect(conversion.variables).toEqual(importCommun.variables)
     expect(conversion.payload.meta.audioRef).toBeNull()
   })
 
@@ -75,6 +77,8 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.legacy).toEqual(conversion.payload.legacy)
     const corpus = JSON.parse(documents.find((d) => d.chemin === 'corpus.json')!.contenu)
     expect(corpus.ordreEntretiens).toEqual([id])
+    for (const definition of conversion.codebook ?? []) expect(corpus.codebook[definition.id]).toBeDefined()
+    for (const definition of conversion.variables ?? []) expect(corpus.variables[definition.id]).toBeDefined()
     for (const annotation of entretien.annotations) {
       if (annotation.type === 'anon' && annotation.regle) expect(corpus.reglesAnon[annotation.regle]).toBeDefined()
     }
@@ -102,6 +106,56 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.annotations[0].pseudo).toBe('Claire')
     const corpus = JSON.parse(documents.at(-1)!.contenu)
     expect(corpus.reglesAnon['reg-crp-1'].pseudos).toEqual(['Autre'])
+  })
+
+  it('rattache les décisions aux règles conservées après fusion partielle et import répété, sans changer les pseudos', () => {
+    const a = analyserCrp(JSON.stringify({ tabAnon: [{ entite: 'Karine', remplacement: 'Autre' }],
+      tabEnt: [{ id: 1, nom: 'Premier' }, { id: 2, nom: 'Second' }],
+    }), 'terrain.crp')
+    if (!a.ok) throw new Error(a.message)
+    const preparation = new DocumentsMigrationGitLab(dossier(), { ...bilan, apercu: a.apercu, medias: [],
+      entretiens: [{ titre: 'Premier', cheminSonal: null, media: null }, { titre: 'Second', cheminSonal: null, media: null }],
+    })
+    const conversions = [0, 1].map((index) => {
+      const conversion = convertirEntretienMigrationGitLab(null, parseur)
+      conversion.reglesAnon = [{ id: `temporaire-${index}`, entite: ['Karine', 'Alias libre'], pseudos: ['Claire'] }]
+      conversion.payload.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Karine Alias libre' }] }] }
+      conversion.payload.annotations = [
+        { id: 'a', type: 'anon', from: 1, to: 7, etat: 'anonymise', pseudo: 'Claire', auteur: 'test', regle: `temporaire-${index}` },
+        { id: 'b', type: 'anon', from: 8, to: 19, etat: 'exception', pseudo: 'Claire', auteur: 'test', regle: `temporaire-${index}` },
+      ]
+      return conversion
+    })
+    const avant = JSON.stringify(conversions)
+    conversions.forEach((conversion, index) => preparation.ajouter(index, conversion))
+    const documents = [...preparation.documents([])]
+    const corpus = JSON.parse(documents.at(-1)!.contenu)
+    expect(Object.keys(corpus.reglesAnon)).toHaveLength(2)
+    for (const d of documents.filter((d) => d.chemin.startsWith('entretiens/'))) {
+      const entretien = JSON.parse(d.contenu) as EntretienFichier
+      expect(entretien.annotations.map((a) => a.regle)).toEqual(['reg-crp-1', 'temporaire-0'])
+      expect(entretien.annotations.map((a) => a.pseudo)).toEqual(['Claire', 'Claire'])
+      expect(entretien.annotations[1].etat).toBe('exception')
+    }
+    expect(JSON.stringify(conversions)).toBe(avant)
+  })
+
+  it('ne rattache pas un fragment d’annotation à une autre entité ayant le même texte court', () => {
+    const a = analyserCrp(JSON.stringify({ tabAnon: [
+      { entite: 'Karine', remplacement: 'Claire' }, { entite: 'Kar', remplacement: 'Autre' },
+    ], tabEnt: [{ id: 1, nom: 'Premier' }] }), 'terrain.crp')
+    if (!a.ok) throw new Error(a.message)
+    const preparation = new DocumentsMigrationGitLab(dossier(), { ...bilan, apercu: a.apercu, medias: [],
+      entretiens: [{ titre: 'Premier', cheminSonal: null, media: null }],
+    })
+    const conversion = convertirEntretienMigrationGitLab(null, parseur)
+    conversion.reglesAnon = [{ id: 'temporaire', entite: ['Karine'], pseudos: ['Claire'] }]
+    conversion.payload.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Karine' }] }] }
+    conversion.payload.annotations = [{ id: 'a', type: 'anon', from: 1, to: 4, etat: 'anonymise', pseudo: 'Claire', auteur: 'test', regle: 'temporaire' }]
+    preparation.ajouter(0, conversion)
+    const entretien = JSON.parse([...preparation.documents([])].find((d) => d.chemin.startsWith('entretiens/'))!.contenu)
+    expect(entretien.annotations[0].regle).toBe('reg-crp-1')
+    expect(entretien.annotations[0].pseudo).toBe('Claire')
   })
 
   it('refuse une publication avec conversion ou copies incomplètes', () => {

@@ -17,7 +17,7 @@ import { identifierFichierGitLab } from './lfs'
 import { OperationMigrationGitLab, initialiserSuiviMigration, type EnvironnementOperationMigration, type InstantaneCibleMigration } from './operationMigration'
 import { PreparateurMigrationGitLab, inventorierDepotMigration } from './preparationMigration'
 import { SuiviDurableMigrationGitLab, operationMigrationSaine, type EtatMigrationGitLab } from './suiviMigration'
-import { TransfertGitLab } from './transfert'
+import { installerFluxGitLab, TransfertGitLab } from './transfert'
 import { ErreurGitLab } from './client'
 
 export interface OptionsMigrationGitLab {
@@ -27,7 +27,7 @@ export interface OptionsMigrationGitLab {
   identite: { machineId: string; sessionId: string }
   ouvrir(demande: DemandeOuvertureGitLab, signal?: AbortSignal): Promise<OuvertureDistante>
   progression?: (progression: ProgressionMigrationGitLab) => void
-  /** Réservé aux tests isolés ; l'application attend sa qualification réelle. */
+  /** Permet aux tests isolés de vérifier aussi le refus d'envoi. */
   autoriserEnvoi?: boolean
 }
 
@@ -82,7 +82,8 @@ export class ServiceMigrationGitLab {
       const etat = new SuiviDurableMigrationGitLab(this.dossier(id)).lire()
       if (etat && etat.operationId !== id) throw new Error('Le suivi de migration appartient à une autre opération. Aucun envoi autorisé.')
       return etat ? [{ operationId: id, bilan: etat.bilan, phase: etat.phase,
-        mediasConfirmes: etat.mediasConfirmes.length, publicationsConfirmees: etat.prochainLot, publicationsTotal: etat.lots.length }] : []
+        mediasConfirmes: etat.mediasConfirmes.length, autresConfirmes: etat.autresConfirmes?.length ?? 0,
+        publicationsConfirmees: etat.prochainLot, publicationsTotal: etat.lots.length }] : []
     })
   }
 
@@ -163,17 +164,21 @@ export class ServiceMigrationGitLab {
     if (compte.urlInstance !== cible.urlInstance || compte.utilisateur !== cible.utilisateur) throw new Error('Le compte de destination a changé. Aucun envoi autorisé.')
     const client = await this.options.authentification.client(cible.compteId, cible.projetId)
     const source = { telechargerFichier: async (chemin: string, fichier: string, surProgression?: (octets: number, total: number | null) => void) => {
-      const media = etat.bilan.medias.find((m) => m.cheminSource === chemin)
-      if (!media) throw new Error('Ce média ne figure pas dans la source préparée.')
+      const media = [...etat.bilan.medias, ...(etat.bilan.conservation?.autres ?? [])].find((m) => m.cheminSource === chemin)
+      if (!media) throw new Error('Ce fichier ne figure pas dans la source préparée.')
       if (media.stockageSource === 'lfs') {
         await (await this.options.authentification.clientLfs(etat.bilan.source.compteId, etat.bilan.source.projetId))
           .telechargerObjet(media, fichier, surProgression)
       } else {
         const clientSource = await this.options.authentification.client(etat.bilan.source.compteId, etat.bilan.source.projetId)
-        await new TransfertGitLab(clientSource, async () => etat.bilan.commitSource).telechargerFichier(chemin, fichier, surProgression)
+        if (etat.bilan.conservation?.autres.some((f) => f.cheminSource === chemin)) {
+          const reponse = await clientSource.lireFlux(clientSource.cheminProjet(`/repository/files/${encodeURIComponent(chemin)}/raw`), { ref: etat.bilan.commitSource, lfs: 'false' })
+          await installerFluxGitLab(reponse, fichier, media, surProgression)
+        } else await new TransfertGitLab(clientSource, async () => etat.bilan.commitSource).telechargerFichier(chemin, fichier, surProgression)
       }
     } }
     let copieur: CopieurMediasMigrationGitLab | undefined
+    let copieurAutres: CopieurMediasMigrationGitLab | undefined
     const externe = (): ClientWebDAV => {
       const resolution = resoudreBaseMedia(this.options.coffre, etat.destinationId)
       if (!resolution.ok) throw new Error('Renseignez les accès à l’espace média pour reprendre cette migration.')
@@ -189,7 +194,19 @@ export class ServiceMigrationGitLab {
           : { type: 'externe', client: externe() }, join(suivi.dossier, 'medias'))
         return copieur.copier(etat.bilan.medias[index], (octets) => surOctets(octets), signal)
       },
+      conserverAutre: async (index, surOctets, signal) => {
+        const fichier = etat.bilan.conservation?.autres[index]
+        if (!fichier) throw new Error('Document absent du bilan confirmé.')
+        copieurAutres ??= new CopieurMediasMigrationGitLab(source, {
+          type: 'depot', client: await this.options.authentification.clientLfs(cible.compteId, cible.projetId),
+        }, join(suivi.dossier, 'autres'))
+        await copieurAutres.conserver(fichier, (octets) => surOctets(octets), signal)
+      },
       ouvrir: async (signal) => {
+        for (const fichier of etat.bilan.conservation?.autres ?? []) {
+          signal.throwIfAborted()
+          await (await this.options.authentification.clientLfs(cible.compteId, cible.projetId)).confirmerObjet(fichier, signal)
+        }
         for (const media of etat.bilan.medias) {
           signal.throwIfAborted()
           if (etat.bilan.destinationMedia === 'depot') {
@@ -212,7 +229,7 @@ export class ServiceMigrationGitLab {
   private async observer(bilan: BilanMigrationGitLab, branche: string, commit?: string): Promise<InstantaneCibleMigration> {
     const client = await this.options.authentification.client(bilan.cible.compteId, bilan.cible.projetId)
     const { corps: projet } = await client.lireJson<{ archived?: boolean; default_branch?: string | null; empty_repo?: boolean }>(client.cheminProjet(''))
-    if (projet.archived !== false || (projet.default_branch !== branche && !(projet.empty_repo === true && projet.default_branch === null))) {
+    if (projet.archived !== false || (projet.empty_repo !== true && projet.default_branch !== branche)) {
       throw new Error('Le projet de destination ou sa branche a changé. Aucun envoi autorisé.')
     }
     if (projet.empty_repo === true) return { commit: null, fichiers: {} }

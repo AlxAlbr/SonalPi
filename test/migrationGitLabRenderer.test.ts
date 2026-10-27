@@ -29,7 +29,7 @@ afterEach(() => {
   scopes.splice(0).forEach((scope) => scope.stop())
 })
 
-function formulaire(surcharges: Partial<ApiMigrationGitLab> = {}) {
+function formulaire(surcharges: Partial<ApiMigrationGitLab> = {}, surTerminee?: () => void) {
   const api: ApiMigrationGitLab = {
     decouvrir: vi.fn(async () => structuredClone(source)),
     preparer: vi.fn(async () => structuredClone(resultat)),
@@ -50,7 +50,7 @@ function formulaire(surcharges: Partial<ApiMigrationGitLab> = {}) {
     html.replace(/<link\b[^>]*>/gi, '').replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, ''),
     'text/html',
   ))
-  const f = scope.run(() => useMigrationGitLab(etat, api, parseur))!
+  const f = scope.run(() => useMigrationGitLab(etat, api, parseur, api, surTerminee))!
   f.urlCible.value = 'https://gitlab.example.org/groupe/cible'
   return { ...f, ...etat, api, scope, parseur }
 }
@@ -215,6 +215,29 @@ describe('choix de la source et réutilisation des accès GitLab', () => {
 })
 
 describe('bilan GitLab sans publication', () => {
+  it.each(['executer', 'reprendre'] as const)('ferme le formulaire après %s réussi, sans envoyer un arrêt tardif', async (action) => {
+    const avant = Object.getOwnPropertyDescriptor(window, 'confirm')
+    Object.defineProperty(window, 'confirm', { value: vi.fn(() => true), configurable: true })
+    const succes: ResultatMigrationGitLab = { etat: 'terminee', operationId: 'migration-bilan', ouverture: {} as never }
+    const fermer = vi.fn(() => {
+      expect(f.publicationEnCours.value).toBe(false)
+      expect(f.enCours.value).toBe(false)
+      f.scope.stop()
+    })
+    const f = formulaire({ executer: vi.fn(async () => succes), reprendre: vi.fn(async () => succes) }, fermer)
+    try {
+      await charger(f); await f.preparerBilan('compte')
+      if (action === 'executer') await f.executer()
+      else await f.reprendre({ operationId: 'migration-bilan', bilan: resultat, phase: 'ouverture',
+        mediasConfirmes: 0, publicationsConfirmees: 1, publicationsTotal: 1 })
+      expect(fermer).toHaveBeenCalledOnce()
+      expect(f.api.annuler).not.toHaveBeenCalled()
+    } finally {
+      if (avant) Object.defineProperty(window, 'confirm', avant)
+      else Reflect.deleteProperty(window, 'confirm')
+    }
+  })
+
   it('la fermeture demande l’arrêt et ignore le résultat tardif de l’opération', async () => {
     const reponse = differee<ResultatMigrationGitLab>()
     const retirerProgression = vi.fn()

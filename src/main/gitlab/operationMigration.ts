@@ -18,6 +18,7 @@ export interface EnvironnementOperationMigration {
   depot: DepotCommitsGitLab
   observer(commit?: string): Promise<InstantaneCibleMigration>
   copier(index: number, surOctets: (octets: number) => void, signal: AbortSignal): Promise<ReferenceMediaDistant>
+  conserverAutre?(index: number, surOctets: (octets: number) => void, signal: AbortSignal): Promise<void>
   ouvrir(signal: AbortSignal): Promise<OuvertureDistante>
   progression?: (progression: ProgressionMigrationGitLab) => void
   maintenant?: () => number
@@ -35,7 +36,7 @@ export function initialiserSuiviMigration(
   const etat: EtatMigrationGitLab = {
     version: 1, operationId: `migration-${bilan.bilanId}`, destinationId, bilan,
     branche: bilan.cible.branche ?? 'main', identite, phase: 'copie', initial: initial.fichiers, initialisationConfirmee: false,
-    mediasConfirmes: [], documents: [], lots: [], prochainLot: 0,
+    mediasConfirmes: [], autresConfirmes: [], documents: [], lots: [], prochainLot: 0,
   }
   let actions: ActionPlanGitLab[] = []
   let indices: number[] = []
@@ -96,6 +97,17 @@ export class OperationMigrationGitLab {
           const reference = await this.environnement.copier(index, (octets) => this.signaler('copie', index,
             this.etat.bilan.medias.length, this.etat.bilan.medias[index].cheminSource, octets), signal)
           this.etat.mediasConfirmes[index] = reference
+          this.suivi.ecrire(this.etat)
+        }
+        const autres = this.etat.bilan.conservation?.autres ?? []
+        this.etat.autresConfirmes ??= []
+        for (let index = reprise ? 0 : this.etat.autresConfirmes.length; index < autres.length; index++) {
+          signal.throwIfAborted()
+          const fichier = autres[index]
+          this.signaler('autres', index, autres.length, fichier.cheminSource)
+          if (!this.environnement.conserverAutre) throw new Error('La copie des documents supplémentaires n’est pas disponible.')
+          await this.environnement.conserverAutre(index, (octets) => this.signaler('autres', index, autres.length, fichier.cheminSource, octets), signal)
+          this.etat.autresConfirmes[index] = fichier.cheminDestination
           this.suivi.ecrire(this.etat)
         }
         this.etat.phase = 'publication'

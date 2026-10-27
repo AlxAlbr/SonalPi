@@ -70,12 +70,13 @@ export async function preparerCibleMigrationGitLab(
   demande: DemandePreparationProjetGitLab,
   authentification: ServiceAuthentificationGitLab,
 ): Promise<CibleMigrationGitLab> {
-  return lireProjetGitLab(demande, authentification)
+  return lireProjetGitLab(demande, authentification, true)
 }
 
 async function lireProjetGitLab(
   demande: DemandePreparationProjetGitLab,
   authentification: ServiceAuthentificationGitLab,
+  accepterDepotVide = false,
 ): Promise<CibleMigrationGitLab> {
   const chemin = cheminProjet(demande.urlProjet)
   const compte = authentification.comptePublic(demande.compteId)
@@ -117,7 +118,7 @@ async function lireProjetGitLab(
     utilisateur: compte.utilisateur,
     projetId: projet.id as number,
     nomProjet: projet.name.trim(),
-    branche: projet.default_branch as string | null,
+    branche: accepterDepotVide && projet.empty_repo === true ? null : projet.default_branch as string | null,
   }
 }
 

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { MIGRATION_GITLAB_QUALIFIEE } from '../../../shared/corpus/migrationGitLab'
+import { EXT_VIDEO, extensionDe } from '../../../shared/media'
 import { utiliserSonal } from '../../composables/sonal'
 import { useSourceMigrationGitLab } from '../../composables/corpus/useSourceMigrationGitLab'
 import { useMigrationGitLab } from '../../composables/corpus/useMigrationGitLab'
 import AideGitLab from './AideGitLab.vue'
+import BilanMigration from './BilanMigration.vue'
 
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const enCours = ref(false)
@@ -13,7 +15,7 @@ const aide = ref(false)
 const { migrerGitLab, reprendreMigrationGitLab } = utiliserSonal()
 const migration = useMigrationGitLab({ enCours, erreur }, undefined, undefined, {
   executer: migrerGitLab, reprendre: reprendreMigrationGitLab,
-})
+}, () => emit('fermer'))
 function fermer(): void {
   if (migration.publicationEnCours.value) void migration.arreter()
   emit('fermer')
@@ -36,6 +38,9 @@ const pretBilan = computed(() =>
   !occupe.value && Boolean(source.value && cheminCrp.value && urlCible.value.trim()) &&
   Boolean(compteCourant.value?.connecte) &&
   (!externe.value || Boolean(baseMediaUrl.value.trim() && baseMediaUtilisateur.value.trim() && baseMediaMotDePasse.value)),
+)
+const videosExternes = computed(() => bilan.value?.destinationMedia === 'externe' &&
+  bilan.value.medias.some((media) => EXT_VIDEO.includes(extensionDe(media.cheminSource))),
 )
 const volume = computed(() => bilan.value
   ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(bilan.value.volumeOctets / (1024 * 1024))
@@ -120,20 +125,13 @@ const volume = computed(() => bilan.value
           <p>Destination : {{ bilan.cible.nomProjet }}</p>
           <p>{{ bilan.entretiens.length }} entretien(s) vérifié(s), {{ bilan.medias.length }} média(s) à copier — {{ volume }} Mio.</p>
           <p>Médias : {{ bilan.destinationMedia === 'externe' ? 'espace externe déclaré' : 'nouveau dépôt GitLab' }}.</p>
+          <p v-if="videosExternes" class="avertissement">Les vidéos seront copiées, mais leur lecture depuis cet espace externe n’est pas encore disponible. Pour les lire dans SonalPi, choisissez la copie dans GitLab.</p>
+          <BilanMigration :apercu="bilan.apercu" :lexico="bilan.lexicoV1" :conservation="bilan.conservation" :afficher-entretiens="false" />
+          <p v-if="bilan.conservation?.autres.length">Les documents supplémentaires seront conservés dans le nouveau dépôt GitLab, même si les médias vont dans un espace externe.</p>
           <p v-if="bilan.cible.branche === null">Le dépôt est vide et accepté pour la préparation.</p>
           <details>
             <summary>Détails de la source</summary>
             <p>Version source : <code>{{ bilan.commitSource }}</code></p>
-            <p>{{ bilan.apercu.themes.length }} thème(s), {{ bilan.apercu.variables.length }} variable(s).</p>
-            <p v-if="bilan.lexicoV1?.fichiers.length">
-              Réglages Lexico {{ bilan.lexicoV1.fichiers.join(', ') }} :
-              {{ bilan.lexicoV1.traitements.motsOutils.length }} mot(s) outil(s),
-              {{ bilan.lexicoV1.traitements.regroupements.length }} regroupement(s),
-              {{ bilan.lexicoV1.traitements.concatenations.length }} concaténation(s).
-            </p>
-            <ul v-if="bilan.lexicoV1?.diagnostics.length">
-              <li v-for="diagnostic in bilan.lexicoV1.diagnostics" :key="diagnostic">{{ diagnostic }}</li>
-            </ul>
           </details>
           <button type="button" :disabled="occupe || !MIGRATION_GITLAB_QUALIFIEE" @click="migration.executer">{{ MIGRATION_GITLAB_QUALIFIEE ? 'Copier les médias et créer le corpus' : 'Migrer (pas encore disponible)' }}</button>
         </section>
@@ -142,6 +140,7 @@ const volume = computed(() => bilan.value
           <article v-for="suivi in suivis" :key="suivi.operationId">
             <p>{{ suivi.bilan.apercu.nom }} → {{ suivi.bilan.cible.nomProjet }}</p>
             <p>{{ suivi.mediasConfirmes }}/{{ suivi.bilan.medias.length }} média(s) confirmé(s), {{ suivi.publicationsConfirmees }}/{{ suivi.publicationsTotal }} envoi(s) confirmé(s).</p>
+            <p v-if="suivi.bilan.conservation?.autres.length">{{ suivi.autresConfirmes ?? 0 }}/{{ suivi.bilan.conservation.autres.length }} document(s) conservé(s) dans « Autres ».</p>
             <button type="button" :disabled="occupe || !MIGRATION_GITLAB_QUALIFIEE" @click="migration.reprendre(suivi)">{{ suivi.phase === 'terminee' ? 'Ouvrir le corpus' : 'Vérifier et reprendre' }}</button>
           </article>
           <fieldset v-if="suivis.some((s) => s.bilan.destinationMedia === 'externe')" :disabled="occupe">

@@ -80,6 +80,7 @@ import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import { lireReglagesLexicoV1 } from './migrationLexicoV1'
+import { ConservationMigrationLocale } from './conservationMigrationLocale'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import { executerCommandeCas, deduireSourcesCas } from './casOrchestration'
 import { creerHandlersOperationsThemes } from './ipcOperationsThemes'
@@ -614,6 +615,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   const transitionsLocales = creerTransitionsLocales({
     exemples: exemplesLocaux,
+    preparerDocumentsMigration: (req) => conservationMigrationLocale.preparerCopie(req),
     fermerContexteActuel,
     finaliser: finaliserBasculeLocale,
   })
@@ -2898,7 +2900,10 @@ function enregistrerIpcExemples(): void {
 // Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme SonalPi1 — `src/main/encodage.ts`) ;
 // puis analyse PUR côté `shared/corpus/migrationCrp.ts`. À ce stade, le main ne fait que LIRE ;
 // l'aperçu est affiché avant toute écriture.
+const conservationMigrationLocale = new ConservationMigrationLocale()
+
 function enregistrerIpcMigration(): void {
+  ipcMain.handle('migrer:preparerFichiers', (_e, cheminCrp: string, dossier: string) => conservationMigrationLocale.preparer(cheminCrp, dossier))
   ipcMain.handle('migrer:choisirCrp', async (e) => {
     const r = await montrerOuvrir(e, {
       properties: ['openFile'],

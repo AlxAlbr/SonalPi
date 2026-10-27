@@ -1,6 +1,7 @@
 import { CorpusStore, type PreparationOuvertureCorpus } from './corpusStore'
 import type { OuvertureCorpus } from '../shared/format'
 import type { DemandeMigration } from '../shared/corpus/migrationCrp'
+import type { InstallationAutresMigration } from './conservationMigrationLocale'
 import type { InstallationExemple } from '../shared/exemples'
 import type { ExemplesLocaux } from './exemples'
 
@@ -78,6 +79,7 @@ interface DependancesTransitionsLocales {
   creerStore?: (dir: string) => CorpusStore
   exemples?: Pick<ExemplesLocaux, 'preparerInstallation'>
   fermerContexteActuel: () => Promise<void>
+  preparerDocumentsMigration?: (req: DemandeMigration) => Promise<InstallationAutresMigration>
   finaliser: (
     store: CorpusStore,
     dir: string,
@@ -130,19 +132,21 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
 
     migrer: async (req: DemandeMigration): Promise<OuvertureCorpus> => {
       const store = preparerStore(req.dossier)
-      return executerTransitionPreparee(
-        () => store.preparerMigrationDepuisV1(
-          req.nom,
-          { cheminCrp: req.cheminCrp, dateCreation: req.dateCreation },
-          req.codebook,
-          req.variables,
-          req.reglesAnon,
-          req.paramsAnon,
-          req.traitementsLexico,
-        ),
-        deps.fermerContexteActuel,
-        (preparation) => deps.finaliser(store, req.dossier, preparation),
+      const preparation = store.preparerMigrationDepuisV1(
+        req.nom, { cheminCrp: req.cheminCrp, dateCreation: req.dateCreation },
+        req.codebook, req.variables, req.reglesAnon, req.paramsAnon, req.traitementsLexico,
       )
+      const documents = await deps.preparerDocumentsMigration?.(req)
+      try {
+        return await executerTransitionPreparee(
+          () => preparation,
+          deps.fermerContexteActuel,
+          (preparee) => {
+            documents?.installer()
+            return deps.finaliser(store, req.dossier, preparee)
+          },
+        )
+      } finally { documents?.nettoyer() }
     },
   }
 }

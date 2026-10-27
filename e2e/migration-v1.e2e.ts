@@ -42,7 +42,9 @@ async function stuberDialogs(
 
 /** Fixture `.crp` copié dans le profil du test (isolé par --user-data-dir). */
 function ecrireCrp(profil: string, nom: string, source: string): string {
-  const chemin = join(profil, nom)
+  const sourceV1 = join(profil, 'SourceV1')
+  mkdirSync(sourceV1, { recursive: true })
+  const chemin = join(sourceV1, nom)
   writeFileSync(chemin, readFileSync(join(process.cwd(), 'test/fixtures', source), 'utf8'))
   return chemin
 }
@@ -118,6 +120,10 @@ test('la modale de migration GitLab est centrée sur un voile couvrant la fenêt
   try {
     const page = await app.firstWindow()
     await attendreAccueil(page)
+    await expect(page.locator('.migrer-corpus .carte-titre')).toHaveText(/Migration corpus local\s*\(V1 → V2\)/)
+    await expect(page.locator('.migrer-gitlab .carte-titre')).toHaveText(/Migration corpus GitLab\s*\(V1 → V2\)/)
+    await expect(page.locator('.migrer-corpus .carte-titre br')).toHaveCount(1)
+    await expect(page.locator('.migrer-gitlab .carte-titre br')).toHaveCount(1)
     await page.locator('.migrer-gitlab').click()
     const dialogue = page.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
     await expect(dialogue).toBeVisible()
@@ -198,12 +204,18 @@ for (const mode of ['oauth', 'jeton-personnel'] as const) {
   })
 }
 
-test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 ouvert, entretiens .Sonal+audio migrés', async () => {
+test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 ouvert, entretiens .Sonal+audio migrés', async ({}, info) => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-'))
   const { cheminCrp, audioPath } = ecrireCorpusV1(profil)
   const dirCible = join(profil, 'MonCorpus') // dossier dédié, VIDE
   writeFileSync(cheminCrp.replace(/\.crp$/, '.out'), 'le\nla')
   writeFileSync(cheminCrp.replace(/\.crp$/, '.lem'), 'allais\taller\tV')
+  const ancienResultat = Buffer.from('{"ancienResultat":true}')
+  writeFileSync(cheminCrp.replace(/\.crp$/, '.lexaf.json'), ancienResultat)
+  mkdirSync(join(profil, 'V1', 'documents'))
+  const documentInconnu = Buffer.from([0, 255, 254, 13, 10])
+  writeFileSync(join(profil, 'V1', 'documents', 'résultat.bin'), documentInconnu)
+  writeFileSync(join(profil, 'V1', '.env.production'), 'ACCES_SYNTHETIQUE=NE_PAS_COPIER')
 
   const app = await lancer(profil)
   const page = await app.firstWindow()
@@ -225,6 +237,12 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
   await page.locator('.modale-migration .choisir-dossier').click()
   await expect(page.locator('.modale-migration .avertir-non-vide')).toHaveCount(0)
   await expect(page.locator('.modale-migration .valider')).toBeEnabled()
+  await expect(page.locator('.modale-migration .documents-conserves')).toContainText('2 document(s)')
+  await expect(page.locator('.modale-migration details')).not.toHaveAttribute('open')
+  await expect(page.locator('.modale-migration')).toContainText('Transcription introuvable pour « sans-sonal »')
+  await expect(page.locator('.modale-migration')).toContainText('ne seront pas repris')
+  await page.locator('.modale-migration .documents-conserves').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: info.outputPath('bilan-local-concis.png') })
 
   // Étape 3 — migrer → le corpus SonalPi2 s'ouvre (écran Corpus), la modale ferme.
   await page.locator('.modale-migration .valider').click()
@@ -294,6 +312,10 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
   expect(e3.meta.sourceV1).toEqual({ rtrPath: 'entretien3.sonal' })
   expect(JSON.stringify(e3.corpsTexte)).toContain('Bonjour') // fixture entretien2.sonal
   expect(existsSync(join(dirCible, 'audio'))).toBe(false) // références, zéro copie
+  expect(readFileSync(join(dirCible, 'Autres', 'MonCorpus.lexaf.json'))).toEqual(ancienResultat)
+  expect(readFileSync(join(dirCible, 'Autres', 'documents', 'résultat.bin'))).toEqual(documentInconnu)
+  expect(existsSync(join(dirCible, 'Autres', '.env.production'))).toBe(false)
+  expect(readFileSync(cheminCrp.replace(/\.crp$/, '.lexaf.json'))).toEqual(ancienResultat)
 
   // RÉCENTS : retour Accueil → le corpus migré est le 1er récent.
   await page.locator('.lien-nav', { hasText: 'Accueil' }).click()
@@ -338,7 +360,7 @@ test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo r
   // Garde démo → re-picker sur dirB (re-stub) → message dédié.
   await stuberDialogs(app, cheminCrp, dirB)
   await page.locator('.modale-migration .choisir-dossier').click()
-  await expect(page.locator('.modale-migration .msg-migration')).toContainText('mode démo')
+  await expect(page.locator('.modale-migration .msg-migration')).toContainText('corpus de démonstration')
   await expect(page.locator('.modale-migration .valider')).toBeDisabled()
 
   // Rien n'a été écrit nulle part.

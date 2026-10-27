@@ -28,6 +28,9 @@ const {
 
 const editable = computed(() => !lectureSeule.value)
 
+/** L'aide sous le tableau reste ouverte par défaut ; un clic sur son titre la replie. */
+const aideOuverte = ref(true)
+
 /* Largeurs de colonnes et hauteurs de lignes : réglages d'affichage du poste.
  *  Ils sont conservés entre deux sessions et partagés par les corpus. */
 const LARGEUR_ENTETES = 120
@@ -318,11 +321,17 @@ function afficherDate(iso: string): string {
 <template>
   <div class="tableau-bord">
     <p v-if="messageTableau" class="message-tableau">{{ messageTableau }}</p>
-    <div class="aide-tableau">
-      <p>Clique sur une cellule pour éditer son contenu.</p>
-      <p>Les notes apparaissent au survol de la case avec la souris.</p>
-      <p>Les intitulés des lignes et des colonnes sont modifiables (Alt+Entrée pour un retour à la ligne).</p>
-      <p>Fais glisser le bord droit d'une colonne ou le bord bas d'une ligne pour ajuster sa taille ; double-clique pour revenir au défaut.</p>
+    <div class="aide-tableau" :class="{ ouvert: aideOuverte }">
+      <button class="aide-titre" @click="aideOuverte = !aideOuverte">
+        <span>ℹ️ Comment remplir le tableau ?</span>
+        <span class="aide-bascule">{{ aideOuverte ? '▾' : '▸' }}</span>
+      </button>
+      <div v-if="aideOuverte" class="aide-texte">
+        <p>Clique sur une cellule pour éditer son contenu.</p>
+        <p>Les notes apparaissent au survol de la case avec la souris.</p>
+        <p>Les intitulés des lignes et des colonnes sont modifiables (Alt+Entrée pour un retour à la ligne).</p>
+        <p>Fais glisser le bord droit d'une colonne ou le bord bas d'une ligne pour ajuster sa taille ; double-clique pour revenir au défaut.</p>
+      </div>
     </div>
     <div v-if="tableaubord" class="conteneur">
       <table class="grille" :style="{ width: largeurTable + 'px' }">
@@ -462,8 +471,14 @@ function afficherDate(iso: string): string {
 .tableau-bord { position: relative; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
 .conteneur { overflow: auto; flex: 1; min-height: 0; }
 .message-tableau { color: #b03030; margin: 0; font-size: 0.8rem; }
-.aide-tableau { flex: none; margin: 0; color: #66707f; font-size: 0.74rem; }
-.aide-tableau p { margin: 0 0 0.1rem; }
+/* Encadré d'aide repliable, dans l'esprit de celui des documents du projet. */
+.aide-tableau { flex: none; border: 1px solid #d5dced; border-radius: 6px; background: #f2f5fb; }
+.aide-titre { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .4rem; text-align: left; background: none; border: none; border-radius: 0; padding: .45rem .6rem; font-size: .8rem; color: #2c3a5e; font-weight: 600; }
+.aide-titre:hover { background: rgba(74, 114, 184, .08); }
+.aide-bascule { color: #7a8299; }
+.aide-texte { padding: 0 .6rem .55rem 2.5rem; font-size: .74rem; line-height: 1.35; color: #44506a; }
+.aide-texte p { margin: 0 0 .25rem; }
+.aide-texte p:last-child { margin-bottom: 0; }
 .grille { border-collapse: collapse; background: #fff; table-layout: fixed; }
 .grille th, .grille td { border: 1px solid #c8ccd4; padding: 0.15rem 0.3rem; font-size: 0.72rem; }
 .coin { width: 7.5rem; }

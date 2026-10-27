@@ -459,4 +459,6 @@ export interface DemandeMigration {
   paramsAnon?: ParamsAnon
   /** Réglages Lexico lus dans les annexes placées à côté du `.crp`. */
   traitementsLexico?: TraitementsLexico
+  /** Bilan des documents supplémentaires confirmé avec la destination. */
+  bilanFichiersId?: string
 }

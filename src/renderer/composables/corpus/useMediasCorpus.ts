@@ -154,8 +154,8 @@ export function useMediasCorpus(deps: {
     lectureDistanteActive.value = false
     lectureDistanteDemandee.value = false
     await rafraichirAudios()
-    const audioRef = deps.entretien.meta.audioRef
     const media = audiosCorpus.value[id]
+    const audioRef = media?.audio ?? deps.entretien.meta.audioRef
     verificationMediaDistant.value = null
     if (!audioRef || !media?.audio) {
       deps.chargerLecteur(null, null)

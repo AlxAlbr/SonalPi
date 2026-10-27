@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { BilanMigrationGitLab, SuiviMigrationGitLab } from '../../shared/corpus/migrationGitLab'
+import { estDestinationAutreMigration, type FichierAutreMigration } from '../../shared/corpus/conservationMigration'
 import type { ReferenceMediaDistant } from '../../shared/format'
 import type { IdentiteBailGitLab } from './bailGitLab'
 import { MAX_ACTIONS_PUBLICATION } from './limitesPublication'
@@ -24,6 +25,7 @@ export interface EtatMigrationGitLab {
   initial: Record<string, string>
   initialisationConfirmee: boolean
   mediasConfirmes: ReferenceMediaDistant[]
+  autresConfirmes?: string[]
   documents: DocumentMigrationGitLab[]
   lots: number[][]
   prochainLot: number
@@ -96,7 +98,14 @@ export class SuiviDurableMigrationGitLab {
       (e.generationBail !== undefined && !/^[a-f0-9-]{36}$/.test(e.generationBail))) throw new Error('Suivi de migration invalide.')
     if (e.documents.some((d) => !cheminSain(d.chemin) || !SHA256.test(d.sha256) || !SHA1.test(d.blob) || !Number.isSafeInteger(d.octets) || d.octets < 0) ||
       new Set(e.documents.map((d) => d.chemin)).size !== e.documents.length) throw new Error('Documents de migration invalides.')
-    const supplement = e.bilan.destinationMedia === 'depot' && e.bilan.medias.length ? e.bilan.medias.length + 1 : 0
+    const autres: FichierAutreMigration[] = e.bilan.conservation?.autres ?? []
+    if (!Array.isArray(autres) || autres.some((f) => !f || !cheminSain(f.cheminSource) || !estDestinationAutreMigration(f.cheminDestination) ||
+      !SHA256.test(f.sha256) || !Number.isSafeInteger(f.taille) || f.taille < 0 || !['git', 'lfs'].includes(f.stockageSource ?? '')) ||
+      new Set(autres.map((f) => f.cheminDestination)).size !== autres.length) throw new Error('Documents supplémentaires invalides.')
+    const confirmes = e.autresConfirmes ?? []
+    if (!Array.isArray(confirmes) || confirmes.length > autres.length || confirmes.some((p, i) => p !== autres[i].cheminDestination) ||
+      (e.phase !== 'copie' && confirmes.length !== autres.length)) throw new Error('Copies documentaires incomplètes.')
+    const supplement = (e.bilan.destinationMedia === 'depot' && e.bilan.medias.length ? e.bilan.medias.length + 1 : 0) + (autres.length ? autres.length + 1 : 0)
     if (e.documents.length !== e.bilan.entretiens.length + supplement + 1 || e.documents.at(-1)?.chemin !== 'corpus.json' ||
       e.documents.filter((d) => /^entretiens\/[^/]+\.json$/.test(d.chemin)).length !== e.bilan.entretiens.length) {
       throw new Error('Correspondance des documents incomplète.')

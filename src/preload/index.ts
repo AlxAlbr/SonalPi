@@ -74,6 +74,7 @@ import type {
   ProgressionTransfert,
   ResultatFermetureSession,
 } from '../shared/distant'
+import type { BilanFichiersMigrationLocale } from '../shared/corpus/conservationMigration'
 import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
@@ -598,6 +599,8 @@ contextBridge.exposeInMainWorld('sonal', {
       },
     } satisfies ApiMigrationGitLab,
     /** Choix d'un `.crp` SonalPi1 : dialogue + lecture + analyse (aperçu). */
+    preparerFichiers: (cheminCrp: string, dossier: string): Promise<BilanFichiersMigrationLocale> =>
+      invoquer('migrer:preparerFichiers', cheminCrp, dossier),
     choisirCrp: (): Promise<ChoixCrpMigration | null> =>
       invoquer('migrer:choisirCrp'),
     /** Choix du dossier DÉDIÉ, pré-rempli Documents/Sonal/<nom>. */

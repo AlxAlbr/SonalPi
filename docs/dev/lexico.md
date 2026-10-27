@@ -70,8 +70,12 @@ proposées ; une liste absente utilise toujours la définition fournie par l’a
 L’import V1 a lieu pendant la migration du corpus. Le processus principal cherche les
 fichiers `.out`, `.lem` et `.cnct` portant le même nom que le `.crp`, puis le parseur pur
 produit l’aperçu et les diagnostics affichés dans le bilan de migration. Les annexes d’origine
-ne sont jamais modifiées. `.lexaf.json` n’est pas importé, car il représente un résultat
-d’analyse.
+ne sont jamais modifiées. Un `.lexaf.json` éventuel est conservé dans `Autres/`, sans
+conversion en analyse V2. Dans le code V1 fourni, ce tableau provient d’un prototype
+d’analyse factorielle dont le bouton n’est pas ajouté à l’interface ; sa commande
+« Relire JSON » affiche le texte brut, sans restaurer une analyse ni ses sélections.
+Le tableau pourrait être reconstruit à partir des chiffres enregistrés, mais aucun
+importeur de ce prototype n’est livré. Voir la [conservation documentaire](migration-conservation.md).
 
 ## Sélection
 

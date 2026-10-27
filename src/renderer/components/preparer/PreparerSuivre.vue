@@ -175,6 +175,10 @@ async function surDepot(event: DragEvent): Promise<void> {
   height: calc(100vh - var(--entete-h) - 1.6rem);
   padding-top: 0.7rem;
   box-sizing: border-box;
+  /* Hauteur de la barre d'onglets : le panneau de droite commence sous elle,
+   *  au même niveau que le panneau de gauche. */
+  --h-onglets: 34px;
+  --ecart-onglets: 0.6rem;
 }
 @media (max-width: 780px) {
   .espace-preparation { grid-template-columns: minmax(0, 1fr); height: auto; }
@@ -183,7 +187,7 @@ async function surDepot(event: DragEvent): Promise<void> {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--ecart-onglets);
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.2rem;
@@ -197,7 +201,7 @@ async function surDepot(event: DragEvent): Promise<void> {
 /* Onglets à icône, comme la barre du corpus : le libellé reste dans l'infobulle. */
 .onglet {
   width: 38px;
-  height: 34px;
+  height: var(--h-onglets);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,6 +232,10 @@ async function surDepot(event: DragEvent): Promise<void> {
   flex-direction: column;
   gap: 0.4rem;
   overflow-y: auto;
+  margin-top: calc(var(--h-onglets) + var(--ecart-onglets));
+}
+@media (max-width: 780px) {
+  .principal { margin-top: 0; }
 }
 .outil-preparation { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; min-height: 0; flex: 1; }
 .depot-surlignage {

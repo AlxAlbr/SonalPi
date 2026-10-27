@@ -8,6 +8,7 @@ import { CoffreComptes } from '../../src/main/distant/coffre'
 import { ClientGitLab, autorisationJetonPersonnel } from '../../src/main/gitlab/client'
 import type { ServiceAuthentificationGitLab } from '../../src/main/gitlab/authentification'
 import { ServiceMigrationGitLab } from '../../src/main/gitlab/migration'
+import { SuiviDurableMigrationGitLab } from '../../src/main/gitlab/suiviMigration'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { convertirEntretienMigrationGitLab } from '../../src/renderer/formatSonal/migrationGitLab'
 import { CONNEXION_MIGRATION_GITLAB_REQUISE } from '../../src/shared/corpus/migrationGitLab'
@@ -24,7 +25,7 @@ const json = (o: unknown) => new Response(JSON.stringify(o))
 const sonal = readFileSync('test/fixtures/entretien1.sonal', 'utf8')
 const parseur = (s: string) => new DOMParser().parseFromString(s.replace(/<link\b[^>]*>/gi, ''), 'text/html')
 
-async function bancSimule() {
+async function bancSimule(brancheVide: string | null = null, avecDocuments = false) {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-service-migration-')); dirs.push(dir)
   const media = Buffer.alloc(1024 * 1024, 29)
   const source = new Map([
@@ -32,6 +33,11 @@ async function bancSimule() {
     ['premier.Sonal', Buffer.from(sonal)],
     ['voix.mp3', Buffer.from(`version https://git-lfs.github.com/spec/v1\noid sha256:${sha(media)}\nsize ${media.length}\n`)],
   ])
+  if (avecDocuments) {
+    source.set('terrain.lexaf.json', Buffer.from('{"ancienResultat":true}'))
+    source.set('documents/rapport.bin', Buffer.from([0, 255, 3, 2, 1]))
+    source.set('credentials.enc', Buffer.from('ACCES_SYNTHETIQUE_NE_PAS_COPIER'))
+  }
   const cible = new DepotMemoire()
   const objets = new Map<string, Buffer>()
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -41,7 +47,7 @@ async function bancSimule() {
     const id = ['1', 'groupe/source'].includes(match[1]) ? 1 : 2
     const suffixe = match[2] ?? ''
     const vide = id === 2 && !cible.fichiers.size && !cible.commits.length
-    if (!suffixe) return json({ id, name: id === 1 ? 'Source' : 'Cible', archived: false, empty_repo: vide, default_branch: vide ? null : 'main' })
+    if (!suffixe) return json({ id, name: id === 1 ? 'Source' : 'Cible', archived: false, empty_repo: vide, default_branch: vide ? brancheVide : 'main' })
     if (suffixe === 'repository/branches') return json(vide ? [] : [{ name: 'main' }])
     if (suffixe === 'repository/branches/main') return vide ? new Response(null, { status: 404 }) : json({ commit: { id: id === 1 ? SHA_SOURCE : await cible.resoudreTete('main') } })
     if (suffixe === 'repository/commits') {
@@ -100,10 +106,68 @@ async function bancSimule() {
   const preparer = () => service.preparer({ preparationId: decouverte.preparationId, cheminCrp: 'terrain.crp', cible: { compteId: compte.id, urlProjet: `${INSTANCE}/groupe/cible` } })
   const bilan = await preparer()
   service.ajouterConversion(bilan.bilanId, 0, convertirEntretienMigrationGitLab(await service.preparation.lireEntretien(bilan.preparationId, 0), parseur))
-  return { service, nouveauService, preparer, bilan, cible, source, objets, coffre, ouvrir, downloadLfs, uploadLfs, confirmerLfs, fetchImpl }
+  return { dir, service, nouveauService, preparer, bilan, cible, source, objets, coffre, ouvrir, downloadLfs, uploadLfs, confirmerLfs, fetchImpl }
 }
 
 describe('raccordements de migration avec API GitLab simulée', () => {
+  it('conserve les résultats et inconnus dans Autres, confirme les objets et ne reprend pas les accès', async () => {
+    const f = await bancSimule(null, true)
+    expect(f.bilan.conservation?.autres.map((p) => p.cheminDestination)).toEqual(['Autres/documents/rapport.bin', 'Autres/terrain.lexaf.json'])
+    expect((await f.service.executer(f.bilan.bilanId, true)).etat).toBe('terminee')
+    expect(f.service.listerSuivis()[0].autresConfirmes).toBe(2)
+    for (const fichier of f.bilan.conservation!.autres) {
+      expect(f.objets.get(fichier.sha256)).toEqual(f.source.get(fichier.cheminSource))
+      expect(f.cible.fichiers.get(fichier.cheminDestination)?.contenu).toContain(`oid sha256:${fichier.sha256}`)
+    }
+    expect(f.cible.fichiers.has('Autres/credentials.enc')).toBe(false)
+    expect(f.cible.fichiers.get('Autres/.gitattributes')?.contenu).toContain('filter=lfs')
+    const commits = f.cible.commits.length
+    f.source.clear()
+    expect((await f.nouveauService('autre-session').reprendre(`migration-${f.bilan.bilanId}`, true)).etat).toBe('terminee')
+    expect(f.cible.commits).toHaveLength(commits)
+    expect(f.uploadLfs).toHaveBeenCalledTimes(3)
+  })
+
+  it('reprend une copie de document échouée depuis les octets conservés sans source accessible', async () => {
+    const f = await bancSimule(null, true)
+    const upload = f.uploadLfs.getMockImplementation()!
+    const dernier = f.bilan.conservation!.autres.at(-1)!
+    let panne = true
+    f.uploadLfs.mockImplementation(async (fichier, identite) => {
+      if (panne && identite.sha256 === dernier.sha256) { panne = false; throw new Error('Copie interrompue') }
+      return upload(fichier, identite)
+    })
+    expect((await f.service.executer(f.bilan.bilanId, true)).etat).toBe('interrompue')
+    expect(f.service.listerSuivis()[0].autresConfirmes).toBe(1)
+    expect(f.cible.fichiers.has('corpus.json')).toBe(false)
+    f.source.clear()
+    expect((await f.nouveauService('reprise').reprendre(`migration-${f.bilan.bilanId}`, true)).etat).toBe('terminee')
+    expect(f.service.listerSuivis()[0].autresConfirmes).toBe(2)
+    expect(f.ouvrir).toHaveBeenCalledOnce()
+  })
+
+  it.each(['chemin', 'confirmation', 'empreinte'])('refuse un suivi documentaire altéré (%s)', async (cas) => {
+    const f = await bancSimule(null, true)
+    f.uploadLfs.mockRejectedValueOnce(new Error('Arrêt synthétique'))
+    expect((await f.service.executer(f.bilan.bilanId, true)).etat).toBe('interrompue')
+    const suivi = new SuiviDurableMigrationGitLab(join(f.dir, 'migrations-gitlab', `migration-${f.bilan.bilanId}`))
+    const etat = suivi.lire()!
+    if (cas === 'chemin') etat.bilan.conservation!.autres[0].cheminDestination = '../ailleurs.bin'
+    else if (cas === 'confirmation') etat.autresConfirmes = ['Autres/invente.bin']
+    else etat.bilan.conservation!.autres[0].sha256 = 'invalide'
+    writeFileSync(suivi.fichier, JSON.stringify(etat))
+    await expect(f.service.reprendre(etat.operationId, true)).rejects.toThrow('illisible')
+    expect(f.cible.commits).toHaveLength(0)
+  })
+
+  it.each(['main', 'master'])('initialise le dépôt vide même si GitLab annonce déjà %s', async (branche) => {
+    const f = await bancSimule(branche)
+    expect(f.bilan.cible.branche).toBeNull()
+    expect((await f.service.executer(f.bilan.bilanId, true)).etat).toBe('terminee')
+    expect(f.service.listerSuivis()[0].bilan.cible.branche).toBeNull()
+    expect(f.coffre.listerDestinationsGitLab()[0].branche).toBe('main')
+  })
+
   it('réutilise une destination du coffre pour préparer la source, sans l’ouvrir ni y écrire', async () => {
     const f = await bancSimule()
     const destination = f.coffre.enregistrerDestinationGitLab({ compteId: f.bilan.source.compteId,

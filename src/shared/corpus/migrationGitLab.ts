@@ -1,10 +1,11 @@
 import type { ApercuCrp } from './migrationCrp'
 import type { ImportTraitementsLexicoV1 } from '../lexico/traitements'
-import type { PayloadEntretien, RegleAnon } from '../format'
+import type { Categorie, PayloadEntretien, RegleAnon, Variable } from '../format'
 import type { DemandeConfigurationBaseMedia, DemandePreparationProjetGitLab, ProjetGitLabPrepare } from '../gitlab'
 import type { OuvertureDistante } from '../distant'
+import type { ConservationMigration } from './conservationMigration'
 
-export const MIGRATION_GITLAB_QUALIFIEE = false
+export const MIGRATION_GITLAB_QUALIFIEE = true
 export const CONNEXION_MIGRATION_GITLAB_REQUISE = 'Reconnectez-vous à GitLab pour lire cette source.'
 
 /** Une source enregistrée est retrouvée dans le coffre du poste. */
@@ -13,6 +14,8 @@ export type DemandeSourceMigrationGitLab = DemandePreparationProjetGitLab | { de
 export interface ConversionEntretienMigrationGitLab {
   payload: PayloadEntretien
   reglesAnon: RegleAnon[]
+  codebook?: Categorie[]
+  variables?: Variable[]
 }
 
 /** Une cible sans branche ne sera initialisée qu'après confirmation. */
@@ -51,6 +54,7 @@ export interface BilanMigrationGitLab {
   commitCible: string | null
   apercu: ApercuCrp
   lexicoV1?: ImportTraitementsLexicoV1
+  conservation?: ConservationMigration
   entretiens: EntretienMigrationGitLab[]
   medias: MediaMigrationGitLab[]
   volumeOctets: number
@@ -69,6 +73,7 @@ export interface SuiviMigrationGitLab {
   bilan: BilanMigrationGitLab
   phase: 'copie' | 'publication' | 'ouverture' | 'terminee'
   mediasConfirmes: number
+  autresConfirmes?: number
   publicationsConfirmees: number
   publicationsTotal: number
 }
@@ -76,7 +81,7 @@ export interface SuiviMigrationGitLab {
 export interface ProgressionMigrationGitLab {
   operationId: string
   bilanId: string
-  etape: 'copie' | 'publication' | 'ouverture'
+  etape: 'copie' | 'autres' | 'publication' | 'ouverture'
   faits: number
   total: number
   chemin?: string
@@ -87,7 +92,7 @@ export type ResultatMigrationGitLab =
   | { etat: 'terminee'; operationId: string; ouverture: OuvertureDistante }
   | { etat: 'interrompue' | 'indeterminee'; operationId: string; message: string }
 
-/** Préparation et opération confirmée ; l'envoi reste réservé à la qualification. */
+/** Préparation et opération confirmée de migration GitLab. */
 export interface ApiMigrationGitLab {
   decouvrir(demande: DemandeSourceMigrationGitLab): Promise<SourceMigrationGitLab>
   preparer(demande: DemandeBilanMigrationGitLab): Promise<BilanMigrationGitLab>

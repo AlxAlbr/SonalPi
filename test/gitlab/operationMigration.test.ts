@@ -250,12 +250,13 @@ describe('opération de migration sur transports simulés', () => {
     await expect(service.reprendre('../../ailleurs', true)).rejects.toThrow(/Identifiant/)
   })
 
-  it('l’application refuse l’envoi tant que la qualification n’est pas acquise, et exige une confirmation', async () => {
+  it('le parcours qualifié exige toujours confirmation et bilan valide, et respecte un blocage explicite', async () => {
     const f = await scenario()
     const options = { authentification: {} as never, coffre: {} as never, dirProfil: f.dir,
       identite: { machineId: 'poste', sessionId: 'nouvelle' }, ouvrir: f.ouvrir }
-    await expect(new ServiceMigrationGitLab(options).executer(f.bilan.bilanId, true)).rejects.toThrow(/qualification/)
-    await expect(new ServiceMigrationGitLab({ ...options, autoriserEnvoi: true }).executer(f.bilan.bilanId, false)).rejects.toThrow(/Confirmez/)
+    await expect(new ServiceMigrationGitLab({ ...options, autoriserEnvoi: false }).executer(f.bilan.bilanId, true)).rejects.toThrow(/qualification/)
+    await expect(new ServiceMigrationGitLab(options).executer(f.bilan.bilanId, false)).rejects.toThrow(/Confirmez/)
+    await expect(new ServiceMigrationGitLab(options).executer(f.bilan.bilanId, true)).rejects.toThrow(/bilan a changé/)
     expect(f.depot.commits).toHaveLength(0)
     expect(existsSync(join(f.dir, 'migrations-gitlab'))).toBe(false)
   })

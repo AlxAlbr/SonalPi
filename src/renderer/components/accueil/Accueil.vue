@@ -114,15 +114,15 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
       </div>
 
       <div class="migration-bloc">
-        <h3 class="migration-titre">🚧 Migration SonalPi1 vers SonalPi2 </h3>
+        <h3 class="migration-titre">🚧 Migration SonalPi1 vers SonalPi2 (Temporaire)</h3>
         <div class="cartes-demo">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
-            <div class="carte-titre">Tester SonalPi2 tout en gardant le contenu lié à SonalPi1 intact</div>
-            <div class="carte-sous">Migration locale — l’ancien dossier SonalPi1 reste intact, tout le contenu est repris</div>
+            <div class="carte-titre">Migration corpus local<br>(V1 → V2)</div>
+            <div class="carte-sous">Entretiens et réglages repris, documents supplémentaires conservés dans « Autres ». L’ancien dossier reste intact.</div>
           </button>
           <button class="carte-demo migrer-gitlab" @click="modaleMigrationGitLab = true">
-            <div class="carte-titre">GitLab — préparer une migration</div>
-            <div class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Bilan disponible ; migration pas encore activée.</div>
+            <div class="carte-titre">Migration corpus GitLab<br>(V1 → V2)</div>
+            <div class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Médias copiés dans GitLab ou dans un espace externe.</div>
           </button>
         </div>
       </div>

@@ -9,6 +9,7 @@ export function useMigrationGitLab(
   api: ApiMigrationGitLab = window.sonal.migrer.gitlab,
   parseur: (html: string) => Document = (html) => new DOMParser().parseFromString(html, 'text/html'),
   operations: Pick<ApiMigrationGitLab, 'executer' | 'reprendre'> = api,
+  surTerminee?: () => void,
 ) {
   const source = ref<SourceMigrationGitLab | null>(null)
   const cheminCrp = ref('')
@@ -27,6 +28,7 @@ export function useMigrationGitLab(
   const retirerProgression = api.surProgression((p) => {
     if (!actif || p.operationId !== operationId.value) return
     progression.value = p.etape === 'copie' ? `Copie des médias : ${p.faits}/${p.total}${p.chemin ? ` — ${p.chemin}` : ''}${p.octets !== undefined ? ` (${Math.round(p.octets / 1024 / 1024)} Mio)` : ''}`
+      : p.etape === 'autres' ? `Conservation des documents : ${p.faits}/${p.total}${p.chemin ? ` — ${p.chemin}` : ''}`
       : p.etape === 'publication' ? `Création du corpus : ${p.faits + 1}/${p.total}` : 'Ouverture du corpus…'
   })
 
@@ -126,8 +128,10 @@ export function useMigrationGitLab(
     publicationEnCours.value = true
     etat.enCours.value = true
     etat.erreur.value = null
+    let terminee = false
     try {
       const resultat = await action()
+      terminee = resultat.etat === 'terminee'
       if (actif && resultat.etat !== 'terminee') etat.erreur.value = resultat.message
       if (actif) await chargerSuivis()
     } catch (erreur) {
@@ -136,13 +140,14 @@ export function useMigrationGitLab(
       publicationEnCours.value = false
       operationId.value = null
       if (actif) { etat.enCours.value = false; progression.value = '' }
+      if (actif && terminee) surTerminee?.()
     }
   }
 
   async function executer(): Promise<void> {
     const confirme = bilan.value
     if (!confirme || etat.enCours.value) return
-    if (!window.confirm(`Copier ${confirme.medias.length} média(s) et créer « ${confirme.apercu.nom} » dans « ${confirme.cible.nomProjet} » ? La source restera intacte. Les copies acquises seront conservées en cas d’arrêt.`)) return
+    if (!window.confirm(`Copier ${confirme.medias.length} média(s), conserver ${confirme.conservation?.autres.length ?? 0} document(s) dans « Autres » et créer « ${confirme.apercu.nom} » dans « ${confirme.cible.nomProjet} » ? La source restera intacte. Les copies acquises seront conservées en cas d’arrêt.`)) return
     await suivre(`migration-${confirme.bilanId}`, () => operations.executer(confirme.bilanId, true))
   }
 

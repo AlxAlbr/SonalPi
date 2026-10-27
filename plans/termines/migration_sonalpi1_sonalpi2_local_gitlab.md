@@ -1,9 +1,9 @@
 # Migration SonalPi1 → SonalPi2 — ajout de la carte GitLab
 
-**Date :** 12 octobre 2026.  
-**Statut :** travaux préalables à la qualification terminés : préparation, conversion privée, copies médias, publication protégée, suivi durable, reprise, annulation et réouverture implémentés et raccordés ; documentation actualisée. **850 tests simulés / 49 fichiers réussis**, typecheck, build et contrôle des espaces réussis sur le dernier état. Reste la qualification réelle sur l’autre ordinateur, puis activation et acceptation utilisateur. Action de migration désactivée dans l’interface et envoi bloqué côté main ; aucun transfert de données utilisateur lancé.
+**Date initiale :** 12 octobre 2026. **Mise à jour :** 27 octobre 2026.
+**Statut : clôturé avec accord utilisateur le 27 octobre 2026.** Qualification réelle effectuée et parcours GitLab **activé**, y compris la reprise et l’autorisation main. **8 scénarios réels réussis dans Electron**, puis **16 tests Electron réussis sur le build normal activé** (8 réels + 8 locaux/simulés), dont les cinq parcours Local existants. **915 tests / 54 fichiers réussis**, typecheck et build réussis. Les deux parcours proposent un bilan concis et conservent les documents non convertis dans `Autres/` ; la politique média Local reste inchangée. Documentation actualisée et plan archivé dans `plans/termines/`. Aucun corpus utilisateur transféré ou modifié.
 
-**Contrainte précisée par l’utilisateur :** le banc GitLab est sur un autre ordinateur. Avancer sur l’implémentation et les tests simulés, sans installer de banc ici ; ne pas déclarer la qualification réelle acquise.
+**Contrainte initiale précisée par l’utilisateur :** le banc GitLab était sur un autre ordinateur ; avancer sans installer de banc ici ni déclarer une qualification non exécutée. Le 27 octobre, après demande de réaliser la qualification, les bancs existants sont accessibles sur ce poste : préparés avec `preparer_bancs_docker`, sans pull, installation ni reprovisionnement. Preuves et limites en section 11.
 
 ## 1. Demande utilisateur et périmètre
 
@@ -202,9 +202,12 @@ Le dépôt de travail de cette session est `/home/belignem/Vscode/sonalpitestv2`
 - Aucun changement nécessaire à la mémoire/import V1 sur la base des vérifications récentes. Ne pas réintroduire `memoirePseudonymisation.ts`, une revue obligatoire d’export ou une promotion avec rattachement groupé.
 - Documentation à mettre à jour lors de la livraison : `docs/user/migration-v1.md`, `docs/user/corpus-distant.md`, documentation GitLab/médias concernée, ce plan.
 
-Ce plan constitue une **nouvelle demande fonctionnelle**, pas un audit restant de pseudonymisation. Il reste dans `plans/encours/` jusqu’à sa réalisation et à l’acceptation utilisateur.
+Ce plan constitue une **demande fonctionnelle distincte**, pas un audit restant de pseudonymisation. Réalisé et accepté, il est archivé dans `plans/termines/`.
 
-## 10. Avancement sans banc — bilan de cette session et reprise
+## 10. Avancement sans banc — bilan historique et clôture des tâches
+
+Les sections 10.1 à 10.3 décrivent l’état antérieur à la qualification réelle du
+27 octobre. La section 11 et le statut en tête donnent l’état actuel.
 
 ### 10.1. Réalisé : préparation et données
 
@@ -269,21 +272,22 @@ Après ajout du choix d’une source déjà enregistrée : **850 tests / 49 fich
 
 La première campagne de 300 tests / 20 fichiers portait sur les primitives et les raccordements initiaux ; les campagnes consolidées étendent ces contrôles à l’orchestration et à l’annulation finale. Elles ne constituent pas une migration qualifiée de bout en bout dans Electron sur GitLab réel.
 
-**Aucune qualification réelle exécutée.** Le banc GitLab reste sur l’autre ordinateur. L’ancienne tentative de préparation locale échouait faute de `~/TestGitlabLocal/qualification.env` ; aucun banc installé, image téléchargée ou volume reprovisionné. Aucun banc réel n’a été lancé pour cette campagne simulée.
+**À la date de ce bilan simulé, aucune qualification réelle n’avait été exécutée.** Le banc GitLab restait sur l’autre ordinateur. L’ancienne tentative de préparation locale échouait faute de `~/TestGitlabLocal/qualification.env` ; aucun banc installé, image téléchargée ou volume reprovisionné. Aucun banc réel n’a été lancé pour cette campagne simulée.
 
-### 10.4. Restant, dans l’ordre
+### 10.4. Suivi des tâches — terminé
 
 1. [x] **Terminer la couverture de l’annulation finale** : cinq tests dédiés ajoutés aux fichiers existants, sans nouvelle fonctionnalité ni refonte des parcours. Arrêt du miroir, non-installation tardive, fermeture du formulaire, reprise sans republication et arrêt après réussite couverts.
 2. [x] **Relancer les vérifications sur le dernier état** : tests ciblés, campagne consolidée de 850 tests, typecheck, build et contrôle des espaces réussis.
 3. [x] **Actualiser les autres documents** : `docs/dev/migration-gitlab-v1.md`, `docs/user/migration-v1.md`, `docs/user/corpus-distant.md` et l’entrée de `docs/dev/gitlab.md` décrivent maintenant le parcours raccordé, ses protections et ses limites, sans le présenter comme activé ou qualifié.
-4. [ ] **Sur l’autre ordinateur uniquement, qualifier sur des données synthétiques isolées** :
+4. [x] **Qualifier sur des données synthétiques isolées** : réalisé le 27 octobre avec les bancs existants désormais accessibles sur ce poste ; huit scénarios réels réussis, voir section 11 :
    - cible sans branche et cible avec README/attributs techniques conservés ; refus source=cible, cible occupée et cible modifiée ;
    - copies réelles vers GitLab/LFS et vers Nextcloud/WebDAV, médias réutilisés, homonymes, accents et gros binaire ; `.Sonal` et média source LFS ;
    - fidélité des conversions, dont choix de pseudonymes mémorisés, alias, exceptions, variantes locales et locuteurs sans tour de parole ;
    - ouverture dans l’application puis sur un **profil neuf sans sources locales**, accès externes déclarés sur ce profil, audio/vidéo et navigation temporelle dans le lecteur existant ;
    - au moins un **arrêt réel de l’application pendant une migration engagée**, reprise depuis le suivi local, interruption pendant copie et après publication acceptée, sans duplication ni annonce de réussite avec médias manquants.
-   Avant les tests réels, appeler `preparer_bancs_docker` pour les seuls bancs nécessaires. Ne pas installer de banc ici, télécharger d’images ou reprovisionner.
-5. [ ] **Après ces preuves seulement**, consigner les résultats et limites, activer l’action et son autorisation main, mettre à jour les guides puis demander l’acceptation utilisateur. Le plan reste dans `plans/encours/` jusque-là.
+   `preparer_bancs_docker` appelé pour GitLab et Nextcloud A avant la campagne. Aucun banc installé, aucune image téléchargée ni volume reprovisionné.
+5. [x] **Après ces preuves seulement**, résultats et limites consignés, action et autorisation main activées, guides mis à jour. La campagne réelle et locale repasse sur le build normal activé.
+6. [x] **Recueillir l’acceptation utilisateur** : accord de clôture reçu le 27 octobre 2026 ; plan archivé dans `plans/termines/`.
 
 ### 10.5. Limites et précautions de reprise
 
@@ -294,3 +298,97 @@ La première campagne de 300 tests / 20 fichiers portait sur les primitives et l
 - Aucun commit, push ou reset effectué. Conserver l’arbre de travail existant, y compris les modifications qui ne proviennent pas de cette migration.
 
 **Fichiers principaux pour reprendre :** `src/main/gitlab/{migration,operationMigration,suiviMigration,documentsMigration,preparationMigration,copieMediasMigration}.ts`, `src/renderer/composables/corpus/useMigrationGitLab.ts`, `src/renderer/components/accueil/MigrationGitLab.vue`, `src/main/gitlab/ouverture.ts` et les tests `test/gitlab/{operationMigration,serviceMigration}.test.ts`. Pour l’annulation finale, examiner aussi `src/main/distant/miroir.ts` et `src/main/gitlab/contexte.ts`.
+
+## 11. Qualification réelle et activation — 27 octobre 2026
+
+**Preuves détaillées :** [recette réelle](../../docs/dev/migration-gitlab-v1-qualification.md).
+Tests : `e2e/migration-gitlab.e2e.ts`, harnais dans `e2e/qualification/{migration,sondeMigration}.ts`.
+
+- [x] GitLab CE 18.11.0 et Nextcloud A existants préparés avec l’outil prévu.
+- [x] Huit scénarios réels réussis : dépôt sans branche ; README/attributs conservés ;
+  copies GitLab/LFS et WebDAV ; gardes et annulation ; collision externe conservée ;
+  SIGKILL pendant copie WebDAV ; SIGKILL pendant ouverture après publication GitLab ;
+  réponse perdue ; 251 entretiens publiés en deux lots avec reprise sans répétition.
+- [x] Fidélité : texte et positions, commentaires, notes, choix Claire/Rebecca,
+  exception, alias, déclarations locales/variantes, thèmes/variables propres au `.Sonal`,
+  valeurs d’un locuteur sans tour de parole et références de règles valides.
+- [x] `.Sonal` et médias source réellement LFS, médias réutilisés, homonymes, accents,
+  WAV de deux minutes supérieur à 11 Mo, vidéo WebM ; copies relues et SHA-256 comparés.
+- [x] Lecture audio/vidéo du dépôt et navigation temporelle dans le lecteur existant,
+  puis sur profil neuf sans sources ni cache de migration. Audio WebDAV également lu
+  après déclaration des accès dans le profil neuf.
+- [x] Activation de `MIGRATION_GITLAB_QUALIFIEE`, carte mise à jour, formulaire fermé
+  après réussite et avertissement préalable pour les vidéos externes.
+- [x] Build normal activé : 16 tests Electron réussis, dont les huit réels et les
+  huit locaux/simulés existants. Campagne consolidée : 864 tests / 50 fichiers réussis.
+- [x] Guides utilisateur, documentation développeur et présent plan actualisés.
+- [x] Acceptation utilisateur : accord de clôture du 27 octobre 2026.
+
+Les essais réels ont nécessité des correctifs ciblés : traitement d’un dépôt vide
+annonçant déjà une branche ; liens vers les règles après fusion ; transmission des
+thèmes et variables propres aux entretiens ; utilisation du chemin média effectif ;
+fermeture du formulaire après succès. Les convertisseurs communs et le parcours Local
+n’ont pas été refondus. Les premiers échecs de recette sont décrits dans le compte rendu,
+pas comptés parmi les scénarios réussis.
+
+**Limites :** la vidéo WebDAV est copiée mais sa lecture distante n’est pas prise en
+charge par le lecteur actuel ; le bilan le signale avant confirmation. Audio WebDAV
+et vidéo du dépôt sont qualifiés. Connexion réelle par jeton ; pas de nouvelle preuve
+OAuth réelle propre à la migration. Pas de qualification institutionnelle, Windows,
+charge maximale, quota réel, empaquetage ou stockage LFS sur une autre origine.
+L’arrêt après publication arrive après libération du droit ; le refus de reprise
+pendant un droit encore actif reste couvert par les tests simulés.
+
+Aucun commit, push ou reset effectué ; modifications préexistantes conservées.
+Les sources et destinations distantes synthétiques restent disponibles pour inspection.
+
+## 12. Extension demandée : bilan concis et documents « Autres »
+
+Après la première qualification, l’utilisateur demande explicitement de simplifier
+le parcours Local comme GitLab et de conserver les documents non convertis. Cette
+nouvelle demande autorise l’évolution Local jusque-là hors périmètre ; elle ne
+change pas la politique de ses médias, toujours référencés sans copie.
+
+- [x] Référence V1 vérifiée : `.out`, `.lem`, `.cnct` sont des réglages ; `.lexaf.json`
+  est un résultat. Réglages reconnus convertis, résultats anciens conservés bruts.
+- [x] Composant de bilan commun, listes repliées, avertissements visibles et confirmation
+  explicite des documents conservés et des éléments non repris.
+- [x] Inventaire limité au dossier du `.crp` choisi et à ses descendants ; références
+  identifiables des autres corpus, fichiers techniques et noms d’accès connus écartés.
+  Cas de plusieurs corpus signalé avant confirmation ; aucune prétention à détecter
+  tous les secrets contenus dans des documents ou archives.
+- [x] Local : identité du bilan liée à la source/destination, relecture avant création,
+  copies binaires vérifiées, liens non suivis, dossier `Autres` créé sans remplacement.
+  Préparation retirée sans installation si la fermeture du contexte courant échoue.
+- [x] GitLab : documents conservés sous `Autres/` dans le dépôt, même avec médias
+  WebDAV ; flux/LFS existants réutilisés, suivi durable enrichi, publications conditionnelles,
+  corpus final en dernier et confirmations avant annonce de réussite.
+- [x] Cas GitLab non UTF-8 corrigé : vérification des octets bruts contre l’objet Git,
+  puis SHA-256 réel, sans se fier à des métadonnées texte réencodées.
+- [x] 915 tests / 54 fichiers réussis, typecheck et build réussis ; 16 tests Electron
+  réussis, dont les huit scénarios GitLab/Nextcloud réels étendus aux documents supplémentaires.
+- [x] Guides actualisés et [compte rendu commun](../../docs/dev/migration-conservation.md).
+- [x] Acceptation utilisateur du bilan et du périmètre documentaire : accord de clôture du 27 octobre 2026.
+
+Les copies brutes ne deviennent pas des analyses utilisables dans SonalPi2. Les
+médias Local ne sont pas copiés ; les vidéos WebDAV restent copiées mais non lisibles
+à distance avec le lecteur actuel. Aucun corpus utilisateur, commit ou push.
+
+## 13. Clôture et clarification Lexico
+
+Le 27 octobre 2026, l’utilisateur confirme : « il me semble qu’on peut clore ce projet ».
+Cet accord clôt le périmètre livré : migration GitLab, bilan commun Local/GitLab et
+conservation des documents non convertis. Il ne constitue pas une nouvelle campagne
+de tests ni une migration de données utilisateur.
+
+La relecture finale du code V1 précise le rôle de `.lexaf.json` : il provient du
+prototype d’analyse factorielle dont le bouton n’est pas ajouté à l’interface.
+La commande « Relire JSON » de ce prototype affiche le texte du fichier, sans
+restaurer l’analyse ni ses sélections. Les chiffres enregistrés permettent de
+reconstruire le tableau sauvegardé, mais ne garantissent pas de retrouver les filtres
+et les passages sources. Ce n’est pas une sauvegarde normalement réouverte par les
+utilisateurs de cette V1. Sa conservation dans `Autres/` reste une précaution ; aucun
+nouvel importeur de résultats ni graphique factoriel n’entre dans cette livraison.
+
+Les limites explicites des sections 11 et 12 restent documentées, sans être présentées
+comme des fonctionnalités réalisées. Aucun autre plan n’est clôturé par cet accord.

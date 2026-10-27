@@ -41,8 +41,8 @@ const aideOuverte = computed({
       <div v-if="aideOuverte" class="aide-texte">
         <template v-if="estProjet">
           <p v-if="!estDistant">
-            Vos documents sont rangés dans le sous-dossier <strong>DocsPrepaProjet</strong> du corpus
-            (ou <strong>DocsCadre</strong> pour un ancien corpus). « Ouvrir ce dossier » vous y conduit. « Ajouter un fichier » et le glisser-déposer copient dans le dossier affiché.
+            Vos documents sont rangés dans le sous-dossier <strong>DocsPrepaProjet</strong> du corpus. 
+            « Ouvrir ce dossier » vous y conduit. « Ajouter un fichier » et le glisser-déposer copient dans le dossier affiché.
             Créez un sous-dossier avec « Nouveau dossier ». SonalPi ne modifie jamais le contenu des documents.
             Pour déplacer, renommer ou supprimer, utilisez « Ouvrir ce dossier ».
             La liste se rafraîchit au retour dans cet onglet, ou avec « Actualiser ».

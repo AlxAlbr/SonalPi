@@ -91,10 +91,9 @@ async function retirerBadge(id: string) {
     <p v-if="!tableaubord" class="vide">Tableau indisponible.</p>
     <template v-else-if="editable">
       <section class="carte">
-        <h3>Colonne</h3>
+        <h3>Ajouter une colonne</h3>
         <div class="rang-creer">
           <input v-model="nomNouvelleColonne" placeholder="Nom de la colonne…" @keydown.enter="creerColonne" />
-          <button @click="creerColonne">+ Ajouter</button>
         </div>
         <label class="choix-emplacement" title="Où insérer la nouvelle colonne">
           <span>Après</span>
@@ -108,12 +107,12 @@ async function retirerBadge(id: string) {
         <label class="choix-traversante" title="Une seule case pour tous les entretiens">
           <input v-model="nouvelleTraversante" type="checkbox" /> traversante
         </label>
+        <button @click="creerColonne">+ Ajouter</button>
       </section>
       <section class="carte">
-        <h3>Ligne</h3>
+        <h3>Ajouter une ligne</h3>
         <div class="rang-creer">
           <input v-model="nomNouvelleLigne" placeholder="Nom de la ligne…" @keydown.enter="creerLigne" />
-          <button @click="creerLigne">+ Ajouter</button>
         </div>
         <label class="choix-emplacement" title="Où insérer la nouvelle ligne">
           <span>Après</span>
@@ -124,9 +123,10 @@ async function retirerBadge(id: string) {
             </option>
           </select>
         </label>
+        <button @click="creerLigne">+ Ajouter</button>
       </section>
       <section class="carte">
-        <h3>Badges</h3>
+        <h3>Ajouter un badge</h3>
         <div class="rang-badges">
           <span
             v-for="badge in tableaubord.badges"
@@ -142,8 +142,8 @@ async function retirerBadge(id: string) {
         <div class="rang-creer">
           <input v-model="nomNouveauBadge" class="badge-nom" placeholder="Nom du badge…" @keydown.enter="creerBadge" />
           <input v-model="couleurNouveauBadge" type="color" class="badge-couleur" title="Couleur du nouveau badge" />
-          <button @click="creerBadge">+ Créer</button>
         </div>
+        <button @click="creerBadge">+ Créer</button>
       </section>
     </template>
     <p v-else class="aide-lecture">Le suivi est en lecture seule : colonnes, lignes et badges ne peuvent pas être modifiés.</p>
@@ -151,20 +151,22 @@ async function retirerBadge(id: string) {
 </template>
 
 <style scoped>
-.panneau-tableau-bord { display: flex; flex-direction: column; gap: 0.5rem; }
+.panneau-tableau-bord { display: flex; flex-direction: column; gap: 0.9rem; }
 .panneau-tableau-bord .corpus-tete { margin-bottom: 0; }
 .vide, .aide-lecture { color: #66707f; font-size: 0.78rem; margin: 0; }
-.carte { background: #fff; border: 1px solid #c8ccd4; border-radius: 8px; padding: 0.5rem 0.6rem 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
-.carte h3 { margin: 0; font-size: 0.76rem; color: #444; text-transform: uppercase; letter-spacing: 0.03em; }
+/* Les boutons de création ferment la carte, centrés et à leur taille naturelle :
+ *  une action de fin de section, sans écraser la saisie au-dessus. */
+.carte { background: #fff; border: 1px solid #c8ccd4; border-radius: 8px; padding: 0.6rem 0.7rem 0.7rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.carte > button { align-self: center; min-width: 8rem; margin-top: 0.1rem; }
+.carte h3 { margin: 0 0 0.35rem; font-size: 0.76rem; color: #444; letter-spacing: 0.03em; }
 .rang-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
 .rang-creer { display: flex; align-items: center; gap: 0.35rem; }
 .rang-creer input:not([type='color']) { flex: 1; min-width: 0; }
-.badge-nom { width: 100%; }
 .badge-couleur { width: 2.2rem; flex: none; padding: 0 0.1rem; }
 .badge { display: inline-block; border-radius: 9px; padding: 0 0.4rem; font-size: 0.72rem; font-weight: 600; line-height: 1.35; }
 .badge .mini { color: inherit; opacity: .7; }
 .badge .mini:hover { opacity: 1; }
-.choix-traversante { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #444; white-space: nowrap; }
+.choix-traversante { display: inline-flex; align-self: start; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #444; white-space: nowrap; }
 .choix-emplacement { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: #444; }
 .choix-emplacement select { flex: 1; min-width: 0; }
 .mini { border: none; background: transparent; cursor: pointer; font-size: 0.6rem; padding: 0 0.1rem; color: #8a8f9c; }

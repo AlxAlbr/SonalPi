@@ -70,7 +70,7 @@ function banc(options: {
         enfants.set(rel.split('/')[0], rel.includes('/'))
       }
       return json([...enfants.entries()].map(([nom, dossier]) => ({
-        id: 'c'.repeat(40), name: nom, path: `${prefixe}${nom}`,
+        id: dossier || id !== '1' ? 'c'.repeat(40) : createHash('sha1').update(`blob ${fichiers[`${prefixe}${nom}`].octets.byteLength}\0`).update(fichiers[`${prefixe}${nom}`].octets).digest('hex'), name: nom, path: `${prefixe}${nom}`,
         type: dossier ? 'tree' : 'blob', mode: dossier ? '040000' : '100644',
       })))
     }
@@ -103,6 +103,30 @@ function pointeur(octets: Uint8Array): Uint8Array {
 }
 
 describe('préparation de migration GitLab V1', () => {
+  it('conserve les résultats et les octets inconnus dans le seul dossier choisi', async () => {
+    const corpus = { nom: 'Terrain', tabEnt: [{ id: 1, nom: 'Premier', rtrPath: 'premier.Sonal' }] }
+    const f = banc({ fichiers: {
+      'terrain/corpus.crp': { octets: b(JSON.stringify(corpus)) },
+      'terrain/premier.Sonal': { octets: b('<html>Texte</html>') },
+      'terrain/corpus.lexaf.json': { octets: b('{"ancienResultat":true}') },
+      'terrain/archives/inconnu.bin': { octets: Buffer.alloc(4096, 250) },
+      'terrain/.env': { octets: b('secret') },
+      'terrain/second.crp': { octets: b(JSON.stringify({ tabEnt: [{ id: 2, nom: 'Second', rtrPath: 'second.Sonal', imgPath: 'vignette.png' }] })) },
+      'terrain/second.Sonal': { octets: b('<html>Autre corpus</html>') },
+      'terrain/vignette.png': { octets: Buffer.from([0, 255, 3]) },
+      'hors/rapport.txt': { octets: b('autre dossier') },
+    } })
+    const source = await f.preparateur.decouvrir(demande)
+    const bilan = await f.preparateur.preparer({ preparationId: source.preparationId, cheminCrp: 'terrain/corpus.crp', cible })
+    expect(bilan.conservation?.autres.map((f) => f.cheminDestination)).toEqual(['Autres/archives/inconnu.bin', 'Autres/corpus.lexaf.json'])
+    expect(bilan.conservation?.nonRepris).toEqual(expect.arrayContaining([
+      expect.objectContaining({ chemin: '.env' }),
+      expect.objectContaining({ chemin: 'vignette.png', raison: expect.stringContaining('autre corpus') }),
+    ]))
+    expect(bilan.conservation?.autresCorpus).toBe(1)
+    expect(bilan.conservation!.autres[0].sha256).toBe(empreinte(Buffer.alloc(4096, 250)))
+  })
+
   it('retrouve le projet par son identifiant local, sa branche et sa racine enregistrées', async () => {
     const { auth, fetchImpl } = banc({ brancheSource: 'terrain' })
     const destination = { fournisseur: 'gitlab' as const, id: 'connue', compteId: 'compte', projetId: 1,
@@ -262,6 +286,31 @@ describe('préparation de migration GitLab V1', () => {
 })
 
 describe('documents V1 GitLab et LFS', () => {
+  it.each([7, 4096])('conserve les octets non UTF-8 malgré une empreinte de métadonnées texte erronée (%s octets)', async (taille) => {
+    const octets = Buffer.alloc(taille, 0xc9)
+    const blob = createHash('sha1').update(`blob ${taille}\0`).update(octets).digest('hex')
+    const client = new ClientGitLab({ urlInstance: INSTANCE, projetId: 1, autorisation: autorisationJetonPersonnel('s') }, async (_url, init) =>
+      init?.method === 'HEAD' ? new Response(null, { headers: {
+        'X-Gitlab-Size': String(taille), 'X-Gitlab-Content-Sha256': 'f'.repeat(64), 'X-Gitlab-Blob-Id': blob,
+      } }) : new Response(octets))
+    const info = await new LectureV1GitLab(client, COMMIT_SOURCE).informationAutre('ancien.txt', blob)
+    expect(info.sha256).toBe(empreinte(octets))
+    expect(info.taille).toBe(taille)
+    expect(info.stockage).toBe('git')
+  })
+
+  it('décode aussi un document V1 non UTF-8 de plus de 1024 octets malgré des métadonnées texte réencodées', async () => {
+    const texte = 'Une école synthétique. '.repeat(100)
+    const octets = encode(texte, 'windows-1252')
+    const blob = createHash('sha1').update(`blob ${octets.length}\0`).update(octets).digest('hex')
+    const client = new ClientGitLab({ urlInstance: INSTANCE, projetId: 1, autorisation: autorisationJetonPersonnel('s') }, async (_url, init) =>
+      init?.method === 'HEAD' ? new Response(null, { headers: {
+        'X-Gitlab-Size': String(octets.length), 'X-Gitlab-Content-Sha256': 'f'.repeat(64), 'X-Gitlab-Blob-Id': blob,
+      } }) : new Response(octets))
+    expect(octets.length).toBeGreaterThan(1024)
+    expect(await new LectureV1GitLab(client, COMMIT_SOURCE).lireDocument('texte.Sonal')).toBe(texte)
+  })
+
   it('décode windows-1252 après lecture des octets', async () => {
     const { auth } = banc({ fichiers: { 'texte.Sonal': { octets: encode('Émilie à l’école', 'windows-1252') } } })
     const lecture = new LectureV1GitLab(await auth.client('compte', 1), COMMIT_SOURCE)

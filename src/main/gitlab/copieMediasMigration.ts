@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
 import { join } from 'node:path'
+import { estDestinationAutreMigration, type FichierAutreMigration } from '../../shared/corpus/conservationMigration'
 import type { MediaMigrationGitLab } from '../../shared/corpus/migrationGitLab'
 import { referenceMediaDistant, type ReferenceMediaDistant } from '../../shared/format'
 import type { SurProgressionFichier } from '../distant/transfert'
@@ -30,6 +31,16 @@ export class CopieurMediasMigrationGitLab {
     signal?: AbortSignal,
   ): Promise<ReferenceMediaDistant> {
     verifierCheminMediaRelatif(media.cheminDestination)
+    await this.copierContenu(media, surProgression, signal)
+    return referenceMediaDistant(media.cheminDestination, this.destination.type === 'depot' ? 'gitlab' : 'webdav')
+  }
+
+  async conserver(fichier: FichierAutreMigration, surProgression?: SurProgressionFichier, signal?: AbortSignal): Promise<void> {
+    if (!estDestinationAutreMigration(fichier.cheminDestination) || this.destination.type !== 'depot') throw new Error('Destination documentaire invalide.')
+    await this.copierContenu(fichier, surProgression, signal)
+  }
+
+  private async copierContenu(media: FichierAutreMigration, surProgression?: SurProgressionFichier, signal?: AbortSignal): Promise<void> {
     verifierIdentiteContenuGitLab(media)
     signal?.throwIfAborted()
     mkdirSync(this.dossierPreparation, { recursive: true })
@@ -41,16 +52,15 @@ export class CopieurMediasMigrationGitLab {
     signal?.throwIfAborted()
     if (this.destination.type === 'depot') {
       await this.destination.client.televerserObjet(fichier, media, surProgression, signal)
-      return referenceMediaDistant(media.cheminDestination, 'gitlab')
+      return
     }
     await copierExterne(this.destination.client, media, fichier, this.dossierPreparation, surProgression)
-    return referenceMediaDistant(media.cheminDestination, 'webdav')
   }
 }
 
 async function copierExterne(
   client: PortCopieWebDAV,
-  media: MediaMigrationGitLab,
+  media: FichierAutreMigration,
   fichier: string,
   dossierPreparation: string,
   surProgression?: SurProgressionFichier,
@@ -83,6 +93,6 @@ async function copierExterne(
 async function verifierFichier(fichier: string, identite: IdentiteContenuGitLab): Promise<void> {
   const copie = await identifierFichierGitLab(fichier)
   if (copie.taille !== identite.taille || copie.sha256 !== identite.sha256) {
-    throw new Error('Une copie média ne correspond pas à la source préparée. Aucun fichier existant ne sera remplacé.')
+    throw new Error('Un fichier copié ne correspond pas à la source préparée. Aucun fichier existant ne sera remplacé.')
   }
 }

@@ -43,6 +43,38 @@ test('le catalogue se consulte sans créer de fichier ni changer le corpus coura
   } finally { await app.close(); rmSync(profil, { recursive: true, force: true }) }
 })
 
+test('les quatre cartes partagent une ligne et s’adaptent aux petites fenêtres', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-catalogue-cartes-'))
+  const app = await lancer(profil)
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await page.setViewportSize({ width: 1100, height: 800 })
+    await page.locator('.carte-demo.parcours').click()
+    const cartes = catalogue(page).locator('.carte-parcours')
+    await expect(cartes).toHaveCount(4)
+    await expect(cartes.locator('strong')).toHaveText([
+      'Préparer et suivre', 'Importer et traiter', 'Analyser et interpréter', 'Organiser et exporter',
+    ])
+    await expect(cartes.locator('span:first-of-type')).toHaveText([
+      'Suivi et documents du projet.', 'Import, notes et codage.', 'Thèmes, mots et comparaisons.', 'Cas, recueils et exports.',
+    ])
+    for (const [largeur, colonnes] of [[1100, 4], [740, 2], [360, 1]]) {
+      await page.setViewportSize({ width: largeur, height: 800 })
+      const positions = await cartes.evaluateAll((elements) => elements.map((e) => {
+        const rect = e.getBoundingClientRect()
+        return { haut: Math.round(rect.top), hauteur: Math.round(rect.height) }
+      }))
+      expect(new Set(positions.map((p) => p.haut)).size).toBe(4 / colonnes)
+      expect(positions.slice(0, colonnes).every((p) => p.haut === positions[0].haut && p.hauteur === positions[0].hauteur)).toBe(true)
+      expect(await catalogue(page).evaluate((d) => d.scrollWidth > d.clientWidth)).toBe(false)
+    }
+    await cartes.last().click()
+    await expect(catalogue(page).locator('#detail-parcours h3')).toHaveText('Organiser et exporter')
+    await expect(catalogue(page).locator('.liste-pp li')).toHaveCount(4)
+  } finally { await app.close(); rmSync(profil, { recursive: true, force: true }) }
+})
+
 test('le catalogue réel reste utilisable au clavier dans une fenêtre étroite', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-catalogue-clavier-'))
   const app = await lancer(profil)

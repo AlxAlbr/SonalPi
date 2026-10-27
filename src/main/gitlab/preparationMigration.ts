@@ -14,6 +14,7 @@ import { preparerBaseMediaVerifiee, type BaseMediaVerifiee } from '../medias/bas
 import { verifierCheminMediaRelatif } from '../medias/designation'
 import type { ServiceAuthentificationGitLab } from './authentification'
 import { LecteurGitLab } from './lecture'
+import { preparerConservationMigration } from '../conservationMigration'
 import { LectureV1GitLab, resoudreCheminV1GitLab } from './lectureV1'
 import { preparerCibleMigrationGitLab, preparerProjetGitLab, preparerProjetEnregistreMigrationGitLab } from './preparationProjet'
 
@@ -21,6 +22,7 @@ interface Preparation {
   source: SourceMigrationGitLab
   lecture: LectureV1GitLab
   fichiers: string[]
+  empreintes: Record<string, string>
   bilan?: BilanMigrationGitLab
   baseMedia?: BaseMediaVerifiee
 }
@@ -93,14 +95,15 @@ export class PreparateurMigrationGitLab {
     const client = await this.authentification.client(projet.compteId, projet.projetId)
     const lecteur = await LecteurGitLab.depuisBranche(client, projet.branche)
     const racine = destination?.racine ? `${destination.racine}/` : ''
-    const fichiers = await fichiersDepot(lecteur)
+    const empreintes = await inventorierDepotMigration(lecteur)
+    const fichiers = Object.keys(empreintes).sort()
     const corpus = fichiers.filter((chemin) => chemin.startsWith(racine) && /\.crp$/i.test(chemin))
     if (!corpus.length) throw new Error('Aucun corpus SonalPi1 (.crp) trouvé dans ce dépôt.')
     if (generation !== this.generation) throw new Error('La source a changé. Préparez de nouveau la migration.')
     const source: SourceMigrationGitLab = {
       preparationId: randomUUID(), projet, commit: lecteur.commit, corpus,
     }
-    this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit), fichiers }
+    this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit), fichiers, empreintes }
     return structuredClone(source)
   }
 
@@ -182,6 +185,29 @@ export class PreparateurMigrationGitLab {
       }
       bilan.entretiens.push({ titre: entretien.titre, cheminSonal, media })
     }
+    const utilises = new Set([demande.cheminCrp,
+      ...bilan.entretiens.map((e) => e.cheminSonal).filter((p): p is string => !!p),
+      ...bilan.medias.map((m) => m.cheminSource),
+    ])
+    for (const ext of lexicoV1.fichiers) if (!lexicoV1.diagnostics.some((d) => d.startsWith(ext))) utilises.add(`${baseLexico}${ext}`)
+    bilan.conservation = await preparerConservationMigration({ cheminCrp: demande.cheminCrp, fichiers, utilises,
+      lireCorpus: async (p) => {
+        const a = analyserCrp(await lecture.lireDocument(p), posix.basename(p))
+        return a.ok ? a.apercu.raw : null
+      },
+      references: (p, corpus) => {
+        const refs = mapperEntretiensV1(corpus.tabEnt).flatMap((e) => [e.rtrPath, e.audioRef].filter((s): s is string => !!s))
+        for (const entretien of corpus.tabEnt ?? []) if (entretien.imgPath) refs.push(entretien.imgPath)
+        const base = p.slice(0, -posix.extname(p).length)
+        return [...refs.flatMap((ref) => {
+          try { return [resoudreCheminV1GitLab(p, ref)] } catch { return [] }
+        }), ...['out', 'lem', 'cnct', 'lexaf.json'].map((ext) => `${base}.${ext}`)]
+      },
+      information: async (p) => {
+        const info = await lecture.informationAutre(p, preparation.empreintes[p])
+        return { taille: info.taille, sha256: info.sha256, stockageSource: info.stockage }
+      },
+    })
     let baseMedia: BaseMediaVerifiee | undefined
     if (demande.baseMedia) {
       const resultat = await this.verifierBase(demande.baseMedia)

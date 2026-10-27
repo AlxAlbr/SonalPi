@@ -1,10 +1,14 @@
-# Migration GitLab SonalPi1 → SonalPi2 : état de développement
+# Migration GitLab SonalPi1 → SonalPi2
 
-**Parcours implémenté et raccordé, non qualifié sur serveur réel.** La carte GitLab
-permet seulement de préparer le bilan dans l’application. Migration et reprise
-restent désactivées dans l’interface et bloquées côté main par
-`MIGRATION_GITLAB_QUALIFIEE = false`. L’autorisation interne des tests isolés ne
-change pas ce blocage. Le parcours Local et sa politique média restent inchangés.
+**Parcours qualifié sur banc réel et activé le 27 octobre 2026.**
+`MIGRATION_GITLAB_QUALIFIEE = true` autorise migration et reprise dans l’interface
+et côté main. La politique média Local reste inchangée. Son bilan est désormais
+plus concis et les deux parcours conservent les documents non convertis dans `Autres/` ;
+voir [conservation et bilan commun](migration-conservation.md).
+La [recette réelle](migration-gitlab-v1-qualification.md) consigne les preuves,
+les corrections et les limites. Le projet est clôturé avec accord utilisateur
+le 27 octobre 2026 ; le [plan terminé](../../plans/termines/migration_sonalpi1_sonalpi2_local_gitlab.md)
+conserve l’historique et le périmètre accepté.
 
 ## Préparation sans publication
 
@@ -47,6 +51,12 @@ résolues et fixe leurs chemins, taille et SHA-256. Les chemins source sont rés
 relativement au `.crp`. Une référence hors dépôt ou inaccessible arrête la
 préparation ; une erreur réseau ne devient pas un entretien vide.
 
+Le dossier du `.crp` est aussi inventorié pour conserver les documents non convertis
+sous `Autres/` dans le nouveau dépôt : résultats `.lexaf.json`, exports, inconnus et
+originaux de réglages partiellement ignorés. Les fichiers rattachés à d’autres corpus
+identifiables et les noms techniques ou d’accès connus sont écartés et signalés.
+Le bilan commun expose les compteurs et avertissements, avec les listes repliées.
+
 `LectureV1GitLab` lit les octets avant détection d’encodage. Les documents LFS sont
 résolus vers leur contenu réel et vérifiés. Les documents V1 gardent les bornes de
 lecture existantes. La validation externe réutilise le service WebDAV ; les accès
@@ -57,7 +67,11 @@ restent dans le main, jamais dans le bilan public.
 `convertirEntretienMigrationGitLab` réutilise le SAS et le DOM existants, sans
 nouveau parseur. `DocumentsMigrationGitLab` utilise `CorpusStore` dans un dossier
 privé pour importer les définitions et les entretiens en ordre. Les blocs `legacy`,
-les décisions d’entretien et les déclarations locales sont conservés.
+les décisions d’entretien et les déclarations locales sont conservés. Les thèmes
+et variables des `.Sonal` complètent les définitions absentes du `.crp` sans
+remplacer les définitions déjà présentes. Après fusion, les annotations sont
+rattachées aux identifiants des règles effectivement conservées, même après un
+import répété ou une fusion partielle d’alias ; leur pseudo et leur état ne changent pas.
 
 Avant le premier transfert, les contenus natifs, identifiants, chemins et empreintes
 sont figés localement. Leur préparation n’autorise pas la publication : l’opération
@@ -76,7 +90,12 @@ intacte ; une réponse perdue peut être reconnue par son contenu sans second PU
 Le sous-dossier externe est dérivé de la source figée, du corpus choisi et de la
 cible. Les homonymes de dossiers sources différents restent distincts.
 
-Les pointeurs et attributs LFS sont limités à `medias/`. Le `.gitattributes` de
+Les documents supplémentaires réutilisent ce transport LFS, même avec des médias
+WebDAV. Ils sont copiés tels quels, jamais transformés en analyses V2. La lecture
+brute est vérifiée contre l’objet Git source pour ne pas dépendre de métadonnées
+texte susceptibles de réencodage. Le suivi existant conserve leurs confirmations.
+
+Les pointeurs et attributs LFS sont limités à `medias/` et `Autres/`. Le `.gitattributes` de
 racine n’est pas remplacé, et les JSON natifs restent hors LFS.
 
 ## Opération et publication
@@ -92,8 +111,11 @@ remplacés. Un dernier contrôle empêche d’ouvrir une migration en attente do
 cible a changé.
 
 Pour une cible sans branche, le premier commit de coordination initialise `main`.
-Une cible initialisée conserve sa branche par défaut. Ce raccord est éprouvé sur
-API simulée, **pas encore démontré sur GitLab réel**.
+Une cible initialisée conserve sa branche par défaut. Le banc réel démontre
+l’initialisation sans branche et la conservation des fichiers techniques.
+Un dépôt `empty_repo: true` peut annoncer `default_branch: main` avant toute
+création de branche : la préparation de migration le traite comme sans branche,
+sans modifier le comportement des autres parcours.
 
 Les limites de taille et d’actions existantes déterminent les lots, en réservant la
 place nécessaire à la coordination. Une publication groupée est préférée lorsqu’elle
@@ -146,7 +168,8 @@ permet de réessayer l’ouverture sans renvoyer les données.
 La destination est enregistrée après confirmation pour permettre sa reprise et la
 configuration média locale. Les récents sont ajoutés par l’installation finale,
 comme pour les autres ouvertures GitLab. Le cycle renderer existant applique le
-résultat confirmé ; aucun nouveau mécanisme de navigation ou lecteur n’est créé.
+résultat confirmé, puis ferme le formulaire après la fin de l’opération ; aucun
+nouveau mécanisme de navigation ou lecteur n’est créé.
 
 ## Références et lecteur existant
 
@@ -157,8 +180,9 @@ résultat confirmé ; aucun nouveau mécanisme de navigation ou lecteur n’est 
 - `webdav` : média relatif à la base externe déclarée sur le poste ;
 - fournisseur absent : résolution historique conservée.
 
-Le miroir GitLab ne récupère que les références explicitement `gitlab`. Un cache
-homonyme ne transforme pas une référence externe en média du dépôt. Les accès à
+Le miroir GitLab ne récupère que les références explicitement `gitlab`. Le lecteur
+charge le chemin effectif rendu par l’inventaire local même si `audioRef` est nul.
+Un cache homonyme ne transforme pas une référence externe en média du dépôt. Les accès à
 la base externe restent au coffre du poste ; un autre profil doit déclarer ses
 propres accès au même dossier partagé.
 
@@ -170,17 +194,22 @@ reprise et réouverture. La couverture dédiée d’annulation vérifie aussi l�
 pendant le miroir, l’absence d’installation tardive, la reprise sans publication
 supplémentaire et l’arrêt tardif après réussite. Le bilan consolidé et sa commande
 sont consignés dans le
-[plan de migration](../../plans/encours/migration_sonalpi1_sonalpi2_local_gitlab.md).
+[plan de migration terminé](../../plans/termines/migration_sonalpi1_sonalpi2_local_gitlab.md).
 
-**Aucune qualification réelle de cette migration n’a été exécutée.** Le banc est
-sur l’autre ordinateur. Aucun banc n’a été installé ou reprovisionné ici. Les
-tests de service utilisent une API simulée et une ouverture remplacée ; les tests
-de miroir et d’ouverture ne prouvent pas la lecture audio/vidéo dans Electron sur
-un profil neuf. Les qualifications LFS historiques ne qualifient pas ce parcours.
+**Huit scénarios réels réussis dans Electron**, puis **16 tests Electron réussis**
+sur le build normal activé : huit réels et huit locaux/simulés de non-régression.
+Après ajout du bilan commun et de la conservation documentaire, la campagne
+consolidée atteint **915 tests / 54 fichiers**, typecheck et build réussis.
+Voir les commandes et projets synthétiques dans la
+[recette réelle](migration-gitlab-v1-qualification.md).
 
-Restent la qualification réelle des deux destinations médias, le dépôt sans
-branche, la fidélité, la lecture sur profil neuf, la navigation temporelle et un
-arrêt réel de l’application avec reprise contrôlée. L’activation attend ces preuves.
+Les deux destinations ont des copies vérifiées par SHA-256. Le lecteur existant
+joue audio et vidéo du dépôt, y compris sur profil neuf, avec recherche temporelle.
+Sur WebDAV, l’audio fonctionne ; la vidéo est copiée mais sa lecture distante reste
+refusée par le lecteur actuel. Le bilan avertit de cette limite avant confirmation.
+Les arrêts SIGKILL pendant une copie WebDAV et après publication GitLab se reprennent
+sans recréer les identifiants ni répéter les publications acquises. Une réponse
+perdue est réconciliée, y compris sur un corpus de 251 entretiens publié en deux lots.
 
 Les actions LFS vers une autre origine restent refusées : une instance utilisant
 un stockage objet externe n’est pas couverte. Les gardes de fichiers et contrôles

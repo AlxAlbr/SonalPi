@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ServiceAuthentificationGitLab } from '../../src/main/gitlab/authentification'
-import { preparerProjetGitLab } from '../../src/main/gitlab/preparationProjet'
+import { preparerCibleMigrationGitLab, preparerProjetGitLab } from '../../src/main/gitlab/preparationProjet'
 
 const URL_INSTANCE = 'https://gitlab.example.org'
 const demande = { urlProjet: `${URL_INSTANCE}/groupe/corpus`, compteId: 'compte-1' }
@@ -44,6 +44,12 @@ function authentificationFactice(
 }
 
 describe('préparation du projet GitLab', () => {
+  it.each(['main', 'master'])('traite le dépôt vide annonçant %s comme une cible sans branche, uniquement en migration', async (branche) => {
+    const auth = authentificationFactice(transport({ ...projet, default_branch: branche, empty_repo: true }))
+    await expect(preparerCibleMigrationGitLab(demande, auth)).resolves.toMatchObject({ branche: null })
+    await expect(preparerProjetGitLab(demande, auth)).resolves.toMatchObject({ branche })
+  })
+
   it.each(['terrain', 'main', 'equipe/pilote'])('utilise la branche %s annoncée par le projet sans lister les branches', async (branche) => {
     const fetchImpl = transport({ ...projet, default_branch: branche })
     const resultat = await preparerProjetGitLab(

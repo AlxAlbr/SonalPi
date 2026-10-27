@@ -12,7 +12,7 @@ export function convertirEntretienMigrationGitLab(
       annotations: [], ancres: [], locuteurs: [], brouillonsAnon: [],
       meta: { valeursGen: {}, audioRef: null },
     },
-    reglesAnon: [],
+    reglesAnon: [], codebook: [], variables: [],
   }
   const importe = importerFichier(lecture.nom, lecture.contenu, parseur)
   const meta = { ...importe.payload.meta, audioRef: null }
@@ -20,5 +20,7 @@ export function convertirEntretienMigrationGitLab(
   return {
     payload: { ...importe.payload, meta, legacy: importe.legacy as unknown as Record<string, unknown> },
     reglesAnon: importe.reglesAnon,
+    codebook: importe.codebook,
+    variables: importe.variables,
   }
 }
