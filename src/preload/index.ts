@@ -12,10 +12,8 @@ import type {
   CorpusFichier,
   DossierCorpus,
   EntreeRecent,
-  EtatDemo,
   ItemLotValeur,
   CibleRegleAnon,
-  EtatDemoComplet,
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
@@ -35,7 +33,6 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
-  VerificationDossierDemo,
   DemandeExportDocx,
   DemandeExportPdf,
   DemandeExportDocxCorpus,
@@ -78,6 +75,7 @@ import type {
   ResultatFermetureSession,
 } from '../shared/distant'
 import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
 import { CORPUS_SUPPRIME } from '../shared/format'
 
@@ -211,8 +209,8 @@ contextBridge.exposeInMainWorld('sonal', {
     verifierNouveau: (dir: string): Promise<{ dejaCorpus: boolean }> =>
       invoquer('corpus:verifierNouveau', dir),
     /** « Nouveau corpus » : crée (ou ouvre) et bascule le store dessus. */
-    creerNouveau: (dir: string, nom: string): Promise<OuvertureCorpus> =>
-      invoquer('corpus:creerNouveau', dir, nom),
+    creerNouveau: (dir: string, nom: string, exemple?: InstallationExemple): Promise<OuvertureCorpus> =>
+      invoquer('corpus:creerNouveau', dir, nom, exemple),
     lireEntretien: (id: string): Promise<LectureEntretien> =>
       invoquer('corpus:lireEntretien', id),
     ouvrirEntretienPourEdition: (id: string): Promise<OuvertureEntretienEdition> =>
@@ -403,8 +401,8 @@ contextBridge.exposeInMainWorld('sonal', {
     supprimerModalite: (idVar: string, idMod: string): Promise<ResultatSuppression> =>
       invoquer('corpus:supprimerModalite', idVar, idMod),
     matrice: (): Promise<MatriceCorpus> => invoquer('corpus:matrice'),
-    marquerDemo: (marqueur: MarqueurDemo): Promise<CorpusFichier> =>
-      invoquer('corpus:marquerDemo', marqueur),
+    marquerDemo: (marqueur: MarqueurDemo, dirAttendu?: string): Promise<CorpusFichier> =>
+      invoquer('corpus:marquerDemo', marqueur, dirAttendu),
     assignerAudio: (id: string, source: string): Promise<{ audioRef: string } | null> =>
       invoquer('corpus:assignerAudio', id, source),
     /** Détache l'audio d'un entretien (ref + onde dérivée) — le texte reste. */
@@ -527,8 +525,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('dialog:choisirAudio', defaultPath),
     /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux dossiers ;
      *  `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
-    choisirDossier: (kind?: 'sources' | 'corpus'): Promise<string | null> =>
-      invoquer('dialog:choisirDossier', kind),
+    choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string): Promise<string | null> =>
+      invoquer('dialog:choisirDossier', kind, proposition),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       invoquer('dialog:choisirExport', nomSuggere, contenu),
   },
@@ -618,27 +616,17 @@ contextBridge.exposeInMainWorld('sonal', {
     ): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('migrer:lireSonal', cheminCrp, rtrPath),
   },
-  demo: {
-    /** Copie les sources de CorpusTest/CorpusSynth/ (srt/ + audio/ + docs/) ;
-     *  elles arrivent dans le dossier choisi par l'utilisateur,
-     *  puis le corpus les RÉFÉRENCE. */
-    copierSources: (racine: string): Promise<void> =>
-      invoquer('demo:copierSources', racine),
-    /** Lit un fichier texte des sources (ex. 'srt/1Coordinatrice.srt'). */
-    lireSource: (racine: string, rel: string): Promise<{ nom: string; contenu: string }> =>
-      invoquer('demo:lireSource', racine, rel),
-    /** Chemin absolu d'un média des sources (ex. 'audio/E2.mp3'). */
-    cheminAudio: (racine: string, rel: string): Promise<string> =>
-      invoquer('demo:cheminAudio', racine, rel),
-    /** Mémoire démo persistée (settings.json) : dossiers mémorisés,
-     *  plus présence réelle sur disque (la modale adapte ses questions). */
-    etat: (): Promise<EtatDemoComplet | null> => invoquer('demo:etat'),
-    /** Mémoire démo persistée : à appeler après chaque préparation réussie. */
-    memoriser: (etat: EtatDemo): Promise<void> => invoquer('demo:memoriser', etat),
-    /** Garde de la modale : le dossier choisi pour le corpus de test ;
-     *  refus s'il porte déjà un travail (marqué démo, non vide, illisible) ;
-     *  un squelette amorcé vide passe. */
-    verifierCorpus: (dir: string): Promise<VerificationDossierDemo> =>
-      invoquer('demo:verifierCorpus', dir),
+  exemples: {
+    etat: (): Promise<EtatExemples> => invoquer('exemples:etat'),
+    textesSources: (): Promise<Array<{ cle: string; contenu: string }>> => invoquer('exemples:textesSources'),
+    selectionner: (dir: string): Promise<void> => invoquer('exemples:selectionner', dir),
+    rattacher: (dir: string, ancienDir?: string): Promise<TravailExemple> => invoquer('exemples:rattacher', dir, ancienDir),
+    restaurerSources: (): Promise<void> => invoquer('exemples:restaurerSources'),
+    voirSources: (dossier?: DossierFichiersExercice): Promise<string> => invoquer('exemples:voirSources', dossier),
+    surRattachement: (cb: (dir: string) => void): (() => void) => {
+      const ecoute = (_e: Electron.IpcRendererEvent, dir: string) => cb(dir)
+      ipcRenderer.on('exemples:rattache', ecoute)
+      return () => ipcRenderer.removeListener('exemples:rattache', ecoute)
+    },
   },
 })

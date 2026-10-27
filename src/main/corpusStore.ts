@@ -606,12 +606,8 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Marque le corpus courant comme corpus de TEST (démo) : `corpus.json:
-   *  { demo: { mode, racineSources, parcours } }`.
-   *  Champ ADDITIF optionnel, donc pas de bump de version ;
-   *  un corpus normal n'a pas de marqueur, la démo n'y touche jamais.
-   *  Posé par le builder à la création, mis à jour à chaque étape validée,
-   *  l'historique du pas-à-pas voyageant avec le corpus. */
+  /** Enregistre l'origine, l'usage et les acquis du corpus exemple.
+   *  Le marqueur voyage avec le corpus ; les corpus ordinaires n'en portent pas. */
   marquerDemo(marqueur: MarqueurDemo): CorpusFichier {
     this.verifierEcriture()
     const corpus = this.ouvrir()

@@ -87,7 +87,7 @@ function annuler() {
       </div>
       <div class="sources-lot">
         <label v-for="candidat in visibles" :key="candidat.id" class="source-lot">
-          <input v-model="ids" type="checkbox" :value="candidat.id" />
+          <input :data-tour="`source-cas-${candidat.id}`" v-model="ids" type="checkbox" :value="candidat.id" />
           <span>{{ candidat.nom }} <small>{{ candidat.id }}</small></span>
         </label>
         <p v-if="!visibles.length">Aucune source correspondante.</p>
@@ -97,7 +97,7 @@ function annuler() {
       <label v-if="type === 'personnes'">
         <input v-model="inclureEnqueteurs" type="checkbox" /> Inclure les interventions où le locuteur est enquêteur
       </label>
-      <button class="primaire" :disabled="!ids.length" @click="previsualiser">Prévisualiser les cas</button>
+      <button data-tour="previsualiser-cas" class="primaire" :disabled="!ids.length" @click="previsualiser">Prévisualiser les cas</button>
     </fieldset>
 
     <div v-if="apercu" class="apercu-lot">
@@ -131,7 +131,7 @@ function annuler() {
     <p v-if="occupe" role="status">Opération en cours…</p>
     <div class="actions-lot">
       <button :disabled="occupe" @click="annuler">{{ creationCasEnAttente ? 'Abandonner la tentative' : 'Annuler' }}</button>
-      <button v-if="apercu || creationCasEnAttente" class="primaire" :disabled="occupe || lectureSeule || nomsInvalides" @click="creer">
+      <button v-if="apercu || creationCasEnAttente" data-tour="confirmer-lot-cas" class="primaire" :disabled="occupe || lectureSeule || nomsInvalides" @click="creer">
         {{ creationCasEnAttente ? 'Réessayer la création' : 'Créer les cas' }}
       </button>
     </div>

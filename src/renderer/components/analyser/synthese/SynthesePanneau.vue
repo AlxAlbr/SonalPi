@@ -98,10 +98,10 @@ function afficherDansExtraits() {
         <button :class="{ actif: representationSynthese === 'ensemble' }" @click="representationSynthese = 'ensemble'">Vue d’ensemble</button>
         <button :class="{ actif: representationSynthese === 'extraits' }" @click="representationSynthese = 'extraits'">Extraits</button>
       </div>
-      <button class="btn-calcul" :disabled="chargementSynthese || !calculSynthesePossible" @click="actualiserSynthese">
+      <button class="btn-calcul" data-tour="calculer-synthese" :disabled="chargementSynthese || !calculSynthesePossible" @click="actualiserSynthese">
         {{ chargementSynthese ? 'Calcul en cours…' : calculeLeSynthese ? 'Actualiser la synthèse' : 'Calculer la synthèse' }}
       </button>
-      <button @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} les critères</button>
+      <button data-tour="afficher-criteres-synthese" @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} les critères</button>
     </div>
 
     <main class="resultats">

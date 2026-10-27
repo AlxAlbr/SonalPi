@@ -1,224 +1,377 @@
-import { test, expect } from '@playwright/test'
-import { mkdtempSync, readdirSync, existsSync, readFileSync } from 'node:fs'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus } from './util'
+import { lancer, attendreAccueil, ecrireSeedDemo } from './util'
+import { choisirDossierExemple, configurerSourcesExemples, preparerApprentissage } from './exemples-util'
 
-/**
- *  Mini Corpus Test : depuis
- *  l'Accueil, les cartes passent par la MODALE ADAPTATIVE puis construisent le
- *  corpus de test via le vrai pipeline d'import. Chaque mode a son PROPRE dossier
- *  de corpus, choisi DIRECTEMENT par l'utilisateur (un dossier = un corpus) :
- *   carte « En autonomie » → le corpus de test « autonomie » (4 entretiens + audio) ;
- *   carte « Découverte pas à pas » → le corpus de test « pas-a-pas » (VIDE au
- *   départ, les étapes remplissent).
- *  Les deux corpus ne se mélangent JAMAIS (gardes de la modale : pas déjà un
- *  corpus, pas le dossier de l'autre mode, pas les sources) ; seules les SOURCES
- *  sont partagées (copiées une fois). Le marqueur `corpus.json: { demo: { mode,
- *  racineSources, parcours } }` identifie un corpus de test (absent = corpus normal).
- *
- *  Modèle par RÉFÉRENCE : les sources sont copiées UNE fois dans le dossier
- *  choisi (demo:copierSources) ; le corpus RÉFÉRENCE leurs fichiers — aucune
- *  copie d'audio dans le corpus (seuls les PNG d'onde dans png/).
- */
-
-/** Stub des dialogues de la modale démo : 1er = sources, 2e = dossier du corpus. */
-async function stuberDeuxDossiers(
-  app: import('@playwright/test').ElectronApplication,
-  sources: string,
-  corpus: string,
-): Promise<void> {
-  await app.evaluate(({ dialog }, args) => {
-    const dossiers = [args.sources, args.corpus]
-    let i = 0
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [dossiers[Math.min(i++, dossiers.length - 1)]],
-    })
-  }, { sources, corpus })
-}
-
-/** Stub d'UN SEUL dialogue (modale adaptative : une seule question posée). */
-async function stuberUnDossier(
-  app: import('@playwright/test').ElectronApplication,
-  dir: string,
-): Promise<void> {
-  await app.evaluate(({ dialog }, d) => {
-    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
-  }, dir)
-}
-
-/** Remplit la modale (les deux questions posées, choisit les deux, valide). */
-async function preparerParModale(page: import('@playwright/test').Page): Promise<void> {
-  await expect(page.locator('.modale-demo')).toBeVisible()
-  await page.locator('.modale-demo .choisir-dossier').first().click()
-  await page.locator('.modale-demo .choisir-dossier').nth(1).click()
-  await page.locator('.modale-demo .valider').click()
-}
-
-/** Lit le marqueur `demo` du corpus.json d'un corpus de test. */
-function marqueurDemo(dirCorpus: string): Record<string, unknown> | null {
-  const f = join(dirCorpus, 'corpus.json')
-  return existsSync(f)
-    ? ((JSON.parse(readFileSync(f, 'utf8')).demo ?? null) as Record<string, unknown>)
-    : null
-}
-
-test('« En autonomie » : corpus créé dans le dossier choisi, sources copiées, audio RÉFÉRENCÉ (zéro copie)', async () => {
-  const profil = mkdtempSync(join(tmpdir(), 'sonal-demo-a-'))
-  const dirSources = mkdtempSync(join(tmpdir(), 'sonal-demo-sources-a-'))
-  const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-demo-corpus-a-'))
-  const app = await lancer(profil)
-  const page = await app.firstWindow()
-  await attendreAccueil(page)
-
-  await stuberDeuxDossiers(app, dirSources, dirCorpus)
-  await page.locator('.carte-demo.autonomie').click()
-  await preparerParModale(page)
-  await attendreCorpus(page)
-
-  // 4 entretiens importés (1Coordinatrice…4Etudiants) — titres courts = noms de fichiers (numéro + qualificatif neutre, pas de prénom).
-  await expect(page.locator('.carte-ent')).toHaveCount(4)
-  await expect(page.locator('.carte-ent .ent-titre')).toContainText([
-    '1Coordinatrice',
-    '2RetraiteAnticipee',
-    '3Cuisinier',
-    '4Etudiants',
-  ])
-  await expect(page.getByTestId('parcours-pas-a-pas')).toHaveCount(0)
-  await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F')
-
-  // (i) Les sources sont COPIÉES dans le dossier choisi (srt/ + audio/ intacts).
-  await expect
-    .poll(() => readdirSync(join(dirSources, 'srt')).sort())
-    .toEqual(['1Coordinatrice.srt', '2RetraiteAnticipee.srt', '3Cuisinier.srt', '4Etudiants.srt'])
-  await expect
-    .poll(() => readdirSync(join(dirSources, 'audio')).sort())
-    .toEqual(['1Coordinatrice.mp3', '2RetraiteAnticipee.mp3', '3Cuisinier.mp3', '4Etudiants.mp3'])
-
-  // (ii) AUCUNE copie d'audio dans le corpus — seuls les PNG d'onde dans png/.
-  const audioDuCorpus = () =>
-    existsSync(join(dirCorpus, 'audio')) ? readdirSync(join(dirCorpus, 'audio')) : []
-  const pngsDuCorpus = () =>
-    existsSync(join(dirCorpus, 'png')) ? readdirSync(join(dirCorpus, 'png')) : []
-  await expect.poll(audioDuCorpus).toEqual([])
-  // Les ondes sont régénérées en fond (regenererOndesManquantes) → poll.
-  await expect.poll(() => pngsDuCorpus().length).toBe(4)
-
-  // (iii) Les audioRef = chemins ABSOLUS dans le dossier sources choisi.
-  const refs = readdirSync(join(dirCorpus, 'entretiens'))
-    .filter((n) => n.endsWith('.json'))
-    .map((n) => JSON.parse(readFileSync(join(dirCorpus, 'entretiens', n), 'utf8')).meta.audioRef)
-    .sort()
-  expect(refs).toEqual(
-    ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants'].map((k) => join(dirSources, 'audio', `${k}.mp3`)).sort(),
+const catalogue = (page: Page) => page.getByRole('dialog', { name: 'Choisir un parcours pas à pas' })
+function lireCorpus(dir: string) { return JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) }
+async function ouvrirLibre(app: ElectronApplication, page: Page, dir: string, annote = false) {
+  await choisirDossierExemple(app, dir)
+  await page.locator('.carte-demo.exemples').click()
+  const carte = page.locator('.exemple').filter({ has: page.getByRole('heading', { name: annote ? 'Corpus annoté' : 'Entretiens déjà importés', exact: true }) })
+  await carte.getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
+  const installation = page.locator('.installation-exemple')
+  await expect(installation.locator('#emplacement-exemple')).toHaveValue(
+    annote ? /[\\/]Corpus_annote$/ : /[\\/]Entretiens_transcrits$/,
   )
+  await installation.getByRole('button', { name: 'Modifier…', exact: true }).click()
+  await installation.getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
+  await expect(installation).toHaveCount(0)
+}
 
-  // (iv) Le corpus de test est MARQUÉ (mode 'autonomie' + sources).
-  const marqueur = marqueurDemo(dirCorpus)
-  expect(marqueur?.mode).toBe('autonomie')
-  expect(marqueur?.racineSources).toBe(dirSources)
-
-  await app.close()
-})
-
-test('« Découverte pas à pas » démarre sur un corpus VIDE, marqué pas-a-pas', async () => {
-  const profil = mkdtempSync(join(tmpdir(), 'sonal-demo-p-'))
-  const dirSources = mkdtempSync(join(tmpdir(), 'sonal-demo-sources-p-'))
-  const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-demo-corpus-p-'))
+test('le catalogue se consulte sans créer de fichier ni changer le corpus courant', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-catalogue-'))
   const app = await lancer(profil)
-  const page = await app.firstWindow()
-  await attendreAccueil(page)
-
-  await stuberDeuxDossiers(app, dirSources, dirCorpus)
-  await page.locator('.carte-demo.pas-a-pas').click()
-  await preparerParModale(page)
-  await attendreCorpus(page)
-
-  // Mode pas-à-pas : corpus amorcé VIDE (les étapes rempliront) — 0 entretien.
-  await expect(page.locator('.carte-ent')).toHaveCount(0)
-  await expect(page.getByTestId('parcours-pas-a-pas')).toBeVisible()
-  await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
-  await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F')
-  // Marqué pas-a-pas (le parcours sera restauré à la réouverture).
-  const marqueur = marqueurDemo(dirCorpus)
-  expect(marqueur?.mode).toBe('pas-a-pas')
-  expect(marqueur?.racineSources).toBe(dirSources)
-
-  await app.close()
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+    await page.locator('.carte-demo.parcours').click()
+    await expect(catalogue(page)).toBeVisible()
+    await expect(catalogue(page).locator('.liste-pp li')).toHaveCount(4)
+    await catalogue(page).getByRole('button', { name: /^Importer et traiter/ }).click()
+    await expect(catalogue(page).locator('.liste-pp li')).toHaveCount(6)
+    await expect(catalogue(page).locator('.liste-pp')).toHaveCSS('list-style-type', 'none')
+    await expect(catalogue(page).locator('.liste-pp .num')).toHaveText(['1', '2', '3', '4', '5', '6'])
+    await expect(page.locator('.modale-nouveau')).toHaveCount(0)
+    expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
+    expect((await page.evaluate(() => window.sonal.exemples.etat())).travaux).toHaveLength(0)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.carte-demo.parcours')).toBeFocused()
+  } finally { await app.close(); rmSync(profil, { recursive: true, force: true }) }
 })
 
-test('deux corpus INDÉPENDANTS : « En autonomie » crée le sien, refuse le dossier du pas-a-pas, aucun mélange', async () => {
-  const profil = mkdtempSync(join(tmpdir(), 'sonal-demo-memo-'))
-  const dirSources = mkdtempSync(join(tmpdir(), 'sonal-demo-sources-memo-'))
-  const corpusPasAPas = mkdtempSync(join(tmpdir(), 'sonal-demo-corpus-pap-'))
-  const corpusAutonomie = mkdtempSync(join(tmpdir(), 'sonal-demo-corpus-auto-'))
+test('le catalogue réel reste utilisable au clavier dans une fenêtre étroite', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-catalogue-clavier-'))
+  const app = await lancer(profil)
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await page.setViewportSize({ width: 360, height: 640 })
+    await page.locator('.carte-demo.parcours').click()
+    await expect(catalogue(page)).toBeVisible()
+    await expect(catalogue(page).getByRole('button', { name: 'Fermer les parcours', exact: true })).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(catalogue(page).locator('.carte-parcours').first()).toBeFocused()
+    const deborde = await catalogue(page).evaluate((d) => d.scrollWidth > d.clientWidth)
+    expect(deborde).toBe(false)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.carte-demo.parcours')).toBeFocused()
+  } finally { await app.close(); rmSync(profil, { recursive: true, force: true }) }
+})
 
-  // 1re session : préparation « pas à pas » via la modale (sources + son corpus).
+test('Préparation laisse choisir l’emplacement de sa démo et ne l’inscrit jamais dans les Récents', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-creation-guide-'))
+  const profil = join(racine, 'profil'), dir = join(racine, 'exercice'), sources = join(racine, 'sources')
+  const app = await lancer(profil)
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await configurerSourcesExemples(app, sources)
+    await page.locator('.carte-demo.parcours').click()
+    await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
+    await expect(page.locator('.installation-exemple')).toContainText('Préparer la démo « Préparer et suivre »')
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(sources)).toBe(false)
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Retour aux parcours' }).click()
+    await expect(catalogue(page).locator('.progression-pp')).toHaveText('0 étape sur 4')
+    await choisirDossierExemple(app, dir)
+    await catalogue(page).locator('.liste-pp').getByRole('button', { name: /Organiser le suivi/ }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…' }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer' }).click()
+    await expect(page.locator('.installation-exemple')).toHaveCount(0)
+    await expect(page.locator('.spotlight-bulle')).toContainText('Organiser le suivi')
+    const corpus = lireCorpus(dir)
+    expect(corpus.nom).toBe('Préparer et suivre')
+    expect(corpus.demo.usage).toBe('apprentissage')
+    expect(corpus.demo.parcours.preparation.validees).toEqual([])
+    expect(Object.keys(corpus.membership)).toHaveLength(0)
+    const recents = await page.evaluate(() => window.sonal.corpus.recents())
+    expect(recents.some((r) => r.type === 'local' && r.dir === dir)).toBe(false)
+    await page.getByRole('button', { name: 'Revenir aux parcours', exact: true }).first().click()
+    await expect(catalogue(page).locator('.progression-pp')).toHaveText('0 étape sur 4')
+    await expect(catalogue(page).locator('select')).toHaveCount(0)
+    await expect(catalogue(page).getByRole('button', { name: 'Retrouver mon dossier…', exact: true })).toHaveCount(0)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('une étape de Préparation choisie directement est rejointe après préparation de la démo', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-etape-preparation-'))
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await configurerSourcesExemples(app, join(racine, 'sources'))
+    await choisirDossierExemple(app, join(racine, 'exercice'))
+    await page.locator('.carte-demo.parcours').click()
+    await catalogue(page).locator('.liste-pp').getByRole('button', { name: /Ajouter les documents du projet/ }).click()
+    await expect(page.locator('.installation-exemple')).toContainText('Préparer la démo « Préparer et suivre »')
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…' }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer' }).click()
+    await expect(page.locator('.spotlight-bulle')).toContainText('Ajouter les documents du projet')
+    expect(lireCorpus(join(racine, 'exercice')).demo.parcours.preparation.validees).toEqual([])
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('l’entrée directe par Traitement prépare le corpus puis garde l’étape choisie', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-traitement-direct-'))
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await configurerSourcesExemples(app, join(racine, 'sources'))
+    await choisirDossierExemple(app, join(racine, 'corpus'))
+    await page.locator('.carte-demo.parcours').click()
+    await catalogue(page).getByRole('button', { name: /^Importer et traiter/ }).click()
+    await catalogue(page).getByRole('button', { name: /Prendre des notes à chaud/ }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…', exact: true }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer', exact: true }).click()
+    await expect(page.locator('.spotlight-bulle')).toContainText('Prendre des notes à chaud')
+    await page.getByRole('button', { name: 'Revenir aux parcours', exact: true }).first().click()
+    await catalogue(page).getByRole('button', { name: /^Préparer et suivre/ }).click()
+    await expect(catalogue(page).locator('.progression-pp')).toHaveText('0 étape sur 4')
+    await catalogue(page).locator('.liste-pp').getByRole('button', { name: /Organiser le suivi/ }).click()
+    await expect(page.locator('.installation-exemple')).toBeVisible()
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('l’exploration transcrite importe quatre entretiens et référence leurs audios', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-libre-'))
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    const sources = join(racine, 'sources'), dir = join(racine, 'corpus')
+    await configurerSourcesExemples(app, sources)
+    await ouvrirLibre(app, page, dir)
+    await expect(page.locator('.corpus-ecran')).toBeVisible()
+    await expect(page.locator('.carte-ent')).toHaveCount(4)
+    const corpus = lireCorpus(dir)
+    expect(corpus.demo).toMatchObject({ exemple: 'synth', usage: 'libre', racineSources: sources })
+    expect(existsSync(join(dir, 'audio'))).toBe(false)
+    for (const id of Object.keys(corpus.membership)) {
+      const entretien = JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8'))
+      expect(entretien.meta.audioRef).toBe(join(sources, 'audio', `${corpus.membership[id].titre}.mp3`))
+    }
+    expect((await page.evaluate(() => window.sonal.corpus.recents())).some((r) => r.type === 'local' && r.dir === dir)).toBe(true)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('l’exemple annoté ouvre Synthèse sans guide et conserve les 324 annotations', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-annote-'))
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    const sources = join(racine, 'sources'), dir = join(racine, 'corpus')
+    await configurerSourcesExemples(app, sources)
+    await ouvrirLibre(app, page, dir, true)
+    await expect(page.locator('.espace-analyse')).toBeVisible()
+    await expect(page.locator('.spotlight-bulle')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Masquer le repère du corpus exemple' })).toBeVisible()
+    const corpus = lireCorpus(dir)
+    expect(corpus.demo.exemple).toBe('synth-annote')
+    const entretiens = Object.keys(corpus.membership).map((id) => JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')))
+    expect(entretiens.reduce((n, e) => n + e.annotations.length, 0)).toBe(324)
+    expect(entretiens.every((e) => existsSync(e.meta.audioRef) && e.meta.audioRef.startsWith(sources))).toBe(true)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('reprendre une exploration ne réimporte pas les entretiens renommés ou supprimés', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-reprise-exemple-'))
+  const profil = join(racine, 'profil'), dir = join(racine, 'corpus')
   let app = await lancer(profil)
-  let page = await app.firstWindow()
-  await attendreAccueil(page)
-  await stuberDeuxDossiers(app, dirSources, corpusPasAPas)
-  await page.locator('.carte-demo.pas-a-pas').click()
-  await preparerParModale(page)
-  await attendreCorpus(page)
-  await expect(page.locator('.carte-ent')).toHaveCount(0)
-  // Attendre que la MÉMOIRE démo soit écrite dans settings.json (demo:memoriser est la DERNIÈRE étape de la préparation,
-  // après l'affichage du Corpus — un close() trop tôt laisserait le fichier sans `demo` : poll avant de fermer).
-  await expect
-    .poll(() =>
-      JSON.parse(readFileSync(join(profil, 'settings.json'), 'utf8')).demo?.corpusPasAPas,
-    )
-    .toBe(corpusPasAPas)
-  await app.close()
+  try {
+    let page = await app.firstWindow()
+    await attendreAccueil(page)
+    await configurerSourcesExemples(app, join(racine, 'sources'))
+    await ouvrirLibre(app, page, dir)
+    await app.close()
+    const corpus = lireCorpus(dir)
+    const [premier, retire] = Object.keys(corpus.membership)
+    corpus.membership[premier].titre = 'Mon titre conservé'
+    delete corpus.membership[retire]
+    corpus.ordreEntretiens = corpus.ordreEntretiens.filter((id: string) => id !== retire)
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    rmSync(join(dir, 'entretiens', `${retire}.json`))
+    app = await lancer(profil, { preserverSettings: true })
+    page = await app.firstWindow()
+    await attendreAccueil(page)
+    await page.locator('.carte-demo.exemples').click()
+    await page.locator('.exemple').filter({ has: page.getByRole('heading', { name: 'Entretiens déjà importés', exact: true }) }).getByRole('button', { name: 'Reprendre mon corpus', exact: true }).click()
+    await expect(page.locator('.carte-ent')).toHaveCount(3)
+    expect(Object.values(lireCorpus(dir).membership).map((m: any) => m.titre)).toContain('Mon titre conservé')
+    await expect(page.locator('.installation-exemple')).toHaveCount(0)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
 
-  // La mémoire démo est PERSISTÉE (settings.json) : sources + corpus pas-a-pas.
-  const settings = JSON.parse(readFileSync(join(profil, 'settings.json'), 'utf8'))
-  expect(settings.demo).toEqual({ racineSources: dirSources, corpusPasAPas: corpusPasAPas })
+test('une nouvelle session retrouve les démos enregistrées et leurs acquis sans lancer le guide', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-reprise-exercice-'))
+  const profil = join(racine, 'profil'), dir = join(racine, 'exercice'), sources = join(racine, 'sources')
+  ecrireSeedDemo(dir)
+  const corpus = lireCorpus(dir)
+  corpus.demo = { id: 'exercice-traitement', exemple: 'synth', usage: 'apprentissage',
+    racineSources: sources, parcoursApprentissage: 'traitement', dernierParcoursId: 'traitement',
+    parcours: { traitement: { validees: ['coder'] } } }
+  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  ecrireSeedDemo(join(profil, 'corpus'))
+  writeFileSync(join(profil, 'settings.json'), JSON.stringify({
+    recents: [join(profil, 'corpus')],
+    exemples: { sources, travaux: [{ id: corpus.demo.id, dir, nom: 'Exercice',
+      exemple: 'synth', usage: 'apprentissage', parcoursApprentissage: 'traitement' }],
+    apprentissages: { traitement: corpus.demo.id }, libres: {} },
+  }))
+  const app = await lancer(profil, { preserverSettings: true })
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    expect((await page.evaluate(() => window.sonal.corpus.recents())).some((r) => r.type === 'local' && r.dir === dir)).toBe(false)
+    await page.locator('.carte-demo.parcours').click()
+    await catalogue(page).getByRole('button', { name: /^Importer et traiter/ }).click()
+    await expect(catalogue(page).locator('.progression-pp')).toHaveText('1 étape sur 6')
+    await expect(catalogue(page).getByRole('button', { name: 'Recommencer cette démo' })).toBeVisible()
+    expect(lireCorpus(dir).demo.parcours.traitement.validees).toEqual(['coder'])
+    await expect(page.locator('.spotlight-bulle')).toHaveCount(0)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
 
-  // 2e session (même profil, settings PRÉSERVÉS) : « En autonomie » — les sources sont déjà en place (question 1 sautée),
-  // mais le corpus autonomie n'a PAS encore été choisi → la modale n'a qu'UNE question.
-  app = await lancer(profil, { preserverSettings: true })
-  page = await app.firstWindow()
-  await attendreAccueil(page)
-  await page.locator('.carte-demo.autonomie').click()
-  await expect(page.locator('.modale-demo')).toBeVisible()
-  await expect(page.locator('.modale-demo .choisir-dossier')).toHaveCount(1)
-  await expect(page.locator('.modale-demo .deja-place').first()).toContainText('Sources déjà en place')
+test('ouvrir manuellement un corpus d’apprentissage le rattache sans bascule ni guide automatique', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-rattachement-'))
+  const dir = join(racine, 'exercice')
+  ecrireSeedDemo(dir)
+  const corpus = lireCorpus(dir)
+  corpus.demo = { id: 'exercice-traitement', exemple: 'synth', usage: 'apprentissage',
+    racineSources: join(racine, 'sources'), parcoursApprentissage: 'traitement',
+    parcours: { traitement: { validees: ['coder'] } } }
+  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+    await choisirDossierExemple(app, dir)
+    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await expect(catalogue(page)).toBeVisible()
+    expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
+    await expect(page.locator('.spotlight-bulle')).toHaveCount(0)
+    await catalogue(page).getByRole('button', { name: /^Importer et traiter/ }).click()
+    await expect(catalogue(page).getByRole('button', { name: 'Recommencer cette démo' })).toBeVisible()
+    expect((await page.evaluate(() => window.sonal.corpus.recents())).some((r) => r.type === 'local' && r.dir === dir)).toBe(false)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
 
-  // GARDE : on refuse le dossier du corpus pas-a-pas (déjà un corpus).
-  await stuberUnDossier(app, corpusPasAPas)
-  await page.locator('.modale-demo .choisir-dossier').click()
-  await page.locator('.modale-demo .valider').click()
-  await expect(page.locator('.modale-demo .msg-demo')).toBeVisible()
-  await expect(page.locator('.modale-demo')).toBeVisible() // toujours ouverte
-  // Aucun corpus n'a été créé dans le dossier du pas-a-pas (toujours 0 entretien).
-  expect(
-    Object.keys(JSON.parse(readFileSync(join(corpusPasAPas, 'corpus.json'), 'utf8')).membership),
-  ).toHaveLength(0)
+test('un corpus déplacé se retrouve sans préparation et sans modifier le corpus actif avant reprise', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-exercice-deplace-'))
+  const profil = join(racine, 'profil'), dir = join(racine, 'ancien'), nouveau = join(racine, 'deplace')
+  let app = await lancer(profil)
+  try {
+    let page = await app.firstWindow()
+    await attendreAccueil(page)
+    await preparerApprentissage(app, page, join(racine, 'sources'), dir, 'preparation')
+    await app.close()
+    const id = lireCorpus(dir).demo.id
+    renameSync(dir, nouveau)
+    app = await lancer(profil, { preserverSettings: true })
+    page = await app.firstWindow()
+    await attendreAccueil(page)
+    const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+    await page.locator('.carte-demo.parcours').click()
+    await expect(catalogue(page)).toContainText('Nous ne retrouvons plus cette démo')
+    await choisirDossierExemple(app, nouveau)
+    await catalogue(page).getByRole('button', { name: 'Retrouver mon dossier…', exact: true }).click()
+    await expect(catalogue(page).getByRole('button', { name: 'Recommencer cette démo' })).toBeVisible()
+    expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
+    await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
+    await expect(page.locator('.spotlight-bulle')).toContainText('Organiser le suivi')
+    expect(lireCorpus(nouveau).demo.id).toBe(id)
+    await expect(page.locator('.installation-exemple')).toHaveCount(0)
+    await expect(page.locator('.modale-nouveau')).toHaveCount(0)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
 
-  // On choisit un dossier VIDE → le corpus autonomie est créé (4 entretiens).
-  await stuberUnDossier(app, corpusAutonomie)
-  await page.locator('.modale-demo .choisir-dossier').click()
-  await page.locator('.modale-demo .valider').click()
-  await attendreCorpus(page)
-  await expect(page.locator('.carte-ent')).toHaveCount(4)
-
-  // PAS DE MÉLANGE : le corpus pas-a-pas est toujours vide, les deux sont marqués de leur mode respectif.
-  const membershipPasAPas = () =>
-    Object.keys(
-      JSON.parse(readFileSync(join(corpusPasAPas, 'corpus.json'), 'utf8')).membership,
-    ).length
-  await expect.poll(membershipPasAPas).toBe(0)
-  expect(marqueurDemo(corpusPasAPas)?.mode).toBe('pas-a-pas')
-  expect(marqueurDemo(corpusAutonomie)?.mode).toBe('autonomie')
-  // La mémoire démo a mémorisé les DEUX corpus (l'ancien est préservé).
-  const settings2 = JSON.parse(readFileSync(join(profil, 'settings.json'), 'utf8'))
-  expect(settings2.demo).toEqual({
-    racineSources: dirSources,
-    corpusPasAPas: corpusPasAPas,
-    corpusAutonomie: corpusAutonomie,
+for (const parcours of ['preparation', 'traitement'] as const) {
+  test(`recommencer ${parcours} présente le bilan avant de lancer la première étape`, async () => {
+    const racine = mkdtempSync(join(tmpdir(), 'sonal-recommencer-exercice-'))
+    const profil = join(racine, 'profil'), sources = join(racine, 'sources'), dir = join(racine, parcours)
+    const app = await lancer(profil)
+    try {
+      const page = await app.firstWindow()
+      await attendreAccueil(page)
+      const autreCorpus = readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8')
+      await preparerApprentissage(app, page, sources, dir, parcours)
+      const id = lireCorpus(dir).demo.id
+      if (parcours === 'preparation') {
+        await page.locator('[data-tour="ouvrir-tableau-bord"]').click()
+        await page.locator('[data-tour="cellule-problematique"]').click()
+        await page.locator('[data-tour="note-cellule-tableau"]').fill('Une question à effacer au redémarrage.')
+        await page.locator('[data-tour="appliquer-cellule-tableau"]').click()
+      } else {
+        await app.evaluate(({ dialog }, fichiers) => {
+          let index = 0
+          dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [fichiers[index++]] })
+        }, [join(sources, 'srt', '1Coordinatrice.srt'), join(sources, 'audio', '1Coordinatrice.mp3')])
+        await page.locator('[data-tour="ajouter-entretien"]').click()
+        await page.locator('[data-tour="zone-texte"]').click()
+        await page.locator('[data-tour="zone-audio"]').click()
+        await page.locator('.modale-ajout [data-tour="valider"]').click()
+      }
+      await expect(page.locator('.fini-pp')).toBeVisible()
+      await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
+      await expect(catalogue(page).locator('.progression-pp')).toContainText('1 étape')
+      const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+      page.once('dialog', (dialogue) => dialogue.dismiss())
+      await catalogue(page).getByRole('button', { name: 'Recommencer cette démo', exact: true }).click()
+      await expect(catalogue(page)).toBeVisible()
+      expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
+      page.once('dialog', (dialogue) => dialogue.accept())
+      await catalogue(page).getByRole('button', { name: 'Recommencer cette démo', exact: true }).click()
+      const bilan = page.getByRole('dialog', { name: 'La démo a été remise à zéro' })
+      await expect(bilan).toBeVisible()
+      await expect(bilan.getByRole('heading')).toBeFocused()
+      await expect(bilan).toContainText(dir)
+      await expect(bilan).toContainText('Toutes ses étapes sont à refaire.')
+      await expect(page.locator('.spotlight-bulle')).not.toBeVisible()
+      expect(lireCorpus(dir).demo.id).toBe(id)
+      expect(lireCorpus(dir).demo.parcours[parcours].validees).toEqual([])
+      expect(Object.keys(lireCorpus(dir).membership)).toHaveLength(0)
+      expect(JSON.stringify(lireCorpus(dir))).not.toContain('Une question à effacer')
+      expect(readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8')).toBe(autreCorpus)
+      if (parcours === 'preparation') {
+        await bilan.getByRole('button', { name: 'Commencer la première étape', exact: true }).click()
+      } else {
+        await bilan.getByRole('button', { name: 'Revenir aux parcours', exact: true }).click()
+        await expect(catalogue(page).locator('.progression-pp')).toHaveText('0 étape sur 6')
+        await page.keyboard.press('Escape')
+        await expect(page.locator('.spotlight-bulle')).not.toBeVisible()
+        await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
+        await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
+      }
+      await expect(bilan).not.toBeVisible()
+      await expect(page.locator('.spotlight-bulle')).toContainText(parcours === 'preparation' ? 'Organiser le suivi' : 'Charger un entretien')
+    } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
   })
+}
 
-  await app.close()
+test('un dossier contenant des données est refusé, sans créer de corpus ni valider d’étape', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-refus-exercice-'))
+  const dir = mkdtempSync(join(racine, 'travail-')), sources = join(racine, 'sources')
+  writeFileSync(join(dir, 'questions.txt'), 'Mon travail')
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await configurerSourcesExemples(app, sources)
+    await choisirDossierExemple(app, dir)
+    await page.locator('.carte-demo.parcours').click()
+    await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…' }).click()
+    await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer' }).click()
+    await expect(page.locator('.installation-exemple').getByRole('alert')).toContainText('dossier vide')
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(sources)).toBe(false)
+    expect((await page.evaluate(() => window.sonal.exemples.etat())).travaux).toHaveLength(0)
+    expect(readFileSync(join(dir, 'questions.txt'), 'utf8')).toBe('Mon travail')
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
 })

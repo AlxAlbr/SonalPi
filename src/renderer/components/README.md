@@ -40,6 +40,13 @@ components/
   les dialogues sous prétexte qu’ils sont montés dans `App.vue`.
 - Ne pas créer de dossier partagé tant qu’aucun composant ne le nécessite.
 
+La découverte et son catalogue sont dans `accueil/` : `DecouverteExemples.vue`,
+`CatalogueParcours.vue` et `InstallationExemple.vue`. Ils sont montés globalement,
+mais ne dépendent pas de l'ouverture préalable d'une vue de traitement.
+Le rendu du guide et le résumé global du parcours restent dans `app/`. Le dialogue de
+création ordinaire reste unique ; `InstallationExemple.vue` prépare les démos et leurs
+emplacements.
+
 La distinction Corpus/Entretien organise ici les vues de traitement seulement.
 Les noms tels que `CasCorpus.vue` ou `ExportCorpus.vue` indiquent la portée de
 la fonctionnalité. L’export du corpus est un outil gauche/droite de `organiser/`,

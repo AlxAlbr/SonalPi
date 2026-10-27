@@ -15,6 +15,8 @@ import OrganiserExporter from './components/organiser/OrganiserExporter.vue'
 import ModaleExportEntretien from './components/traiter/entretien/ModaleExportEntretien.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
+import ResumeParcoursPasAPas from './components/app/ResumeParcoursPasAPas.vue'
+import DecouverteExemples from './components/accueil/DecouverteExemples.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -35,6 +37,8 @@ const {
   casOuverts, recueilsOuverts,
   confirmationAjout, ouvrirDestinationAjout, fermerConfirmationAjout,
   libelleRetourContexte, revenirContexte, navigationContexteEnCours,
+  repereAnalyse,
+  pasAPas,
 } = fournirSonal()
 </script>
 
@@ -71,6 +75,8 @@ const {
       <BarreOutils />
     </header>
 
+    <ResumeParcoursPasAPas v-if="pasAPas && vue !== 'accueil'" />
+
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
     <div v-if="messageOperationGlobale" class="banniere attente" role="status">
@@ -101,6 +107,10 @@ const {
       <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
       <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
     </div>
+    <div v-if="repereAnalyse && vue === 'analyser'" class="banniere info">
+      <span>Corpus exemple pour l’analyse. Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</span>
+      <button aria-label="Masquer le repère du corpus exemple" @click="repereAnalyse = false">×</button>
+    </div>
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
     <!-- Les brouillons des espaces sont conservés jusqu'au changement de corpus. -->
@@ -112,6 +122,7 @@ const {
 
     <!-- Une seule instance accompagne le parcours dans les vues qui fournissent ses ancres. -->
     <GuidagePasAPas />
+    <DecouverteExemples />
 
     <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
          téléporté, ne s'affiche QUE si la liste est non vide. -->

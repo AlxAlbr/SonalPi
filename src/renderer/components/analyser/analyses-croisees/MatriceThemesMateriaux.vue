@@ -56,6 +56,7 @@ function nomAccessible(theme: Categorie, entretien: { id: string; titre: string 
             <button
               v-else-if="cellule(theme.id, entretien.id)"
               class="cellule"
+              :data-tour="`cellule-analyse-${theme.id}-${entretien.id}`"
               :class="{ selectionnee: selection?.themeId === theme.id && selection?.entretienId === entretien.id }"
               :style="{ backgroundColor: intensite(cellule(theme.id, entretien.id)!) }"
               :aria-pressed="selection?.themeId === theme.id && selection?.entretienId === entretien.id"

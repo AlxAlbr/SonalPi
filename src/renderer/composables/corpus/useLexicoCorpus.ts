@@ -79,6 +79,7 @@ export function useLexicoCorpus(deps: {
       : []
     return [...diagnosticsSourcesLexico.value, ...diagnosticsCas]
   })
+  const formeSelectionneeLexico = ref('')
   const lignesLexico = computed(() => agregerOccurrencesLexico(occurrencesRetenuesLexico.value))
   const entretiensAvecResultatsLexico = computed(() =>
     new Set(occurrencesRetenuesLexico.value.map((occurrence) => occurrence.entretienId)).size)
@@ -357,6 +358,7 @@ export function useLexicoCorpus(deps: {
     chargementLexico.value = false
     progressionLexico.value = { faits: 0, total: 0 }
     occurrencesLexico.value = []
+    formeSelectionneeLexico.value = ''
     diagnosticsSourcesLexico.value = []
     diagnosticsCasLexico.value = {}
     personnesLexico.value = []
@@ -377,7 +379,7 @@ export function useLexicoCorpus(deps: {
   watch([deps.membership, deps.variables, deps.codebook, deps.cas], perimerLexico, { deep: true })
 
   return {
-    chargementLexico, progressionLexico, occurrencesLexico,
+    chargementLexico, progressionLexico, occurrencesLexico, formeSelectionneeLexico,
     occurrencesTraiteesLexico, occurrencesRetenuesLexico, lignesLexico, diagnosticsLexico, personnesLexico,
     casDisponiblesLexico, ongletsFiltresLexico, filtreCasIndisponibleLexico, retirerFiltreCasLexico,
     filtresLexico, ongletFiltresLexico, traitementsLexico, historiqueTraitementsLexico, enregistrementTraitementsLexico,

@@ -39,36 +39,11 @@ export function versionSupportee(v: unknown): boolean {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// Démo « Mini Corpus Test » — modes, mémoire persistée, marqueur de corpus.
+// Corpus exemples — identité et progression des parcours.
 // ══════════════════════════════════════════════════════════════════════════
 
-/** Mode de démo : `'pas-a-pas'` (corpus amorcé vide, rempli étape par étape)
- *  ou `'autonomie'` (les 4 entretiens + audios importés d'un coup). */
-export type ModeDemo = 'pas-a-pas' | 'autonomie'
-
-/** Mémoire démo persistée dans `settings.json` (niveau profil).
- *  Les sources sont copiées une fois depuis `CorpusTest/CorpusSynth/`.
- *  Chaque mode conserve son propre dossier de corpus. */
-export interface EtatDemo {
-  racineSources: string
-  /** Corpus de test du mode pas-à-pas (dossier choisi directement). */
-  corpusPasAPas?: string
-  /** Corpus de test du mode autonomie (dossier choisi directement). */
-  corpusAutonomie?: string
-}
-
-/** Retour de `demo:etat` : l'état mémorisé + la présence RÉELLE sur disque —
- *  les sources seulement si les 9 fichiers (4 SRT, 4 MP3 et le guide) sont là ; un corpus
- *  de test seulement si son `corpus.json` porte le marqueur `demo` du mode
- *  (un squelette amorcé vide ne compte pas). */
-export interface EtatDemoComplet extends EtatDemo {
-  sourcesExist: boolean
-  corpusPasAPasExist: boolean
-  corpusAutonomieExist: boolean
-}
-
 /** Identité stable d'un parcours de découverte. */
-export type ParcoursId = 'preparation' | 'traitement' | 'analyse'
+export type ParcoursId = 'preparation' | 'traitement' | 'analyse' | 'organisation'
 
 /** Progression d'un parcours, transportée avec le corpus d'apprentissage. */
 export interface ProgressionParcoursDemo {
@@ -76,24 +51,18 @@ export interface ProgressionParcoursDemo {
   contexte?: Record<string, string>
 }
 
-/** Marqueur `demo` de `corpus.json` : identité d'un corpus de test ; absent = corpus normal.
- *  `validees` reste lisible pour les anciens corpus et correspond au parcours de traitement. */
+/** Origine et usage d'un corpus exemple, avec ses acquis pédagogiques. */
 export interface MarqueurDemo {
-  mode: ModeDemo
+  id: string
+  exemple: import('./exemples').ExempleId
+  usage: import('./exemples').UsageExemple
   racineSources: string
-  validees?: string[]
-  parcours?: Partial<Record<ParcoursId, ProgressionParcoursDemo>>
+  parcours: Partial<Record<ParcoursId, ProgressionParcoursDemo>>
+  /** Parcours auquel appartient ce corpus d’apprentissage. */
+  parcoursApprentissage?: ParcoursId
   /** Dernier parcours choisi ; aucune étape active n'est restaurée automatiquement. */
   dernierParcoursId?: ParcoursId
 }
-
-/** Résultat de la garde `demo:verifierCorpus` (modale) : `ok` si le dossier est
- *  libre OU n'abrite qu'un squelette amorcé vide (pas un travail utilisateur) ;
- *  sinon refus typé : `demo` (corpus d'un mode démo), `dejaCorpus` (non vide),
- *  `illisible` (`corpus.json` présent mais illisible, prudence). */
-export type VerificationDossierDemo =
-  | { ok: true }
-  | { ok: false; raison: 'demo' | 'dejaCorpus' | 'illisible' }
 
 // ══════════════════════════════════════════════════════════════════════════
 // Corpus — dossier et `corpus.json` (définitions + membership).
@@ -142,8 +111,8 @@ export interface CorpusFichier {
   nom?: string
   /** Trace d'origine — champ ADDITIF optionnel. */
   meta?: { sourceV1?: SourceV1 }
-  /** Marqueur de corpus de TEST (démo), posé par le builder démo à la création, mis à jour à chaque étape validée (pas-à-pas).
-   *  Champ ADDITIF optionnel ; absent pour un corpus normal. */
+  /** Origine, usage et progression d'un corpus exemple.
+   *  Champ additif optionnel, absent pour un corpus ordinaire. */
   demo?: MarqueurDemo
   /** Rôles & permissions : userId Nextcloud → rôle 'propriétaire' | 'editeur' | 'lecteur', champ RÉSERVÉ mais qui voyage déjà pour éviter une migration.
    *  Champ ADDITIF optionnel. */

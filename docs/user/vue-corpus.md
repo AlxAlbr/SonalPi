@@ -67,9 +67,62 @@ L’onglet **Accueil** de la vue Corpus présente sa barre d’icônes, qui donn
 Au bas de l’Accueil, **Ouvrir les cas** et **Ouvrir les recueils** mènent directement
 à ces outils dans **Organiser et exporter**.
 
-Lorsque la découverte pas à pas est active, une fenêtre permet de choisir entre **Préparer son terrain** et **Traiter ses entretiens**. Le premier accompagne le tableau de bord, les documents du projet, la création d’un entretien planifié et sa note préparatoire. Le second reprend les six étapes d’import, de documentation, de transcription et de codage. Chaque parcours conserve sa propre progression et peut être commencé dans n’importe quel ordre. **Analyse** est annoncé comme « à venir », sans action inactive présentée comme utilisable.
+Depuis l’accueil de SonalPi, **Parcours pas à pas** permet de choisir ce que vous voulez
+apprendre avant de créer ou d’ouvrir un corpus d’exercice. Consulter les cartes et leurs
+étapes ne change pas le travail courant.
 
-Après le choix, la fenêtre se ferme et l’Accueil retrouve la disposition d’un corpus ordinaire. Un bandeau compact indique le parcours retenu et propose **Continuer** ou **Revoir**, ainsi que **Voir les étapes de ce parcours — ou changer de parcours**. Une nouvelle découverte ouvre le choix sans lancer d’étape automatiquement. Une ouverture par **Récents** ne rouvre pas la fenêtre : elle restaure le dernier parcours choisi dans le bandeau, sans relancer son guidage. **Ctrl + F** reste disponible.
+- **Préparer et suivre** propose quatre étapes consacrées au suivi, aux documents du
+  projet, à un entretien préparatoire et à sa note. Au premier lancement, une fenêtre
+  permet de choisir où créer le corpus vierge de cette démo.
+- **Importer et traiter** propose six étapes d’import, de documentation, de transcription
+  et de codage. Si nécessaire, un corpus vide et les fichiers d’exercice sont préparés
+  avant l’étape choisie ; les véritables imports restent à faire par vous.
+- **Analyser et interpréter** propose quatre étapes sur une copie du corpus annoté :
+  rassembler les passages sur le « Sens de l’utilité » dans **Tri et synthèse**,
+  explorer les concordances du mot « enfants » dans **Lexico**, comparer deux thèmes
+  dans **Analyses croisées**, puis revenir d’un chiffre aux passages pour l’interpréter.
+  Les consignes rappellent les précautions de lecture : fréquence et couverture ne
+  suffisent pas à expliquer les propos d’une personne.
+- **Organiser et exporter** propose quatre étapes sur sa propre copie du corpus annoté :
+  créer un cas depuis l’entretien de la coordinatrice, structurer le recueil
+  « Regards sur le bénévolat », y associer un passage, puis exporter les quatre
+  entretiens en texte pour les relire. Annuler l’export ou ne produire qu’une partie
+  des fichiers ne valide pas la dernière étape. Les pseudonymes configurés sont
+  appliqués, mais les informations restantes doivent être vérifiées avant tout partage.
+
+Chaque parcours utilise sa propre démo. Lors de leur première préparation, l’emplacement
+proposé peut être modifié. **Préparer et suivre** part d’un corpus vierge ; **Importer et
+traiter** utilise un autre corpus vierge avec la variable et les fichiers nécessaires à
+ses exercices. **Analyser et interpréter** utilise une copie distincte des quatre
+entretiens déjà annotés ; aucun import ni codage préalable n’est demandé.
+**Organiser et exporter** utilise une autre copie de ces mêmes entretiens.
+Ces démos ne remplacent pas votre copie d’exploration libre. Les démos se retrouvent dans les
+parcours, pas dans les Récents.
+
+Le suivi **Démo :** suivi du nom du parcours reste visible
+sous les boutons des quatre espaces, quel que soit l’espace consulté. Il indique l’étape
+en cours ou à reprendre et permet de consulter les étapes, de changer de parcours ou de
+**Sortir de la démo** pour revenir à l’accueil. Le bouton d’entrée **Parcours pas à pas**
+reste sur l’accueil général pour commencer ; il n’est pas répété dans la barre des espaces.
+
+Pendant le parcours, vous pouvez **Mettre le guide en pause** ou **Revenir aux parcours**.
+Lorsqu’une étape demande un fichier, le guide propose d’ouvrir directement le dossier
+approprié : transcriptions, fichiers audio ou guide d’entretien. La pause conserve votre
+travail et laisse les outils ordinaires disponibles. Une simple ouverture du corpus ou du
+catalogue ne relance pas le guide. **Recommencer cette démo** supprime le travail réalisé
+dans cette seule démo et remet son parcours au départ, après confirmation. Les autres
+corpus et les autres parcours ne sont pas modifiés. Pour l’analyse et l’organisation, le corpus annoté
+est restauré dans son état de départ ; il ne devient pas vide. Un bilan rappelle l’emplacement de la
+démo remise à zéro. Cliquez sur **Commencer la première étape** lorsque vous êtes prêt,
+ou revenez aux parcours sans lancer le guide. **Retrouver mon dossier…** apparaît
+seulement lorsque le dossier connu manque.
+
+L’autre entrée de l’accueil, **Explorer les corpus exemples**, propose **Entretiens déjà
+importés** et **Corpus annoté**. Elle crée votre copie modifiable, sans guide. Le corpus
+annoté s’ouvre initialement sur Synthèse dans **Analyser et interpréter**, sans calcul
+automatique. Ces explorations libres se retrouvent aussi dans les Récents. **Reprendre
+mon corpus** conserve vos modifications et ne réimporte pas les entretiens supprimés
+ou renommés.
 
 La recherche dans le texte de tous les entretiens reste accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 

@@ -1,0 +1,130 @@
+import { test, expect, type Page } from '@playwright/test'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { attendreAccueil, lancer, selectionner } from './util'
+import { preparerApprentissage } from './exemples-util'
+
+const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+async function suivante(page: Page) {
+  await page.locator('.fini-pp').getByRole('button', { name: /Étape suivante/ }).click()
+}
+
+test('le parcours organise un cas, compose un recueil et exporte quatre entretiens sans modifier le modèle', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-parcours-organisation-'))
+  const dir = join(racine, 'organisation'), sortie = join(racine, 'sortie')
+  const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')
+  const app = await lancer(join(racine, 'profil'))
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await preparerApprentissage(app, page, join(racine, 'sources'), dir, 'organisation')
+    const initial = lireCorpus(dir)
+    expect(initial.demo.parcoursApprentissage).toBe('organisation')
+    expect(initial.demo.exemple).toBe('synth-annote')
+    expect(Object.keys(initial.membership)).toHaveLength(4)
+    const id = Object.keys(initial.membership).find((id) => initial.membership[id].titre === '1Coordinatrice')!
+    await page.locator('[data-tour="ouvrir-organisation-cas"]').click()
+    await page.locator('[data-tour="nouveau-cas"]').click()
+    await page.locator('[data-tour="cas-depuis-entretiens"]').check()
+    await page.locator(`[data-tour="source-cas-${id}"]`).check()
+    await page.locator('[data-tour="previsualiser-cas"]').click()
+    await expect(page.locator('.fini-pp')).toHaveCount(0)
+    await page.locator('[data-tour="confirmer-lot-cas"]').click()
+    await expect(page.locator('.fini-pp')).toContainText('Réunir les matériaux')
+    await suivante(page)
+    await page.locator('[data-tour="ouvrir-organisation-recueils"]').click()
+    const recueil = page.locator('.recueils-corpus')
+    await recueil.getByPlaceholder('Nom du nouveau recueil').fill('Regards sur le bénévolat')
+    await recueil.getByPlaceholder('Nom du nouveau recueil').press('Enter')
+    await recueil.getByPlaceholder('Libellé du titre').fill('Être utile')
+    await recueil.getByRole('button', { name: '＋ Ajouter le titre', exact: true }).click()
+    await expect(page.locator('.fini-pp')).toHaveCount(0)
+    await recueil.getByPlaceholder('Texte libre à ajouter').fill('Comment les bénévoles décrivent-ils leur utilité ?')
+    await recueil.getByRole('button', { name: '＋ Ajouter le texte', exact: true }).click()
+    await expect(page.locator('.fini-pp')).toContainText('Structurer un recueil')
+    await suivante(page)
+    await page.locator('[data-tour="ouvrir-traiter"]').click()
+    await page.locator('[data-tour="carte-1Coordinatrice"] .crayon').click()
+    await selectionner(page, 'me recevoir')
+    const centre = await page.evaluate(() => {
+      const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    await page.mouse.click(centre.x, centre.y, { button: 'right' })
+    await page.getByRole('menuitem', { name: /Ajouter au recueil/ }).click()
+    const dialogue = page.getByRole('dialog', { name: 'Ajouter à un recueil', exact: true })
+    await dialogue.getByRole('combobox').first().selectOption({ label: 'Regards sur le bénévolat' })
+    await dialogue.getByRole('button', { name: 'Ajouter le passage', exact: true }).click()
+    await expect(page.locator('.fini-pp')).toContainText('Étayer le recueil')
+    await suivante(page)
+    await page.locator('[data-tour="ouvrir-organiser"]').click()
+    await page.locator('[data-tour="ouvrir-organisation-export"]').click()
+    await app.evaluate(({ dialog }) => {
+      dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' })
+    })
+    await page.locator('.export-corpus .actions .exporter').click()
+    await expect(page.getByTestId('resume-parcours-global')).toContainText('3 étapes sur 4')
+    expect(lireCorpus(dir).demo.parcours.organisation.validees).not.toContain('exporter-entretiens')
+    await page.locator('.export-corpus').getByRole('button', { name: 'Préparer un autre export' }).click()
+    await app.evaluate(({ dialog }, destination) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination })
+    }, sortie)
+    await page.locator('.export-corpus .actions .exporter').click()
+    await expect(page.locator('.fini-pp')).toContainText('Exporter les entretiens')
+    await expect(page.getByTestId('resume-parcours-global')).toContainText('4 étapes sur 4')
+    await expect.poll(() => lireCorpus(dir).demo.parcours.organisation.validees.length).toBe(4)
+    expect(readdirSync(sortie).filter((nom) => !nom.startsWith('_') && nom.endsWith('.txt'))).toHaveLength(4)
+    expect(lireCorpus(dir).demo.parcours.analyse?.validees ?? []).toEqual([])
+    expect((await page.evaluate(() => window.sonal.corpus.recents())).some((r) => r.type === 'local' && r.dir === dir)).toBe(false)
+    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')).toBe(modele)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})
+
+test('reprise sans réinstallation et remise à zéro de la seule démo d’organisation', async () => {
+  const racine = mkdtempSync(join(tmpdir(), 'sonal-reprise-organisation-'))
+  const dir = join(racine, 'organisation'), profil = join(racine, 'profil')
+  let app = await lancer(profil)
+  try {
+    let page = await app.firstWindow()
+    await attendreAccueil(page)
+    await preparerApprentissage(app, page, join(racine, 'sources'), dir, 'organisation', 'Structurer un recueil')
+    await page.locator('[data-tour="ouvrir-organisation-recueils"]').click()
+    await page.getByPlaceholder('Nom du nouveau recueil').fill('Regards sur le bénévolat')
+    await page.getByPlaceholder('Nom du nouveau recueil').press('Enter')
+    await page.getByPlaceholder('Libellé du titre').fill('Travail à conserver')
+    await page.getByRole('button', { name: '＋ Ajouter le titre', exact: true }).click()
+    await page.getByPlaceholder('Texte libre à ajouter').fill('Mon hypothèse de départ.')
+    await page.getByRole('button', { name: '＋ Ajouter le texte', exact: true }).click()
+    await expect(page.locator('.fini-pp')).toContainText('Structurer un recueil')
+    await expect.poll(() => lireCorpus(dir).demo.parcours.organisation.validees).toEqual(['structurer-recueil'])
+    const id = lireCorpus(dir).demo.id
+    await app.close()
+    app = await lancer(profil, { preserverSettings: true })
+    page = await app.firstWindow()
+    await attendreAccueil(page)
+    await page.locator('.carte-demo.parcours').click()
+    const catalogue = page.getByRole('dialog', { name: 'Choisir un parcours pas à pas' })
+    await catalogue.getByRole('button', { name: /^Organiser et exporter/ }).click()
+    await expect(page.getByTestId('consigne-pas-a-pas')).toHaveCount(0)
+    await expect(catalogue.locator('.progression-pp')).toHaveText('1 étape sur 4')
+    await catalogue.getByRole('button', { name: /Étayer le recueil avec un passage/ }).click()
+    await expect(page.getByTestId('consigne-pas-a-pas')).toBeVisible()
+    await page.locator('[data-tour="ouvrir-organisation-recueils"]').click()
+    await expect(page.locator('.carte-recueil')).toContainText('Regards sur le bénévolat')
+    expect(Object.values(lireCorpus(dir).recueils)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ items: expect.arrayContaining([expect.objectContaining({ libelle: 'Travail à conserver' })]) }),
+    ]))
+    expect(lireCorpus(dir).demo.id).toBe(id)
+    await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
+    page.once('dialog', (d) => d.accept())
+    await catalogue.getByRole('button', { name: 'Recommencer cette démo' }).click()
+    const bilan = page.getByRole('dialog', { name: 'La démo a été remise à zéro' })
+    await expect(bilan).toContainText('restauré dans son état de départ')
+    expect(lireCorpus(dir).demo.id).toBe(id)
+    expect(lireCorpus(dir).demo.parcours.organisation.validees).toEqual([])
+    expect(Object.keys(lireCorpus(dir).recueils ?? {})).toHaveLength(0)
+    expect(Object.keys(lireCorpus(dir).membership)).toHaveLength(4)
+    await expect(page.getByTestId('consigne-pas-a-pas')).toHaveCount(0)
+  } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
+})

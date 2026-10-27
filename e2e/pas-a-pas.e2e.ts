@@ -4,65 +4,35 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, retourCorpus, selectionner, spotlightSur } from './util'
 
-/**
- *  Pas-à-pas : depuis l'Accueil, « Découverte pas à pas » passe par la modale à
- *  deux dossiers puis démarre sur un corpus vide, dans l'Accueil du corpus,
- *  avec un spotlight. Les six étapes se valident en observant le modèle réactif.
- *
- *  L'étape 1 pointe le VRAI bouton « + Ajouter un entretien » (attribut
- *  data-tour posé sur le bouton lui-même) : la bulle se cale à côté. Le geste
- *  RÉEL passe par la vraie modale à deux zones (srt puis audio) ; il valide le
- *  prédicat (membership non vide).
- */
+import { preparerApprentissage } from './exemples-util'
 
-/** Stub des DEUX dialogues de la modale démo.
- *  Le 1er renvoie les sources, le 2e le dossier du corpus de CE mode.
- *  (Un dossier = un corpus, choisi directement.) */
-async function stuberDeuxDossiers(
-  app: import('@playwright/test').ElectronApplication,
-  sources: string,
-  corpus: string,
-): Promise<void> {
-  await app.evaluate(({ dialog }, args) => {
-    const dossiers = [args.sources, args.corpus]
-    let i = 0
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [dossiers[Math.min(i++, dossiers.length - 1)]],
-    })
-  }, { sources, corpus })
-}
+/** Les exercices utilisent les vrais gestes et valident leurs résultats enregistrés. */
 
 async function ouvrirCatalogueParcours(page: import('@playwright/test').Page): Promise<void> {
   if (await page.locator('.voile-catalogue-parcours').isVisible()) return
-  await page.locator('.resume-parcours .secondaire').click()
+  const suivi = page.getByTestId('resume-parcours-global')
+  if (await suivi.isVisible()) {
+    await suivi.getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
+  } else {
+    await page.locator('.carte-demo.parcours').click()
+  }
   await expect(page.locator('.voile-catalogue-parcours')).toBeVisible()
 }
 
-/** Ouvre la modale démo depuis la carte pas-à-pas et la valide. */
+/** Choisit Traitement avant de préparer le corpus d'exercice. */
 async function preparerPasAPas(
   app: import('@playwright/test').ElectronApplication,
   page: import('@playwright/test').Page,
   sources: string,
   parent: string,
 ): Promise<void> {
-  await stuberDeuxDossiers(app, sources, parent)
-  await page.locator('.carte-demo.pas-a-pas').click()
-  await expect(page.locator('.modale-demo')).toBeVisible()
-  await page.locator('.modale-demo .choisir-dossier').first().click()
-  await page.locator('.modale-demo .choisir-dossier').nth(1).click()
-  await page.locator('.modale-demo .valider').click()
+  await preparerApprentissage(app, page, sources, parent, 'traitement')
   await attendreCorpus(page)
-  await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
-  await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
-  await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
-  await expect(page.locator('.carte-parcours')).toHaveCount(2)
-  await expect(page.locator('.liste-pp li')).toHaveCount(4)
-  await expect(page.locator('.liste-pp li.actif')).toHaveCount(0)
-  await page.locator('.carte-parcours').filter({ hasText: 'Traiter ses entretiens' }).locator('button').click()
+  await expect(page.locator('.carte-parcours')).toHaveCount(4)
   await expect(page.locator('.voile-catalogue-parcours')).not.toBeVisible()
   await expect(page.locator('.liste-pp li')).toHaveCount(6)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
+  await expect(page.getByRole('button', { name: 'Voir les fichiers d’exercice', exact: true })).toHaveCount(0)
 }
 
 test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une variable', async () => {
@@ -121,9 +91,16 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // dès qu'un texte est chargé, puis « Valider » une fois l'audio choisi.
   await page.locator('.ajout-ent').click()
   await expect(page.locator('.modale-ajout')).toBeVisible()
+  await app.evaluate(({ shell }) => {
+    shell.openPath = async (chemin) => { process.env.SONAL_TEST_OUVERT = chemin; return '' }
+  })
+  await page.getByRole('button', { name: 'Ouvrir le dossier des transcriptions' }).click()
+  await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_OUVERT)).toBe(join(dirSources, 'srt'))
   await spotlightSur(page, '[data-tour="zone-texte"]')
   await page.locator('.zone-texte').click()
   await expect(page.locator('.zone-texte .zone-fichier')).toBeVisible()
+  await page.getByRole('button', { name: 'Ouvrir le dossier des fichiers audio' }).click()
+  await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_OUVERT)).toBe(join(dirSources, 'audio'))
   await spotlightSur(page, '[data-tour="zone-audio"]')
   await page.locator('.zone-audio').click()
   await expect(page.locator('.zone-audio .zone-fichier')).toBeVisible()
@@ -168,6 +145,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // (Le texte reste vide, la transcription n'est pas prête.) Puis « Valider ».
   await page.locator('.ajout-ent').click()
   await expect(page.locator('.modale-ajout')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ouvrir le dossier des fichiers audio' })).toBeVisible()
   await spotlightSur(page, '[data-tour="zone-audio"]')
   await page.locator('.zone-audio').click()
   await expect(page.locator('.zone-audio .zone-fichier')).toContainText('2RetraiteAnticipee.mp3')
@@ -210,7 +188,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // Le bouton « Revenir aux étapes du pas à pas » ramène à la liste, message effacé.
   // L'étape 3 se lance au clic, jamais d'enchaînement auto.
   await page.locator('.fini-pp .fini-pp-btn.revenir').click()
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.voile-catalogue-parcours')).toBeVisible()
   await expect(page.locator('.fini-pp')).toHaveCount(0)
 
   // --- Étape 3 : Lier la transcription (SRT) (lancée AU CLIC) ---
@@ -248,16 +226,17 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp')).toContainText('Renommer les locuteurs')
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
 
-  // L'Accueil de l'entretien ne duplique pas la liste.
-  // Son bouton ferme l'entretien et remet le parcours au premier plan avec le focus clavier.
+  // Le suivi global reste disponible dans l'entretien sans rappel en double.
   await page.locator('.onglets button[data-onglet="maison"]').click()
-  await expect(page.locator('.rappel-parcours')).toContainText('Renommer les locuteurs')
-  await page.getByRole('button', { name: 'Voir ce parcours dans le corpus' }).click()
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.rappel-parcours')).toHaveCount(0)
+  const suiviParcours = page.getByTestId('resume-parcours-global')
+  await expect(suiviParcours).toContainText('Renommer les locuteurs')
+  await suiviParcours.getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
+  await expect(page.locator('.voile-catalogue-parcours')).toBeVisible()
   await expect(page.getByTestId('parcours-pas-a-pas')).toBeVisible()
   await expect(page.locator('.liste-pp li').nth(3)).toHaveClass(/actif/)
-  await page.getByTitle('Fermer le choix des parcours').click()
-  await page.locator('[data-tour="carte-1Coordinatrice"] .crayon').click()
+  await page.getByRole('button', { name: 'Fermer les parcours', exact: true }).click()
+  await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.guide-pp')).toBeVisible()
 
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -341,7 +320,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp.retest')).toContainText('re-renommer les locuteurs')
   // Le bouton du message ramène au parcours dans le corpus et efface le message.
   await page.locator('.guide-pp.retest button').click()
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.voile-catalogue-parcours')).toBeVisible()
   await expect(page.locator('.guide-pp.retest')).toHaveCount(0)
 
   // Re-test de « Prendre des notes à chaud » (étape 2, déjà faite).
@@ -355,12 +334,12 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp.retest')).toBeVisible()
   await expect(page.locator('.guide-pp.retest')).toContainText('notes à chaud')
 
-  // Le parcours de préparation reste démarrable après le traitement.
+  // Le parcours de préparation reste indépendant et propose son propre corpus vierge.
   await page.locator('.guide-pp.retest button').click()
-  await page.locator('.carte-parcours').filter({ hasText: 'Préparer son terrain' }).locator('button').click()
-  await expect(page.locator('.liste-pp li')).toHaveCount(4)
-  await expect(page.locator('.liste-pp li').first()).toHaveClass(/actif/)
-  await spotlightSur(page, '[data-tour="ouvrir-preparer"]')
+  await page.locator('.carte-parcours').filter({ hasText: 'Préparer et suivre' }).click()
+  await expect(page.locator('.progression-pp')).toHaveText('0 étape sur 4')
+  await page.getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
+  await expect(page.locator('.installation-exemple')).toContainText('Préparer la démo « Préparer et suivre »')
 
   await app.close()
 })
@@ -409,7 +388,7 @@ test('pas-à-pas : l’étape 1 par le geste RÉEL — la vraie modale « + Ajou
   await app.close()
 })
 
-test('réouverture par « Récents » : le parcours et l\'historique des étapes sont restaurés', async () => {
+test('réouverture depuis les parcours : l’historique est conservé sans lancement automatique', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-'))
   const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-sources-'))
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-corpus-'))
@@ -440,29 +419,22 @@ test('réouverture par « Récents » : le parcours et l\'historique des étapes
   await app.close()
 
   // L'historique est PERSISTÉ dans le marqueur du corpus :
-  // l'étape « charger » est mémorisée avec le mode pas-a-pas.
+  // L’étape « charger » est mémorisée dans la progression du traitement.
   const marqueur = JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo
-  expect(marqueur.mode).toBe('pas-a-pas')
+  expect(marqueur.usage).toBe('apprentissage')
   expect(marqueur.parcours.traitement.validees).toContain('charger')
   expect(marqueur.dernierParcoursId).toBe('traitement')
 
-  // 2e session (même profil, settings PRÉSERVÉS) : rouvrir le corpus démo par « Récents ».
-  // Le panneau réapparaît AVEC l'historique (étape 1 cochée).
+  // La reprise passe par le catalogue, sans ouvrir le corpus ni lancer une étape à sa consultation.
   app = await lancer(profil, { preserverSettings: true })
   page = await app.firstWindow()
   await attendreAccueil(page)
-  // Le 1er récent est le corpus démo (ouvrirDossier l'a mis en tête en session 1).
-  await page.locator('.recents .recent').first().click()
-  await attendreCorpus(page)
-  await expect(page.locator('.voile-catalogue-parcours')).not.toBeVisible()
-  await expect(page.locator('.resume-parcours')).toContainText('Traiter ses entretiens')
-  await expect(page.getByTestId('continuer-parcours')).toContainText('Continuer')
-  await ouvrirCatalogueParcours(page)
+  await page.locator('.carte-demo.parcours').click()
+  await page.locator('.carte-parcours').filter({ hasText: 'Importer et traiter' }).click()
   await expect(page.locator('.panneau.pas-a-pas')).toBeVisible()
-  await expect(page.locator('.onglets-corpus')).toBeVisible()
   await expect(page.locator('.onglets-corpus button[aria-label="Pas à pas"]')).toHaveCount(0)
   await expect(page.locator('.liste-pp li')).toHaveCount(6)
-  await expect(page.locator('.carte-parcours').filter({ hasText: 'Traiter ses entretiens' }).locator('button')).toContainText('Continuer')
+  await expect(page.getByRole('button', { name: 'Continuer le parcours', exact: true })).toBeVisible()
   // Étape 1 cochée (mémorisée + re-dérivée du modèle — un entretien existe) ;
   // les étapes 2 à 6 ne sont pas faites. Le spotlight reste inactif.
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
@@ -481,7 +453,7 @@ test('réouverture par « Récents » : le parcours et l\'historique des étapes
   await app.close()
 })
 
-test('pas-à-pas : l’étape 1 EXIGE l’audio 1Coordinatrice.mp3 — 1Coordinatrice.srt seul est refusé, même après « Arrêter »', async () => {
+test('le guide exige les fichiers de l’exercice mais sa pause libère les imports ordinaires', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-'))
   const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-sources-'))
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-corpus-'))
@@ -506,45 +478,18 @@ test('pas-à-pas : l’étape 1 EXIGE l’audio 1Coordinatrice.mp3 — 1Coordina
   await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
   await page.locator('.modale-ajout .annuler').click()
 
-  // 2e essai, APRÈS « Arrêter » (guidage coupé — c'était le trou).
-  // La garde ne jouait que pendant le spotlight.
-  // En MODE pas-à-pas, elle vaut jusqu'à la validation de l'étape.
-  // Toujours refusé, toujours rien.
+  // La pause conserve la progression, mais ne verrouille pas les outils ordinaires.
   await page.locator('.bulle-btn.arreter').click()
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
   await page.locator('.ajout-ent').click()
   await page.locator('.zone-texte').click()
-  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
   await page.locator('.modale-ajout .valider').click()
-  await expect(page.locator('.modale-ajout')).toBeVisible()
-  await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.mp3')
-  await expect(page.locator('.carte-ent')).toHaveCount(0)
-
-  // 3e essai : 1Coordinatrice.srt + 1Coordinatrice.mp3 cette fois — l'import passe, la carte apparaît.
-  // Le guidage étant arrêté, l'étape ne se coche que quand on la relance :
-  // la validation observe l'étape COURANTE, un clic la valide aussitôt.
-  await app.evaluate(({ dialog }, args) => {
-    const fichiers = [args.srt, args.mp3]
-    let i = 0
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
-    })
-  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
-  await page.locator('.zone-texte').click()
-  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
-  await page.locator('.zone-audio').click()
-  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('1Coordinatrice.mp3')
-  await page.locator('.modale-ajout .valider').click()
+  await expect(page.locator('.modale-ajout')).toHaveCount(0)
   await expect(page.locator('.carte-ent')).toHaveCount(1)
-  await expect(page.locator('.editeur')).toBeVisible({ timeout: 10_000 })
-  // Guidage arrêté → l'import a OUVERT l'entretien (comportement normal hors geste guidé).
-  // On revient au Corpus pour relancer l'étape.
+  await expect(page.locator('.editeur')).toBeVisible()
   await retourCorpus(page)
-  await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
   await ouvrirCatalogueParcours(page)
-  await page.locator('.liste-pp li').first().locator('.ligne-pp').click()
-  await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
+  await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
 
   await app.close()
 })

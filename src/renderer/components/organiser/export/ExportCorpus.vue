@@ -16,6 +16,7 @@ const props = defineProps<{ actif: boolean }>()
 
 const {
   exporterCorpusLot,
+  enregistrerExportGuide,
   exporterQualcoderLot,
   exportCorpusEnCours: occupe,
   listeCas,
@@ -230,6 +231,7 @@ async function lancerExportFinal(): Promise<void> {
       },
     )
     resultat.value = r
+    enregistrerExportGuide(demande, r)
     etape.value = 'resume'
   } catch (erreur) {
     message.value = `L'export du corpus a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`
@@ -273,7 +275,7 @@ function demanderArret(): void {
 
 <template>
   <section class="export-corpus">
-    <aside class="panneau reglages-export">
+    <aside class="panneau reglages-export" data-tour="reglages-export-guide">
       <div class="corpus-tete"><h3>Exporter le corpus</h3></div>
       <p class="accueil-intro">Choisissez les entretiens et leur présentation. Vérifiez le récapitulatif à droite avant d’exporter.</p>
       <fieldset class="champs-export" :disabled="occupe">

@@ -278,7 +278,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         <h3>Cas</h3>
         <span class="actions-repertoire">
           <button :disabled="lectureSeule" @click="ouvrirRegistreAttributs">Attributs</button>
-          <button :disabled="lectureSeule" @click="commencerCreation">Nouveau cas</button>
+          <button data-tour="nouveau-cas" :disabled="lectureSeule" @click="commencerCreation">Nouveau cas</button>
         </span>
       </div>
       <input v-model="recherche" class="recherche" type="search" placeholder="Rechercher un cas" aria-label="Rechercher un cas" />
@@ -316,7 +316,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="vide" /> Cas manuel vide</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="personne" /> Depuis une personne</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="personnes" /> Plusieurs personnes</label>
-          <label class="case-cocher"><input v-model="modeCreation" type="radio" value="entretiens" /> Depuis des entretiens</label>
+          <label class="case-cocher"><input data-tour="cas-depuis-entretiens" v-model="modeCreation" type="radio" value="entretiens" /> Depuis des entretiens</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="variable-locuteur" /> Variable de locuteur</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="variable-entretien" /> Variable d’entretien</label>
         </fieldset>

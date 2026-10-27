@@ -196,7 +196,7 @@ async function changerCommentaire(item: ItemRecueil) {
       <div class="corpus-tete">
         <h3>Recueils</h3>
       </div>
-      <form class="creation" @submit.prevent="creer">
+      <form data-tour="creation-recueil" class="creation" @submit.prevent="creer">
         <input v-model="nouveauNom" :disabled="lectureSeule" placeholder="Nom du nouveau recueil" />
         <button :disabled="lectureSeule || !nouveauNom.trim()">Créer</button>
       </form>
@@ -204,6 +204,7 @@ async function changerCommentaire(item: ItemRecueil) {
       <button
         v-for="recueil in listeRecueils"
         :key="recueil.id"
+        :data-tour="`ouvrir-recueil-${recueil.id}`"
         class="carte-recueil"
         :class="{ actif: recueilOuvertId === recueil.id }"
         @click="ouvrirRecueil(recueil.id)"
@@ -267,14 +268,14 @@ async function changerCommentaire(item: ItemRecueil) {
                 <option :value="1">Titre 1</option><option :value="2">Titre 2</option>
                 <option :value="3">Titre 3</option><option :value="4">Titre 4</option>
               </select>
-              <input v-model="nouveauTitre" placeholder="Libellé du titre" @keyup.enter="insererTitre" />
+              <input data-tour="ajouter-titre-recueil" v-model="nouveauTitre" placeholder="Libellé du titre" @keyup.enter="insererTitre" />
             </div>
             <button class="bouton-ajout" @click="insererTitre">＋ Ajouter le titre</button>
           </div>
           <div class="carte-ajout carte-texte">
             <h3>Texte libre</h3>
             <div class="saisie-ajout">
-              <textarea v-model="nouveauTexte" rows="2" placeholder="Texte libre à ajouter"></textarea>
+              <textarea data-tour="ajouter-texte-recueil" v-model="nouveauTexte" rows="2" placeholder="Texte libre à ajouter"></textarea>
             </div>
             <button class="bouton-ajout" @click="insererTexte">＋ Ajouter le texte</button>
           </div>

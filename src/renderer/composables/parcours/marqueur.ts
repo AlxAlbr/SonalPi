@@ -1,37 +1,34 @@
 import type { MarqueurDemo, ParcoursId, ProgressionParcoursDemo } from '../../../shared/format'
 
-export interface ProgressionsDemoNormalisees {
+export interface ProgressionsDemo {
   progressions: Record<ParcoursId, Set<string>>
   contextes: Partial<Record<ParcoursId, Record<string, string>>>
   parcoursInitial: ParcoursId
   dernierParcoursId: ParcoursId | null
 }
 
-/** Lit les marqueurs récents et migre en mémoire l'ancien historique unique. */
-export function normaliserProgressionsDemo(marqueur: MarqueurDemo): ProgressionsDemoNormalisees {
-  const anciennes = marqueur.validees ?? []
-  const dernierParcoursId = marqueur.dernierParcoursId ?? (
-    anciennes.length > 0
-      ? 'traitement'
-      : (marqueur.parcours?.traitement?.validees.length ?? 0) > 0 &&
-          (marqueur.parcours?.preparation?.validees.length ?? 0) === 0
-        ? 'traitement'
-        : (marqueur.parcours?.preparation?.validees.length ?? 0) > 0
-          ? 'preparation'
-          : null
-  )
+/** Relit les acquis et le contexte enregistrés dans le corpus. */
+export function lireProgressionsDemo(marqueur: MarqueurDemo): ProgressionsDemo {
+  const dernierParcoursId = marqueur.dernierParcoursId ?? marqueur.parcoursApprentissage ?? null
   return {
     progressions: {
-      preparation: new Set(marqueur.parcours?.preparation?.validees ?? []),
-      traitement: new Set(marqueur.parcours?.traitement?.validees ?? anciennes),
+      preparation: new Set(marqueur.parcours.preparation?.validees ?? []),
+      traitement: new Set(marqueur.parcours.traitement?.validees ?? []),
       analyse: new Set(marqueur.parcours?.analyse?.validees ?? []),
+      organisation: new Set(marqueur.parcours.organisation?.validees ?? []),
     },
     contextes: {
+      ...(marqueur.parcours.organisation?.contexte
+        ? { organisation: { ...marqueur.parcours.organisation.contexte } }
+        : {}),
       ...(marqueur.parcours?.preparation?.contexte
         ? { preparation: { ...marqueur.parcours.preparation.contexte } }
         : {}),
       ...(marqueur.parcours?.traitement?.contexte
         ? { traitement: { ...marqueur.parcours.traitement.contexte } }
+        : {}),
+      ...(marqueur.parcours.analyse?.contexte
+        ? { analyse: { ...marqueur.parcours.analyse.contexte } }
         : {}),
     },
     parcoursInitial: dernierParcoursId ?? 'preparation',
@@ -39,12 +36,16 @@ export function normaliserProgressionsDemo(marqueur: MarqueurDemo): Progressions
   }
 }
 
-/** Produit le format moderne sans réintroduire l'ancien champ partagé. */
+/** Enregistre séparément les acquis et le contexte de chaque parcours. */
 export function serialiserProgressionsDemo(
   progressions: Record<ParcoursId, ReadonlySet<string>>,
   contextes: Partial<Record<ParcoursId, Record<string, string>>>,
 ): Partial<Record<ParcoursId, ProgressionParcoursDemo>> {
-  const resultat: Partial<Record<ParcoursId, ProgressionParcoursDemo>> = {
+  return {
+    organisation: {
+      validees: [...progressions.organisation],
+      ...(contextes.organisation ? { contexte: { ...contextes.organisation } } : {}),
+    },
     preparation: {
       validees: [...progressions.preparation],
       ...(contextes.preparation ? { contexte: { ...contextes.preparation } } : {}),
@@ -53,12 +54,9 @@ export function serialiserProgressionsDemo(
       validees: [...progressions.traitement],
       ...(contextes.traitement ? { contexte: { ...contextes.traitement } } : {}),
     },
-  }
-  if (progressions.analyse.size > 0 || contextes.analyse) {
-    resultat.analyse = {
+    analyse: {
       validees: [...progressions.analyse],
       ...(contextes.analyse ? { contexte: { ...contextes.analyse } } : {}),
-    }
+    },
   }
-  return resultat
 }

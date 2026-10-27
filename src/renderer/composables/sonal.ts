@@ -30,7 +30,8 @@ import { useEspacesTravail } from './useEspacesTravail'
 import type { SousEspaceAnalyse, SousEspaceOrganisation, SousEspacePreparation, VueApplication } from './espaces'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
-import { utiliserDemo } from './demo'
+import { useGuide } from './parcours/useGuide'
+import { useExemples } from './useExemples'
 import type { DestinationGuide } from './parcours/types'
 import {
   installerOperationGlobaleCorpus,
@@ -56,15 +57,13 @@ export function creerSonal() {
     entite: string,
   ) => Promise<boolean> = async () => false
   const demandeDissociationAnon = ref<{ regleId: string; revision: number } | null>(null)
-  // Indirection pour casser un cycle de dépendances :
-  //     `appliquerCorpus` doit restaurer le parcours quand le corpus ouvert porte un marqueur `demo`,
-  //     mais le scope demo est créé APRÈS (il injecte `appliquerCorpus`).
-  //     Même patron que `sauverEntretien` : holder réaffecté.
+  // Le cycle du corpus est créé avant le guide.
+  // Ce rappel lui transmet ensuite l'identité et les acquis du corpus ouvert.
   let raccrocherModeCorpus: (
     marqueur: MarqueurDemo | undefined,
     dir: string | null,
   ) => Promise<void> = async () => {}
-  let racineSourcesDemo: () => string | null = () => null
+  let racineSourcesExercice: () => string | null = () => null
   let distantActifPourMedias: () => boolean = () => false
   let fournisseurPourMedias: () => 'webdav' | 'gitlab' | null = () => null
   let etatBasePourMedias: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = () => 'sans-objet'
@@ -270,7 +269,6 @@ export function creerSonal() {
   // Lui seul sélectionne son Accueil en respectant les gardes locales.
   type GestionnaireParcours = (
     parcoursId?: import('../../shared/format').ParcoursId,
-    afficherCatalogue?: boolean,
   ) => Promise<boolean>
   let gestionnaireParcours: GestionnaireParcours | null = null
   function enregistrerNavigationParcours(gestionnaire: GestionnaireParcours): () => void {
@@ -310,7 +308,7 @@ export function creerSonal() {
     },
     chargerLecteur: audio.charger,
     perimerScanAnon: corpus.perimerScanAnon,
-    choisirSrt: () => window.sonal.dialog.choisirSrt(racineSourcesDemo() ?? undefined),
+    choisirSrt: () => window.sonal.dialog.choisirSrt(racineSourcesExercice() ?? undefined),
     distantActif: () => distantActifPourMedias(),
     fournisseurDistant: () => fournisseurPourMedias(),
     etatBaseMedia: () => etatBasePourMedias(),
@@ -1217,26 +1215,23 @@ export function creerSonal() {
   }
 
   async function voirParcours(parcoursId?: import('../../shared/format').ParcoursId): Promise<boolean> {
-    if (!(await revenirAuCorpusPourParcours()) || !gestionnaireParcours) return false
-    return gestionnaireParcours(parcoursId, true)
+    await exemples.ouvrirCatalogueParcours(parcoursId)
+    return true
   }
 
   async function retourAccueilParcours(
     parcoursId?: import('../../shared/format').ParcoursId,
   ): Promise<boolean> {
     if (!(await revenirAuCorpusPourParcours()) || !gestionnaireParcours) return false
-    return gestionnaireParcours(parcoursId, false)
+    return gestionnaireParcours(parcoursId)
   }
 
-  // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un dossier choisi
-  // via le vrai pipeline d'import.
-  // Dépendances injectées pour casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
-  const demo = utiliserDemo({
-    appliquerCorpus,
-    majDossierCourant: profil.majDossierCourant,
-    rafraichirRecents: profil.rafraichirRecents,
+  // Le guide n'installe aucun corpus ; il observe le travail actuellement ouvert.
+  const guide = useGuide({
+    analyse: { sousEspaceAnalyse, panneauAnalyseVisible, synthese: syntheseCorpus, lexico: lexicoCorpus, croisees: analysesCroisees },
+    organisation: { sousEspaceOrganisation, cas: corpus.cas, recueils: corpus.recueils, recueilOuvertId: recueilsCorpus.recueilOuvertId,
+      sauvegardeCas: casCorpus.etatSauvegardeCas, sauvegardeRecueil: recueilsCorpus.etatSauvegardeRecueil },
     retourParcours: retourAccueilParcours,
-    preparerBascule,
     vue,
     membership: corpus.membership,
     entretien: ent.entretien,
@@ -1256,9 +1251,7 @@ export function creerSonal() {
     fermerTableauBord,
     fermerDocsCadre,
   })
-  // Le holder restaure le mode démo des corpus qui portent son marqueur.
-  raccrocherModeCorpus = demo.raccrocherModeCorpus
-  racineSourcesDemo = () => demo.racineSources.value
+  racineSourcesExercice = () => guide.racineSources.value
 
   /** Navigation typée utilisée par les retours du guidage, sans clic DOM. */
   async function naviguerGuide(destination: DestinationGuide): Promise<boolean> {
@@ -1287,6 +1280,19 @@ export function creerSonal() {
   // fonctions d'orchestration, comme si l'utilisateur avait cliqué dans l'UI.
   const modaleNouveauCorpus = ref(false)
   const modaleCorpusDistant = ref(false)
+  const exemples = useExemples({
+    guide, vue,
+    creer: creerNouveauCorpus,
+    ouvrir: (dir) => ouvrirRecent({ type: 'local', dir, nom: '' }),
+    afficherSynthese: () => { void entrerAnalyse('synthese') },
+  })
+  raccrocherModeCorpus = async (marqueur, dir) => {
+    exemples.catalogueParcoursOuvert.value = false
+    exemples.explorationExemples.value = false
+    exemples.repereAnalyse.value = false
+    exemples.demoReinitialisee.value = null
+    await guide.raccrocherModeCorpus(marqueur, dir)
+  }
   /** Signal consommé par AjoutEntretien.vue (la modale vit dans la vue Corpus). */
   const demandeAjoutEntretien = ref(false)
 
@@ -1565,7 +1571,8 @@ export function creerSonal() {
     modaleNouveauCorpus,
     modaleCorpusDistant,
     demandeAjoutEntretien,
-    ...demo,
+    ...guide,
+    ...exemples,
   }
 }
 

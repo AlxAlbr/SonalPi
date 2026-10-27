@@ -3,8 +3,6 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from '../partages/themes/EditionThemes.vue'
 import MenuTheme from '../partages/themes/MenuTheme.vue'
-import ModaleParcoursPasAPas from './ModaleParcoursPasAPas.vue'
-import ResumeParcoursPasAPas from './ResumeParcoursPasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
@@ -35,7 +33,6 @@ const {
   demandeDissociationAnon,
   enregistrerNavigationParcours,
   selectionnerParcours,
-  ouvrirCatalogueParcours,
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
   codebook,
   usages,
@@ -174,7 +171,6 @@ function basculerToutesDescriptionsThemes() {
     : new Set(idsDescriptionsThemes.value)
 }
 
-const resumeParcours = ref<HTMLElement | null>(null)
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
 watch(() => demandeDissociationAnon?.value, (demande) => { if (demande) void choisirOnglet('anon') }, { flush: 'post' })
 
@@ -196,7 +192,6 @@ watch(pasAPas, (actif) => {
 
 async function afficherParcours(
   parcoursId?: import('../../../../shared/format').ParcoursId,
-  afficherCatalogue = true,
 ): Promise<boolean> {
   if (parcoursId) selectionnerParcours(parcoursId)
   await choisirOnglet('accueil')
@@ -204,11 +199,9 @@ async function afficherParcours(
   deselectionnerCorpus()
   extraitAffiche.value = null
   await nextTick()
-  if (afficherCatalogue) ouvrirCatalogueParcours(parcoursId)
-  else {
-    resumeParcours.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    resumeParcours.value?.focus({ preventScroll: true })
-  }
+  const resumeParcours = document.querySelector<HTMLElement>('[data-testid="resume-parcours-global"]')
+  resumeParcours?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  resumeParcours?.focus({ preventScroll: true })
   return true
 }
 
@@ -365,10 +358,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </nav>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
-      <div v-if="pasAPas && ongletCorpus === 'accueil'" ref="resumeParcours" tabindex="-1">
-        <ResumeParcoursPasAPas />
-      </div>
-      <ModaleParcoursPasAPas v-if="pasAPas" />
 
       <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes' }">
         <!-- Colonne gauche : accueil, outils ou métadonnées de l'entretien sélectionné. -->

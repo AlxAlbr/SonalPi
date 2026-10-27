@@ -1,7 +1,5 @@
 import { ref, watch, computed, type Ref } from 'vue'
-import { importerFichier } from '../formatSonal/sas'
 import type {
-  CorpusFichier,
   EntretienRef,
   Locuteur,
   MarqueurDemo,
@@ -9,58 +7,26 @@ import type {
   Note,
   ParcoursId,
   ProgressionParcoursDemo,
-} from '../../shared/format'
-import type { ModeDemo, EtatDemo } from '../../shared/format'
-export type { ModeDemo, EtatDemo }
-import type { VueApplication } from './espaces'
-import type { Annotation } from '../../shared/entretien/annotation'
-import type { TableauBord } from '../../shared/corpus/tableaubord'
-import type { ResumeDocumentCadre } from '../../shared/docsCadre'
-import { etatPresentationParcours, etatsCatalogue, recommanderParcoursSuivant } from './parcours/presentation'
-import { creerCatalogue } from './parcours/catalogue'
-import { normaliserProgressionsDemo, serialiserProgressionsDemo } from './parcours/marqueur'
-import { creerParcoursPreparation } from './parcours/preparation'
-import type { DefinitionParcours, EtapeActive, EtapePasAPas, SurfaceGuide } from './parcours/types'
-export type { EtapePasAPas } from './parcours/types'
+} from '../../../shared/format'
+import { identiteExemple } from '../../../shared/exemples'
+import type { VueApplication } from '../espaces'
+import type { Annotation } from '../../../shared/entretien/annotation'
+import type { TableauBord } from '../../../shared/corpus/tableaubord'
+import type { ResumeDocumentCadre } from '../../../shared/docsCadre'
+import { etatPresentationParcours, etatsCatalogue, recommanderParcoursSuivant } from './presentation'
+import { creerCatalogue } from './catalogue'
+import { lireProgressionsDemo, serialiserProgressionsDemo } from './marqueur'
+import { creerParcoursPreparation } from './preparation'
+import { creerParcoursAnalyse, type DepsParcoursAnalyse } from './analyse'
+import type { DefinitionParcours, EtapeActive, EtapePasAPas, SurfaceGuide } from './types'
+import { creerParcoursOrganisation, type DepsParcoursOrganisation } from './organisation'
+import type { DemandeLotCorpus, ResultatLotCorpus } from '../../export/exportCorpus'
 
-/**
- *  Scope DÉMO « Mini Corpus Test » : construit puis ouvre des corpus de test,
- *  à partir des sources fournies dans `CorpusTest/CorpusSynth/` (SRT et audio),
- *  dans des dossiers choisis par l'utilisateur.
- *  Le builder réutilise le vrai pipeline d'import,
- *  soit `importerFichier` puis `corpus:importer` + `corpus:assignerAudio` :
- *  la démo est produite par le même code qu'un corpus utilisateur.
- *
- *  Deux modes, chacun son propre corpus (choisi dans la modale) :
- *  - `'autonomie'` : les 4 entretiens importés + audios ;
- *  - `'pas-a-pas'` : corpus amorcé vide, rempli étape par étape,
- *    via `importerSource`, guidé par un spotlight global.
- *  Seules les sources sont partagées (copiées une seule fois).
- *  L'identité d'un corpus de test vit dans `corpus.json` :
- *  `{ demo: { mode, racineSources, parcours } }` ; absent = corpus normal,
- *  la démo n'y touche jamais.
- *
- *  Dépendances injectées (patron `useCorpus({ flush })`),
- *  pour éviter le cycle : `appliquerCorpus` est défini dans `creerSonal`.
- */
-
-// Les 4 entretiens et leurs sources proviennent de CorpusTest/CorpusSynth/.
-// Ses sous-dossiers srt/ et audio/ sont copiés tels quels chez l'utilisateur,
-// et chaque clé ci-dessous EST le nom de fichier et le TITRE de l'entretien.
-// Nommage VOLONTAIREMENT sobre : un numéro + un qualificatif NEUTRE,
-// du rôle/parcours, sans prénom ni phrase ;
-// (a) les étapes se réfèrent au contenu, pas à une personne ;
-// (b) montrer des prénoms dans une démo qui TRAITE de pseudonymisation,
-// car cela enseignerait le mauvais réflexe.
-const SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants'] as const
-
-export interface DepsDemo {
-  appliquerCorpus: (c: CorpusFichier, dir?: string) => Promise<void>
-  majDossierCourant: () => Promise<void>
-  rafraichirRecents: () => Promise<void>
-  /** Affiche le parcours dans l'Accueil du corpus après une fermeture sécurisée. */
+/** Dépendances du guide sur le corpus actuellement ouvert. */
+export interface DepsGuide {
+  analyse: Omit<DepsParcoursAnalyse, 'vue' | 'membership'>
+  organisation: Omit<DepsParcoursOrganisation, 'vue' | 'membership' | 'ouvertId' | 'exportRealise'>
   retourParcours: () => Promise<boolean>
-  preparerBascule: () => Promise<void>
   vue: Ref<VueApplication>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
   membership: Ref<Record<string, EntretienRef>>
@@ -94,39 +60,13 @@ export interface DepsDemo {
   fermerDocsCadre: () => void
 }
 
-export function utiliserDemo(deps: DepsDemo) {
-  /** Catalogue de découverte affiché uniquement en mode `pas-a-pas`. */
+/** Accompagne et valide les gestes sans installer ni rouvrir de corpus. */
+export function useGuide(deps: DepsGuide) {
   const pasAPas = ref(false)
-  /** Build en cours (désactive les cartes pendant la préparation). */
-  const enPreparation = ref(false)
-  /** Les dossiers démo mémorisés en session puis persistés (`settings.json`) :
-   *  la racine des sources (copiées une seule fois et partagées),
-   *  plus le dossier du corpus de test de chaque mode.
-   *  Les refs `*Presentes` signalent la présence réelle sur disque :
-   *  l'Accueil fait « un clic » quand tout est en place,
-   *  sinon la modale adapte ses questions. */
   const racineSources = ref<string | null>(null)
-  const sourcesPresentes = ref(false)
-  const corpusPasAPas = ref<string | null>(null)
-  const corpusAutonomie = ref<string | null>(null)
-  const corpusPasAPasPresent = ref(false)
-  const corpusAutonomiePresent = ref(false)
-
-  /** Importe un entretien source (SRT + audio) via le vrai pipeline,
-   *  depuis la racine des sources matérialisées ;
-   *  l'audio y est référencé, jamais copié.
-   *  Un seul mécanisme pour l'autonomie (boucle) et le pas-à-pas (one-click) ;
-   *  retourne l'id créé. */
-  async function importerSource(k: string, racine: string): Promise<string> {
-    const { nom, contenu } = await window.sonal.demo.lireSource(racine, `srt/${k}.srt`)
-    const r = importerFichier(nom, contenu, (html) =>
-      new DOMParser().parseFromString(html, 'text/html'),
-    )
-    const imp = await window.sonal.corpus.importer(k, r.payload, r.codebook, r.variables)
-    const audio = await window.sonal.demo.cheminAudio(racine, `audio/${k}.mp3`)
-    await window.sonal.corpus.assignerAudio(imp.id, audio)
-    return imp.id
-  }
+  const marqueurCourant = ref<MarqueurDemo | null>(null)
+  const dossierGuide = ref<string | null>(null)
+  let generationGuide = 0
 
   const contextesParcours = ref<Partial<Record<ParcoursId, Record<string, string>>>>({})
 
@@ -163,7 +103,7 @@ export function utiliserDemo(deps: DepsDemo) {
         ),
       texte: () => {
         if (!document.querySelector('.modale-ajout')) {
-          return `Cliquez sur « + Ajouter un entretien ». Les sources se trouvent dans « ${racineSources.value} ».`
+          return 'Cliquez sur « + Ajouter un entretien ».'
         }
         if (!document.querySelector('.zone-texte .zone-fichier')) {
           return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/1Coordinatrice.srt"
@@ -172,6 +112,16 @@ export function utiliserDemo(deps: DepsDemo) {
           return "Bien ! Maintenant le fichier media : cliquez sur cette zone et sélectionnez audio/1Coordinatrice.mp3."
         }
         return "Tout est prêt : cliquez sur « Valider » pour créer l'entretien."
+      },
+      fichiersExercice: () => {
+        if (!document.querySelector('.modale-ajout')) return null
+        if (!document.querySelector('.zone-texte .zone-fichier')) {
+          return { dossier: 'transcriptions', libelle: 'Ouvrir le dossier des transcriptions' }
+        }
+        if (!document.querySelector('.zone-audio .zone-fichier')) {
+          return { dossier: 'audio', libelle: 'Ouvrir le dossier des fichiers audio' }
+        }
+        return null
       },
       retest: () => "charger d'autres entretiens",
       // L'action de cette étape vit dans le CORPUS (ajouter un entretien) :
@@ -283,6 +233,11 @@ export function utiliserDemo(deps: DepsDemo) {
         deps.vue.value === 'entretien'
           ? "Cet entretien a été créé avec l'audio seul. Vous lierez sa transcription depuis les métadonnées de sa carte à l'étape suivante."
           : "Ce scénario représente un retour d'entretien : l'audio est disponible, mais la transcription n'est pas encore prête.",
+      fichiersExercice: () =>
+        deps.vue.value !== 'entretien' && document.querySelector('.modale-ajout')
+          && !document.querySelector('.zone-audio .zone-fichier')
+          ? { dossier: 'audio', libelle: 'Ouvrir le dossier des fichiers audio' }
+          : null,
       retest: () =>
         "ajouter un autre entretien audio seul et écrire une nouvelle note à chaud " +
         '(le retour d’entretien est déjà consigné)',
@@ -293,7 +248,7 @@ export function utiliserDemo(deps: DepsDemo) {
       // On RESTE dans l'entretien après la note (pas de retour brutal au Corpus) :
       // l'utilisateur peut continuer à écrire s'il le veut ;
       // le message de fin s'affiche sous les onglets avec un bouton pour revoir le parcours.
-      finiEnEntretien: true,
+      vueFin: 'entretien',
     },
     {
       id: 'lier-srt',
@@ -347,6 +302,14 @@ export function utiliserDemo(deps: DepsDemo) {
       },
       explication: () =>
         "La transcription et son découpage horodaté seront ajoutés sans modifier les notes ni les données de l'entretien.",
+      fichiersExercice: () => {
+        const id2 = Object.entries(deps.membership.value).find(
+          ([, r]) => r.titre === '2RetraiteAnticipee',
+        )?.[0]
+        return deps.vue.value !== 'entretien' && deps.corpusSelId.value === id2
+          ? { dossier: 'transcriptions', libelle: 'Ouvrir le dossier des transcriptions' }
+          : null
+      },
       retest: () => "lier la transcription d'un autre entretien (celle de 2RetraiteAnticipee est déjà posée)",
       retestCorpus: true,
       // L'action de cette étape vit dans le CORPUS (panneau métadonnées) ;
@@ -456,17 +419,20 @@ export function utiliserDemo(deps: DepsDemo) {
   })
   const definitionTraitement: DefinitionParcours = {
     id: 'traitement',
-    titre: 'Traiter ses entretiens',
+    titre: 'Importer et traiter',
     resume: 'Importer, documenter, transcrire, pseudonymiser, coder et qualifier.',
     disponible: () => true,
     etapes: etapesTraitement,
   }
-  const catalogueParcours = creerCatalogue(definitionPreparation, definitionTraitement)
+  const definitionAnalyse = creerParcoursAnalyse({ ...deps.analyse, vue: deps.vue, membership: deps.membership })
+  const exportRealise = ref<DepsParcoursOrganisation['exportRealise']['value']>(null)
+  const definitionOrganisation = creerParcoursOrganisation({ ...deps.organisation, vue: deps.vue,
+    membership: deps.membership, ouvertId: deps.ouvertId, exportRealise })
+  const catalogueParcours = creerCatalogue(definitionPreparation, definitionTraitement, definitionAnalyse, definitionOrganisation)
   const parcoursSelectionneId = ref<ParcoursId>('preparation')
   const dernierParcoursId = ref<ParcoursId | null>(null)
-  const catalogueParcoursOuvert = ref(false)
   const valideesParParcours = ref<Record<ParcoursId, Set<string>>>(
-    { preparation: new Set(), traitement: new Set(), analyse: new Set() },
+    { preparation: new Set(), traitement: new Set(), analyse: new Set(), organisation: new Set() },
   )
   const etapeActive = ref<EtapeActive>(null)
   const definitionSelectionnee = computed(() =>
@@ -498,13 +464,15 @@ export function utiliserDemo(deps: DepsDemo) {
   const surfaceGuide = computed<SurfaceGuide>(() => {
     if (deps.tableauBordOuverts.value) return 'tableau-bord'
     if (deps.docsCadreOuverts.value) return 'docs-cadre'
+    if (deps.vue.value === 'analyser') return 'analyse'
+    if (deps.vue.value === 'organiser') return 'organisation'
     return deps.vue.value === 'entretien' ? 'entretien' : 'corpus'
   })
   const retestInfo = ref<{
     parcoursId: ParcoursId
     titre: string
     suite: string
-    vue: 'corpus' | 'entretien'
+    vue: Exclude<VueApplication, 'accueil'>
   } | null>(null)
   const finiInfo = ref<{
     parcoursId: ParcoursId
@@ -512,7 +480,7 @@ export function utiliserDemo(deps: DepsDemo) {
     suite: string
     prochaineId: string | null
     prochaineTitre: string | null
-    vue: 'corpus' | 'entretien'
+    vue: Exclude<VueApplication, 'accueil'>
     parcoursSuivantId?: ParcoursId | null
   } | null>(null)
 
@@ -520,7 +488,7 @@ export function utiliserDemo(deps: DepsDemo) {
     if (retestInfo.value && vue !== retestInfo.value.vue) retestInfo.value = null
     const etape = etapeCourante.value
     if (!etape || !etape.retest || !validees.value.has(etape.id)) return
-    const vueRetest: 'corpus' | 'entretien' = etape.retestCorpus ? 'corpus' : 'entretien'
+    const vueRetest = etape.retestCorpus ? 'corpus' : etape.vueFin ?? 'entretien'
     if (vue !== vueRetest) return
     etapeActive.value = null
     retestInfo.value = {
@@ -536,14 +504,15 @@ export function utiliserDemo(deps: DepsDemo) {
   }
 
   /** Persiste séparément les acquis et le contexte minimal de chaque parcours. */
-  async function ecrireMarqueur(mode: ModeDemo): Promise<void> {
-    if (!racineSources.value) return
+  async function ecrireMarqueur(): Promise<void> {
+    const marqueur = marqueurCourant.value
+    const dir = dossierGuide.value
+    if (!marqueur || !dir || !pasAPas.value) return
     await window.sonal.corpus.marquerDemo({
-      mode,
-      racineSources: racineSources.value,
+      ...marqueur,
       parcours: progressionsPersistantes(),
       ...(dernierParcoursId.value ? { dernierParcoursId: dernierParcoursId.value } : {}),
-    })
+    }, dir)
   }
 
   /** Redérive les acquis observables sans retirer les acquis déjà mémorisés. */
@@ -552,6 +521,7 @@ export function utiliserDemo(deps: DepsDemo) {
     const suivantes = { ...valideesParParcours.value }
     for (const definition of catalogueParcours) {
       const cle = definition.id
+      if (cle !== marqueurCourant.value?.parcoursApprentissage) continue
       const progression = new Set(suivantes[cle])
       for (const etape of definition.etapes) if (etape.fait()) progression.add(etape.id)
       if (progression.size !== suivantes[cle].size) {
@@ -561,7 +531,7 @@ export function utiliserDemo(deps: DepsDemo) {
     }
     if (change) {
       valideesParParcours.value = suivantes
-      void ecrireMarqueur(pasAPas.value ? 'pas-a-pas' : 'autonomie')
+      void ecrireMarqueur()
     }
   }
 
@@ -570,29 +540,17 @@ export function utiliserDemo(deps: DepsDemo) {
     parcoursSelectionneId.value = parcoursId
   }
 
-  function ouvrirCatalogueParcours(parcoursId?: ParcoursId) {
-    if (parcoursId) selectionnerParcours(parcoursId)
-    catalogueParcoursOuvert.value = true
-  }
-
-  function fermerCatalogueParcours() {
-    catalogueParcoursOuvert.value = false
-  }
-
   /** Active une étape dans son parcours ; les prérequis restent locaux à ce parcours. */
-  function activer(parcoursOuEtape: ParcoursId | string, etapeId?: string) {
-    const parcoursId = etapeId ? parcoursOuEtape as ParcoursId : parcoursSelectionneId.value
-    const id = etapeId ?? parcoursOuEtape
+  function activer(parcoursId: ParcoursId, id: string) {
     const definition = catalogueParcours.find((parcours) => parcours.id === parcoursId)
-    if (!definition?.disponible()) return
+    if (!pasAPas.value || marqueurCourant.value?.parcoursApprentissage !== parcoursId || !definition?.disponible()) return
     const etape = definition.etapes.find((candidate) => candidate.id === id)
     if (!etape) return
     const progression = valideesParParcours.value[parcoursId]
     if (etape.requiere && !progression.has(etape.requiere)) return
     selectionnerParcours(parcoursId)
     dernierParcoursId.value = parcoursId
-    catalogueParcoursOuvert.value = false
-    void ecrireMarqueur('pas-a-pas')
+    void ecrireMarqueur()
     retestInfo.value = null
     finiInfo.value = null
     etapeActive.value = { parcoursId, etapeId: id }
@@ -604,17 +562,19 @@ export function utiliserDemo(deps: DepsDemo) {
       const active = etapeActive.value
       const etape = etapeCourante.value
       if (!faite || !active || !etape) return
+      const generation = generationGuide
       const cle = active.parcoursId
       const progression = valideesParParcours.value[cle]
       if (progression.has(etape.id)) {
         etapeActive.value = null
         if (etape.retest) {
           if (etape.retestCorpus && !(await deps.retourParcours())) return
+          if (generation !== generationGuide) return
           retestInfo.value = {
             parcoursId: active.parcoursId,
             titre: etape.titre,
             suite: etape.retest(),
-            vue: etape.retestCorpus ? 'corpus' : 'entretien',
+            vue: etape.retestCorpus ? 'corpus' : etape.vueFin ?? 'entretien',
           }
         }
         return
@@ -625,7 +585,8 @@ export function utiliserDemo(deps: DepsDemo) {
         [cle]: new Set(progression).add(etape.id),
       }
       etapeActive.value = null
-      await ecrireMarqueur(pasAPas.value ? 'pas-a-pas' : 'autonomie')
+      await ecrireMarqueur()
+      if (generation !== generationGuide) return
       const definition = catalogueParcours.find((parcours) => parcours.id === active.parcoursId)!
       const index = definition.etapes.findIndex((candidate) => candidate.id === etape.id)
       const candidate = definition.etapes[index + 1]
@@ -633,11 +594,12 @@ export function utiliserDemo(deps: DepsDemo) {
       const suite = candidate && (!candidate.requiere || progressionApres.has(candidate.requiere))
         ? candidate
         : null
-      const resterEnEntretien = !!etape.finiEnEntretien
-      if (!resterEnEntretien) {
+      const vueFin = etape.vueFin ?? 'corpus'
+      if (!etape.vueFin) {
         if (deps.tableauBordOuverts.value) deps.fermerTableauBord()
         if (deps.docsCadreOuverts.value) deps.fermerDocsCadre()
         if (!(await deps.retourParcours())) return
+        if (generation !== generationGuide) return
       }
       if (etape.fini) {
         const etat = etatPresentationParcours(definition.etapes, progressionApres)
@@ -647,7 +609,7 @@ export function utiliserDemo(deps: DepsDemo) {
           suite: etape.fini(),
           prochaineId: suite?.id ?? null,
           prochaineTitre: suite?.titre ?? null,
-          vue: resterEnEntretien ? 'entretien' : 'corpus',
+          vue: vueFin,
           parcoursSuivantId: etat.termine
             ? recommanderParcoursSuivant(catalogueParcours, active.parcoursId, valideesParParcours.value)
             : null,
@@ -667,16 +629,9 @@ export function utiliserDemo(deps: DepsDemo) {
    *  Le titre de l'entretien importé = nom du fichier SRT (préfixe numérique compris) ;
    *  on vérifie donc aussi leur présence : l'étape demande les DEUX, texte ET audio. */
   function verifierChargementEtape1(nomTexte: string | null, cheminAudio: string | null): string | null {
-    // Le garde vaut pour le MODE pas-à-pas entier (spotlight en cours ou non,
-    // réouverture par « Récents », « Arrêter », …), pas seulement pendant le guidage ;
-    // un 1Coordinatrice sans audio ne doit jamais pouvoir satisfaire l'étape.
-    // SAUF si une AUTRE étape est activement guidée (ex. 2a « Prendre des notes à chaud »
-    // mène son propre import audio seul AVANT l'étape 1 ; c'est elle qui garde, pas 1).
+    // Hors de l'étape guidée, tous les imports ordinaires restent disponibles.
     if (!pasAPas.value || valideesParParcours.value.traitement.has('charger')) return null
-    if (parcoursSelectionneId.value !== 'traitement') return null
-    if (etapeActive.value && (
-      etapeActive.value.parcoursId !== 'traitement' || etapeCouranteId.value !== 'charger'
-    )) return null
+    if (etapeActive.value?.parcoursId !== 'traitement' || etapeCouranteId.value !== 'charger') return null
     const base = (p: string | null) => p?.replace(/^.*[\\/]/, '') ?? null
     if (base(nomTexte) !== '1Coordinatrice.srt' || base(cheminAudio) !== '1Coordinatrice.mp3') {
       return (
@@ -702,7 +657,7 @@ export function utiliserDemo(deps: DepsDemo) {
     // Hors de cette étape (ou une fois 2a faite), la garde se lève ; on charge librement.
     if (!pasAPas.value || valideesParParcours.value.traitement.has('noter')) return null
     if (etapeActive.value?.parcoursId !== 'traitement' || etapeCouranteId.value !== 'noter') return null
-    const base = (p: string | null) => p?.replace(/^.*[\/]/, '') ?? null
+    const base = (p: string | null) => p?.replace(/^.*[\\/]/, '') ?? null
     if (base(cheminAudio) === '2RetraiteAnticipee.mp3' && nomTexte === null) return null
     if (nomTexte !== null) {
       return (
@@ -745,133 +700,16 @@ export function utiliserDemo(deps: DepsDemo) {
     }
   }
 
-  /** Prépare le corpus de test du mode demandé puis l'ouvre.
-   *  Chaque mode a son propre dossier (choisi dans la modale) ; seules les sources sont partagées.
-   *  Étapes : 1. copier les sources bundled une fois (idempotent) ; 2.
-   *  ouvrir le dossier du corpus de ce mode ; 3. 'autonomie' :
-   *  importer les 4 entretiens + leurs audios ; 4. poser le marqueur démo (identité + historique) ;
-   *  5. appliquer le corpus au modèle et atterrir sur la vue Corpus. */
-  async function preparer(
-    mode: ModeDemo,
-    opts?: { racineSources?: string; dossierCorpus?: string },
-  ): Promise<void> {
-    if (enPreparation.value) return
-    enPreparation.value = true
-    try {
-      if (opts?.racineSources) racineSources.value = opts.racineSources
-      // Le dossier du corpus de CE mode : choisi dans la modale,
-      // ou mémorisé (re-préparation « un clic »). Chaque mode a son dossier, indépendant.
-      const dossierCorpus =
-        opts?.dossierCorpus ?? (mode === 'pas-a-pas' ? corpusPasAPas.value : corpusAutonomie.value)
-      if (!racineSources.value || !dossierCorpus) return // ne devrait pas arriver (modale)
-      if (mode === 'pas-a-pas') corpusPasAPas.value = dossierCorpus
-      else corpusAutonomie.value = dossierCorpus
-
-      // 1. LA seule copie du flow de démo (~13 Mo) — idempotente par complétude.
-      await window.sonal.demo.copierSources(racineSources.value)
-      // 2. Ouvrir (amorcer si neuf) le dossier du corpus de CE mode.
-      await deps.preparerBascule()
-      const res = await window.sonal.corpus.ouvrirDossier(dossierCorpus)
-      if (!res) return
-      await deps.majDossierCourant()
-      await deps.rafraichirRecents()
-
-      // 3. Mode autonomie : peupler avec les 4 entretiens + audios. Idempotent :
-      // on ne ré-importe PAS un entretien dont le TITRE source existe déjà,
-      // sinon la re-préparation dupliquerait 1Coordinatrice…4Etudiants.
-      if (mode === 'autonomie') {
-        const titresExistants = new Set(Object.values(res.corpus.membership).map((m) => m.titre))
-        for (const k of SOURCES) {
-          if (titresExistants.has(k)) continue
-          await importerSource(k, racineSources.value)
-          titresExistants.add(k)
-        }
-      }
-
-      // 4. Marqueur démo : identité du corpus de test (mode + sources + historique).
-      // On CONSERVE l'historique existant du même mode ; une re-préparation « un clic »
-      // ne doit pas effacer les étapes faites.
-      const histo = res.corpus.demo
-      const parcours = histo?.mode === mode
-        ? (histo.parcours ?? (histo.validees
-          ? { traitement: { validees: histo.validees } }
-          : {}))
-        : {}
-      await window.sonal.corpus.marquerDemo({
-        mode,
-        racineSources: racineSources.value,
-        parcours,
-        ...(histo?.mode === mode && histo.dernierParcoursId
-          ? { dernierParcoursId: histo.dernierParcoursId }
-          : {}),
-      })
-
-      // 5. Appliquer le corpus marqué au modèle.
-      // Cette opération restaure le parcours dans l'Accueil et son historique.
-      const c = await window.sonal.corpus.ouvrir()
-      await deps.appliquerCorpus(c, dossierCorpus)
-      deps.vue.value = 'corpus'
-      if (mode === 'pas-a-pas') {
-        // Pré-crée une variable « Ville » (portée locuteur, saisie libre)
-        // pour l'étape « Saisir une variable » —
-        // UNE fois seulement (ajouterVariable ne déduplique pas par libellé).
-        if (!deps.variables.value.some((v) => v.lib === 'Ville')) {
-          await window.sonal.corpus.ajouterVariable('Ville', 'locuteur')
-          await deps.appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCorpus)
-        }
-        // L'entrée générale ouvre le choix des parcours, sans lancer d'étape.
-        etapeActive.value = null
-        catalogueParcoursOuvert.value = true
-      }
-      // Mémoire démo PERSISTÉE (settings.json) : sources + dossier de CE mode (l'autre mode,
-      // s'il existe, est préservé). Les cartes de l'Accueil restent « un clic »
-      // quand les dossiers existent ; la modale saute les questions déjà répondues (ex.
-      // « où importer les sources »).
-      await window.sonal.demo.memoriser({
-        racineSources: racineSources.value,
-        corpusPasAPas: mode === 'pas-a-pas' ? dossierCorpus : (corpusPasAPas.value ?? undefined),
-        corpusAutonomie: mode === 'autonomie' ? dossierCorpus : (corpusAutonomie.value ?? undefined),
-      })
-    } finally {
-      enPreparation.value = false
-    }
-  }
-
-  /** Recharge la mémoire démo persistée (settings.json) : dossiers (sources et corpus de chaque mode)
-   *  et présence réelle sur disque. L'Accueil décide ensuite : « un clic » si tout est en place,
-   *  sinon la modale adapte ses questions. */
-  async function raccrocherEtatDemo(): Promise<boolean> {
-    const etat = await window.sonal.demo.etat()
-    if (!etat) return false
-    racineSources.value = etat.racineSources
-    sourcesPresentes.value = etat.sourcesExist
-    corpusPasAPas.value = etat.corpusPasAPas ?? null
-    corpusAutonomie.value = etat.corpusAutonomie ?? null
-    corpusPasAPasPresent.value = etat.corpusPasAPasExist
-    corpusAutonomiePresent.value = etat.corpusAutonomieExist
-    return true
-  }
-
-  /** « Un clic » possible pour un mode : sources ET corpus de CE mode connus (mémorisés)
-   *  et présents sur disque → re-préparation directe, sans modale. */
-  function pretUnClic(mode: ModeDemo): boolean {
-    const corpus = mode === 'pas-a-pas' ? corpusPasAPas.value : corpusAutonomie.value
-    const present =
-      mode === 'pas-a-pas' ? corpusPasAPasPresent.value : corpusAutonomiePresent.value
-    return !!racineSources.value && sourcesPresentes.value && !!corpus && present
-  }
-
-  /** Restaure le mode démo à l'ouverture d'un corpus, à partir de son marqueur `corpus.json:
-   *  { demo }`. Pour un corpus 'pas-a-pas' : rappelle où sont les sources,
-   *  remonte le panneau et restaure l'historique des étapes validées.
-   *  Pour tout autre corpus (normal ou 'autonomie') : éteint le panneau. */
+  /** Restaure les acquis du corpus ouvert sans relancer de guide ni ouvrir de catalogue. */
   async function raccrocherModeCorpus(
     marqueur: MarqueurDemo | undefined,
     dir: string | null,
   ): Promise<void> {
     // Aucun guidage ni message ne traverse un changement de corpus.
+    generationGuide++
     etapeActive.value = null
-    catalogueParcoursOuvert.value = false
+    marqueurCourant.value = null
+    dossierGuide.value = null
     dernierParcoursId.value = null
     retestInfo.value = null
     finiInfo.value = null
@@ -879,44 +717,42 @@ export function utiliserDemo(deps: DepsDemo) {
       preparation: new Set(),
       traitement: new Set(),
       analyse: new Set(),
+      organisation: new Set(),
     }
+    exportRealise.value = null
     contextesParcours.value = {}
     if (!marqueur || !dir) {
       pasAPas.value = false
       return
     }
     racineSources.value = marqueur.racineSources
-    pasAPas.value = marqueur.mode === 'pas-a-pas'
+    marqueurCourant.value = marqueur
+    dossierGuide.value = dir
+    pasAPas.value = identiteExemple(marqueur)?.usage === 'apprentissage'
     if (pasAPas.value) {
-      const normalise = normaliserProgressionsDemo(marqueur)
-      valideesParParcours.value = normalise.progressions
-      contextesParcours.value = normalise.contextes
-      parcoursSelectionneId.value = normalise.parcoursInitial
-      dernierParcoursId.value = normalise.dernierParcoursId
+      const progression = lireProgressionsDemo(marqueur)
+      valideesParParcours.value = progression.progressions
+      contextesParcours.value = progression.contextes
+      parcoursSelectionneId.value = progression.parcoursInitial
+      dernierParcoursId.value = progression.dernierParcoursId
       revaliderEtapes()
     }
   }
 
+  /** Observe le résultat enregistré, pas le clic sur le bouton d'export. */
+  function enregistrerExportGuide(demande: DemandeLotCorpus, resultat: ResultatLotCorpus): void {
+    exportRealise.value = { demande, resultat }
+  }
+
   return {
+    enregistrerExportGuide,
     pasAPas,
-    enPreparation,
     racineSources,
-    sourcesPresentes,
-    corpusPasAPas,
-    corpusAutonomie,
-    corpusPasAPasPresent,
-    corpusAutonomiePresent,
-    pretUnClic,
-    raccrocherEtatDemo,
+    dossierGuide,
     raccrocherModeCorpus,
-    preparer,
-    importerSource,
     catalogueParcours,
     parcoursSelectionneId,
     dernierParcoursId,
-    catalogueParcoursOuvert,
-    ouvrirCatalogueParcours,
-    fermerCatalogueParcours,
     definitionSelectionnee,
     parcoursActifId,
     parcoursActif,

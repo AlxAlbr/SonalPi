@@ -39,7 +39,7 @@ async function confirmer() {
       <details><summary>Détails de l’erreur</summary>{{ erreur }}</details>
     </div>
     <p v-if="reprise">La tentative est conservée pour réessayer sans doublon. Un recueil déjà créé restera disponible si vous abandonnez l’ajout.</p>
-    <div class="actions">
+    <div data-tour="ajout-recueil-guide" class="actions">
       <button :disabled="occupe" @click="fermerAjoutRecueil(true)">{{ reprise ? 'Abandonner la tentative' : 'Annuler' }}</button>
       <button :disabled="occupe || lectureSeule || !entretienEditable || (!reprise && (nouveau ? !nom.trim() : !recueilId))" @click="confirmer">{{ occupe ? 'Ajout en cours…' : reprise ? 'Réessayer l’ajout' : 'Ajouter le passage' }}</button>
     </div>

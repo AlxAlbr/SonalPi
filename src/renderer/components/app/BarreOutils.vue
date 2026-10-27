@@ -31,6 +31,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
       >Préparer et suivre</button>
       <button
         class="outil espace"
+        data-tour="ouvrir-traiter"
         :class="{ actif: traitementActif }"
         title="Corpus et entretiens"
         :aria-current="traitementActif ? 'page' : undefined"
@@ -46,6 +47,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
       >Analyser et interpréter</button>
       <button
         class="outil espace"
+        data-tour="ouvrir-organiser"
         :class="{ actif: organisationActive }"
         title="Cas, recueils et export du corpus"
         :aria-current="organisationActive ? 'page' : undefined"

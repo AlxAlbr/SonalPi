@@ -1,6 +1,8 @@
+import type { VueApplication } from '../espaces'
 import type { ParcoursId } from '../../../shared/format'
+import type { DossierFichiersExercice } from '../../../shared/exemples'
 
-export type SurfaceGuide = 'corpus' | 'entretien' | 'tableau-bord' | 'docs-cadre'
+export type SurfaceGuide = 'corpus' | 'entretien' | 'tableau-bord' | 'docs-cadre' | 'analyse' | 'organisation'
 
 export type DestinationGuide =
   | { surface: 'catalogue' }
@@ -25,6 +27,7 @@ export interface EtapePasAPas {
   fait: () => boolean
   texte: () => string
   explication?: () => string
+  fichiersExercice?: () => { dossier: DossierFichiersExercice; libelle: string } | null
   panneau?: boolean
   panneauAvecTrou?: boolean
   panneauSur?: SurfaceGuide[]
@@ -33,7 +36,7 @@ export interface EtapePasAPas {
   retest?: () => string
   retestCorpus?: boolean
   fini?: () => string
-  finiEnEntretien?: boolean
+  vueFin?: Exclude<VueApplication, 'accueil'>
 }
 
 export interface DefinitionParcours {

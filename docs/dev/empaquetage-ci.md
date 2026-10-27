@@ -24,9 +24,11 @@ npm run pack    (electron-builder → dist/ + paquet natif de la plateforme)
   pas depuis `app.asar`. Sans cela l'aperçu PDF est noir dans le paquet installé.
 - `extraResources` : `ressources/docsCadreExemples` → `resources/docsCadreExemples`
   et `CorpusTest` → `resources/CorpusTest`. C'est ce que lisent `cheminExemplesDocsCadre()`
-  et `cheminCorpusTest()` quand `app.isPackaged` (jamais de chemin dans l'asar).
-  Les sources de la démo sont dans `CorpusTest/CorpusSynth/` ; seul le contenu de
-  ce sous-dossier est installé dans le dossier de sources choisi par l'utilisateur.
+  et `ExemplesLocaux` quand `app.isPackaged` (jamais de chemin dans l'asar).
+  `CorpusTest/CorpusSynth/` contient les sources communes ; seul son contenu est
+  installé dans le dossier de sources du profil. `CorpusTest/CorpusSynthAnnot/`
+  contient le modèle V2 annoté, copié dans une nouvelle destination avec des références
+  audio réassignées à l'emplacement des sources sur le poste.
 - Icône : `build/icon.ico` (Windows) et `build/icon.png` (Linux et macOS), reprise de
   l'icône v1 badgée « 2 » (distinction V1/V2).
 - Linux : cibles AppImage + deb (catégorie AudioVideo) ; Windows : NSIS avec choix du
@@ -39,9 +41,19 @@ npm run pack    (electron-builder → dist/ + paquet natif de la plateforme)
 `npm run pack:dir` puis vérifier :
 
 - `dist/<plateforme>-unpacked/resources/` contient `CorpusTest/CorpusSynth/`
-  (avec `srt/`, `audio/` et `docs/`) et `docsCadreExemples` ;
+  (avec `srt/`, `audio/` et `docs/`), `CorpusTest/CorpusSynthAnnot/`
+  (avec `corpus.json`, `entretiens/` et `png/`) et `docsCadreExemples` ;
 - `app.asar.unpacked/out/renderer/assets/pdf.worker*.mjs` présent.
 
+Les deux corpus exemples peuvent être vérifiés dans le paquet Linux :
+
+```sh
+EXEMPLES_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" \
+  npx playwright test e2e/exemples-paquet.e2e.ts --project=local --workers=1
+```
+
+Ces tests vérifient les ressources hors asar, l'installation et les chemins audio
+sur une copie de travail, sans Docker. Le sélecteur de dossier est simulé.
 Le smoke test final (installer, ouvrir DocsCadre, vérifier l'aperçu PDF et le vrai
 sélecteur de fichiers) se fait sur Windows : WSLg ne présente pas le sélecteur natif.
 

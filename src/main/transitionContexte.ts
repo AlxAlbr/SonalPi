@@ -1,6 +1,8 @@
 import { CorpusStore, type PreparationOuvertureCorpus } from './corpusStore'
 import type { OuvertureCorpus } from '../shared/format'
 import type { DemandeMigration } from '../shared/corpus/migrationCrp'
+import type { InstallationExemple } from '../shared/exemples'
+import type { ExemplesLocaux } from './exemples'
 
 export interface CaptureContexteCourant<T> {
   contexte: T
@@ -74,6 +76,7 @@ export async function executerTransitionPreparee<T, R>(
 
 interface DependancesTransitionsLocales {
   creerStore?: (dir: string) => CorpusStore
+  exemples?: Pick<ExemplesLocaux, 'preparerInstallation'>
   fermerContexteActuel: () => Promise<void>
   finaliser: (
     store: CorpusStore,
@@ -102,7 +105,21 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
       )
     },
 
-    creerNouveau: async (dir: string, nom: string): Promise<OuvertureCorpus> => {
+    creerNouveau: async (dir: string, nom: string, exemple?: InstallationExemple): Promise<OuvertureCorpus> => {
+      if (exemple) {
+        if (!deps.exemples) throw new Error('L’installation des exemples n’est pas disponible.')
+        const installation = deps.exemples.preparerInstallation(dir, nom, exemple)
+        try {
+          return await executerTransitionPreparee(
+            () => installation,
+            deps.fermerContexteActuel,
+            ({ publier }) => {
+              const store = publier()
+              return deps.finaliser(store, dir, store.preparerOuverture())
+            },
+          )
+        } finally { installation.nettoyer() }
+      }
       const store = preparerStore(dir)
       return executerTransitionPreparee(
         () => store.preparerOuverture(nom),

@@ -19,6 +19,7 @@ import type {
 import { paramsAnonDefaut } from '../../../shared/format'
 import { squeletteCorpus } from '../../../shared/corpus/squelette'
 import type { VueApplication } from '../espaces'
+import type { InstallationExemple } from '../../../shared/exemples'
 import { normaliserTraitementsLexico } from '../../../shared/lexico/traitements'
 import type { TableauBord } from '../../../shared/corpus/tableaubord'
 import {
@@ -233,10 +234,11 @@ export function useCycleCorpus(deps: {
     })
   }
 
-  async function creerNouveauCorpus(dir: string, nom: string): Promise<void> {
+  async function creerNouveauCorpus(dir: string, nom: string, exemple?: InstallationExemple): Promise<void> {
     await preparerBascule()
-    const resultat = await window.sonal.corpus.creerNouveau(dir, nom)
+    const resultat = await window.sonal.corpus.creerNouveau(dir, nom, exemple)
     deps.profil.dossierCourantNom.value = resultat.nom
+    await deps.profil.rafraichirRecents()
     await restaurerApresOuverture(async () => {
       deps.distant.quitter()
       await appliquerCorpus(resultat.corpus, resultat.dir)
@@ -252,8 +254,9 @@ export function useCycleCorpus(deps: {
       return
     }
     await restaurerApresOuverture(async () => {
+      const corpus = await deps.profil.ouvrirDossier(entree.dir)
       deps.distant.quitter()
-      await appliquerCorpus(await deps.profil.ouvrirDossier(entree.dir), entree.dir)
+      await appliquerCorpus(corpus, entree.dir)
       deps.vue.value = 'corpus'
     })
   }

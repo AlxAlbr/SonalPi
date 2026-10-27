@@ -1317,7 +1317,8 @@ describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
     expect(() => store.ajouterCategorie('thème')).toThrow(/transaction sous droit/)
     expect(() => store.ajouterVariable('var', 'entretien')).toThrow(/transaction sous droit/)
     expect(() => store.regleAnonCreer('ACME', ['A.'])).toThrow(/transaction sous droit/)
-    expect(() => store.marquerDemo({ mode: 'pas-a-pas', racineSources: '/x', validees: [] })).toThrow(/transaction sous droit/)
+    expect(() => store.marquerDemo({ id: 'exercice', exemple: 'synth', usage: 'apprentissage',
+      parcoursApprentissage: 'preparation', racineSources: '/x', parcours: { preparation: { validees: [] } } })).toThrow(/transaction sous droit/)
     // Rien n'a bougé sur disque.
     const { store: temoin } = storeNeuf()
     void temoin

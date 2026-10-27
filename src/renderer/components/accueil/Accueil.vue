@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import ModaleDemo from './ModaleDemo.vue'
 import MigrationCorpus from './MigrationCorpus.vue'
 import MigrationGitLab from './MigrationGitLab.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
 import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
 import { utiliserSonal } from '../../composables/sonal'
-import type { ModeDemo } from '../../composables/demo'
 import type { EntreeRecent } from '../../../shared/format'
 
 const {
@@ -15,20 +13,14 @@ const {
   choisirDossier,
   ouvrirRecent,
   retirerRecent,
-  preparer,
-  raccrocherEtatDemo,
-  pretUnClic,
-  enPreparation,
+  ouvrirCatalogueParcours,
+  ouvrirExemples,
   // Modales déclenchables AUSSI depuis le menu applicatif : l'état est partagé
   // via le contexte sonal (le menu peut les ouvrir depuis n'importe quelle vue).
   modaleNouveauCorpus,
   modaleCorpusDistant,
 } = utiliserSonal()
 
-// Modale démo ADAPTATIVE : lancée depuis les cartes démo uniquement si le corpus de CE mode n'est pas déjà connu et présent —
-// mémoire démo persistée settings.json. Une question déjà répondue est sautée (ex. « où importer les sources », si elles sont déjà en place).
-// Une fois le corpus du mode créé, « un clic » suffit.
-const modaleDemo = ref<ModeDemo | null>(null)
 // Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
 // avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
 // Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
@@ -43,12 +35,6 @@ const modaleDistantFournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
 // Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur,
 // puis ouverture immédiate.
 const modaleNouveauDistant = ref(false)
-
-async function lancerPreparer(mode: ModeDemo) {
-  await raccrocherEtatDemo()
-  if (pretUnClic(mode)) void preparer(mode)
-  else modaleDemo.value = mode
-}
 
 /** Demande le secret dans la modale lorsqu'un récent ne peut pas rouvrir seul. */
 async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
@@ -84,25 +70,16 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
     <section class="ecran accueil">
       <h2>Accueil</h2>
 
-      <!-- Mini Corpus Test avec deux modes : découverte (pas à pas) ou autonomie -->
       <div class="demo-bloc">
-        <h3 class="demo-titre">🎓 Mini Corpus Test</h3>
+        <h3 class="demo-titre">Découvrir SonalPi</h3>
         <div class="cartes-demo">
-          <button
-            class="carte-demo pas-a-pas"
-            :disabled="enPreparation"
-            @click="lancerPreparer('pas-a-pas')"
-          >
-            <div class="carte-titre">Découverte pas à pas</div>
-            <div class="carte-sous">Préparer et traiter un corpus, étape par étape</div>
+          <button class="carte-demo parcours" @click="ouvrirCatalogueParcours()">
+            <div class="carte-titre">Parcours pas à pas</div>
+            <div class="carte-sous">Apprendre les gestes, étape par étape.</div>
           </button>
-          <button
-            class="carte-demo autonomie"
-            :disabled="enPreparation"
-            @click="lancerPreparer('autonomie')"
-          >
-            <div class="carte-titre">En autonomie</div>
-            <div class="carte-sous">Petit corpus (4 audios + srt)</div>
+          <button class="carte-demo exemples" @click="ouvrirExemples">
+            <div class="carte-titre">Explorer les corpus exemples</div>
+            <div class="carte-sous">Essayer librement les outils sur un exemple fourni.</div>
           </button>
         </div>
         <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
@@ -168,9 +145,6 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
           >✕</button>
         </li>
       </ul>
-
-      <!-- Modale à deux dossiers (sources + corpus de travail) -->
-      <ModaleDemo v-if="modaleDemo" :mode="modaleDemo" @fermer="modaleDemo = null" />
 
       <!-- Modale de migration SonalPi1 → SonalPi2 (aperçu → dossier dédié → exécution) -->
       <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />

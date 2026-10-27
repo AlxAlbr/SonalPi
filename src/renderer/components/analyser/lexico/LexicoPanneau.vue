@@ -10,6 +10,7 @@ import icoLexico from '../../../assets/icones/lexico.svg'
 // Les filtres sont dans LexicoCote.vue.
 const {
   chargementLexico, progressionLexico, lignesLexico, enregistrerContextePanneau,
+  formeSelectionneeLexico: formeSelectionnee,
   occurrencesRetenuesLexico, diagnosticsLexico,
   filtresLexico, resultatsPerimesLexico, entretiensAvecResultatsLexico,
   casDisponiblesLexico, filtreCasIndisponibleLexico, retirerFiltreCasLexico,
@@ -30,7 +31,6 @@ const recherche = ref('')
 const frequenceMin = ref(1)
 const afficherNombres = ref(false)
 const tri = ref<{ colonne: 'forme' | 'occurrences' | 'entretiens'; sens: 1 | -1 }>({ colonne: 'occurrences', sens: -1 })
-const formeSelectionnee = ref('')
 const formesSelectionnees = ref<string[]>([])
 const traitementVisible = ref(false)
 const formeOutil = ref('')
@@ -247,7 +247,7 @@ async function annulerDernierTraitement() {
         <span class="sous-titre">Index lexical du texte pseudonymisé</span>
       </div>
       <div class="actions-entete">
-        <button :disabled="chargementLexico" @click="actualiserLexico">Actualiser</button>
+        <button data-tour="actualiser-lexico" :disabled="chargementLexico" @click="actualiserLexico">Actualiser</button>
         <button @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} les filtres</button>
       </div>
     </header>
@@ -286,7 +286,7 @@ async function annulerDernierTraitement() {
 
     <main class="resultats">
       <div class="controles-resultats">
-        <label>Rechercher une forme <input v-model="recherche" type="search" placeholder="Ex. travail"></label>
+        <label>Rechercher une forme <input v-model="recherche" data-tour="rechercher-forme-lexico" type="search" placeholder="Ex. travail"></label>
         <label>Fréquence minimale <input v-model.number="frequenceMin" type="number" min="1"></label>
         <label class="case"><input v-model="afficherNombres" type="checkbox"> Afficher les nombres</label>
         <button :class="{ actif: traitementVisible }" @click="traitementVisible = !traitementVisible">Traitement lexical <span v-if="traitementsActifs">· {{ traitementsActifs }}</span></button>
@@ -374,7 +374,7 @@ async function annulerDernierTraitement() {
           </tr></thead>
           <tbody><tr v-for="ligne in lignesAffichees" :key="ligne.forme" :class="{ selectionnee: formeSelectionnee === ligne.forme }" @click="formeSelectionnee = ligne.forme">
             <td class="col-selection"><input type="checkbox" :checked="formeCochee(ligne.forme)" :aria-label="`Sélectionner ${ligne.forme}`" @click.stop @change="basculerForme(ligne.forme)"></td>
-            <td>{{ ligne.forme }}</td><td>{{ ligne.occurrences }}</td><td>{{ ligne.entretiens }}</td>
+            <td><button class="forme" :data-tour="`forme-lexico-${ligne.forme}`" @click.stop="formeSelectionnee = ligne.forme">{{ ligne.forme }}</button></td><td>{{ ligne.occurrences }}</td><td>{{ ligne.entretiens }}</td>
           </tr></tbody>
         </table>
       </div>
@@ -461,6 +461,7 @@ th:nth-child(n+3), td:nth-child(n+3) { text-align: right; width: 8rem; }
 .col-selection { width: 2rem; text-align: center; }
 .col-selection input { margin: 0; }
 td { padding: 0.3rem 0.55rem; border-top: 1px solid #edf0f4; }
+td .forme { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 tbody tr { cursor: pointer; }
 tbody tr:hover, tbody tr.selectionnee { background: #e8f1ff; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }

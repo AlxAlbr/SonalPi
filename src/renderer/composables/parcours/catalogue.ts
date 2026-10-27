@@ -4,8 +4,8 @@ import type { DefinitionParcours } from './types'
 export function creerCatalogue(
   preparation: DefinitionParcours,
   traitement: DefinitionParcours,
+  analyse: DefinitionParcours,
+  organisation: DefinitionParcours,
 ): DefinitionParcours[] {
-  return [preparation, traitement]
+  return [preparation, traitement, analyse, organisation]
 }
-
-export const ANALYSE_A_VENIR = 'Analyse — à venir'

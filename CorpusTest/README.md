@@ -10,16 +10,21 @@
   et les formes d'onde dans `png/`.
   Seule la version SonalPi2 est conservée ; les fichiers SonalPi1 ont été retirés.
 
-La démo actuelle installe uniquement le contenu de `CorpusSynth/` dans le dossier
-choisi pour ses sources, sans ajouter de niveau de sous-dossier. Les sources déjà
-installées restent à leur emplacement et continuent d'être reconnues.
+**Explorer les corpus exemples** propose les entretiens déjà importés et le corpus
+annoté. L'application crée une nouvelle copie de travail ; elle ne modifie pas ces
+modèles fournis. La reprise conserve les modifications sans réinstaller le contenu.
+Le parcours **Analyser et interpréter** prépare sa propre copie de `CorpusSynthAnnot`,
+distincte de l’exploration libre, pour apprendre Tri et synthèse, Lexico et Analyses croisées.
+**Organiser et exporter** prépare une autre copie indépendante de ce même modèle,
+pour découvrir les cas, composer un recueil et exporter les entretiens.
 
-La variante annotée n'est pas encore proposée dans l'interface des exemples.
-Elle peut être ouverte via **Ouvrir un corpus local** en choisissant son dossier ;
-travailler sur une copie pour conserver l'exemple initial.
+Les sources communes proviennent du seul contenu de `CorpusSynth/`, sans niveau
+de sous-dossier supplémentaire. Elles sont installées séparément des travaux ;
+les anciens emplacements déjà mémorisés restent utilisables. Une restauration ajoute
+seulement les fichiers manquants.
 
-Les audios sont référencés dans `CorpusSynth/audio/`, jamais dupliqués.
-Les chemins absolus V2 ont été rattachés à cet emplacement sur le poste de conversion,
-à la place des anciens chemins Windows. Ils ne sont pas portables tels quels :
-le futur installateur d'exemples devra les réassigner sur chaque copie de travail.
-En attendant, sur un autre poste, réassigner les quatre audios avant d'utiliser la lecture.
+Les audios ne sont jamais dupliqués dans les corpus. À l'installation d'une copie
+annotée, `src/main/exemples.ts` remplace les références absolues du poste de conversion
+par les chemins des sources installées sur le poste utilisateur. Ne pas ouvrir ni
+modifier directement le modèle fourni pour travailler : passer par les exemples
+ou faire une copie et réassigner les audios si nécessaire.

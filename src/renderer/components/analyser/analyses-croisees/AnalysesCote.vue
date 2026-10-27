@@ -39,17 +39,17 @@ function profondeur(idTheme: string): number {
 <template>
   <div class="selection-analyse cote-analyses" aria-label="Sélection de l’analyse">
     <nav>
-      <button :class="{ actif: onglet === 'themes' }" @click="onglet = 'themes'">Thèmes <b>{{ themesAnalyseCroisee.length }}</b></button>
-      <button :class="{ actif: onglet === 'entretiens' }" @click="onglet = 'entretiens'">Entretiens <b>{{ entretiensAnalyseCroisee.length }}</b></button>
+      <button data-tour="onglet-themes-analyse" :class="{ actif: onglet === 'themes' }" @click="onglet = 'themes'">Thèmes <b>{{ themesAnalyseCroisee.length }}</b></button>
+      <button data-tour="onglet-entretiens-analyse" :class="{ actif: onglet === 'entretiens' }" @click="onglet = 'entretiens'">Entretiens <b>{{ entretiensAnalyseCroisee.length }}</b></button>
     </nav>
     <section v-if="onglet === 'themes'">
       <h3>Thèmes</h3>
-      <div class="actions-liste"><button @click="tous('themes', true)">Tout sélectionner</button><button @click="tous('themes', false)">Tout désélectionner</button></div>
-      <label v-for="theme in codebook" :key="theme.id" class="choix" :style="{ paddingLeft: `${0.35 + profondeur(theme.id) * 0.8}rem` }"><input type="checkbox" :checked="coche(themesAnalyseCroisee, theme.id)" @change="basculer('themes', theme.id)"><span class="pastille" :style="{ backgroundColor: theme.couleur || '#788596' }"></span>{{ theme.nom }}</label>
+      <div class="actions-liste"><button @click="tous('themes', true)">Tout sélectionner</button><button data-tour="vider-themes-analyse" @click="tous('themes', false)">Tout désélectionner</button></div>
+      <label v-for="theme in codebook" :key="theme.id" :data-tour="`theme-analyse-${theme.id}`" class="choix" :style="{ paddingLeft: `${0.35 + profondeur(theme.id) * 0.8}rem` }"><input type="checkbox" :checked="coche(themesAnalyseCroisee, theme.id)" @change="basculer('themes', theme.id)"><span class="pastille" :style="{ backgroundColor: theme.couleur || '#788596' }"></span>{{ theme.nom }}</label>
     </section>
     <section v-else>
       <h3>Entretiens</h3>
-      <div class="actions-liste"><button @click="tous('entretiens', true)">Tout sélectionner</button><button @click="tous('entretiens', false)">Tout désélectionner</button></div>
+      <div class="actions-liste"><button data-tour="tous-entretiens-analyse" @click="tous('entretiens', true)">Tout sélectionner</button><button @click="tous('entretiens', false)">Tout désélectionner</button></div>
       <label v-for="(entretien, id) in membership" :key="id" class="choix"><input type="checkbox" :checked="coche(entretiensAnalyseCroisee, id)" @change="basculer('entretiens', id)">{{ entretien.titre }}</label>
     </section>
   </div>

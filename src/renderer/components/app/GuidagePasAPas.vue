@@ -81,9 +81,12 @@ const styleBulle = computed(() => {
     return { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
   }
   const rect = cible.value.rect
-  const sous = rect.bottom + 220 < window.innerHeight
-  const top = sous ? `${rect.bottom + 12}px` : `${Math.max(8, rect.top - 192)}px`
-  return { left: `${Math.max(8, rect.left)}px`, top, transform: 'none' }
+  const hauteur = document.querySelector<HTMLElement>('.spotlight-bulle')?.offsetHeight ?? 220
+  const propose = rect.bottom + hauteur + 20 < window.innerHeight ? rect.bottom + 12 : rect.top - hauteur - 12
+  const top = `${Math.max(8, Math.min(propose, window.innerHeight - hauteur - 8))}px`
+  const largeur = Math.min(340, window.innerWidth * .8)
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - largeur - 8))
+  return { left: `${left}px`, top, transform: 'none' }
 })
 
 const styleTrou = computed(() => {
@@ -114,8 +117,20 @@ const ciblePanneau = computed(() => {
       : '[data-tour="ancre-guide-tableau"]'
   }
   if (surfaceGuide.value === 'docs-cadre') return '[data-tour="ancre-guide-docs-cadre"]'
+  if (surfaceGuide.value === 'analyse') return '[data-tour="ancre-guide-analyse"]'
+  if (surfaceGuide.value === 'organisation') return '[data-tour="ancre-guide-organisation"]'
   return '[data-tour="ancre-guide-pp"]'
 })
+
+const fichiersExercice = computed(() => {
+  void cible.value
+  return etapeCourante.value?.fichiersExercice?.() ?? null
+})
+
+function voirFichiers(): void {
+  const fichiers = fichiersExercice.value
+  if (fichiers) void window.sonal.exemples.voirSources(fichiers.dossier)
+}
 
 async function revenirRetest() {
   if (await voirParcours()) retestInfo.value = null
@@ -136,17 +151,14 @@ async function revenirFini() {
   if (await voirParcours()) finiInfo.value = null
 }
 
-const cibleRetest = computed(() =>
-  retestInfo.value?.vue === 'entretien'
-    ? '[data-tour="ancre-guide-pp"]'
-    : '[data-tour="ancre-guide-corpus"]',
-)
-
-const cibleFini = computed(() =>
-  finiInfo.value?.vue === 'entretien'
-    ? '[data-tour="ancre-guide-pp"]'
-    : '[data-tour="ancre-guide-corpus"]',
-)
+function ancreMessage(vueMessage: string | undefined): string {
+  if (vueMessage === 'analyser') return '[data-tour="ancre-guide-analyse"]'
+  if (vueMessage === 'organiser') return '[data-tour="ancre-guide-organisation"]'
+  if (vueMessage === 'entretien') return '[data-tour="ancre-guide-pp"]'
+  return '[data-tour="ancre-guide-corpus"]'
+}
+const cibleRetest = computed(() => ancreMessage(retestInfo.value?.vue))
+const cibleFini = computed(() => ancreMessage(finiInfo.value?.vue))
 </script>
 
 <template>
@@ -155,7 +167,7 @@ const cibleFini = computed(() =>
       v-if="pasAPas && etapeCourante && vue !== 'accueil' && cible.etat !== 'cachee' && (!modePanneau || etapeCourante.panneauAvecTrou)"
     >
       <div v-if="cible.etat === 'absente' && !modePanneau" class="spotlight-voile"></div>
-      <div v-else class="spotlight-trou" :style="styleTrou"></div>
+      <div v-else class="spotlight-trou" :class="{ 'repere-analyse': surfaceGuide === 'analyse' || surfaceGuide === 'organisation' }" :style="styleTrou"></div>
       <div v-if="!modePanneau" class="spotlight-bulle" :style="styleBulle">
         <div class="guide-pp-parcours">{{ parcoursActif.titre }}</div>
         <div class="bulle-titre">{{ etapeCourante.titre }}</div>
@@ -172,7 +184,11 @@ const cibleFini = computed(() =>
           {{ etapeCourante.explication() }}
         </p>
         <div class="bulle-actions">
-          <button class="bulle-btn arreter" @click="etapeCouranteId = null">Arrêter</button>
+          <button class="bulle-btn arreter" @click="etapeCouranteId = null">Mettre le guide en pause</button>
+          <button class="bulle-btn" @click="voirParcours()">Revenir aux parcours</button>
+          <button v-if="fichiersExercice" class="bulle-btn" @click="voirFichiers">
+            {{ fichiersExercice.libelle }}
+          </button>
         </div>
       </div>
     </template>
@@ -198,7 +214,11 @@ const cibleFini = computed(() =>
         {{ etapeCourante.explication() }}
       </p>
       <div class="guide-pp-actions">
-        <button class="guide-pp-btn arreter" @click="etapeCouranteId = null">Arrêter</button>
+        <button class="guide-pp-btn arreter" @click="etapeCouranteId = null">Mettre le guide en pause</button>
+        <button class="guide-pp-btn" @click="voirParcours()">Revenir aux parcours</button>
+        <button v-if="fichiersExercice" class="guide-pp-btn" @click="voirFichiers">
+          {{ fichiersExercice.libelle }}
+        </button>
       </div>
     </div>
   </Teleport>
@@ -209,7 +229,7 @@ const cibleFini = computed(() =>
       <p class="guide-pp-texte">Vous pouvez essayer de {{ retestInfo.suite }}.</p>
       <div class="guide-pp-actions">
         <button class="guide-pp-btn" @click="fermerRetest">
-          {{ retestInfo.vue === 'entretien' ? 'Voir le parcours dans le corpus' : 'OK' }}
+          {{ retestInfo.vue === 'entretien' ? 'Voir les étapes du parcours' : 'OK' }}
         </button>
       </div>
     </div>
@@ -229,7 +249,7 @@ const cibleFini = computed(() =>
           @click="voirParcours(finiInfo.parcoursSuivantId!); finiInfo = null"
         >Découvrir le parcours suivant</button>
         <template v-if="finiInfo.vue === 'entretien'">
-          <button class="fini-pp-btn revenir" @click="revenirFini">Voir le parcours dans le corpus</button>
+          <button class="fini-pp-btn revenir" @click="revenirFini">Voir les étapes du parcours</button>
           <button class="fini-pp-btn discret" title="Continuer dans l’entretien" @click="finiInfo = null">OK</button>
         </template>
         <button v-else class="fini-pp-btn" @click="finiInfo = null">OK</button>
@@ -254,7 +274,9 @@ const cibleFini = computed(() =>
   z-index: 1001;
   transition: all 0.12s ease-out;
 }
+.spotlight-trou.repere-analyse { box-shadow: none; }
 .spotlight-bulle {
+  box-sizing: border-box;
   position: fixed;
   width: min(340px, 80vw);
   max-height: min(70vh, 420px);

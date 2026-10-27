@@ -24,7 +24,7 @@ export interface DepsParcoursPreparation {
   idEntretien: () => string | null
 }
 
-/** Définit les quatre gestes du parcours de préparation à partir du modèle réactif. */
+/** Définit les gestes de préparation du suivi et des documents du projet. */
 export function creerParcoursPreparation(deps: DepsParcoursPreparation): DefinitionParcours {
   const etapes: EtapePasAPas[] = [
     {
@@ -80,6 +80,9 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
           : 'Ouvrez « Préparer et suivre », puis l’onglet « Documents du projet ».'
       },
       explication: () => 'Ce document devient un document du projet ; les documents exemples restent une catégorie distincte.',
+      fichiersExercice: () => deps.docsCadreOuverts.value
+        ? { dossier: 'documents', libelle: 'Ouvrir le dossier du guide d’entretien' }
+        : null,
       fini: () => 'Le guide d’entretien fait maintenant partie des documents du projet.',
     },
     {
@@ -123,15 +126,15 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
         if (!document.querySelector('.modale-note')) return 'Créez une note avec « + Note ».'
         return 'Intitulez-la « Avant l’entretien », ajoutez une question ou une hypothèse, puis validez.'
       },
-      finiEnEntretien: true,
+      vueFin: 'entretien',
       fini: () => 'Votre préparation est consignée. Vous pourrez assigner l’audio et le SRT après la collecte.',
     },
   ]
 
   return {
     id: 'preparation',
-    titre: 'Préparer son terrain',
-    resume: 'Tableau de bord, documents du projet, entretien planifié et note préparatoire.',
+    titre: 'Préparer et suivre',
+    resume: 'Organiser le terrain et les documents du projet.',
     disponible: () => true,
     etapes,
   }

@@ -10,10 +10,12 @@ déclaration de traitement DPO, notice de consentement DPO, guide de correction,
 pseudonymisation, consignes internes, fichiers Word ou PDF. Ces documents sont propres au
 corpus courant ; ils ne sont ni des notes d’entretien ni des réglages du profil.
 
-Le parcours **Préparer son terrain** de la découverte guidée fait ajouter un petit guide
-d’entretien depuis les sources du Mini Corpus Test. Il utilise le véritable sélecteur de
-fichier et place le guide dans **Documents du projet**. Le fichier ajouté devient donc bien un
-document du projet ; il n’est jamais confondu avec les modèles de **Documents exemples**.
+Le parcours **Préparer et suivre** de la découverte guidée fait ajouter un petit guide
+d’entretien depuis les fichiers d’exercice préparés automatiquement. Au moment de l’ajout,
+le guide permet d’ouvrir directement le dossier qui contient ce document. Il utilise le
+véritable sélecteur de fichier et place le guide dans **Documents du projet**. Le fichier
+ajouté devient donc bien un document du projet ; il n’est jamais confondu avec les modèles
+de **Documents exemples**.
 
 ## Un principe : jamais de modification du contenu
 

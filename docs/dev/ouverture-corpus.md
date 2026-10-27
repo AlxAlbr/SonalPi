@@ -1,242 +1,266 @@
 # L'ouverture d'un corpus
 
-« Ouvrir un corpus » semble trivial — c'est en fait la partie la plus piégeuse de l'app,
-car **trois mécanismes indépendants** s'y superposent :
-
-1. **L'amorçage** : ouvrir un dossier qui n'est pas (ou plus) un corpus y *crée* un corpus neuf ;
-2. **Les récents** : au démarrage, le 1ᵉʳ récent est rouvert automatiquement ;
-3. **La mémoire démo** : les cartes du « Mini Corpus Test » reconstruisent (ou pas) selon
-   ce que `settings.json` se souvient et ce que le disque contient *réellement*.
-
-Leur combinaison produit des comportements contre-intuitifs si on ne les connaît pas
-(typo-classique : l'utilisateur vide un dossier de corpus, relance l'app… et tout
-« revient »). Ce document explique chaque mécanisme, puis les invariants à préserver.
+L'ouverture ordinaire, l'installation d'un exemple et l'activation du guide sont
+séparées. **Reprendre un travail ne réinstalle jamais son contenu initial.**
 
 ## 1. Les chemins d'entrée
 
-Il existe exactement quatre façons d'arrêter sur l'écran Corpus :
+| Action | Renderer | Processus principal |
+| --- | --- | --- |
+| Démarrage | `useCycleCorpus.chargerCorpus()` | Liste des Récents, puis ouverture du premier récent local vivant et admissible. |
+| Ouvrir un corpus local | `useProfil.choisirDossier()` puis cycle sécurisé | Choix natif et `changerDossier()`, sauf corpus d'apprentissage reconnu. |
+| Clic sur un récent | `useCycleCorpus.ouvrirRecent()` | Ouverture locale ou fournisseur distant, selon l'entrée. |
+| Nouveau corpus local | `NouveauCorpus.vue`, `creerNouveauCorpus()` | `corpus:creerNouveau`, transition locale ordinaire. |
+| Préparer un corpus d'apprentissage | `InstallationExemple.vue`, `useExemples` | Choix de l’emplacement, préparation d’un nouveau corpus, puis publication après fermeture du contexte courant. |
+| Installer un exemple libre | `InstallationExemple.vue`, `useExemples` | Préparation d'un nouveau corpus, puis publication après fermeture du contexte courant. |
+| Reprendre un exemple | `useExemples`, puis le cycle ordinaire | Vérification d'identité, ouverture, sans import ni copie de sources. |
+| Ouvrir/créer un corpus distant | Assistants Nextcloud ou GitLab | Commandes du fournisseur, jamais ouverture locale du miroir. |
 
-| Chemin | Point d'entrée renderer | Store main | Amorce si absent ? |
-|---|---|---|---|
-| Démarrage (1ᵉʳ récent **local**) | `chargerCorpus()` — `sonal.ts`, branché sur `onMounted` | `corpus:ouvrirDossier` | **oui** |
-| « Ouvrir un corpus local » (dialog) | `choisirDossier()` — `sonal.ts` | `corpus:ouvrirDossier` | **oui** |
-| Clic sur un récent 🌐 ou local | `ouvrirRecent()` — `sonal.ts`, branché par type (D8) | `distant:ouvrir` / `corpus:ouvrirDossier` | distant : non (garde `corpus.json`) |
-| Cartes démo (« un clic » ou modale) | `preparer()` — `composables/demo.ts` | `demo:copierSources` + `corpus:ouvrirDossier` | oui (étape 2) |
-| ☁️ Ouvrir un corpus distant | modale `CorpusDistant.vue` → `ouvrirCorpusDistant(id)` | `distant:ouvrir` (miroir) | non — refuse sans `corpus.json` |
-| ☁️ Nouveau corpus distant | assistant `NouveauCorpusDistant.vue` → `creerCorpusDistant()` | `distant:creer` puis `distant:ouvrir` | côté serveur (§8) |
+Consulter le catalogue ne ferme pas l'entretien, ne change pas le corpus actif et
+ne crée aucun dossier d'exercice. Le profil peut normaliser ses anciens raccourcis.
+Une ouverture effective continue à utiliser la sauvegarde et les protections de
+transition du corpus courant.
 
-Point commun : **toutes** passent par `CorpusStore.ouvrir()` (`src/main/corpusStore.ts`),
-qui amorce si besoin, migre si besoin (`formatVersion`), puis rend le modèle.
+## 2. L'amorçage ordinaire et ses limites
 
-## 2. L'amorçage (`ouvrir()` → `amorcer()`) — ONE-SHOT par store
+Un dossier = un corpus. `CorpusStore.preparerOuverture()` calcule la lecture ou
+l'amorçage ; `finaliserOuverture()` applique la préparation après vérification de
+la cible. Un dossier neuf reçoit les quatre catégories du bloc Pondérations,
+les autres blocs vides et la version courante du format.
 
-Un dossier = un corpus. Quand on CHOISIT un dossier (dialog, récent, démarrage,
-dossier de démo), `ouvrir()` ne le refuse jamais s'il n'est « pas encore corpus » :
-il crée les dossiers manquants (`entretiens/`) et, si `corpus.json` manque, écrit un
-**squelette** (`amorcer()`) : codebook par défaut (les 4 catégories Pondérations),
-tous les autres blocs vides, `formatVersion` courant.
+Chaque store ne peut amorcer qu'une fois. Ensuite, si `corpus.json` disparaît,
+`ouvrir()` lève la sentinelle `CORPUS_SUPPRIME` au lieu de recréer un corpus fantôme.
+Cette garde précède toute création de dossier.
 
-MAIS cet amorçage est à usage unique, par store : chaque `CorpusStore` naît avec un
-drapeau `amortissable`, consommé au premier amorçage — ou dès la lecture d'un corpus
-existant. Ensuite, un `corpus.json` ABSENT signifie « supprimé sur disque » :
-`ouvrir()` lève la sentinelle `CORPUS_SUPPRIME` (§5) au lieu de recréer un corpus
-fantôme. La garde précède toute création de dossier : rien n'est laissé derrière.
+L'installation d'un exemple est plus stricte que l'ouverture ordinaire : **le dossier
+cible doit être vide ou absent**, même si les fichiers présents ne sont pas des
+entretiens ou si `membership` est vide. Aucun ancien squelette n'est reconstruit
+pour accueillir un exemple.
 
-Conséquences à garder en tête :
+La migration SonalPi1 reste une autre commande : ses définitions viennent du `.crp`,
+pas du bloc Pondérations d'un corpus neuf.
 
-- **Ouvrir = éventuellement écrire** — mais une seule fois par choix de dossier. Le
-  dossier « juste regardé » reçoit UN squelette au moment du choix ; sa suppression
-  ultérieure n'est plus jamais annulée par l'app.
-- **Le squelette est indiscernable d'un corpus neuf jamais rempli** : `membership: {}`,
-  aucun marqueur particulier. C'est pourquoi les gardes du mode démo (§4) distinguent
-  « squelette vide » et « vrai travail » par le contenu (`membership` peuplé) et le
-  marqueur `demo`.
-- La migration depuis SonalPi1 (`migrerDepuisV1`) est l'exception : elle n'amorce PAS (le codebook
-  par défaut serait faux), elle crée depuis le `.crp` après garde explicite.
+## 3. Les Récents et le démarrage
 
-## 3. Le démarrage et les récents
+Les Récents ne contiennent que les corpus ordinaires et les explorations libres.
+Les corpus d'apprentissage restent accessibles depuis **Parcours pas à pas**, même
+après achèvement ou pause du guide.
 
-`settings.json` (niveau profil Electron) porte `recents[]`. Au montage,
-`chargerCorpus()` ouvre **automatiquement le 1ᵉʳ récent** — par construction, le corpus
-chargé est toujours le 1ᵉʳ récent. Premier lancement : rien ne s'ouvre, l'Accueil reste
-affiché.
+La règle est appliquée côté main : inscription, liste, menu, démarrage et choix de
+secours après suppression du corpus courant. Le marqueur est posé avant la première
+inscription possible d'un nouveau corpus d'apprentissage.
 
-Le démarrage ne ressuscite rien : `corpus:recents` purge d'abord les entrées mortes
-(dossier absent OU sans `corpus.json`), puis seul un corpus VIVANT est rouvert. Le
-cas piégeux restant — suppression du dossier PENDANT que l'app tourne — est traité
-par la sentinelle (§5). Même règle partout : un récent EST un dossier qui contient
-encore un `corpus.json`.
+Lors de la lecture des anciens Récents, un corpus d'apprentissage reconnu est d'abord
+rattaché au registre des exemples, puis seul son raccourci est retiré des Récents.
+Les dossiers et leurs données ne sont jamais déplacés ou supprimés pour ce nettoyage.
+Un dossier absent ou sans `corpus.json` n'est pas rouvert automatiquement.
 
-## 4. La mémoire démo (« Mini Corpus Test »)
+Le démarrage ouvre le premier récent **local** admissible, pas un fournisseur distant.
+Sans récent admissible, aucun corpus d'exercice n'est créé ; l'Accueil reste affiché.
+Les destinations distantes restent identifiées par leur fournisseur et leur identifiant,
+jamais par un chemin de miroir.
 
-### Ce qui est mémorisé
+## 4. Les corpus exemples et le guidage
 
-Dans `settings.json`, section `demo` : `racineSources` (partagée par les deux modes),
-`corpusPasAPas` et `corpusAutonomie` (un dossier par mode). Écrite par `demo:memoriser`
-à chaque préparation réussie.
+### Responsabilités
 
-### Présence RÉELLE vs présence MÉMORISÉE
+| Fichier | Rôle |
+| --- | --- |
+| `src/shared/exemples.ts` | Identités des contenus, usages, mémoire du profil, résumés et demande d'installation. |
+| `src/main/exemples.ts` | Reconnaissance, registre des travaux, gardes, préparation des nouveaux corpus et restauration des sources. |
+| `src/renderer/composables/useExemples.ts` | Choix du parcours/exemple, création ou reprise explicite, transmission de l'étape choisie. |
+| `src/renderer/composables/parcours/useGuide.ts` | Observation et validation des gestes sur le corpus ouvert, acquis, contexte et pause. |
+| `components/accueil/DecouverteExemples.vue` et `CatalogueParcours.vue` | Une seule fenêtre de découverte, accessible indépendamment de la vue courante. |
 
-Le piège historique : croire un corpus « en place » parce que son dossier existe.
-La règle actuelle (`src/main/index.ts`, handler `demo:etat`) :
+L'ancien `demo.ts`, son flux `preparer(mode)`, les handlers `demo:*` et l'assistant
+à deux dossiers ont été supprimés. Ils ne restent pas comme couche de compatibilité.
+Le pipeline d'import, les prédicats pédagogiques et les protections du cycle ordinaire
+sont conservés.
 
-| Élément | « Présent » ssi… |
-|---|---|
-| Sources | les **9 fichiers** existent (4 SRT, 4 MP3 et `docs/Guide-entretien-demo.txt`, cf. `CLEFS_SOURCES` / `sourcesCompletes()`) |
-| Corpus d'un mode | `corpus.json` existe ET porte le **marqueur `demo` DU MODE** (`corpusTestPresent()`) |
+### Identité et mémoire
 
-Pourquoi le marqueur ? Un vrai corpus démo en porte toujours un (`marquerDemo`, étape 4
-de `preparer()`). En revanche un simple `corpus.json` peut être un **squelette amorcé**
-(§2) — par exemple créé par la réouverture automatique du 1ᵉʳ récent juste après un
-vidage du dossier. Exiger le marqueur évite de dire « ✓ déjà en place » à propos d'un
-dossier que l app vient de vider de sa substance.
+Le champ additif `corpus.json.demo` conserve l'origine et les acquis :
 
-### Le flux `preparer(mode)` (renderer, `composables/demo.ts`)
+```text
+{ id, exemple: 'synth' | 'synth-annote', usage: 'apprentissage' | 'libre',
+  racineSources, parcours, parcoursApprentissage?, dernierParcoursId? }
+```
 
-Déclenché par un clic de carte, soit direct (« un clic » si mémoire + présence OK,
-cf. `pretUnClic`), soit via la modale adaptative (`ModaleDemo.vue`). Cinq étapes :
+L'identifiant est créé à l'installation. Le nom du dossier et les titres des entretiens
+ne servent jamais à reconnaître un exemple. `dernierParcoursId` n'est pas une étape
+active : aucune étape ne redémarre à la seule ouverture du corpus ou du catalogue.
 
-1. **Copier les sources** (`demo:copierSources`) — idempotent : no-op si les 9 fichiers
-   sont là ; sinon recopie complète depuis les sources fournies dans
-   `CorpusTest/CorpusSynth/` (dev : racine du projet ; prod : `extraResources`).
-   Seul le contenu de ce sous-dossier est copié : la destination conserve directement
-   `srt/`, `audio/` et `docs/`. Les anciens emplacements mémorisés restent valides,
-   sans déplacement ni réinstallation des sources déjà complètes.
-2. **Ouvrir le dossier du mode** (`corpus:ouvrirDossier`) — amorce si neuf.
-3. **Importer les entretiens** (mode autonomie) — idempotent PAR TITRE : un titre
-   déjà présent dans `membership` n'est jamais réimporté. L'audio est *référencé*
-   (chemin absolu vers la racine des sources), jamais copié.
-4. **Marquer** (`corpus:marquerDemo`) — pose `{ demo: { mode, racineSources, parcours } }`.
-   Chaque parcours possède ses `validees` et un petit `contexte` d’identifiants.
-   `dernierParcoursId` restaure le bandeau compact lors d’une ouverture par Récents, sans
-   persister ni relancer l’étape active. L’ancien champ racine `validees` reste lu comme
-   progression du traitement, puis l’écriture adopte le nouveau format sans changer
-   `FORMAT_VERSION`.
-5. **Mémoriser** (`demo:memoriser`) — persiste les dossiers, l'autre mode préservé.
+`settings.json.exemples` mémorise les emplacements des travaux, un corpus d’apprentissage
+par parcours et la dernière exploration choisie pour chaque contenu. La liste n'est pas
+limitée à huit comme les Récents. Les progressions sont relues depuis les corpus ;
+un travail introuvable ou illisible reste enregistré, sans progression inventée.
 
-### Les gardes de la modale (`ModaleDemo.vue` + `demo:verifierCorpus`)
+Seul le format actuel est reconnu : identité explicite (`id`, `exemple`, `usage`),
+parcours d’apprentissage indiqué et acquis séparés dans `parcours`. Il n’y a pas de
+migration des anciens marqueurs ou des anciennes mémoires du profil. La reprise entre
+sessions relit directement `settings.json.exemples` et le marqueur du corpus, sans les
+convertir ni lancer de guide.
 
-| Garde | Refuse | Mais laisse passer |
-|---|---|---|
-| sources ≠ corpus | mêmes deux dossiers | — |
-| indépendance des modes | le dossier de l'AUTRE mode | — |
-| on n'écrase jamais | corpus marqué démo ; corpus non marqué mais **non vide** (`membership` peuplé) ; `corpus.json` illisible (prudence) | le **squelette amorcé vide** — il n'est pas un travail utilisateur, et le bloquer interdirait à jamais de reconstruire dans un dossier qu'une simple ouverture a amorcé |
+**Ouvrir un corpus local** recevant un corpus d'apprentissage reconnu le rattache au
+catalogue sans basculer vers lui, sans lancer d'étape et sans inscription aux Récents.
+Les dossiers déplacés sont retrouvés par leur identité ; un autre corpus ne remplace
+pas silencieusement l'accès d'origine.
 
-## 5. Le corpus courant supprimé sur disque (sentinelle `CORPUS_SUPPRIME`)
+### Création et installation
 
-Scénario : l'utilisateur supprime dans son explorateur le dossier du corpus OUVERT.
-Avant le garde (§2), le moindre appel IPC suivant ré-amorçait un squelette vide —
-la suppression était annulée en silence. Aujourd'hui, quatre couches coopèrent :
+Préparer et suivre compte quatre étapes métier ; la création du corpus n’est pas une
+étape pédagogique. Au premier lancement, `InstallationExemple.vue` propose un emplacement
+modifiable, puis prépare le corpus vierge avant de lancer l’étape choisie. Le dialogue
+ordinaire `NouveauCorpus.vue` reste réservé aux corpus de l’utilisateur.
 
-| Couche | Fichier | Rôle |
-|---|---|---|
-| Store | `src/main/corpusStore.ts` | `ouvrir()` lève `Error("CORPUS_SUPPRIME: …")` si `corpus.json` manque et que l'amorçage est déjà consommé ; aucun dossier n'est recréé |
-| Main | `ipcMain.handle('corpus:apresSuppression')` — `index.ts` | bascule sur le PREMIER récent local contenant encore un `corpus.json` (« le suivant devient courant », et ainsi de suite) ; purge les récents morts ; renvoie `OuvertureCorpus \| null` |
-| Preload | `invoquer()` — `src/preload/index.ts` | TOUS les appels IPC passent là ; sur sentinelle : déclenche la bascule, notifie les abonnés (`surSuppressionCourant`), puis RELASSE passer l'erreur — l'opération visait l'ancien corpus, elle ne doit jamais s'exécuter sur le nouveau |
-| Renderer | `creerSonal()` — `composables/sonal.ts` | applique le nouveau corpus (ou un squelette vide façon premier lancement si `null`), nettoie l'état distant, retour Accueil, bannière info explicative (`infoGlobale`, `App.vue`) |
+Chaque parcours possède son propre corpus d’apprentissage. **Préparer et suivre** crée un
+corpus vierge, sans variable ajoutée. Traitement installe un autre corpus vide et les
+fichiers d'exercice avant l'étape choisie. La variable de saisie libre « Ville » est
+préparée uniquement pour **Importer et traiter**. **Analyser et interpréter** utilise
+sa propre copie de `CorpusSynthAnnot`, avec les quatre entretiens annotés et leurs
+variables. **Organiser et exporter** utilise une autre copie de `CorpusSynthAnnot`.
+`EXEMPLES_PAR_PARCOURS` fixe le contenu attendu pour chacun des quatre parcours.
+Les noms de dossiers proposés utilisent des caractères sans accents et des underscores,
+par exemple `Sonal/Apprentissage/Analyser_et_interpreter`. Les copies libres suivent la
+même convention (`Entretiens_transcrits`, `Corpus_annote`), avec un suffixe `_2` si un
+emplacement est déjà enregistré. Les libellés affichés et les emplacements existants
+restent inchangés.
 
-Notes :
+`ExemplesLocaux.preparerInstallation()` construit le nouveau corpus dans un dossier
+temporaire hors du travail courant. Pour l'exploration transcrite, le renderer convertit
+les quatre SRT par le sas habituel, puis le main utilise `CorpusStore.importerEntretien()`.
+Le corpus annoté part des données V2 fournies et ses références audio sont réassignées
+aux fichiers installés sur le poste, sans modifier le modèle fourni.
 
-- La sentinelle voyage dans le MESSAGE d'erreur IPC (préfixe textuel,
-  `CORPUS_SUPPRIME` exporté par `shared/format.ts`). C'est volontairement simple :
-  un contrat de texte entre deux processus, pas un canal supplémentaire.
-- Plusieurs appels peuvent échouer en même temps : la première notification fait la
-  bascule UI, les suivantes sont ignorées (garde `basculeEnCours`).
-- Au démarrage, le même principe s'applique sans sentinelle : les récents morts sont
-  purgés AVANT toute ouverture (§3), donc « le suivant vivant » devient courant.
+Le main prépare la cible avant fermeture du contexte courant ; il ne publie qu'après
+la fermeture réussie. Il revérifie alors la destination, installe les sources manquantes,
+puis publie le corpus complet avec son marqueur avant de l'enregistrer et de l'ouvrir.
+Les sources, les exemples fournis et les autres corpus ne peuvent pas être utilisés
+comme destination, y compris par un chemin imbriqué ou un lien symbolique.
 
-## 6. Invariants à préserver
+### Parcours d’analyse
 
-Quand vous modifiez l'ouverture, la démo ou les settings, ne cassez pas :
+`parcours/analyse.ts` définit quatre étapes sur les trois outils : synthèse du thème
+« Sens de l’utilité », concordances d’« enfants », matrice de deux thèmes sur quatre
+entretiens avec affichage de la couverture, puis retour d’une cellule aux passages de
+la coordinatrice dans la synthèse. Seule cette dernière étape exige la matrice comme
+prérequis ; les trois outils restent accessibles indépendamment.
 
-1. **Un dossier sans `corpus.json` devient un corpus AU MOMENT DU CHOIX SEULEMENT**
-   — c'est voulu (flux « Nouveau corpus… », dossier de démo), mais ensuite c'est une
-   suppression, pas un amorçage : ne jamais réintroduire d'amorçage implicite après coup.
-2. **Présence ≠ existence du dossier** : côté démo, toujours tester le contenu
-   (9 fichiers, marqueur du mode), jamais seulement `existsSync(dir)`. Sinon retour du
-   bug « je vide, ça ressuscite ».
-3. **Idempotence de `preparer()`** : par complétude des fichiers (sources), par titre
-   (entretiens), par conservation de l'historique (marqueur). Une re-préparation ne doit
-   ni dupliquer ni effacer.
-4. **On n'écrase jamais un travail** : toute garde qui refuse un dossier doit distinguer
-   travail réel vs squelette vide (même logique que `migrer:verifierDossier` côté migration depuis SonalPi1).
-5. **Le renderer ne touche jamais au disque** : détections de présence et copies vivent
-   dans le main (`demo:*`, `corpus:*`) ; le renderer n'interprète que leurs retours typés
-   (`EtatDemoComplet`, `src/shared/format.ts`).
-6. **Une opération échouée ne doit jamais s'exécuter sur le mauvais corpus** : la
-   sentinelle (§5) relance l'erreur après bascule — ne pas « optimiser » en retry
-   automatique de l'appel initial.
+Les validations observent les critères, les résultats à jour et les sélections métier,
+jamais le seul clic sur un bouton. Les résultats incomplets ou périmés ne valident pas
+une étape. Les acquis ne sont redérivés que pour le parcours du corpus ouvert : les
+annotations fournies ne prévalident pas le parcours de traitement. Les étapes et leurs
+bilans restent dans l’espace d’analyse grâce à `vueFin` et à son ancre dédiée.
 
-## 7. Étude de cas : « j'ai tout vidé et tout revient »
+### Parcours d’organisation et d’export
 
-Scénario réel ayant motivé ce document et trois correctifs :
+`parcours/organisation.ts` définit quatre étapes : créer un cas par règle sur
+`1Coordinatrice`, structurer le recueil « Regards sur le bénévolat » avec un titre et
+un texte libre, y associer un passage de la coordinatrice, puis exporter les quatre
+entretiens en TXT avec pseudonymisation. Seul l’ajout du passage exige la structure
+du recueil comme prérequis. Le cas et le recueil doivent être enregistrés ; une
+prévisualisation ou un brouillon ne suffit pas.
 
-1. L'utilisateur inverse les dossiers source/corpus dans la modale démo, puis vide
-   `Autonom/` et `Source/` pour recommencer.
-2. Il relance l'app : le démarrage rouvre le 1ᵉʳ récent (`Source/`), désormais sans
-   `corpus.json` → **amorce un squelette**.
-3. Il clique la carte « En autonomie » : si la présence était testée par `existsSync`
-   seul, tout était « en place » → reconstruction silencieuse complète.
+Le panneau d’export transmet au guide la demande et son résultat métier. Une annulation,
+un échec ou un lot partiel ne valide pas l’étape. Ce résultat temporaire est effacé lors
+d’un changement de corpus ; seuls les acquis validés sont persistés. Les consignes et
+bilans disposent d’une ancre dans l’espace d’organisation et accompagnent aussi le
+passage par l’entretien. L’export du corpus est distingué de l’export propre au recueil.
 
-Correctifs résultants (chercher ces symboles avant de refactorer) :
-`sourcesCompletes()` (présence par fichiers), `corpusTestPresent()` (présence par
-marqueur), garde squelette-vide dans `demo:verifierCorpus`.
+### Reprise, sources et remise à zéro
 
-Résolution définitive du mécanisme de « résurrection » : la sentinelle
-`CORPUS_SUPPRIME` (§5) — le store refuse de ré-amorcer, l'app bascule sur le récent
-vivant suivant avec une bannière explicative. Les tests de garde vivent dans
-`test/corpusStore.test.ts` (« corpus courant supprimé sur disque »).
+Reprendre ouvre le corpus existant. Aucun entretien supprimé ou renommé n'est réimporté,
+aucun codage n'est réappliqué et aucune progression n'est remise à zéro. Les conditions
+réelles des exercices sont vérifiées à l'ouverture ; une étape explicitement choisie
+reste distincte de **Continuer**, qui cherche la prochaine étape accessible.
+
+Les sources communes sont les quatre SRT, les quatre MP3 et le guide d'entretien de
+`CorpusTest/CorpusSynth/`. Seul le contenu de ce sous-dossier est installé directement
+sous `srt/`, `audio/`, `docs/`. Les audios restent référencés, jamais dupliqués dans
+chaque corpus. Leur emplacement est relu depuis le registre des exemples.
+
+Une reprise n'a pas besoin de restaurer les sources pour lire les textes et annotations.
+La restauration est une action explicite : elle ajoute seulement les fichiers manquants,
+sans remplacer un guide ou un autre fichier déjà présent. Les étapes qui demandent une
+sélection ouvrent directement le sous-dossier utile.
+
+Dans un corpus d’apprentissage, le résumé du parcours est placé dans la coquille de
+l’application, sous la barre des espaces. Son titre commence par **Démo :**. Il reste donc
+visible dans Préparer, Traiter, Analyser et Organiser, y compris lorsque le guide est en
+pause. Le catalogue s’ouvre depuis ce résumé ; la barre des espaces ne porte pas de bouton
+de parcours supplémentaire. **Sortir de la démo** met le guide en pause après le retour
+réussi à l’accueil.
+
+Le catalogue ne présente ni chemin ni sélection de copies. **Recommencer cette démo**
+prépare un corpus neuf, ferme le contexte courant, puis remplace le dossier de cette démo
+avec sauvegarde temporaire et restauration en cas d’échec. L’identifiant reste stable,
+mais le contenu et la progression repartent du début. Les démos d’analyse et d’organisation restaurent le
+corpus annoté fourni, tandis que Préparation et Traitement repartent sur un corpus vide. La confirmation précise que les
+autres corpus ne sont pas modifiés. Après réussite, le dialogue existant affiche un bilan
+avec l’emplacement conservé et attend **Commencer la première étape** pour lancer le guide.
+Revenir au catalogue ou fermer le bilan ne lance aucune étape. Ce bilan ne fait pas partie
+des étapes pédagogiques. **Retrouver mon dossier…** apparaît seulement quand
+le dossier connu manque. Mettre le guide en pause ne change ni le corpus ni ses acquis.
+Les contrôles propres aux exercices n'empêchent pas les imports ordinaires pendant cette
+pause.
+
+## 5. Le corpus courant supprimé sur disque
+
+Quatre couches coopèrent :
+
+| Couche | Rôle |
+| --- | --- |
+| `CorpusStore` | Lève `CORPUS_SUPPRIME` après consommation de l'amorçage ; ne recrée rien. |
+| Main, `corpus:apresSuppression` | Choisit le premier récent local vivant et admissible, sans corpus d'apprentissage. |
+| Preload, `invoquer()` | Demande la bascule, notifie les abonnés, puis propage l'erreur de l'opération initiale. |
+| Renderer, `useCycleCorpus` | Applique la nouvelle situation ou revient à l'Accueil sans corpus, avec une information explicative. |
+
+Une opération visant le corpus supprimé n'est jamais rejouée sur le corpus de secours.
+Plusieurs notifications simultanées sont absorbées par la garde de bascule.
+
+## 6. Invariants et tests
+
+- Ne jamais confondre **installer** et **ouvrir**. Il n'y a plus de détection d'import
+  manquant par titre lors d'une reprise.
+- Refuser tout travail dans une destination d'installation, même sans entretien.
+- Préparer sans écrire dans la cible, fermer le contexte précédent, puis publier.
+- Ne pas abandonner l'état distant côté renderer avant la réussite d'une ouverture.
+- Préserver les dossiers, les anciens acquis et les accès aux travaux indisponibles.
+- Réserver les écritures de fichiers au main ; aucune opération de disque dans le catalogue.
+- Conserver un seul corpus actif et un seul catalogue, sans relance implicite du guide.
+
+Tests principaux : `test/exemples.test.ts`, `test/transitionContexte.test.ts`,
+`test/corpusStore.test.ts`, `test/marqueurDemo.test.ts`, `e2e/demo.e2e.ts`,
+`test/parcoursAnalyse.test.ts`, `e2e/pas-a-pas.e2e.ts`, `e2e/preparation-pas-a-pas.e2e.ts`,
+`e2e/analyse-pas-a-pas.e2e.ts`, `test/parcoursOrganisation.test.ts`,
+`e2e/organisation-pas-a-pas.e2e.ts` et `e2e/sources-demo.e2e.ts`.
+
+## 7. Le problème historique de « résurrection »
+
+L'ancien enchaînement pouvait considérer un dossier simplement existant comme prêt,
+puis reconstruire son contenu. La présence vérifiée du marqueur et la sentinelle de
+suppression avaient limité ce problème. La séparation actuelle retire également la
+réinstallation du chemin de reprise : le modèle fourni ne sert qu'à créer un nouveau
+travail, jamais à réparer automatiquement un corpus modifié.
 
 ## 8. La branche distante : créer et rouvrir un corpus sur serveur
 
-L'accueil oppose deux mondes (solo / équipe), et la création distante existe :
-un corpus peut naître directement sur le serveur. Points de couture :
+La création distante continue à suivre les commandes de son fournisseur. Pour Nextcloud,
+l'ordre des opérations reste important :
 
-### 7.1 Création directe (`distant:creer`)
+1. `PublieurCorpus.preparerRacine()` repère le plus long préfixe existant par PROPFIND,
+   puis crée les segments manquants parent d'abord. Les préfixes techniques Nextcloud
+   ne sont pas adressables comme des dossiers ordinaires.
+2. `profilerServeur()` sonde les préconditions sur une cible existante ; un refus ne
+   nettoie que la feuille créée par cette opération, jamais un dossier préexistant.
+3. `publierSquelette(nom)` publie `corpus.json` sous `If-None-Match: *`. Une création
+   concurrente est refusée, sans écrasement.
+4. Le compte est enregistré en dernier pour ne pas laisser d'accès fantôme après un échec.
+5. Le renderer ouvre le corpus créé par le fournisseur. Le squelette est commun à la
+   création locale et distante.
 
-L'utilisateur donne URL DAV cible + identifiants + nom de projet. L'ordre des opérations
-N'EST PAS négociable — chaque inversion a été piégée par les bancs Docker :
-
-1. `PublieurCorpus.preparerRacine()` — repère le plus long PRÉFIXE EXISTANT par
-   PROPFIND descendant, puis MKCOL des segments manquants parent-d'abord.
-   *Pourquoi pas un MKCOL par segment depuis l'origine ?* Les préfixes techniques
-   Nextcloud (`remote.php`, `dav`…) ne sont pas adressables : 404/500 imprévisibles.
-   *Pourquoi avant la sonde ?* La sonde de préconditions écrit `sonde/` DANS la cible :
-   409 si le dossier n'existe pas encore (piégé par le banc Docker réel).
-2. `profilerServeur()` — préconditions mesurées sur une cible qui existe désormais ;
-   refus → nettoyage best effort de la feuille SI nous venons de la créer
-   (`feuilleCreee`, jamais un dossier préexistant de l'utilisateur).
-3. `publierSquelette(nom)` — dossiers techniques (`entretiens/`, `verrous/`,
-   `presence/`, `corbeille/`) + PUT `corpus.json` sous `If-None-Match: *` : c'est le
-   serveur qui tranche les courses de création bi-poste ; 412 → `ErreurDejaCorpus`,
-   rien n'est jamais écrasé.
-4. `coffre.enregistrer()` en DERNIER — un échec réseau ou 412 ne laisse aucun compte
-   fantôme dans « comptes configurés ».
-5. Le renderer enchaîne sur `ouvrirCorpusDistant(id)` : **créer = ouvrir**, comme le
-   local. Le squelette vient de `src/shared/squelette.ts` — partagé avec
-   `CorpusStore.amorcer()`, donc un corpus né distant a EXACTEMENT le codebook d'un
-   corpus né local (testé par équivalence stricte).
-
-### 7.2 Les récents tagués (D8)
-
-`EntreeRecent` (`shared/format.ts`) : `{type:'local', dir, nom}` ou
-`{type:'distant', id, nom, url}`. Règles :
-
-- Un récent 🌐 se rouvre via `distant:ouvrir(id)` — **JAMAIS** son chemin miroir en
-  tant que dossier local (le cycle verrou/publie serait contourné sans le savoir).
-- Fraîcheur distante = compte toujours au coffre (équivalent du `existsSync` local) ;
-  le nom affiché vient du miroir si présent, sinon du dernier segment d'URL.
-- Au démarrage, les distants sont SAUTÉS : pas de réseau bloquant au lancement.
-
-### 7.3 Ce que l'app ne fait PAS
-
-- Elle ne partage pas le dossier aux collègues : c'est un geste Nextcloud du créateur
-  (voir [la doc utilisateur](../user/corpus-distant.md)). Conséquence structurelle :
-  Nextcloud monte le partage chez l'invité sous le BASENAME du dossier, jamais dans le
-  chemin imbriqué d'origine — d'où une URL DAV « propre à chaque compte » dans le coffre.
-- Elle ne crée pas de verrou à la naissance : le corpus naît complet en un PUT gardé ;
-  en cas de création concurrente, le serveur n'accepte qu'un seul PUT (précondition),
-  le perdant reçoit un refus net (« corpus déjà existant »).
-
-Bancs : `test/webdav/publication.test.ts` (mémoire), `publication-nextcloud.test.ts`
-(piles Docker A et B, skipIf absentes).
+Un récent distant est rouvert par son fournisseur et son identifiant, jamais par son
+miroir local. Les récents distants ne sont pas ouverts automatiquement au démarrage.
+La création ne partage pas le corpus avec les collègues et ne crée pas un verrou de
+travail à sa naissance. Voir [multi-utilisateur.md](multi-utilisateur.md),
+[gitlab.md](gitlab.md) et la [documentation utilisateur](../user/corpus-distant.md).

@@ -135,6 +135,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
 
         <button
           v-if="peutAjouterRecueil"
+          data-tour="selection-vers-recueil"
           class="menu-ctx-action"
           role="menuitem"
           title="Choisir un recueil pour cette sélection libre."

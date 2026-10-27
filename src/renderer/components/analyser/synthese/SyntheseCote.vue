@@ -145,6 +145,7 @@ function nonRenseigne(variableId: string) {
         v-for="item in ongletsCriteresSynthese"
         :key="item"
         role="tab"
+        :data-tour="`onglet-${item}-synthese`"
         :aria-selected="onglet === item"
         :class="{ actif: onglet === item }"
         @click="onglet = item"
@@ -171,7 +172,7 @@ function nonRenseigne(variableId: string) {
     <section v-if="onglet === 'entretiens'" role="tabpanel">
       <h3>Entretiens</h3>
       <p class="etat-selection" :class="{ applique: ongletFiltreActif('entretiens') }">{{ nombreSelectionsOnglet('entretiens') }} entretien(s) sélectionné(s) sur {{ Object.keys(membership).length }}.</p>
-      <div class="actions-liste"><button @click="toutSelectionner('entretiens')">Tout sélectionner</button><button @click="toutDeselectionner('entretiens')">Tout désélectionner</button></div>
+      <div class="actions-liste"><button data-tour="tous-entretiens-synthese" @click="toutSelectionner('entretiens')">Tout sélectionner</button><button @click="toutDeselectionner('entretiens')">Tout désélectionner</button></div>
       <label v-for="(item, id) in membership" :key="id" class="choix"><input type="checkbox" :checked="entretienCoche(id)" @change="choix('entretiens', id)"> {{ item.titre }}</label>
     </section>
 
@@ -184,8 +185,8 @@ function nonRenseigne(variableId: string) {
         <label class="choix"><input v-model="filtresSynthese.correspondanceThemes" type="radio" value="tous-au-meme-endroit"> Tous les thèmes sélectionnés au même endroit</label>
       </fieldset>
       <p class="discret">{{ casDisponiblesSynthese ? 'Au moins un thème ou un cas doit être choisi pour calculer la synthèse.' : 'Choisissez au moins un thème pour calculer la synthèse.' }}</p>
-      <div class="actions-liste"><button @click="toutSelectionner('themes')">Tout sélectionner</button><button @click="toutDeselectionner('themes')">Tout désélectionner</button></div>
-      <label v-for="item in codebook" :key="item.id" class="choix"><input type="checkbox" :checked="coche(filtresSynthese.themes, item.id)" @change="choix('themes', item.id)"> {{ item.nom }}</label>
+      <div class="actions-liste"><button @click="toutSelectionner('themes')">Tout sélectionner</button><button data-tour="vider-themes-synthese" @click="toutDeselectionner('themes')">Tout désélectionner</button></div>
+      <label v-for="item in codebook" :key="item.id" class="choix" :data-tour="`theme-synthese-${item.id}`"><input type="checkbox" :checked="coche(filtresSynthese.themes, item.id)" @change="choix('themes', item.id)"> {{ item.nom }}</label>
     </section>
 
     <section v-if="onglet === 'cas'" role="tabpanel">

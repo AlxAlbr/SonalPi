@@ -23,8 +23,6 @@ import type {
   CorpusFichier,
   DossierCorpus,
   EntreeRecent,
-  EtatDemo,
-  EtatDemoComplet,
   ItemLotValeur,
   CibleRegleAnon,
   LectureEntretien,
@@ -46,7 +44,6 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
-  VerificationDossierDemo,
   ParamsAnon,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
@@ -71,6 +68,7 @@ import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type {
   ApiDistant,
   EtatSessionPublic,
@@ -123,7 +121,7 @@ declare global {
         ouvrirDossier: (dir: string) => Promise<OuvertureCorpus>
         choisirDossier: () => Promise<OuvertureCorpus | null>
         verifierNouveau: (dir: string) => Promise<{ dejaCorpus: boolean }>
-        creerNouveau: (dir: string, nom: string) => Promise<OuvertureCorpus>
+        creerNouveau: (dir: string, nom: string, exemple?: InstallationExemple) => Promise<OuvertureCorpus>
         lireEntretien: (id: string) => Promise<LectureEntretien>
         ouvrirEntretienPourEdition: (id: string) => Promise<OuvertureEntretienEdition>
         fermerEntretien: (id: string) => Promise<ResultatFermetureSession>
@@ -248,7 +246,7 @@ declare global {
         modifierModalite: (idVar: string, idMod: string, lib: string) => Promise<CorpusFichier>
         supprimerModalite: (idVar: string, idMod: string) => Promise<ResultatSuppression>
         matrice: () => Promise<MatriceCorpus>
-        marquerDemo: (marqueur: MarqueurDemo) => Promise<CorpusFichier>
+        marquerDemo: (marqueur: MarqueurDemo, dirAttendu?: string) => Promise<CorpusFichier>
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
         effacerAudio: (id: string) => Promise<{ audioRef: null }>
         ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
@@ -268,7 +266,7 @@ declare global {
         choisirTexte: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirSrt: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirAudio: (defaultPath?: string) => Promise<string | null>
-        choisirDossier: (kind?: 'sources' | 'corpus' | 'projet') => Promise<string | null>
+        choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string) => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
         choisirJson: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
       }
@@ -327,13 +325,14 @@ declare global {
           rtrPath: string | null,
         ) => Promise<{ nom: string; contenu: string } | null>
       }
-      demo: {
-        copierSources: (racine: string) => Promise<void>
-        lireSource: (racine: string, rel: string) => Promise<{ nom: string; contenu: string }>
-        cheminAudio: (racine: string, rel: string) => Promise<string>
-        etat: () => Promise<EtatDemoComplet | null>
-        memoriser: (etat: EtatDemo) => Promise<void>
-        verifierCorpus: (dir: string) => Promise<VerificationDossierDemo>
+      exemples: {
+        etat: () => Promise<EtatExemples>
+        textesSources: () => Promise<Array<{ cle: string; contenu: string }>>
+        selectionner: (dir: string) => Promise<void>
+        rattacher: (dir: string, ancienDir?: string) => Promise<TravailExemple>
+        restaurerSources: () => Promise<void>
+        voirSources: (dossier?: DossierFichiersExercice) => Promise<string>
+        surRattachement: (cb: (dir: string) => void) => () => void
       }
     }
   }

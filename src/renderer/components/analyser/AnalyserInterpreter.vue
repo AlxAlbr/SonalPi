@@ -81,6 +81,7 @@ const surAccueil = computed(() => sousEspaceAnalyse.value === 'accueil')
     </aside>
 
     <section class="principal">
+      <div data-tour="ancre-guide-analyse"></div>
       <div v-show="surAccueil" class="accueil-principal">
         <h2>Analyser et interpréter</h2>
         <p>Choisissez un outil dans la barre d’icônes pour définir vos critères et consulter les résultats.</p>

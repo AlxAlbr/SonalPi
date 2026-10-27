@@ -307,7 +307,7 @@ test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo r
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-garde-'))
   const cheminCrp = ecrireCrp(profil, 'MonCorpus.crp', 'corpusV1.crp')
 
-  // dirA : DÉJÀ un corpus SonalPi2 (corpus.json) ; dirB : corpus d'un mode démo.
+  // dirA contient un corpus ordinaire ; dirB contient un corpus exemple.
   const dirA = join(profil, 'deja')
   mkdirSync(dirA, { recursive: true })
   writeFileSync(
@@ -318,7 +318,7 @@ test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo r
   mkdirSync(dirB, { recursive: true })
   writeFileSync(
     join(dirB, 'corpus.json'),
-    JSON.stringify({ formatVersion: 3, codebook: {}, variables: {}, reglesAnon: {}, personnes: {}, membership: {}, demo: { mode: 'autonomie', racineSources: '/x' } }),
+    JSON.stringify({ formatVersion: 3, codebook: {}, variables: {}, reglesAnon: {}, personnes: {}, membership: {}, demo: { id: 'exemple', exemple: 'synth', usage: 'libre', racineSources: '/x', parcours: {} } }),
   )
 
   const app = await lancer(profil)

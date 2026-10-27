@@ -125,14 +125,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
       <span>{{ resultatPerimeAnalyseCroisee ? 'Périmé' : diagnosticsAnalyseCroisee.length ? 'Incomplet' : calculeLeAnalyseCroisee ? 'À jour' : 'À calculer' }}</span>
     </section>
     <div class="commandes">
-      <button class="btn-calcul" :disabled="chargementAnalysesCroisees || !calculAnalyseCroiseePossible" @click="actualiserAnalyseCroisee">{{ chargementAnalysesCroisees ? 'Calcul en cours…' : calculeLeAnalyseCroisee ? 'Actualiser l’analyse' : 'Calculer l’analyse' }}</button>
-      <label>Valeur affichée <select v-model="mesureAnalyseCroisee"><option value="passages">Passages</option><option value="volume">Volume</option><option value="couverture">Couverture</option></select></label>
+      <button class="btn-calcul" data-tour="calculer-analyse" :disabled="chargementAnalysesCroisees || !calculAnalyseCroiseePossible" @click="actualiserAnalyseCroisee">{{ chargementAnalysesCroisees ? 'Calcul en cours…' : calculeLeAnalyseCroisee ? 'Actualiser l’analyse' : 'Calculer l’analyse' }}</button>
+      <label>Valeur affichée <select v-model="mesureAnalyseCroisee" data-tour="mesure-analyse"><option value="passages">Passages</option><option value="volume">Volume</option><option value="couverture">Couverture</option></select></label>
       <label><input v-model="afficherThemesSansResultat" type="checkbox" role="switch"> Afficher les thèmes sans résultat</label>
       <label><input v-model="afficherEntretiensSansResultatAnalyse" type="checkbox" role="switch"> Afficher les entretiens sans résultat</label>
       <label>Trier les thèmes <select v-model="triThemes"><option value="ordre">Ordre du corpus</option><option value="nom">Nom</option><option value="total">Total décroissant</option></select></label>
       <label>Rechercher un thème <input v-model="rechercheThemes" type="search"></label>
       <label>Rechercher un entretien <input v-model="rechercheEntretiens" type="search"></label>
-      <button @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} la sélection</button>
+      <button data-tour="afficher-selection-analyse" @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} la sélection</button>
     </div>
     <p class="regle">Une plage portant plusieurs thèmes contribue à chaque ligne. Les valeurs des thèmes ne sont donc pas toujours additionnables.</p>
     <div class="travail">

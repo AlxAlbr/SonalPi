@@ -41,6 +41,7 @@ watch(revisionCorpus, () => {
       ><img class="ico-onglet" :src="icoMaison" alt="" /></button>
       <button
         v-for="outil in outils" :key="outil.id"
+        :data-tour="`ouvrir-organisation-${outil.id}`"
         class="onglet"
         :class="{ actif: sousEspaceOrganisation === outil.id }"
         :aria-current="sousEspaceOrganisation === outil.id ? 'page' : undefined"
@@ -49,6 +50,7 @@ watch(revisionCorpus, () => {
       ><img class="ico-onglet" :src="outil.icone" alt="" /></button>
     </nav>
 
+    <div data-tour="ancre-guide-organisation"></div>
     <div v-show="sousEspaceOrganisation === 'accueil'" class="accueil-organisation organisation-contenu">
       <aside class="panneau">
         <div class="corpus-tete"><h3>Organisation et export</h3></div>
@@ -88,6 +90,7 @@ watch(revisionCorpus, () => {
   flex-direction: column;
   gap: .6rem;
   height: calc(100vh - var(--entete-h) - 1.6rem);
+  overflow-y: auto;
   padding-top: .7rem;
   box-sizing: border-box;
   min-width: 0;
