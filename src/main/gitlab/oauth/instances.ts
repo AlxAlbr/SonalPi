@@ -69,8 +69,8 @@ interface FichierInstances {
 
 /**
  *  Registre des instances déclarées par la distribution.
- *  Une entrée suppose l'enregistrement effectif de l'application et la
- *  qualification du flux : voir `docs/dev/gitlab-oauth.md`.
+ *  Chaque application doit être enregistrée et sa connexion vérifiée.
+ *  Voir `docs/dev/distant/authentification-gitlab.md`.
  */
 export const INSTANCES_GITLAB_OAUTH: readonly InstanceGitLabOAuth[] = [
   // { urlInstance: 'https://gitlab.exemple.org', clientId: '...', scopes: SCOPES_GITLAB_PAR_DEFAUT },

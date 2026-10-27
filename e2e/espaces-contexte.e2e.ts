@@ -40,7 +40,7 @@ test('le retour par la barre relit les documents et conserve la sélection entre
   try {
     await ouvrirPreparation(page, 'docs-cadre')
     const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
-    const dossier = join(userDataDir, 'corpus', 'DocsCadre')
+    const dossier = join(userDataDir, 'corpus', 'DocsPrepaProjet')
     mkdirSync(dossier, { recursive: true })
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
     writeFileSync(join(dossier, 'Suivi.txt'), 'Document de suivi')

@@ -20,9 +20,9 @@ for (const port of [8080, 8081]) {
       try {
         const config = { baseUrl: `${parent.config.baseUrl}/${dossier}`, identifiants }
         const preparation = new ClientWebDAV(config)
-        for (const d of ['DocsCadre', 'DocsCadre/DPO', 'DocsCadre/DPO/École 2', 'DocsCadre/DPO/École 2/100% modèles']) await preparation.creerDossier(d)
+        for (const d of ['DocsPrepaProjet', 'DocsPrepaProjet/DPO', 'DocsPrepaProjet/DPO/École 2', 'DocsPrepaProjet/DPO/École 2/100% modèles']) await preparation.creerDossier(d)
         const relatif = 'DPO/École 2/100% modèles/Notice é.txt'
-        await preparation.putTexte(`DocsCadre/${relatif}`, 'Texte exact éà <b>.', { ifNoneMatch: '*' })
+        await preparation.putTexte(`DocsPrepaProjet/${relatif}`, 'Texte exact éà <b>.', { ifNoneMatch: '*' })
         const methodes: string[] = []
         const client = new ClientWebDAV(config, async (input, init) => {
           methodes.push(init?.method ?? 'GET')
@@ -35,10 +35,10 @@ for (const port of [8080, 8081]) {
         const copie = join(temporaire, 'copie.txt')
         await enregistrerCopieDistant(client, relatif, copie)
         expect(readFileSync(copie, 'utf8')).toBe('Texte exact éà <b>.')
-        expect(urlNextcloudPourCorpus(config.baseUrl, 'DPO/École 2/100% modèles')).toContain('/DocsCadre/DPO/%C3%89cole%202/100%25%20mod%C3%A8les')
-        await preparation.supprimer(`DocsCadre/${relatif}`)
+        expect(urlNextcloudPourCorpus(config.baseUrl, 'DPO/École 2/100% modèles')).toContain('/DocsPrepaProjet/DPO/%C3%89cole%202/100%25%20mod%C3%A8les')
+        await preparation.supprimer(`DocsPrepaProjet/${relatif}`)
         expect((await lireApercuDistant(client, relatif)).apercu).toEqual({ genre: 'aucun', raison: 'absent' })
-        await preparation.supprimer('DocsCadre/DPO/École 2')
+        await preparation.supprimer('DocsPrepaProjet/DPO/École 2')
         expect(await listerDossierDistant(client, 'DPO/École 2')).toMatchObject({ absent: true })
         expect(methodes.every((m) => ['GET', 'PROPFIND'].includes(m))).toBe(true)
       } finally {

@@ -1,77 +1,104 @@
-# Les données
+# Données — stockage, calculs et circulation
 
-Deux niveaux bien différenciés : **Corpus** / **Entretien**.
-Deux états : ce qui est **stocké** / ce qui est **reconstruit, recalculé**.
+Pour modifier une fonction, commencer par identifier **qui possède la donnée**,
+si elle est enregistrée ou calculée, et quel circuit autorise sa modification.
+Le [modèle objet](modele-objet.md) décrit les objets ; cette page explique leur
+circulation entre l’éditeur, la mémoire et les fichiers.
 
-## 1. Différentes natures des données
+## Définitions, usages et résultats calculés
 
-| Nature | Exemple | Plan technique | Stockée ? |
-|---|---|---|---|
-| **Définition** (existe avant tout usage) | `Categorie`, `RegleAnon`, `Variable`/`Modalite`, réglages Lexico | `corpus.json` | oui (primaire) |
-| **Application** (décision portée par un entretien) | codage, masquage, métadonnée (données d'une variable), commentaire | `entretiens/<id>.json` | oui (primaire) |
-| **Requête** (agrégation dérivable) | `Extrait`, matrice EAV, passage « à anonymiser », index et tableaux Lexico | — | non — **calculée** |
-
-L'objectif, c'est d'éviter la redondance des informations qui existe malheureusement dans la version actuelle de SonalPi1.
-
-## 2. Différentes représentations des données et interactions
-
-Il faut distinguer plusieurs représentations des mêmes données dans l'application :
-
-| Représentation | Rôle | Statut |
+| Nature | Exemples | Propriétaire |
 |---|---|---|
-| Objets en mémoire (`Entretien`, `Corpus`) dans le processus renderer d'Electron | les données vivantes | **considéré comme la vérité en cas de conflit** |
-| Le DOM / l'éditeur WYSIWYG Tiptap: https://tiptap.dev/ | ce que voit l'utilisateur | une projection, recalculée *depuis* le modèle (décorations, gouttière des locuteurs) |
-| `entretiens/<id>.json` | la persistance | de l'I/O : écrit *depuis* le modèle, relu *vers* le modèle |
+| Définition partagée | Thème, variable et modalités, règle de pseudonymisation, catégorie de note. | `corpus.json`. |
+| Usage ou décision d’entretien | Codage, pseudonyme appliqué, valeur de variable, note. | `entretiens/<id>.json`. |
+| Définition éditoriale ou analytique | Recueil et ses items, cas et ses règles, réglages Lexico. | `corpus.json`. |
+| Résultat calculé | Résumé thématique, passages résolus d’un cas, matrice, index lexical. | Mémoire ou cache de calcul ; pas une seconde définition partagée. |
 
-### 1) DOM ↔ objet en mémoire
+Enregistrer les critères d’une analyse ne signifie pas enregistrer son résultat.
+Un cache accélère une lecture ; il ne devient pas la référence après modification
+des sources. Une source inaccessible produit un diagnostic, pas un résultat vide
+supposé complet.
 
-#### a) Montée (DOM → modèle)
+## Éditeur et positions dans le texte
 
-Quand vous tapez, TipTap produit une transaction ProseMirror : le doc ProseMirror
-(`corpsTexte` dans `EntretienFichier` de `format.ts`) est un arbre de nœuds : doc → bloc → text.
-Par exemple, si vous tapez « a », ProseMirror ne modifie rien en place. Il construit une
-transaction (`Transaction`, `tr` en abrégé) qui contient :
+`EntretienFichier.corpsTexte` est le document ProseMirror sérialisé en JSON.
+Les annotations, ancres temporelles et repères de passage vivent à côté de lui.
+Le DOM n’est ni un format de sauvegarde, ni le détenteur des codages.
 
-- les **steps** (étapes) : ici un `ReplaceStep` = « insère "a" à la position 42 »
-- le **nouvel état** du document (un nouvel arbre, l'ancien reste intact)
-- `tr.mapping` : la carte des positions — « l'ancienne position 50 est devenue 51 »
+Lors d’une correction :
 
-Le plugin maison — `remap.ts` — observe `tr.mapping` et met à jour les positions du modèle
-(bornes from/to des annotations, pos des ancres temporelles).
+1. TipTap/ProseMirror produit une transaction et un nouvel état du document ;
+2. `src/renderer/editor/remap.ts` lit `tr.mapping` pour déplacer les positions
+   des annotations, ancres et repères avec le texte ;
+3. les décorations projettent les décisions métier dans l’éditeur.
 
-#### b) Descente (modèle → DOM)
+Une position ProseMirror n’est pas un indice de caractère du texte brut : elle
+compte aussi la structure du document. Utiliser les conversions de
+`src/shared/entretien/positions.ts`, pas une addition sur une chaîne de caractères.
+Une plage entièrement supprimée peut rester comme objet orphelin ; ne pas la
+supprimer silencieusement pour rendre le résultat plus simple.
 
-TipTap ne sait pas ce qu'est une annotation. Ce sont les **décorations** — `decorations.ts` —
-qui projettent le modèle dans le rendu : surlignages, gouttière des locuteurs, plage en cours de
-lecture audio. Le DOM est recalculé depuis le modèle, jamais l'inverse.
+## Commandes et persistance
 
-### 2) Objet mémoire ↔ fichier
+Deux circuits courants coexistent :
 
-C'est le domaine du **main process** : `corpusStore.ts` sérialise `Entretien` vers
-`entretiens/<id>.json` (écriture atomique write-tmp-rename + `.bak`), le relit et vérifie
-`formatVersion`. Le renderer passe par le pont IPC du preload.
+```text
+Édition d’un entretien ouvert
+  → commande pure ou transaction de l’éditeur
+  → modèle en mémoire → sauvegarde via window.sonal
+  → main : contrôle de l’accès et écriture autorisée
 
-### 3) Commandes métier
+Commande de définition corpus
+  → demande ciblée via window.sonal
+  → main : relecture, contrôles et transaction du fournisseur
+  → opération pure → enregistrement → état confirmé renvoyé au renderer
+```
 
-Coder un passage, renommer un locuteur, saisir une valeur EAV : ce sont des fonctions pures de
-`src/shared/` (`entretien.ts`, `locuteurs.ts`, `requetes.ts`…), sans DOM ni I/O — c'est le
-garde-fou testé par le test **« discipline d'architecture »** de `test/remap.test.ts`. Le
-composable `useEntretien.ts` orchestre : commande de domaine → mise à jour du modèle → sauvegarde
-via IPC → le rendu suit.
+Les commandes ciblées expriment une intention et, lorsque nécessaire, l’état
+attendu de leur cible. Renvoyer tout un dictionnaire ancien depuis le renderer
+risquerait d’écraser les changements d’une autre action.
 
-## Résumé
+Le main assure les écritures et contrôles de format. Une écriture atomique protège
+le remplacement d’un fichier ; elle ne rend pas atomique une opération touchant
+plusieurs fichiers ou plusieurs serveurs. Ces opérations ont leurs propres
+transactions, journaux ou bilans partiels.
 
-Pour résumer, **TipTap est le moteur du passage DOM ↔ doc ProseMirror** (arbre de nœuds immutable
-`doc → bloc → text`, champ `corpsTexte` du modèle), rien de plus. L'originalité de l'architecture
-— et ce qui rend le modèle testable headless — c'est que tout le reste (remap, décorations,
-commandes, persistance) est du code applicatif délibérément hors de l'éditeur.
+## Ce qui fait foi selon la situation
 
-- Ce que TipTap ne sait pas faire (et ne fait pas) :
-  - savoir qu'une plage du texte est codée avec le thème « entretien/qualité » → c'est le calque
-    annotations du modèle + les décorations ;
-  - mettre à jour les positions des annotations quand le texte bouge → c'est `remap.ts` qui lit
-    `tr.mapping` ;
-  - sauvegarder quoi que ce soit sur disque → c'est le main process via IPC.
+- **Entretien ouvert** : la mémoire peut contenir un travail non encore sauvegardé.
+  Une projection de cet entretien doit en tenir compte au lieu de relire une
+  ancienne version du fichier.
+- **Corpus local** : les fichiers sont la persistance. Le main les relit pour les
+  commandes qui l’exigent ; une copie réactive ancienne ne gagne pas un conflit.
+- **Corpus distant** : le serveur porte les données publiées. Le miroir et les
+  sauvegardes de session peuvent contenir un travail local non publié : il faut
+  le conserver, mais il n’autorise pas à écraser le serveur.
 
-Le doc ProseMirror n'est qu'une **partie** du modèle — à côté vivent `annotations[]`,
-`locuteurs[]`, `ancres[]` (pour la synchronisation audio ↔ texte), que TipTap ne connaît pas.
+**Sauvegardé localement ne signifie pas publié.** Une perte de réseau ou de droit
+ne se résout pas en déclarant le renderer prioritaire. Suivre les parcours de
+[session et récupération](distant/README.md).
+
+## Format natif et compatibilité
+
+Le contrat est dans `src/shared/format.ts` : types de fichiers, `FORMAT_VERSION`
+et contrôle de version. Le numéro courant doit se lire dans le code, pas être
+recopié dans chaque document.
+
+Une évolution nécessitant une transformation structurelle du format demande un
+changement de version et une migration explicite. Un champ optionnel additif,
+avec un comportement défini quand il manque, n’impose pas à lui seul ce changement.
+Une version non prise en charge est refusée, jamais interprétée partiellement.
+Les caches et suivis peuvent avoir leur propre version, indépendante du format natif.
+
+Ne pas confondre `formatVersion` avec la
+[version livrée de l’application](developpement.md#vocabulaire-et-version-applicative).
+Pour une évolution du format, vérifier lecture ancienne, conversion, réouverture,
+aller-retour d’export et comportement distant ; la lecture d’un miroir ne doit
+pas introduire une migration distante implicite.
+
+## Où vérifier
+
+- `test/remap.test.ts` : positions, suppressions et annulation de frappe.
+- `test/corpusStore.test.ts` : lecture, enregistrement et migrations locales.
+- `test/transitionContexte.test.ts` : changement de corpus et refus de fermeture.
+- Les tests métier et fournisseur référencés dans la page de la fonction modifiée.

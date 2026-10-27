@@ -1,79 +1,93 @@
-# Architecture
+# Architecture — repères développeur
 
-## Structure générale
+SonalPi2 est une application Electron : une interface Vue, un processus principal
+qui possède les fichiers et les connexions distantes, et un pont typé entre les
+deux. Les règles métier communes sont séparées de ces mécanismes.
 
-```
+## Les responsabilités
+
+| Partie | Rôle | Ne doit pas faire |
+|---|---|---|
+| `src/main/` | Lire et écrire les fichiers, gérer les fournisseurs distants, les secrets, les dialogues natifs et le cycle des sessions. | Prendre une copie envoyée par l’interface pour une autorité sans la vérifier. |
+| `src/preload/` | Exposer l’API `window.sonal` et transmettre les appels et événements IPC. | Exposer librement Node.js ou Electron au renderer. |
+| `src/renderer/` | Afficher les données, éditer la transcription, orchestrer les actions et présenter leurs résultats. | Accéder directement au disque, aux secrets ou aux services distants. |
+| `src/shared/` | Définir les contrats et les opérations métier pures, utilisés par le main et le renderer. | Faire des entrées/sorties ou dépendre du DOM, d’Electron ou de ProseMirror. |
+
+`shared/` n’est pas un quatrième processus. C’est du code partagé, testable sans
+lancer l’application. Le test de discipline d’architecture dans
+`test/remap.test.ts` contrôle les imports et l’absence d’accès au DOM dans
+`src/shared/entretien/` ; il ne constitue pas une vérification exhaustive de tout
+`shared/`.
+
+## Carte du code
+
+```text
 src/
-  main/          process Electron : store fichiers (écriture atomique + .bak), IPC, dialogs
-  preload/       pont IPC typé (le renderer ne touche jamais au disque)
-  renderer/      app Vue 3
-    editor/      TipTap/ProseMirror : schéma, remap des positions, décorations, gouttière,
-                 snap, recherche/remplacement (Ctrl+F)
-    audio/       lecture : enveloppe sonore + rendu de la forme d'onde
-    import/      sas .sonal / .srt / .vtt (convertisseurs SonalPi1 vendorés) + export
-    notes/       hygiène HTML des notes d'entretien (sanitisation avant v-html)
-    composables/ orchestration UI (useCorpus, useEntretien, useProfil, sonal)
-    components/  vues et composants Vue, regroupés par fonctionnalité :
-      accueil/ corpus/ entretien/ donnees/ themes/ distant/
-  shared/        le modèle objet pur — chargé par main ET renderer
+  main/
+    index.ts              Handlers IPC et assemblage des services.
+    corpusStore.ts        Lecture, commandes et persistance du corpus.
+    distant/              Miroir, sessions et services WebDAV.
+    gitlab/               Connecteur et services GitLab.
+    webdav/               Requêtes et sondes WebDAV.
+  preload/
+    index.ts              API window.sonal et événements.
+  renderer/
+    components/           Interface classée par espace de travail.
+    composables/          État réactif et orchestration des actions.
+    editor/               Adaptation ProseMirror, remappage et projections.
+    audio/                Lecture et forme d’onde.
+    formatSonal/          Sas d’import et formats historiques.
+    export/               Préparation des documents exportés.
+    notes/                Nettoyage HTML des notes.
+  shared/
+    format.ts             Contrat des fichiers natifs.
+    corpus/               Définitions et commandes à l’échelle du corpus.
+    entretien/            Annotations, locuteurs, notes, ancres et repères.
 ```
 
-`shared/` est la frontière **technique** (code commun aux deux process Electron) ; `corpus/` et
-`entretien/` sont les frontières **du domaine**. Ne pas confondre les deux découpages.
+Cette carte indique les principaux points d’entrée, pas tous les services.
+L’organisation détaillée de l’interface est décrite dans le
+[README des composants](../../src/renderer/components/README.md).
 
-### Où placer un module dans `shared/` ?
+## Où placer une modification ?
 
-Deux niveaux, avec une règle simple :
-
-| Niveau | Contenu | Exemples |
-|---|---|---|
-| Racine de `shared/` (`format.ts`, `distant.ts`) | Les **contrats** : sérialisation versionnée, types du pont IPC — consommés des deux process et à cheval sur plusieurs concepts | `CorpusFichier`, `EntreeRecent`, `DemandeConnexion` |
-| Sous-dossier d'agrégat (`corpus/`, `entretien/`) | Les **opérations pures d'un agrégat**, un fichier par concept | `categories.ts`, `fusion.ts`, `squelette.ts` |
-
-Test rapide : si le fichier n'est consommé que pour UN agrégat (ou n'en produit le contenu),
-il va dans le sous-dossier ; s'il est un contrat partagé entre agrégats ou entre process,
-il reste à la racine.
-
-### Où placer un module dans le renderer ?
-
-Le renderer s'organise par **fonctionnalité**, avec deux cas particuliers qui guident le rangement :
-
-| Emplacement | Critère | Exemples |
-|---|---|---|
-| `editor/` | Tout ce qui parle le modèle **ProseMirror** — document vivant (plugins, décorations) OU document froid figé en JSON | plugins, snap, `rechercheCorpus.ts` |
-| `audio/`, `import/`, `notes/` | Logique de rendu **isolée et consistante** d'une fonctionnalité — ni composant, ni composable, ni modèle pur | waveform ; sas `.sonal/.srt/.vtt` ; sanitiser HTML |
-| `components/<fonctionnalité>/`, `composables/` | Tout le reste | vues Vue regroupées par usage, orchestration |
-
-Le dossier `notes/` (un seul fichier, `sanitiser.ts`) illustre le cas limite : la logique métier
-des notes vit en `shared/entretien/notes.ts` (pur, voir [modele-objet.md §10](modele-objet.md#10-notes-dentretien)),
-le rendu dans les composants — ce qui reste est de l'**hygiène DOM** (nettoyage du HTML tapé ou
-collé avant `v-html`, références de commentaires dans le contenteditable) : ni modèle pur (il
-manipule le DOM vivant), ni composant. À l'inverse, la logique pure de l'anonymisation et des thèmes vit sous `shared/` (règle
-ci-dessus), tandis que leur rendu reste dans `components/` + `editor/`. Créer un dossier de
-logique directement sous `renderer/` seulement quand un tel fragment existe vraiment — sinon
-un dossier à fichier unique de plus n'apporte rien.
-
-## Les process Electron
-
-| Process | Rôle |
+| Besoin | Emplacement habituel |
 |---|---|
-| **main** (`src/main/`) | possède le disque : sérialise les entretiens (`corpusStore.ts`, écriture atomique `write-tmp-rename` + `.bak`), relit et vérifie `formatVersion`, gère l'IPC et les dialogues |
-| **preload** (`src/preload/`) | pont IPC typé — le renderer **ne touche jamais au disque** |
-| **renderer** (`src/renderer/`) | l'app Vue 3 : éditeur TipTap/ProseMirror, composables d'orchestration, composants |
-| **shared** (`src/shared/`) | le modèle objet **pur**, chargé par main ET renderer |
+| Type de fichier ou contrat public utilisé des deux côtés de l’IPC | `shared/format.ts` ou contrat dédié de `shared/`. |
+| Validation ou transformation métier sans effet de bord | `shared/corpus/`, `shared/entretien/` ou domaine spécialisé de `shared/`. |
+| Lecture, écriture, transaction ou appel serveur | Service du main ; orchestration IPC dans `main/index.ts`. |
+| Coordination d’un écran, chargement, sélection et retour d’erreur | Composable renderer de la fonction concernée. |
+| Composant Vue | Espace métier dans `renderer/components/`, même s’il s’ouvre depuis un autre espace. |
+| Manipulation de documents ProseMirror, vivants ou figés | `renderer/editor/`. |
+| Nettoyage HTML nécessitant le DOM | Module renderer dédié, par exemple `renderer/notes/sanitiser.ts`. |
 
-Le flux de persistance est toujours : commande de domaine → mise à jour du modèle (en mémoire, la
-vérité) → sauvegarde via IPC → le rendu suit (voir [donnees.md — interactions](donnees.md)).
+Les contrats transversaux peuvent rester à la racine de `shared/`. Une opération
+propre à un agrégat rejoint son sous-dossier. Ne pas créer un dossier partagé
+avant qu’un besoin de réutilisation existe réellement.
 
-## La frontière `shared/` pure
+## Suivre une commande
 
-Tout ce qui est sous `shared/` est **pur** : aucune I/O, aucun DOM, aucun accès electron. C'est
-ce qui rend le domaine **testable en headless**. Un test **garde-fou** — le test
-**« discipline d'architecture »** de `test/remap.test.ts` — vérifie mécaniquement que
-`entretien/` n'importe jamais le DOM/ProseMirror : il parcourt les sources de `src/shared/entretien/`,
-résout chaque import et s'assure que le résultat reste DANS `src/shared/` (jamais un package ni
-`.`/`window`).
+Une commande d’entretien peut transformer le modèle en mémoire puis demander sa
+sauvegarde. Une commande de définition corpus est souvent envoyée au main, qui
+relit la base, applique l’opération et renvoie le résultat enregistré. Il n’y a
+pas un unique ordre « modifier l’interface puis sauvegarder » pour tous les gestes.
+Voir [le circuit des données](donnees.md#commandes-et-persistance).
 
-Le stockage (le disque) est **séparé** du domaine : `shared/` contient les fonctions métier pures,
-`main/corpusStore.ts` leur I/O. C'est le pendant logiciel de la séparation
-« le modèle vs sa persistance » décrite dans [donnees.md](donnees.md).
+Pour ajouter un geste, suivre le parcours existant de bout en bout :
+
+1. définir ou réutiliser le contrat et l’opération pure ;
+2. brancher le service main et ses vérifications ;
+3. exposer l’appel par le preload ;
+4. orchestrer l’action dans le composable, puis son interface ;
+5. vérifier les refus, les réponses tardives et les tests de chaque couche.
+
+Sur un corpus distant, les [gestes disponibles](distant/gestes.md) et les
+transactions du fournisseur s’ajoutent à ce circuit. Écrire directement dans le
+miroir ne constitue pas une implémentation distante.
+
+## Pour poursuivre
+
+- [Modèle objet](modele-objet.md) : propriétaires des données et relations.
+- [Données](donnees.md) : mémoire, éditeur, fichiers et publications.
+- [Développement](developpement.md) : installation et choix des tests.
+- [Corpus distants](distant/README.md) : contextes, sessions et récupération.

@@ -28,7 +28,7 @@ Nextcloud ; SonalPi assure l’inventaire, quelques aperçus fiables et l’acc�
 
 ## Corpus local
 
-Le dossier `DocsCadre/`, à la racine du corpus, accueille vos documents et sous-dossiers.
+Le dossier `DocsPrepaProjet/`, à la racine du corpus, accueille vos documents et sous-dossiers.
 Les fichiers déjà présents à la racine restent disponibles sans modification.
 
 Cliquez sur un dossier pour consulter son contenu. Le fil **Documents › DPO › …** apparaît

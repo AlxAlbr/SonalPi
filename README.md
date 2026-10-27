@@ -54,7 +54,7 @@ npm run typecheck       # vue-tsc + tsc
 |---|---|
 | Utilisateur | [Migration SonalPi1 → SonalPi2](docs/user/migration-v1.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |
-| Vocabulaire | [Versions : SonalPi1 / SonalPi2 / formatVersion / itération / release](docs/dev/versions.md) |
+| Vocabulaire | [Produits, version applicative et format des données](docs/dev/developpement.md#vocabulaire-et-version-applicative) |
 
 ## Plans (`plans/`)
 

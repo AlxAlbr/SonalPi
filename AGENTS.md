@@ -62,5 +62,5 @@ lorsqu'il fonctionne. N'arrêtez pas un banc qui peut resservir pendant la sessi
   toujours **explicite** (`git push origin <branche>`) ; ne jamais configurer de push
   multi-URL vers les deux tant que huma-num n'est pas fiable.
 - Pour comparer avec GitLab : `git fetch origin` puis `git log --oneline --left-right
-  <branche>...origin/<branche>`. Détails : `docs/dev/git-remotes.md`.
+  <branche>...origin/<branche>`. Détails : `docs/dev/outillage/git-remotes.md`.
 - `out/`, `dist/`, `node_modules/`, `test-results/` sont ignorés : aucun artefact poussé.

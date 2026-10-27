@@ -47,7 +47,7 @@ describe('PublieurCorpus.publierSquelette', () => {
     // Les dossiers techniques existent (PROPFIND de la racine du corpus).
     const entrees = await clientCible.propfind('')
     const noms = entrees.filter((e) => e.dossier).map((e) => e.chemin)
-    expect(noms).toEqual(expect.arrayContaining(['entretiens', 'verrous', 'presence', 'corbeille', 'DocsCadre']))
+    expect(noms).toEqual(expect.arrayContaining(['entretiens', 'verrous', 'presence', 'corbeille', 'DocsPrepaProjet']))
   })
 
   it('refuse NET si un corpus existe déjà (garde If-None-Match) et n’écrase rien', async () => {

@@ -22,9 +22,9 @@ for (const port of [8080, 8081]) {
     const profil = mkdtempSync(join(tmpdir(), 'sonal-docs-nc-e2e-'))
     let app: ElectronApplication | undefined
     try {
-      for (const d of ['entretiens', 'verrous', 'DocsCadre', 'DocsCadre/DPO', 'DocsCadre/DPO/École 2']) await client.creerDossier(d)
+      for (const d of ['entretiens', 'verrous', 'DocsPrepaProjet', 'DocsPrepaProjet/DPO', 'DocsPrepaProjet/DPO/École 2']) await client.creerDossier(d)
       await client.putTexte('corpus.json', corpusDistantValide([]), { ifNoneMatch: '*' })
-      await client.putTexte('DocsCadre/DPO/École 2/Notice é.txt', 'Texte distant exact.', { ifNoneMatch: '*' })
+      await client.putTexte('DocsPrepaProjet/DPO/École 2/Notice é.txt', 'Texte distant exact.', { ifNoneMatch: '*' })
       app = await lancer(profil)
       await app.evaluate(({ shell }, racine) => {
         const g = globalThis as typeof globalThis & { sondeDocs: SondeDocs }
@@ -32,7 +32,7 @@ for (const port of [8080, 8081]) {
         g.sondeDocs = { horsLigne: false, methodes: [], urlOuverte: '' }
         g.fetch = async (input, init) => {
           const url = input instanceof Request ? input.url : String(input)
-          if (url.startsWith(`${racine}/DocsCadre`)) {
+          if (url.startsWith(`${racine}/DocsPrepaProjet`)) {
             g.sondeDocs.methodes.push(init?.method ?? (input instanceof Request ? input.method : 'GET'))
             if (g.sondeDocs.horsLigne) throw new Error('Connexion documentaire coupée pour le test')
           }
@@ -62,7 +62,7 @@ for (const port of [8080, 8081]) {
       await expect(page.locator('.fiche-zone').getByRole('button', { name: 'Ouvrir', exact: true })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Afficher dans le dossier' })).toHaveCount(0)
       await cote.getByRole('button', { name: 'Organiser ce dossier dans Nextcloud' }).click()
-      await expect.poll(() => app!.evaluate(() => (globalThis as unknown as { sondeDocs: SondeDocs }).sondeDocs.urlOuverte)).toContain('/DocsCadre/DPO/%C3%89cole%202')
+      await expect.poll(() => app!.evaluate(() => (globalThis as unknown as { sondeDocs: SondeDocs }).sondeDocs.urlOuverte)).toContain('/DocsPrepaProjet/DPO/%C3%89cole%202')
 
       await app.evaluate(() => { (globalThis as unknown as { sondeDocs: SondeDocs }).sondeDocs.horsLigne = true })
       await cote.getByRole('button', { name: /Actualiser/ }).click()

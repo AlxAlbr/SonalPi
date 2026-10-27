@@ -51,9 +51,7 @@ test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   await expect(fenetre.locator('[data-tour="documents-exemples"]')).toBeHidden()
 
 
-  // L'action ouvre directement le sous-dossier DocsCadre du corpus, et elle
-  // est accessible dès l'état vide (défaut corrigé : elle vivait dans le
-  // panneau droit, donc seulement avec une sélection).
+  // Le dossier documentaire reste accessible même sans document sélectionné.
   await app.evaluate(({ shell }) => {
     shell.openPath = async (chemin) => {
       process.env.SONAL_TEST_DOSSIER_OUVERT = chemin
@@ -62,7 +60,7 @@ test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   })
   await expect(fenetre.locator('.cote-preparation').getByRole('button', { name: 'Ouvrir ce dossier' })).toBeVisible()
   await fenetre.locator('.cote-preparation').getByRole('button', { name: 'Ouvrir ce dossier' }).click()
-  await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_DOSSIER_OUVERT)).toContain('DocsCadre')
+  await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_DOSSIER_OUVERT)).toContain('DocsPrepaProjet')
   await expect(fenetre.locator('.message-action')).toContainText('gestionnaire de fichiers')
 
   // Les exemples disposent de leur propre onglet et conservent leur ordre défini.
@@ -107,7 +105,7 @@ test('sous-dossiers : clavier, création, ajout, dépôt, actions externes et di
   const { app, page } = await ouvrirSurCorpus('sonal-docs-dossiers-')
   try {
     const userData = await app.evaluate(({ app: application }) => application.getPath('userData'))
-    const racine = join(userData, 'corpus', 'DocsCadre')
+    const racine = join(userData, 'corpus', 'DocsPrepaProjet')
     mkdirSync(join(racine, 'DPO'), { recursive: true })
     writeFileSync(join(racine, 'Ancien.txt'), 'Corpus plat compatible.')
     writeFileSync(join(racine, 'DPO', 'Notice.txt'), 'Texte imbriqué.')
@@ -182,7 +180,7 @@ test('les noms longs restent lisibles dans une fenêtre étroite', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-docs-noms-')
   try {
     const userData = await app.evaluate(({ app: application }) => application.getPath('userData'))
-    const dir = join(userData, 'corpus', 'DocsCadre')
+    const dir = join(userData, 'corpus', 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     const nom = `${'Consignes-école-'.repeat(14)}.txt`
     writeFileSync(join(dir, nom), 'Document au nom long.')
@@ -198,7 +196,7 @@ test('les noms longs restent lisibles dans une fenêtre étroite', async () => {
 test('aperçu PDF intégré avec navigation et zoom', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-docs-pdf-')
   const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
-  const cheminDocs = join(userDataDir, 'corpus', 'DocsCadre')
+  const cheminDocs = join(userDataDir, 'corpus', 'DocsPrepaProjet')
   mkdirSync(cheminDocs, { recursive: true })
   writeFileSync(join(cheminDocs, 'Protocole.pdf'), pdfMinimal())
 
@@ -255,15 +253,14 @@ test('ajout, lecture seule et persistance d’un document du corpus', async () =
   await app.close()
 })
 
-test('fichier déposé à la main dans DocsCadre/ est découvert à l’actualisation', async () => {
+test('fichier déposé à la main dans DocsPrepaProjet/ est découvert à l’actualisation', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-docs-c-')
   const fenetre = page.locator('.espace-preparation')
   await ouvrirPreparation(page, 'docs-cadre')
   await expect(fenetre).toBeVisible()
-  // L'ouverture de la fenêtre avec action « Ouvrir le dossier » crée DocsCadre/ ;
-  // ici l'utilisateur dépose un fichier à la main puis actualise.
+  // Un fichier ajouté hors de SonalPi est découvert à l’actualisation.
   const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
-  const cheminDocs = join(userDataDir, 'corpus', 'DocsCadre')
+  const cheminDocs = join(userDataDir, 'corpus', 'DocsPrepaProjet')
   mkdirSync(cheminDocs, { recursive: true })
   writeFileSync(join(cheminDocs, 'Depose manuelle.txt'), 'Déposé à la main.')
   await fenetre.locator('.cote-preparation').getByRole('button', { name: /Actualiser/ }).click()

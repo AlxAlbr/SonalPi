@@ -111,14 +111,14 @@ describe('validation des noms de document', () => {
 })
 
 describe('inventaire du corpus local', () => {
-  it('liste vide si DocsCadre/ est absent (dossier pas encore créé)', () => {
+  it('liste vide si DocsPrepaProjet/ est absent (dossier pas encore créé)', () => {
     const racine = corpusTemporaire()
     expect(inventaireDocsCadreLocal(racine)).toEqual([])
   })
 
   it('dossiers avant fichiers réguliers, cachés exclus', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     mkdirSync(join(dir, 'sous-dossier'))
     writeFileSync(join(dir, 'Notice de consentement.docx'), 'A')
@@ -145,7 +145,7 @@ describe('ajout, renommage, corbeille', () => {
 
   it('collision sans écrasement : refus, original intact, nom libre proposé', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'notice.txt'), 'EXISTANT')
     const source = join(corpusTemporaire(), 'notice.txt')
@@ -158,7 +158,7 @@ describe('ajout, renommage, corbeille', () => {
 
   it('renommage conservant exactement les octets, et refus d’une collision', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'a.png'), PNG_VALIDE)
     writeFileSync(join(dir, 'b.txt'), 'B')
@@ -176,22 +176,22 @@ describe('ajout, renommage, corbeille', () => {
     expect(existsSync(join(dir, 'b.txt'))).toBe(true)
   })
 
-  it('suppression douce : fichier sous corbeille/DocsCadre/, sans perte', () => {
+  it('suppression douce : fichier sous corbeille/DocsPrepaProjet/, sans perte', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'consignes.txt'), 'Contenu précieux')
     const r = supprimerLocal(racine, 'consignes.txt')
     expect(r).toEqual({ ok: true, nom: 'consignes.txt' })
     expect(existsSync(join(dir, 'consignes.txt'))).toBe(false)
-    const corbeille = join(racine, 'corbeille', 'DocsCadre')
+    const corbeille = join(racine, 'corbeille', 'DocsPrepaProjet')
     expect(existsSync(join(corbeille, 'consignes.txt'))).toBe(true)
     expect(readFileSync(join(corbeille, 'consignes.txt'), 'utf8')).toBe('Contenu précieux')
   })
 
   it('changement de casse seul : collision insensible à la casse refusée', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'Notice.txt'), 'A')
     // Renommer en changeant SEULEMENT la casse n'est pas une collision : c'est
@@ -213,7 +213,7 @@ describe('dépôt par glisser-déposer (local)', () => {
 
   it('homonyme : refus SANS écrasement et SANS renommage automatique', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'notice.txt'), 'EXISTANT')
     const source = join(corpusTemporaire(), 'notice.txt')
@@ -245,7 +245,7 @@ describe('dépôt par glisser-déposer (local)', () => {
 describe('aperçus intégrés (local)', () => {
   function preparer(): { racine: string; dir: string } {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     return { racine, dir }
   }
@@ -330,7 +330,7 @@ describe('sécurité des chemins', () => {
 
   it('enregistrerCopieLocal conserve exactement les octets du fichier original', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'binaire.bin'), PNG_VALIDE)
     const destination = join(corpusTemporaire(), 'copie.bin')
@@ -338,9 +338,9 @@ describe('sécurité des chemins', () => {
     expect([...readFileSync(destination)]).toEqual([...PNG_VALIDE])
   })
 
-  it('ignore les liens symboliques et refuse un dossier DocsCadre symbolique', () => {
+  it('ignore les liens symboliques et refuse un dossier DocsPrepaProjet symbolique', () => {
     const racine = corpusTemporaire()
-    const dir = join(racine, 'DocsCadre')
+    const dir = join(racine, 'DocsPrepaProjet')
     const exterieur = join(corpusTemporaire(), 'secret.txt')
     mkdirSync(dir)
     writeFileSync(exterieur, 'secret')
@@ -351,7 +351,7 @@ describe('sécurité des chemins', () => {
     expect(() => resoudreLocal(racine, 'lien.txt')).toThrow()
 
     const autreRacine = corpusTemporaire()
-    symlinkSync(corpusTemporaire(), join(autreRacine, 'DocsCadre'), 'dir')
+    symlinkSync(corpusTemporaire(), join(autreRacine, 'DocsPrepaProjet'), 'dir')
     expect(() => inventaireDocsCadreLocal(autreRacine)).toThrow()
     expect(() => resoudreDossierLocal(autreRacine)).toThrow()
   })
@@ -413,36 +413,22 @@ describe('navigation et mutations imbriquées', () => {
   })
 })
 
-describe('nom du dossier de préparation', () => {
-  it('un ancien corpus continue à utiliser DocsCadre sans déplacer ni créer de fichiers ailleurs', () => {
-    const racine = corpusTemporaire()
-    mkdirSync(join(racine, 'DocsCadre', 'DPO'), { recursive: true })
-    writeFileSync(join(racine, 'DocsCadre', 'DPO', 'ancien.txt'), 'Ancien document')
-    const source = join(corpusTemporaire(), 'ajout.txt')
-    writeFileSync(source, 'Ajout')
-    expect(lireApercuLocal(racine, 'DPO/ancien.txt').apercu).toEqual({ genre: 'texte', contenu: 'Ancien document' })
-    expect(ajouterFichierLocal(racine, source, undefined, 'DPO')).toMatchObject({ ok: true })
-    expect(creerDossierLocal(racine, 'DPO', 'Consentements')).toMatchObject({ ok: true })
-    expect(resoudreLocal(racine, 'DPO/ajout.txt')).toBe(join(racine, 'DocsCadre', 'DPO', 'ajout.txt'))
-    expect(existsSync(join(racine, 'DocsPrepaProjet'))).toBe(false)
-  })
-
-  it('le nouveau dossier est prioritaire, sans fusion ni repli fichier par fichier', () => {
-    const racine = corpusTemporaire()
-    for (const nom of ['DocsCadre', 'DocsPrepaProjet']) mkdirSync(join(racine, nom))
-    writeFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'Ne pas déplacer')
-    writeFileSync(join(racine, 'DocsPrepaProjet', 'actuel.txt'), 'Actuel')
-    expect(inventaireDocsCadreLocal(racine).map((e) => e.nom)).toEqual(['actuel.txt'])
-    expect(lireApercuLocal(racine, 'ancien.txt').apercu).toEqual({ genre: 'aucun', raison: 'absent' })
-    expect(readFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'utf8')).toBe('Ne pas déplacer')
-  })
-
-  it('un nouveau dossier symbolique ne permet pas de contourner les contrôles par l’ancien', () => {
+describe('racine documentaire unique', () => {
+  it('ignore DocsCadre et crée les documents uniquement sous DocsPrepaProjet', () => {
     const racine = corpusTemporaire()
     mkdirSync(join(racine, 'DocsCadre'))
-    symlinkSync(corpusTemporaire(), join(racine, 'DocsPrepaProjet'), 'dir')
-    expect(() => inventaireDocsCadreLocal(racine)).toThrow()
-    expect(() => resoudreDossierLocal(racine)).toThrow()
+    writeFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'Ne pas déplacer')
+    expect(inventaireDocsCadreLocal(racine)).toEqual([])
+    expect(lireApercuLocal(racine, 'ancien.txt').apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+    expect(existsSync(join(racine, 'DocsPrepaProjet'))).toBe(false)
+
+    const source = join(corpusTemporaire(), 'ajout.txt')
+    writeFileSync(source, 'Ajout')
+    expect(ajouterFichierLocal(racine, source)).toMatchObject({ ok: true })
+    expect(resoudreLocal(racine, 'ajout.txt')).toBe(join(racine, 'DocsPrepaProjet', 'ajout.txt'))
+    expect(inventaireDocsCadreLocal(racine).map((e) => e.nom)).toEqual(['ajout.txt'])
+    expect(readFileSync(join(racine, 'DocsCadre', 'ancien.txt'), 'utf8')).toBe('Ne pas déplacer')
+    expect(existsSync(join(racine, 'DocsCadre', 'ajout.txt'))).toBe(false)
   })
 })
 

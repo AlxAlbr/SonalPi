@@ -23,7 +23,7 @@ function corpusSurDisque(): string {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-archive-'))
   mkdirSync(join(dir, 'entretiens'))
   mkdirSync(join(dir, 'png'))
-  mkdirSync(join(dir, 'DocsCadre'))
+  mkdirSync(join(dir, 'DocsPrepaProjet'))
   mkdirSync(join(dir, 'corbeille'))
   mkdirSync(join(dir, 'verrous'))
   mkdirSync(join(dir, 'presence'))
@@ -32,7 +32,7 @@ function corpusSurDisque(): string {
   writeFileSync(join(dir, 'entretiens', 'e1.json'), '{"titre":"Un"}', 'utf8')
   writeFileSync(join(dir, 'entretiens', 'reste.tmp'), 'temporaire', 'utf8')
   writeFileSync(join(dir, 'png', 'e1.png'), Buffer.from([1, 2, 3]))
-  writeFileSync(join(dir, 'DocsCadre', 'methode.txt'), 'consigne', 'utf8')
+  writeFileSync(join(dir, 'DocsPrepaProjet', 'methode.txt'), 'consigne', 'utf8')
   writeFileSync(join(dir, 'corbeille', 'e-ancien.json'), '{"titre":"Ancien"}', 'utf8')
   writeFileSync(join(dir, 'audio-locaux.json'), '{"e1":"/tmp/a.mp3"}', 'utf8')
   writeFileSync(join(dir, 'verrous', 'e1.lock.json'), 'verrou', 'utf8')
@@ -50,7 +50,7 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
       .sort()
 
     expect(relatifs).toEqual([
-      'DocsCadre/methode.txt',
+      'DocsPrepaProjet/methode.txt',
       'audio-locaux.json',
       'corbeille/e-ancien.json',
       'corpus.json',
@@ -71,7 +71,7 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
         .filter((nom) => !nom.endsWith('/'))
         .sort(),
     ).toEqual([
-      'DocsCadre/methode.txt',
+      'DocsPrepaProjet/methode.txt',
       'audio-locaux.json',
       'corbeille/e-ancien.json',
       'corpus.json',
@@ -87,12 +87,12 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
 
   test('conserve les documents imbriqués octet pour octet', async () => {
     const dir = corpusSurDisque()
-    mkdirSync(join(dir, 'DocsCadre', 'DPO', 'École 2'), { recursive: true })
+    mkdirSync(join(dir, 'DocsPrepaProjet', 'DPO', 'École 2'), { recursive: true })
     const octets = Buffer.from([0, 255, 42, 13, 10])
-    writeFileSync(join(dir, 'DocsCadre', 'DPO', 'École 2', 'notice.docx'), octets)
+    writeFileSync(join(dir, 'DocsPrepaProjet', 'DPO', 'École 2', 'notice.docx'), octets)
     const { buffer } = await construireZipCorpus(dir)
     const zip = await JSZip.loadAsync(buffer)
-    expect(await zip.file('DocsCadre/DPO/École 2/notice.docx')!.async('nodebuffer')).toEqual(octets)
+    expect(await zip.file('DocsPrepaProjet/DPO/École 2/notice.docx')!.async('nodebuffer')).toEqual(octets)
   })
 
   test('le nom par défaut unit le nom du corpus et la date', () => {

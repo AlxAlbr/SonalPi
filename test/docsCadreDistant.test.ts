@@ -15,7 +15,6 @@ import {
   enregistrerCopieDistant,
   inventaireDocsCadreDistant,
   listerDossierDistant,
-  racineDocsProjetDistant,
   lireApercuDistant,
   urlNextcloudPourCorpus,
 } from '../src/main/docsCadreDistant'
@@ -32,23 +31,22 @@ function client(serveur: ServeurWebDAVMemoire, fetchImpl = serveur.fetch): Clien
   )
 }
 
-/** Amorce un dossier DocsCadre avec des documents de formats variés. */
+/** Amorce les documents de préparation avec des formats variés. */
 function amorcer(serveur: ServeurWebDAVMemoire): void {
-  serveur.creerDossierRelatif('DocsCadre')
-  serveur.poser('DocsCadre/consignes.txt', 'Consignes internes.')
-  serveur.poser('DocsCadre/Notice de consentement.docx', 'PK\x03\x04 docx')
-  serveur.poser('DocsCadre/École.txt', 'Avec accents.')
-  serveur.creerDossierRelatif('DocsCadre/sous-dossier')
-  serveur.poser('DocsCadre/sous-dossier/caché.txt', 'NE PAS AFFICHER')
+  serveur.creerDossierRelatif('DocsPrepaProjet')
+  serveur.poser('DocsPrepaProjet/consignes.txt', 'Consignes internes.')
+  serveur.poser('DocsPrepaProjet/Notice de consentement.docx', 'PK\x03\x04 docx')
+  serveur.poser('DocsPrepaProjet/École.txt', 'Avec accents.')
+  serveur.creerDossierRelatif('DocsPrepaProjet/sous-dossier')
+  serveur.poser('DocsPrepaProjet/sous-dossier/caché.txt', 'NE PAS AFFICHER')
 }
 
 describe('inventaire distant', () => {
-  it('dossier absent (ancien corpus) : liste vide, sans création cachée', async () => {
+  it('dossier absent : liste vide, sans création cachée', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const inventaire = await inventaireDocsCadreDistant(client(serveur))
     expect(inventaire).toEqual([])
-    // Le MKCOL n'a pas eu lieu : aucun dossier DocsCadre créé dans le dos de l'utilisateur.
-    expect(serveur.contenuDe('DocsCadre/consignes.txt')).toBeUndefined()
+    expect((await client(serveur).propfind('')).some((e) => e.chemin === 'DocsPrepaProjet')).toBe(false)
   })
 
   it('404 explicite : liste vide', async () => {
@@ -58,7 +56,7 @@ describe('inventaire distant', () => {
     // la traduction explicite « 404 = liste vide ».
     const fetch404 = async (entree: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const requete = new Request(entree, init)
-      if (requete.method === 'PROPFIND' && decodeURIComponent(new URL(requete.url).pathname).endsWith('/DocsCadre')) {
+      if (requete.method === 'PROPFIND' && decodeURIComponent(new URL(requete.url).pathname).endsWith('/DocsPrepaProjet')) {
         return new Response('not found', { status: 404 })
       }
       return serveur.fetch(entree, init)
@@ -95,9 +93,9 @@ describe('inventaire distant', () => {
 describe('sous-dossiers WebDAV', () => {
   it('navigue sur trois niveaux, filtre les petits-enfants et encode une fois les chemins', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    for (const chemin of ['DocsCadre', 'DocsCadre/DPO', 'DocsCadre/DPO/École 2', 'DocsCadre/DPO/École 2/100% modèles']) serveur.creerDossierRelatif(chemin)
+    for (const chemin of ['DocsPrepaProjet', 'DocsPrepaProjet/DPO', 'DocsPrepaProjet/DPO/École 2', 'DocsPrepaProjet/DPO/École 2/100% modèles']) serveur.creerDossierRelatif(chemin)
     const relatif = 'DPO/École 2/100% modèles/Notice é.txt'
-    serveur.poser(`DocsCadre/${relatif}`, 'Octets exacts éà')
+    serveur.poser(`DocsPrepaProjet/${relatif}`, 'Octets exacts éà')
     const requetes: { methode: string; url: string; depth: string | null }[] = []
     const c = client(serveur, async (entree, init) => {
       const r = new Request(entree, init)
@@ -135,34 +133,26 @@ describe('sous-dossiers WebDAV', () => {
   })
 })
 
-describe('compatibilité du nom documentaire distant', () => {
-  it.each(['DocsPrepaProjet', 'DocsCadre'] as const)('liste, aperçu, copie et URL sous %s sans mutation', async (racine) => {
-    const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif(racine)
-    serveur.creerDossierRelatif(`${racine}/DPO`)
-    serveur.poser(`${racine}/DPO/notice.txt`, 'Document inchangé')
-    const methodes: string[] = []
-    const c = client(serveur, async (input, init) => {
-      methodes.push(new Request(input, init).method)
-      return serveur.fetch(input, init)
-    })
-    expect(await racineDocsProjetDistant(c)).toBe(racine)
-    expect((await listerDossierDistant(c, 'DPO')).entrees).toMatchObject([{ chemin: 'DPO/notice.txt' }])
-    expect((await lireApercuDistant(c, 'DPO/notice.txt')).apercu).toEqual({ genre: 'texte', contenu: 'Document inchangé' })
-    const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-nom-')), 'copie.txt')
-    await enregistrerCopieDistant(c, 'DPO/notice.txt', destination)
-    expect(readFileSync(destination, 'utf8')).toBe('Document inchangé')
-    expect(urlNextcloudPourCorpus('https://nuage.org/remote.php/dav/files/max/Corpus', 'DPO', racine)).toBe(`https://nuage.org/apps/files/?dir=/Corpus/${racine}/DPO`)
-    expect(methodes.every((m) => ['GET', 'PROPFIND'].includes(m))).toBe(true)
-  })
-
-  it('le nouveau nom est prioritaire et un enfant absent ne déclenche pas un repli sur l’ancien', async () => {
+describe('racine documentaire unique', () => {
+  it('ignore DocsCadre sans rechercher de racine alternative', async () => {
     const serveur = new ServeurWebDAVMemoire()
     serveur.creerDossierRelatif('DocsCadre')
-    serveur.creerDossierRelatif('DocsPrepaProjet')
     serveur.poser('DocsCadre/ancien.txt', 'Ancien')
-    expect(await racineDocsProjetDistant(client(serveur))).toBe('DocsPrepaProjet')
-    expect((await lireApercuDistant(client(serveur), 'ancien.txt')).apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+    const chemins: string[] = []
+    const c = client(serveur, async (input, init) => {
+      chemins.push(decodeURIComponent(new URL(new Request(input, init).url).pathname))
+      return serveur.fetch(input, init)
+    })
+    expect((await listerDossierDistant(c)).entrees).toEqual([])
+    expect((await lireApercuDistant(c, 'ancien.txt')).apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+    const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-nom-')), 'copie.txt')
+    await expect(enregistrerCopieDistant(c, 'ancien.txt', destination)).rejects.toThrow()
+    expect(chemins).toEqual([
+      '/remote.php/dav/files/max/MonCorpus/DocsPrepaProjet',
+      '/remote.php/dav/files/max/MonCorpus/DocsPrepaProjet',
+      '/remote.php/dav/files/max/MonCorpus/DocsPrepaProjet/ancien.txt',
+    ])
+    expect(urlNextcloudPourCorpus(c.config.baseUrl)).toContain('/DocsPrepaProjet')
   })
 })
 
@@ -193,14 +183,14 @@ describe('lecture d’aperçu distant', () => {
 
   it('PDF valide en aperçu, signature contrôlée', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif('DocsCadre')
+    serveur.creerDossierRelatif('DocsPrepaProjet')
     const pdf = new TextEncoder().encode('%PDF-1.7 contenu')
-    serveur.poserBinaire('DocsCadre/protocole.pdf', pdf)
+    serveur.poserBinaire('DocsPrepaProjet/protocole.pdf', pdf)
     const r = await lireApercuDistant(client(serveur), 'protocole.pdf')
     expect(r.apercu.genre).toBe('pdf')
     if (r.apercu.genre === 'pdf') expect([...r.apercu.octets]).toEqual([...pdf])
 
-    serveur.poserBinaire('DocsCadre/corrompu.pdf', new TextEncoder().encode('pas un pdf'))
+    serveur.poserBinaire('DocsPrepaProjet/corrompu.pdf', new TextEncoder().encode('pas un pdf'))
     expect((await lireApercuDistant(client(serveur), 'corrompu.pdf')).apercu).toEqual({
       genre: 'aucun',
       raison: 'signature',
@@ -209,9 +199,9 @@ describe('lecture d’aperçu distant', () => {
 
   it('image valide en aperçu, signature contrôlée', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif('DocsCadre')
+    serveur.creerDossierRelatif('DocsPrepaProjet')
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
-    serveur.poserBinaire('DocsCadre/schema.png', png)
+    serveur.poserBinaire('DocsPrepaProjet/schema.png', png)
     const r = await lireApercuDistant(client(serveur), 'schema.png')
     expect(r.apercu.genre).toBe('image')
     if (r.apercu.genre === 'image') {
@@ -219,7 +209,7 @@ describe('lecture d’aperçu distant', () => {
       expect([...r.apercu.octets]).toEqual([...png])
     }
     // Extension mensongère : le serveur annonce du PNG, les octets disent autre chose.
-    serveur.poserBinaire('DocsCadre/menteur.png', new Uint8Array([0x7f, 0x45, 0x4c, 0x46]))
+    serveur.poserBinaire('DocsPrepaProjet/menteur.png', new Uint8Array([0x7f, 0x45, 0x4c, 0x46]))
     expect((await lireApercuDistant(client(serveur), 'menteur.png')).apercu).toEqual({
       genre: 'aucun',
       raison: 'signature',
@@ -228,8 +218,8 @@ describe('lecture d’aperçu distant', () => {
 
   it('fichier trop volumineux : jamais chargé pour aperçu', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif('DocsCadre')
-    serveur.poserBinaire('DocsCadre/gros.txt', new Uint8Array(LIMITE_APERCU_BINAIRE_OCTETS + 1).fill(0x61))
+    serveur.creerDossierRelatif('DocsPrepaProjet')
+    serveur.poserBinaire('DocsPrepaProjet/gros.txt', new Uint8Array(LIMITE_APERCU_BINAIRE_OCTETS + 1).fill(0x61))
     const gets: number[] = []
     const fetchCompte = async (entree: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const requete = new Request(entree, init)
@@ -249,9 +239,9 @@ describe('lecture d’aperçu distant', () => {
 
   it('interrompt un aperçu dont le serveur ne fournit pas la taille', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif('DocsCadre')
+    serveur.creerDossierRelatif('DocsPrepaProjet')
     serveur.poserBinaire(
-      'DocsCadre/sans-taille.txt',
+      'DocsPrepaProjet/sans-taille.txt',
       new Uint8Array(LIMITE_APERCU_TEXTE_OCTETS + 1).fill(0x61),
     )
     const fetchSansTaille = async (entree: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -271,7 +261,7 @@ describe('lecture d’aperçu distant', () => {
 })
 
 describe('copie exacte en flux', () => {
-  it('refuse un nom qui sortirait de DocsCadre', async () => {
+  it('refuse un nom qui sortirait de DocsPrepaProjet', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-')), 'copie.json')
     await expect(enregistrerCopieDistant(client(serveur), '../corpus.json', destination)).rejects.toThrow(
@@ -281,9 +271,9 @@ describe('copie exacte en flux', () => {
 
   it('téléchargement streamé conservant exactement les octets', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.creerDossierRelatif('DocsCadre')
+    serveur.creerDossierRelatif('DocsPrepaProjet')
     const png = new Uint8Array(50_000).map((_, i) => i % 256)
-    serveur.poserBinaire('DocsCadre/gros.schema.png', png)
+    serveur.poserBinaire('DocsPrepaProjet/gros.schema.png', png)
     const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-')), 'copie.png')
     await enregistrerCopieDistant(client(serveur), 'gros.schema.png', destination)
     expect([...readFileSync(destination)]).toEqual([...png])

@@ -333,4 +333,4 @@ différés.
 
 - [Vue Corpus : personnes et données](vue-corpus.md)
 - [Travail en corpus distant](corpus-distant.md)
-- [Documentation technique des cas](../dev/cas.md)
+- [Documentation technique des cas](../dev/organiser/cas.md)

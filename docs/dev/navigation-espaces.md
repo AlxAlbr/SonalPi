@@ -1,118 +1,88 @@
-# Navigation par espaces et consultations liées
+# Navigation — espaces et consultations liées
 
-La navigation principale est un état de session, jamais une donnée du corpus.
-`useEspacesTravail.ts` distingue l’écran affiché de la dernière vue de traitement
-(`corpus` ou `entretien`). Les quatre espaces utilisent cette même navigation.
+La navigation décrit le travail affiché, pas le contenu métier du corpus.
+Elle doit préserver l’entretien ouvert et ses protections. L’organisation des
+composants suit les espaces ; voir le
+[README des composants](../../src/renderer/components/README.md).
 
-Les composants suivent ces espaces sous `components/preparer/`, `traiter/`,
-`analyser/` et `organiser/`. Seul `traiter/` distingue les vues `corpus/` et
-`entretien/`. Voir [l’organisation des composants](../../src/renderer/components/README.md).
-Ce classement ne déplace pas les composables ni les modèles métier.
+## Changer d’espace n’est pas fermer l’entretien
 
-## Masquage et fermeture
+`useEspacesTravail.ts` distingue l’écran affiché de la dernière vue de traitement,
+`corpus` ou `entretien`. Préparer, Analyser et Organiser peuvent masquer l’éditeur
+sans le démonter ni fermer sa session. Revenir à Traiter retrouve cette vue.
 
-Changer d’espace conserve l’éditeur monté et l’entretien ouvert.
 Le watcher de `vue` met l’audio en pause dès que l’écran n’est plus Entretien.
-Il n’y a pas de lecture simultanée dans plusieurs espaces ; revenir ne relance
-jamais l’audio. `retourCorpus()` reste une vraie fermeture avec sauvegarde et
-contrôles de session. Les ouvertures d’autres entretiens gardent leurs protections.
+Revenir ne relance jamais la lecture. En revanche, `retourCorpus()` et
+`allerAccueil()` sont de vraies fermetures d’entretien : sauvegardes et contrôles
+de session peuvent les refuser. Ouvrir une autre source réutilise aussi ce cycle,
+pas une simple affectation d’identifiant.
 
-## Filtres Cas
-
-Synthèse et Lexico déterminent la présence de cas à partir de leurs définitions,
-chargées avec le corpus et renouvelées par les commandes et les tirages distants.
-Aucune requête de projection supplémentaire ne conclut à une absence de cas.
-Une définition vide compte ; une lecture de matériaux en erreur ne change pas
-la visibilité. Les analyses ne sont accessibles qu’après ouverture du corpus.
-
-Sans définition, la dimension Cas disparaît et sa consultation se replie vers
-Thèmes dans Synthèse, Entretiens dans Lexico. Cela ne modifie aucun critère et
-ne lance aucun calcul. Un filtre visant des cas supprimés reste signalé avec
-une action explicite de retrait. Synthèse conserve le bilan de son résultat
-jusqu’au prochain calcul ; retirer un critère ne réécrit pas cet ancien résultat.
-
-## Ajouts contextuels
-
-`DialogueAjoutCas.vue` et `DialogueAjoutRecueil.vue` sont des dialogues natifs
-limités aux destinations, au passage et à la création simple. Les gestionnaires
-complets restent uniquement dans `OrganiserExporter.vue`, montés au premier accès.
-
-La sélection est capturée avant l’ouverture et vérifiée par
-`enregistrerRepereSelection(attendu)` à la confirmation. Annuler avant confirmation
-n’écrit rien. Les commandes existantes gardent publication, capacités fournisseur
-et restrictions de lecture seule. L’ajout ne change pas la sélection du gestionnaire
-caché et ne navigue pas automatiquement après réussite.
-
-Une erreur conserve les identités du repère, du rattachement ou de l’item pour
-le rejeu. Une création simple de recueil conserve aussi son identité de commande.
-Échap peut fermer une tentative inachevée sans la perdre ; abandonner est explicite.
-Un recueil créé avant un échec ultérieur reste conservé si l’ajout est abandonné.
-Les réponses d’un ancien corpus ne remplissent pas le nouvel écran.
+Les sous-espaces et panneaux conservent leurs réglages en session. Le changement
+de corpus réinitialise les espaces et invalide les réponses asynchrones de
+l’ancien contexte. Voir [ouverture des corpus](accueil/ouverture.md).
 
 ## Retours au travail précédent
 
-`useRetoursContextuels.ts` porte une pile de huit destinations au maximum.
-`sonal.ts` lui fournit capture et restauration typées : espace, sous-espace,
-objet sélectionné, sélection du texte, onglet d’entretien et position audio.
+Une consultation liée, par exemple ouvrir une source depuis un résultat, conserve
+une destination de retour. `useRetoursContextuels.ts` porte une pile de huit
+destinations au maximum ; `sonal.ts` fournit leur capture et leur restauration.
 
-Les panneaux restent montés. `useContextesPanneaux.ts` leur permet de prêter
-une restauration de leurs réglages locaux : recherche, tri, familles,
-numérotation, etc. Aucun contenu métier ni résultat d’analyse n’est réinjecté.
-`contexteVisuel.ts` conserve le focus et le défilement ; la sélection du texte
-suit les corrections de la même source sans créer de repère persistant.
-Une suppression complète de la sélection est signalée au retour.
+| Conservé pour le retour | Non restauré comme contenu |
+|---|---|
+| Espace, sous-espace, objet sélectionné et onglet d’entretien. | Ancienne transcription ou anciennes décisions métier. |
+| Sélection du texte et position audio. | Ancien résultat d’analyse réinjecté dans le modèle. |
+| Réglages visuels du panneau : recherche, tri, familles, numérotation. | Modifications annulant le travail fait pendant la consultation. |
+| Focus et défilement. | Nouveau calcul lancé implicitement au retour. |
 
-Une consultation empile seulement après ouverture réussie. Revenir dépile après
-restauration réussie ; un refus laisse la destination disponible pour réessayer.
-L’ouverture d’une source déjà présente en mémoire ne recharge pas son éditeur.
-Changer de source réutilise la préparation de sortie existante : sauvegarde si
-l’accès l’autorise, aucune nouvelle écriture en consultation seule ou après
-rétrogradation. L’ouverture reste celle du cycle habituel. Un objet supprimé revient à son panneau disponible avec une explication,
-sans sélectionner silencieusement un autre objet.
+Les panneaux prêtent leurs réglages via `useContextesPanneaux.ts`.
+`contexteVisuel.ts` restaure focus et défilement après mise à jour de l’interface.
+La sélection du texte suit les corrections de la même source sans créer de
+repère persistant ; sa suppression complète est signalée.
 
-Le retour à une analyse ne recalcule pas un résultat périmé : son avertissement
-reste visible et son actualisation reste explicite. Les restaurations de défilement
-interviennent après mise à jour de l’interface de retour.
+Les règles de la pile sont importantes :
 
-Les commandes libres de la barre, des onglets d’espace, des répertoires et du
-guidage terminent la chaîne. La fermeture explicite d’un entretien et le changement
-de corpus effacent aussi les retours. Le guidage pédagogique reste distinct de
-cette chaîne de consultations.
+- empiler seulement après une ouverture réussie ;
+- dépiler seulement après une restauration réussie ; un refus permet de réessayer ;
+- réutiliser l’éditeur en mémoire si la source est déjà ouverte ;
+- pour changer de source, préparer la sortie selon les droits actuels, sans
+  nouvelle écriture en consultation seule ou après rétrogradation ;
+- si l’objet a été supprimé, revenir à son panneau avec une explication, sans
+  choisir silencieusement un autre objet ;
+- conserver l’avertissement d’un résultat périmé ; son actualisation reste explicite.
 
-## Associations du passage sélectionné
+Une navigation libre par barre, onglet, répertoire ou guidage termine la chaîne.
+La fermeture explicite d’un entretien et le changement de corpus l’effacent aussi.
+Le [guide pédagogique](accueil/parcours.md) n’est pas un historique de consultations.
 
-L’entretien expose un résumé repliable seulement lorsqu’une sélection de texte
-existe. `editor/associationsPassage.ts` compare cette plage aux repères des ajouts
-manuels et des recueils, ainsi qu’aux règles de cas applicables dans l’entretien
-ouvert. Le calcul porte sur cette seule source ; changer la sélection ne reprojette
-pas tous les entretiens du corpus.
+## Actions contextuelles sans navigation forcée
 
-Les correspondances exactes, incluses et chevauchantes sont conservées. Un cas
-indique séparément l’ajout manuel et chaque raison d’inclusion automatique. Un
-recueil apparaît une seule fois avec ses occurrences ; l’utilisateur choisit
-l’occurrence à ouvrir lorsqu’il y en a plusieurs.
+Ajouter la sélection à un cas ou un recueil utilise un dialogue limité à cette
+action, pas le gestionnaire complet. Celui-ci reste dans l’espace Organiser et
+est monté au premier accès.
 
-Les définitions de personnes sont chargées une fois puis réutilisées tant que le
-répertoire et le tirage distant n’ont pas changé. Un repère absent, une règle
-invalide ou une lecture des personnes impossible produit un résultat incomplet,
-jamais un faux bilan « aucune association ». Les changements de texte, ajouts,
-retraits, règles, tirages et changements de corpus renouvellent le résumé.
-La consultation reste disponible en lecture seule. Ouvrir un objet associé empile
-le passage courant dans les retours contextuels ; une occurrence de recueil reçoit
-le focus après ouverture.
+La sélection est capturée avant l’ouverture, puis vérifiée par
+`enregistrerRepereSelection(attendu)` à la confirmation. Annuler avant confirmation
+n’écrit rien. Une réussite ne sélectionne pas l’objet dans le gestionnaire caché
+et ne force pas à changer d’espace. Les droits et publications restent ceux des
+commandes métier ordinaires.
 
-## Tests
+La consultation d’un cas ou recueil associé à la sélection empile le passage
+courant dans les retours. Les règles de calcul des associations et les reprises
+d’ajout sont décrites avec les [cas](organiser/cas.md#associations-du-passage-sélectionné)
+et les [recueils](organiser/recueils.md#ajouter-et-modifier-sans-perdre-les-références).
 
-- `test/analysesCasVisibilite.test.ts` : premier et dernier cas, repli et restrictions.
-- `test/retoursContextuels.test.ts` : pile, refus, bornes et requêtes anciennes.
-- `test/contexteVisuel.test.ts` : sélection remappée et passage supprimé.
-- `test/contextesPanneaux.test.ts` : réglages propres aux consultations.
-- `test/associationsPassage.test.ts` : correspondances, règles et occurrences multiples.
-- `test/couturesRenderer.test.ts` : préparation de sortie et absence d’écriture interdite.
-- `test/casRenderer.test.ts`, `test/recueilsRenderer.test.ts` : reprise des ajouts.
-- `e2e/filtres-cas.e2e.ts`, `e2e/ajouts-contextuels.e2e.ts`,
-  `e2e/retours-contextuels.e2e.ts`, `e2e/associations-passage.e2e.ts`,
-  `e2e/cas.e2e.ts`, `e2e/recueils.e2e.ts` : recettes locales dans Electron.
+## Où intervenir et vérifier
 
-Les restrictions et les protections distantes restent celles des commandes
-existantes. Ces recettes locales ne remplacent pas une recette serveur réelle.
+| Besoin | Emplacement |
+|---|---|
+| Espaces, sous-espaces et dernière vue de traitement | `src/renderer/composables/useEspacesTravail.ts` |
+| Ouverture, fermeture et sauvegarde de sortie | `src/renderer/composables/corpus/useCycleCorpus.ts` |
+| Capture et restauration des destinations | `src/renderer/composables/sonal.ts` |
+| Pile et protection des requêtes anciennes | `src/renderer/composables/useRetoursContextuels.ts` |
+| Réglages de panneaux et état visuel | `src/renderer/composables/useContextesPanneaux.ts`, `src/renderer/composables/contexteVisuel.ts` |
+
+Tests : `test/retoursContextuels.test.ts`, `test/contexteVisuel.test.ts`,
+`test/contextesPanneaux.test.ts`, `test/couturesRenderer.test.ts`,
+`e2e/espaces-contexte.e2e.ts`, `e2e/retours-contextuels.e2e.ts` et
+`e2e/ajouts-contextuels.e2e.ts`. Les recettes locales ne remplacent pas une
+vérification réelle des protections du fournisseur distant.

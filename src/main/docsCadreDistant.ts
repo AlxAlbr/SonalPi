@@ -9,7 +9,7 @@
  *  fichiers binaires ne gonflent pas le tirage.
  *
  *  Ce parcours est en LECTURE SEULE : aucune méthode PUT, MKCOL, MOVE ou
- *  DELETE n'est exposée ici. Un dossier absent (404, ancien corpus) équivaut
+ *  DELETE n'est exposée ici. Un dossier absent (404) équivaut
  *  à une liste vide ; les autres erreurs réseau remontent telles quelles.
  */
 
@@ -17,8 +17,6 @@ import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import {
   categoriserDocument,
   DOSSIER_DOCS_PROJET,
-  DOSSIER_DOCS_PROJET_ANCIEN,
-  type RacineDocsProjet,
   estListable,
   estCheminDocsCadre,
   extensionDe,
@@ -32,28 +30,13 @@ import {
   type InventaireDossierDocsCadre,
 } from '../shared/docsCadre'
 
-/** Détecte l'ancien dossier sans aucune migration ni écriture sur le serveur. */
-export async function racineDocsProjetDistant(client: ClientWebDAV): Promise<RacineDocsProjet> {
-  let entrees
-  try { entrees = await client.propfind('') }
-  catch (erreur) {
-    if (erreur instanceof ErreurHttp && erreur.statut === 404) return DOSSIER_DOCS_PROJET
-    throw erreur
-  }
-  if (entrees.some((e) => e.chemin === DOSSIER_DOCS_PROJET)) return DOSSIER_DOCS_PROJET
-  return entrees.some((e) => e.chemin === DOSSIER_DOCS_PROJET_ANCIEN)
-    ? DOSSIER_DOCS_PROJET_ANCIEN : DOSSIER_DOCS_PROJET
-}
-
-/** Inventaire des documents du dossier distant. Dossier absent (corpus créé
- *  avant ce chantier) → liste vide, sans création cachée. */
+/** Inventorie le dossier distant sans le créer s’il est absent. */
 export async function listerDossierDistant(client: ClientWebDAV, dossier = ''): Promise<InventaireDossierDocsCadre> {
   if (!estCheminDocsCadre(dossier, true)) throw new Error('Dossier documentaire invalide.')
   const resultat: InventaireDossierDocsCadre = { mode: 'distant', source: 'projet', dossier, entrees: [] }
-  const racine = await racineDocsProjetDistant(client)
   let entrees
   try {
-    entrees = await client.propfind(dossier ? `${racine}/${dossier}` : racine)
+    entrees = await client.propfind(dossier ? `${DOSSIER_DOCS_PROJET}/${dossier}` : DOSSIER_DOCS_PROJET)
   } catch (e) {
     if (e instanceof ErreurHttp && e.statut === 404) return { ...resultat, absent: true }
     throw e
@@ -125,9 +108,8 @@ export async function lireApercuDistant(client: ClientWebDAV, relatif: string): 
     apercu: { genre: 'aucun', raison },
   })
   if (!estCheminDocsCadre(relatif)) return aucun('invalide')
-  const racine = await racineDocsProjetDistant(client)
   try {
-    const entrees = await client.propfind(dossier ? `${racine}/${dossier}` : racine)
+    const entrees = await client.propfind(dossier ? `${DOSSIER_DOCS_PROJET}/${dossier}` : DOSSIER_DOCS_PROJET)
     const entree = entrees.find((e) => !e.dossier && e.chemin === nom)
     if (!entree) return aucun('absent')
     taille = entree.taille ?? null
@@ -136,7 +118,7 @@ export async function lireApercuDistant(client: ClientWebDAV, relatif: string): 
     throw e
   }
   const type = categoriserDocument(nom)
-  const chemin = `${racine}/${relatif}`
+  const chemin = `${DOSSIER_DOCS_PROJET}/${relatif}`
   const lireBorne = async (limite: number): Promise<Uint8Array | null | 'absent'> => {
     try {
       return await client.getBinaireBorne(chemin, limite)
@@ -187,8 +169,7 @@ export async function lireApercuDistant(client: ClientWebDAV, relatif: string): 
  *  destination : la mémoire du poste ne porte jamais le fichier entier. */
 export async function enregistrerCopieDistant(client: ClientWebDAV, nom: string, destination: string): Promise<void> {
   if (!estCheminDocsCadre(nom)) throw new Error('Nom de document invalide.')
-  const racine = await racineDocsProjetDistant(client)
-  await client.getBinaireFichier(`${racine}/${nom}`, destination)
+  await client.getBinaireFichier(`${DOSSIER_DOCS_PROJET}/${nom}`, destination)
 }
 
 /**
@@ -202,8 +183,8 @@ export async function enregistrerCopieDistant(client: ClientWebDAV, nom: string,
  *  d'ouvrir une URL approximative. Le fichier précis n'est pas adressable
  *  (identifiant interne Nextcloud) — le dossier est le contrat fiable.
  */
-export function urlNextcloudPourCorpus(baseUrl: string, dossier = '', racine: RacineDocsProjet = DOSSIER_DOCS_PROJET): string | null {
-  if (!estCheminDocsCadre(dossier, true) || ![DOSSIER_DOCS_PROJET, DOSSIER_DOCS_PROJET_ANCIEN].includes(racine)) return null
+export function urlNextcloudPourCorpus(baseUrl: string, dossier = ''): string | null {
+  if (!estCheminDocsCadre(dossier, true)) return null
   let url: URL
   try {
     url = new URL(baseUrl)
@@ -224,7 +205,7 @@ export function urlNextcloudPourCorpus(baseUrl: string, dossier = '', racine: Ra
   // d'encoder une seule fois, pour éviter le double %25.
   let dir: string
   try {
-    dir = [...corpus.map(decodeURIComponent), racine, ...(dossier ? dossier.split('/') : [])]
+    dir = [...corpus.map(decodeURIComponent), DOSSIER_DOCS_PROJET, ...(dossier ? dossier.split('/') : [])]
       .map(encodeURIComponent).join('/')
   } catch {
     return null

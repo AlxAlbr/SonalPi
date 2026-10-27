@@ -1,71 +1,59 @@
 # Documentation développeur — SonalPi2
 
-Cette documentation décrit l'architecture et le modèle de données de **SonalPi2**.
-Elle s'adresse aux développeurs qui veulent comprendre, modifier ou étendre le code.
-La documentation utilisateur vit dans [`docs/user/`](../user/) (migration SonalPi1 :
-[migration-v1.md](../user/migration-v1.md), multi-utilisateur :
-[multi-utilisateur.md](../user/multi-utilisateur.md), créer et partager un corpus
-distant : [corpus-distant.md](../user/corpus-distant.md), cas analytiques :
-[cas.md](../user/cas.md), Lexico : [lexico.md](../user/lexico.md), Synthèse :
-[synthese.md](../user/synthese.md), documents cadre projet :
-[docs-cadre.md](../user/docs-cadre.md)).
-Les agents (LLM) trouveront
-leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
+Cette documentation aide à comprendre le code, trouver le bon point d’intervention
+et choisir les tests d’une modification. Elle décrit le fonctionnement actuel,
+pas l’historique des développements. Les guides destinés aux utilisateurs sont
+dans [`docs/user/`](../user/) ; les consignes de travail des agents sont dans
+[`AGENTS.md`](../../AGENTS.md).
 
-## Sommaire
+## Commencer ici
 
-| Doc | Contenu |
+1. [Développement](developpement.md) : installer, lancer et vérifier le projet.
+2. [Architecture](architecture.md) : responsabilités main, preload, renderer et shared.
+3. [Modèle objet](modele-objet.md) : objets, propriétaires et relations.
+4. [Données](donnees.md) : stockage, calculs, éditeur et publications.
+
+Lire ensuite la page de la fonction à modifier. Chaque page métier indique les
+règles à préserver, les fichiers concernés et les tests de référence.
+
+## Repères transversaux
+
+| Documentation | Pour comprendre ou modifier… |
 |---|---|
-| [donnees.md](donnees.md) | Les données : natures (définition / application / requête), états (stocké / calculé), représentations (mémoire, DOM, fichier) et leurs interactions |
-| [ouverture-corpus.md](ouverture-corpus.md) | L'ouverture d'un corpus : amorçage, récents auto-ouverts (tagués local 🌐 distant), mémoire démo (« un dossier vide n'est pas un corpus absent »), branche distante (création directe sur serveur), gardes et invariants |
-| [modele-objet.md](modele-objet.md) | Le modèle d'objet (vue à 3 niveaux) : agrégats Corpus / Entretien, patron à 3 étages, sous-schémas par préoccupation (§3–§10), chacun ancré au code actuel |
-| [pseudonymisation/](pseudonymisation/README.md) | Pseudonymisation : synthèse, niveau entretien, règles corpus, fournisseurs et sorties |
-| [thematiques/](thematiques/README.md) | Thématiques : codebook, codages dans les entretiens, opérations corpus et exécution selon le fournisseur |
-| [cas.md](cas.md) | Cas analytiques : modèle actuel, références vivantes, commandes et projection ; modèle cible des règles, familles et attributs, avec état des fonctionnalités |
-| [lexico.md](lexico.md) | Lexico : index pseudonymisé, sélection des matériaux, fraîcheur, concordances et export |
-| [synthese.md](synthese.md) | Synthèse : moteur de plages, double vue, confidentialité, fraîcheur et export TXT |
-| [docs-cadre.md](docs-cadre.md) | « Documents cadre » : l'espace documentaire propre au corpus (stockage local, lecture WebDAV directe sans miroir, aperçus, sécurité des chemins, décision PDF) |
-| [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
-| [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
-| [gitlab.md](gitlab.md) | Connecteur GitLab : acquis V1, architecture V2, transactions gardées, lots reprenables et résultats des qualifications réelles |
-| [gestes-fournisseur.md](gestes-fournisseur.md) | Les gestes du corpus selon le fournisseur (local / WebDAV / GitLab) : portées sémantiques, gardes dans l'ordre, matrice publique `CapacitesCorpus`, recette pour ajouter ou reclasser un geste |
-| [gitlab-oauth.md](gitlab-oauth.md) | L’authentification GitLab : OAuth, repli par jeton personnel, scopes, cycle de vie des credentials et diagnostic. |
-| [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
-| [developpement.md](developpement.md) | Démarrer, commandes, stratégie de test, limitation connue (audio figé sous WSLg) |
-| [empaquetage-ci.md](empaquetage-ci.md) | Empaquetage Windows : electron-builder (asarUnpack PDF, extraResources), workflow GitHub Actions, validation locale `pack:dir` |
-| [git-remotes.md](git-remotes.md) | Les deux remotes (GitLab origine + GitHub miroir CI) : upstream, commandes de comparaison, règles de push |
-| [versions.md](versions.md) | Le vocabulaire des versions : SonalPi1 / SonalPi2 / `formatVersion` / itération / release — la règle « jamais v1/v2 nu » |
+| [Architecture](architecture.md) | Les frontières du code et l’emplacement d’un nouveau module. |
+| [Modèle objet](modele-objet.md) | Corpus, entretiens, références et données persistées. |
+| [Données](donnees.md) | Les commandes, le remappage, la persistance et la compatibilité du format. |
+| [Navigation](navigation-espaces.md) | Les espaces, la fermeture d’entretien et les retours contextuels. |
+| [Développement](developpement.md) | Le poste, les suites de tests, les bancs et le vocabulaire des versions. |
 
-## Parcours de lecture suggéré
+## Documentation par fonction
 
-- **Nouvel arrivant** : [architecture](architecture.md) → [donnees](donnees.md) →
-  [modele-objet](modele-objet.md) → [developpement](developpement.md).
-- **Pour toucher à l'accueil, aux récents ou au mode démo** (ouverture, reconstruction,
-  dossiers mémorisés) : [ouverture-corpus.md](ouverture-corpus.md).
-- **Pour modifier une commande métier** (poser un codage, renommer un locuteur…) : les fonctions
-  pures vivent dans `src/shared/` (carte code ↔ modèle : [modele-objet.md §11](modele-objet.md#11-carte-code--modèle)),
-  l'orchestration dans les composables renderer ([donnees.md § 3](donnees.md#3-commandes-métier)).
-- **Pour toucher aux cas** (règles, rattachements, attributs ou export) :
-  [cas.md](cas.md), en distinguant le socle présent des extensions prévues.
-- **Pour toucher à Lexico** (découpage, filtres, concordances ou export) :
-  [lexico.md](lexico.md).
-- **Pour toucher à Synthèse** (intersections, double vue, projection ou export) :
-  [synthese.md](synthese.md).
-- **Pour comprendre ou modifier la pseudonymisation** (brouillons, décisions,
-  règles corpus, opérations globales, fournisseurs ou exports) :
-  [pseudonymisation/README.md](pseudonymisation/README.md).
-- **Pour comprendre ou modifier les thématiques** (codebook, codages,
-  descriptions, hiérarchie, réaffectations ou fournisseurs) :
-  [thematiques/README.md](thematiques/README.md).
-- **Pour toucher à l'éditeur** (rendu, décorations, remap des positions) :
-  [donnees.md § 1](donnees.md#1-dom--objet-en-mémoire).
-- **Pour toucher au fonctionnement distant** (verrous, sessions, transactions,
-  divergence/fusion, présence) : [multi-utilisateur.md](multi-utilisateur.md), avec
-  les cas de test restants dans [plans/encours/plan-multiuser-finition.md](../../plans/encours/plan-multiuser-finition.md).
-- **Pour toucher à une commande métier et à sa disponibilité selon le fournisseur**
-  (griser un bouton, refuser une mutation, ouvrir un parcours) :
-  [gestes-fournisseur.md](gestes-fournisseur.md).
-- **Pour toucher à la création/ouverture d'un corpus distant** (publication,
-  récents tagués, assistant) : [ouverture-corpus.md § 7](ouverture-corpus.md#7-la-branche-distante-créer-et-rouvrir-un-corpus-sur-serveur).
-- **Pour ajouter une sauvegarde / un format** : [donnees.md § 2](donnees.md#2-objet-mémoire--fichier)
-  et le contrat versionné `src/shared/format.ts` (`FORMAT_VERSION`).
+| Domaine | Entrées |
+|---|---|
+| Accueil | [Ouverture et récents](accueil/ouverture.md), [corpus exemples](accueil/exemples.md), [parcours guidés](accueil/parcours.md) ; [vue d’ensemble](accueil/README.md). |
+| Préparer | [Tableau de bord](preparer/tableau-bord.md), [documents du projet et exemples](preparer/docs-cadre.md). |
+| Traiter | [Pseudonymisation](traiter/pseudonymisation/README.md), [thématiques](traiter/thematiques/README.md), [notes](traiter/notes/README.md), [locuteurs et personnes](traiter/locuteurs/README.md), [variables](traiter/variables.md) ; [vue d’ensemble](traiter/README.md). |
+| Analyser | [Synthèse](analyser/synthese.md), [Lexico](analyser/lexico.md), [analyses croisées](analyser/analyses-croisees.md). |
+| Organiser | [Cas](organiser/cas.md), [recueils](organiser/recueils.md), [exports](organiser/export.md). |
+| Distant | [Cycle commun](distant/README.md), [WebDAV](distant/webdav.md), [GitLab](distant/gitlab.md), [authentification GitLab](distant/authentification-gitlab.md), [gestes disponibles](distant/gestes.md). |
+| Migration SonalPi1 | [Parcours local et GitLab](migration/README.md) : conversion, documents conservés et reprise. |
+
+## Outillage
+
+- [Remotes Git](outillage/git-remotes.md) : comparer et publier le code sur les deux dépôts.
+- [Empaquetage et CI](outillage/empaquetage-ci.md) : fabriquer et vérifier les applications installables.
+- [Charge de l’éditeur](outillage/test-charge.md) : mesurer et comparer les performances.
+
+## Avant une modification
+
+- **Une commande métier** : suivre son modèle pur, son orchestration, ses accès
+  IPC et ses tests ; ne pas s’arrêter au bouton qui la déclenche.
+- **Une fonction distante** : vérifier les [gestes disponibles](distant/gestes.md)
+  et le fournisseur réel. Une méthode de transaction ne garantit pas que le
+  parcours correspondant est ouvert.
+- **Un changement de format** : lire la
+  [politique de compatibilité](donnees.md#format-natif-et-compatibilité), pas
+  seulement ajouter un champ TypeScript.
+- **Une recette serveur** : suivre les
+  [consignes des bancs](developpement.md#bancs-gitlab-et-nextcloud) ; un test sauté
+  ne vaut pas validation.

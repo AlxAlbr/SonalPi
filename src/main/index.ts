@@ -148,7 +148,6 @@ import {
 } from './docsCadre'
 import {
   listerDossierDistant,
-  racineDocsProjetDistant,
   lireApercuDistant,
   enregistrerCopieDistant,
   urlNextcloudPourCorpus,
@@ -2020,9 +2019,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       throw new Error('Le corpus courant est local : « Ouvrir dans Nextcloud » n’a pas de sens ici.')
     }
     const client = clientDocsCadre(capture.contexte)
-    const racine = await racineDocsProjetDistant(client)
-    verifierCorpusCourant(capture)
-    const url = urlNextcloudPourCorpus(client.config.baseUrl, dossier, racine)
+    const url = urlNextcloudPourCorpus(client.config.baseUrl, dossier)
     if (!url) {
       throw new Error('L’adresse du corpus distant ne correspond pas à un serveur Nextcloud reconnu.')
     }

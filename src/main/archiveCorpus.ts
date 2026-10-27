@@ -1,7 +1,7 @@
 /**
  *  Copie de sauvegarde du corpus LOCAL en archive ZIP.
  *  Le corpus est un dossier autonome (`corpus.json`, `entretiens/`, `png/`,
- *  `DocsCadre/`…) : l'archive en est un instantané fidèle, décompressable
+ *  `DocsPrepaProjet/`…) : l'archive en est un instantané fidèle, décompressable
  *  tel quel dans un dossier vide pour retrouver un corpus ouvrable.
  *  Les corpus distants sont refusés : leur sauvegarde relève du serveur.
  *  L'audio est référencé sur place, jamais copié.

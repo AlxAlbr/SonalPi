@@ -30,7 +30,6 @@ import { basename, join } from 'node:path'
 import {
   categoriserDocument,
   DOSSIER_DOCS_PROJET,
-  DOSSIER_DOCS_PROJET_ANCIEN,
   estListable,
   estNomSain,
   estCheminDocsCadre,
@@ -63,17 +62,7 @@ function dossierReel(dir: string, creer = false): boolean {
   }
 }
 
-/** Le nouveau nom est prioritaire ; l'ancien reste utilisé s'il est seul présent. */
 export function racineDocsProjetLocal(racineCorpus: string): string {
-  for (const nom of [DOSSIER_DOCS_PROJET, DOSSIER_DOCS_PROJET_ANCIEN]) {
-    const dir = join(racineCorpus, nom)
-    try {
-      lstatSync(dir)
-      return dir
-    } catch (erreur) {
-      if ((erreur as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Dossier documentaire inaccessible.')
-    }
-  }
   return join(racineCorpus, DOSSIER_DOCS_PROJET)
 }
 

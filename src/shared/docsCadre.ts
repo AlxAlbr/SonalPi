@@ -13,9 +13,6 @@
 
 /** Documents de préparation, distincts des futurs documents de résultats. */
 export const DOSSIER_DOCS_PROJET = 'DocsPrepaProjet'
-/** Ancien nom conservé pour lire les corpus existants sans déplacer leurs fichiers. */
-export const DOSSIER_DOCS_PROJET_ANCIEN = 'DocsCadre'
-export type RacineDocsProjet = typeof DOSSIER_DOCS_PROJET | typeof DOSSIER_DOCS_PROJET_ANCIEN
 
 /** Origine d'un document : fichier du corpus (« projet ») ou ressource embarquée. */
 export type SourceDocumentCadre = 'projet' | 'exemple'
