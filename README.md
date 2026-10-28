@@ -52,7 +52,7 @@ npm run typecheck       # vue-tsc + tsc
 
 | Public | Doc |
 |---|---|
-| Utilisateur | [Migration SonalPi1 → SonalPi2](docs/user/migration-v1.md) |
+| Utilisateur | [Guide et FAQ V2](docs/user/index.html) — pages HTML locales ; [sources antérieures](docs/user/README.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |
 | Vocabulaire | [Produits, version applicative et format des données](docs/dev/developpement.md#vocabulaire-et-version-applicative) |
 

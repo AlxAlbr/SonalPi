@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Identifier les locuteurs et les tours de parole — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Identifier les locuteurs et les tours de parole</h1>
+    <p>Les locuteurs indiquent <strong>qui parle</strong> dans un entretien. Après l’import, vérifiez les noms et l’attribution des passages : une transcription peut avoir confondu deux voix ou laissé une prise de parole sans nom.</p>
+    <p>Cette page décrit le travail dans un <strong>corpus local</strong>. Ouvrez l’entretien avec le <strong>crayon</strong> de sa carte, puis cliquez sur l’onglet <strong>Locuteurs</strong> à gauche de la transcription.</p>
+    <p>Pour essayer sans modifier votre enquête, utilisez une copie de <strong>Entretiens déjà importés</strong>, entretien <strong>1Coordinatrice</strong>. Dans cet exemple fictif, <strong>Speaker 1</strong> pose les questions et <strong>Speaker 0</strong> est Fatima, la coordinatrice bénévole.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#nommer">Renommer et ajouter les locuteurs</a></li>
+        <li><a href="#interviewer">Indiquer qui pose les questions</a></li>
+        <li><a href="#attribuer">Corriger l’attribution d’un passage</a></li>
+        <li><a href="#statistiques">Comparer les prises de parole et les parcourir</a></li>
+        <li><a href="#personnes">Comprendre les rapprochements de personnes</a></li>
+        <li><a href="#pseudo">Utiliser le champ Pseudo avec prudence</a></li>
+        <li><a href="#supprimer">Supprimer un locuteur</a></li>
+        <li><a href="#conserver">Conserver et vérifier le résultat</a></li>
+      </ul>
+    </nav>
+    <h2 id="nommer">Renommer et ajouter les locuteurs</h2>
+    <ol>
+      <li>Dans la colonne <strong>Nom</strong>, remplacez le nom importé par un nom ou un libellé utile à votre enquête.</li>
+      <li>Quittez le champ, par exemple avec <strong>Tabulation</strong>, pour appliquer le changement.</li>
+      <li>Vérifiez les noms affichés au-dessus des prises de parole dans la transcription.</li>
+    </ol>
+    <p>Dans l’exemple, vous pouvez renommer <strong>Speaker 1</strong> en <strong>Enquêteur</strong> et <strong>Speaker 0</strong> en <strong>Fatima</strong>. Le nouveau nom s’applique à toutes les paroles de ce locuteur <strong>dans cet entretien</strong>. Il ne remplace pas les mots du texte.</p>
+    <p>Si une voix manque, cliquez sur <strong>+ Locuteur</strong>, puis nommez la nouvelle ligne. L’ajout ne lui attribue encore aucune parole : utilisez ensuite les boutons d’attribution décrits ci-dessous.</p>
+    <p>La petite case colorée à gauche du nom permet de choisir la couleur de ses libellés. La couleur aide au repérage, mais ne change ni le rôle ni l’attribution des paroles.</p>
+    <figure>
+      <img src="../medias/locuteurs-entretien.png" alt="Le panneau Locuteurs présente Enquêteur et Fatima, leurs champs de nom et de pseudonyme, le rôle Interv. et les boutons d’attribution, dont aucun.">
+      <figcaption>Les noms et les réglages se modifient dans la liste ; les boutons du bas servent à attribuer le texte.</figcaption>
+    </figure>
+    <h2 id="interviewer">Indiquer qui pose les questions</h2>
+    <p>Activez l’interrupteur de la colonne <strong>Interv.</strong>, marqué d’un <strong>?</strong>, pour la personne qui mène l’entretien. Ses prises de parole apparaissent en italique et son nom est suivi d’un point d’interrogation.</p>
+    <p>Le nom « Enquêteur » ne suffit pas à activer ce rôle. Vous n’avez pas non plus à ajouter vous-même un point d’interrogation au nom. Pour retirer le rôle, désactivez le même interrupteur.</p>
+    <h2 id="attribuer">Corriger l’attribution d’un passage</h2>
+    <p>Utilisez les boutons sous <strong>Attribuer le bloc courant ou la sélection :</strong>, et non les champs de nom.</p>
+    <h3>Pour un paragraphe entier</h3>
+    <ol>
+      <li>Cliquez dans le paragraphe concerné, sans sélectionner de texte.</li>
+      <li>Cliquez sur le bouton portant le nom du bon locuteur.</li>
+      <li>Vérifiez le nom au-dessus de la prise de parole.</li>
+    </ol>
+    <p>Ce geste ne réattribue pas automatiquement tous les autres paragraphes du même tour. Des paragraphes consécutifs attribués au même locuteur sont présentés comme un seul tour de parole : son nom n’est pas répété à chaque paragraphe.</p>
+    <h3>Pour quelques mots ou plusieurs paragraphes</h3>
+    <ol>
+      <li>Sélectionnez à la souris le passage prononcé par la personne.</li>
+      <li>Cliquez sur son bouton d’attribution.</li>
+      <li>Relisez le début et la fin de la sélection pour vérifier la séparation des voix.</li>
+    </ol>
+    <p>La sélection est étendue aux mots entiers. Si vous attribuez seulement une partie d’un paragraphe, SonalPi la sépare du texte qui précède et qui suit pour pouvoir lui donner un autre locuteur. Les mots ne sont pas remplacés et les codages existants restent associés au texte.</p>
+    <p>Le bouton <strong>aucun</strong> retire l’attribution sur le paragraphe courant ou la sélection. Il conserve le texte et laisse le passage sans locuteur ; il ne supprime personne de la liste.</p>
+    <h2 id="statistiques">Comparer les prises de parole et les parcourir</h2>
+    <ol>
+      <li>Dans l’onglet <strong>Locuteurs</strong>, cliquez sur <strong>📊 Statistiques</strong>.</li>
+      <li>Consultez les nombres de tours et de mots de chaque locuteur, présentés du plus grand au plus petit nombre de mots. Les barres indiquent leur part des mots transcrits.</li>
+      <li>Cliquez sur <strong>🔎 Suivante</strong> sous une voix pour rejoindre sa première intervention, puis les suivantes. Après la dernière, vous revenez à la première ; le compteur indique votre progression.</li>
+      <li>Cliquez de nouveau sur <strong>📊 Statistiques</strong> pour fermer le bilan.</li>
+    </ol>
+    <p>Un <strong>tour</strong> réunit les paragraphes consécutifs du même locuteur. Les paragraphes vides seuls ne comptent pas comme une intervention. Les passages <strong>Sans locuteur</strong> restent compris dans le total. La part des <strong>Enquêteurs</strong> regroupe les mots des personnes dont le rôle <strong>Interv.</strong> est activé, pas celles qui portent seulement ce nom.</p>
+    <p>Dans l’exemple, après avoir renommé les deux voix et indiqué le rôle de l’enquêteur, Fatima prononce <strong>551 des 715 mots</strong>, soit <strong>77,1 %</strong>. Il s’agit de la transcription, pas d’une mesure de l’occupation de l’enregistrement.</p>
+    <figure>
+      <img src="../medias/statistiques-locuteurs.png" alt="Bilan de 1Coordinatrice : Fatima a 16 tours et 551 mots, l’enquêteur 17 tours et 164 mots ; chaque voix dispose d’un bouton Suivante et d’une durée estimée.">
+      <figcaption>Le bilan se met à jour quand vous corrigez le texte, les attributions ou le rôle des locuteurs.</figcaption>
+    </figure>
+    <p class="retenir"><strong>Les durées sont des estimations à partir des repères du texte.</strong> Les silences repérés entre deux passages ne sont pas attribués ; les pauses non repérées ne peuvent pas être isolées. Une durée <strong>partielle</strong> ne couvre qu’une partie des paroles. Un tiret indique qu’aucune durée ne peut être calculée ; ce n’est pas zéro seconde. Il ne s’agit pas d’une détection automatique des voix.</p>
+    <p>Le bilan reste consultable en lecture seule et sans enregistrement associé. Si un enregistrement est chargé et des repères sont disponibles, <strong>Suivante</strong> déplace aussi sa tête de lecture, sans démarrer une lecture arrêtée. Cette consultation ne change pas le texte et n’enregistre pas de nouveau contenu. Les noms affichés restent ceux des locuteurs : le bilan n’est pas pseudonymisé.</p>
+    <h2 id="personnes">Comprendre les rapprochements de personnes</h2>
+    <p>Un locuteur appartient à un entretien. Une <strong>personne</strong> permet de retrouver un même participant dans plusieurs entretiens du corpus.</p>
+    <p>Quand vous donnez un nom spécifique à un locuteur, SonalPi peut créer une fiche de personne dans le corpus. S’il repère un nom ou un rôle proche dans un autre entretien, il propose <strong>Une personne déjà rencontrée ?</strong> :</p>
+    <ul>
+      <li><strong>Plus tard</strong> conserve le nom saisi sans appliquer le rapprochement proposé. Vous pourrez examiner la question dans l’onglet <strong>Personnes</strong> du corpus.</li>
+      <li>Si vous reconnaissez la même personne, sélectionnez la proposition et vérifiez les informations à reprendre avant de <strong>Confirmer</strong>. La reprise du pseudonyme et du statut est cochée par défaut ; décochez-la pour conserver vos informations locales.</li>
+      <li>S’il s’agit de personnes différentes, choisissez <strong>Ce n’est pas cette personne</strong> ou <strong>Aucune de ces personnes</strong>.</li>
+    </ul>
+    <p>Un nom identique, et surtout un rôle comme « Enquêteur », ne prouve pas qu’il s’agit de la même personne. Renommer un locuteur déjà lié ne renomme pas automatiquement la fiche de personne ni les locuteurs des autres entretiens.</p>
+    <h2 id="pseudo">Utiliser le champ Pseudo avec prudence</h2>
+    <p>La colonne <strong>Pseudo (optionnel)</strong> permet d’ajouter un pseudonyme au libellé de la prise de parole. Quittez le champ pour appliquer la saisie : le nom apparaît barré, suivi du pseudonyme entre crochets. Videz le champ pour retirer ce pseudonyme.</p>
+    <p class="retenir"><strong>Ce champ ne pseudonymise pas la transcription.</strong> Le nom d’origine reste conservé et visible dans l’éditeur. Les mentions du nom dans les phrases, les autres informations sensibles et l’enregistrement ne sont pas modifiés. Ce réglage ne suffit donc pas à préparer une diffusion anonyme.</p>
+    <h2 id="supprimer">Supprimer un locuteur</h2>
+    <p>Si deux entrées désignent la même voix, attribuez d’abord les passages de l’entrée en trop au locuteur à conserver. Supprimez ensuite seulement l’entrée devenue inutile.</p>
+    <ol>
+      <li>Cliquez sur la <strong>croix</strong> à droite du locuteur à supprimer.</li>
+      <li>S’il possède encore des paroles, SonalPi indique le nombre de blocs concernés. Cliquez sur <strong>Annuler</strong> pour garder le locuteur, ou sur <strong>Supprimer</strong> pour confirmer.</li>
+      <li>Vérifiez les passages concernés dans la transcription.</li>
+    </ol>
+    <p>Un locuteur sans parole attribuée est supprimé immédiatement, sans confirmation. Vider son nom n’est pas la commande de suppression.</p>
+    <p class="retenir"><strong>Supprimer un locuteur n’efface pas ses paroles.</strong> Elles passent à « aucun » et doivent être réattribuées si vous voulez conserver l’identification de la voix. Ses liens aux notes sont retirés ; les notes elles-mêmes et l’éventuelle fiche de personne du corpus ne sont pas supprimées. Considérez cette suppression comme définitive, ainsi que l’indique la confirmation.</p>
+    <h2 id="conserver">Conserver et vérifier le résultat</h2>
+    <p>Les modifications sont enregistrées automatiquement dans le corpus local. Attendez <strong>à jour</strong> en haut de la fenêtre, puis revenez au <strong>Corpus</strong> par le fil de navigation. Rouvrez l’entretien pour retrouver les noms, les réglages et les attributions.</p>
+    <p>La transcription d’origine n’est pas réécrite. Pour poursuivre, vous pouvez <a href="corriger.html">relire le texte en écoutant l’enregistrement</a> ou <a href="premier-codage.html">coder un premier passage avec un thème</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="corriger.html" rel="prev">← Précédent : relire et corriger</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="premier-codage.html" rel="next">Suivant : coder un premier passage →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

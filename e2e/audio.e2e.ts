@@ -286,7 +286,7 @@ test('J3 : audio référencé supprimé après assignation → bandeau d’inté
   }, { wav })
   await page.locator('.carte-ent').first().click()
   await expect(page.locator('.meta-ent')).toBeVisible()
-  await page.locator('.assigner-audio').click()
+  await page.locator('.meta-ent').getByRole('button', { name: 'Assigner un audio…', exact: true }).click()
   await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('lié', { timeout: 10_000 })
 
   // Supprimer le fichier SOURCE — le geste qui casse la référence.
@@ -334,7 +334,7 @@ test('S6 : « Assigner un audio » à un entretien existant → audio lié + for
   // Sélectionner la carte du seed (Karine) → panneau méta → assigner.
   await page.locator('.carte-ent').first().click()
   await expect(page.locator('.meta-ent')).toBeVisible()
-  await page.locator('.assigner-audio').click()
+  await page.locator('.meta-ent').getByRole('button', { name: 'Assigner un audio…', exact: true }).click()
 
   // Le méta passe à « lié », la carte affiche la forme d'onde, les fichiers sont là.
   await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('lié', { timeout: 10_000 })

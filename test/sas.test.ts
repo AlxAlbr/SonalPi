@@ -94,6 +94,6 @@ Speaker 7: Klaus, je vous revois.
   })
 
   test('un format inconnu est rejeté explicitement', () => {
-    expect(() => importerFichier('x.docx', 'peu importe', parse)).toThrow(/non pris en charge/)
+    expect(() => importerFichier('x.rtf', 'peu importe', parse)).toThrow(/non pris en charge/)
   })
 })

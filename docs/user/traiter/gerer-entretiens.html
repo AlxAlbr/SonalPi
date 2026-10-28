@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gérer les entretiens et leurs médias — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Gérer les entretiens et leurs médias</h1>
+    <p>La vue Corpus permet de retrouver les entretiens, de les renommer, de choisir leur enregistrement et de les supprimer. Cette page décrit ces gestes dans un <strong>corpus local</strong>.</p>
+    <p>Dans <strong>Importer et traiter</strong>, ouvrez l’onglet <strong>Accueil</strong>, représenté par une maison. Si vous êtes dans un entretien, cliquez d’abord sur <strong>Corpus</strong> dans le fil de navigation du haut.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#selectionner">Sélectionner ou ouvrir un entretien</a></li>
+        <li><a href="#renommer">Renommer un entretien</a></li>
+        <li><a href="#trier">Trier les entretiens</a></li>
+        <li><a href="#media">Ajouter, remplacer ou détacher un enregistrement</a></li>
+        <li><a href="#retrouver-media">Retrouver un fichier déplacé</a></li>
+        <li><a href="#transcription">Associer des sous-titres à un entretien existant</a></li>
+        <li><a href="#supprimer">Supprimer un entretien du corpus</a></li>
+      </ul>
+    </nav>
+    <h2 id="selectionner">Sélectionner ou ouvrir un entretien</h2>
+    <p>Un clic sur une <strong>carte d’entretien</strong> affiche sa fiche à gauche : son nom, ses locuteurs, ses données et les fichiers associés. Un second clic sur la même carte referme cette sélection.</p>
+    <p>Pour lire ou modifier la transcription, cliquez sur le <strong>crayon</strong> de la carte. Sélectionner la carte et ouvrir son entretien sont donc deux gestes différents.</p>
+    <figure>
+      <img src="../medias/fiche-entretien.png" alt="La fiche d’un entretien sélectionné permet de modifier son nom et d’accéder aux commandes de média et de suppression.">
+      <figcaption>La fiche concerne uniquement l’entretien sélectionné dans la liste.</figcaption>
+    </figure>
+    <h2 id="renommer">Renommer un entretien</h2>
+    <ol>
+      <li>Cliquez sur sa carte pour afficher sa fiche.</li>
+      <li>Modifiez le champ <strong>Nom</strong>.</li>
+      <li>Cliquez hors du champ pour valider le changement.</li>
+    </ol>
+    <p>Le nouveau nom apparaît sur la carte. Les fichiers de transcription et d’enregistrement d’origine ne sont pas renommés.</p>
+    <h2 id="trier">Trier les entretiens</h2>
+    <p>À partir de deux entretiens, ouvrez <strong>Entretiens → Trier les entretiens</strong> dans la barre de menus. Vous pouvez choisir :</p>
+    <ul>
+      <li><strong>Par ordre alphabétique</strong> : selon les noms affichés.</li>
+      <li><strong>Par ordre d’ajout</strong> : selon leur arrivée dans le corpus.</li>
+      <li><strong>Par date de modification</strong> : les entretiens modifiés récemment en premier.</li>
+      <li><strong>Par longueur</strong> : les transcriptions contenant le plus de mots en premier.</li>
+    </ul>
+    <p>Le tri change l’ordre des cartes, pas le contenu des entretiens. <strong>La longueur correspond au texte, pas à la durée de l’enregistrement.</strong></p>
+    <h2 id="media">Ajouter, remplacer ou détacher un enregistrement</h2>
+    <p>Dans la fiche de l’entretien :</p>
+    <ul>
+      <li><strong>Assigner un audio…</strong> permet de choisir un enregistrement lorsqu’aucun n’est associé.</li>
+      <li><strong>Remplacer l’audio…</strong> choisit un autre fichier à écouter avec cette transcription.</li>
+      <li><strong>Effacer l’audio</strong> retire son association à l’entretien.</li>
+    </ul>
+    <p>Ces commandes permettent aussi de choisir une vidéo. L’enregistrement est référencé à son emplacement, sans être copié dans le corpus.</p>
+    <p class="retenir"><strong>Effacer l’audio ne supprime pas le fichier de votre ordinateur.</strong> Le texte de l’entretien reste dans le corpus. Remplacer l’enregistrement ne remplace pas non plus la transcription.</p>
+    <p>Après un remplacement, vérifiez que le bon enregistrement est lu et que ses repères de temps correspondent toujours au texte.</p>
+    <h2 id="retrouver-media">Retrouver un fichier déplacé</h2>
+    <p>Si un enregistrement a été déplacé ou renommé sur votre ordinateur, SonalPi peut signaler qu’il est introuvable. La transcription reste disponible.</p>
+    <ol>
+      <li>Ouvrez l’entretien avec son crayon.</li>
+      <li>Dans le message du lecteur, cliquez sur <strong>Assigner un audio…</strong>.</li>
+      <li>Désignez le fichier à son nouvel emplacement.</li>
+    </ol>
+    <p>Vous pouvez aussi revenir à la fiche de l’entretien et utiliser <strong>Remplacer l’audio…</strong>. Vérifiez ensuite la lecture.</p>
+    <h2 id="transcription">Associer des sous-titres à un entretien existant</h2>
+    <p>Si vous avez commencé avec un enregistrement seul ou des notes, le bouton <strong>Assigner un srt…</strong> peut apparaître dans la fiche. Il permet de choisir une transcription SRT ou VTT pour ce même entretien.</p>
+    <p>Si l’entretien contient déjà du texte, une confirmation vous demande de choisir <strong>Remplacer le contenu</strong> ou <strong>Annuler</strong>, avant de sélectionner le fichier.</p>
+    <p class="retenir"><strong>Cette opération remplace la transcription et les éléments attachés à son texte : codages, commentaires et pseudonymisations appliquées.</strong> Ce n’est pas un ajout à la suite du texte. Les notes de l’entretien et son enregistrement associé sont conservés. Vérifiez votre choix avant de remplacer un texte déjà travaillé.</p>
+    <p>Pour créer un autre entretien plutôt que remplacer le texte de celui-ci, utilisez <a href="importer.html">Ajouter un entretien</a>.</p>
+    <h2 id="supprimer">Supprimer un entretien du corpus</h2>
+    <ol>
+      <li>Sélectionnez sa carte, puis cliquez sur <strong>Supprimer cet entretien du corpus</strong> dans sa fiche.</li>
+      <li>Lisez le bilan. Il indique aussi les conséquences éventuelles sur les cas ou les recueils qui utilisent cet entretien.</li>
+      <li>Cliquez sur <strong>Annuler</strong> pour conserver l’entretien, ou sur <strong>Supprimer</strong> pour confirmer.</li>
+    </ol>
+    <p>Après confirmation, la carte disparaît et les fichiers internes de l’entretien sont archivés dans le dossier <code>corbeille/</code> du corpus. Les fichiers d’enregistrement d’origine ne sont pas supprimés.</p>
+    <p><strong>La suppression ne se rétablit pas avec la commande Annuler du menu Édition.</strong> Ne l’utilisez pas simplement pour masquer un entretien ou détacher son audio.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="importer.html" rel="prev">← Précédent : importer une transcription</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="corriger.html" rel="next">Suivant : relire et corriger un entretien →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

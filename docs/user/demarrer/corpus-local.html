@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Créer et retrouver un corpus local — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Découvrir et démarrer</p>
+    <h1>Créer et retrouver un corpus local</h1>
+    <p>Un corpus réunit les entretiens d’une étude et leurs réglages communs : thèmes, variables, règles de pseudonymisation, etc. Vous devez en créer un même si vous ne comptez travailler que sur un seul entretien.</p>
+    <p>Un <strong>corpus local</strong> est enregistré sur votre ordinateur. Dans SonalPi V2, <strong>un dossier correspond à un corpus</strong>. Vous choisissez ce dossier lors de la création ; vous le sélectionnerez aussi pour rouvrir le corpus.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#avant-de-commencer">Avant de commencer</a></li>
+        <li><a href="#creer">Créer le corpus</a></li>
+        <li><a href="#recents">Retrouver un corpus récent</a></li>
+        <li><a href="#ouvrir">Ouvrir un corpus absent des Récents</a></li>
+        <li><a href="#fichiers">Ce qui est conservé dans votre dossier</a></li>
+      </ul>
+    </nav>
+    <h2 id="avant-de-commencer">Avant de commencer</h2>
+    <p>Préparez un dossier dédié à votre étude, de préférence vide, dans un emplacement que vous saurez retrouver. Par exemple : un dossier <strong>Enquete-associations</strong> dans vos Documents. Ne choisissez pas votre dossier Documents tout entier.</p>
+    <p>Le dossier et le projet peuvent porter des noms différents. Le nom du projet sera affiché lorsque vous travaillerez dans le corpus ; conservez aussi un nom de dossier facile à reconnaître.</p>
+    <h2 id="creer">Créer le corpus</h2>
+    <ol>
+      <li>Sur l’accueil de SonalPi, dans <strong>Vos corpus</strong>, cliquez sur <strong>Nouveau corpus local</strong>.</li>
+      <li>Cliquez sur <strong>Choisir un dossier…</strong>, puis sélectionnez le dossier dédié à votre étude.</li>
+      <li>Dans <strong>Quel est le nom du projet ?</strong>, remplacez si nécessaire le nom proposé. Par exemple : <strong>Enquête dans les associations</strong>.</li>
+      <li>Cliquez sur <strong>Créer le corpus</strong>.</li>
+    </ol>
+    <figure>
+      <img src="../medias/nouveau-corpus-local.png" alt="La fenêtre Nouveau corpus local avec le bouton Choisir un dossier, avant de renseigner le projet." width="592" height="226">
+      <figcaption>Commencez par choisir le dossier dédié à votre étude.</figcaption>
+    </figure>
+    <p>Le corpus est créé et s’ouvre dans <strong>Préparer et suivre</strong>. Il ne contient encore aucun entretien. Les lignes proposées dans le tableau de bord sont des repères de suivi, pas des entretiens importés. Vous pouvez commencer à organiser votre étude ou passer dans <strong>Importer et traiter</strong> pour ajouter vos documents.</p>
+    <p><strong>Annuler</strong> ferme la fenêtre sans créer de corpus.</p>
+    <h3 id="dossier-existant">Si le dossier contient déjà un corpus</h3>
+    <p>SonalPi affiche <strong>Ce dossier contient déjà un corpus : il sera ouvert tel quel, sans rien remplacer.</strong> Le bouton devient <strong>Ouvrir</strong> : vous retrouvez le corpus existant, vous n’en créez pas un second dans le même dossier.</p>
+    <p>Pour commencer une autre étude, choisissez un autre dossier dédié.</p>
+    <h2 id="recents">Retrouver un corpus récent</h2>
+    <ol>
+      <li>Revenez à l’accueil général de SonalPi avec <strong>Accueil</strong>, en haut de la fenêtre.</li>
+      <li>Dans <strong>Récents</strong>, cliquez sur le corpus voulu.</li>
+    </ol>
+    <p>Pour un corpus local, cette liste affiche actuellement le <strong>nom du dossier</strong>, avec son chemin en dessous. Dans notre exemple, cherchez <strong>Enquete-associations</strong>, même si vous avez nommé le projet <strong>Enquête dans les associations</strong>.</p>
+    <p>Le corpus retrouve le dernier espace consulté sur ce poste. Un entretien n’est pas rouvert automatiquement.</p>
+    <p class="retenir">Le bouton <strong>✕</strong> d’une ligne retire seulement ce raccourci des Récents. <strong>Il ne supprime ni le corpus ni ses documents.</strong></p>
+    <h2 id="ouvrir">Ouvrir un corpus qui n’est pas dans les Récents</h2>
+    <ol>
+      <li>Sur l’accueil, cliquez sur <strong>Ouvrir un corpus local</strong>.</li>
+      <li>Sélectionnez le <strong>dossier du corpus</strong>.</li>
+    </ol>
+    <p>Choisissez le dossier qui contient le fichier <code>corpus.json</code>, pas le fichier lui-même ni le sous-dossier des entretiens. Ne choisissez pas un dossier vide pour retrouver un ancien travail.</p>
+    <p>Si votre corpus provient de SonalPi1 et contient un fichier <code>.crp</code>, il faut utiliser la migration V1 vers V2 plutôt que cette ouverture ordinaire.</p>
+    <h2 id="fichiers">Ce qui est conservé dans votre dossier</h2>
+    <p>La V2 conserve les données du corpus dans son dossier. Vous n’avez pas à modifier vous-même ses fichiers pour travailler : utilisez les commandes de SonalPi.</p>
+    <p>Attention : un enregistrement audio associé à un entretien peut rester dans un autre emplacement. <strong>Le seul dossier du corpus ne garantit donc pas que vous avez aussi une copie de tous les enregistrements.</strong> Évitez de déplacer ces fichiers sans vérifier ensuite que SonalPi les retrouve.</p>
+    <p>Créer un corpus local ne le partage pas automatiquement avec des collègues. Pour travailler à plusieurs sur le même corpus, il faut utiliser un corpus distant.</p>
+    <p>Une question ? <a href="../faq/premiers-pas.html">Consultez la FAQ des premiers pas.</a></p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="exemples-parcours.html" rel="prev">← Précédent : parcours et exemples</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../traiter/importer.html" rel="next">Suivant : préparer et importer une transcription →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

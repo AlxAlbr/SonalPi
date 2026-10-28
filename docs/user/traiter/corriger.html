@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relire et corriger un entretien — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Relire et corriger un entretien</h1>
+    <p>La relecture permet de vérifier les mots transcrits, de compléter un passage et de corriger les erreurs. Si un enregistrement est associé, vous pouvez écouter et modifier le texte dans la même fenêtre.</p>
+    <p>Cette page décrit le travail dans un <strong>corpus local</strong>, sur un entretien déjà importé. Pour l’ouvrir, cliquez sur le <strong>crayon</strong> de sa carte dans <strong>Importer et traiter</strong>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#corriger">Corriger le texte</a></li>
+        <li><a href="#ecouter">Réécouter le passage</a></li>
+        <li><a href="#rechercher">Rechercher et remplacer des mots</a></li>
+        <li><a href="#enregistrer">Vérifier l’enregistrement de votre travail</a></li>
+        <li><a href="#reprendre">Fermer et reprendre l’entretien</a></li>
+      </ul>
+    </nav>
+    <h2 id="corriger">Corriger le texte</h2>
+    <ol>
+      <li>Cliquez dans la transcription à l’endroit à corriger.</li>
+      <li>Modifiez les mots comme dans un traitement de texte : saisissez, supprimez ou sélectionnez un passage pour le remplacer.</li>
+      <li>Relisez la phrase corrigée, puis poursuivez votre travail.</li>
+    </ol>
+    <p>La correction est prise en compte au fil de la saisie. Vous n’avez pas à confirmer chaque phrase avec un bouton. <strong>Entrée</strong> crée un nouveau paragraphe ; cette touche n’est pas une commande d’enregistrement du texte.</p>
+    <p>Pour revenir sur la dernière correction, utilisez <strong>Édition → Annuler</strong>, ou <strong>Ctrl + Z</strong> sous Windows/Linux, <strong>Commande + Z</strong> sous macOS. <strong>Édition → Rétablir</strong> permet de rétablir une correction annulée.</p>
+    <p>Les onglets de gauche servent à travailler sur les notes, les locuteurs, les thèmes ou les données du même entretien. Vous pouvez revenir à l’onglet <strong>Accueil</strong>, représenté par une maison, pour retrouver leur présentation.</p>
+    <h2 id="ecouter">Réécouter le passage</h2>
+    <p>Lorsqu’un enregistrement est associé, ses commandes apparaissent au-dessus de la transcription :</p>
+    <ul>
+      <li><strong>Lecture / Pause</strong> démarre ou arrête l’écoute.</li>
+      <li><strong>−5s</strong> et <strong>+5s</strong> reculent ou avancent de cinq secondes.</li>
+      <li><strong>−</strong> et <strong>+</strong> ralentissent ou accélèrent la lecture. Cliquez sur la vitesse affichée pour revenir à la vitesse normale.</li>
+      <li>Un clic sur la <strong>bande de l’enregistrement</strong> se déplace à l’endroit choisi.</li>
+    </ul>
+    <p>Lorsque la transcription possède des repères temporels, cliquer dans son texte permet aussi de retrouver la position correspondante dans l’enregistrement. La précision dépend des repères fournis avec la transcription.</p>
+    <p>Dans l’éditeur, appuyez <strong>deux fois rapidement sur Espace</strong> pour lancer ou arrêter la lecture sans quitter le texte. Ce raccourci agit lorsqu’un enregistrement est chargé.</p>
+    <p>Vous pouvez corriger une transcription sans enregistrement. Pour lui en associer un ou retrouver un fichier déplacé, consultez <a href="gerer-entretiens.html#media">la gestion des médias</a>.</p>
+    <h2 id="rechercher">Rechercher et remplacer des mots</h2>
+    <ol>
+      <li>Dans l’entretien ouvert, appuyez sur <strong>Ctrl + F</strong>, ou <strong>Commande + F</strong> sous macOS.</li>
+      <li>Saisissez le mot ou le passage à chercher. Les occurrences sont mises en évidence dans le texte.</li>
+      <li>Utilisez les flèches pour parcourir les résultats. <strong>Entrée</strong> dans le champ de recherche passe au suivant.</li>
+      <li>Pour une correction, remplissez <strong>Remplacer par…</strong>, puis cliquez sur <strong>Remplacer</strong> pour l’occurrence courante, ou sur <strong>Tout</strong> pour toutes les occurrences trouvées.</li>
+    </ol>
+    <figure>
+      <img src="../medias/rechercher-remplacer.png" alt="La boîte de recherche affiche le mot recherché, le nombre d’occurrences, un champ de remplacement et les commandes Remplacer et Tout.">
+      <figcaption>La recherche et le remplacement portent ici sur l’entretien ouvert.</figcaption>
+    </figure>
+    <p>Avant <strong>Tout</strong>, vérifiez que le remplacement convient dans tous les contextes. Une même forme peut désigner plusieurs choses. Pour fermer la boîte, cliquez sur sa croix ou appuyez sur <strong>Échap</strong> depuis l’un de ses champs.</p>
+    <h2 id="enregistrer">Vérifier l’enregistrement de votre travail</h2>
+    <p>Les corrections sont enregistrées automatiquement dans le corpus. L’état affiché en haut de la fenêtre passe par <strong>modifié</strong> ou <strong>sauvegarde…</strong>, puis revient à <strong>à jour</strong>.</p>
+    <p>Attendez <strong>à jour</strong> avant de fermer l’application. Vous pouvez aussi utiliser <strong>Corpus → Enregistrer</strong> pour demander l’enregistrement sans attendre.</p>
+    <p>Votre fichier de transcription d’origine, par exemple Word, PDF ou SRT, n’est pas réécrit : les corrections sont conservées dans le corpus SonalPi. Un export permet ensuite de produire une copie de lecture du texte travaillé.</p>
+    <h2 id="reprendre">Fermer et reprendre l’entretien</h2>
+    <p><strong>Corpus</strong> dans le fil de navigation du haut ferme l’entretien et revient à ses cartes. Cliquez de nouveau sur son crayon pour le rouvrir. Pendant la session, le bouton <strong>Reprendre</strong> de la vue Corpus peut aussi retrouver l’entretien à l’endroit où vous l’avez laissé.</p>
+    <p class="retenir"><strong>Fermer l’entretien ne revient pas à annuler ses corrections.</strong> Elles restent dans le corpus. Changer simplement d’espace conserve l’entretien ouvert ; <strong>Importer et traiter</strong> le retrouve sans relancer automatiquement l’écoute.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="gerer-entretiens.html" rel="prev">← Précédent : gérer les entretiens et leurs médias</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="locuteurs.html" rel="next">Suivant : identifier les locuteurs →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

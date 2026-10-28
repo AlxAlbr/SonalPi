@@ -61,6 +61,13 @@ nettoyage HTML, effectué dans le renderer.
 | Gestion des catégories | `src/renderer/composables/corpus/useCategoriesNotesCorpus.ts` |
 | Stockage et journal corpus | `src/main/corpusStore.ts` |
 
+Le [guide utilisateur](../../../user/traiter/notes.html) décrit les gestes locaux,
+les deux modes d’enregistrement, les catégories partagées et les précautions de diffusion.
+Les contrôles de confidentialité distinguent le statut, l’accès au corpus et l’export :
+`test/notesMarkdown.test.ts` conserve les privées reçues et l’ordre d’affichage ;
+`test/exportFormats.test.ts` montre qu’une transcription pseudonymisée ne nettoie
+pas la prose des notes publiques.
+
 ## Parcours de lecture
 
 - [entretien.md](entretien.md) : édition, HTML restreint, commentaires et locuteurs.

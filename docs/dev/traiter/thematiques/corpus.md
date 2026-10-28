@@ -165,4 +165,12 @@ Tests principaux :
 - `test/themes.test.ts` : règles pures de transfert, fusion et division ;
 - `test/operationsThemes.test.ts` : aperçus, fraîcheur, détails et périmètre ;
 - `test/themesOpsRenderer.test.ts` : parcours renderer ;
-- `e2e/themes-operations.e2e.ts` : parcours complets et navigation.
+- `e2e/themes-operations.e2e.ts` : parcours complets et navigation ;
+- `e2e/documentation-themes.e2e.ts` : descriptions, hiérarchie, déplacement,
+  apparence, désactivation et suppression du [chapitre utilisateur](../../../user/traiter/organiser-themes.html).
+
+La recette documentaire compare le fichier de l’entretien avant et après les
+changements de définition. Elle vérifie aussi les compteurs distincts du parent
+et de l’enfant, la réactivation des codages et la promotion des enfants lors du
+retrait d’un parent inutilisé. L’illustration est renouvelée uniquement avec
+`SONAL_DOC_CAPTURES=1`.

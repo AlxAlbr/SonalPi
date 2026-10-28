@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { EXT_MEDIA } from '../../../../shared/media'
+import { EXT_TEXTE_ENTRETIEN as EXT_TEXTE } from '../../../../shared/importEntretien'
+import { nettoyerMessage } from '../../../erreurs'
 
 /**
  * « + Ajouter un entretien » — LE point d'entrée unique : une modale à DEUX
@@ -38,7 +40,6 @@ watch(demandeAjoutEntretien, (demande) => {
 // (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/1Coordinatrice.srt et
 // audio/1Coordinatrice.mp3) ; hors démo (`undefined`), comportement inchangé : défaut OS.
 
-const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 // Zone « fichier son » : elle accepte en réalité AUDIO + VIDÉO (tout média
 // assignable) — source UNIQUE partagée avec le dialogue natif côté main.
 const EXT_AUDIO = EXT_MEDIA
@@ -51,6 +52,8 @@ const message = ref<string | null>(null)
 const survolTexte = ref(false)
 const survolAudio = ref(false)
 const enCours = ref(false)
+const lectureEnCours = ref(false)
+const erreurLecture = ref(false)
 const titreVide = ref('Nouvel entretien')
 /** Titre du nouvel entretien créé avant le choix de son média distant. */
 const titreDistant = ref('')
@@ -72,12 +75,12 @@ const aideChoixDistant = computed(() =>
 
 /** Crée l'entretien vide, puis ouvre directement sa base de médias. */
 async function creerAvecMediaDistant() {
-  if (enCours.value || !titreDistant.value.trim()) return
+  if (enCours.value || lectureEnCours.value || !titreDistant.value.trim()) return
   enCours.value = true
   try {
     const id = await creerEntretienVideDistant(titreDistant.value)
     if (!id) return
-    fermer()
+    ouverte.value = false
     ouvrirDesignationAudio(id)
   } catch (err) {
     message.value = err instanceof Error ? err.message : String(err)
@@ -95,29 +98,44 @@ function titreVideParDefaut(): string {
 }
 
 function ouvrir() {
+  if (enCours.value || lectureEnCours.value) return
   texte.value = null
   audioChemin.value = null
   audioNom.value = null
   message.value = null
+  erreurLecture.value = false
   titreVide.value = titreVideParDefaut()
   titreDistant.value = ''
   enCours.value = false
   ouverte.value = true
 }
 function fermer() {
+  if (enCours.value || lectureEnCours.value) return
   ouverte.value = false
 }
 
 const ext = (nom: string) => nom.toLowerCase().split('.').pop() ?? ''
 
 async function choisirTexte() {
-  const f = await window.sonal.dialog.choisirTexte(racineSources.value ?? undefined)
-  if (f) {
-    texte.value = f
-    message.value = null
+  if (enCours.value || lectureEnCours.value) return
+  lectureEnCours.value = true
+  try {
+    const f = await window.sonal.dialog.choisirTexte(racineSources.value ?? undefined)
+    if (f) {
+      texte.value = f
+      erreurLecture.value = false
+      message.value = null
+    }
+  } catch (erreur) {
+    texte.value = null
+    erreurLecture.value = true
+    message.value = nettoyerMessage(erreur)
+  } finally {
+    lectureEnCours.value = false
   }
 }
 async function choisirAudio() {
+  if (enCours.value || lectureEnCours.value) return
   const chemin = await window.sonal.dialog.choisirAudio(racineSources.value ?? undefined)
   if (chemin) {
     audioChemin.value = chemin
@@ -128,17 +146,32 @@ async function choisirAudio() {
 
 async function deposerTexte(e: DragEvent) {
   survolTexte.value = false
+  if (enCours.value || lectureEnCours.value) return
   const f = e.dataTransfer?.files[0]
   if (!f) return
   if (!EXT_TEXTE.includes(ext(f.name))) {
     message.value = `« ${f.name} » n'est pas un fichier d'entretien (${EXT_TEXTE.map((x) => '.' + x).join(', ')}).`
     return
   }
-  texte.value = { nom: f.name, contenu: await f.text() }
+  lectureEnCours.value = true
   message.value = null
+  try {
+    const contenu = ['docx', 'pdf'].includes(ext(f.name))
+      ? await window.sonal.fichier.extraireTexteEntretien(f.name, new Uint8Array(await f.arrayBuffer()))
+      : await f.text()
+    texte.value = { nom: f.name, contenu }
+    erreurLecture.value = false
+  } catch (erreur) {
+    texte.value = null
+    erreurLecture.value = true
+    message.value = nettoyerMessage(erreur)
+  } finally {
+    lectureEnCours.value = false
+  }
 }
 function deposerAudio(e: DragEvent) {
   survolAudio.value = false
+  if (enCours.value || lectureEnCours.value) return
   const f = e.dataTransfer?.files[0]
   if (!f) return
   if (!EXT_AUDIO.includes(ext(f.name))) {
@@ -151,7 +184,7 @@ function deposerAudio(e: DragEvent) {
 }
 
 async function valider() {
-  if (enCours.value) return
+  if (enCours.value || lectureEnCours.value || erreurLecture.value) return
   // Garde pas-à-pas (étape « Charger un entretien ») : tant que l'étape active
   // n'est pas validée, seuls srt/1Coordinatrice.srt + audio/1Coordinatrice.mp3
   // sont acceptés — la suite du parcours (notes à chaud, renommer, coder) est
@@ -184,7 +217,7 @@ async function valider() {
       titreVide: titreVide.value.trim(),
     })
     if (id) enregistrerEntretienCree(id, titre)
-    fermer()
+    ouverte.value = false
   } catch (err) {
     message.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -212,7 +245,7 @@ async function valider() {
         >
           <div class="zone-icone">📄</div>
           <div class="zone-titre">Fichier d'entretien</div>
-          <div class="zone-aide">.sonal, .srt, .vtt, .txt — cliquer ou glisser-déposer</div>
+          <div class="zone-aide">.sonal, .srt, .vtt, .txt, .docx, .pdf — cliquer ou glisser-déposer</div>
           <div v-if="texte" class="zone-fichier">{{ texte.nom }}</div>
         </div>
 
@@ -241,7 +274,8 @@ async function valider() {
         <p v-if="audioChemin" class="note-ref-audio">
           L'audio est <strong>référencé, pas copié</strong> : le fichier d'origine doit rester à cet endroit.
         </p>
-        <p v-if="message" class="msg-ajout">{{ message }}</p>
+        <p v-if="lectureEnCours" role="status">Lecture du fichier…</p>
+        <p v-if="message" class="msg-ajout" role="alert">{{ message }}</p>
 
         <!-- Un média distant peut être choisi dès la création de l'entretien. -->
         <div v-if="creationAvecMediaDistantDisponible" class="bloc-distant">
@@ -255,7 +289,7 @@ async function valider() {
             />
             <button
               class="valider secondaire"
-              :disabled="!titreDistant.trim() || enCours"
+              :disabled="!titreDistant.trim() || enCours || lectureEnCours"
               @click="creerAvecMediaDistant"
             >
               {{ libelleChoixDistant }}
@@ -265,11 +299,11 @@ async function valider() {
         </div>
 
         <div class="pied-modale">
-          <button class="annuler" @click="fermer">Annuler</button>
+          <button class="annuler" :disabled="enCours || lectureEnCours" @click="fermer">Annuler</button>
           <button
             class="valider"
             data-tour="valider"
-            :disabled="(!texte && !audioChemin && !titreVide.trim()) || enCours"
+            :disabled="(!texte && !audioChemin && !titreVide.trim()) || enCours || lectureEnCours || erreurLecture"
             @click="valider"
           >
             {{ enCours ? 'Ajout…' : 'Valider' }}
@@ -405,6 +439,7 @@ async function valider() {
   padding: 0.35rem 0.5rem;
 }
 .msg-ajout {
+  white-space: pre-line;
   margin: 0;
   background: #fdecea;
   color: #b3261e;

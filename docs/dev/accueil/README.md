@@ -38,6 +38,34 @@ distinct de l’ouverture ordinaire. Voir aussi le
 Les sessions et publications distantes sont décrites dans
 [distant/](../distant/README.md).
 
+## Menus selon l’écran
+
+L’ordre reste **Corpus → Entretiens → Édition → Aide**. Sur l’accueil général,
+les commandes de travail sont désactivées même si un corpus reste chargé.
+Dans les espaces, l’enregistrement concerne l’entretien ouvert et modifiable,
+la sauvegarde ZIP un corpus local et l’export un corpus non vide. Le tri demande
+au moins deux entretiens ; ses restrictions distantes restent applicables.
+
+`sonal.ts` calcule les disponibilités et les transmet par `menu:etat` au main.
+Les récents peuvent reconstruire le menu sans perdre cet état. Le routage renderer
+refuse aussi les commandes indisponibles ; les contrôles métier restent inchangés.
+Le contrat est dans `src/shared/menuApplication.ts` ; la construction du menu
+est dans `src/main/menuApplication.ts`. Recette : `e2e/menu-application.e2e.ts`.
+
+## Documentation utilisateur
+
+Le menu **Aide** ouvre le [site HTML local](../../user/index.html) avec
+l’application associée au HTML sur le poste. `src/main/documentation.ts` utilise
+`shell.openPath` : aucun nouveau renderer, aucune transition de corpus.
+Les pages sont rédigées directement dans `docs/user/`, avec `style.css` comme
+présentation commune. Il n’y a ni conversion Markdown ni dépendance de rendu.
+`extraResources` copie HTML, CSS et illustrations dans `resources/documentation/` ;
+les anciens textes Markdown ne sont pas embarqués.
+
+Tests : `test/documentation.test.ts`, `test/menuApplication.test.ts` et
+`e2e/documentation.e2e.ts`. Ce dernier peut viser le paquet avec
+`DOCS_E2E_EXECUTABLE=/chemin/vers/sonalpi2`.
+
 ## Suivre une action dans le code
 
 ```text

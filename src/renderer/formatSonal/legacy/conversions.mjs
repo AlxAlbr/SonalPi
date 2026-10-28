@@ -37,7 +37,7 @@ export function tabSegToSonal(tabSeg, locut, notes) {
 
   // Ajout éventuel des locuteurs.
   if (locut && locut.length > 1) {
-    const locJSON = JSON.stringify(locut, null);
+    const locJSON = JSON.stringify(locut, null).replace(/</g, '\\u003c');
     html += `
     <script id="loc-json" type="application/json">
 
@@ -237,21 +237,8 @@ export function Phrasifier(tabSeg) {
   return tabSeg;
 }
 
-// Extrait les locuteurs « Speaker N » d'un tableau de segments (issu d'un SRT/VTT) : affecte le locuteur,
-// retire le préfixe « Speaker N » du texte, et nettoie les « Speaker i: » intempestifs ;
-// mute tabSeg en place, puis renvoie { tabSeg, locut }.
-// Pur : l'ancien stash window.tabLocImport / setTabLoc (déjà commenté) est supprimé.
-//
-// ⚠️ Corrections assumées par rapport à SonalPi1 (bugs constatés à l'import) :
-//  - le NOM garde la numérotation du fichier (« Speaker 3 » reste « Speaker 3 » ;
-//    SonalPi1 renommait N → N+1) ;
-//  - l'INDEX du bloc est la position du nom dans `locut` (contrat d'import :
-//    position dans le tableau = index du locuteur). SonalPi1 posait N+1 en index,
-//    faux dès que la numérotation du fichier a des trous (Speaker 3, Speaker 7 →
-//    blocs pointant vers des locuteurs inexistants) ;
-//  - numéros multi-chiffres acceptés (« Speaker 12 », SonalPi1 lisait 1 chiffre) ;
-//  - préfixe « None: » (diarisation sans locuteur identifié) → bloc SANS locuteur,
-//    préfixe retiré du texte.
+// Reconnaît les préfixes « Nom : texte », sans modifier les noms ni leur numérotation.
+// Un passage sans préfixe reste sans locuteur ; « None: » désigne aussi ce cas.
 export function convertSpeaker(tabSeg) {
   const locut = ['']; // locut[0] n'existe pas
 
@@ -265,16 +252,13 @@ export function convertSpeaker(tabSeg) {
       continue;
     }
 
-    const m = txt.match(/^Speaker\s+(\d+)\s*:\s*/); // recherche d'un speaker
-    if (m) {
-      const nomLoc = "Speaker " + m[1];
+    const m = txt.match(/^([\p{L}\p{N}_][\p{L}\p{N}_’'.\/ \t-]*?)[ \t]*:[ \t]*([\s\S]*)$/u);
+    if (m && !/^\d+$/.test(m[1]) && !/^https?$/i.test(m[1])) {
+      const nomLoc = m[1].trim().replace(/^Speaker\s+(\d+)$/, 'Speaker $1');
       if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-      tabSeg[s][3] = locut.indexOf(nomLoc); // affectation du locuteur
-      tabSeg[s][4] = txt.slice(m[0].length); // suppression du préfixe "Speaker N: "
+      tabSeg[s][3] = locut.indexOf(nomLoc);
+      tabSeg[s][4] = m[2];
     }
-
-    // Suppression des « Speaker i: » intempestifs dans le corps du texte.
-    tabSeg[s][4] = tabSeg[s][4].replace(/Speaker\s+\d+\s*:/g, "");
   }
 
   return { tabSeg, locut };
@@ -322,7 +306,7 @@ export function convertJSON(lignesFich) {
 export function convertSRT(content) {
   if (!content || content.length < 1) { return; }
 
-  const lignesFich = content.split("\n");
+  const lignesFich = content.split(/\r\n?|\n/);
   const nblig = lignesFich.length;
 
   let rgSeg = 0;
@@ -352,7 +336,9 @@ export function convertSRT(content) {
         }
       }
       const lignetxt = ligne.replace(/\r?\n|\r/, "");
-      tabSeg[rgSeg][4] += lignetxt; // ajout du texte au segment courant
+      if (lignetxt) {
+        tabSeg[rgSeg][4] += (tabSeg[rgSeg][4] ? " " : "") + lignetxt;
+      }
     }
   }
 
@@ -375,7 +361,7 @@ export function convertSRT(content) {
 export function convertVTT(content) {
   if (!content || content.length < 1) { return; }
 
-  const lignesFich = content.split("\n");
+  const lignesFich = content.split(/\r\n?|\n/);
   const nblig = lignesFich.length;
   const locut = [''];
 
@@ -437,7 +423,9 @@ export function convertVTT(content) {
       }
 
       lignetxt = lignetxt.replace(/<[^>]+>/g, ""); // balises VTT restantes
-      tabSeg[rgSeg][4] += lignetxt;
+      if (lignetxt) {
+        tabSeg[rgSeg][4] += (tabSeg[rgSeg][4] ? " " : "") + lignetxt;
+      }
     }
   }
 
@@ -452,10 +440,65 @@ export function convertVTT(content) {
   return { formatSonal, locuteurs: locut };
 }
 
-// TXT (3 formats : C texte brut, B "Speaker N: texte", A "HH:MM:SS [Loc]") →
-// { formatSonal, locuteurs }.
+// TXT tabulé : temps en secondes, locuteur, texte ; sans ligne d’en-tête.
+function convertTXTTabule(content) {
+  const lignes = content.split(/\r\n?|\n/)
+    .map((texte, i) => ({ texte, numero: i + 1 }))
+    .filter(({ texte }) => texte.trim() !== '');
+  const candidat = lignes.some(({ texte }) => /^[ \t]*[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)[ \t]*\t/.test(texte))
+    || (lignes.length > 0 && lignes.every(({ texte }) => texte.split('\t').length >= 3)
+      && !lignes.some(({ texte }) => /^\s*\d{1,2}\s*:\s*\d{2}/.test(texte)));
+  if (!candidat) return null;
+
+  const locuteurs = [''];
+  const tabSeg = [];
+  const erreurs = [];
+  let dernierTemps = 0;
+  for (const { texte, numero } of lignes) {
+    const [tempsBrut, nomBrut, ...suite] = texte.split('\t');
+    if (suite.length === 0) {
+      erreurs.push(`Ligne ${numero} : trois colonnes sont attendues (temps, locuteur, texte), séparées par des tabulations.`);
+      continue;
+    }
+    const temps = tempsBrut.trim().replace(',', '.');
+    const debut = Number(temps);
+    if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(temps) || !Number.isFinite(debut)) {
+      erreurs.push(`Ligne ${numero} : le temps doit être un nombre de secondes positif ou nul.`);
+      continue;
+    }
+    if (debut < dernierTemps) {
+      erreurs.push(`Ligne ${numero} : le temps précède celui du passage précédent.`);
+      continue;
+    }
+    const nom = nomBrut.trim();
+    if (!nom) {
+      erreurs.push(`Ligne ${numero} : le nom du locuteur est manquant.`);
+      continue;
+    }
+    const contenu = suite.join('\t').trim();
+    if (!contenu) {
+      erreurs.push(`Ligne ${numero} : le texte du passage est manquant.`);
+      continue;
+    }
+    if (!locuteurs.includes(nom)) locuteurs.push(nom);
+    // Le texte reste littéral dans le document intermédiaire.
+    const texteProtege = contenu.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    tabSeg.push([null, debut, '', locuteurs.indexOf(nom), texteProtege + ' ', false, 0]);
+    dernierTemps = debut;
+  }
+  if (erreurs.length) {
+    throw new Error(`Impossible d’importer ce TXT tabulé :\n${erreurs.slice(0, 10).join('\n')}`);
+  }
+  // Le début suivant sert de fin ; la fin du dernier passage reste inconnue.
+  for (let i = 0; i < tabSeg.length - 1; i++) tabSeg[i][2] = tabSeg[i + 1][1];
+  return { formatSonal: tabSegToSonal(tabSeg, locuteurs), locuteurs };
+}
+
+// TXT : texte brut, « Nom : texte », « HH:MM:SS Nom » ou colonnes tabulées.
 export function convertTXT(content, ext) {
-  const lignesFich = content.split("\n");
+  const tabule = convertTXTTabule(content);
+  if (tabule) return tabule;
+  const lignesFich = content.split(/\r\n?|\n/);
   const nblig = lignesFich.length;
 
   const locut = [""]; // locut[0] n'existe pas

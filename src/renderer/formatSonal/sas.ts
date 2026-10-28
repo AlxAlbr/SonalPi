@@ -2,10 +2,8 @@ import { convertSRT, convertVTT, convertTXT } from './legacy/conversions.mjs'
 import { importerSonal, type ResultatImport } from './importSonal'
 
 /**
- *  Le SAS D'IMPORT UNIQUE : tout format étranger passe par un HTML `.sonal`
- *  (natif, ou produit par un convertisseur SonalPi1 réutilisé), puis par le SEUL
- *  point d'entrée du modèle (`importerSonal`). Zéro parseur neuf, comportement
- *  fidèle à SonalPi1 (mêmes cues, même détection de locuteurs).
+ *  Tout format passe par un document `.sonal` intermédiaire,
+ *  puis par le même importeur pour créer le texte, les locuteurs et les repères.
  */
 export function importerFichier(
   nomFichier: string,
@@ -24,10 +22,9 @@ export function importerFichier(
     const r = convertVTT(contenu)
     if (!r) throw new Error('VTT vide ou illisible')
     html = r.formatSonal
-  } else if (ext === 'txt') {
-    // Transcription brute (convertisseur SonalPi1 : timestamps « hh:mm » et « Nom : »
-    // détectés, sinon un bloc par ligne). Le dialogue d'import propose .txt ;
-    // le sas le couvre donc aussi.
+  } else if (ext === 'txt' || ext === 'docx' || ext === 'pdf') {
+    // Word et PDF arrivent sous forme de texte extrait.
+    // Le convertisseur reconnaît les temps, les noms et les colonnes tabulées.
     const r = convertTXT(contenu)
     if (!r) throw new Error('TXT vide ou illisible')
     html = r.formatSonal

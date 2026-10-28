@@ -3,12 +3,14 @@ import { ref, watch } from 'vue'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
+import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
 
 const props = defineProps<{ actif: boolean; lectureSeule: boolean }>()
 
 const {
   lirePersonnes,
   locuteurs,
+  ouvertId,
   attribuerLoc,
   renommerLoc,
   messagePersonnes,
@@ -25,6 +27,8 @@ const {
   confirmerSuppressionLocuteur,
 } = utiliserSonal()
 
+const statistiquesOuvertes = ref(false)
+watch(ouvertId, () => { statistiquesOuvertes.value = false })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
 const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
@@ -60,6 +64,7 @@ watch(
   <aside class="panneau">
     <div class="corpus-tete">
       <h3>Locuteurs</h3>
+      <button class="mini" :aria-expanded="statistiquesOuvertes" aria-controls="stats-locuteurs" @click="statistiquesOuvertes = !statistiquesOuvertes">📊 Statistiques</button>
       <button v-if="!lectureSeule" class="mini" @click="nouveauLocuteur">+ Locuteur</button>
     </div>
 
@@ -165,6 +170,7 @@ watch(
         <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
+    <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
   </aside>
 </template>
 

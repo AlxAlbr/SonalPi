@@ -1,16 +1,16 @@
 import { Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import type { EntreeRecent } from '../shared/format'
+import { MENU_ACCUEIL, type EtatMenuApplication } from '../shared/menuApplication'
 
-/** Menu applicatif de l'app (parité SonalPi1, sans le volet GitLab) :
- *  Corpus (ouvrir, récents, distant, enregistrer, copie de sauvegarde ZIP,
- *  export du corpus, quitter),
- *  Édition (rôles standards : copier/coller indispensables à l'éditeur),
- *  Entretiens (ajouter et trier).
- *  Les items ne font RIEN eux-mêmes : ils émettent `menu:action` (ou
- *  `menu:ouvrirRecent` avec l'entrée récente) vers les renderers, qui routent
- *  vers les modales et actions existantes. Reconstruit à chaque changement
- *  des récents, qui peuplent le sous-menu dynamique. */
-export function appliquerMenu(recents: EntreeRecent[]): void {
+/** Les commandes de travail passent par le renderer.
+ *  L’aide ouvre simplement les pages locales hors de l’application.
+ *  Le menu suit l’écran de travail et les corpus récents.
+ */
+export function appliquerMenu(
+  recents: EntreeRecent[],
+  ouvrirAide?: (entree: 'guide' | 'faq') => void,
+  etat: EtatMenuApplication = MENU_ACCUEIL,
+): void {
   const envoyer = (canal: string, ...args: unknown[]): void => {
     for (const fenetre of BrowserWindow.getAllWindows()) {
       fenetre.webContents.send(canal, ...args)
@@ -22,16 +22,19 @@ export function appliquerMenu(recents: EntreeRecent[]): void {
     submenu: [
       {
         label: 'Nouveau corpus…',
+        enabled: etat.naviguer,
         accelerator: 'CmdOrCtrl+N',
         click: () => envoyer('menu:action', 'nouveau-corpus'),
       },
       {
         label: 'Ouvrir corpus…',
+        enabled: etat.naviguer,
         accelerator: 'CmdOrCtrl+O',
         click: () => envoyer('menu:action', 'ouvrir-corpus'),
       },
       {
         label: 'Corpus récents',
+        enabled: etat.naviguer,
         submenu: recents.length
           ? recents.map((recent): MenuItemConstructorOptions => ({
               label: `${recent.type === 'distant' ? '🌐 ' : ''}${recent.nom}`,
@@ -41,20 +44,24 @@ export function appliquerMenu(recents: EntreeRecent[]): void {
       },
       {
         label: 'Ouvrir un corpus distant…',
+        enabled: etat.naviguer,
         click: () => envoyer('menu:action', 'ouvrir-distant'),
       },
       { type: 'separator' },
       {
         label: 'Enregistrer',
+        enabled: etat.enregistrer,
         click: () => envoyer('menu:action', 'enregistrer'),
       },
       { type: 'separator' },
       {
         label: 'Faire une copie de sauvegarde du corpus (ZIP)…',
+        enabled: etat.sauvegarder,
         click: () => envoyer('menu:action', 'sauvegarde-zip'),
       },
       {
         label: 'Exporter le corpus…',
+        enabled: etat.exporter,
         click: () => envoyer('menu:action', 'exporter-corpus'),
       },
       { type: 'separator' },
@@ -77,28 +84,35 @@ export function appliquerMenu(recents: EntreeRecent[]): void {
 
   const menuEntretiens: MenuItemConstructorOptions = {
     label: 'Entretiens',
+    enabled: etat.travail,
     submenu: [
       {
         label: 'Ajouter un entretien…',
+        enabled: etat.ajouter,
         click: () => envoyer('menu:action', 'ajouter-entretien'),
       },
       {
         label: 'Trier les entretiens',
+        enabled: etat.trier,
         submenu: [
           {
             label: 'Par ordre alphabétique',
+            enabled: etat.trier,
             click: () => envoyer('menu:action', 'trier-entretiens', 'alpha'),
           },
           {
             label: 'Par ordre d’ajout',
+            enabled: etat.trier,
             click: () => envoyer('menu:action', 'trier-entretiens', 'ajout'),
           },
           {
             label: 'Par date de modification',
+            enabled: etat.trierContenu,
             click: () => envoyer('menu:action', 'trier-entretiens', 'modif'),
           },
           {
             label: 'Par longueur',
+            enabled: etat.trierContenu,
             click: () => envoyer('menu:action', 'trier-entretiens', 'longueur'),
           },
         ],
@@ -112,10 +126,20 @@ export function appliquerMenu(recents: EntreeRecent[]): void {
           // macOS exige un menu d'application en première position.
           { role: 'appMenu' as const },
           menuCorpus,
-          menuEdition,
           menuEntretiens,
+          menuEdition,
         ]
-      : [menuCorpus, menuEdition, menuEntretiens]
+      : [menuCorpus, menuEntretiens, menuEdition]
+
+  if (ouvrirAide) {
+    template.push({
+      label: 'Aide',
+      submenu: [
+        { label: 'Documentation utilisateur', click: () => ouvrirAide('guide') },
+        { label: 'FAQ', click: () => ouvrirAide('faq') },
+      ],
+    })
+  }
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

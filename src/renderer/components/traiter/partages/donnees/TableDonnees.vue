@@ -4,6 +4,8 @@ import { utiliserSonal } from '../../../../composables/sonal'
 import { celluleVoisine, grilleCellules, type SensNav } from '../../../../tableNavigation'
 import EditionVariables from './EditionVariables.vue'
 import LotVariable from './LotVariable.vue'
+import ExportDonnees from './ExportDonnees.vue'
+import { nettoyerMessage } from '../../../../erreurs'
 
 const props = defineProps<{ actif?: boolean }>()
 const {
@@ -28,10 +30,33 @@ const {
   rafraichirMatrice,
   vue,
   dernierTirage,
+  revisionCorpus,
 } = utiliserSonal()
 
 const editerVariables = ref(false)
 const lotVarId = ref<string | null>(null)
+const exportOuvert = ref(false)
+const messageExport = ref('')
+watch(() => [props.actif, revisionCorpus.value], () => { exportOuvert.value = false })
+function ouvrirExport() {
+  messageExport.value = ''
+  exportOuvert.value = true
+}
+function exportEnregistre() {
+  exportOuvert.value = false
+  messageExport.value = 'Fichier CSV enregistré.'
+}
+async function chargerExport() {
+  const revision = revisionCorpus.value
+  await Promise.all([...saisiesEnCours])
+  if (Object.values(erreursCellules.value).some(Boolean)) {
+    throw new Error('Certaines réponses n’ont pas été enregistrées. Corrigez-les avant d’exporter.')
+  }
+  if (!await rafraichirMatrice() || revision !== revisionCorpus.value) {
+    throw new Error('Impossible d’actualiser les données. Réessayez avant d’exporter.')
+  }
+  return matrice.value
+}
 
 // Le panneau pilote les colonnes sans toucher aux définitions du corpus.
 const filtrePortee = ref<'toutes' | 'entretien' | 'locuteur'>('toutes')
@@ -160,6 +185,15 @@ onUnmounted(() => window.removeEventListener('resize', mesurerDisposition))
 const AUTRE = ' autre'
 const celluleLibre = ref<string | null>(null)
 const erreursCellules = ref<Record<string, string>>({})
+const saisiesEnCours = new Set<Promise<void>>()
+function suivreSaisie(cle: string, resultat: Promise<string | null>) {
+  const requete = resultat
+    .then((raison) => noterErreurCellule(cle, raison))
+    .catch((raison) => noterErreurCellule(cle, nettoyerMessage(raison)))
+    .finally(() => { saisiesEnCours.delete(requete) })
+  saisiesEnCours.add(requete)
+  return requete
+}
 function noterErreurCellule(cle: string, raison: string | null) {
   if (raison) erreursCellules.value[cle] = raison
   else delete erreursCellules.value[cle]
@@ -183,25 +217,19 @@ function surSelectLoc(entId: string, index: number, idVar: string, evt: Event) {
   if (val === AUTRE) celluleLibre.value = cleLoc(entId, index, idVar)
   else void surValidationLoc(entId, index, idVar, val)
 }
-async function surValidationGen(entId: string, idVar: string, val: string) {
-  noterErreurCellule(cleGen(entId, idVar), await poserGen(entId, idVar, val))
+function surValidationGen(entId: string, idVar: string, val: string) {
+  return suivreSaisie(cleGen(entId, idVar), poserGen(entId, idVar, val))
 }
-async function surValidationLoc(entId: string, index: number, idVar: string, val: string) {
-  noterErreurCellule(cleLoc(entId, index, idVar), await poserLoc(entId, index, idVar, val))
+function surValidationLoc(entId: string, index: number, idVar: string, val: string) {
+  return suivreSaisie(cleLoc(entId, index, idVar), poserLoc(entId, index, idVar, val))
 }
 function surLibreGen(entId: string, idVar: string, evt: Event) {
   celluleLibre.value = null
-  const cle = cleGen(entId, idVar)
-  void poserGenLibelle(entId, idVar, (evt.target as HTMLInputElement).value.trim()).then((r) =>
-    noterErreurCellule(cle, r),
-  )
+  void suivreSaisie(cleGen(entId, idVar), poserGenLibelle(entId, idVar, (evt.target as HTMLInputElement).value.trim()))
 }
 function surLibreLoc(entId: string, index: number, idVar: string, evt: Event) {
   celluleLibre.value = null
-  const cle = cleLoc(entId, index, idVar)
-  void poserLocLibelle(entId, index, idVar, (evt.target as HTMLInputElement).value.trim()).then(
-    (r) => noterErreurCellule(cle, r),
-  )
+  void suivreSaisie(cleLoc(entId, index, idVar), poserLocLibelle(entId, index, idVar, (evt.target as HTMLInputElement).value.trim()))
 }
 function focaliserLibre(el: unknown, cle: string) {
   if (el instanceof HTMLInputElement && celluleLibre.value === cle && document.activeElement !== el) {
@@ -342,11 +370,13 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         >›</button>
         <h2>Table de données</h2>
         <span class="compteur-colonnes">{{ variablesVisibles.length }} colonne(s)</span>
+        <button class="mini export-csv" :disabled="!matriceChargee || matriceEnCours || !variablesVisibles.length" @click="ouvrirExport">Exporter CSV…</button>
         <button v-if="reprise" class="btn-reprise" @click="reprendre">
           ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
         </button>
       </div>
 
+      <p v-if="messageExport" class="message-export" role="status">{{ messageExport }}</p>
       <p v-if="!lectureSeule && variablesVisibles.length > 0" class="aide-clavier">
         <span><kbd>Tab</kbd> droite · <kbd>⇧Tab</kbd> gauche</span>
         <span><kbd>Entrée</kbd> descendre · <kbd>⇧Entrée</kbd> remonter</span>
@@ -496,6 +526,17 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 
     <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
     <LotVariable v-if="lotVarId" :id-var="lotVarId" @fermer="lotVarId = null" />
+    <Teleport to="body">
+      <ExportDonnees
+        v-if="exportOuvert"
+        :variables="variablesVisibles"
+        :entretiens-attendus="Object.keys(membership)"
+        :montrer-locuteurs="filtrePortee !== 'entretien'"
+        :charger="chargerExport"
+        @fermer="exportOuvert = false"
+        @enregistre="exportEnregistre"
+      />
+    </Teleport>
   </section>
 </template>
 

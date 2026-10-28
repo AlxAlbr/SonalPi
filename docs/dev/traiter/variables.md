@@ -33,6 +33,10 @@ propage pas la donnée dans les autres entretiens de cette personne.
 renommages, modalités et statut privé. L’ordre d’affichage vient du champ
 `ordre` ; il n’est pas déduit de l’ordre des clés du fichier.
 
+L’interface fixe la portée au moment de la création et ne propose pas de commande
+pour réordonner les définitions ou les modalités. La sélection des colonnes dans
+la table ne change que leur affichage.
+
 Une variable ou une modalité utilisée ne se supprime pas en cascade. Le main
 compte les valeurs et les usages dans les cas ou familles avant d’autoriser le
 retrait. Les références de cas protègent également les changements de portée
@@ -108,6 +112,26 @@ communes sont détaillées dans [gestes.md](../distant/gestes.md).
 utilisateurs du corpus. Il ne remplace ni les droits du fournisseur ni la
 vérification des contenus libres avant diffusion.
 
+Le corpus natif et l’export `.sonal` complet conservent les variables privées et
+leurs valeurs. Le `.sonal` pseudonymisé les écarte. Le modèle JSON de modalités
+ne contient ni réponses, ni statut privé ; ce n’est pas un export de la table.
+La table propose **Exporter CSV…** : colonnes visibles, filtre de portée,
+variables privées exclues sauf choix explicite. Les noms des entretiens et
+locuteurs restent en clair, sans pseudonymisation automatique.
+
+`src/shared/corpus/exportDonnees.ts` produit un CSV UTF-8 avec BOM, séparateur
+point-virgule, cellules entre guillemets et fins de lignes CRLF. Les cellules
+pouvant être interprétées comme des formules sont préfixées pour rester du texte.
+Les colonnes fixes Entretien, Type de ligne et Locuteur conservent le contexte
+sur chaque ligne. Les en-têtes des variables distinguent les deux portées.
+
+`ExportDonnees.vue` présente le périmètre et le choix explicite des privées.
+La table attend les saisies en cours, relit la matrice et vérifie le corpus.
+Un entretien absent de la matrice ou une modalité inconnue bloque la production,
+plutôt que de transformer l’erreur en valeur vide. Une lecture échouée n’autorise
+pas l’export du dernier résultat gardé en mémoire. Le dialogue d’enregistrement
+existant écrit le CSV ; annuler ne produit aucun fichier.
+
 Le mapping SonalPi1 traduit les valeurs générales vers la convention `l="all"`
 et les valeurs de locuteur vers leur index. Cette sentinelle n’existe pas dans
 le modèle natif. Les valeurs inconnues ne doivent pas donner naissance à de
@@ -131,4 +155,18 @@ faux locuteurs ou à des modalités implicites lors d’un export.
 Tests principaux : `test/corpus.test.ts` (CRUD, valeurs et matrice),
 `test/eav.test.ts` (mapping historique), `test/distantRenderer.test.ts`
 (disponibilité), `e2e/donnees.e2e.ts` et `e2e/table-donnees.e2e.ts` (parcours).
+`test/exportFormats.test.ts` vérifie aussi les deux portées privées dans le SONAL
+complet et les copies de lecture. Le [chapitre utilisateur](../../user/traiter/donnees.html)
+et ses deux captures sont couverts par `e2e/documentation-donnees.e2e.ts` :
+saisie libre, modalités, cohérence panneau/table, lots et modèles réellement
+exportés/importés. `DONNEES_E2E_EXECUTABLE` permet de rejouer ces parcours dans
+le paquet Linux ; `SONAL_DOC_CAPTURES=1` renouvelle les illustrations.
+
+`test/exportDonnees.test.ts` couvre le format CSV, les deux portées, les privées,
+les caractères spéciaux, les formules et les refus de données incomplètes.
+`e2e/export-donnees.e2e.ts` vérifie les fichiers produits, la sélection des colonnes,
+l’option privée, l’annulation, la dernière saisie, les erreurs de lecture/écriture
+et la conservation du corpus après ouverture. Le même exécutable empaqueté peut
+être choisi avec `DONNEES_E2E_EXECUTABLE`.
+
 Voir aussi le [modèle objet](../modele-objet.md#thèmes-et-variables).

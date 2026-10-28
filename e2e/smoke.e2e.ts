@@ -23,6 +23,34 @@ test('la fenêtre s’ouvre, l’éditeur monte avec le schéma attendu (blocs d
   await app.close()
 })
 
+test('Édition suit Entretiens et les raccourcis de sélection et d’annulation fonctionnent', async () => {
+  const { app, page } = await ouvrir('sonal-menu-edition-')
+  try {
+    const menus = await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()!.items.filter((item) => item.visible).map((item) => item.label),
+    )
+    expect(menus.slice(-4)).toEqual(['Corpus', 'Entretiens', 'Édition', 'Aide'])
+    const ed = page.locator('.editeur')
+    const texteInitial = await ed.textContent()
+    // Sépare la saisie de l’initialisation de l’entretien dans l’historique.
+    await page.waitForTimeout(600)
+    await ed.click()
+    await ed.press('ControlOrMeta+a')
+    const selection = await page.evaluate(() => window.getSelection()?.toString())
+    expect(selection).toContain('Karine habite Lyon')
+    expect(selection).toContain('sa famille.')
+    await ed.press('ArrowRight')
+    await page.keyboard.insertText(' Vérification des raccourcis')
+    await expect(ed).toContainText('Vérification des raccourcis')
+    await ed.press('ControlOrMeta+z')
+    await expect(ed).toHaveText(texteInitial!)
+    await ed.press('ControlOrMeta+Shift+z')
+    await expect(ed).toContainText('Vérification des raccourcis')
+  } finally {
+    await app.close()
+  }
+})
+
 test('coder une sélection ajoute une annotation au modèle, la retirer l’enlève', async () => {
   const { app, page } = await ouvrir()
   const ed = page.locator('.editeur')

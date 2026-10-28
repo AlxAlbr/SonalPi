@@ -126,7 +126,7 @@ function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos
           (view) => elementGouttiere(view, contentStart, bordereau.lib, bordereau.vide, onClicTour),
           {
             side: -1,
-            key: `g:${offset}:${loc}:${bordereau.lib.nom}:${bordereau.lib.pseudo ?? ''}`,
+            key: `g:${offset}:${loc}:${bordereau.lib.nom}:${bordereau.lib.pseudo ?? ''}:${bordereau.lib.couleur}`,
           },
         ),
       )

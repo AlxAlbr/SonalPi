@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Préparer et importer une transcription — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Préparer et importer une transcription</h1>
+    <p>L’import ajoute un entretien à votre corpus à partir d’un fichier de transcription. Vous pouvez lui associer son audio ou sa vidéo pour vérifier ce qui a été dit, ou travailler uniquement sur le texte.</p>
+    <p>Cette page décrit l’ajout dans un <strong>corpus local</strong>. Si vous n’en avez pas encore, commencez par <a href="../demarrer/corpus-local.html">créer votre corpus</a>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#formats">Choisir le bon format</a></li>
+        <li><a href="#preparer">Préparer le texte et les locuteurs</a></li>
+        <li><a href="#ajouter">Ajouter l’entretien</a></li>
+        <li><a href="#sans-transcription">Commencer sans transcription</a></li>
+        <li><a href="#verifier">Vérifier le résultat</a></li>
+      </ul>
+    </nav>
+    <h2 id="formats">Choisir le bon format</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Fichier</th><th scope="col">Ce qu’il apporte</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">.srt ou .vtt</th><td>Une transcription avec des repères de temps. C’est le choix à privilégier si votre outil de transcription propose ces formats.</td></tr>
+          <tr><th scope="row">.txt</th><td>Du texte brut. SonalPi peut reconnaître des noms de locuteurs et des repères de temps s’ils sont écrits dans une structure adaptée.</td></tr>
+          <tr><th scope="row">Word (.docx) ou PDF</th><td>Une transcription dont SonalPi récupère le texte. Les noms de locuteurs et les repères de temps sont reconnus selon les mêmes conventions que dans un fichier TXT.</td></tr>
+          <tr><th scope="row">.sonal</th><td>Un entretien au format d’échange Sonal, qui peut déjà contenir des codages, des notes ou d’autres informations.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Vous pouvez choisir directement votre fichier Word ou PDF dans <strong>Fichier d’entretien</strong>, ou le déposer dans cette zone. Pour un fichier TXT, utilisez un enregistrement en texte brut <strong>UTF-8</strong>.</p>
+    <p>Les documents de méthode, guides d’entretien ou notices de consentement vont dans <strong>Préparer et suivre → Documents du projet</strong>, pas dans la liste des entretiens.</p>
+    <p>Pour reprendre un corpus V1 complet avec son fichier <code>.crp</code>, utilisez la migration V1 vers V2. Pour rouvrir un entretien sur lequel vous travaillez déjà en V2, ouvrez son corpus : ne réimportez pas le fichier de transcription.</p>
+    <h2 id="preparer">Préparer le texte et les locuteurs</h2>
+    <h3>Avec un fichier SRT</h3>
+    <p>Conservez les numéros, les lignes de temps et les séparations entre les passages. Voici un exemple minimal :</p>
+    <pre><code data-fichier="exemple.srt">1
+00:00:01,000 --> 00:00:04,000
+Speaker 1: Depuis quand êtes-vous bénévole ?
+
+2
+00:00:04,000 --> 00:00:08,000
+Speaker 0: Je participe à l’aide aux devoirs depuis cinq ans.</code></pre>
+    <p>Les préfixes <strong>Speaker 1:</strong> et <strong>Speaker 0:</strong> sont reconnus comme des locuteurs distincts, sans changer leur numérotation. Vous pourrez les renommer après l’import.</p>
+    <details>
+      <summary>Si les locuteurs portent déjà des noms</summary>
+      <p>Un nom suivi de deux-points au début du passage est aussi reconnu, avec ou sans espace avant les deux-points :</p>
+      <pre><code data-fichier="exemple-noms.srt">1
+00:00:01,000 --> 00:00:04,000
+Enquêteur : Depuis quand êtes-vous bénévole ?
+
+2
+00:00:04,000 --> 00:00:08,000
+Bénévole : Je participe à l’aide aux devoirs depuis cinq ans.</code></pre>
+      <p>Gardez le même nom pour une même personne. Les passages sans préfixe restent sans locuteur attribué ; le préfixe <code>None:</code> est retiré sans créer de locuteur. Contrôlez toujours qui parle dans le résultat.</p>
+    </details>
+    <h3>Avec un fichier texte</h3>
+    <p>En texte brut, placez un nom de locuteur suivi de deux-points au début de chaque prise de parole. Gardez le même nom pour une même personne :</p>
+    <pre><code data-fichier="exemple.txt">Enquêteur : Depuis quand êtes-vous bénévole ?
+Bénévole : Je participe à l’aide aux devoirs depuis cinq ans.</code></pre>
+    <p>Ce texte conserve la distinction entre les deux locuteurs, mais ne contient pas de repères pour naviguer dans l’audio. Le nom « Enquêteur » ne dispense pas de vérifier son rôle dans SonalPi.</p>
+    <details>
+      <summary>Si votre fichier texte possède des repères de temps</summary>
+      <p>Vous pouvez placer le temps et le nom du locuteur sur une ligne, puis le texte en dessous. Utilisez des temps qui correspondent réellement à votre enregistrement :</p>
+      <pre><code data-fichier="exemple-chronometre.txt">00:00:01 Enquêteur
+Depuis quand êtes-vous bénévole ?
+
+00:00:04 Bénévole
+Je participe à l’aide aux devoirs depuis cinq ans.</code></pre>
+      <p>Ces repères indiquent les débuts des prises de parole ; ils ne sont pas aussi détaillés que des sous-titres avec début et fin de chaque passage.</p>
+    </details>
+    <details>
+      <summary>Si votre outil fournit un TXT en colonnes, comme Tadddam / NVivo</summary>
+      <p>SonalPi reconnaît trois colonnes séparées par de vraies <strong>tabulations</strong> : le temps de début en secondes, le nom du locuteur et le texte. Le fichier ne doit pas comporter de ligne d’en-tête :</p>
+      <pre><code data-fichier="exemple-tabule.txt">1.00	Enquêteur	Depuis quand êtes-vous bénévole ?
+4.00	Bénévole	Je participe à l’aide aux devoirs depuis cinq ans.</code></pre>
+      <p>Les temps doivent être positifs ou nuls et ne pas revenir en arrière. Le point ou la virgule peuvent séparer les décimales. Le début du passage suivant sert de fin au précédent ; SonalPi n’invente pas de durée pour le dernier passage.</p>
+      <p>Si une ligne est incomplète ou incorrecte, l’import est refusé et les lignes à corriger sont indiquées. Aucun entretien n’est ajouté : corrigez une copie du fichier puis sélectionnez-la à nouveau.</p>
+    </details>
+    <p>Un texte sans noms ni repères de temps peut aussi être importé. Vous pourrez le lire et le coder, mais il faudra ensuite compléter les informations manquantes si vous en avez besoin.</p>
+    <h2 id="ajouter">Ajouter l’entretien</h2>
+    <ol>
+      <li>Ouvrez le corpus local dans lequel vous souhaitez travailler.</li>
+      <li>Dans le menu <strong>Entretiens</strong>, choisissez <strong>Ajouter un entretien…</strong>. Le bouton <strong>+ Ajouter un entretien</strong> de la vue Corpus ouvre la même fenêtre.</li>
+      <li>Cliquez dans <strong>Fichier d’entretien</strong> et sélectionnez votre transcription. Vous pouvez aussi déposer le fichier dans cette zone.</li>
+      <li>Si vous avez son enregistrement, cliquez dans <strong>Fichier son / vidéo</strong> et sélectionnez le fichier correspondant. Sinon, laissez cette zone vide.</li>
+      <li>Vérifiez les noms affichés, puis cliquez sur <strong>Valider</strong>.</li>
+    </ol>
+    <figure>
+      <img src="../medias/ajouter-entretien.png" alt="La fenêtre Ajouter un entretien propose une zone pour la transcription et une zone pour le fichier son ou vidéo.">
+      <figcaption>Vous pouvez choisir le texte seul ou lui associer son enregistrement.</figcaption>
+    </figure>
+    <p>Le nouvel entretien s’ouvre et une carte est ajoutée au corpus. Son titre vient du nom du fichier de transcription, sans son extension. Vous pourrez le renommer ensuite. Dans un parcours guidé, l’entretien peut rester fermé pour vous laisser lire le bilan de l’étape.</p>
+    <p>Ajoutez <strong>un entretien à la fois</strong> dans cette fenêtre, avec son texte et, si besoin, son enregistrement. Répétez l’opération pour les suivants. <strong>Annuler</strong> ferme la fenêtre sans ajouter l’entretien.</p>
+    <p>La zone média accepte notamment MP3, WAV, M4A, OGG et FLAC pour l’audio, MP4 ou WebM pour la vidéo. L’extension seule ne garantit pas la lecture : celle-ci dépend aussi de l’encodage du fichier.</p>
+    <p class="retenir"><strong>L’enregistrement est référencé, pas copié.</strong> Il doit rester à l’emplacement choisi. Les corrections et les codages sont conservés dans le corpus ; SonalPi ne réécrit pas votre fichier de transcription d’origine.</p>
+    <h2 id="sans-transcription">Commencer sans transcription</h2>
+    <ul>
+      <li><strong>Enregistrement seul :</strong> laissez la zone texte vide et choisissez le son ou la vidéo. Un entretien au texte vide est créé, avec le nom de ce fichier. Vous pouvez commencer à écouter et à prendre des notes.</li>
+      <li><strong>Aucun fichier pour le moment :</strong> laissez les deux zones vides, renseignez le <strong>Titre du nouvel entretien</strong>, puis validez. Vous pouvez commencer par les notes et associer les fichiers plus tard.</li>
+    </ul>
+    <p>Dans ces deux cas, <strong>aucune transcription automatique n’est lancée</strong>.</p>
+    <h2 id="verifier">Vérifier le résultat</h2>
+    <ul>
+      <li>Relisez le début et la fin : le texte attendu est-il bien présent ? Les accents sont-ils corrects ?</li>
+      <li>Ouvrez <strong>Locuteurs</strong> : les personnes sont-elles distinguées correctement ? Les questions et les réponses sont-elles bien attribuées ?</li>
+      <li>Si vous avez associé un enregistrement, vérifiez qu’il se lit et que les repères de temps correspondent au texte.</li>
+      <li>Attendez l’état <strong>à jour</strong> en haut de la fenêtre avant de fermer l’application.</li>
+    </ul>
+    <p>Si le texte est mal structuré, vérifiez la copie du fichier source avant de poursuivre le codage. Réimporter cette copie crée un autre entretien ; cela ne remplace pas les corrections déjà réalisées dans le premier.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="../demarrer/corpus-local.html" rel="prev">← Précédent : créer un corpus local</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="gerer-entretiens.html" rel="next">Suivant : gérer les entretiens et leurs médias →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

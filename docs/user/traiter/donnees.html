@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Définir les variables et saisir les données — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Définir les variables et saisir les données</h1>
+    <p>Les variables servent à décrire les entretiens et leurs participants avec des réponses comparables : lieu de rencontre, ancienneté dans une association ou état de relecture, par exemple. Elles complètent les thèmes, qui sont associés à des passages du texte.</p>
+    <p>Cette page décrit le travail dans un <strong>corpus local</strong>. Pour essayer sur des données fictives, utilisez votre copie de <strong>Entretiens déjà importés</strong>, puis l’entretien <strong>1Coordinatrice</strong>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#portee">Choisir ce que la variable décrit</a></li>
+        <li><a href="#creer">Créer une variable et ses réponses possibles</a></li>
+        <li><a href="#entretien">Saisir dans un entretien</a></li>
+        <li><a href="#table">Saisir et consulter dans la table du corpus</a></li>
+        <li><a href="#csv">Exporter la table vers un tableur</a></li>
+        <li><a href="#lot">Appliquer une valeur à plusieurs entretiens</a></li>
+        <li><a href="#privee">Comprendre publique et privée</a></li>
+        <li><a href="#modifier">Renommer, effacer une valeur ou supprimer</a></li>
+        <li><a href="#modeles">Réutiliser un modèle, sans exporter les réponses</a></li>
+      </ul>
+    </nav>
+    <h2 id="portee">Choisir ce que la variable décrit</h2>
+    <p>La <strong>variable</strong> est la question à renseigner ; ses <strong>modalités</strong> sont les réponses proposées. La <strong>valeur</strong> est la réponse choisie pour un entretien ou un locuteur.</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Portée</th><th scope="col">Exemple</th><th scope="col">Où se trouve la réponse ?</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Entretien</th><td>Lieu de rencontre : « En association » ou « À domicile ».</td><td>Une valeur pour l’entretien entier.</td></tr>
+          <tr><th scope="row">Locuteur</th><td>Ancienneté : « Depuis 2012 » pour Fatima.</td><td>Une valeur pour chaque locuteur de cet entretien.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>La définition est commune au corpus, mais <strong>la création de la variable ne remplit aucune réponse</strong>. Chaque entretien ou locuteur doit être renseigné. Une variable reçoit une seule valeur à la fois pour chacun d’eux ; choisir une autre réponse remplace la précédente.</p>
+    <p>La portée est fixée par le bouton utilisé à la création. L’édition ne propose pas de la changer ensuite : si vous avez choisi la mauvaise portée, créez une variable du bon type et reprenez les valeurs nécessaires. Ne supprimez l’ancienne qu’après vérification.</p>
+    <p>Relier un locuteur à une personne du corpus ne copie pas automatiquement ses réponses dans les autres entretiens de cette personne.</p>
+    <h2 id="creer">Créer une variable et ses réponses possibles</h2>
+    <ol>
+      <li>Dans la vue Corpus de <strong>Importer et traiter</strong>, ouvrez l’onglet <strong>Données</strong>.</li>
+      <li>Dans le panneau <strong>Variables</strong>, cliquez sur le crayon <strong>Éditer les variables (nom, statut, modalités)</strong>.</li>
+      <li>Dans <strong>Édition des variables</strong>, cliquez sur <strong>+ var. d’entretien</strong> ou <strong>+ var. de locuteur</strong>, selon la portée choisie.</li>
+      <li>Saisissez le nom, puis appuyez sur <strong>Entrée</strong> ou quittez le champ pour l’appliquer.</li>
+      <li>Si vous connaissez déjà les réponses possibles, cliquez sur <strong>+ modalité</strong>, nommez chaque réponse et quittez son champ. Répétez pour les autres.</li>
+    </ol>
+    <p>Pour l’exemple, créez <strong>Lieu de rencontre</strong>, de portée entretien, avec les modalités <strong>En association</strong> et <strong>À domicile</strong>. Ajoutez ensuite <strong>Ancienneté</strong>, de portée locuteur, sans modalité pour commencer par une saisie libre.</p>
+    <figure>
+      <img src="../medias/edition-variables.png" alt="La fenêtre Édition des variables présente Lieu de rencontre, de portée entretien, avec deux modalités, et Ancienneté, de portée locuteur, sans modalité.">
+      <figcaption>Les repères ent et loc distinguent les deux portées. Les modalités sont les réponses proposées à la saisie.</figcaption>
+    </figure>
+    <p>Le menu <strong>modèles…</strong> peut ajouter une liste de modalités préétablie, par exemple <strong>Statut d’activité</strong> ou des classes d’âge. Il ajoute des réponses possibles ; il ne remplit pas les entretiens et ne remplace pas les réponses déjà saisies. Si la variable porte encore le nom « Nouvelle variable », le modèle lui donne aussi son nom.</p>
+    <p>Fermez avec la croix du haut. Les changements de définition sont appliqués au fil des actions ; cette croix ne les annule pas. Vous pouvez aussi ouvrir la même édition depuis le crayon de l’onglet <strong>Données</strong> d’un entretien.</p>
+    <h2 id="entretien">Saisir dans un entretien</h2>
+    <ol>
+      <li>Ouvrez l’entretien avec le crayon de sa carte et choisissez l’onglet <strong>Données</strong>.</li>
+      <li>Dans <strong>Valeurs · cet entretien</strong>, renseignez les variables de portée entretien.</li>
+      <li>Dans <strong>Valeurs · par locuteur</strong>, repérez le bon nom et renseignez ses variables.</li>
+    </ol>
+    <p>Dans <strong>1Coordinatrice</strong>, choisissez par exemple <strong>En association</strong> pour le lieu de rencontre. Pour essayer la saisie de l’ancienneté de Fatima, utilisez sa fiche ; si les voix n’ont pas encore été renommées, il s’agit de <strong>Speaker 0</strong>. Vous pouvez d’abord <a href="locuteurs.html#nommer">renommer les locuteurs</a>.</p>
+    <ul>
+      <li><strong>Avec des modalités :</strong> choisissez une réponse dans la liste.</li>
+      <li><strong>Sans modalité :</strong> saisissez du texte, par exemple <strong>Depuis 2012</strong>, puis appuyez sur <strong>Entrée</strong> ou quittez le champ.</li>
+      <li><strong>Pour une réponse absente de la liste :</strong> choisissez <strong>autre…</strong>, saisissez-la et quittez le champ. Elle devient une modalité disponible dans le corpus pour cette variable.</li>
+    </ul>
+    <p>Utilisez des libellés cohérents : « Depuis 2012 » et « depuis 2012 » peuvent devenir deux modalités différentes. Une nouvelle saisie identique à une modalité existante réutilise celle-ci.</p>
+    <p>Les valeurs de l’entretien sont enregistrées automatiquement. Attendez <strong>à jour</strong> avant de fermer l’application, puis rouvrez l’entretien pour vérifier le résultat.</p>
+    <h2 id="table">Saisir et consulter dans la table du corpus</h2>
+    <p>Revenez au <strong>Corpus</strong> par le fil de navigation, puis ouvrez <strong>Données</strong>. Dans un corpus local, la table est directement éditable :</p>
+    <ul>
+      <li>Les lignes d’entretien reçoivent les valeurs de portée entretien.</li>
+      <li>Les lignes de locuteur, sous chaque entretien, reçoivent les valeurs de portée locuteur.</li>
+      <li>Les cases de l’autre portée restent vides : ce ne sont pas des cellules à remplir.</li>
+    </ul>
+    <p>La table et le panneau de l’entretien montrent les <strong>mêmes valeurs</strong>. Choisissez une réponse ou saisissez-la comme dans l’entretien. La table se met à jour après l’enregistrement ; en cas de refus, contrôlez le message de la cellule au lieu de supposer que la valeur a été appliquée.</p>
+    <figure>
+      <img src="../medias/table-donnees.png" alt="La table affiche les entretiens et leurs locuteurs en lignes, Lieu de rencontre et Ancienneté en colonnes, avec un panneau de sélection des variables à gauche.">
+      <figcaption>Une valeur appartient à l’entretien ou au locuteur de sa ligne, pas à toute la colonne.</figcaption>
+    </figure>
+    <p>Dans le panneau de gauche, cochez les variables à afficher. <strong>toutes</strong>, <strong>entretien</strong> et <strong>locuteurs</strong> limitent les colonnes par portée. <strong>Tout masquer</strong> et <strong>Tout afficher</strong> changent seulement leur visibilité, sans supprimer les variables ni leurs valeurs.</p>
+    <p><strong>Rechercher une variable…</strong> aide à retrouver son nom dans ce panneau ; cette recherche ne filtre pas les entretiens ni les valeurs de la table. Les variables d’entretien sont regroupées avant celles de locuteur. L’interface actuelle ne propose pas de commande pour réordonner leurs définitions ou leurs modalités : prévoyez, si nécessaire, l’ordre des modalités lors de leur création.</p>
+    <details>
+      <summary>Se déplacer au clavier dans la table</summary>
+      <p><strong>Tabulation</strong> et <strong>Maj + Tabulation</strong> passent à la cellule suivante ou précédente sur la ligne. <strong>Entrée</strong> descend dans la colonne ; <strong>Maj + Entrée</strong> remonte. Les déplacements sautent les cases qui ne correspondent pas à la portée de la variable.</p>
+    </details>
+    <h2 id="csv">Exporter la table vers un tableur</h2>
+    <ol>
+      <li>Dans le panneau <strong>Variables</strong>, cochez les colonnes à exporter. Choisissez <strong>toutes</strong>, <strong>entretien</strong> ou <strong>locuteurs</strong> selon les portées souhaitées.</li>
+      <li>Cliquez sur <strong>Exporter CSV…</strong> au-dessus de la table.</li>
+      <li>Vérifiez le nombre de variables retenues. Les variables privées affichées sont exclues par défaut ; cochez <strong>Inclure aussi les variables privées affichées</strong> seulement si vous souhaitez conserver leurs réponses dans ce fichier.</li>
+      <li>Cliquez sur <strong>Exporter CSV</strong>, puis choisissez le nom et l’emplacement du fichier.</li>
+    </ol>
+    <figure>
+      <img src="../medias/export-donnees.png" alt="La fenêtre d’export CSV annonce deux variables, avec l’option d’inclusion des variables privées décochée et un rappel sur les noms en clair.">
+      <figcaption>Le CSV reprend les colonnes affichées, sans variables privées sauf choix explicite.</figcaption>
+    </figure>
+    <p>Ouvrez le fichier dans Excel, LibreOffice Calc ou un autre tableur. Si celui-ci demande des réglages d’import, choisissez <strong>UTF-8</strong> et le séparateur <strong>point-virgule</strong>.</p>
+    <p>Le CSV contient les lignes d’entretien et, si elles sont affichées, les lignes de locuteur. Les colonnes <strong>Entretien</strong>, <strong>Type de ligne</strong> et <strong>Locuteur</strong> permettent de les distinguer. Le nom de l’entretien est répété sur ses lignes de locuteur pour faciliter le tri. Une cellule vide reste vide, et les intitulés des variables précisent leur portée.</p>
+    <p>La recherche d’un nom dans le panneau Variables ne réduit pas à elle seule l’export : ce sont les colonnes cochées et le filtre de portée qui comptent. Les données sont relues avant l’enregistrement ; un entretien indisponible ou une réponse incohérente bloque l’export avec un message, au lieu de produire un fichier silencieusement incomplet.</p>
+    <p class="retenir"><strong>Les noms des entretiens et des locuteurs inclus restent en clair.</strong> Le CSV n’est pas pseudonymisé automatiquement. Vérifiez les noms et les réponses avant de partager le fichier, particulièrement si vous avez inclus des variables privées. Exporter ne modifie pas le corpus ; le CSV n’en est pas une sauvegarde complète.</p>
+    <h2 id="lot">Appliquer une valeur à plusieurs entretiens</h2>
+    <p>Le bouton <strong>⇊</strong> dans l’en-tête d’une colonne de portée <strong>entretien</strong> ouvre <strong>Modifier en lot</strong>. Cette commande propose une même valeur pour les entretiens du corpus ; elle ne sert pas à remplir d’un coup les variables des locuteurs.</p>
+    <ol>
+      <li>Vérifiez la variable indiquée dans le titre et choisissez la valeur à appliquer.</li>
+      <li>Pour préserver les réponses déjà renseignées, cochez <strong>Seulement les entretiens sans valeur</strong>. Ce filtre est décoché par défaut.</li>
+      <li>Relisez la liste des entretiens ciblés et celle des entretiens ignorés.</li>
+      <li>Cliquez sur <strong>Appliquer</strong>, puis lisez le bilan avant de <strong>Fermer</strong>.</li>
+    </ol>
+    <p class="retenir"><strong>Sans le filtre, la valeur commune peut remplacer les réponses déjà saisies.</strong> La valeur « — », ou une saisie libre vide, efface les valeurs des cibles. Fermer la fenêtre après l’application n’annule pas le lot. Si un entretien est refusé, les autres peuvent tout de même avoir été modifiés : vérifiez le bilan.</p>
+    <h2 id="privee">Comprendre publique et privée</h2>
+    <p>Une nouvelle variable est <strong>publique</strong>. Dans <strong>Édition des variables</strong>, cliquez sur son bouton de statut pour la rendre <strong>privée</strong>, ou pour la rendre publique à nouveau.</p>
+    <p>Le statut privé exclut cette variable des exports de lecture, comme les documents TXT, HTML ou Word contenant des variables. Le CSV l’exclut aussi par défaut, mais vous pouvez choisir de l’y inclure explicitement. Ce statut ne masque pas sa colonne dans le corpus et ne réserve pas l’accès à une seule personne.</p>
+    <p class="retenir"><strong>« Privée » ne signifie pas « absente de tous les fichiers ».</strong> Le corpus et un export <strong>.sonal complet</strong> peuvent conserver la variable et ses réponses. Avant de partager, vérifiez le contenu du fichier produit et son format ; le statut ne retire pas non plus les informations sensibles déjà présentes dans la transcription ou l’enregistrement.</p>
+    <h2 id="modifier">Renommer, effacer une valeur ou supprimer</h2>
+    <p>Le crayon ouvre l’édition des définitions. Renommer une variable ou une modalité change son libellé <strong>dans tout le corpus</strong>, sans demander de ressaisir les réponses qui l’utilisent. Pour corriger une réponse d’un seul entretien, changez plutôt sa cellule.</p>
+    <ul>
+      <li><strong>Effacer une valeur :</strong> choisissez <strong>—</strong> dans la liste, ou validez un champ libre vide. La variable et les modalités restent disponibles. Une case vide signifie « non renseigné », pas une réponse « Non ».</li>
+      <li><strong>Supprimer une modalité :</strong> cliquez sur sa croix dans l’édition. Si elle est encore utilisée, SonalPi refuse sa suppression et indique des usages à traiter.</li>
+      <li><strong>Supprimer une variable :</strong> cliquez sur la croix de sa ligne. Ses valeurs et ses usages dans les cas ou familles peuvent empêcher la suppression.</li>
+    </ul>
+    <p>Une définition inutilisée peut être supprimée sans confirmation supplémentaire. Préférez réaffecter ou effacer les réponses après vérification, plutôt que supprimer pour corriger une seule cellule. Le texte des entretiens n’est pas modifié par ces opérations.</p>
+    <h2 id="modeles">Réutiliser un modèle, sans exporter les réponses</h2>
+    <p>Dans l’édition, <strong>Exporter ce modèle</strong> enregistre le nom et les modalités d’une variable dans un fichier JSON. Indiquez le nom du modèle, cliquez sur <strong>Exporter</strong>, puis choisissez où conserver le fichier. Les valeurs des entretiens et des locuteurs ne sont pas incluses.</p>
+    <p>Pour réutiliser ce fichier, cliquez sur <strong>Importer un modèle…</strong>. Il devient disponible dans <strong>Mes modèles</strong> du menu <strong>modèles…</strong>, sur ce poste. Sélectionnez-le sur la variable à compléter : l’import seul ne crée pas de variable et ne renseigne aucune réponse.</p>
+    <p>Pour exporter les réponses, utilisez <a href="#csv">Exporter CSV… dans la table</a>. <strong>Exporter ce modèle</strong> ne remplit pas ce rôle et n’est pas une sauvegarde de votre corpus.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="organiser-themes.html" rel="prev">← Précédent : organiser ses thèmes</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="notes.html" rel="next">Suivant : écrire et consulter des notes →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

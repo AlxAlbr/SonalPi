@@ -95,6 +95,12 @@ pseudonymisée.
 Tests : `test/notesCorpus.test.ts` (projection et état attendu),
 `test/notesCorpusDistant.test.ts` (consultation du miroir et refus d’écriture),
 `test/notesMarkdown.test.ts` (export) et `e2e/notes-corpus.e2e.ts` (parcours).
+`e2e/documentation-notes.e2e.ts` vérifie aussi de vrais téléchargements Markdown,
+avec les notes privées puis un filtre Public, sans modification du fichier source.
+Les liens vers les locuteurs et le rang sont contrôlés après édition depuis le corpus.
+Le test de lecture seule simule seulement la réponse d’ouverture : il ne qualifie
+pas un accès distant réel. `NOTES_E2E_EXECUTABLE` permet de rejouer cette recette
+dans le paquet Linux.
 
 La politique commune est décrite dans
 [gestes.md](../../distant/gestes.md).

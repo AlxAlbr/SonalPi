@@ -20,6 +20,12 @@ L’ordre de référence est `rang`, et non la date. Un réordonnancement ou une
 suppression recalcule des rangs denses. Cet ordre propre à l’entretien est
 indépendant du tri choisi dans la vue corpus.
 
+La création d’une catégorie et le changement de sa couleur passent par les commandes
+corpus immédiatement : annuler le brouillon de note ne revient pas sur ces définitions.
+La croix d’une carte supprime la note sans confirmation, contrairement à la vue corpus.
+Les cartes avec titre n’affichent pas le corps ; la vue feuille permet de le consulter
+et de le corriger directement. Ne pas interpréter cette absence d’aperçu comme une perte.
+
 ## Corps HTML restreint
 
 Le corps n’est pas du HTML libre :
@@ -75,4 +81,9 @@ depuis le corpus, qui reste indisponible.
 |---|---|
 | `test/notes.test.ts` | Normalisation, rangs, nettoyage et références de commentaires. |
 | `e2e/notes-feuille.e2e.ts` | Saisie et affichage dans la feuille. |
-| `e2e/notes-navigation.e2e.ts` | Navigation entre notes et transcription. |
+| `e2e/notes-navigation.e2e.ts` | Accès rapides, filtres et tris du corpus. |
+| `e2e/documentation-notes.e2e.ts` | Validation/annulation, ordre, feuille, copie, catégories, réouverture et lecture seule simulée. |
+
+Le [chapitre utilisateur](../../../user/traiter/notes.html) et ses deux captures
+sont vérifiés dans cette dernière recette, avec la copie de **1Coordinatrice**.
+Le test `e2e/notes-feuille.e2e.ts` vérifie également le retour au commentaire lié.

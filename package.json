@@ -60,6 +60,7 @@
     "docx": "^9.7.1",
     "iconv-lite": "^0.6.3",
     "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.3.289",
     "vue": "^3.5.35"
   },
@@ -103,6 +104,15 @@
       "createStartMenuShortcut": true
     },
     "extraResources": [
+      {
+        "from": "docs/user",
+        "to": "documentation",
+        "filter": [
+          "**/*.html",
+          "**/*.css",
+          "medias/*.png"
+        ]
+      },
       {
         "from": "ressources/docsCadreExemples",
         "to": "docsCadreExemples"

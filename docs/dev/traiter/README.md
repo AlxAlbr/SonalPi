@@ -15,6 +15,39 @@ actuel ; ce regroupement ne déplace aucun composant.
 | [locuteurs/](locuteurs/README.md) | Attribution des tours, noms et pseudonymes, personnes et rapprochements entre entretiens. |
 | [variables.md](variables.md) | Définitions, modalités, valeurs, table de données et modifications en lot. |
 
+## Import des transcriptions
+
+`src/shared/importEntretien.ts` définit les extensions du sélecteur et du dépôt.
+Pour Word/PDF, `src/main/importEntretien.ts` extrait du texte brut, puis
+`src/renderer/formatSonal/sas.ts` applique le convertisseur TXT repris de SonalPi1.
+Les noms des fichiers sont conservés pour nommer les entretiens.
+
+L’extraction Word utilise `mammoth.extractRawText`, comme en V1. L’extraction PDF
+utilise PDF.js déjà présent dans le projet et suit les lignes et l’ordre des pages.
+La sélection native lit le fichier dans le main ; le dépôt envoie ses octets par
+`fichier:extraireTexteEntretien`. Les deux entrées utilisent le même extracteur.
+Les originaux ne sont jamais réécrits. Un échec de lecture reste dans la fenêtre
+d’ajout, sans créer d’entretien vide ; une nouvelle sélection permet de reprendre.
+
+Le convertisseur TXT reconnaît aussi les exports tabulés de type Tadddam / NVivo :
+`secondes<TAB>locuteur<TAB>texte`, sans en-tête. Il refuse les lignes incomplètes,
+les temps invalides ou décroissants, avec les numéros de lignes d’origine.
+Le début suivant sert de fin au passage précédent ; aucune fin n’est inventée
+pour le dernier passage. Les formats TXT antérieurs restent reconnus.
+
+Le SRT accepte les préfixes `Nom : texte`, y compris `SPEAKER_00` et `Speaker N`,
+sans renumérotation. Un passage sans préfixe reste sans locuteur ; `None:` est
+retiré sans créer de locuteur. SRT et VTT séparent les lignes de texte par des
+espaces. Le regroupement des tours reste assuré par `importerSonal`, avec
+conservation des bornes temporelles internes.
+
+Tests : `test/importTranscriptions.test.ts`, `test/importBureautique.test.ts`,
+`test/sas.test.ts`, `test/documentationImports.test.ts` et
+`e2e/documentation-socle.e2e.ts`. Le test `e2e/import-bureautique.e2e.ts` accepte
+`IMPORT_E2E_EXECUTABLE=/chemin/vers/sonalpi2` pour vérifier le paquet.
+La [procédure utilisateur](../../user/traiter/importer.html) décrit le même ajout
+que pour les autres formats, sans dialogue supplémentaire.
+
 ## Deux niveaux, des vues partagées
 
 Le code des composants distingue trois emplacements :

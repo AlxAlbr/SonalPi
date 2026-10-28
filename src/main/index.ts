@@ -170,6 +170,10 @@ import {
 import { RelaisMediaDistant } from './medias/lectureDistante'
 import { ErreurLectureMedia, informationMedia } from './webdav/lectureMedia'
 import { appliquerMenu } from './menuApplication'
+import { MENU_ACCUEIL, type EtatMenuApplication } from '../shared/menuApplication'
+import { ouvrirDocumentation } from './documentation'
+import { extraireTexteEntretien, lireFichierEntretien } from './importEntretien'
+import { EXT_TEXTE_ENTRETIEN } from '../shared/importEntretien'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
 // le renderer est en http://localhost (Vite) et ne lit pas file:// ;
@@ -215,7 +219,6 @@ function typeMimeAudio(chemin: string): string {
   const ext = extname(chemin).slice(1).toLowerCase()
   return MIME[ext] ?? 'application/octet-stream'
 }
-const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 
 // Réglages du profil : corpus récents, exemples et largeur vidéo par corpus.
 interface Settings {
@@ -340,7 +343,12 @@ function ajouterRecentDistant(id: string): void {
 /** Reconstruction du menu applicatif (sous-menu « Corpus récents » dynamique).
  *  Crochet affecté par `enregistrerIpcCorpus` (les récents distants dépendent
  *  du coffre, créé dans sa portée) ; le défaut pré-arme un menu sans récents. */
-let majMenu: () => void = () => appliquerMenu([])
+let etatMenu: EtatMenuApplication = MENU_ACCUEIL
+let majMenu: () => void = () => appliquerMenu([], ouvrirDocumentation, etatMenu)
+ipcMain.on('menu:etat', (_e, etat: EtatMenuApplication) => {
+  etatMenu = etat
+  majMenu()
+})
 
 /** Rattache un dialogue NATIF à la fenêtre qui l'a demandé.
  *  Sans fenêtre parente, certains environnements (Linux/WSLg) affichent le dialogue DERRIÈRE l'app, ou sur un autre bureau ;
@@ -704,7 +712,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   }
   // Les récents distants dépendent du coffre (portée locale) : le crochet global
   // du menu est affecté ICI, après que `listerRecents` existe.
-  majMenu = () => appliquerMenu(listerRecents())
+  majMenu = () => appliquerMenu(listerRecents(), ouvrirDocumentation, etatMenu)
 
   /** Retire un RACCOURCI des récents (local OU distant),
    *  sans jamais toucher aux données : ni le dossier disque, ni le serveur, ni le miroir. */
@@ -2672,9 +2680,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     ) ?? poserValeurLotLocal(store, items)
   })
 
-  // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) ;
-  // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, les dialogs sont stubbés,
-  // via electronApp.evaluate, pour piloter sans dialog.
+  // Le main extrait le texte des documents ; le renderer interprète la transcription.
+  // Les dialogues natifs peuvent être remplacés par les tests.
   // `defaultPath` optionnel : en session démo, le dialogue s'ouvre dans le dossier des sources ;
   //  l'utilisateur y retrouve les fichiers.
   // Modale « Ajouter un entretien » (à la SonalPi1, ajout-entretien.html) :
@@ -2686,11 +2693,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     const r = await montrerOuvrir(e, {
       defaultPath,
       properties: ['openFile'],
-      filters: [{ name: 'Entretien', extensions: EXT_TEXTE }],
+      filters: [{ name: 'Entretien', extensions: EXT_TEXTE_ENTRETIEN }],
     })
     if (r.canceled || r.filePaths.length === 0) return null
-    return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
+    return lireFichierEntretien(r.filePaths[0])
   })
+  ipcMain.handle('fichier:extraireTexteEntretien', (_e, nom: string, octets: Uint8Array) =>
+    extraireTexteEntretien(nom, octets),
+  )
   // « Assigner un srt… » (vue Corpus) : le dialogue n'accepte QUE des transcriptions chronométrées (SRT/VTT) ;
   //  l'entretien recevra texte + ancres.
   ipcMain.handle('dialog:choisirSrt', async (e, defaultPath?: string) => {

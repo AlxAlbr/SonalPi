@@ -1,4 +1,4 @@
-import { ref, reactive, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, reactive, onBeforeUnmount } from 'vue'
 import { Extension } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -16,6 +16,7 @@ import { nomDeLocuteur } from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
 import type { Ancre } from '../../shared/entretien/audio'
+import type { BlocParole } from '../../shared/entretien/statistiquesLocuteurs'
 import { useSynchroAudio } from './useSynchroAudio'
 import { useRechercheEntretien } from './entretien/useRechercheEntretien'
 import { useJournalEntretien } from './entretien/useJournalEntretien'
@@ -451,6 +452,7 @@ export function useEntretien(deps: {
    *  recalculé avec les autres projections — même requête pure que les cartes
    *  Corpus, sur le modèle en session au lieu du disque. */
   const resumeOuvert = ref<SegmentThematique[]>([])
+  const blocsParole = shallowRef<BlocParole[]>([])
   function rafraichir() {
     rafraichirExtraits()
     rafraichirJournal() // l'annulabilité dépend du doc et des annotations
@@ -459,6 +461,13 @@ export function useEntretien(deps: {
     resumeOuvert.value = ed
       ? resumeThematique({ corpsTexte: ed.getJSON(), annotations: entretien.annotations })
       : []
+    const blocs: BlocParole[] = []
+    ed?.state.doc.forEach((noeud, offset) => {
+      if (noeud.type.name === 'paragraph') {
+        blocs.push({ pos: offset + 1, longueur: noeud.content.size, texte: noeud.textBetween(0, noeud.content.size, ' ', ' '), loc: noeud.attrs.loc ?? null })
+      }
+    })
+    blocsParole.value = blocs
   }
   /** Extraits du thème courant (REQUÊTE, rien de stocké ; l'UI a été retirée,
    *  la requête reste disponible pour un futur écran de recueil).
@@ -792,6 +801,7 @@ export function useEntretien(deps: {
     // état / modèle
     entretien,
     locuteurs,
+    blocsParole,
     meta,
     ongletDroite,
     hintCodage,

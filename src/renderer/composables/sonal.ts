@@ -1,4 +1,4 @@
-import { ref, watch, nextTick, onMounted, onScopeDispose, provide, inject, type InjectionKey } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onScopeDispose, provide, inject, type InjectionKey } from 'vue'
 import { useRetoursContextuels } from './useRetoursContextuels'
 import { useContextesPanneaux } from './useContextesPanneaux'
 import { capturerAffichage, capturerSelection } from './contexteVisuel'
@@ -9,6 +9,7 @@ import {
 import { preparerFermetureEntretien } from '../couturesApplication'
 import type { MarqueurDemo, ModeTriEntretiens } from '../../shared/format'
 import type { NavigationProjet } from '../../shared/navigationProjet'
+import type { EtatMenuApplication } from '../../shared/menuApplication'
 import { MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { useProfil } from './useProfil'
 import { afficherErreurGlobale, infoGlobale } from '../erreurs'
@@ -1296,8 +1297,39 @@ export function creerSonal() {
   /** Signal consommé par AjoutEntretien.vue (la modale vit dans la vue Corpus). */
   const demandeAjoutEntretien = ref(false)
 
+  const etatMenu = computed<EtatMenuApplication>(() => {
+    const travail = vue.value !== 'accueil' && dossierCourantDir.value !== null
+    const disponible = travail && !exportCorpusEnCours.value
+    const nombreEntretiens = Object.keys(corpus.membership.value).length
+    const trier = disponible && !lectureSeule.value && nombreEntretiens > 1
+    return {
+      travail: disponible,
+      naviguer: !exportCorpusEnCours.value,
+      enregistrer: disponible && ent.ouvertId.value !== null
+        && (!idDistantCourant.value || (!lectureSeule.value && entretienEditable.value)),
+      sauvegarder: disponible && idDistantCourant.value === null,
+      exporter: disponible && nombreEntretiens > 0,
+      ajouter: disponible && ajoutEntretienPossible.value,
+      trier,
+      trierContenu: trier && gesteDisponible('triContenu')
+        && (idDistantCourant.value === null || ent.ouvertId.value === null),
+    }
+  })
+  // Une modification des données ne reconstruit pas le menu si ses choix restent identiques.
+  watch(() => JSON.stringify(etatMenu.value), () => {
+    window.sonal.menu.actualiserEtat(etatMenu.value)
+  }, { immediate: true })
+
   window.sonal.menu.surAction(async (action, modeTri) => {
     if (exportCorpusEnCours.value) return
+    const disponibles: Record<string, boolean> = {
+      enregistrer: etatMenu.value.enregistrer,
+      'ajouter-entretien': etatMenu.value.ajouter,
+      'trier-entretiens': etatMenu.value.trier,
+      'exporter-corpus': etatMenu.value.exporter,
+      'sauvegarde-zip': etatMenu.value.sauvegarder,
+    }
+    if (disponibles[action] === false) return
     try {
       switch (action) {
         case 'nouveau-corpus':

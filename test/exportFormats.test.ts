@@ -185,6 +185,28 @@ describe('nomFichierExport', () => {
   })
 })
 
+describe('confidentialité des variables selon le format', () => {
+  test.each(['entretien', 'locuteur'] as const)('une variable privée de portée %s reste dans le SONAL complet, pas dans les copies de lecture', (portee) => {
+    const entree = entreeTeste()
+    entree.variables.find((variable) => variable.id === 'v3')!.portee = portee
+    if (portee === 'entretien') entree.meta.valeursGen.v3 = 'v3m1'
+    else entree.locuteurs[0].valeursLoc.v3 = 'v3m1'
+    const avant = JSON.stringify(entree)
+    const complet = exporterSonal(entree)
+    expect(complet).toContain('Confidentiel')
+    expect(complet).toContain('secret')
+    for (const copie of [
+      genererTxt(contexte(entree), OPTIONS_TOUT),
+      genererHtml(contexte(entree), OPTIONS_TOUT),
+      sonalPseudonymise(entree),
+    ]) {
+      expect(copie).not.toContain('Confidentiel')
+      expect(copie).not.toContain('secret')
+    }
+    expect(JSON.stringify(entree)).toBe(avant)
+  })
+})
+
 describe('TXT', () => {
   test('avec toutes les options : en-tête, notes publiques, variables, corps horodaté et codé', () => {
     const out = genererTxt(contexte(), OPTIONS_TOUT)
@@ -210,6 +232,14 @@ describe('TXT', () => {
     expect(out).toContain('[Marie]')
     expect(out).toContain('[Lieu] Lyon')
     expect(out).not.toContain('Karine habite')
+  })
+  test('la pseudonymisation de la transcription ne nettoie pas la prose des notes publiques', () => {
+    const ctx = contexte()
+    ctx.notes = [{ ...NOTES[0], corps: 'Karine, observation à contrôler avant diffusion.' }, NOTES[1]]
+    const out = genererTxt(ctx, { ...OPTIONS_TOUT, anon: true })
+    expect(out).toContain('Karine, observation à contrôler avant diffusion.')
+    expect(out).not.toContain('Karine habite')
+    expect(out).not.toContain('Ne doit pas sortir.')
   })
   test('sans options : texte brut seul', () => {
     const out = genererTxt(contexte(), OPTIONS_RIEN)

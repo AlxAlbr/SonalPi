@@ -79,6 +79,22 @@ describe('export Markdown des notes du corpus', () => {
     expect(resultat).not.toMatch(/<|onerror|onclick/)
   })
 
+  test('conserve les privées, les noms et l’ordre de la liste reçue, sans modifier les sources', () => {
+    const notes = [
+      note({ id: 'privee', titre: 'Hypothèse privée', statut: 'prive', corps: 'Fatima, piste non validée.', rang: 9 }),
+      note({ id: 'publique', titre: 'Résumé public', corps: 'Constat à partager.', rang: 0 }),
+    ]
+    const avant = structuredClone(notes)
+    const resultat = genererMarkdownNotes(notes, 'Terrain fictif', {
+      document: doc(), nomCategorie: () => 'réflexion', maintenant: new Date('2026-02-18T12:00:00Z'),
+    })
+    expect(resultat).toContain('**Statut** : prive')
+    expect(resultat).toContain('**Statut** : public')
+    expect(resultat).toContain('Fatima, piste non validée.')
+    expect(resultat.indexOf('Hypothèse privée')).toBeLessThan(resultat.indexOf('Résumé public'))
+    expect(notes).toEqual(avant)
+  })
+
   test('échappe les caractères Markdown et produit un nom de fichier portable', () => {
     expect(echapperMarkdown('\\ ` * _ [ ]')).toBe('\\\\ \\` \\* \\_ \\[ \\]')
     expect(nomFichierMarkdownNotes('Corpus : terrain/A', new Date('2025-04-05T10:00:00.000Z')))

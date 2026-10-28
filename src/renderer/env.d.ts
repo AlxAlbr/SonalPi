@@ -7,6 +7,7 @@ import type { DemandeRetraitVarianteAnon, ApercuRetraitVarianteAnon, BilanRetrai
 import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAnon, BilanSuppressionDistant, SuiviSuppressionAnon } from '../shared/corpus/suppressionAnon'
 import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
+import type { EtatMenuApplication } from '../shared/menuApplication'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -94,6 +95,7 @@ declare global {
         surReveilSysteme: (cb: () => Promise<void>) => () => void
       }
       menu: {
+        actualiserEtat: (etat: EtatMenuApplication) => void
         surAction: (cb: (action: string, mode?: ModeTriEntretiens) => void) => () => void
         surOuvrirRecent: (cb: (entree: EntreeRecent) => void) => () => void
       }
@@ -313,6 +315,7 @@ declare global {
         memoriserSignataire: (nom: string) => Promise<void>
       }
       fichier: {
+        extraireTexteEntretien: (nom: string, octets: Uint8Array) => Promise<string>
         cheminDe: (f: File) => string
       }
       migrer: {

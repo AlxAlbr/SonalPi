@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organiser et documenter ses thèmes — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Organiser et documenter ses thèmes</h1>
+    <p>Au fil du codage, vous pouvez préciser votre grille d’analyse : donner des noms plus clairs aux thèmes, définir ce qu’ils recouvrent et les regrouper en sous-thèmes. Cette organisation aide à coder de façon cohérente et à relire vos choix.</p>
+    <p>Les thèmes sont communs à <strong>tous les entretiens du corpus</strong>. Les modifier ne remplace pas les mots des transcriptions. Cette page décrit le travail dans un <strong>corpus local</strong> ; pour commencer à associer un thème au texte, consultez <a href="premier-codage.html">le premier codage</a>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#ouvrir">Ouvrir l’édition des thèmes</a></li>
+        <li><a href="#decrire">Nommer et décrire un thème</a></li>
+        <li><a href="#hierarchie">Créer des sous-thèmes</a></li>
+        <li><a href="#deplacer">Changer l’ordre ou le parent</a></li>
+        <li><a href="#apparence">Choisir la couleur et la taille des passages</a></li>
+        <li><a href="#passif">Désactiver sans supprimer</a></li>
+        <li><a href="#supprimer">Supprimer un thème avec précaution</a></li>
+        <li><a href="#verifier">Vérifier ce qui est conservé</a></li>
+      </ul>
+    </nav>
+    <h2 id="ouvrir">Ouvrir l’édition des thèmes</h2>
+    <p>Vous retrouvez la même fenêtre <strong>Édition des thèmes</strong> depuis deux endroits :</p>
+    <ul>
+      <li>Dans la vue Corpus de <strong>Importer et traiter</strong>, ouvrez l’onglet <strong>Thèmes</strong>, puis cliquez sur le crayon <strong>Éditer les thèmes</strong>.</li>
+      <li>Dans un entretien ouvert, choisissez l’onglet <strong>Thématiques</strong>, puis cliquez sur son crayon <strong>Éditer les thèmes</strong>.</li>
+    </ul>
+    <p>La première entrée sert à organiser la grille ; le codage du texte se fait dans les entretiens. Les règles de suppression diffèrent entre ces deux entrées, comme expliqué plus bas.</p>
+    <p>Pour essayer sur le terrain fictif, reprenez votre copie de <strong>Entretiens déjà importés</strong> et le thème <strong>Engagement bénévole</strong> créé lors du premier codage.</p>
+    <h2 id="decrire">Nommer et décrire un thème</h2>
+    <ol>
+      <li>Pour ajouter un thème de premier niveau, cliquez sur <strong>+ Thème</strong>.</li>
+      <li>Saisissez un nom court dans le champ de sa ligne. Pour renommer un thème existant, modifiez ce même champ.</li>
+      <li>Appuyez sur <strong>Entrée</strong> ou quittez le champ pour appliquer le nom.</li>
+      <li>Cliquez sur <strong>+ description</strong> pour expliquer quand utiliser le thème. Si une description existe déjà, le bouton porte le mot <strong>description</strong> accompagné d’une icône de note.</li>
+      <li>Saisissez la description, puis quittez son champ pour l’appliquer.</li>
+    </ol>
+    <p>Une description utile indique ce qui entre dans le thème et, si nécessaire, ce qui doit en être exclu. Par exemple, pour <strong>Motivations</strong> : « Coder les raisons de devenir bénévole. Exclure les tâches réalisées. »</p>
+    <p>Renommer un thème conserve ses codages : les passages déjà associés retrouvent son nouveau nom. Vous n’avez pas à les coder de nouveau.</p>
+    <p>Après avoir fermé l’édition avec la croix du haut, cliquez sur <strong>ⓘ</strong> à côté d’un thème pour lire sa description. <strong>ⓘ tout</strong> affiche ou masque toutes les descriptions disponibles. Ces boutons ne codent aucun passage.</p>
+    <h2 id="hierarchie">Créer des sous-thèmes</h2>
+    <ol>
+      <li>Dans <strong>Édition des thèmes</strong>, repérez le thème qui doit servir de parent.</li>
+      <li>Cliquez sur <strong>+ enfant</strong> sur sa ligne.</li>
+      <li>Nommez le nouveau sous-thème et appliquez le nom avec <strong>Entrée</strong>.</li>
+    </ol>
+    <p>Par exemple, vous pouvez organiser <strong>Engagement bénévole</strong> avec deux sous-thèmes : <strong>Motivations</strong> et <strong>Parcours</strong>. Ils apparaissent en retrait sous leur parent. Leur couleur, leur description et leur taille se règlent séparément.</p>
+    <figure>
+      <img src="../medias/edition-themes.png" alt="La fenêtre Édition des thèmes présente Engagement bénévole, ses sous-thèmes Motivations et Parcours, ainsi que la description et les commandes d’organisation.">
+      <figcaption>Les sous-thèmes précisent la grille ; la description explicite les choix de codage.</figcaption>
+    </figure>
+    <p class="retenir"><strong>Un sous-thème n’applique pas automatiquement son parent au texte.</strong> Coder avec Motivations ne crée pas aussi un codage Engagement bénévole. Si vous souhaitez les deux, appliquez les deux thèmes. Le compteur d’un parent indique ses propres codages, pas la somme de ceux de ses enfants.</p>
+    <p>La petite flèche devant un parent replie ou déplie ses sous-thèmes dans la liste. Elle ne les désactive pas et ne retire aucun codage.</p>
+    <h2 id="deplacer">Changer l’ordre ou le parent</h2>
+    <h3>Changer l’ordre parmi les thèmes du même niveau</h3>
+    <p>Dans l’édition, utilisez <strong>▲</strong> pour monter un thème et <strong>▼</strong> pour le descendre parmi ceux qui ont le même parent. Un bouton grisé signifie que le thème est déjà au début ou à la fin de ce groupe. Les sous-thèmes restent avec leur parent.</p>
+    <h3>Déplacer sous un autre thème</h3>
+    <ol>
+      <li>Cliquez sur <strong>⤵</strong> sur la ligne du thème à déplacer.</li>
+      <li>Dans la liste qui apparaît, choisissez son nouveau parent. Pour en faire un thème de premier niveau, choisissez <strong>— racine du codebook —</strong>.</li>
+      <li>Cliquez sur <strong>Déplacer</strong>, ou sur <strong>Annuler</strong> pour conserver l’emplacement actuel.</li>
+    </ol>
+    <p>Le thème arrive à la fin de son nouveau groupe ; ses propres sous-thèmes le suivent. Il ne peut pas être déplacé sous lui-même ou sous l’un de ses descendants.</p>
+    <p>Ce déplacement réorganise la liste : <strong>les passages restent codés avec le même thème</strong>. Ce n’est ni un transfert de codages, ni une fusion avec le thème parent.</p>
+    <h2 id="apparence">Choisir la couleur et la taille des passages</h2>
+    <p>La case colorée à gauche du nom permet de choisir une couleur. La colonne <strong>Aa</strong> règle la taille de police des passages codés ; une taille choisie les met aussi en gras. Sélectionnez <strong>16</strong>, la valeur par défaut, pour revenir à la taille habituelle.</p>
+    <p>Ces réglages modifient la présentation des passages déjà codés et des futurs codages du même thème, dans tout le corpus. Ils ne changent pas la taille du nom dans le panneau et ne remplacent pas les mots de la transcription.</p>
+    <details>
+      <summary>À quoi servent les Pondérations ?</summary>
+      <p>Les thèmes <strong>Pondérations</strong> et leurs sous-thèmes étoilés peuvent être présents dans votre corpus. Ils servent à repérer des passages que vous jugez importants, avec une taille de texte plus grande. Ils s’utilisent comme les autres thèmes et ne sont pas un score calculé automatiquement. Vous pouvez les laisser en place sans les utiliser.</p>
+    </details>
+    <h2 id="passif">Désactiver sans supprimer</h2>
+    <p>Décochez <strong>Actif</strong> sur la ligne d’un thème pour le rendre passif. Il reste dans la liste, grisé, et ses codages sont conservés, mais leurs marques sont masquées dans l’éditeur. Vous ne pouvez pas poser de nouveau codage avec ce thème tant qu’il est passif.</p>
+    <p>Recochez <strong>Actif</strong> pour retrouver les marques des codages existants. Vous pouvez aussi utiliser un clic droit sur le thème dans le panneau, puis <strong>Passer en passif</strong> ou <strong>Passer en actif</strong>.</p>
+    <p>Ce réglage est commun au corpus, pas seulement à votre vue du moment. Désactiver un parent ne désactive pas automatiquement ses sous-thèmes. Pour seulement raccourcir la liste affichée, utilisez plutôt la flèche de repli.</p>
+    <h2 id="supprimer">Supprimer un thème avec précaution</h2>
+    <p>Ne supprimez pas un thème pour retirer le codage d’un seul passage : utilisez <a href="premier-codage.html#retirer-codage">le retrait d’un codage</a>. Si vous voulez seulement masquer ses marques, rendez-le passif.</p>
+    <p>Dans <strong>Édition des thèmes</strong>, la croix à droite d’une ligne demande la suppression. La colonne <strong>Nbre</strong> compte les codages de ce thème dans le corpus, et non le nombre d’entretiens concernés.</p>
+    <ul>
+      <li><strong>Depuis la vue Corpus :</strong> un thème utilisé ne peut pas être supprimé. Un message indique qu’il possède encore des codages. Un thème inutilisé est supprimé sans confirmation supplémentaire.</li>
+      <li><strong>Depuis un entretien :</strong> la suppression est refusée si un autre entretien utilise le thème. Sinon, une confirmation indique combien de codages seront retirés de l’entretien ouvert. <strong>Annuler</strong> ne change rien ; <strong>Supprimer</strong> retire ces codages et supprime le thème du corpus.</li>
+    </ul>
+    <p class="retenir"><strong>Le texte des entretiens reste conservé, mais les codages retirés sont perdus.</strong> Ne comptez pas sur une restauration après suppression. Les sous-thèmes ne sont pas supprimés avec leur parent : ils remontent au niveau qu’il occupait et conservent leurs propres codages.</p>
+    <h2 id="verifier">Vérifier ce qui est conservé</h2>
+    <p>Les changements de définition sont appliqués dans le corpus au fil des actions. Quittez le champ en cours avant de fermer la fenêtre : sa croix ferme l’édition, elle n’annule pas vos changements.</p>
+    <p>Rouvrez l’édition depuis un autre entretien pour retrouver la même grille, ses descriptions et sa hiérarchie. Si vous venez de coder du texte, attendez aussi l’état <strong>à jour</strong> en haut de l’entretien avant de fermer l’application.</p>
+    <p>Pour la différence entre thème et variable, consultez <a href="../demarrer/se-reperer.html#notions">les notions utiles</a>. Pour les gestes sur le texte, retrouvez <a href="premier-codage.html">le premier codage</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="premier-codage.html" rel="prev">← Précédent : coder un premier passage</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="donnees.html" rel="next">Suivant : définir les variables et saisir les données →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { EtatMenuApplication } from '../shared/menuApplication'
 import type { OptionsTableCorrespondance, ApercuExportCorrespondance } from '../shared/corpus/tablesCorrespondance'
 import type { DemandeRenommageAnon, ApercuRenommageAnon, BilanRenommageAnon, SuiviRenommageAnon } from '../shared/corpus/renommageAnon'
 import type { DemandeDissociationAnon, ApercuDissociationAnon, BilanDissociationAnon, BilanDissociationDistant, SuiviDissociationAnon } from '../shared/corpus/dissociationAnon'
@@ -129,6 +130,7 @@ contextBridge.exposeInMainWorld('sonal', {
   /** Menu applicatif (construit côté main) : les items émettent un canal,
    *  le renderer route vers les actions/modales existantes. */
   menu: {
+    actualiserEtat: (etat: EtatMenuApplication): void => { ipcRenderer.send('menu:etat', etat) },
     /** Action de menu (voir menuApplication.ts). Renvoie le désabonnement. */
     surAction: (
       cb: (action: string, mode?: ModeTriEntretiens) => void,
@@ -530,6 +532,9 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('dialog:choisirDossier', kind, proposition),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       invoquer('dialog:choisirExport', nomSuggere, contenu),
+    /** Choisir un modèle de modalités au format JSON. */
+    choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
+      invoquer('dialog:choisirJson', defaultPath),
   },
   /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */
   export: {
@@ -565,9 +570,6 @@ contextBridge.exposeInMainWorld('sonal', {
         invoquer('export:corpusEcrireQualcoder', modele),
       fermer: (): Promise<void> => invoquer('export:corpusFermer'),
     },
-    /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
-    choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
-      invoquer('dialog:choisirJson', defaultPath),
   },
   modeles: {
     /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
@@ -576,6 +578,8 @@ contextBridge.exposeInMainWorld('sonal', {
     ajouter: (modele: ModeleEAV): Promise<ModeleEAV[]> => invoquer('modeles:ajouter', modele),
   },
   fichier: {
+    extraireTexteEntretien: (nom: string, octets: Uint8Array): Promise<string> =>
+      invoquer('fichier:extraireTexteEntretien', nom, octets),
     // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) ;
     // `File.path` n'existe plus, seul le preload peut le résoudre (webUtils).
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
