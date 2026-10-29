@@ -291,7 +291,7 @@ ipcMain.handle('dialog:openTextFiles', async () => {
     title: 'Sélectionner un fichier',
     properties: ['openFile'],
     filters: [
-      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','txt','md','json','purge','docx','pdf'] }
+      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','vtt','txt','md','json','purge','docx','pdf'] }
           
     ],
   });

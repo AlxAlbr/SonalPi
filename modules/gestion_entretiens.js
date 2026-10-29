@@ -10,6 +10,10 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     
     //console.log("ajout d'un entretien")
 
+    // Ne jamais réutiliser les métadonnées du fichier précédemment importé (notamment en lot).
+    window.tabLocImport = [''];
+    window.tabAnonImport = [];
+
     // initialiser le storage centralisé des locuteurs (main) — fallback sur window
     if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
         window.electronAPI.setTabLoc([]).catch(err => console.warn('setTabLoc init failed', err));
@@ -70,44 +74,42 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             return;
         }
 
-        // Prise en compte des fichiers JSON
-        if (extFichTxtO === ".json") {content=JSON.parse(content);}
+        try {
+            // Normaliser le texte avant de décoder un éventuel JSON.
+            content = content.replace(/^\uFEFF/, '').replace(/\r?\n|\r/g, '\n');
+            if (extFichTxtO === '.json') content = JSON.parse(content);
 
-        // mise en tableau du contenu
-        content = content.replace(/\r?\n|\r/g,'\n') // uniformisation des sauts de ligne
-
-        fichApresConversion = ""; // contenu après conversion
-
-        // conversion du fichier sélectionné 
-        switch (extFichTxtO) {
-            case ".txt":
-                fichApresConversion = await convertTXT(content);
-                break;
-
-            case ".srt":
-            case ".vtt":
-                fichApresConversion = await convertSRT(content);
-                break;
-
-            case ".purge":
-                fichApresConversion = await convertPURGE(content);
-                break;
-
-            case ".sonal":
-                fichApresConversion = await importSONAL(content);
-                break;
-
-            case ".json":
-                fichApresConversion = await convertJSON(content);
-                break;
-
-            case ".docx":
-                fichApresConversion = await convertTXT(content);
-                break;
-
-            case ".pdf":
-                fichApresConversion = await convertTXT(content);
-                break;
+            // Conversion du fichier sélectionné.
+            switch (extFichTxtO) {
+                case '.txt':
+                case '.docx':
+                case '.pdf':
+                    fichApresConversion = await convertTXT(content);
+                    break;
+                case '.srt':
+                    fichApresConversion = await convertSRT(content);
+                    break;
+                case '.vtt':
+                    fichApresConversion = await convertVTT(content);
+                    break;
+                case '.purge':
+                    fichApresConversion = await convertPURGE(content);
+                    break;
+                case '.sonal':
+                    fichApresConversion = await importSONAL(content);
+                    break;
+                case '.json':
+                    fichApresConversion = await convertJSON(content);
+                    break;
+                default:
+                    throw new Error(`Format non pris en charge : ${extFichTxtO}`);
+            }
+        } catch (error) {
+            await question(`Impossible d'importer ${nomFichTxtO} :\n${error.message}`, ['OK']);
+            return;
+        }
+        if (fichApresConversion && fichApresConversion.avertissements && fichApresConversion.avertissements.length) {
+            await question(`${nomFichTxtO} :\n${fichApresConversion.avertissements.join('\n')}`, ['OK']);
         }
 
         // Capturer le tabDat aligné AVANT la conversion en string (uniquement pour .sonal)

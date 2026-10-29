@@ -17,6 +17,7 @@
  
 
     <!-- Scripts de fonctionnement -->
+    <script src="modules/import_sous_titres.js"></script>
     <script src="modules\gestion_fichiers.js"></script>
     <script src="modules\gestion_corpus.js"></script>
     <script src="modules\gestion_fichiers.js"></script>
@@ -1096,12 +1097,12 @@ function affSegHtml(){
         data-loc = "`+ TabSeg[n][3] + `"
         data-deb = "`+ TabSeg[n][1] + `"
         data-fin = "`+ TabSeg[n][2] + `"
-        data-nomloc = "`+ nomloc + `"
+        data-nomloc = "`+ String(nomloc || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + `"
         
         onfocusin ="dsTxtArea=true;selSegment(` + n + `,false) "
         onfocusout ="dsTxtArea=false"
         style = "cursor: pointer; "
-        >` +   TabSeg[n][4]  + 
+        >` + String(TabSeg[n][4]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
     `</span>`
     
     rkMax++;
@@ -1171,7 +1172,7 @@ function affSegHtml(){
         chaine += `<span 
             data-rk="${rkMax}" 
             data-sg="${n}"
-        >${elem}</span>`;
+        >${elem.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
         rkMax++;
         }
             

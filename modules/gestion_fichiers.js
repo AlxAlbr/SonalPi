@@ -174,23 +174,17 @@ function chargeAudio(event) {
                 break;
     
             case ".SRT":
-            
-                convertSRT();
-                Phrasifier();
-                convertSpeaker();
-                affSegments(0);
-                chargeLocut();
-                loadThm()
-                
-                break;
-            
             case ".VTT":
-                convertVTT();
-                Phrasifier();
+                try {
+                    chargerSousTitresEditeur(ext === '.VTT' ? 'vtt' : 'srt');
+                } catch (error) {
+                    alert("Impossible d'importer les sous-titres :\n" + error.message);
+                    return;
+                }
+                // Conserver les coordonnées et changements de locuteur de chaque sous-titre.
                 affSegments(0);
                 chargeLocut();
-                loadThm()
-                
+                loadThm();
                 break;
 
             case ".SONAL":
@@ -298,82 +292,20 @@ function chargeAudio(event) {
     
     };
     
-    function convertSRT() { // conversion du fichier SRT en tableau
-        
-        var nblig = lignesFich.length  ;       
-         
-
-        let rgSeg=0;
-        TabSeg = new Array (1);
-        TabSeg[rgSeg]=  new Array(6);
-        
-    
-        for (s=0;s<nblig;s++){
-             
-            let ligne = lignesFich[s].trim()     
-            
-            let posflèche= ligne.lastIndexOf("-->") // recherche d'un indicateur de coordonnées
-    
-            if (posflèche>-1) { // ajout d'un segment
-                
-                TabSeg.push();
-                rgSeg++;
-                 
-                TabSeg[rgSeg]=  new Array(6);
-    
-                let tps = ligne.split("-->") 
-                let deb = TimeToSec(tps[0])
-                let fin = TimeToSec(tps[1])
-    
-                TabSeg[rgSeg][1]= deb  ;
-                TabSeg[rgSeg][2]= fin;
-                TabSeg[rgSeg][3]= ""; // locuteur
-                TabSeg[rgSeg][4]= "" //
-                TabSeg[rgSeg][5]= false ; // non sélectionné par défaut
-                TabSeg[rgSeg][6]= 0; 
-    
-            } else {
-            
-                if (ligne=="" || isNaN(ligne)==false) { // évitement des numéros de sous-titre et sauts de ligne
-    
-                    if (s<nblig-1) {
-    
-                        if (lignesFich[s+1].lastIndexOf("-->") > -1){ continue;}               
-                    
-                    }
-    
-                 
-                }
-    
-                let lignetxt = ligne.replace(/\r?\n|\r/,"") // retrait des sauts de ligne 
-                TabSeg[rgSeg][4]+= lignetxt + " "
-            
-             
-            }
-            
-         
-        }
-    
-    
-        // suppression du rang 0
-        TabSeg.splice(0,1)
-        
-    
-        //"trimage" des portions de texte
-        for (s=0;s<TabSeg.length;s++){
-            
-            let txttrim = TabSeg[s][4].trim();
-            TabSeg[s][4]= txttrim;
-    
-        }
-     
+    function chargerSousTitresEditeur(format) {
+        const resultat = window.ImportSousTitres.parserSousTitres(lignesFich.join('\n'), format);
+        // Ne modifier l'entretien courant qu'après validation complète du fichier.
+        TabSeg = resultat.tabSeg;
+        locut = resultat.locut;
+        if (resultat.avertissements.length) alert(resultat.avertissements.join('\n'));
     }
-    
-    
-    
-    
-    function VTTtoTABSEG() { // conversion du fichier VTT en tableau
-    
+
+    function convertSRT() {
+        chargerSousTitresEditeur('srt');
+    }
+
+    function convertVTT() {
+        chargerSousTitresEditeur('vtt');
     }
     
     function convertPURGE() { // converstion d'un fichier PURGE en tabseg
