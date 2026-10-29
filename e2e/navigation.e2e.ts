@@ -67,14 +67,17 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // Le corpus garde ses six onglets ; l'organisation et l'export ont leur espace.
+  // Les six onglets du corpus sont complétés par l'accès aux actions récentes.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(6)
+  await expect(onglets).toHaveCount(7)
+  await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Actions récentes', exact: true })).toBeVisible()
   await expect(onglets.nth(1)).toHaveAttribute('aria-label', 'Notes')
   await expect(onglets.nth(2)).toHaveAttribute('aria-label', 'Personnes')
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
+  await expect(page.locator('.accueil-corpus h3')).toHaveText('Importer et traiter')
+  await expect(page.locator('.accueil-corpus .accueil-intro')).toHaveText('Niveau Corpus')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')
   await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
   await expect(page.locator('.accueil-corpus')).toContainText('Cas')
@@ -111,9 +114,9 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('[data-onglet="notes"]')).toHaveClass(/actif/)
   await expect(page.locator('aside.panneau.notes')).toBeVisible()
 
-  // Entretien → Corpus (bouton « ← Corpus » de la barre).
-  // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
-  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+  // Le bouton ferme l’entretien et revient au corpus.
+  await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Retour au niveau Corpus', exact: true }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 

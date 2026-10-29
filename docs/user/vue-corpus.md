@@ -38,10 +38,18 @@ La barre supérieure propose quatre espaces de travail :
   avant d’exporter, si sa consultation a été demandée.
 
 À la première ouverture d’un projet sur le poste, **Préparer et suivre** affiche
-son Accueil. Les ouvertures suivantes retrouvent le dernier espace et le dernier
-onglet consultés. Cette mémoire reste sur le poste et n’est pas partagée avec le
-corpus. Un entretien n’est jamais rouvert automatiquement : le projet revient
-alors à l’Accueil du corpus.
+son Accueil et une fenêtre demande par quoi commencer : rejoindre les entretiens
+pour en corriger un, ou rester dans la gestion du projet. Si le corpus est vide,
+le premier choix ouvre l’ajout d’entretien. Il est grisé lorsque vous ne pouvez
+pas ajouter d’entretien, avec une explication sous le bouton. Vous pourrez ensuite
+passer librement d’un espace à l’autre.
+
+Les ouvertures suivantes retrouvent le dernier espace et le dernier onglet
+consultés. Cette mémoire reste sur le poste et n’est pas partagée avec le corpus :
+un autre participant voit donc la fenêtre lors de sa première ouverture sur son
+propre poste. Fermer la fenêtre suffit à considérer le projet comme déjà ouvert.
+Un entretien n’est jamais rouvert automatiquement : le projet revient alors à
+l’Accueil du corpus.
 
 Pendant une session, on passe librement d’un espace à l’autre sans fermer
 l’entretien ouvert. **Importer et traiter** retrouve cet entretien tel qu’il a

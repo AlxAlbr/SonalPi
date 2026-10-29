@@ -49,7 +49,14 @@ test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   await expect(fenetre.getByRole('navigation', { name: 'Dossier des documents' })).toHaveCount(0)
   await expect(fenetre.locator('.cote-preparation')).toContainText(/Ce dossier est vide\.|Vous n’avez pas encore de dossier de documents\./)
   await expect(fenetre.locator('[data-tour="documents-exemples"]')).toBeHidden()
-
+  const cote = fenetre.locator('.cote-docs')
+  const titre = await cote.locator('.corpus-tete').boundingBox()
+  const ajouter = await cote.getByRole('button', { name: /Ajouter un fichier/ }).boundingBox()
+  for (const nom of ['Nouveau dossier', 'Ouvrir ce dossier']) {
+    const bouton = await cote.getByRole('button', { name: nom, exact: true }).boundingBox()
+    expect(bouton!.y).toBeGreaterThanOrEqual(titre!.y + titre!.height + 12)
+    expect(bouton!.y + bouton!.height).toBeLessThan(ajouter!.y)
+  }
 
   // Le dossier documentaire reste accessible même sans document sélectionné.
   await app.evaluate(({ shell }) => {
@@ -67,6 +74,10 @@ test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   await ouvrirPreparation(page, 'documents-exemples')
   await expect(page.locator('[data-tour="ouvrir-documents-exemples"]')).toHaveAttribute('aria-current', 'page')
   await expect(fenetre.locator('.cote-docs .corpus-tete h3')).toHaveText('Documents exemples')
+  await expect(cote).not.toContainText('Ces modèles sont fournis avec SonalPi.')
+  const titreExemples = await cote.locator('.corpus-tete').boundingBox()
+  const actualiser = await cote.getByRole('button', { name: /Actualiser/ }).boundingBox()
+  expect(actualiser!.y).toBeGreaterThanOrEqual(titreExemples!.y + titreExemples!.height + 12)
   await expect(fenetre.getByRole('navigation', { name: 'Dossier des documents' })).toHaveCount(0)
   await expect(fenetre.locator('[data-tour="documents-exemples"] .document .nom')).toHaveText([
     'DPO',

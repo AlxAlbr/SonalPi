@@ -36,6 +36,7 @@ vides ne sont pas affichées dans le sommaire utilisateur.
 ## Organiser et exporter
 
 1. [Exporter un entretien](organiser/exporter-entretien.html).
+2. [Exporter un lot d’entretiens](organiser/exporter-corpus.html).
 
 Vous pouvez suivre cet ordre ou ouvrir directement la page qui vous intéresse.
 Pour essayer le codage sans importer vos propres documents, la page consacrée

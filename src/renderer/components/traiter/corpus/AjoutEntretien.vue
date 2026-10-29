@@ -478,6 +478,7 @@ async function valider() {
 /* Point d'entrée principal de la vue Corpus : plus visible que les
    boutons .mini génériques (gras, un peu plus grand). */
 .ajout-ent {
+  font-weight: 700;
   font-size: 0.88rem;
   padding: 0.28rem 0.65rem;
 }

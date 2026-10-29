@@ -490,9 +490,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                le crayon ouvre la fenêtre d'édition partagée (nom/couleur/taille/arbre). -->
           <div v-else-if="ongletCorpus === 'accueil'" class="panneau accueil-corpus">
             <div class="corpus-tete">
-              <h3>Corpus</h3>
+              <h3>Importer et traiter</h3>
             </div>
-            <p class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
+            <p class="accueil-intro">Niveau Corpus</p>
             <p class="raccourci">
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
@@ -1320,7 +1320,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   align-items: center;
   flex: none;
 }
-/* .crayon : style GLOBAL (base.css) — partagé avec l'écran Entretien. */
+.carte-actions .crayon {
+  border: 2px solid #777;
+}
+.carte-actions .crayon:hover {
+  border-color: #2e73d8;
+}
 .suppr {
   border: none;
   background: none;

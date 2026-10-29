@@ -6,8 +6,8 @@ habituel depuis le menu Aide. La navigation hors ligne et l’inclusion dans le
 paquet Linux sont vérifiées. Le premier sous-lot du socle V1 ajoute la présentation,
 la découverte des exemples et l’import des transcriptions. La gestion des entretiens,
 la correction, les locuteurs, les thèmes, les données, les notes, les commentaires,
-la pseudonymisation, l’annulation et l’export d’un entretien portent l’ensemble
-à seize chapitres et quarante-huit réponses FAQ.
+la pseudonymisation, l’annulation et les exports individuel et par lot portent
+l’ensemble à dix-sept chapitres et cinquante-deux réponses FAQ.
 L’import Word/PDF a été repris de la V1 ; les TXT tabulés Tadddam/NVivo et les noms
 SRT ont été adaptés de Whispurge. La table de données propose maintenant un export
 CSV des colonnes affichées, avec variables privées sur choix explicite. Le guide
@@ -35,6 +35,9 @@ l’accès général aux Actions récentes du corpus est ajouté à l’interfac
 Le chapitre Exporter un entretien vérifie ensuite les sept formats, leurs options,
 les sous-titres et les données sensibles. La FAQ unique est réorganisée en neuf
 parties, dont une section consacrée aux exports et au partage.
+Le chapitre Exporter un lot d’entretiens complète les formats de lecture avec la
+sélection, le rapport, les documents combinés, les médias et le bilan. Sa recette
+est vérifiée dans le paquet Linux, avec copie des médias originaux explicitement signalée.
 
 Le [suivi de rédaction](suivi-documentation-utilisateur-v2.md) contient
 le sommaire détaillé, la matrice des sources, les divergences et les recettes.
@@ -501,10 +504,12 @@ La page d’accueil du site regroupe les chapitres selon les parties du plan et
 n’affiche pas les rubriques encore vides. Les cartes de l’application sont désormais accessibles dans l’essai
 UX anticipé ; leur intégration finale reste au lot 8.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O05**.
-La dernière recette figure dans la section 25 du suivi.
+**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O06**.
+La dernière recette figure dans la section 26 du suivi.
 
-**Prochaine rédaction : poursuivre le lot 4 avec O06 — Exporter un lot d’entretiens**.
+**Prochaine rédaction : O07 — Transférer vers QualCoder**.
+Le chapitre Exporter un lot d’entretiens (O06), ses deux captures et ses quatre réponses
+FAQ sont rédigés et vérifiés dans le paquet Linux, à relire.
 Le chapitre Exporter un entretien (O05), ses deux captures et ses quatre réponses
 FAQ sont rédigés et vérifiés dans le paquet Linux, à relire. Le chapitre Revenir sur une
 modification (T13), ses deux captures et ses quatre réponses
@@ -518,8 +523,8 @@ FAQ et ses deux captures, est rédigé et vérifié localement, à relire. Un d�
 branchement de l’import des modèles a été corrigé et vérifié dans le paquet Linux.
 L’export CSV et les statistiques de locuteurs demandés ensuite ont été ajoutés,
 documentés et vérifiés dans le paquet Linux. Les notes, les commentaires et la
-pseudonymisation, le retour sur une modification et l’export individuel ont également
-été documentés ; la suite éditoriale est maintenant l’export d’un lot d’entretiens.
+pseudonymisation, le retour sur une modification et les exports individuel et par lot
+ont également été documentés ; la suite éditoriale est le transfert vers QualCoder.
 L’installation attend la confirmation des liens de diffusion V2. L’essai de
 restauration d’une copie ZIP locale a réussi ; la page générale sur la sauvegarde
 et le déplacement reste à rédiger.

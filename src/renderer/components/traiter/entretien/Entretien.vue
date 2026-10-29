@@ -47,7 +47,7 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
-  ouvrirExport,
+  retourCorpus,
   audio,
   verrouAutrui,
   statutSession,
@@ -110,9 +110,7 @@ function ouvrirRecueilsDepuisSelection() {
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
       <div class="grille-ent">
-        <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : « Exporter cet
-             entretien » à droite (le retour au corpus passe par le fil d'Ariane au-dessus).
-             Toute la vue ci-dessous (les deux colonnes) vient sous cette barre. -->
+        <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
         <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
@@ -128,7 +126,7 @@ function ouvrirRecueilsDepuisSelection() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
-          <button class="exporter" @click="ouvrirExport">Exporter cet entretien</button>
+          <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
         <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
@@ -306,7 +304,8 @@ function ouvrirRecueilsDepuisSelection() {
   --barre-h: 2.4rem;
 }
 .retour {
-  padding: 0.3rem 0.7rem;
+  margin-left: auto;
+  padding: 0.3rem 0.8rem;
   border: 1px solid #bbb;
   background: #fff;
   border-radius: 5px;
@@ -317,7 +316,7 @@ function ouvrirRecueilsDepuisSelection() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* « Exporter cet entretien » est renvoyé à droite (margin-left auto) : les statuts restent à gauche. */
+  /* Le retour au corpus reste à droite des statuts. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
@@ -326,14 +325,6 @@ function ouvrirRecueilsDepuisSelection() {
   background: #fff;
   height: var(--barre-h);
   box-sizing: border-box;
-}
-.exporter {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid #bbb;
-  background: #fff;
-  border-radius: 5px;
-  cursor: pointer;
 }
 /* Statut de session (publication) dans la barre d'actions */
 .statut-session {

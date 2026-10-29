@@ -2,6 +2,8 @@
 
 La procédure utilisateur de l’entretien ouvert est décrite dans
 [Exporter un entretien](../../user/organiser/exporter-entretien.html).
+Le parcours de lecture du corpus est décrit dans
+[Exporter un lot d’entretiens](../../user/organiser/exporter-corpus.html).
 
 Un export est une **photographie destinée à être lue ou échangée**, pas une
 sauvegarde des données natives. Il ne sauvegarde pas implicitement l’entretien
@@ -59,8 +61,10 @@ projection. La session est libérée en fin de lot, succès comme échec.
   Il peut contenir des informations sensibles ; changer les réglages invalide
   son aperçu, et quitter le panneau oblige à le préparer de nouveau.
 - Copier un média pour l’HTML copie **l’enregistrement original**, sans
-  pseudonymisation de la voix ou de son contenu. Ne pas assimiler texte
-  pseudonymisé et média diffusable.
+  pseudonymisation de la voix ou de son contenu. La copie reste demandée même si
+  l’HTML pseudonymisé retire son lecteur. Le panneau avertit explicitement de ce
+  comportement ; les médias doivent être décochés si le lot ne doit pas les inclure.
+  Ne pas assimiler texte pseudonymisé et média diffusable.
 - Le projet **QualCoder exporte actuellement le texte original sans
   pseudonymisation**, indépendamment des options du mode lecture. Les attributs
   privés sont écartés, mais transcriptions, commentaires, auteurs, noms et mémos
@@ -108,5 +112,8 @@ perte de tous les objets natifs de SonalPi.
 Tests : `test/exportEntretienService.test.ts`, `test/exportCorpusService.test.ts`,
 `test/exportFormats.test.ts`, `test/pseudonymisationExport.test.ts`,
 `test/exportQualcoderModele.test.ts`, `test/exportQualcoder.test.ts` et
-`e2e/export-corpus.e2e.ts`. Pour les règles de projection sensible, voir aussi
+`e2e/export-corpus.e2e.ts`. La recette utilisateur
+`e2e/documentation-exporter-lot.e2e.ts` vérifie aussi les quatre formats de lecture,
+le rapport séparé, les copies de médias avec et sans pseudonymisation et les
+échecs partiels. Pour les règles de projection sensible, voir aussi
 [les sorties de pseudonymisation](../traiter/pseudonymisation/sorties.md).

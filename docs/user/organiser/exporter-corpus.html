@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exporter un lot d’entretiens — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html#exports-partage">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Organiser et exporter</p>
+    <h1>Exporter un lot d’entretiens</h1>
+    <p>Pour relire ou transmettre plusieurs transcriptions, préparez un seul export depuis le corpus. Vous pouvez obtenir un fichier par entretien, un document combiné ou plusieurs formats à la fois.</p>
+    <p class="retenir"><strong>Exporter n’est pas sauvegarder.</strong> Les fichiers produits sont des copies de lecture. Ils ne remplacent pas le corpus de travail et ne conservent pas tous ses objets. Pour restaurer un corpus local, utilisez une <a href="../traiter/annuler-restaurer.html#sauvegarder">copie de sauvegarde ZIP</a>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#selection">Choisir les entretiens</a></li>
+        <li><a href="#formats">Choisir les fichiers à produire</a></li>
+        <li><a href="#options">Régler le contenu et vérifier le rapport</a></li>
+        <li><a href="#medias">Décider de copier les médias</a></li>
+        <li><a href="#destination">Enregistrer le lot dans un dossier distinct</a></li>
+        <li><a href="#bilan">Contrôler le bilan et les fichiers</a></li>
+        <li><a href="#arret">Arrêter ou reprendre un export</a></li>
+      </ul>
+    </nav>
+    <h2 id="selection">Choisir les entretiens</h2>
+    <ol>
+      <li>Ouvrez votre corpus, puis l’espace <strong>Organiser et exporter</strong>.</li>
+      <li>Cliquez sur <strong>Exporter le corpus</strong>. Le menu <strong>Corpus → Exporter le corpus…</strong> ouvre le même outil.</li>
+      <li>Dans la colonne de gauche, cochez les entretiens souhaités. Ils sont tous sélectionnés lors de la première ouverture de l’outil.</li>
+      <li>Conservez le type <strong>Formats de lecture (TXT, HTML, DOCX, PDF)</strong>.</li>
+      <li>Vérifiez à droite le nombre d’entretiens et, si nécessaire, ouvrez <strong>Voir les entretiens sélectionnés</strong>.</li>
+    </ol>
+    <p>Pour ne retenir que quelques entretiens, décochez <strong>Tous les entretiens</strong>, puis cochez les titres voulus. Aucun export ne peut démarrer avec une sélection vide.</p>
+    <p class="notice">Le choix <strong>Projet QualCoder (.qda)</strong> correspond à un autre transfert. Il exporte actuellement le texte original sans pseudonymisation ; les réglages des formats de lecture ne le rendent pas anonyme.</p>
+    <h2 id="formats">Choisir les fichiers à produire</h2>
+    <p>Vous pouvez cocher plusieurs formats. Les entretiens sont traités dans l’ordre de la liste.</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Format</th><th>Résultat</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Texte brut (.txt)</strong></td><td>Un fichier par entretien, pour reprendre facilement les mots transcrits.</td></tr>
+          <tr><td><strong>Page web autonome (.html)</strong></td><td>Une page par entretien, avec la présentation, les thèmes et les éléments choisis.</td></tr>
+          <tr><td><strong>Document combiné (.docx)</strong></td><td>Un document de traitement de texte contenant une section par entretien.</td></tr>
+          <tr><td><strong>PDF combiné</strong></td><td>Un document à lire ou imprimer, contenant une section par entretien.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Un fichier <strong>_index.txt</strong> accompagne le lot. Il récapitule les titres, les dates lorsqu’elles sont renseignées et le nombre de mots des entretiens exportés.</p>
+    <p>Les formats SONAL, SRT et VTT ne sont pas proposés dans ce lot. Pour ces formats, utilisez <a href="exporter-entretien.html">Exporter cet entretien</a> depuis l’entretien ouvert.</p>
+    <figure>
+      <img src="../medias/export-corpus-reglages.png" alt="L’outil Exporter le corpus présente deux entretiens cochés à gauche et, à droite, le récapitulatif des fichiers TXT, HTML et DOCX prévus.">
+      <figcaption>La colonne de droite récapitule vos choix avant le lancement. Faites défiler la colonne de gauche pour accéder aux options situées plus bas.</figcaption>
+    </figure>
+    <h2 id="options">Régler le contenu et vérifier le rapport</h2>
+    <p>Les cases reprennent celles de l’<a href="exporter-entretien.html#options">export individuel</a> : en-tête, notes, variables, coordonnées temporelles, locuteurs, thèmes et pseudonymisation. Leurs effets dépendent du format.</p>
+    <ul>
+      <li>Les <strong>notes publiques</strong> peuvent être incluses ; les notes privées sont exclues de ces formats de lecture.</li>
+      <li>Les <strong>variables privées</strong> sont exclues.</li>
+      <li>Les <strong>commentaires de passage</strong> ne sont pas rendus dans TXT, DOCX ou PDF. Le HTML les conserve dans le fichier sans les afficher : leur texte et leur auteur doivent aussi être vérifiés.</li>
+      <li>Les noms, titres, notes libres, libellés de thèmes et valeurs ne sont pas tous réécrits par la pseudonymisation.</li>
+    </ul>
+    <p>La pseudonymisation est cochée par défaut dans cet outil. Pour contrôler les remplacements configurés, cochez <strong>Consulter le rapport de pseudonymisation avant l’export</strong>, puis cliquez sur <strong>Vérifier le rapport avant l’export</strong>.</p>
+    <p>Le rapport distingue, pour chaque entretien et chaque format, les remplacements appliqués, les éléments conservés et les vérifications manuelles. Vous pouvez l’enregistrer séparément avec <strong>Enregistrer le rapport</strong>, puis cliquer sur <strong>Lancer l’export</strong>.</p>
+    <p>Modifier les réglages ou quitter l’outil invalide cet aperçu : il faudra le préparer à nouveau. Un aperçu incomplet indique les entretiens qui n’ont pas pu être examinés.</p>
+    <p class="retenir"><strong>Le rapport ne garantit pas l’anonymat du lot.</strong> Il ne détecte pas toutes les identités. Le fichier d’index, les noms de fichiers et les titres des documents combinés peuvent eux aussi contenir des noms réels.</p>
+    <h2 id="medias">Décider de copier les médias</h2>
+    <p>Lorsque le format HTML est coché, l’option <strong>Copier les médias accessibles (dossier medias/)</strong> apparaît. Elle est cochée par défaut. Les enregistrements disponibles sur le poste peuvent être copiés dans le sous-dossier <strong>medias/</strong>.</p>
+    <p class="retenir"><strong>La copie porte sur l’enregistrement original, sans modification de la voix ni du contenu, même si le texte est pseudonymisé.</strong> Décochez cette option si le lot ne doit pas contenir les enregistrements.</p>
+    <p>Avec la pseudonymisation activée, les pages HTML n’affichent pas de lecteur. Cela n’empêche pas la copie du média si vous l’avez demandée : l’absence de lecteur ne signifie donc pas que le dossier est sans audio ou vidéo.</p>
+    <p>Sans pseudonymisation, les pages HTML peuvent lire les copies disponibles dans <strong>medias/</strong>. Conservez les pages et ce sous-dossier ensemble, sans changer leur disposition. Si vous ne copiez pas le média, ou s’il est inaccessible, le lot HTML ne propose pas de lecteur pour cet entretien. Vérifiez séparément la présence de chaque enregistrement attendu.</p>
+    <h2 id="destination">Enregistrer le lot dans un dossier distinct</h2>
+    <ol>
+      <li>Relisez le récapitulatif à droite.</li>
+      <li>Cliquez sur <strong>Exporter…</strong> ou, après le rapport, sur <strong>Lancer l’export</strong>.</li>
+      <li>Choisissez un <strong>nouveau dossier d’export</strong>, distinct du corpus natif. Un nom avec la date est proposé.</li>
+      <li>Attendez le bilan avant de déplacer ou de partager ce dossier.</li>
+    </ol>
+    <p>Utilisez un dossier vide pour chaque essai. Les fichiers TXT et HTML homonymes reçoivent un numéro, mais l’index et les documents combinés peuvent remplacer une version précédente si vous réutilisez le même dossier.</p>
+    <p>L’export ne modifie pas les entretiens et ne déclenche pas leur sauvegarde ni leur publication. L’entretien ouvert est repris dans son état courant ; les autres sont lus au fur et à mesure. Ce n’est pas une sauvegarde simultanée de tout le corpus.</p>
+    <h2 id="bilan">Contrôler le bilan et les fichiers</h2>
+    <figure>
+      <img src="../medias/export-corpus-resultat.png" alt="Le bilan Export terminé indique le dossier de destination et deux entretiens exportés avec une coche verte, puis propose Préparer un autre export.">
+      <figcaption>Le bilan indique les réussites et les éventuels échecs. « Export terminé » ne signifie pas que tous les entretiens ont réussi.</figcaption>
+    </figure>
+    <p>Consultez chaque ligne : une erreur sur un entretien n’empêche pas le traitement des suivants. Un échec d’écriture du document combiné est signalé séparément. L’index liste les entretiens traités avec succès ; il ne remplace pas le contrôle de la présence des fichiers combinés.</p>
+    <ol>
+      <li>Ouvrez <strong>_index.txt</strong> et comparez sa liste à votre sélection.</li>
+      <li>Ouvrez les fichiers TXT et HTML attendus, ainsi que les documents combinés demandés.</li>
+      <li>Vérifiez les noms réels dans le texte, les titres, les notes, les variables et les noms de fichiers.</li>
+      <li>Examinez le dossier <strong>medias/</strong>, s’il existe, avant de partager quoi que ce soit.</li>
+      <li>Si un entretien ou un document a échoué, corrigez la cause puis relancez un export dans un nouveau dossier.</li>
+    </ol>
+    <h2 id="arret">Arrêter ou reprendre un export</h2>
+    <p>Pendant le traitement, <strong>Annuler après l’entretien courant</strong> laisse finir l’entretien en cours puis arrête les suivants. Les fichiers déjà créés ne sont pas supprimés. Les documents combinés peuvent alors ne contenir que la partie traitée.</p>
+    <p>Le bilan indique les entretiens exportés, ceux en échec et ceux non traités après l’arrêt. Pour reprendre, cliquez sur <strong>Préparer un autre export</strong>, vérifiez les cases conservées et lancez un nouveau lot dans un autre dossier.</p>
+    <p>Si vous annulez seulement le choix de destination, aucun fichier n’est créé pour ce lancement. Vous pouvez revenir aux réglages avec <strong>Préparer un autre export</strong>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="exporter-entretien.html" rel="prev">← Précédent : exporter un entretien</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../faq/premiers-pas.html#exports-partage" rel="next">Suivant : questions fréquentes →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

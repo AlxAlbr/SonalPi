@@ -361,8 +361,12 @@ function demanderArret(): void {
             </template>
             <label v-if="copierMediasVisible" class="option">
               <input type="checkbox" v-model="copierMedias" />
-              Copier les médias accessibles (dossier <code>medias/</code>)
+              <span>Copier les médias accessibles (dossier <code>medias/</code>)</span>
             </label>
+            <p v-if="copierMediasVisible && copierMedias" class="avertissement-anon">
+              Les enregistrements seront copiés à l’identique, même si le texte est pseudonymisé.
+              Leur voix et leur contenu peuvent identifier les personnes.
+            </p>
             <label v-if="options.anon" class="option rapport-option">
               <input type="checkbox" v-model="rapportDemande" />
               Consulter le rapport de pseudonymisation avant l'export

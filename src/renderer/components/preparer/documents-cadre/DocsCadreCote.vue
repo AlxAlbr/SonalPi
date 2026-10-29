@@ -62,9 +62,11 @@ function ouvrirAuDoubleClic(entree: EntreeDocsCadre): void {
     <div class="corpus-tete"><h3 ref="titre" tabindex="-1">{{ estProjet ? 'Documents du projet' : 'Documents exemples' }}</h3></div>
     <div class="actions-liste">
       <template v-if="estProjet && !estDistant">
+        <div class="actions-dossiers">
+          <button @click="nouveauDossier()">Nouveau dossier</button>
+          <button title="Ouvrir dans le gestionnaire de fichiers" @click="ouvrirDossierLocal()">Ouvrir ce dossier</button>
+        </div>
         <button class="primaire" data-tour="ajouter-document-cadre" @click="ajouterFichier()">＋ Ajouter un fichier</button>
-        <button @click="nouveauDossier()">Nouveau dossier</button>
-        <button title="Ouvrir dans le gestionnaire de fichiers" @click="ouvrirDossierLocal()">Ouvrir ce dossier</button>
       </template>
       <button v-else-if="estProjet" @click="ouvrirDansNextcloud()">Organiser ce dossier dans Nextcloud</button>
       <button @click="rafraichirDocsCadre()">⟳ Actualiser</button>
@@ -75,9 +77,6 @@ function ouvrirAuDoubleClic(entree: EntreeDocsCadre): void {
       <button type="submit">Créer le dossier</button>
       <button type="button" @click="saisieDossier = false">Annuler</button>
     </form>
-    <p v-if="!estProjet" class="introduction-exemples">
-      Ces modèles sont fournis avec SonalPi. Consultez-les ou enregistrez-en une copie pour l’adapter à votre projet.
-    </p>
     <nav v-if="dossier" ref="navigation" class="fil-ariane" aria-label="Dossier des documents">
       <template v-for="(miette, index) in miettes" :key="miette.chemin">
         <span v-if="index" aria-hidden="true"> › </span>
@@ -107,7 +106,9 @@ function ouvrirAuDoubleClic(entree: EntreeDocsCadre): void {
 <style scoped>
 .cote-docs { display: flex; flex-direction: column; gap: .35rem; }
 .cote-docs .corpus-tete { margin-bottom: 0; }
-.actions-liste, .fil-ariane { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+.actions-liste, .actions-dossiers, .fil-ariane { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+.actions-liste { margin-top: .75rem; }
+.actions-dossiers { flex-basis: 100%; }
 .fil-ariane { font-size: .8rem; }
 .fil-ariane button, .dossier-courant { padding: .1rem .2rem; overflow-wrap: anywhere; min-width: 0; }
 .fil-ariane button { border: none; background: none; color: #1565c0; cursor: pointer; font: inherit; }
@@ -119,7 +120,6 @@ function ouvrirAuDoubleClic(entree: EntreeDocsCadre): void {
 .creation-dossier input { width: 100%; min-width: 0; }
 .annonce-dossier { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 .erreur-reseau { background: #fdecea; color: #b3261e; border: 1px solid #f3b4ad; border-radius: 6px; font-size: .8rem; padding: .5rem .6rem; }
-.introduction-exemples { margin: .2rem 0 .45rem; color: #44506a; font-size: .82rem; line-height: 1.35; }
 .liste { display: flex; flex-direction: column; gap: .25rem; }
 .vide { color: #8a8f9c; font-size: .82rem; margin: .2rem 0; }
 .document { display: flex; align-items: center; gap: .45rem; text-align: left; border: 1px solid #dde2ee; border-radius: 6px; background: #fff; padding: .35rem .5rem; cursor: pointer; font-size: .82rem; }

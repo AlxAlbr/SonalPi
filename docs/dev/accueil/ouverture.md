@@ -21,6 +21,14 @@ Sans récent local admissible, il ne crée aucun corpus d’exercice. Un retour 
 l’accueil par `allerAccueil()` ferme l’entretien ; il ne désactive pas à lui seul
 le corpus courant.
 
+Après une ouverture explicite, `restaurerNavigationProjet()` lit la mémoire locale
+du profil. En l’absence d’emplacement enregistré, il ouvre l’Accueil de
+**Préparer et suivre** et affiche l’aiguillage de première ouverture. Le choix
+« entretien » mène à la vue Corpus ou, pour un corpus vide, à l’ajout d’entretien.
+Ce choix est indisponible si le corpus est vide et que les droits ne permettent
+pas d’ajout. Les ouvertures suivantes restaurent le dernier espace et son onglet.
+Voir [navigation et espaces](../navigation-espaces.md#aiguillage-à-la-première-ouverture).
+
 ## Circuit d’une bascule locale
 
 ```text
@@ -139,6 +147,7 @@ Voir [le cycle distant](../distant/README.md), [WebDAV](../distant/webdav.md),
 | Besoin | Fichier |
 |---|---|
 | Sauvegarde de sortie, application du corpus et choix de vue | `src/renderer/composables/corpus/useCycleCorpus.ts` |
+| Restauration de navigation et aiguillage initial | `src/renderer/composables/sonal.ts`, `src/renderer/components/app/AiguillagePremiereOuverture.vue` |
 | Lecture et retrait des récents côté renderer | `src/renderer/composables/useProfil.ts` |
 | Profil, filtrage des récents, handlers et installation du store | `src/main/index.ts` |
 | Préparation, fermeture et finalisation d’une bascule locale | `src/main/transitionContexte.ts` |

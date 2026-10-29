@@ -13,8 +13,9 @@ const { ongletDroite } = utiliserSonal()
 <template>
   <aside class="panneau maison">
     <div class="corpus-tete">
-      <h3>Entretien</h3>
+      <h3>Importer et traiter</h3>
     </div>
+    <p class="accueil-intro">Niveau entretien</p>
     <p class="raccourci">
       🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
       pour lancer puis arrêter la lecture de l'audio.

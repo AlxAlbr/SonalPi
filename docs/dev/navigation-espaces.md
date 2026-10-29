@@ -36,6 +36,26 @@ Ce lien externe demande un accès Internet, contrairement au guide HTML embarqu�
 Tests : `test/documentation.test.ts`, `e2e/accueil-preparation.e2e.ts`,
 `e2e/espaces.e2e.ts` et `e2e/espaces-contexte.e2e.ts`.
 
+## Aiguillage à la première ouverture
+
+`sonal.ts` restaure la navigation enregistrée dans le profil. Si aucune navigation
+n’existe encore pour le corpus courant, l’application ouvre l’Accueil de
+**Préparer et suivre** et affiche `AiguillagePremiereOuverture.vue`. Ce dialogue
+propose soit d’aller aux entretiens, soit de rester dans la gestion du projet.
+Pour un corpus vide, le premier choix ouvre l’ajout d’entretien. Il est désactivé
+si le profil ne peut pas ajouter d’entretien ; le dialogue explique alors la
+situation au lieu de laisser une action sans effet.
+
+La mémoire est locale au profil : elle utilise le chemin du dossier pour un corpus
+local et l’identifiant de destination pour un corpus distant. Elle est enregistrée
+dès cette première ouverture, même si le dialogue est fermé sans choix. Un autre
+poste ou un autre profil affiche donc son propre aiguillage. Les corpus d’exemple
+et d’apprentissage en sont exclus, car leur catalogue porte déjà l’entrée dans le
+travail.
+
+Tests : `e2e/aiguillage-premiere-ouverture.e2e.ts` et les scénarios d’ouverture
+dans `e2e/navigation.e2e.ts` et `e2e/multi-corpus.e2e.ts`.
+
 ## Retours au travail précédent
 
 Une consultation liée, par exemple ouvrir une source depuis un résultat, conserve

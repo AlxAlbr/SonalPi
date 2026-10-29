@@ -16,8 +16,8 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
 - Lot 4 : **sous-lots rédigés et vérifiés localement**, à relire : présentation,
   découverte des exemples, import, gestion des entretiens, correction, locuteurs,
   organisation des thèmes, variables, saisie des données, notes, commentaires,
-  pseudonymisation, retour sur une modification et export d’un entretien. Seize
-  chapitres et quarante-huit réponses FAQ sont disponibles.
+  pseudonymisation, retour sur une modification et exports individuel et par lot.
+  Dix-sept chapitres et cinquante-deux réponses FAQ sont disponibles.
 - Sommaire utilisateur : regroupé selon les parties du plan, avec seulement les
   rubriques qui contiennent déjà des chapitres publiés.
 - Import Word/PDF : **ajouté à la demande de l’utilisateur**, selon le principe V1 ;
@@ -48,7 +48,11 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
 - Export d’entretien : **chapitre O05 rédigé et vérifié dans le paquet Linux**, deux captures V2
   et quatre réponses dans la section Exports et partage de la FAQ ; sept formats,
   options, sous-titres, HTML, pseudonymisation et contrôle avant diffusion.
-- FAQ : **une page unique**, réorganisée en neuf parties et quarante-huit questions.
+- Export de lot : **chapitre O06 rédigé et vérifié dans le paquet Linux**, deux captures
+  et quatre nouvelles réponses FAQ ; sélection, formats combinés, copie des médias,
+  rapport, bilan et reprise. Un avertissement rappelle que les médias copiés restent
+  les originaux même si le texte est pseudonymisé.
+- FAQ : **une page unique**, réorganisée en neuf parties et cinquante-deux questions.
   Les pages FAQ thématiques prévues deviennent des sections de cette page.
 - `markdown-it` et ses types : retirés ; aucun nouveau lecteur Electron ou Vue.
 - Accueil : **essai UX anticipé à la demande**, deux étages et deux colonnes,
@@ -56,8 +60,8 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   Réalisé et vérifié, à relire ; la consolidation finale reste au lot 8.
 - Huit fichiers utilisateur préexistants : **inchangés**.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O05.
-Prochaine rédaction : O06 — Exporter un lot d’entretiens.** Le paquet Linux contient O05,
+**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O06.
+Prochaine rédaction : O07 — Transférer vers QualCoder.** Le paquet Linux contient O05 et O06,
 T13 avec sa restauration vérifiée, T11 et les ajustements d’accueil ; T12 est vérifié localement.
 L’installation attend les liens de diffusion. La page générale sur la sauvegarde et
 le déplacement reste à rédiger à partir de l’essai désormais réussi. Les procédures
@@ -109,7 +113,7 @@ son dossier est **Enquete-associations**. La distinction sert à expliquer les R
 
 Les illustrations sont de vraies captures V2, recadrées sur le contenu utile,
 sans montage des commandes ni données réelles. Aucun média V1 n’est recopié.
-Vingt-deux illustrations V2 accompagnent les chapitres disponibles.
+Vingt-quatre illustrations V2 accompagnent les chapitres disponibles.
 
 ## 3. Sommaire détaillé et registre des pages
 
@@ -180,7 +184,7 @@ directement en HTML, avec `style.css` comme présentation commune.
 | O03 | Composer un recueil — `organiser/recueils.html` | Doc développeur et outil V2 ; structure, citations, liaison, actualisation et export. | À rédiger |
 | O04 | Associer un passage et retrouver ses utilisations — `organiser/associations-passages.html` | V2 vue-corpus ; ajouts contextuels, associations, chevauchements et retour. | À rédiger |
 | O05 | Exporter un entretien — `organiser/exporter-entretien.html` | V1 export, export V2 ; contenu effectif et options propres à chaque format. | Rédigé et vérifié dans le paquet Linux, à relire |
-| O06 | Exporter un lot d’entretiens — `organiser/exporter-corpus.html` | Doc développeur et outil V2 ; sélection, options, rapport, erreurs et annulation. | À rédiger |
+| O06 | Exporter un lot d’entretiens — `organiser/exporter-corpus.html` | Doc développeur et outil V2 ; sélection, options, rapport, erreurs et annulation. | Rédigé et vérifié dans le paquet Linux, à relire |
 | O07 | Transférer vers QualCoder — `organiser/qualcoder.html` | V2 cas, doc développeur ; sources, cas, attributs, limites et données non pseudonymisées. | À rédiger |
 | O08 | Vérifier les données avant diffusion — `organiser/verifier-partage.html` | V2 sorties ; texte, notes, variables privées, médias originaux et rapport sensible. | À rédiger |
 
@@ -201,8 +205,8 @@ directement en HTML, avec `style.css` comme présentation commune.
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| F01 | Questions fréquentes — `faq/premiers-pas.html` | Quarante-huit réponses classées en neuf parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; quarante et une nouvelles à relire |
-| F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Quatre réponses vérifiées dans le paquet Linux, à compléter et relire |
+| F01 | Questions fréquentes — `faq/premiers-pas.html` | Cinquante-deux réponses classées en neuf parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; quarante-cinq nouvelles à relire |
+| F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Huit réponses vérifiées dans le paquet Linux, à compléter et relire |
 | F03 | Future section Analyses de F01 | Alimenter lors de N01–N06. | À compléter dans la FAQ unique |
 | F04 | Future section Travail collectif et migration de F01 | Alimenter lors de E01–M02, après recettes réelles. | À compléter dans la FAQ unique |
 | G01 | Glossaire — `glossaire.html` | Reprendre les définitions courtes de A02 puis compléter sans créer un cours technique. | À rédiger |
@@ -1821,5 +1825,75 @@ futures questions sur les analyses, le travail collectif et la migration.
 
 Poursuivre avec **O06 — Exporter un lot d’entretiens**. Les nouvelles questions
 seront ajoutées dans la partie adaptée de la FAQ unique.
+
+## 26. Exporter un lot d’entretiens
+
+Page ajoutée : [Exporter un lot d’entretiens](../../docs/user/organiser/exporter-corpus.html).
+Le guide comporte **dix-sept chapitres**, **cinquante-deux réponses FAQ** classées
+sous neuf parties et **vingt-quatre illustrations V2**.
+
+### Périmètre et relecture
+
+- Vérification des fichiers déjà préparés : recette, panneau, service d’export,
+  écriture des fichiers et captures. Les assertions de la recette ont été complétées
+  avec une sélection partielle, un PDF combiné et un média local réellement copié.
+- Le chapitre explique la sélection des entretiens, TXT/HTML individuels, DOCX/PDF
+  combinés, le rapport séparé, l’index, les erreurs partielles et l’arrêt après
+  l’entretien courant. Il ne présente pas le lot comme une sauvegarde.
+- L’index et les titres des fichiers ou documents peuvent rester identifiants.
+  Réutiliser un dossier peut remplacer l’index ou les documents combinés ; le guide
+  recommande donc une destination neuve pour chaque essai.
+- Les copies de médias restent des originaux même si les pages sont pseudonymisées
+  et sans lecteur. Un avertissement explicite est ajouté au panneau lorsque cette
+  copie est cochée. Le libellé de la case conserve aussi sa disposition sur une ligne
+  de texte cohérente.
+- Quatre réponses sont ajoutées à la section Exports et partage de la FAQ unique :
+  document combiné, médias originaux, arrêt et réussite partielle.
+- Sommaire, README, navigation et documentation développeur actualisés.
+
+### Captures
+
+- `medias/export-corpus-reglages.png` montre deux entretiens et les formats choisis
+  à gauche, avec le récapitulatif à droite.
+- `medias/export-corpus-resultat.png` montre le bilan réussi, recadré sur son contenu
+  utile sans la zone vide du panneau.
+
+### Recette
+
+- Typage et compilation réussis ; paquet Linux reconstruit ; `git diff --check` réussi.
+- **41 tests ciblés réussis** dans quatre fichiers : assemblage du corpus, service du
+  lot, DOCX combiné et intégrité du site documentaire. L’arrêt en cours de lot et
+  la conservation de l’index partiel sont notamment couverts par le service.
+- **10/10 scénarios Electron locaux réussis** : trois recettes documentaires de lot,
+  six scénarios existants d’export de corpus et lecture documentaire.
+- La première recette produit TXT, HTML et DOCX pour deux entretiens, consulte et
+  enregistre le rapport, inspecte les fichiers et l’index, puis produit un second
+  lot partiel avec un PDF combiné.
+- La recette média vérifie que les WAV copiés sont identiques aux originaux, avec
+  et sans pseudonymisation. Elle rouvre la page HTML non pseudonymisée hors ligne
+  et vérifie que son lecteur charge le média par un chemin relatif.
+- La troisième recette vérifie qu’un entretien illisible n’empêche pas un bilan
+  partiel, qu’il reste absent de l’index et que l’annulation du choix de dossier
+  permet de reprendre les réglages sans écrire de nouveau lot.
+- **4/4 scénarios réussis dans le paquet Linux** : trois recettes de lot et navigation
+  hors ligne, sans JavaScript, des dix-sept chapitres et de la FAQ à 390 pixels.
+- Aucun serveur GitLab ou Nextcloud réel n’a été sollicité. Les affirmations du
+  chapitre ne constituent pas une qualification de ces fournisseurs.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/exportCorpus.test.ts test/exportCorpusService.test.ts test/exportDocxCorpus.test.ts test/documentation.test.ts
+npx playwright test e2e/documentation-exporter-lot.e2e.ts e2e/export-corpus.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+npm run pack:dir
+EXPORT_LOT_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-exporter-lot.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire O06 et ses quatre réponses FAQ, puis poursuivre avec
+**O07 — Transférer vers QualCoder**. L’installation attend les liens publics ;
+les procédures distantes et les paquets Windows/macOS restent à qualifier.
 
 

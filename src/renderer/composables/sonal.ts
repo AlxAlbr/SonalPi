@@ -1321,9 +1321,14 @@ export function creerSonal() {
     demandeAjoutEntretien.value = true
   }
 
+  const corrigerPremiereOuverturePossible = computed(() =>
+    Object.keys(corpus.membership.value).length > 0 || ajoutEntretienPossible.value,
+  )
+
   /** Aiguillage de première ouverture : corriger un entretien.
    *  Un corpus vide n'offre rien à corriger : on propose d'en importer un. */
   async function corrigerEntretienPremiereOuverture(): Promise<void> {
+    if (!corrigerPremiereOuverturePossible.value) return
     premiereOuvertureCorpus.value = false
     if (Object.keys(corpus.membership.value).length === 0) {
       await ouvrirAjoutEntretien()
@@ -1640,6 +1645,7 @@ export function creerSonal() {
     modaleCorpusDistant,
     demandeAjoutEntretien,
     premiereOuvertureCorpus,
+    corrigerPremiereOuverturePossible,
     corrigerEntretienPremiereOuverture,
     gererProjetPremiereOuverture,
     fermerPremiereOuverture,

@@ -1,15 +1,13 @@
 <script setup lang="ts">
 /**
- *  Aiguillage de PREMIÈRE OUVERTURE : le corpus n'a jamais été consulté sur ce
- *  poste. Plutôt que de laisser l'utilisateur devant un espace de travail encore
- *  vide, la fenêtre propose les deux premiers gestes utiles — corriger un
- *  entretien ou gérer le projet — et rappelle que l'on passe ensuite librement
- *  de l'un à l'autre.
+ *  Aiguillage de première ouverture sur ce poste.
+ *  La fenêtre propose de corriger un entretien ou de gérer le projet.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 
 const {
+  corrigerPremiereOuverturePossible,
   corrigerEntretienPremiereOuverture,
   gererProjetPremiereOuverture,
   fermerPremiereOuverture,
@@ -39,17 +37,28 @@ async function corriger(): Promise<void> {
       Ce corpus n'a jamais été ouvert sur cet ordinateur.<br>Par quoi voulez-vous commencer ?
     </p>
     <div class="choix">
-      <button class="choix-corriger" autofocus @click="corriger">
+      <button
+        class="choix-corriger"
+        :autofocus="corrigerPremiereOuverturePossible"
+        :disabled="!corrigerPremiereOuverturePossible"
+        @click="corriger"
+      >
         Télécharger un entretien pour le corriger
       </button>
-      <button class="choix-projet" @click="gererProjetPremiereOuverture">
+      <p v-if="!corrigerPremiereOuverturePossible" class="indisponible">
+        Aucun entretien n'est disponible dans ce corpus et vous ne pouvez pas en ajouter.
+      </p>
+      <button
+        class="choix-projet"
+        :autofocus="!corrigerPremiereOuverturePossible"
+        @click="gererProjetPremiereOuverture"
+      >
         Aller vers l'interface de gestion de projet
       </button>
     </div>
     <p class="note">
-      Vous pourrez ensuite passer de l'un à l'autre quand vous voulez <br>
-      en passant de l'espace « Importer et traiter » : bouton "ajouter un entretien"
-      à l'espace  « Préparer et suivre », onglet "Tableau de bord".
+      Vous pourrez ensuite passer de l'un à l'autre quand vous voulez grâce aux boutons
+      « Importer et traiter » et « Préparer et suivre » en haut de la fenêtre.
     </p>
   </dialog>
 </template>
@@ -107,6 +116,12 @@ h2 {
   cursor: pointer;
 }
 .choix button:hover { background: #f2f7fd; }
+.choix button:disabled {
+  border-color: #d8dee7;
+  background: #f3f5f8;
+  color: #7a8794;
+  cursor: not-allowed;
+}
 .choix button:focus-visible { outline: 3px solid #a55b00; outline-offset: 2px; }
 .choix button.choix-corriger {
   background: #e3f2fd;
@@ -115,6 +130,13 @@ h2 {
   font-weight: 600;
 }
 .choix button.choix-corriger:hover { background: #d3e9fb; }
+.choix button.choix-corriger:disabled { background: #f3f5f8; }
+.indisponible {
+  margin: -0.15rem 0 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #607184;
+}
 .note {
   margin: 1.1rem 0 0;
   font-size: 0.82rem;

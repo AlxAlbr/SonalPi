@@ -50,7 +50,7 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       await expect(lecture.locator('main > ol')).toHaveCount(3)
       await expect(lecture.locator('main > ol').nth(0).locator('li')).toHaveCount(4)
       await expect(lecture.locator('main > ol').nth(1).locator('li')).toHaveCount(11)
-      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(1)
+      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(2)
       await lecture.setViewportSize({ width: 390, height: 844 })
       for (const chapitre of [
         'Découvrir SonalPi',
@@ -69,6 +69,7 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         'Pseudonymiser et vérifier un entretien',
         'Revenir sur une modification',
         'Exporter un entretien',
+        'Exporter un lot d’entretiens',
       ]) {
         await lecture.locator('.suite a[rel="next"]').click()
         await expect(lecture.getByRole('heading', { level: 1 })).toHaveText(chapitre)
@@ -80,7 +81,10 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       await lecture.getByRole('link', { name: /Suivant : questions/ }).click()
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes')
       await expect(lecture.locator('main > h2')).toHaveCount(9)
-      await expect(lecture.locator('main > h3')).toHaveCount(48)
+      await expect(lecture.locator('main > h3')).toHaveCount(52)
+      await lecture.getByRole('link', { name: 'Contrôler le bilan et les fichiers du lot.' }).click()
+      await expect(lecture).toHaveURL(/exporter-corpus\.html#bilan$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
       await lecture.getByRole('link', { name: 'Contrôler les sous-titres exportés.' }).click()
       await expect(lecture).toHaveURL(/exporter-entretien\.html#sous-titres$/)
       await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
