@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { attendreAccueil, attendreCorpus, lancer } from './util'
+import { lancer, attendreAccueil, attendreCorpus, fermerAiguillage } from './util'
 import { intercepterOuvertureUrl, pathAvecShim, attendreUrlAutorisation, consentir, sessionQualification, type InterceptionOuvertureUrl, type SessionQualification } from './qualification/connexionOAuth'
 import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
 import { ClientGitLab } from '../src/main/gitlab/client'
@@ -33,13 +33,17 @@ async function ouvrir(page: Page, shim: InterceptionOuvertureUrl, session: Sessi
   const onglet = page.getByRole('tab', { name: 'GitLab' }); await onglet.evaluate((e: HTMLButtonElement) => e.click())
   await page.locator('.url-projet-gitlab').fill(`${config.url}/${projet.path_with_namespace}`)
   await page.locator('.client-id-gitlab').fill(config.clientId!)
-  await authentifier(page, shim, session, /^Ouvrir le corpus$/); await attendreCorpus(page)
+  await authentifier(page, shim, session, /^Ouvrir le corpus$/)
+  await fermerAiguillage(page, 'entretiens', 120_000)
+  await attendreCorpus(page)
   await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
 }
 async function rouvrir(page: Page, shim: InterceptionOuvertureUrl, session: SessionQualification) {
   await attendreAccueil(page); await page.locator('.recent').first().click()
   await expect(page.locator('.modale-distant')).toBeVisible()
-  await authentifier(page, shim, session, /^Se reconnecter et ouvrir$/); await attendreCorpus(page)
+  await authentifier(page, shim, session, /^Se reconnecter et ouvrir$/)
+  await fermerAiguillage(page, 'entretiens', 120_000)
+  await attendreCorpus(page)
   await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
 }
 async function editer(page: Page, entite = 'Karine', texte = 'Claire / Rebecca') {

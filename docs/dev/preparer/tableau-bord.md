@@ -5,6 +5,10 @@ Le tableau de bord est un **suivi manuel du travail**, stocké dans
 du corpus : ses lignes sont des libellés libres, sans lien avec le `membership`.
 Créer, renommer ou supprimer un entretien réel ne modifie donc pas le tableau.
 
+La grille est visible dans l’onglet **Tableau de bord**, pas dans **Accueil**.
+Elle reste montée entre les onglets pour préserver les brouillons. L’accueil
+présente les outils et une introduction avec une ressource pédagogique externe.
+
 ## Modèle à comprendre
 
 `TableauBord` contient quatre collections :

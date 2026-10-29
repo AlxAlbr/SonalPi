@@ -5,8 +5,9 @@ utilise désormais des pages HTML écrites directement, ouvertes dans le navigat
 habituel depuis le menu Aide. La navigation hors ligne et l’inclusion dans le
 paquet Linux sont vérifiées. Le premier sous-lot du socle V1 ajoute la présentation,
 la découverte des exemples et l’import des transcriptions. La gestion des entretiens,
-la correction, les locuteurs, les thèmes, les données et les notes portent l’ensemble
-à douze chapitres et trente-deux réponses FAQ.
+la correction, les locuteurs, les thèmes, les données, les notes, les commentaires,
+la pseudonymisation, l’annulation et l’export d’un entretien portent l’ensemble
+à seize chapitres et quarante-huit réponses FAQ.
 L’import Word/PDF a été repris de la V1 ; les TXT tabulés Tadddam/NVivo et les noms
 SRT ont été adaptés de Whispurge. La table de données propose maintenant un export
 CSV des colonnes affichées, avec variables privées sur choix explicite. Le guide
@@ -17,7 +18,23 @@ sa capture et le guide enrichi sont également vérifiés dans le paquet Linux.
 Le chapitre Notes est ensuite rédigé et vérifié, avec deux captures et quatre réponses
 FAQ : enregistrement, catégories, consultation, statuts et export Markdown. Aucune
 modification applicative n’a été nécessaire pour ce sous-lot.
-Les cartes de l’accueil restent au lot 8.
+L’utilisateur a ensuite demandé d’essayer l’organisation de l’accueil avant la fin
+du manuel. Une version en deux étages et deux colonnes est implémentée, à relire :
+exemples et copies séparés des corpus personnels, documentation et FAQ accessibles.
+Le lot 8 conserve la consolidation et la livraison finale.
+L’accueil de Préparer et suivre est également ajusté à la demande : introduction
+et lien vers le kit pédagogique à droite, grille réservée à l’onglet Tableau de bord.
+Le chapitre Commentaires suit avec une capture et quatre réponses FAQ : sélection,
+marge, édition, suppression, liens depuis les notes et précautions d’export. Une
+garde ciblée empêche les mutations dans un entretien ouvert en lecture seule.
+Le chapitre Pseudonymisation ajoute ensuite deux captures et quatre réponses FAQ :
+portées, occurrences, variantes, exceptions, contrôle corpus et rapport avant export.
+Le chapitre Revenir sur une modification distingue la frappe, les deux Journaux de
+session et la sauvegarde ZIP. Sa recette restaure l’archive dans un dossier séparé ;
+l’accès général aux Actions récentes du corpus est ajouté à l’interface.
+Le chapitre Exporter un entretien vérifie ensuite les sept formats, leurs options,
+les sous-titres et les données sensibles. La FAQ unique est réorganisée en neuf
+parties, dont une section consacrée aux exports et au partage.
 
 Le [suivi de rédaction](suivi-documentation-utilisateur-v2.md) contient
 le sommaire détaillé, la matrice des sources, les divergences et les recettes.
@@ -29,12 +46,26 @@ Repartir d’une structure éditoriale neuve pour produire une documentation V2
 accessible aux personnes qui découvrent SonalPi, en adaptant la pédagogie des
 tutoriels V1 plutôt qu’en convertissant mécaniquement leurs pages.
 
-À terme, le bloc **Découvrir SonalPi** de l’accueil comportera quatre sous-cartes :
+L’essai UX anticipé répartit les entrées sur deux étages, sans repousser les récents :
 
 ```text
-[Parcours pas à pas]             [Explorer les corpus exemples]
-[Documentation utilisateur]     [FAQ]
+Découvrir SonalPi                   Corpus exemples
+[Parcours] [Explorer les exemples]  Liste des copies récentes
+[Documentation utilisateur] [FAQ]   (défilement si nécessaire)
+
+Vos corpus                         Reprendre votre travail
+[Créer / ouvrir local ou distant]  [Corpus personnels récents]
+
+[Migration SonalPi1 vers SonalPi2 — rubrique repliable]
 ```
+
+Après le premier retour, Explorer les corpus exemples rejoint Découvrir SonalPi ;
+les deux blocs de droite présentent des listes compactes, sans cartes par corpus.
+Un nouvel essai retire aussi le fond et le cadre des sections de listes, et les masque
+entièrement lorsqu’elles sont vides, sans déplacer les cartes de gauche.
+
+En fenêtre étroite, les corpus personnels récents passent en premier, puis les
+commandes de corpus, la découverte et les exemples. Le clavier suit ce même ordre.
 
 Les quatre entrées répondent à des besoins différents :
 
@@ -291,7 +322,8 @@ développeur utiles seront repris dans `docs/dev/` avant leur retrait éventuel.
 Le menu **Aide → Documentation utilisateur** ouvre `index.html` ; **Aide → FAQ**
 ouvre les questions fréquentes. Le système utilise l’application associée au HTML,
 habituellement le navigateur. Ces ouvertures ne passent pas par le cycle du corpus.
-Les cartes de l’accueil seront ajoutées au lot 8, comme prévu.
+Les cartes de l’accueil ont été anticipées à la demande pour l’essai UX ; elles
+utilisent le même ouvreur que le menu Aide. Le lot 8 garde la validation d’ensemble.
 
 Le sommaire, les liens entre pages et les liens **Précédent / Suivant** suffisent.
 La recherche et l’impression sont celles du navigateur ; pas de moteur de recherche
@@ -420,8 +452,9 @@ nom technique de la fonction ; la FAQ ne contredit pas le guide.
 
 ### Lot 8 — Intégrer les deux cartes et livrer
 
-- Ajouter **Documentation utilisateur** et **FAQ** dans `Accueil.vue`, en gardant
-  les parcours et exemples existants. Ajuster le texte sur le terrain fictif.
+- Finaliser l’accueil en deux colonnes essayé à la demande, avec **Documentation
+  utilisateur** et **FAQ**, sans retirer les parcours ni les exemples. Le terrain
+  fictif reste attaché aux exercices, pas au texte général de l’aide.
 - Brancher les cartes sur les deux entrées du même ensemble documentaire.
 - Vérifier les quatre cartes, les liens guide/FAQ et le clavier. Conserver le
   menu Aide pour consulter la documentation sans passer par l’accueil.
@@ -464,18 +497,31 @@ des explications destinées au lecteur.
 
 Le vouvoiement, les trois pilotes et le niveau d’explication ont été acceptés.
 Le support choisi est le HTML direct, ouvert dans le navigateur, sans conversion.
-La page d’accueil du site annonce clairement que seuls les premiers chapitres
-sont disponibles ; les cartes de l’application restent prévues au lot 8.
+La page d’accueil du site regroupe les chapitres selon les parties du plan et
+n’affiche pas les rubriques encore vides. Les cartes de l’application sont désormais accessibles dans l’essai
+UX anticipé ; leur intégration finale reste au lot 8.
 
-**Prochaine étape : poursuivre le lot 4 avec les commentaires (T11)**, puis la
-pseudonymisation et l’export d’entretien. Le chapitre Notes (T10), ses deux captures
-et ses quatre réponses FAQ sont rédigés et vérifiés dans le paquet Linux, à relire.
+**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O05**.
+La dernière recette figure dans la section 25 du suivi.
+
+**Prochaine rédaction : poursuivre le lot 4 avec O06 — Exporter un lot d’entretiens**.
+Le chapitre Exporter un entretien (O05), ses deux captures et ses quatre réponses
+FAQ sont rédigés et vérifiés dans le paquet Linux, à relire. Le chapitre Revenir sur une
+modification (T13), ses deux captures et ses quatre réponses
+FAQ sont rédigés et vérifiés dans le paquet Linux, à relire. Le chapitre Pseudonymisation
+(T12), ses deux captures et ses quatre réponses FAQ sont rédigés et vérifiés localement,
+à relire. Le chapitre Commentaires (T11), sa capture
+et ses quatre réponses FAQ sont rédigés et vérifiés dans le paquet Linux, à relire. Le chapitre Notes (T10),
+ses deux captures et ses quatre réponses FAQ sont également à relire.
 Le chapitre sur les variables et les données (T09), avec ses quatre réponses
 FAQ et ses deux captures, est rédigé et vérifié localement, à relire. Un défaut de
 branchement de l’import des modèles a été corrigé et vérifié dans le paquet Linux.
 L’export CSV et les statistiques de locuteurs demandés ensuite ont été ajoutés,
-documentés et vérifiés dans le paquet Linux. Les notes ont également été documentées ;
-la suite éditoriale est maintenant les commentaires.
-L’installation attend la confirmation des liens de diffusion V2 ; la sauvegarde
-demandera un essai de restauration.
-Les huit fichiers utilisateur préexistants et l’accueil applicatif restent inchangés.
+documentés et vérifiés dans le paquet Linux. Les notes, les commentaires et la
+pseudonymisation, le retour sur une modification et l’export individuel ont également
+été documentés ; la suite éditoriale est maintenant l’export d’un lot d’entretiens.
+L’installation attend la confirmation des liens de diffusion V2. L’essai de
+restauration d’une copie ZIP locale a réussi ; la page générale sur la sauvegarde
+et le déplacement reste à rédiger.
+Les huit fichiers utilisateur préexistants restent inchangés. L’accueil applicatif
+fait désormais l’objet de l’essai UX, sans changement du contenu des corpus.

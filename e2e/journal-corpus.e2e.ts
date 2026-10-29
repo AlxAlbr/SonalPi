@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { attendreCorpus, ecrireSeedDemo, entrerCorpus, entrerEntretien, lancer } from './util'
+import { lancer, attendreCorpus, ecrireSeedDemo, entrerCorpus, entrerEntretien, fermerAiguillage } from './util'
 
 test('Journal du corpus : annuler un renommage et une association Personnes', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-corpus-e2e-'))
@@ -85,6 +85,8 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     }, autreCorpus)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
     await page.locator('.carte-demo.ouvrir-corpus').click()
+    await fermerAiguillage(page)
+    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
     await attendreCorpus(page)
     await onglets.getByRole('button', { name: 'Personnes', exact: true }).click()
     await personnes.getByRole('button', { name: 'Annuler une modification…' }).click()

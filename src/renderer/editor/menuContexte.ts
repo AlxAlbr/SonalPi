@@ -66,6 +66,7 @@ export function pluginMenuContexte(entretien: Entretien, ouvrir: (cible: CibleMe
     props: {
       handleDOMEvents: {
         contextmenu(view: EditorView, event: MouseEvent) {
+          if (!view.editable) return false
           const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
           if (!pos) return false
 

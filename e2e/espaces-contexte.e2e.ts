@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerEntretien, ouvrirAnalyse, ouvrirPreparation, ouvrirSurCorpus } from './util'
+import { entrerEntretien, fermerAiguillage, ouvrirAnalyse, ouvrirPreparation, ouvrirSurCorpus } from './util'
 
 /** Les changements d'espace conservent le travail ; ceux de corpus le réinitialisent. */
 test('les brouillons du tableau survivent aux changements d’onglet et d’espace', async () => {
@@ -125,6 +125,7 @@ test('un autre corpus ne reprend ni brouillon du tableau ni sélection ou éditi
     }, autreCorpus)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
     await page.locator('.carte-demo.ouvrir-corpus').click()
+    await fermerAiguillage(page)
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()

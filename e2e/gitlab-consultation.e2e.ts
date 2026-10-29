@@ -31,7 +31,7 @@ import {
   type InterceptionOuvertureUrl,
   type SessionQualification,
 } from './qualification/connexionOAuth'
-import { attendreAccueil, attendreCorpus, lancer, retourCorpus } from './util'
+import { lancer, attendreAccueil, attendreCorpus, fermerAiguillage, retourCorpus } from './util'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
@@ -157,6 +157,8 @@ async function ouvrirDepuisFormulaireGitLab(
     identifiants,
     /^Ouvrir le corpus$/,
   )
+  // Première ouverture de ce corpus sur le poste : l'aiguillage mène aux entretiens.
+  await fermerAiguillage(page, 'entretiens', 120_000)
 }
 
 async function api<T>(

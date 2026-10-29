@@ -5,8 +5,7 @@ import icoCalendrier from '../../assets/icones/calendrier.png'
 import icoDocuments from '../../assets/icones/documents.png'
 import icoExemples from '../../assets/icones/exemples.svg'
 
-// Accueil de l'espace : il présente les outils voisins ;
-// le tableau de bord reste visible à droite pour garder le contexte du projet.
+// L’accueil présente les outils voisins, accessibles par leurs onglets.
 const {
   gesteDisponible,
   afficherTableauBord,
@@ -23,30 +22,23 @@ const docsDisponibles = computed(() => gesteDisponible('docsCadre'))
     <div class="corpus-tete">
       <h3>Préparation et suivi</h3>
     </div>
-    <p class="accueil-intro">
-      Organisez le déroulement de l’étude, rassemblez les documents du projet
-      et consultez les modèles proposés si besoin.
-    </p>
     <ul class="accueil-outils">
       <li>
         <button type="button" @click="afficherTableauBord()">
           <img :src="icoCalendrier" alt="" />
-          <span><b>Tableau de bord</b> — suivre l’avancement de la collecte dans une grille
-            de colonnes, de lignes et de badges.</span>
+          <span><b>Tableau de bord</b> — suivre l’avancement du projet.</span>
         </button>
       </li>
       <li v-if="docsDisponibles">
         <button type="button" @click="afficherDocsCadre()">
           <img :src="icoDocuments" alt="" />
-          <span><b>Documents du projet</b> — réunir et consulter les documents de référence
-            propres au corpus, sans modifier leur contenu.</span>
+          <span><b>Documents du projet</b> — réunir au même endroit les documents de préparation du projet.</span>
         </button>
       </li>
       <li>
         <button type="button" @click="afficherDocumentsExemples()">
           <img :src="icoExemples" alt="" />
-          <span><b>Documents exemples</b> — consulter les modèles fournis avec SonalPi
-            et en enregistrer une copie pour votre projet.</span>
+          <span><b>Documents exemples</b> — consulter des modèles de documents fournis avec SonalPi.</span>
         </button>
       </li>
     </ul>

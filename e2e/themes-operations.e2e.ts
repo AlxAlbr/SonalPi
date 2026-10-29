@@ -3,7 +3,7 @@ import type {} from '../src/renderer/env'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { ouvrirSurCorpus, ouvrirEditionThemes, fermerEditionThemes, retourCorpus, attendreCorpus } from './util'
+import { attendreCorpus, fermerAiguillage, fermerEditionThemes, ouvrirEditionThemes, ouvrirSurCorpus, retourCorpus } from './util'
 
 let app: ElectronApplication
 let page: Page
@@ -123,6 +123,8 @@ test('changer de corpus vide un ancien atelier conservé pendant la consultation
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chemin] })
   }, dir)
   await page.locator('.carte-demo.ouvrir-corpus').click()
+  await fermerAiguillage(page)
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
   await attendreCorpus(page)
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes', exact: true }).click()
   await expect(page.locator('.liste-thm-lecture li')).toHaveCount(4)

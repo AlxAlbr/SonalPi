@@ -146,3 +146,6 @@ Pour le modèle de données général, voir aussi
 [`../../modele-objet.md`](../../modele-objet.md#pseudonymisation). Pour les capacités et
 gardes communes à tous les gestes, voir
 [gestes par fournisseur](../../distant/gestes.md).
+
+La procédure destinée aux personnes utilisatrices est décrite dans
+[Pseudonymiser et vérifier un entretien](../../../user/traiter/pseudonymiser.html).

@@ -8,6 +8,7 @@ import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
+import ModaleJournalCorpus from './ModaleJournalCorpus.vue'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../../composables/sonal'
@@ -24,6 +25,7 @@ import icoMaison from '../../../assets/icones/maison.png'
 // Icônes des onglets, spécifiques au Corpus.
 import icoPersonnes from '../../../assets/icones/personnes.png'
 import icoNotes from '../../../assets/icones/notes.png'
+import icoJournal from '../../../assets/icones/journal.png'
 
 const {
   vue,
@@ -128,6 +130,7 @@ async function actualiser() {
 
 // La fenêtre d'édition des thèmes (crayon) — locale à la vue.
 const editerThemes = ref(false)
+const journalCorpusOuvert = ref(false)
 // Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition),
 // sur la consultation du Corpus comme sur le panneau Entretien.
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
@@ -355,6 +358,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button :class="{ actif: ongletCorpus === 'anon' }" title="Pseudonymisation" aria-label="Pseudonymisation" :aria-current="ongletCorpus === 'anon' ? 'page' : undefined" @click="choisirOnglet('anon')"><img class="ico-onglet-corpus" :src="icoAnon" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
+        <button title="Actions récentes" aria-label="Actions récentes" aria-haspopup="dialog" @click="journalCorpusOuvert = true"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
       </nav>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
@@ -498,6 +502,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><button type="button" @click="choisirOnglet('anon')"><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></button></li>
               <li><button type="button" @click="choisirOnglet('themes')"><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></button></li>
               <li><button type="button" @click="choisirOnglet('donnees')"><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></button></li>
+              <li><button type="button" @click="journalCorpusOuvert = true"><img :src="icoJournal" alt="" /><span><b>Actions récentes</b> — annuler les modifications prises en charge pendant l’ouverture du corpus.</span></button></li>
             </ul>
             <p class="renvoi-organisation">Retrouvez les fonctionnalités Cas et Recueils dans l’espace Organiser et exporter.</p>
             <div class="liens-organisation">
@@ -753,6 +758,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         />
       </div>
 
+      <ModaleJournalCorpus v-if="journalCorpusOuvert" @fermer="journalCorpusOuvert = false" />
       <EditionThemes v-if="editerThemes" contexte="corpus" @fermer="editerThemes = false" />
       <MenuTheme
         v-if="menuTheme"

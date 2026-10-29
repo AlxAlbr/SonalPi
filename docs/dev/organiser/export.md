@@ -1,5 +1,8 @@
 # Exports — repères développeur
 
+La procédure utilisateur de l’entretien ouvert est décrite dans
+[Exporter un entretien](../../user/organiser/exporter-entretien.html).
+
 Un export est une **photographie destinée à être lue ou échangée**, pas une
 sauvegarde des données natives. Il ne sauvegarde pas implicitement l’entretien
 ouvert et ne publie rien sur le serveur. Il reste possible en lecture seule.

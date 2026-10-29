@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { lancer, entrerCorpus, attendreAccueil, attendreCorpus, ecrireSeedDemo } from './util'
+import { lancer, attendreAccueil, attendreCorpus, ecrireSeedDemo, entrerCorpus, fermerAiguillage } from './util'
 
 /** Renomme le 1er entretien via le panneau MÉTA (sélectionne sa carte, édite le nom). */
 async function renommerPremier(page: import('@playwright/test').Page, nom: string) {
@@ -42,6 +42,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   // Accueil → « Ouvrir un corpus… » → dirB (existant, avec son propre contenu).
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await page.locator('.carte-demo.ouvrir-corpus').click()
+  await fermerAiguillage(page, 'entretiens', 10_000)
   await attendreCorpus(page)
   // Corpus isolé : SON « Entretien Karine », PAS « ENT-DEFAUT ».
   await expect(page.locator('.carte-ent')).toHaveCount(1)
@@ -58,6 +59,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   // « Ouvrir un corpus… » → dirC (VIERGE) : amorcé VIDE — aucun entretien, et le
   // codebook par défaut = le bloc Pondérations SonalPi1 (parent + 3 enfants).
   await page.locator('.carte-demo.ouvrir-corpus').click()
+  await fermerAiguillage(page)
   await expect(page.locator('.espace-preparation')).toBeVisible()
   await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
   await attendreCorpus(page)
@@ -102,6 +104,7 @@ test('un corpus dont le dossier a été supprimé disparaît des « Récents » 
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
   }, dirSupprime)
   await page.locator('.carte-demo.ouvrir-corpus').click()
+  await fermerAiguillage(page, 'entretiens', 10_000)
   await attendreCorpus(page)
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirSupprime))

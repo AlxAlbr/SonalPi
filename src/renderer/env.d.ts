@@ -90,6 +90,8 @@ declare global {
     sonal: {
       platform: string
       application: {
+        ouvrirKitPedagogique: () => Promise<void>
+        ouvrirDocumentation: (entree: 'guide' | 'faq') => Promise<void>
         surPreparationFermeture: (cb: () => Promise<void>) => () => void
         surSuspensionSysteme: (cb: () => Promise<void>) => () => void
         surReveilSysteme: (cb: () => Promise<void>) => () => void

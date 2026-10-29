@@ -152,6 +152,23 @@ describe('exporterEntretien — orchestration', () => {
     expect(contenu).toContain('Frappe non enregistrée.')
   })
 
+  test('les notes publiques conservent le nom de leur catégorie', async () => {
+    const source = sourceTeste()
+    source.categoriesNote = () => [{ id: 'ncat_terrain', nom: 'Terrain', couleur: '#cccccc' }]
+    const donnees = source.donneesExport
+    source.donneesExport = () => ({
+      ...donnees(),
+      notes: [{
+        id: 'n1', categorieId: 'ncat_terrain', titre: 'Contexte', date: null,
+        statut: 'public', corps: 'Observation.', rang: 0,
+        creeLe: '2024-01-01T00:00:00.000Z', modifieLe: null,
+      }],
+    })
+    await exporterEntretien('txt', OPTIONS_TXT, source)
+    expect(source.appels.ecrireTexte[0][1]).toContain('[Terrain]')
+    expect(source.appels.ecrireTexte[0][1]).not.toContain('[Notes]')
+  })
+
   test('nom suggéré : nettoyage + extension par format', async () => {
     const source = sourceTeste()
     await exporterEntretien('srt', OPTIONS_TXT, source)

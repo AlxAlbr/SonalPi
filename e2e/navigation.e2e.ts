@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { lancer, attendreAccueil, entrerEntretien, ecrireSeedDemo } from './util'
+import { lancer, attendreAccueil, ecrireSeedDemo, entrerEntretien, fermerAiguillage } from './util'
 
 /**
  *  Enchaînement SonalPi1 : l'app DÉMARRE sur l'ACCUEIL, puis Corpus → Entretien.
@@ -21,6 +21,7 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
   }, autreCorpus)
   await page.locator('.carte-demo.ouvrir-corpus').click()
+  await fermerAiguillage(page)
 
   await expect(page.locator('.espace-preparation')).toBeVisible()
   await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')

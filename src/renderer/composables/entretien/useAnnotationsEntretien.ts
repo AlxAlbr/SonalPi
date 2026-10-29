@@ -104,6 +104,7 @@ export function useAnnotationsEntretien(deps: {
    *  `pluginMenuContexte` (appelé à chaque clic droit consommé) : ici on
    *  transforme les annotations brutes en VUE pour le composant MenuContexte. */
   function ouvrirMenuContexte(cible: CibleMenuContexte) {
+    if (!deps.lireEditeur()?.isEditable) return
     const anon = cible.anon ? deps.decrireOccurrence(cible.anon) : null
     // Sections codages / commentaires : libellés lisibles + dédoublonnage des
     // codages par thème (plusieurs annotations du même code sous le clic = un
@@ -196,7 +197,7 @@ export function useAnnotationsEntretien(deps: {
    *  l'auteur est pré-rempli avec le dernier signataire mémorisé). */
   async function commenterPlage(from: number, to: number) {
     const ed = deps.lireEditeur()
-    if (!ed || from >= to) return
+    if (!ed?.isEditable || from >= to) return
     const snappe = snapToWord(ed.state, from, to)
     if (snappe.from >= snappe.to) return
     fermerMenu()
@@ -216,6 +217,7 @@ export function useAnnotationsEntretien(deps: {
   }
   /** Ouvre la modale en ÉDITION sur le commentaire `id` (clic carte ou menu). */
   function editerCommentaire(id: string) {
+    if (!deps.lireEditeur()?.isEditable) return
     const a = entretien.annotations.find((x) => x.id === id)
     if (!a || a.type !== 'commentaire') return
     fermerMenu()
@@ -228,6 +230,7 @@ export function useAnnotationsEntretien(deps: {
   /** Valide la modale : pose ou réécrit le commentaire, journalise, mémorise
    *  le signataire et sauvegarde — le même sillage que les codages. */
   async function validerCommentaire(auteur: string, texte: string) {
+    if (!deps.lireEditeur()?.isEditable) return
     const e = editionCommentaire.value
     if (!e || !texte.trim()) return
     await window.sonal.profil.memoriserSignataire(auteur)
@@ -253,6 +256,7 @@ export function useAnnotationsEntretien(deps: {
   /** Supprime le commentaire `id` (depuis la modale d'édition). L'objet retiré
    *  survit dans l'entrée : journalRemap continue à le remapper. */
   function supprimerCommentaire(id: string) {
+    if (!deps.lireEditeur()?.isEditable) return
     const a = entretien.annotations.find((x) => x.id === id)
     if (!a || a.type !== 'commentaire') return
     retirerAnnotation(entretien, id)

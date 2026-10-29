@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus } from './util'
+import { lancer, attendreAccueil, attendreCorpus, ouvrirMigration } from './util'
 import { FORMAT_VERSION } from '../src/shared/format'
 
 /**
@@ -124,7 +124,7 @@ test('la modale de migration GitLab est centrée sur un voile couvrant la fenêt
     await expect(page.locator('.migrer-gitlab .carte-titre')).toHaveText(/Migration corpus GitLab\s*\(V1 → V2\)/)
     await expect(page.locator('.migrer-corpus .carte-titre br')).toHaveCount(1)
     await expect(page.locator('.migrer-gitlab .carte-titre br')).toHaveCount(1)
-    await page.locator('.migrer-gitlab').click()
+    await ouvrirMigration(page, 'gitlab')
     const dialogue = page.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
     await expect(dialogue).toBeVisible()
     for (const taille of [{ width: 1000, height: 800 }, { width: 640, height: 480 }]) {
@@ -182,7 +182,7 @@ for (const mode of ['oauth', 'jeton-personnel'] as const) {
           return { preparationId: 'preparation-simulee', projet, commit: 'a'.repeat(40), corpus: ['terrain.crp'] }
         })
       }, mode)
-      await page.locator('.migrer-gitlab').click()
+      await ouvrirMigration(page, 'gitlab')
       const dialogue = page.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
       await dialogue.getByRole('combobox', { name: /^Projet source/ }).selectOption('connue')
       await expect(dialogue.getByText('Connecté : moi', { exact: true })).toBeVisible()
@@ -222,8 +222,8 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
   await attendreAccueil(page)
   await stuberDialogs(app, cheminCrp, dirCible)
 
-  // Carte « Migrer un corpus SonalPi1… » → modale.
-  await page.locator('.carte-demo.migrer-corpus').click()
+  // La rubrique repliée donne accès à l’assistant local.
+  await ouvrirMigration(page)
   await expect(page.locator('.modale-migration')).toBeVisible()
 
   // Étape 1 — .crp → APERÇU : identité + compteurs, avant toute écriture.
@@ -348,7 +348,7 @@ test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo r
   await attendreAccueil(page)
   await stuberDialogs(app, cheminCrp, dirA)
 
-  await page.locator('.carte-demo.migrer-corpus').click()
+  await ouvrirMigration(page)
   await page.locator('.modale-migration .choisir-crp').click()
   await expect(page.locator('.modale-migration .apercu-nom')).toHaveText('MonCorpus')
 
@@ -381,7 +381,7 @@ test('dossier non vide SANS corpus.json → avertissement à confirmer avant de 
   await attendreAccueil(page)
   await stuberDialogs(app, cheminCrp, dirCible)
 
-  await page.locator('.carte-demo.migrer-corpus').click()
+  await ouvrirMigration(page)
   await page.locator('.modale-migration .choisir-crp').click()
   await page.locator('.modale-migration .choisir-dossier').click()
 
@@ -411,7 +411,7 @@ test('un `.crp` illisible est refusé dans la modale (raison typée, rien d’é
   await attendreAccueil(page)
   await stuberDialogs(app, cheminMoche, dirCible)
 
-  await page.locator('.carte-demo.migrer-corpus').click()
+  await ouvrirMigration(page)
   await page.locator('.modale-migration .choisir-crp').click()
   await expect(page.locator('.modale-migration .msg-migration')).toContainText('.crp illisible')
   await expect(page.locator('.modale-migration .apercu-crp')).toHaveCount(0)
@@ -434,7 +434,7 @@ test('multi-crp — un `.crp` → UN dossier dédié, deux migrations indépenda
 
   // 1re migration — A → dirA.
   await stuberDialogs(app, crpA, dirA)
-  await page.locator('.carte-demo.migrer-corpus').click()
+  await ouvrirMigration(page)
   await page.locator('.modale-migration .choisir-crp').click()
   await page.locator('.modale-migration .choisir-dossier').click()
   await page.locator('.modale-migration .valider').click()
@@ -444,7 +444,7 @@ test('multi-crp — un `.crp` → UN dossier dédié, deux migrations indépenda
   await page.locator('.lien-nav', { hasText: 'Accueil' }).click()
   await attendreAccueil(page)
   await stuberDialogs(app, crpB, dirB)
-  await page.locator('.carte-demo.migrer-corpus').click()
+  await ouvrirMigration(page)
   await page.locator('.modale-migration .choisir-crp').click()
   await expect(page.locator('.modale-migration .apercu-nom')).toHaveText('Mon Projet de Recherche')
   await page.locator('.modale-migration .choisir-dossier').click()

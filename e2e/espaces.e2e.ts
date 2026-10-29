@@ -23,7 +23,7 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(barre.getByRole('button', { name: 'Tableau de bord' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Docs cadre projet' })).toHaveCount(0)
 
-  // Ouverture de l'espace : l'Accueil présente les outils, le tableau reste à droite.
+  // L’accueil présente les outils et une introduction, sans afficher la grille.
   await barre.getByRole('button', { name: 'Préparer et suivre' }).click()
   const espace = page.locator('.espace-preparation')
   await expect(espace).toBeVisible()
@@ -39,7 +39,8 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(cote).toContainText('Tableau de bord')
   await expect(cote).toContainText('Documents du projet')
   await expect(cote).toContainText('Documents exemples')
-  await expect(espace.locator('.principal td.case').first()).toBeVisible()
+  await expect(espace.locator('.principal td.case').first()).toBeHidden()
+  await expect(espace.locator('.presentation-preparation')).toBeVisible()
 
   // Les quatre onglets partagent le fond et la taille de titre des panneaux de l'entretien.
   const accueil = cote.locator('.accueil-preparation')
@@ -53,7 +54,7 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(panneauTableau).toHaveCSS('background-color', fondPanneau)
   await expect(panneauTableau.locator('.corpus-tete h3')).toHaveCSS('font-size', tailleTitre)
   await expect(panneauTableau.locator('.corpus-tete h3')).toHaveText('Tableau de bord')
-  await expect(panneauTableau.locator('.carte h3')).toHaveText(['Colonne', 'Ligne', 'Badges'])
+  await expect(panneauTableau.locator('.carte h3')).toHaveText(['Ajouter une colonne', 'Ajouter une ligne', 'Ajouter un badge'])
   await expect(espace.locator('.principal td.case').first()).toBeVisible()
 
   // Onglet Documents du projet : liste à gauche, aperçu à droite.

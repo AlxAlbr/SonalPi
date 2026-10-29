@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exporter un entretien — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html#exports-partage">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Organiser et exporter</p>
+    <h1>Exporter un entretien</h1>
+    <p>Un export crée une copie destinée à la lecture, à la diffusion ou à un autre logiciel. Vous choisissez le format et les éléments à inclure. L’entretien source reste inchangé.</p>
+    <p class="retenir"><strong>Un export n’est pas une sauvegarde du corpus.</strong> Pour conserver les fichiers natifs et pouvoir restaurer tout le projet, utilisez la copie ZIP d’un corpus local.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#procedure">Créer un export</a></li>
+        <li><a href="#formats">Choisir le format adapté</a></li>
+        <li><a href="#options">Comprendre les options</a></li>
+        <li><a href="#contenus">Savoir ce qui sort réellement</a></li>
+        <li><a href="#sous-titres">Exporter des sous-titres</a></li>
+        <li><a href="#html">Utiliser la page HTML</a></li>
+        <li><a href="#pseudonymisation">Appliquer la pseudonymisation</a></li>
+        <li><a href="#verifier">Vérifier avant de transmettre</a></li>
+      </ul>
+    </nav>
+    <h2 id="procedure">Créer un export</h2>
+    <ol>
+      <li>Ouvrez l’entretien à exporter.</li>
+      <li>En haut à droite, cliquez sur <strong>Exporter cet entretien</strong>.</li>
+      <li>Choisissez un format.</li>
+      <li>Cochez seulement les éléments utiles dans le fichier final.</li>
+      <li>Vérifiez l’option <strong>Appliquer la pseudonymisation</strong>.</li>
+      <li>Cliquez sur <strong>Exporter</strong>, choisissez le dossier et confirmez le nom du fichier.</li>
+      <li>Ouvrez le fichier produit et contrôlez son contenu avant de le transmettre.</li>
+    </ol>
+    <p>La fenêtre repart du choix du format à chaque ouverture. Les options proposées et leur état initial changent selon le format : ne supposez pas qu’un choix précédent a été conservé.</p>
+    <p>L’export photographie l’état actuellement affiché, y compris une correction très récente. Il ne déclenche pas une sauvegarde du corpus et ne publie rien sur un serveur. Le bouton reste proposé lorsque l’entretien est en lecture seule.</p>
+    <h2 id="formats">Choisir le format adapté</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Format</th><th>Usage conseillé</th><th>Limite importante</th></tr></thead>
+        <tbody>
+          <tr><td><strong>.sonal</strong></td><td>Échanger un entretien avec SonalPi, notamment avec la V1, en conservant transcription, locuteurs, codages, commentaires et données compatibles.</td><td>Ce n’est pas une copie complète du corpus V2. Les notes structurées de la V2 ne sont pas incluses, pas plus que les autres entretiens et l’organisation générale du corpus.</td></tr>
+          <tr><td><strong>TXT</strong></td><td>Relire, rechercher ou reprendre un texte dans presque tous les logiciels.</td><td>La présentation est simple ; les thèmes deviennent des libellés entre crochets.</td></tr>
+          <tr><td><strong>SRT</strong></td><td>Utiliser la transcription comme sous-titres dans un lecteur ou un logiciel vidéo.</td><td>Seuls les passages possédant un début et une fin temporels valides sont exportés.</td></tr>
+          <tr><td><strong>VTT</strong></td><td>Produire des sous-titres WebVTT, avec notes ou indications de thèmes si nécessaire.</td><td>Comme en SRT, les passages sans bornes temporelles sont absents.</td></tr>
+          <tr><td><strong>HTML</strong></td><td>Obtenir une page mise en forme, lisible dans un navigateur, avec locuteurs, notes, variables et thèmes choisis.</td><td>Le média local n’est pas incorporé : la page ne fait que le référencer.</td></tr>
+          <tr><td><strong>DOCX</strong></td><td>Corriger la présentation ou ajouter du contenu dans un traitement de texte.</td><td>Les commentaires de passage SonalPi ne deviennent pas des commentaires Word.</td></tr>
+          <tr><td><strong>PDF</strong></td><td>Fournir une version stable à lire ou à imprimer.</td><td>Le texte est moins facile à reprendre et aucun média n’est joint.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="notice">La pseudonymisation est actuellement cochée par défaut pour TXT, HTML et DOCX, mais pas pour SONAL, SRT, VTT et PDF. Vérifiez toujours la case au lieu de vous fier à cette valeur initiale.</p>
+    <h2 id="options">Comprendre les options</h2>
+    <figure>
+      <img src="../medias/options-export-entretien.png" alt="La fenêtre d’export HTML propose l’en-tête, les notes, les variables, les coordonnées temporelles, les locuteurs, les catégories thématiques, la pseudonymisation et son rapport facultatif.">
+      <figcaption>Le format détermine les cases disponibles. L’avertissement rappelle que la pseudonymisation ne garantit pas l’anonymat.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>En-tête</strong> ajoute le titre de l’entretien et la date de création de l’export.</li>
+      <li><strong>Notes</strong> ajoute seulement les notes publiques, lorsque le format les accepte.</li>
+      <li><strong>Variables</strong> ajoute les variables non privées et leurs valeurs.</li>
+      <li><strong>Coordonnées temporelles</strong> ajoute les temps disponibles. Elles sont indispensables aux sous-titres.</li>
+      <li><strong>Locuteurs</strong> ajoute leur nom ou leur pseudonyme devant les prises de parole.</li>
+      <li><strong>Catégories thématiques</strong> rend les codages sous forme de libellés ou de mise en forme selon le format.</li>
+      <li><strong>Appliquer la pseudonymisation</strong> remplace les occurrences décidées et les noms de locuteurs disposant d’un pseudonyme utilisable.</li>
+    </ul>
+    <p>Une case absente signifie que l’élément n’a pas de représentation dans ce format. Par exemple, SRT ne propose ni notes, ni variables, ni thèmes.</p>
+    <h2 id="contenus">Savoir ce qui sort réellement</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Élément</th><th>Comportement</th></tr></thead>
+        <tbody>
+          <tr><td>Notes</td><td>Seules les notes publiques sont ajoutées aux formats de lecture qui proposent cette option. Leur titre et leur texte libre ne sont pas réécrits par la pseudonymisation.</td></tr>
+          <tr><td>Variables</td><td>Les formats de lecture excluent les variables privées. Le fichier SONAL complet peut conserver les variables privées ; sa version pseudonymisée les retire.</td></tr>
+          <tr><td>Commentaires de passage</td><td>Ils sont conservés dans SONAL. Le fichier HTML les conserve aussi dans son contenu technique, sans les afficher dans la page. TXT, SRT, VTT, DOCX et PDF ne les reprennent pas.</td></tr>
+          <tr><td>Thèmes</td><td>SONAL conserve les codages. Selon les options, TXT, DOCX et PDF ajoutent leurs noms ; HTML les met en forme et ajoute une légende ; VTT peut porter des indications destinées aux lecteurs compatibles.</td></tr>
+          <tr><td>Média</td><td>Aucun format n’incorpore automatiquement l’enregistrement. Le HTML non pseudonymisé peut faire référence au fichier local existant.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="retenir"><strong>Le statut privé n’est pas un chiffrement.</strong> Il écarte les notes et variables concernées des formats de lecture prévus, mais un fichier d’échange complet ou un autre parcours d’export peut avoir une portée différente.</p>
+    <h2 id="sous-titres">Exporter des sous-titres</h2>
+    <p>SRT et VTT sont construits à partir des repères temporels de la transcription. Un passage n’est exporté que si SonalPi connaît un début et une fin valides. Une transcription sans repères peut donc produire un fichier vide ; des repères partiels produisent seulement une partie du texte.</p>
+    <p>Le SRT peut préfixer chaque sous-titre par le locuteur. Le VTT peut aussi inclure les notes publiques et des indications de thèmes. Relisez le fichier dans le lecteur ou le logiciel auquel il est destiné : les styles WebVTT ne sont pas tous rendus de la même manière.</p>
+    <h2 id="html">Utiliser la page HTML</h2>
+    <p>Le HTML rassemble la mise en forme dans un seul fichier et se lit dans un navigateur sans connexion. Si un enregistrement local est associé à l’entretien et que la pseudonymisation est désactivée, la page peut afficher un lecteur et des boutons de lecture.</p>
+    <p>Le son n’est toutefois pas copié dans le HTML. La page pointe vers son emplacement actuel sur l’ordinateur. Elle peut donc perdre son lecteur après un déplacement ou sur un autre poste. Pour transmettre la page, transmettez le média séparément et contrôlez les conséquences sur la confidentialité.</p>
+    <figure>
+      <img src="../medias/export-entretien-html.png" alt="Une page HTML exportée affiche le titre Entretien Karine, une note publique, une variable, la légende des thèmes et une transcription où Karine est remplacée par Nadia.">
+      <figcaption>La transcription est pseudonymisée, mais le titre et la note libre contiennent encore le nom Karine : ils doivent être vérifiés séparément.</figcaption>
+    </figure>
+    <p class="notice">Les commentaires ne sont pas visibles dans la page, mais leur texte et leur auteur restent présents dans le fichier HTML. Une personne qui examine le fichier peut les retrouver.</p>
+    <h2 id="pseudonymisation">Appliquer la pseudonymisation</h2>
+    <p>Lorsque la case est activée, SonalPi remplace les occurrences décidées par leur pseudonyme entre crochets. Les exceptions restent en clair. Un locuteur utilise son pseudonyme s’il en possède un ; sinon son nom réel peut rester visible.</p>
+    <p>Cochez <strong>Consulter le rapport de pseudonymisation avant l’export</strong> pour obtenir un contrôle en trois parties :</p>
+    <ul>
+      <li>les remplacements appliqués ;</li>
+      <li>les éléments volontairement conservés, notamment les exceptions et les noms sans pseudonyme ;</li>
+      <li>les champs libres à vérifier manuellement.</li>
+    </ul>
+    <p>Vous pouvez enregistrer ce rapport séparément, puis lancer l’export. Si vous revenez aux options et les modifiez, SonalPi prépare un nouveau rapport.</p>
+    <p class="retenir"><strong>La pseudonymisation ne réécrit pas automatiquement le titre, les notes, les commentaires, les noms de catégories, les libellés de variables ni leurs modalités.</strong> Elle ne transforme pas non plus la voix enregistrée.</p>
+    <h2 id="verifier">Vérifier avant de transmettre</h2>
+    <ol>
+      <li>Ouvrez le fichier dans le logiciel qui servira à le lire.</li>
+      <li>Recherchez les noms, lieux, coordonnées et autres éléments identifiants attendus.</li>
+      <li>Contrôlez le titre du fichier, son en-tête, les notes, les variables et les noms de locuteurs.</li>
+      <li>Pour HTML et SONAL, considérez aussi les informations non visibles immédiatement, notamment les commentaires.</li>
+      <li>Pour SRT et VTT, comparez le début et la fin avec la transcription afin de repérer les passages sans coordonnées.</li>
+      <li>Conservez l’original dans le corpus et partagez seulement la copie vérifiée.</li>
+    </ol>
+    <p>Annuler le dialogue de destination ne crée aucun fichier. En cas d’erreur, corrigez l’entretien ou les options puis relancez l’export ; le fichier déjà créé ne se met pas à jour automatiquement.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="../traiter/annuler-restaurer.html" rel="prev">← Précédent : revenir sur une modification</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../faq/premiers-pas.html#exports-partage" rel="next">Suivant : questions fréquentes →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

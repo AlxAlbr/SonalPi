@@ -22,7 +22,7 @@ import {
 } from './transitionContexte'
 import { executerFermetureApplication } from './fermetureApplication'
 import { ExemplesLocaux } from './exemples'
-import type { DossierFichiersExercice, MemoireExemples, InstallationExemple } from '../shared/exemples'
+import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
 import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import { profilerServeur, sonderFilesLock } from './webdav/sondes'
@@ -171,7 +171,7 @@ import { RelaisMediaDistant } from './medias/lectureDistante'
 import { ErreurLectureMedia, informationMedia } from './webdav/lectureMedia'
 import { appliquerMenu } from './menuApplication'
 import { MENU_ACCUEIL, type EtatMenuApplication } from '../shared/menuApplication'
-import { ouvrirDocumentation } from './documentation'
+import { ouvrirDocumentation, ouvrirKitPedagogique } from './documentation'
 import { extraireTexteEntretien, lireFichierEntretien } from './importEntretien'
 import { EXT_TEXTE_ENTRETIEN } from '../shared/importEntretien'
 
@@ -643,6 +643,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       distant: contextesDistants.actuel?.id ?? null,
     }
   })
+  ipcMain.handle('application:ouvrirKitPedagogique', () => ouvrirKitPedagogique())
+  ipcMain.handle('application:ouvrirDocumentation', (_e, entree: unknown) => {
+    if (entree !== 'guide' && entree !== 'faq') throw new Error('Entrée d’aide inconnue.')
+    return ouvrirDocumentation(entree)
+  })
   ipcMain.handle('corpus:recents', (): EntreeRecent[] => {
     const recents = listerRecents()
     majMenu() // le sous-menu du menu applicatif suit la liste fraîche
@@ -655,8 +660,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     // Ne garder que les corpus dont le DOSSIER existe encore et contient toujours un corpus.json ;
     // un corpus supprimé à la main (dossier effacé ou vidé de son corpus.json) ne doit plus apparaître dans « Récents » ;
     // au démarrage, le 1ᵉʳ récent ne doit pas être ré-amorcé en silence.
+    const exemplesRecents = new Map<string, ExempleId>()
     const vivants = s.recents.filter((dir) => {
-      if (exemplesLocaux.reconnaitre(dir)) exemplesLocaux.rattacher(dir)
+      const reconnu = exemplesLocaux.reconnaitre(dir)
+      if (reconnu) {
+        exemplesLocaux.rattacher(dir)
+        if (reconnu.travail.usage === 'libre') exemplesRecents.set(dir, reconnu.travail.exemple)
+      }
       return existsSync(join(dir, 'corpus.json')) && !exemplesLocaux.estApprentissage(dir)
     })
     if (vivants.length !== s.recents.length) {
@@ -707,7 +717,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
           ...(destinationGitLab ? { fournisseur: 'gitlab' as const } : {}),
         }
       }),
-      ...vivants.map((dir): EntreeRecent => ({ type: 'local', dir, nom: basename(dir) })),
+      ...vivants.map((dir): EntreeRecent => ({
+        type: 'local', dir, nom: basename(dir),
+        ...(exemplesRecents.has(dir) ? { exemple: exemplesRecents.get(dir) } : {}),
+      })),
     ]
   }
   // Les récents distants dépendent du coffre (portée locale) : le crochet global

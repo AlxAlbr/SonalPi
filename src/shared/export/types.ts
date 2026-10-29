@@ -82,13 +82,13 @@ export interface FormatExportable {
 }
 
 export const FORMATS_EXPORT: FormatExportable[] = [
-  { format: 'sonal', ext: '.sonal', details: 'Fichier SonalPi V1 (sauvegarde, export vers un autre projet)' },
-  { format: 'txt', ext: '.txt', details: 'Texte brut' },
-  { format: 'srt', ext: '.srt', details: 'Sous-titres SRT' },
-  { format: 'vtt', ext: '.vtt', details: 'Sous-titres WebVTT' },
-  { format: 'html', ext: '.html', details: 'Page web autonome (codage + son)' },
-  { format: 'docx', ext: '.docx', details: 'Traitement de texte (Word)' },
-  { format: 'pdf', ext: '.pdf', details: 'Document PDF' },
+  { format: 'sonal', ext: '.sonal', details: 'Fichier d’échange compatible avec SonalPi V1' },
+  { format: 'txt', ext: '.txt', details: 'Texte brut lisible dans tout éditeur' },
+  { format: 'srt', ext: '.srt', details: 'Sous-titres SRT (passages horodatés uniquement)' },
+  { format: 'vtt', ext: '.vtt', details: 'Sous-titres WebVTT (passages horodatés uniquement)' },
+  { format: 'html', ext: '.html', details: 'Page web mise en forme (média local référencé, non copié)' },
+  { format: 'docx', ext: '.docx', details: 'Document de traitement de texte' },
+  { format: 'pdf', ext: '.pdf', details: 'Document prêt à lire ou imprimer' },
 ]
 
 /** Options applicables à un format : `activee` (case proposée) et `defaut`
@@ -196,6 +196,8 @@ export interface InstantaneEntretienExport {
   /** Corps des notes PUBLIQUES déjà aplati en texte (voit la conversion
    *  HTML→texte à sa place ; les générateurs ne connaissent plus le DOM). */
   notesPubliques: Note[]
+  /** Catégories nécessaires pour présenter les notes avec leur rubrique. */
+  categoriesNote?: NoteCategory[]
   /** URL audio locale résolue et vérifiée, ou null (média absent/inaccessible,
    *  corpus distant, ou décision explicite). */
   audioLocal: string | null

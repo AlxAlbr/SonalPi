@@ -223,7 +223,15 @@ export function creerSonal() {
     memoriserNavigationProjet()
   }
 
+  /** Première ouverture de CE corpus sur ce poste : l'aiguillage s'affiche
+   *  par-dessus l'accueil de « Préparer et suivre » et se referme au choix. */
+  const premiereOuvertureCorpus = ref(false)
+  /** Corpus d'exemple ou d'apprentissage : son propre catalogue guide déjà les
+   *  premiers pas, l'aiguillage resterait une fenêtre de plus. */
+  const corpusDemo = ref(false)
+
   async function restaurerNavigationProjet(): Promise<void> {
+    premiereOuvertureCorpus.value = false
     let navigation: NavigationProjet | null = null
     try {
       const memoire = await window.sonal.profil.lireNavigationProjet()
@@ -234,8 +242,10 @@ export function creerSonal() {
     }
 
     try {
-      if (!navigation) await entrerPreparation('accueil')
-      else if (navigation.vue === 'preparer') await entrerPreparation(navigation.onglet)
+      if (!navigation) {
+        await entrerPreparation('accueil')
+        premiereOuvertureCorpus.value = !corpusDemo.value
+      } else if (navigation.vue === 'preparer') await entrerPreparation(navigation.onglet)
       else if (navigation.vue === 'analyser') {
         panneauAnalyseVisible.value = navigation.panneauVisible
         await entrerAnalyse(navigation.onglet)
@@ -1288,6 +1298,7 @@ export function creerSonal() {
     afficherSynthese: () => { void entrerAnalyse('synthese') },
   })
   raccrocherModeCorpus = async (marqueur, dir) => {
+    corpusDemo.value = marqueur !== undefined
     exemples.catalogueParcoursOuvert.value = false
     exemples.explorationExemples.value = false
     exemples.repereAnalyse.value = false
@@ -1296,6 +1307,41 @@ export function creerSonal() {
   }
   /** Signal consommé par AjoutEntretien.vue (la modale vit dans la vue Corpus). */
   const demandeAjoutEntretien = ref(false)
+
+  /** Amène la vue Corpus et y ouvre la modale « + Ajouter un entretien ». */
+  async function ouvrirAjoutEntretien(): Promise<void> {
+    if (!ajoutEntretienPossible.value) return
+    revenirTraitement()
+    if (vue.value === 'entretien') await retourCorpus()
+    else if (vue.value === 'accueil' && dossierCourantDir.value) {
+      vue.value = 'corpus'
+    }
+    if (vue.value !== 'corpus') return
+    retours.terminerConsultation()
+    demandeAjoutEntretien.value = true
+  }
+
+  /** Aiguillage de première ouverture : corriger un entretien.
+   *  Un corpus vide n'offre rien à corriger : on propose d'en importer un. */
+  async function corrigerEntretienPremiereOuverture(): Promise<void> {
+    premiereOuvertureCorpus.value = false
+    if (Object.keys(corpus.membership.value).length === 0) {
+      await ouvrirAjoutEntretien()
+      return
+    }
+    revenirTraitement()
+  }
+
+  /** Aiguillage de première ouverture : la gestion de projet, où l'app se trouve déjà. */
+  function gererProjetPremiereOuverture(): void {
+    premiereOuvertureCorpus.value = false
+    void entrerPreparation('accueil')
+  }
+
+  /** Referme l'aiguillage sans choisir : on reste sur l'accueil affiché. */
+  function fermerPremiereOuverture(): void {
+    premiereOuvertureCorpus.value = false
+  }
 
   const etatMenu = computed<EtatMenuApplication>(() => {
     const travail = vue.value !== 'accueil' && dossierCourantDir.value !== null
@@ -1362,17 +1408,7 @@ export function creerSonal() {
           }
           break
         case 'ajouter-entretien': {
-          if (!ajoutEntretienPossible.value) break
-          // La modale vit dans la vue Corpus : on s'y rend d'abord si besoin.
-          revenirTraitement()
-          if (vue.value === 'entretien') await retourCorpus()
-          else if (vue.value === 'accueil' && dossierCourantDir.value) {
-            vue.value = 'corpus'
-          }
-          if (vue.value === 'corpus') {
-            retours.terminerConsultation()
-            demandeAjoutEntretien.value = true
-          }
+          await ouvrirAjoutEntretien()
           break
         }
         case 'trier-entretiens': {
@@ -1603,6 +1639,10 @@ export function creerSonal() {
     modaleNouveauCorpus,
     modaleCorpusDistant,
     demandeAjoutEntretien,
+    premiereOuvertureCorpus,
+    corrigerEntretienPremiereOuverture,
+    gererProjetPremiereOuverture,
+    fermerPremiereOuverture,
     ...guide,
     ...exemples,
   }

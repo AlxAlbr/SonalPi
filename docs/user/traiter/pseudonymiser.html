@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pseudonymiser et vérifier un entretien — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Pseudonymiser et vérifier un entretien</h1>
+    <p>La pseudonymisation permet d’indiquer qu’un nom ou une expression de la transcription doit être remplacé par un pseudonyme dans une sortie préparée pour le partage. SonalPi conserve le texte d’origine : dans l’éditeur, il le barre et affiche le pseudonyme entre crochets.</p>
+    <p class="retenir"><strong>Pseudonymiser ne garantit pas l’anonymat.</strong> Un lieu, une fonction, une date, une note, un commentaire, une variable, le nom d’un fichier ou la voix enregistrée peuvent encore permettre d’identifier une personne. La vérification finale reste indispensable.</p>
+    <p>Les étapes ci-dessous sont vérifiées dans un <strong>corpus local</strong>. Pour essayer, ouvrez votre copie de <strong>Entretiens déjà importés</strong>, puis <strong>1Coordinatrice</strong>. Le nom <strong>Fatima</strong> apparaît deux fois dans sa transcription.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#appliquer">Appliquer un pseudonyme dans un entretien</a></li>
+        <li><a href="#portee">Choisir entre brouillon, entretien et corpus</a></li>
+        <li><a href="#variantes">Gérer les graphies et les variantes</a></li>
+        <li><a href="#exceptions">Laisser une occurrence en clair</a></li>
+        <li><a href="#verifier-entretien">Vérifier les occurrences dans l’entretien</a></li>
+        <li><a href="#verifier-corpus">Contrôler les règles dans le corpus</a></li>
+        <li><a href="#exporter">Préparer une sortie pseudonymisée</a></li>
+      </ul>
+    </nav>
+    <h2 id="appliquer">Appliquer un pseudonyme dans un entretien</h2>
+    <ol>
+      <li>Ouvrez l’entretien avec le <strong>crayon</strong> de sa carte.</li>
+      <li>Dans les onglets de gauche, ouvrez <strong>Pseudonymisation du texte</strong>, représentée par un masque.</li>
+      <li>Sélectionnez le nom ou l’expression dans la transcription. SonalPi le reporte dans la colonne <strong>Mot ou sélection</strong>. Vous pouvez aussi le saisir vous-même.</li>
+      <li>Dans <strong>Pseudo</strong>, saisissez le remplacement souhaité, par exemple <strong>Nadia</strong>.</li>
+      <li>Cliquez sur la coche <strong>✓</strong> de la ligne de saisie. Toutes les occurrences reconnues dans cet entretien sont barrées et suivies de <strong>[Nadia]</strong>.</li>
+      <li>Attendez l’état <strong>à jour</strong> en haut de l’entretien.</li>
+    </ol>
+    <p>La coche applique la décision à l’entretien courant. Elle ne remplace pas les caractères enregistrés dans la transcription et ne change pas les noms des locuteurs.</p>
+    <figure>
+      <img src="../medias/pseudonymisation-entretien.png" alt="Dans l’entretien 1Coordinatrice, le panneau Pseudonymisation du texte associe Fatima au pseudonyme Nadia. Une occurrence est barrée et suivie de Nadia entre crochets ; les compteurs indiquent une occurrence pseudonymisée et une exception.">
+      <figcaption>Le panneau distingue la règle, son pseudonyme et le bilan de ses occurrences ; le texte source reste conservé.</figcaption>
+    </figure>
+    <h2 id="portee">Choisir entre brouillon, entretien et corpus</h2>
+    <p>Chaque ligne possède trois états, présentés de gauche à droite :</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>État</th><th>Conséquence</th><th>Quand l’utiliser</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">🚧 Brouillon</th><td>Le nom et le pseudo sont mémorisés, sans décision appliquée au texte.</td><td>Pour préparer une correspondance et la reprendre plus tard.</td></tr>
+          <tr><th scope="row">📄 Entretien</th><td>Les occurrences sont décidées seulement dans l’entretien courant.</td><td>Pour une correspondance propre à cet entretien.</td></tr>
+          <tr><th scope="row">🌐 Corpus</th><td>La correspondance devient une règle partagée et les décisions de cet entretien lui sont reliées.</td><td>Pour rechercher et contrôler la même entité dans plusieurs entretiens.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Si vous quittez une ligne de saisie après avoir renseigné un nom, SonalPi la conserve comme brouillon. Pour partager une ligne déjà appliquée, cliquez sur <strong>🌐</strong>.</p>
+    <p class="retenir"><strong>Créer une règle de corpus ne décide pas automatiquement toutes ses occurrences dans les autres entretiens.</strong> La règle sert à les repérer ; vous devez ensuite contrôler ce qui doit être pseudonymisé, laissé en clair ou ignoré.</p>
+    <p>La touche <strong>Entrée</strong> peut appliquer directement la portée prioritaire choisie dans les paramètres de pseudonymisation ; <strong>Maj+Entrée</strong> utilise l’autre portée. Si vous débutez, la coche <strong>✓</strong> puis les trois boutons d’état rendent le choix plus explicite.</p>
+    <h2 id="variantes">Gérer les graphies et les variantes</h2>
+    <h3>Plusieurs graphies, un seul pseudonyme</h3>
+    <p>Dans <strong>Mot ou sélection</strong>, séparez les graphies par une barre oblique, par exemple <strong>Fatima / F. Benali</strong>. SonalPi les regroupe dans une même ligne et leur applique le même pseudonyme.</p>
+    <h3>Une entité, deux pseudonymes possibles</h3>
+    <p>Dans <strong>Pseudo</strong>, vous pouvez déclarer au maximum deux variantes, par exemple <strong>Nadia / Amina</strong>. Les nouvelles occurrences reçoivent d’abord le premier pseudonyme. Pour en changer une seule :</p>
+    <ol>
+      <li>Faites un clic droit sur l’occurrence barrée dans la transcription.</li>
+      <li>Choisissez <strong>↺ Anonymiser plutôt comme « Amina »</strong>.</li>
+    </ol>
+    <p>Les compteurs de la ligne sont alors séparés par variante. Les choix se font dans chaque entretien ; le détail du corpus reste en lecture seule lorsqu’une règle possède deux pseudonymes.</p>
+    <p class="notice">Une même ligne accepte soit plusieurs graphies avec un seul pseudonyme, soit une seule entité avec deux pseudonymes. Pour éviter les ambiguïtés, SonalPi refuse de combiner les deux situations.</p>
+    <h2 id="exceptions">Laisser une occurrence en clair</h2>
+    <p>Une règle peut convenir presque partout sans devoir masquer chaque emploi. Pour laisser une occurrence précise visible :</p>
+    <ol>
+      <li>Faites un clic droit sur l’occurrence pseudonymisée.</li>
+      <li>Choisissez <strong>Laisser en clair (exception)</strong>.</li>
+    </ol>
+    <p>Le texte n’est plus barré et reçoit un marquage discret. Il reste lié à la règle, mais une sortie pseudonymisée le conserve en clair. Pour revenir sur ce choix, faites un clic droit et choisissez <strong>Remettre en anonymisé</strong>.</p>
+    <p class="retenir"><strong>Une exception est une décision volontaire de laisser ce passage visible.</strong> Ne l’utilisez pas seulement pour faire disparaître un marquage gênant : relisez son contexte avant le partage.</p>
+    <h2 id="verifier-entretien">Vérifier les occurrences dans l’entretien</h2>
+    <p>La dernière colonne de chaque ligne présente le bilan courant :</p>
+    <ul>
+      <li>le nombre vert correspond aux occurrences pseudonymisées ;</li>
+      <li>le nombre gris correspond aux exceptions laissées en clair ;</li>
+      <li><strong>À N</strong>, en orange, signale des correspondances présentes dans le texte mais encore sans décision.</li>
+    </ul>
+    <p>Cliquez sur un compteur pour rejoindre les passages concernés, puis utilisez <strong>◄</strong> et <strong>►</strong> pour les parcourir. La commande <strong>⟳</strong> en tête du panneau recalcule les correspondances, notamment après une correction de la transcription.</p>
+    <p>Vérifiez les mots voisins, pas seulement le nom isolé. Une même suite de lettres peut désigner une personne dans une phrase et autre chose ailleurs. Les décisions déjà posées, les exceptions et les passages absorbés par une expression plus longue sont distingués.</p>
+    <h2 id="verifier-corpus">Contrôler les règles dans le corpus</h2>
+    <ol>
+      <li>Revenez au corpus et ouvrez l’onglet <strong>Pseudonymisation</strong>.</li>
+      <li>Cliquez sur <strong>⟳ Actualiser</strong> pour obtenir un bilan récent.</li>
+      <li>Repérez la règle. Une ligne verte est entièrement traitée ; une ligne orange contient encore des passages à examiner. Les pastilles indiquent les nombres pseudonymisés, laissés en clair et à traiter.</li>
+      <li>Cliquez sur la <strong>loupe</strong>, puis dépliez un entretien.</li>
+      <li>Avec un seul pseudonyme, cochez une occurrence pour la pseudonymiser, décochez-la pour la remettre à traiter, ou utilisez <strong>🚫</strong> pour en faire une exception.</li>
+      <li>Cliquez sur <strong>Valider</strong>. <strong>Abandonner</strong> revient au dernier bilan enregistré.</li>
+    </ol>
+    <figure>
+      <img src="../medias/verification-pseudonymisation.png" alt="Le tableau de pseudonymisation du corpus montre la règle Fatima vers Nadia, avec une occurrence pseudonymisée et une exception dans 1Coordinatrice. Le détail présente les deux passages et les commandes de validation.">
+      <figcaption>La loupe ouvre le contrôle par entretien ; aucune modification n’est enregistrée avant le bouton Valider.</figcaption>
+    </figure>
+    <p>Si vous tentez de quitter ce panneau avec des changements en attente, SonalPi propose de les valider, de les abandonner ou de rester. Un entretien verrouillé ou une session en lecture seule reste consultable, mais ses décisions ne sont pas modifiables.</p>
+    <p>Les règles sans usage sont conservées avec un tiret. Un astérisque signale des occurrences masquées par une décision plus large ; ouvrez l’entretien pour comprendre leur contexte. Les filtres permettent d’afficher seulement les règles à traiter, avec exceptions, entièrement traitées ou inutilisées.</p>
+    <h2 id="exporter">Préparer une sortie pseudonymisée</h2>
+    <p>Dans <strong>Exporter cet entretien</strong>, choisissez le format puis vérifiez l’option <strong>Appliquer la pseudonymisation</strong>. Lorsqu’elle est activée, vous pouvez demander le <strong>rapport de pseudonymisation avant l’export</strong>. Il récapitule les remplacements configurés, les éléments conservés et ceux qui demandent une vérification manuelle.</p>
+    <p>Dans le fichier produit, une occurrence décidée utilise son pseudonyme ; une exception reste en clair. Exporter ne modifie pas l’entretien source.</p>
+    <p class="retenir"><strong>Le rapport ne certifie pas l’anonymat.</strong> Le pseudonyme du panneau Locuteurs ne masque que le libellé des prises de parole. Les notes, commentaires, données, titres, noms de fichiers et médias doivent être contrôlés séparément, selon le format choisi.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="commentaires.html" rel="prev">← Précédent : commenter un passage</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="annuler-restaurer.html" rel="next">Suivant : revenir sur une modification →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

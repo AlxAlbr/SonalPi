@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, selectionner } from './util'
+import { lancer, attendreAccueil, fermerAiguillage, selectionner } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 /** Les captures du manuel ne sont renouvelées que sur demande explicite. */
@@ -44,6 +44,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await page.locator('#nom-nouveau-corpus').fill('Enquête dans les associations')
     await page.locator('.modale-nouveau .valider').click()
     await expect(page.locator('.espace-preparation')).toBeVisible()
+    await fermerAiguillage(page)
     const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8'))
     expect(lireCorpus().nom).toBe('Enquête dans les associations')
     await illustrer(page, 'espaces-de-travail', 580)
@@ -51,7 +52,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await expect(page.locator('.carte-ent')).toHaveCount(0)
 
     await accueil(page)
-    await expect(page.locator('.recents .recent')).toHaveText('Enquete-associations')
+    await expect(page.locator('.recents .recent-nom')).toHaveText('Enquete-associations')
     await page.locator('.recents .recent').click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await accueil(page)
@@ -68,6 +69,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await expect(page.locator('.recents .recent')).toHaveCount(0)
     expect(existsSync(join(dossier, 'corpus.json'))).toBe(true)
     await page.locator('.ouvrir-corpus').click()
+    await fermerAiguillage(page, 'entretiens', 10_000)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     expect(lireCorpus().nom).toBe('Enquête dans les associations')
   } finally {

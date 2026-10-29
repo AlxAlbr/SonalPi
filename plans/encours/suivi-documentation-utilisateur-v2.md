@@ -15,8 +15,11 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
 - Lot 3 : **réalisé en HTML statique**, navigation hors ligne et paquet Linux vérifiés.
 - Lot 4 : **sous-lots rédigés et vérifiés localement**, à relire : présentation,
   découverte des exemples, import, gestion des entretiens, correction, locuteurs,
-  organisation des thèmes, variables, saisie des données et notes. Douze chapitres
-  et trente-deux réponses FAQ sont disponibles.
+  organisation des thèmes, variables, saisie des données, notes, commentaires,
+  pseudonymisation, retour sur une modification et export d’un entretien. Seize
+  chapitres et quarante-huit réponses FAQ sont disponibles.
+- Sommaire utilisateur : regroupé selon les parties du plan, avec seulement les
+  rubriques qui contiennent déjà des chapitres publiés.
 - Import Word/PDF : **ajouté à la demande de l’utilisateur**, selon le principe V1 ;
   sélection, dépôt et paquet Linux vérifiés, documentation et capture actualisées.
 - Imports repris de Whispurge : **TXT tabulé et noms SRT ajoutés et vérifiés** ;
@@ -32,14 +35,33 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   privées sur choix explicite, trois scénarios de recette et capture actualisée.
 - Notes : **chapitre T10 rédigé et vérifié**, deux captures V2 et quatre réponses FAQ ;
   catégories, enregistrement, statuts, consultation et export Markdown. Aucun changement applicatif.
+- Commentaires : **chapitre T11 rédigé et vérifié**, capture V2 et quatre réponses FAQ ;
+  création, marge, modification, notes liées, suppression, lecture seule et sorties.
+  Une correction ciblée empêche désormais l’édition en lecture seule.
+- Pseudonymisation : **chapitre T12 rédigé et vérifié localement**, deux captures V2
+  et quatre réponses FAQ ; portées, occurrences, variantes, exceptions, contrôle
+  corpus et rapport avant export. Aucun changement applicatif.
+- Annulation et restauration : **chapitre T13 rédigé et vérifié dans le paquet Linux**,
+  deux captures V2 et quatre réponses FAQ ; frappe, Journaux de session, copie ZIP
+  locale et ouverture d’une restauration séparée. L’accès général aux Actions récentes
+  du corpus a été ajouté à l’interface.
+- Export d’entretien : **chapitre O05 rédigé et vérifié dans le paquet Linux**, deux captures V2
+  et quatre réponses dans la section Exports et partage de la FAQ ; sept formats,
+  options, sous-titres, HTML, pseudonymisation et contrôle avant diffusion.
+- FAQ : **une page unique**, réorganisée en neuf parties et quarante-huit questions.
+  Les pages FAQ thématiques prévues deviennent des sections de cette page.
 - `markdown-it` et ses types : retirés ; aucun nouveau lecteur Electron ou Vue.
-- Accueil et fichiers utilisateur préexistants : **inchangés**.
+- Accueil : **essai UX anticipé à la demande**, deux étages et deux colonnes,
+  copies d’exemples séparées des corpus personnels, cartes Documentation et FAQ.
+  Réalisé et vérifié, à relire ; la consolidation finale reste au lot 8.
+- Huit fichiers utilisateur préexistants : **inchangés**.
 
-**Prochaine rédaction : T11 — Commenter un passage**, puis pseudonymisation et export
-d’entretien. Les derniers contrôles sont ceux des notes (section 18) : 91 tests ciblés,
-9 scénarios Electron locaux et 4 scénarios dans le paquet Linux.
-L’installation attend les liens de diffusion ; la sauvegarde attend un essai de
-restauration. Les procédures distantes et les paquets Windows/macOS restent à qualifier.
+**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O05.
+Prochaine rédaction : O06 — Exporter un lot d’entretiens.** Le paquet Linux contient O05,
+T13 avec sa restauration vérifiée, T11 et les ajustements d’accueil ; T12 est vérifié localement.
+L’installation attend les liens de diffusion. La page générale sur la sauvegarde et
+le déplacement reste à rédiger à partir de l’essai désormais réussi. Les procédures
+distantes et les paquets Windows/macOS restent à qualifier.
 Le plan et ce suivi sont regroupés dans `plans/encours/`.
 
 Les nouveaux textes se lisent depuis [le sommaire HTML](../../docs/user/index.html),
@@ -87,7 +109,7 @@ son dossier est **Enquete-associations**. La distinction sert à expliquer les R
 
 Les illustrations sont de vraies captures V2, recadrées sur le contenu utile,
 sans montage des commandes ni données réelles. Aucun média V1 n’est recopié.
-Quinze illustrations V2 accompagnent les chapitres disponibles.
+Vingt-deux illustrations V2 accompagnent les chapitres disponibles.
 
 ## 3. Sommaire détaillé et registre des pages
 
@@ -134,9 +156,9 @@ directement en HTML, avec `style.css` comme présentation commune.
 | T08 | Réorganiser les codages — `traiter/reorganiser-codages.html` | V2 vue-corpus ; transfert/fusion/division, aperçu, reprise et différences fournisseurs. | À rédiger |
 | T09 | Définir les variables et saisir les données — `traiter/donnees.html` | V1 base de données, V2 table ; portée, modalités, confidentialité, saisie, lots et export CSV. | Rédigé et vérifié localement, à relire |
 | T10 | Écrire et consulter des notes — `traiter/notes.html` | V1 notes, V2 vue-corpus ; catégories partagées, enregistrement, statuts, consultation et export Markdown filtré. | Rédigé et vérifié localement, à relire |
-| T11 | Commenter un passage — `traiter/commentaires.html` | V2 entretien ; sélection, auteur, édition, retrait et export. | À rédiger |
-| T12 | Pseudonymiser et vérifier un entretien — `traiter/pseudonymiser.html` | V1 pseudonymisation, V2 vue-corpus ; règles, occurrences, variantes, exceptions et contrôle. | À rédiger |
-| T13 | Revenir sur une modification — `traiter/annuler-restaurer.html` | V2 journaux et sauvegardes ; vérifier précisément les opérations annulables et leur portée. | À rédiger |
+| T11 | Commenter un passage — `traiter/commentaires.html` | V2 entretien ; sélection, auteur, édition, retrait et export. | Rédigé et vérifié localement, à relire |
+| T12 | Pseudonymiser et vérifier un entretien — `traiter/pseudonymiser.html` | V1 pseudonymisation, V2 vue-corpus ; règles, occurrences, variantes, exceptions et contrôle. | Rédigé et vérifié localement, à relire |
+| T13 | Revenir sur une modification — `traiter/annuler-restaurer.html` | V2 journaux et sauvegardes ; vérifier précisément les opérations annulables et leur portée. | Rédigé et vérifié dans le paquet Linux, à relire |
 
 ### Analyser et interpréter
 
@@ -157,7 +179,7 @@ directement en HTML, avec `style.css` comme présentation commune.
 | O02 | Construire des familles et des attributs de cas — `organiser/familles-attributs.html` | V2 cas ; règles, création en lot, actualisation et avertissements. | À rédiger |
 | O03 | Composer un recueil — `organiser/recueils.html` | Doc développeur et outil V2 ; structure, citations, liaison, actualisation et export. | À rédiger |
 | O04 | Associer un passage et retrouver ses utilisations — `organiser/associations-passages.html` | V2 vue-corpus ; ajouts contextuels, associations, chevauchements et retour. | À rédiger |
-| O05 | Exporter un entretien — `organiser/exporter-entretien.html` | V1 export, export V2 ; contenu effectif et options propres à chaque format. | À rédiger |
+| O05 | Exporter un entretien — `organiser/exporter-entretien.html` | V1 export, export V2 ; contenu effectif et options propres à chaque format. | Rédigé et vérifié dans le paquet Linux, à relire |
 | O06 | Exporter un lot d’entretiens — `organiser/exporter-corpus.html` | Doc développeur et outil V2 ; sélection, options, rapport, erreurs et annulation. | À rédiger |
 | O07 | Transférer vers QualCoder — `organiser/qualcoder.html` | V2 cas, doc développeur ; sources, cas, attributs, limites et données non pseudonymisées. | À rédiger |
 | O08 | Vérifier les données avant diffusion — `organiser/verifier-partage.html` | V2 sorties ; texte, notes, variables privées, médias originaux et rapport sensible. | À rédiger |
@@ -179,10 +201,10 @@ directement en HTML, avec `style.css` comme présentation commune.
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| F01 | Questions sur les premiers pas — `faq/premiers-pas.html` | Vingt-sept réponses liées aux chapitres ; ne pas dupliquer leurs procédures. | Sept réponses acceptées ; vingt nouvelles à relire |
-| F02 | Questions sur les fichiers, exports et confidentialité — `faq/fichiers-partage.html` | Alimenter lors de A06, T12 et O05–O08. | À rédiger |
-| F03 | Questions sur les analyses — `faq/analyses.html` | Alimenter lors de N01–N06. | À rédiger |
-| F04 | Questions sur le collectif et la migration — `faq/collectif-migration.html` | Alimenter lors de E01–M02, après recettes réelles. | À rédiger |
+| F01 | Questions fréquentes — `faq/premiers-pas.html` | Quarante-huit réponses classées en neuf parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; quarante et une nouvelles à relire |
+| F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Quatre réponses vérifiées dans le paquet Linux, à compléter et relire |
+| F03 | Future section Analyses de F01 | Alimenter lors de N01–N06. | À compléter dans la FAQ unique |
+| F04 | Future section Travail collectif et migration de F01 | Alimenter lors de E01–M02, après recettes réelles. | À compléter dans la FAQ unique |
 | G01 | Glossaire — `glossaire.html` | Reprendre les définitions courtes de A02 puis compléter sans créer un cours technique. | À rédiger |
 
 ## 4. Matrice d’adaptation des sous-sections V1
@@ -1235,7 +1257,569 @@ NOTES_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$P
 **T11 — Commenter un passage**, puis pseudonymisation et export d’entretien.
 L’installation attend toujours les liens de diffusion, la sauvegarde un essai de
 restauration. Les procédures distantes, les paquets Windows/macOS et leurs dialogues
-natifs restent à qualifier. Les cartes de l’accueil restent au lot 8 ; les huit
-textes utilisateur antérieurs sont conservés sans modification.
+natifs restent à qualifier. Les cartes étaient encore prévues au lot 8 à ce stade ;
+l’essai anticipé demandé ensuite est décrit ci-dessous. Les huit textes utilisateur
+antérieurs sont conservés sans modification.
+
+## 19. Essai UX de l’accueil en deux colonnes
+
+L’utilisateur a demandé d’anticiper l’organisation de l’accueil pour éviter que
+les nouvelles cartes repoussent ses corpus récents tout en bas. Il a créé un commit
+avant l’essai afin de pouvoir revenir en arrière. La version est implémentée et
+vérifiée, **à relire avant de poursuivre T11** ; cela ne clôt pas le lot 8.
+Le guide reste à **douze chapitres, trente-deux réponses FAQ et quinze illustrations**.
+
+### Disposition et comportements
+
+- En fenêtre large : **Découvrir SonalPi** à gauche, **Corpus exemples** à droite ;
+  puis **Vos corpus** à gauche, **Reprendre votre travail** à droite.
+- Après le premier retour utilisateur, Découvrir réunit les quatre cartes :
+  **Parcours pas à pas**, **Explorer les corpus exemples**, **Documentation utilisateur**
+  et **FAQ**. Explorer est donc à gauche, et non dans le bloc des copies à droite.
+  Le site continue d’annoncer son périmètre documentaire partiel.
+- Exemples présente les copies récentes. Les deux blocs de droite utilisent des listes
+  compactes visibles, avec défilement si nécessaire, dans l’esprit des anciens Récents :
+  nom, chemin et retrait, sans tuile par corpus. Les corpus
+  d’apprentissage restent dans les parcours. Les récents personnels ne sont pas
+  mélangés aux copies libres ; le nom d’un dossier ne sert jamais à les classer.
+- À 800 pixels ou moins : récents personnels, actions de corpus, découverte, exemples.
+  L’ordre du DOM change aussi : le clavier ne saute pas entre des blocs visuellement
+  déplacés par le seul CSS. Le retour à une grande largeur rétablit les deux étages.
+- Les listes ont une hauteur bornée. Six copies aux noms longs ne repoussent pas
+  le premier corpus personnel hors de la fenêtre testée à 1024 × 768.
+- Les quatre commandes locales/distantes sont conservées. **Migration SonalPi1 vers
+  SonalPi2** devient une rubrique native repliable, fermée au départ. Les contrôles
+  d’ouverture, les assistants et les gardes de migration restent en place.
+- Retirer un raccourci récent conserve le dossier et les données ; le catalogue
+  garde le travail d’exploration enregistré. Le menu conserve sa liste commune de
+  récents, son ordre et ses limites, sans dupliquer la mémoire du profil.
+
+### Code et documentation
+
+- `Accueil.vue` porte la disposition et conserve la demande de connexion lorsqu’un
+  récent distant ne peut pas être rouvert seul. `ListeRecents.vue` partage les deux
+  listes, les boutons d’ouverture et les retraits ; les chemins restent consultables.
+- La réponse des récents locaux peut porter `exemple`, métadonnée transitoire issue
+  du marqueur reconnu côté main. Aucun changement de version des fichiers corpus,
+  aucune migration, aucun déplacement des dossiers et aucune nouvelle dépendance.
+- `application.ouvrirDocumentation` accepte uniquement `guide` ou `faq` et appelle
+  le même ouvreur que le menu Aide. Le renderer ne fournit aucun chemin arbitraire.
+  L’ouverture ne change pas le corpus courant et ne crée pas de fenêtre Electron.
+- Guide de repérage, exemples, corpus local, FAQ et README actualisés pour les nouveaux
+  emplacements. Les huit anciens textes Markdown restent inchangés.
+- Documentation développeur Accueil actualisée. L’intégration des cartes est anticipée
+  dans le plan ; le lot 8 garde la relecture d’ensemble et la livraison.
+- Captures de l’essai produites par Electron : `test-results/accueil-deux-colonnes.png`
+  et `test-results/accueil-etroit.png`. Ce sont des artefacts de recette ignorés, pas
+  de nouvelles illustrations embarquées dans le guide.
+
+### Recette
+
+- Typage, compilation et empaquetage Linux réussis ; `git diff --check` sans erreur.
+- **54 tests ciblés réussis**, dont cinq nouveaux tests de composant : classement par
+  identité et non par nom, texte échappé, cartes d’aide sans bascule de corpus,
+  ordre réactif au clavier, ouverture/retrait et demande de connexion GitLab simulée.
+- **37/37 scénarios Electron locaux réussis** : quatre nouveaux scénarios de disposition
+  et de cartes, reprise de corpus, catalogue et exercices, menus, imports du guide,
+  pilotes documentaires, migrations locales et interface GitLab avec API simulée.
+- La nouvelle recette vérifie le classement réel fourni par le main, un corpus personnel
+  nommé comme un exemple, l’ouverture puis le retrait d’une copie sans suppression,
+  la vue large à 1280 × 800 et la vue étroite à 700 × 800. Le clavier suit la vue étroite.
+  Un second cas utilise six copies et deux corpus personnels à 1024 × 768, sans débordement
+  horizontal ni disparition du premier récent personnel sous le bas de la fenêtre.
+- Les deux cartes ouvrent les pages attendues sans changer le corpus chargé ni ses
+  fichiers. Une entrée d’aide inconnue est refusée. Le cas sans récent reste utilisable ;
+  la rubrique de migration se déplie au clavier et ouvre l’assistant local.
+- **5/5 scénarios réussis dans le paquet Linux** : les quatre nouveaux scénarios, puis
+  consultation des douze chapitres et quinze images hors ligne, sans JavaScript,
+  à 390 pixels. Les cartes visent bien `resources/documentation` du paquet.
+- Une première campagne a réussi **34/36** : l’attente d’un sous-titre de parcours était
+  restée sur « Suivi et documents du projet » alors que le code déjà présent affiche
+  « Tableau de bord et documents du projet » ; le pilote Corpus comparait le bouton
+  entier, qui contenait alors aussi le chemin, au seul nom du dossier. Le retour UX
+  suivant remet le chemin à côté du bouton, dans une ligne compacte. Les attentes
+  ont été ajustées au libellé réel et au sous-élément du nom. La campagne finale ajoute
+  le cas des nombreuses copies et réussit 37/37.
+- Les recettes de migration déplient maintenant la rubrique avant de choisir leur
+  assistant. Le helper de qualification GitLab est adapté, mais aucun serveur réel
+  n’a été sollicité : cette évolution ne qualifie ni réseau ni publication distante.
+- Retours visuels suivants : Explorer rejoint les quatre cartes de Découvrir, les
+  deux listes de droite redeviennent des lignes compactes, puis leurs fonds passent
+  au vert clair (`#edf7ed`, bordure `#c9dfcb`). Les blocs de gauche gardent leur fond.
+  Les 54 tests ont été rejoués après le déplacement de la carte ; la campagne longue
+  suivante a été interrompue par la nouvelle demande après 34 réussites sans échec.
+  Compilation et **4/4 scénarios de disposition** ont ensuite réussi avec le vert clair.
+  Les captures sont renouvelées. Le paquet Linux précédent ne comprend pas encore
+  ces derniers ajustements visuels.
+- Nouvel essai demandé : suppression du fond et du cadre des deux sections de listes.
+  Une section vide n’est plus rendue, y compris après retrait du dernier raccourci.
+  Les cartes de création, d’ouverture et d’exploration restent proposées. Les positions
+  de la grille sont explicites en fenêtre large pour qu’une liste absente ne déplace
+  pas une carte de gauche vers la droite ; l’ordre du DOM reste prioritaire en étroit.
+  **9/9 tests de composant et 6/6 scénarios Electron réussis**, avec les quatre
+  combinaisons de listes, la disparition au dernier retrait, les cadres absents,
+  les noms longs et les largeurs 1280, 1024 et 700 pixels. Les attentes d’ordre utilisent
+  désormais les identifiants des sections pour préserver les retouches de libellés
+  faites en parallèle par l’utilisateur. Typage et compilation réussis ; captures
+  renouvelées, dont `test-results/accueil-sans-recents.png`. Pas de nouvel empaquetage.
+- Ajustement visuel suivant : les deux titres d’accès sont soulignés ; leurs listes
+  sont décalées de 0,85 rem vers la droite. La carte Vos corpus reçoit le fond vert
+  clair ; le titre d’accès aux corpus de travail et leurs noms utilisent un vert foncé.
+  Le bleu des exemples est conservé. Compilation et **6/6 scénarios Electron** réussis,
+  avec vérification des couleurs, du soulignement et du décalage dans la fenêtre réelle.
+- La rubrique Migration est ensuite limitée à la colonne de gauche ; la migration
+  GitLab est placée sous la migration locale. L’ordre reste naturel en fenêtre étroite.
+  Compilation et **6/6 scénarios Electron** réussis, avec contrôle de la largeur de
+  la rubrique et de l’empilement des deux entrées.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/accueilRenderer.test.ts test/exemples.test.ts test/transitionContexte.test.ts test/documentation.test.ts test/menuApplication.test.ts
+npm run build
+npx playwright test e2e/accueil-disposition.e2e.ts e2e/multi-corpus.e2e.ts e2e/demo.e2e.ts e2e/menu-application.e2e.ts e2e/migration-v1.e2e.ts e2e/documentation.e2e.ts e2e/documentation-socle.e2e.ts e2e/documentation-pilotes.e2e.ts --project=local --workers=1
+npm run pack:dir
+ACCUEIL_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/accueil-disposition.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Recueillir le retour sur cet essai UX, puis reprendre **T11 — Commenter un passage**.
+Les procédures distantes et les paquets Windows/macOS restent à qualifier ; les liens
+publics d’installation et l’essai de restauration restent les autres prérequis ouverts.
+
+## 20. Accueil de Préparation et suivi
+
+À la demande de l’utilisateur, l’onglet **Accueil** ne montre plus la grille du
+Tableau de bord dans sa partie droite. Il affiche une introduction à l’espace et
+le lien vers le kit pédagogique fourni :
+`https://logiquali-41533a.gitpages.huma-num.fr/`.
+La formulation est corrigée grammaticalement ; le terme « enquête quantitative »
+est conservé conformément au texte demandé.
+
+### Réalisation
+
+- `PreparerSuivre.vue` affiche la présentation uniquement sur Accueil. La grille
+  devient visible dans son seul onglet **Tableau de bord**. Elle reste montée pour
+  conserver les brouillons et les réglages ; les boutons de gauche restent disponibles.
+- Le lien est utilisable au clavier et s’ouvre dans le navigateur habituel, pas dans
+  la fenêtre Electron. Son URL est fixe dans `src/shared/ressourcesPedagogiques.ts`.
+- `application.ouvrirKitPedagogique` n’accepte aucune URL du renderer : le main ouvre
+  seulement cette ressource. Les protections de navigation de la fenêtre ne sont
+  pas assouplies ; un refus d’ouverture reçoit un message compréhensible.
+- Documentation développeur des espaces et du tableau de bord actualisée. Le guide
+  conserve ses douze chapitres, trente-deux réponses FAQ et quinze illustrations.
+  La capture `test-results/accueil-preparation.png` reste un artefact de recette ignoré.
+
+### Vérifications
+
+- Typage et compilation réussis.
+- **60 tests ciblés réussis** : navigation par espaces, sécurité de la fenêtre,
+  modèle et commandes du tableau de bord, documentation. Deux nouveaux tests
+  vérifient l’adresse précise du kit et l’erreur d’ouverture du navigateur.
+- **17/17 scénarios Electron locaux réussis** : nouvelle recette Accueil de
+  Préparation, cinq parcours de navigation, quatre de conservation du contexte,
+  six du tableau de bord et le parcours pédagogique complet de préparation.
+- Le nouveau scénario vérifie l’introduction et l’absence de grille sur Accueil,
+  le lien activé au clavier, la conservation de l’URL applicative et d’une seule
+  fenêtre Electron, puis l’accès au tableau, la conservation d’un brouillon après
+  aller-retour sur Accueil et le retour à l’entretien. Les fichiers du corpus et
+  de l’entretien sont comparés : aucune modification par la consultation.
+- L’ouverture du navigateur est interceptée pendant la recette : elle qualifie
+  l’adresse et la délégation, pas la disponibilité ou le contenu du site externe.
+  Aucun banc distant réel n’a été sollicité.
+- L’ancien test de navigation attendait encore les titres Colonne/Ligne/Badges ;
+  l’interface déjà présente affiche Ajouter une colonne/ligne/un badge. Cette
+  attente périmée a été ajustée sans modifier les libellés de l’application.
+  Après interruption de la première campagne, la campagne finale réussit 17/17.
+- Le paquet n’a pas été régénéré pendant ces ajustements UX ; sa recette sera
+  renouvelée avec la disposition retenue après relecture.
+
+Reproduction :
+
+```bash
+npm run typecheck
+npx vitest run test/documentation.test.ts test/securiteFenetre.test.ts test/espacesTravail.test.ts test/tableaubord.test.ts test/tableaubordRenderer.test.ts
+npm run build
+npx playwright test e2e/accueil-preparation.e2e.ts e2e/espaces.e2e.ts e2e/espaces-contexte.e2e.ts e2e/tableaubord.e2e.ts e2e/preparation-pas-a-pas.e2e.ts --project=local --workers=1
+```
+
+La suite documentaire prévue à ce stade était **T11 — Commenter un passage**,
+réalisée ci-dessous.
+
+## 21. Commenter un passage
+
+Page ajoutée : [Commenter un passage](../../docs/user/traiter/commentaires.html).
+La navigation l’insère après les notes et avant la FAQ. Le guide comporte désormais
+**treize chapitres**, **trente-six réponses FAQ** et **seize illustrations V2**.
+
+### Sources et adaptations
+
+- V2 : `MenuContexte.vue`, `EditionCommentaire.vue`, `useAnnotationsEntretien.ts`,
+  `commentairesMarge.ts`, le remappage des annotations et le journal de l’entretien.
+  Les tutoriels V1 examinés ne fournissaient pas de procédure autonome équivalente.
+- Une sélection à la souris, puis un clic droit dans cette sélection, ouvre
+  **Commenter la sélection**. La plage est ajustée aux mots ; l’auteur est facultatif
+  et le dernier signataire validé est proposé lors de la création suivante.
+- La carte en marge et la teinte du passage sont distinctes du texte transcrit.
+  Les cartes sont masquées sous 1 000 pixels de largeur ; la teinte et le clic droit
+  restent disponibles. Plusieurs commentaires peuvent se chevaucher.
+- Le clic sur une carte ou l’entrée du menu contextuel ouvre la même fenêtre pour
+  modifier l’auteur ou le texte. **Annuler** et Échap conservent la version précédente ;
+  Ctrl+Entrée valide. Les changements suivent l’enregistrement de l’entretien.
+- Les notes peuvent référencer un commentaire sans en copier le texte. Sa suppression
+  conserve la note et la transcription ; le journal de la session peut rétablir
+  la création, la modification ou la suppression tant que l’entretien reste ouvert.
+- Les exports TXT, SRT, VTT, DOCX et PDF ne rendent pas les commentaires. Le `.sonal`
+  complet et l’HTML les conservent ; QualCoder les reprend comme annotations.
+  Leur auteur et leur texte ne sont pas pseudonymisés automatiquement.
+
+### Correction rencontrée pendant la recette
+
+Le clic droit et les cartes pouvaient encore ouvrir les commandes de commentaire
+alors que l’entretien était annoncé en lecture seule. Le plugin laisse désormais
+le menu natif dans cet état et les fonctions de création, d’édition, de validation
+et de suppression refusent la mutation. Les cartes restent visibles, avec un curseur
+de consultation. Aucun format de fichier ni service distant n’est modifié.
+
+### Documentation et capture
+
+- Sommaire HTML, README, navigation Notes/Commentaires/FAQ et quatre réponses FAQ
+  actualisés : marge masquée, suppression, pseudonymisation et formats d’export.
+- Capture `medias/commentaire-passage.png`, produite dans la vraie application sur
+  une copie temporaire de **Entretiens déjà importés**, **1Coordinatrice** : passage
+  « ça devait être en 2012 », auteur Karine D. et vérification du carnet de terrain.
+- Documentation développeur ajoutée dans `docs/dev/traiter/commentaires.md`.
+
+### Recette
+
+- Typage, compilation et empaquetage Linux réussis ; `git diff --check` sans erreur.
+- **64 tests ciblés réussis** : modèle et journal des commentaires, migration `.sonal`,
+  formats d’export, golden `.sonal`, QualCoder et liens du site documentaire.
+- **9/9 scénarios Electron locaux réussis** : création, teinte et marge, modification,
+  suppression, persistance, retrait contextuel d’un codage, liaison depuis une note,
+  lecture seule et parcours documentaire hors ligne.
+- Le nouveau scénario principal utilise une copie de **1Coordinatrice**. Il vérifie
+  la sélection réelle, la mémorisation du signataire, la carte et le survol depuis
+  le passage, l’édition, l’annulation d’un second commentaire, la marge masquée à
+  900 pixels, l’export `.sonal`, la suppression immédiate puis le rétablissement par
+  le Journal. La transcription, les ancres et les locuteurs restent identiques.
+- Le second scénario ouvre un entretien avec une réponse simulée en lecture seule :
+  la carte reste consultable, sans menu SonalPi ni fenêtre d’édition, et le fichier
+  n’est pas modifié. Aucun verrou distant réel n’est qualifié.
+- **3/3 scénarios réussis dans le paquet Linux** : les deux recettes T11 et la lecture
+  des treize chapitres, seize images et trente-six réponses FAQ hors ligne, sans
+  JavaScript, à 390 pixels. Le paquet inclut aussi les derniers ajustements d’accueil.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/commentaires.test.ts test/commentairesMigration.test.ts test/exportFormats.test.ts test/exportSonalGolden.test.ts test/exportQualcoder.test.ts test/documentation.test.ts
+npm run build
+SONAL_DOC_CAPTURES=1 npx playwright test e2e/documentation-commentaires.e2e.ts --project=local --workers=1
+npx playwright test e2e/documentation-commentaires.e2e.ts e2e/commentaires.e2e.ts e2e/notes-feuille.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+npm run pack:dir
+COMMENTAIRES_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-commentaires.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire T11 et les quatre réponses FAQ, puis poursuivre le lot 4 avec
+**T12 — Pseudonymiser et vérifier un entretien**, suivi de l’export d’entretien.
+L’installation attend les liens publics ; la sauvegarde attend toujours un essai
+de restauration. Les procédures distantes et les paquets Windows/macOS restent
+à qualifier.
+
+## 22. Pseudonymiser et vérifier un entretien
+
+Page ajoutée : [Pseudonymiser et vérifier un entretien](../../docs/user/traiter/pseudonymiser.html).
+La navigation l’insère après les commentaires et avant la FAQ. Le guide comporte
+maintenant **quatorze chapitres**, **quarante réponses FAQ** et **dix-huit illustrations V2**.
+
+### Sources et périmètre
+
+- Sources développeur relues intégralement : vue d’ensemble, entretien, corpus,
+  fournisseurs et sorties sous `docs/dev/traiter/pseudonymisation/`.
+- Sources applicatives vérifiées dans le panneau d’entretien, le tableau corpus,
+  le menu contextuel, le modèle des définitions et le rapport d’export.
+- Le chapitre explique le parcours courant : sélection ou saisie d’une entité,
+  pseudonyme, brouillon, portée entretien ou corpus, occurrences, exceptions,
+  variantes, compteurs, contrôle transversal et sortie pseudonymisée.
+- Le texte original reste stocké. La vue d’entretien barre l’occurrence et affiche
+  son pseudonyme ; l’export applique la projection seulement si l’option correspondante
+  est activée. Une exception reste volontairement en clair.
+- Plusieurs graphies partagent un seul pseudonyme. Une seule entité peut déclarer
+  deux variantes, choisies occurrence par occurrence. Les deux formes ne peuvent
+  pas être combinées dans la même définition.
+- Le contrôle corpus distingue pseudonymisés, exceptions, passages à traiter et
+  inclusions. Une règle partagée ne décide pas automatiquement les autres entretiens.
+- Le chapitre reste centré sur les gestes usuels. Les opérations globales avancées
+  de renommage, retrait de variante, dissociation et suppression restent documentées
+  côté développeur et seront reprises dans les chapitres d’organisation ou de
+  travail collectif adaptés.
+
+### Documentation et captures
+
+- Sommaire HTML, README, navigation Commentaires/Pseudonymisation/FAQ et quatre
+  réponses FAQ actualisés : anonymat, passages à traiter, exceptions et variantes.
+- `medias/pseudonymisation-entretien.png` montre **Fatima → Nadia** dans
+  **1Coordinatrice**, avec une occurrence pseudonymisée et une exception.
+- `medias/verification-pseudonymisation.png` montre la même règle dans le tableau
+  corpus, ses deux compteurs et le détail de l’entretien.
+- La page rappelle séparément les pseudonymes de locuteurs, les notes, commentaires,
+  données, titres, fichiers et médias. Le rapport d’export est présenté comme une
+  aide au contrôle, jamais comme une garantie d’anonymat.
+- Aucun changement applicatif n’a été nécessaire.
+
+### Recette
+
+- Typage, compilation, empaquetage Linux et `git diff --check` réussis.
+- **322 tests ciblés réussis** dans 25 fichiers : définitions, brouillons, décisions,
+  compteurs, scans, variantes, lots, projections, sorties et liens documentaires.
+- **26/26 scénarios Electron locaux réussis** : les deux nouvelles recettes manuelles,
+  le parcours documentaire, le tableau et les échanges de règles, variantes,
+  dissociations, retraits et suppressions locales.
+- La recette principale installe une copie temporaire de **Entretiens déjà importés**,
+  applique **Nadia** aux deux mentions de **Fatima**, pousse la règle au corpus,
+  laisse la dernière occurrence en exception puis contrôle et valide ses états dans
+  la vue corpus. Le texte, les ancres et les locuteurs restent identiques.
+- La seconde recette déclare **Nadia / Amina** et bascule une occurrence avec le menu
+  contextuel. Elle vérifie un compteur par variante. Rejouée trois fois de suite,
+  elle reste stable après l’attente explicite du remplissage depuis la sélection.
+- **3/3 scénarios réussis dans le paquet Linux** : les deux recettes T12 et la lecture
+  hors ligne, sans JavaScript, des quatorze chapitres, dix-huit images et quarante
+  réponses FAQ à 390 pixels.
+- Aucun serveur GitLab ou Nextcloud réel n’a été sollicité. Le chapitre n’annonce
+  donc pas de différence distante non qualifiée ; les protocoles fournisseurs restent
+  couverts par leur documentation et leurs recettes dédiées.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/anonymisation.test.ts test/anonymisationPromotion.test.ts test/basculeAnon.test.ts test/brouillonsAnon.test.ts test/compteursAnon.test.ts test/definitionsAnon.test.ts test/definitionsAnonLocales.test.ts test/editionPseudosAnon.test.ts test/editionPseudosAnonRenderer.test.ts test/legendeAnonRenderer.test.ts test/lotAnon.test.ts test/presentationAnon.test.ts test/projectionTexteAnon.test.ts test/pseudonymisationCoherence.test.ts test/pseudonymisationCorpus.test.ts test/pseudonymisationExport.test.ts test/pseudonymisationProjection.test.ts test/pseudonymisationSorties.test.ts test/retraitVarianteAnon.test.ts test/retraitVarianteAnonPanneau.test.ts test/retraitVarianteAnonRenderer.test.ts test/scanAnon.test.ts test/tableReglesAnonRenderer.test.ts test/variantesAnon.test.ts test/documentation.test.ts
+npm run build
+SONAL_DOC_CAPTURES=1 npx playwright test e2e/documentation-pseudonymisation.e2e.ts --project=local --workers=1
+npx playwright test e2e/documentation-pseudonymisation.e2e.ts e2e/anonymisation.e2e.ts e2e/dissociation-anon.e2e.ts e2e/retrait-variante-anon.e2e.ts e2e/suppression-anon.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+npm run pack:dir
+PSEUDONYMISATION_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-pseudonymisation.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire T12 et ses quatre réponses FAQ, puis poursuivre avec
+**T13 — Revenir sur une modification**. L’installation attend les liens publics ;
+la sauvegarde attend toujours un essai de restauration. Les procédures distantes
+et les paquets Windows/macOS restent à qualifier.
+
+## 23. Revenir sur une modification
+
+Page ajoutée : [Revenir sur une modification](../../docs/user/traiter/annuler-restaurer.html).
+La navigation l’insère après la pseudonymisation et avant la FAQ. Le guide comporte
+maintenant **quinze chapitres**, **quarante-quatre réponses FAQ** et
+**vingt illustrations V2**.
+
+### Sources et périmètre
+
+- Le chapitre distingue quatre mécanismes réels : annuler avant validation, l’historique
+  de frappe ProseMirror, les Journaux d’actions en mémoire et la copie ZIP persistante.
+- Le Journal de l’entretien garde dix inverses pendant l’ouverture : codages,
+  commentaires, attribution ou renommage de locuteur et valeurs de variables.
+  La frappe reste dans `Ctrl/Cmd+Z` et possède son propre rétablissement.
+- Le Journal du corpus garde dix actions locales prises en charge, principalement
+  certaines modifications de notes et de Personnes. Les états annulable,
+  inapplicable et bloqué sont expliqués sans promettre une reprise distante.
+- La sauvegarde ZIP est créée après vidage des écritures en attente. Elle conserve
+  le corpus, pas les médias externes, et se restaure en la décompressant dans un
+  dossier vide ouvert comme corpus distinct.
+- L’essai demandé de restauration a réussi : l’état sauvegardé est rouvert dans
+  un nouveau dossier tandis que le corpus de travail conserve ses modifications
+  plus récentes.
+
+### Documentation et interface
+
+- Sommaire HTML, README, navigation Pseudonymisation/Annulation/FAQ et quatre
+  réponses FAQ actualisés : fermeture du Journal, flèche grisée, différence entre
+  Journal et sauvegarde, présence des médias dans le ZIP.
+- `medias/journal-entretien.png` montre trois catégories d’actions annulables dans
+  l’entretien, avec une transcription et un commentaire réels de la recette.
+- `medias/actions-recentes-corpus.png` montre l’annulation d’une note modifiée
+  depuis la vue corpus.
+- La fenêtre générale **Actions récentes** du corpus était implémentée mais seulement
+  exposée avec un filtre depuis Personnes. Un bouton accessible a été ajouté dans
+  la barre du corpus et dans la présentation de son Accueil.
+- Une page développeur centralise les limites des deux Journaux, l’archive et leurs
+  recettes dans `docs/dev/traiter/journaux-sauvegardes.md`.
+
+### Recette
+
+- Typage, compilation, empaquetage Linux et `git diff --check` réussis.
+- **41 tests ciblés réussis** dans cinq fichiers pour les Journaux, le ZIP et les
+  liens documentaires.
+- **7/7 scénarios Electron locaux réussis** : deux recettes T13, trois scénarios du
+  Journal d’entretien, le scénario Personnes du corpus et la lecture documentaire.
+- La première recette vérifie `Ctrl/Cmd+Z`, le rétablissement, trois entrées du
+  Journal d’entretien, l’annulation isolée d’un codage, la remise à zéro après
+  fermeture, la modification d’une note depuis le corpus et son annulation dans
+  la fenêtre générale.
+- La seconde crée un ZIP après renommage, modifie ensuite le corpus courant,
+  décompresse l’archive dans un autre dossier et vérifie que les deux états restent
+  séparés.
+- Le scénario existant du Journal du corpus reprend désormais explicitement
+  l’espace **Importer et traiter** après changement de corpus ; il ne dépend plus
+  de l’espace mémorisé précédemment.
+- **3/3 scénarios réussis dans le paquet Linux** : les deux recettes T13 et la
+  lecture hors ligne, sans JavaScript, des quinze chapitres, vingt images et
+  quarante-quatre réponses FAQ à 390 pixels.
+- Aucun serveur GitLab ou Nextcloud réel n’a été sollicité. Le Journal distant est
+  annoncé comme indisponible, conformément à l’interface actuelle.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/journal.test.ts test/journalCorpus.test.ts test/journalCorpusRenderer.test.ts test/archiveCorpus.test.ts test/documentation.test.ts
+SONAL_DOC_CAPTURES=1 npx playwright test e2e/documentation-annuler-restaurer.e2e.ts --project=local --workers=1
+npx playwright test e2e/documentation-annuler-restaurer.e2e.ts e2e/journal.e2e.ts e2e/journal-corpus.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+npm run pack:dir
+JOURNAL_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-annuler-restaurer.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire T13 et ses quatre réponses FAQ, puis poursuivre avec
+**O05 — Exporter un entretien**. La future page générale sur la sauvegarde et le
+déplacement pourra reprendre l’essai de restauration désormais réussi.
+L’installation attend les liens publics ; les procédures distantes et les paquets
+Windows/macOS restent à qualifier.
+
+## 24. Exporter un entretien
+
+Page ajoutée : [Exporter un entretien](../../docs/user/organiser/exporter-entretien.html).
+Elle ouvre la partie **Organiser et exporter** du sommaire. Une nouvelle page
+La section [Exports et partage](../../docs/user/faq/premiers-pas.html#exports-partage)
+complète la FAQ unique avec quatre réponses. Le guide comporte maintenant **seize chapitres**,
+**quarante-huit réponses FAQ** et **vingt-deux illustrations V2**.
+
+### Sources et périmètre
+
+- Les sept formats de la fenêtre ont été vérifiés dans les générateurs et dans
+  l’application : SONAL, TXT, SRT, VTT, HTML, DOCX et PDF.
+- Le chapitre distingue les formats de lecture, les sous-titres et le fichier
+  d’échange SONAL. Aucun export individuel n’est présenté comme une sauvegarde
+  du corpus V2.
+- Les options sont expliquées selon leur effet réel : en-tête, notes publiques,
+  variables non privées, coordonnées, locuteurs, thèmes et pseudonymisation.
+- SRT et VTT n’émettent que les segments possédant deux bornes valides. Le HTML
+  référence éventuellement le média local sans le copier ; sa version
+  pseudonymisée retire le lecteur.
+- Les commentaires sont conservés dans SONAL et dans le contenu technique du
+  HTML, mais ne sont pas rendus dans la page. Ils sont absents de TXT, SRT, VTT,
+  DOCX et PDF.
+- Le rapport de pseudonymisation reste une aide au contrôle. Titres, notes,
+  commentaires, catégories, variables et médias demandent une vérification séparée.
+
+### Corrections applicatives
+
+- Les catégories de notes étaient disponibles dans la source de l’export, mais
+  perdues lors de la construction de l’instantané. Elles sont maintenant portées
+  jusqu’aux sorties individuelles et de lot ; les notes retrouvent leur vraie rubrique.
+- Les descriptions de formats ne présentent plus SONAL comme une sauvegarde et
+  précisent les limites temporelles des sous-titres et la référence externe du média HTML.
+- Le CSS de thème du HTML pouvait produire les valeurs invalides `null` ou un nombre
+  isolé à la place de la règle de taille. Il émet maintenant la taille valide et
+  espace correctement le libellé d’une variable de sa valeur.
+
+### Documentation et captures
+
+- `medias/options-export-entretien.png` montre les options HTML, la
+  pseudonymisation et son avertissement.
+- `medias/export-entretien-html.png` montre la sortie réelle avec une note publique,
+  une variable, la légende, un codage et une transcription pseudonymisée. Le titre
+  et la note restent volontairement en clair pour illustrer le contrôle nécessaire.
+- La navigation relie Annulation, Export d’entretien et la section Exports et partage
+  de la FAQ. Le sommaire possède désormais trois parties non vides.
+
+### Recette
+
+- Typage, compilation, empaquetage Linux et `git diff --check` réussis.
+- **89 tests ciblés réussis** dans cinq fichiers pour les formats, les services,
+  la pseudonymisation et le site documentaire.
+- **3/3 scénarios Electron locaux réussis** : la nouvelle recette des sept formats,
+  le round-trip SONAL existant et la lecture documentaire hors ligne.
+- La nouvelle recette produit les sept fichiers à partir d’un entretien contenant
+  repères temporels, codage, commentaire, note publique et privée, variable publique
+  et privée, pseudonyme et décision textuelle. Elle inspecte les fichiers TXT, SRT,
+  VTT, HTML, SONAL et DOCX, puis vérifie la signature et la taille du PDF.
+- La page HTML exportée est rouverte hors ligne, sans JavaScript, avant sa capture.
+  Le rapport de pseudonymisation est consulté et enregistré séparément.
+- **2/2 scénarios réussis dans le paquet Linux** : la recette O05 et la lecture
+  hors ligne des seize chapitres, vingt-deux images et de la FAQ unique.
+- Aucun serveur GitLab ou Nextcloud réel n’a été sollicité. Le chapitre reste
+  centré sur l’entretien ouvert et n’annonce pas de publication distante.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/exportFormats.test.ts test/exportEntretienService.test.ts test/exportCorpusService.test.ts test/pseudonymisationExport.test.ts test/documentation.test.ts
+SONAL_DOC_CAPTURES=1 npx playwright test e2e/documentation-exporter-entretien.e2e.ts --project=local --workers=1
+npx playwright test e2e/documentation-exporter-entretien.e2e.ts e2e/import-export.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+npm run pack:dir
+EXPORT_ENTRETIEN_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-exporter-entretien.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire O05, ses deux captures et les quatre réponses Exports et partage, puis
+poursuivre avec **O06 — Exporter un lot d’entretiens**. L’installation attend les
+liens publics ; les procédures distantes et les paquets Windows/macOS restent à qualifier.
+
+## 25. Regrouper la FAQ en une page structurée
+
+À la suite de la relecture utilisateur, les deux pages de FAQ ont été regroupées.
+Le chemin historique `faq/premiers-pas.html` est conservé pour ne pas casser le menu
+Aide ni les liens déjà présents, mais la page s’intitule désormais simplement
+**Questions fréquentes**.
+
+### Organisation retenue
+
+Les quarante-huit questions sont classées sous neuf parties :
+
+1. Démarrer et retrouver un corpus ;
+2. Transcriptions, entretiens et médias ;
+3. Codage et thèmes ;
+4. Locuteurs et prises de parole ;
+5. Variables et données ;
+6. Notes et commentaires ;
+7. Pseudonymisation ;
+8. Annulation et sauvegarde ;
+9. Exports et partage.
+
+Chaque partie est un titre de niveau 2 et chaque question un titre de niveau 3.
+Le sommaire renvoie aux neuf parties plutôt que d’afficher une liste plate de
+quarante-huit liens. La page séparée `faq/fichiers-partage.html` a été retirée ;
+ses quatre réponses sont intégrées dans **Exports et partage**.
+
+Les anciennes destinations F02 à F04 du plan deviennent des sections thématiques
+à compléter dans F01, et non de nouvelles pages. Cette règle sera appliquée aux
+futures questions sur les analyses, le travail collectif et la migration.
+
+### Vérification
+
+- `test/documentation.test.ts` vérifie tous les liens et toutes les ancres de la
+  page fusionnée.
+- `e2e/documentation.e2e.ts` vérifie les neuf parties, les quarante-huit questions,
+  la navigation depuis le chapitre Export et l’affichage étroit hors ligne.
+- Le test documentaire réussit localement et dans le paquet Linux, sans JavaScript.
+- Le guide reste à **seize chapitres**, **quarante-huit réponses FAQ** et
+  **vingt-deux illustrations V2**.
+
+### Suite
+
+Poursuivre avec **O06 — Exporter un lot d’entretiens**. Les nouvelles questions
+seront ajoutées dans la partie adaptée de la FAQ unique.
 
 

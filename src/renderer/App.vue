@@ -15,6 +15,7 @@ import OrganiserExporter from './components/organiser/OrganiserExporter.vue'
 import ModaleExportEntretien from './components/traiter/entretien/ModaleExportEntretien.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 import GuidagePasAPas from './components/app/GuidagePasAPas.vue'
+import AiguillagePremiereOuverture from './components/app/AiguillagePremiereOuverture.vue'
 import ResumeParcoursPasAPas from './components/app/ResumeParcoursPasAPas.vue'
 import DecouverteExemples from './components/accueil/DecouverteExemples.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
@@ -39,6 +40,7 @@ const {
   libelleRetourContexte, revenirContexte, navigationContexteEnCours,
   repereAnalyse,
   pasAPas,
+  premiereOuvertureCorpus,
 } = fournirSonal()
 </script>
 
@@ -136,6 +138,9 @@ const {
     <DesignationAudioDistante />
     <DialogueAjoutCas v-if="casOuverts" :key="revisionCorpus" />
     <DialogueAjoutRecueil v-if="recueilsOuverts" :key="revisionCorpus" />
+    <!-- Aiguillage de première ouverture : par-dessus l'accueil de
+         « Préparer et suivre », il ne s'affiche qu'une fois par corpus et par poste. -->
+    <AiguillagePremiereOuverture v-if="premiereOuvertureCorpus" />
     <ModaleExportEntretien />
   </main>
 </template>

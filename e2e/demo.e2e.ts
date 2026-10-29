@@ -57,7 +57,7 @@ test('les quatre cartes partagent une ligne et s’adaptent aux petites fenêtre
       'Préparer et suivre', 'Importer et traiter', 'Analyser et interpréter', 'Organiser et exporter',
     ])
     await expect(cartes.locator('span:first-of-type')).toHaveText([
-      'Suivi et documents du projet.', 'Import, notes et codage.', 'Thèmes, mots et comparaisons.', 'Cas, recueils et exports.',
+      'Tableau de bord et documents du projet.', 'Import, notes et codage.', 'Thèmes, mots et comparaisons.', 'Cas, recueils et exports.',
     ])
     for (const [largeur, colonnes] of [[1100, 4], [740, 2], [360, 1]]) {
       await page.setViewportSize({ width: largeur, height: 800 })

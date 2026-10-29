@@ -18,7 +18,7 @@ import {
   type InterceptionOuvertureUrl,
   type SessionQualification,
 } from './qualification/connexionOAuth'
-import { attendreAccueil, attendreCorpus, lancer, retourCorpus } from './util'
+import { lancer, attendreAccueil, attendreCorpus, fermerAiguillage, retourCorpus } from './util'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
 import { ClientGitLab } from '../src/main/gitlab/client'
 import { BailGitLab, DepotCommitsGitLabClient, cleRessourceBailGitLab, cheminBailRessourceGitLab } from '../src/main/gitlab/bailGitLab'
@@ -128,6 +128,8 @@ async function ouvrirDepuisFormulaireGitLab(
     identifiants,
     /^Ouvrir le corpus$/,
   )
+  // Première ouverture de ce corpus sur le poste : l'aiguillage mène aux entretiens.
+  await fermerAiguillage(page, 'entretiens', 120_000)
 }
 
 async function api<T>(

@@ -21,6 +21,21 @@ Les sous-espaces et panneaux conservent leurs réglages en session. Le changemen
 de corpus réinitialise les espaces et invalide les réponses asynchrones de
 l’ancien contexte. Voir [ouverture des corpus](accueil/ouverture.md).
 
+## Accueil de Préparer et suivre
+
+L’onglet Accueil présente une introduction et le lien vers le kit pédagogique,
+pas la grille du tableau de bord. La grille reste montée mais masquée ; elle devient
+visible uniquement dans l’onglet Tableau de bord, sans perdre ses brouillons.
+Les commandes d’outils restent dans le panneau de gauche.
+
+Le kit s’ouvre dans le navigateur du poste via `application.ouvrirKitPedagogique`.
+Son adresse est fixée par `shared/ressourcesPedagogiques.ts` ; le renderer ne transmet
+pas d’URL à ouvrir. Les protections de navigation de la fenêtre restent inchangées.
+Ce lien externe demande un accès Internet, contrairement au guide HTML embarqué.
+
+Tests : `test/documentation.test.ts`, `e2e/accueil-preparation.e2e.ts`,
+`e2e/espaces.e2e.ts` et `e2e/espaces-contexte.e2e.ts`.
+
 ## Retours au travail précédent
 
 Une consultation liée, par exemple ouvrir une source depuis un résultat, conserve

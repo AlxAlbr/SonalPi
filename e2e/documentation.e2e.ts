@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { lancer, entrerCorpus, entrerEntretien } from './util'
+import { intercepterOuverturesAide, lireOuverturesAide } from './aide-util'
 
 test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’entretien', async () => {
   const app = await lancer(mkdtempSync(join(tmpdir(), 'sonal-aide-')), {
@@ -15,18 +16,13 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
     await entrerEntretien(page)
     await expect(page.locator('.editeur')).toContainText('Karine')
     const titre = await page.locator('.fil').innerText()
-    const fichiers = await app.evaluate(async ({ Menu, shell }) => {
-      const ouverts: string[] = []
-      const original = shell.openPath
-      shell.openPath = async (chemin) => { ouverts.push(chemin); return '' }
-      try {
-        const aide = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Aide')!
-        for (const item of aide.submenu!.items) item.click()
-        return ouverts
-      } finally {
-        shell.openPath = original
-      }
+    await intercepterOuverturesAide(app)
+    await app.evaluate(({ Menu }) => {
+      const aide = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Aide')!
+      for (const item of aide.submenu!.items) item.click()
     })
+    await expect.poll(async () => (await lireOuverturesAide(app)).fichiers.length).toBe(2)
+    const fichiers = (await lireOuverturesAide(app)).fichiers
     expect(fichiers).toHaveLength(2)
     expect(fichiers[0]).toMatch(/[/\\]index\.html$/)
     expect(fichiers[1]).toMatch(/[/\\]faq[/\\]premiers-pas\.html$/)
@@ -44,6 +40,17 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       const lecture = await contexte.newPage()
       await lecture.goto(pathToFileURL(fichiers[0]).href)
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Documentation utilisateur')
+      await expect(lecture.locator('main > h2')).toHaveText([
+        'Découvrir et démarrer',
+        'Importer et traiter',
+        'Organiser et exporter',
+        'Questions fréquentes',
+        'Lire et pratiquer à votre rythme',
+      ])
+      await expect(lecture.locator('main > ol')).toHaveCount(3)
+      await expect(lecture.locator('main > ol').nth(0).locator('li')).toHaveCount(4)
+      await expect(lecture.locator('main > ol').nth(1).locator('li')).toHaveCount(11)
+      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(1)
       await lecture.setViewportSize({ width: 390, height: 844 })
       for (const chapitre of [
         'Découvrir SonalPi',
@@ -58,6 +65,10 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         'Organiser et documenter ses thèmes',
         'Définir les variables et saisir les données',
         'Écrire et consulter des notes',
+        'Commenter un passage',
+        'Pseudonymiser et vérifier un entretien',
+        'Revenir sur une modification',
+        'Exporter un entretien',
       ]) {
         await lecture.locator('.suite a[rel="next"]').click()
         await expect(lecture.getByRole('heading', { level: 1 })).toHaveText(chapitre)
@@ -67,6 +78,30 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         }
       }
       await lecture.getByRole('link', { name: /Suivant : questions/ }).click()
+      await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes')
+      await expect(lecture.locator('main > h2')).toHaveCount(9)
+      await expect(lecture.locator('main > h3')).toHaveCount(48)
+      await lecture.getByRole('link', { name: 'Contrôler les sous-titres exportés.' }).click()
+      await expect(lecture).toHaveURL(/exporter-entretien\.html#sous-titres$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.locator('#export-sauvegarde + p + p').getByRole('link', { name: 'Créer une copie de sauvegarde ZIP.' }).click()
+      await expect(lecture).toHaveURL(/annuler-restaurer\.html#sauvegarder$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Restaurer le corpus et vérifier ses médias.' }).click()
+      await expect(lecture).toHaveURL(/annuler-restaurer\.html#restaurer$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Gérer les graphies et les variantes.' }).click()
+      await expect(lecture).toHaveURL(/pseudonymiser\.html#variantes$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Contrôler les règles et leurs occurrences.' }).click()
+      await expect(lecture).toHaveURL(/pseudonymiser\.html#verifier-corpus$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre ce qui doit être vérifié avant le partage.' }).click()
+      await expect(lecture).toHaveURL(/commentaires\.html#exporter$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Retrouver un commentaire dans la transcription.' }).click()
+      await expect(lecture).toHaveURL(/commentaires\.html#retrouver$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
       await lecture.getByRole('link', { name: 'Exporter les notes affichées avec les bonnes précautions.' }).click()
       await expect(lecture).toHaveURL(/notes\.html#exporter$/)
       await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
@@ -94,7 +129,7 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       await lecture.getByRole('link', { name: 'Sommaire', exact: true }).click()
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Documentation utilisateur')
       await lecture.goto(pathToFileURL(fichiers[1]).href)
-      await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes sur les premiers pas')
+      await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes')
       await lecture.setViewportSize({ width: 390, height: 844 })
       expect(await lecture.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       await lecture.keyboard.press('Tab')

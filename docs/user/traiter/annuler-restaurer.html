@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Revenir sur une modification — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Revenir sur une modification</h1>
+    <p>SonalPi enregistre automatiquement une grande partie du travail. Pour corriger une erreur, choisissez l’outil adapté : annuler une fenêtre avant validation, revenir sur la frappe dans la transcription, utiliser un Journal d’actions récentes ou rouvrir une copie de sauvegarde.</p>
+    <p class="retenir"><strong>Le Journal n’est pas une sauvegarde.</strong> Il conserve seulement certaines actions récentes pendant la session. Pour pouvoir revenir à un état plus ancien après avoir fermé SonalPi, créez régulièrement une copie ZIP de votre corpus local.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#choisir">Choisir la bonne manière de revenir en arrière</a></li>
+        <li><a href="#texte">Annuler une correction de la transcription</a></li>
+        <li><a href="#journal-entretien">Utiliser le Journal de l’entretien</a></li>
+        <li><a href="#journal-corpus">Annuler une action récente du corpus</a></li>
+        <li><a href="#limites">Comprendre les limites des Journaux</a></li>
+        <li><a href="#sauvegarder">Créer une copie de sauvegarde ZIP</a></li>
+        <li><a href="#restaurer">Ouvrir une restauration dans un nouveau dossier</a></li>
+      </ul>
+    </nav>
+    <h2 id="choisir">Choisir la bonne manière de revenir en arrière</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Situation</th><th>Commande à utiliser</th></tr></thead>
+        <tbody>
+          <tr><td>Une fenêtre est encore ouverte et vous n’avez pas validé.</td><td><strong>Annuler</strong>, <strong>Fermer</strong> ou <strong>Échap</strong>, selon la fenêtre.</td></tr>
+          <tr><td>Vous venez de corriger les mots de la transcription.</td><td><strong>Ctrl+Z</strong> ou <strong>Cmd+Z</strong> dans l’éditeur ; <strong>Ctrl+Maj+Z</strong> ou <strong>Cmd+Maj+Z</strong> pour rétablir.</td></tr>
+          <tr><td>Vous avez codé, commenté, renommé ou attribué un locuteur, ou modifié une valeur dans l’entretien.</td><td>L’onglet <strong>Journal</strong> de l’entretien, si l’action y figure encore.</td></tr>
+          <tr><td>Vous avez modifié une note depuis la vue corpus ou certaines informations de Personnes.</td><td><strong>Actions récentes</strong> dans le corpus, si l’action est prise en charge.</td></tr>
+          <tr><td>Vous voulez retrouver un état datant d’une session précédente.</td><td>Une <strong>copie de sauvegarde ZIP</strong> créée avant les modifications.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Si une confirmation annonce qu’une opération ne peut pas être annulée depuis le Journal, utilisez <strong>Annuler</strong> dans cette confirmation pour renoncer, ou préparez d’abord une sauvegarde. Ne validez pas en comptant sur une flèche de retour qui n’est pas proposée.</p>
+    <h2 id="texte">Annuler une correction de la transcription</h2>
+    <p>Cliquez dans la transcription, puis utilisez <strong>Ctrl+Z</strong> sous Windows et Linux, ou <strong>Cmd+Z</strong> sous macOS. La commande <strong>Édition → Annuler</strong> du menu produit le même effet lorsque l’éditeur est actif.</p>
+    <p>Pour réappliquer la correction annulée, utilisez <strong>Ctrl+Maj+Z</strong>, <strong>Cmd+Maj+Z</strong> ou <strong>Édition → Rétablir</strong>. Ces commandes suivent l’historique de l’éditeur : elles conviennent à la frappe, au collage, à une suppression de texte ou à un remplacement.</p>
+    <p>L’annulation devient elle-même le nouvel état de l’entretien et est enregistrée automatiquement. Attendez l’indication <strong>à jour</strong> avant de fermer l’application.</p>
+    <p class="notice">Le raccourci de l’éditeur suit l’ordre des modifications et ne permet pas de choisir une ligne précise. Pour viser explicitement un codage, un commentaire ou le nom précédent d’un locuteur, utilisez la flèche correspondante du Journal.</p>
+    <h2 id="journal-entretien">Utiliser le Journal de l’entretien</h2>
+    <ol>
+      <li>Ouvrez l’entretien concerné.</li>
+      <li>Dans les onglets de gauche, cliquez sur <strong>Journal</strong>, représenté par une horloge avec une flèche.</li>
+      <li>Repérez l’action grâce à son heure et son libellé.</li>
+      <li>Cliquez sur la flèche <strong>↩</strong> de cette action.</li>
+      <li>Vérifiez le résultat dans la transcription ou le panneau concerné, puis attendez l’état <strong>à jour</strong>.</li>
+    </ol>
+    <figure>
+      <img src="../medias/journal-entretien.png" alt="Dans un entretien, le panneau Journal affiche Commentaire posé, Locuteur renommé de Karine vers Karine D. et Codage posé Famille. Chaque ligne possède une flèche pour annuler cette action.">
+      <figcaption>Le Journal de l’entretien présente les dix dernières actions prises en charge pendant l’ouverture en cours.</figcaption>
+    </figure>
+    <p>Le Journal peut notamment revenir sur :</p>
+    <ul>
+      <li>la pose ou le retrait d’un codage ;</li>
+      <li>la création, la modification ou la suppression d’un commentaire ;</li>
+      <li>l’attribution d’un locuteur à un passage et le renommage d’un locuteur ;</li>
+      <li>la modification d’une valeur de variable pour l’entretien ou un locuteur.</li>
+    </ul>
+    <p>L’action annulée disparaît du Journal. Le Journal ne propose pas de commande pour la rétablir ensuite ; vérifiez donc la ligne choisie avant de cliquer.</p>
+    <h2 id="journal-corpus">Annuler une action récente du corpus</h2>
+    <p>Depuis l’écran du corpus, cliquez sur l’icône <strong>Actions récentes</strong>, également proposée dans la présentation de l’onglet Accueil. Une fenêtre <strong>Historique des actions</strong> affiche les dix dernières opérations de corpus prises en charge pendant l’ouverture en cours.</p>
+    <figure>
+      <img src="../medias/actions-recentes-corpus.png" alt="La fenêtre Historique des actions montre une note modifiée et une flèche permettant d’annuler cette modification.">
+      <figcaption>Une modification de note réalisée depuis la vue corpus peut être annulée tant que son état attendu n’a pas été remplacé.</figcaption>
+    </figure>
+    <p>Ce Journal concerne actuellement certaines modifications des <strong>notes</strong> et des <strong>Personnes</strong>, par exemple modifier ou supprimer une note, renommer une personne ou changer certaines associations avec des locuteurs. L’onglet Personnes propose aussi le bouton <strong>Annuler une modification…</strong>, limité à ses propres actions.</p>
+    <p>Cliquez sur <strong>↩</strong> en face de l’action à annuler. Si une action plus récente doit être annulée d’abord, ou si l’élément a changé entre-temps, la flèche est désactivée et la raison est indiquée. SonalPi n’écrase pas silencieusement le nouvel état.</p>
+    <p class="notice">L’annulation des actions de corpus distant n’est pas encore disponible dans ce Journal. Utilisez les confirmations, les aperçus et les procédures de reprise propres à l’opération.</p>
+    <h2 id="limites">Comprendre les limites des Journaux</h2>
+    <ul>
+      <li>Chaque Journal garde au maximum <strong>dix actions</strong>.</li>
+      <li>Le Journal de l’entretien est vidé lorsque vous fermez cet entretien ou en ouvrez un autre.</li>
+      <li>Le Journal du corpus est vidé lorsque vous fermez ou changez de corpus.</li>
+      <li>Une ligne grisée signifie que sa cible a disparu ou a changé : aucune annulation partielle n’est tentée.</li>
+      <li>Une action absente du Journal n’est pas annulable par ce moyen.</li>
+    </ul>
+    <p>La pseudonymisation du texte, l’ajout ou la suppression d’un locuteur, certains réglages de locuteur, les opérations globales sur les thèmes et les règles de pseudonymisation ne sont pas couverts par le Journal de l’entretien. Leurs dialogues indiquent les conséquences et les possibilités de reprise.</p>
+    <p class="retenir"><strong>Fermer puis rouvrir ne fait pas réapparaître un Journal.</strong> L’enregistrement automatique conserve le résultat actuel, pas une suite de versions anciennes.</p>
+    <h2 id="sauvegarder">Créer une copie de sauvegarde ZIP</h2>
+    <p>La copie ZIP est disponible pour un <strong>corpus local</strong>. Elle rassemble son contenu dans un fichier indépendant, utilisable même après avoir fermé SonalPi.</p>
+    <ol>
+      <li>Attendez si possible l’état <strong>à jour</strong> de l’entretien ouvert.</li>
+      <li>Dans le menu de l’application, choisissez <strong>Corpus → Faire une copie de sauvegarde du corpus (ZIP)…</strong>.</li>
+      <li>Choisissez un emplacement distinct du dossier de travail et enregistrez l’archive.</li>
+      <li>Conservez plusieurs sauvegardes datées dans un emplacement protégé.</li>
+    </ol>
+    <p>SonalPi termine d’abord l’enregistrement de l’entretien ouvert, puis crée la copie. L’archive comprend les fichiers du corpus, ses entretiens, ses documents internes et les éléments conservés dans sa corbeille.</p>
+    <p class="retenir"><strong>Les enregistrements audio ou vidéo référencés à l’extérieur du dossier ne sont pas copiés.</strong> Conservez-les séparément. Après un déplacement ou une restauration sur un autre poste, vous devrez peut-être les réassigner.</p>
+    <p>Pour un corpus distant, cette commande ZIP n’est pas disponible : la conservation principale dépend du serveur. Un export de transcription ou de corpus ne remplace pas une politique de sauvegarde.</p>
+    <h2 id="restaurer">Ouvrir une restauration dans un nouveau dossier</h2>
+    <p>SonalPi ne possède pas de bouton qui remplace automatiquement votre corpus courant par une archive. La restauration consiste à décompresser la copie, puis à ouvrir le dossier obtenu comme un autre corpus local.</p>
+    <ol>
+      <li>Fermez l’entretien en cours et gardez le corpus d’origine intact.</li>
+      <li>Dans votre gestionnaire de fichiers, créez un <strong>nouveau dossier vide</strong>.</li>
+      <li>Décompressez le contenu du ZIP directement dans ce dossier. Le fichier <strong>corpus.json</strong> doit se trouver à sa racine.</li>
+      <li>Dans SonalPi, revenez à l’Accueil et choisissez <strong>Ouvrir un corpus local</strong>.</li>
+      <li>Sélectionnez le dossier restauré, puis vérifiez les entretiens, les notes, les thèmes, les données et les documents attendus.</li>
+      <li>Réassignez les médias externes si leur emplacement a changé.</li>
+    </ol>
+    <p class="notice">N’extrayez pas la sauvegarde par-dessus le corpus actif. Ouvrez d’abord la restauration comme une copie séparée ; vous pourrez comparer les deux dossiers et choisir ensuite lequel conserver.</p>
+    <p>La restauration retrouve l’état présent au moment de la création du ZIP. Les modifications réalisées après cette date restent seulement dans le corpus de travail plus récent.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="pseudonymiser.html" rel="prev">← Précédent : pseudonymiser et vérifier un entretien</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../organiser/exporter-entretien.html" rel="next">Suivant : exporter un entretien →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

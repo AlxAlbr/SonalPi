@@ -2,7 +2,7 @@ import { expect, test, type TestInfo } from '@playwright/test'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { attendreAccueil, attendreCorpus } from './util'
+import { attendreAccueil, attendreCorpus, fermerAiguillage } from './util'
 import { instrumenterMigration, lireSondeMigration, retablirTransportMigration, tuerApplication } from './qualification/sondeMigration'
 import type { EtatMigrationGitLab } from '../src/main/gitlab/suiviMigration'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
@@ -41,6 +41,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         await page.screenshot({ path: info.outputPath('bilan-gitlab-concis.png') })
         await modal.getByRole('button', { name: 'Copier les médias et créer le corpus', exact: true }).click()
         await expect(modal).toBeHidden({ timeout: 90_000 })
+        await fermerAiguillage(page, 'entretiens', 120_000)
         await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
         await attendreCorpus(page)
         const etat = lireEtat(profil)

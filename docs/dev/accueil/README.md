@@ -24,6 +24,27 @@ comprendre la séparation main / preload / renderer, voir
 - **Un corpus distant reste distant.** Son miroir local n’est jamais une
   destination à ouvrir comme un corpus local.
 
+## Disposition de l’accueil
+
+L’essai en deux colonnes rapproche les actions et les reprises correspondantes :
+Découvrir SonalPi / Corpus exemples, puis Vos corpus / Reprendre votre travail.
+Les quatre cartes de découverte, dont Explorer les corpus exemples, sont à gauche.
+À droite, les deux listes compactes n’ont ni fond ni cadre et défilent si nécessaire.
+Chaque section est absente du DOM lorsque sa liste est vide, y compris après retrait
+du dernier raccourci. Les emplacements des cartes de gauche restent stables même
+si une seule des deux listes est présente.
+La migration est une rubrique native `details`, repliée au départ, dans la colonne
+de gauche sous Vos corpus. Ses entrées sont empilées : locale, puis GitLab.
+À 800 pixels ou moins, les corpus personnels passent avant les actions et la découverte.
+L’ordre des sections est changé dans le DOM, pas seulement avec le CSS : le clavier
+suit donc la lecture. Un changement de largeur conserve les dialogues ouverts.
+
+Les copies libres reconnues apparaissent dans le bloc Exemples. Leur présence ne
+repousse pas indéfiniment les corpus personnels : leur liste a une hauteur bornée.
+Le composant `ListeRecents.vue` partage l’ouverture et le retrait des raccourcis ;
+les contrôles des accès distants de `Accueil.vue` restent applicables.
+La qualification de cette disposition ne remplace pas une recette serveur.
+
 ## Entrées par fonction
 
 | Documentation | À lire pour… |
@@ -62,8 +83,15 @@ présentation commune. Il n’y a ni conversion Markdown ni dépendance de rendu
 `extraResources` copie HTML, CSS et illustrations dans `resources/documentation/` ;
 les anciens textes Markdown ne sont pas embarqués.
 
+Les cartes de l’accueil utilisent `application.ouvrirDocumentation` dans le preload.
+Le handler accepte seulement `guide` ou `faq` et appelle le même ouvreur que le menu :
+aucun chemin arbitraire n’est fourni par le renderer, aucune bascule de corpus.
+
 Tests : `test/documentation.test.ts`, `test/menuApplication.test.ts` et
-`e2e/documentation.e2e.ts`. Ce dernier peut viser le paquet avec
+`e2e/documentation.e2e.ts`. Les cartes, les deux groupes de récents et la disposition
+sont couverts par `test/accueilRenderer.test.ts` et `e2e/accueil-disposition.e2e.ts`
+(`ACCUEIL_E2E_EXECUTABLE` pour viser le paquet).
+Le test documentaire peut viser le paquet avec
 `DOCS_E2E_EXECUTABLE=/chemin/vers/sonalpi2`.
 
 ## Suivre une action dans le code

@@ -8,7 +8,7 @@ import { ClientWebDAV } from '../src/main/webdav/client'
 import { ProviderFilesLock } from '../src/main/verrous/providerFilesLock'
 import { ProviderPutConditionnel } from '../src/main/verrous/providerPutConditionnel'
 import { fixtureRetraitVarianteAnon } from '../test/fixtures/retraitVarianteAnon'
-import { lancer, attendreAccueil, retourCorpus } from './util'
+import { lancer, attendreAccueil, fermerAiguillage, retourCorpus } from './util'
 
 type Sonde = { perte: 'aucune' | 'finale' | 'kill'; accepte: boolean; publies: string[] }
 async function instrumenter(app: ElectronApplication, racine: string, perte: Sonde['perte'] = 'aucune') {
@@ -46,6 +46,8 @@ async function connecter(page: Page, url: string, nouveau = true) {
   const secrets = page.locator('.modale-distant .secret-compte')
   for (let i = 0; i < await secrets.count(); i++) await secrets.nth(i).fill('max-max-1234')
   await page.locator('.modale-distant .mini.ouvrir').first().click()
+  // Première ouverture de ce corpus sur le poste : l'aiguillage mène aux entretiens.
+  await fermerAiguillage(page, 'entretiens', 120_000)
   await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 90_000 })
   await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
 }

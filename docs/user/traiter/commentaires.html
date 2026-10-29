@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Commenter un passage — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Importer et traiter</p>
+    <h1>Commenter un passage</h1>
+    <p>Un commentaire vous permet d’attacher une remarque à des mots précis de la transcription : vérifier une date, signaler une hésitation ou garder une question de relecture. Il ne change pas les paroles transcrites.</p>
+    <p>Une <strong>note</strong> rassemble plutôt un résumé ou une réflexion à l’échelle de l’entretien. Vous pouvez ensuite <a href="notes.html#relire">lier un passage de note à un commentaire</a> pour revenir rapidement à son contexte.</p>
+    <p>Les étapes ci-dessous sont vérifiées dans un <strong>corpus local</strong>. Pour essayer, ouvrez votre copie de <strong>Entretiens déjà importés</strong>, puis <strong>1Coordinatrice</strong>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#creer">Ajouter un commentaire à une sélection</a></li>
+        <li><a href="#retrouver">Retrouver le passage commenté</a></li>
+        <li><a href="#modifier">Modifier l’auteur ou le texte</a></li>
+        <li><a href="#notes">Relier une note au commentaire</a></li>
+        <li><a href="#supprimer">Supprimer ou rétablir un commentaire</a></li>
+        <li><a href="#exporter">Vérifier les commentaires avant un export</a></li>
+      </ul>
+    </nav>
+    <h2 id="creer">Ajouter un commentaire à une sélection</h2>
+    <ol>
+      <li>Ouvrez l’entretien avec le <strong>crayon</strong> de sa carte.</li>
+      <li>Sélectionnez les mots concernés dans la transcription.</li>
+      <li>Faites un <strong>clic droit dans la sélection</strong>, puis choisissez <strong>💬 Commenter la sélection</strong>.</li>
+      <li>Renseignez l’<strong>Auteur</strong>, si vous souhaitez signer la remarque, puis saisissez le commentaire.</li>
+      <li>Cliquez sur <strong>Valider</strong>, puis attendez l’état <strong>à jour</strong> en haut de l’entretien.</li>
+    </ol>
+    <p>Dans l’exemple, sélectionnez <strong>ça devait être en 2012</strong> et écrivez : « Vérifier la date dans le carnet de terrain. » Le passage reçoit une teinte jaune pâle et le commentaire apparaît dans la marge.</p>
+    <figure>
+      <img src="../medias/commentaire-passage.png" alt="Dans l’entretien 1Coordinatrice, le passage ça devait être en 2012 est teinté en jaune et une carte signée Karine D. indique de vérifier la date dans le carnet de terrain.">
+      <figcaption>Le commentaire reste à côté du passage ; il ne s’ajoute pas aux paroles de la transcription.</figcaption>
+    </figure>
+    <p>Le champ Auteur est facultatif. SonalPi mémorise le dernier signataire validé et le propose lors du commentaire suivant. Vous pouvez le changer avant de valider. <strong>Annuler</strong> ou la touche <strong>Échap</strong> ferme la fenêtre sans créer le commentaire ; <strong>Ctrl+Entrée</strong> le valide.</p>
+    <h2 id="retrouver">Retrouver le passage commenté</h2>
+    <p>La carte affiche l’auteur et le début du commentaire. Survolez le passage pour repérer sa carte. Un commentaire long est abrégé dans la marge : cliquez sur la carte pour lire son texte complet.</p>
+    <p>Dans une fenêtre de moins de 1 000 pixels de large, les cartes sont masquées pour laisser davantage de place à la transcription. La teinte du passage reste visible. Faites un clic droit sur ce passage, puis choisissez <strong>✏️ Commentaire — auteur…</strong> pour le rouvrir.</p>
+    <p>Plusieurs commentaires peuvent concerner le même passage ou se chevaucher. Le clic droit présente alors une entrée pour chacun d’eux.</p>
+    <h2 id="modifier">Modifier l’auteur ou le texte</h2>
+    <ol>
+      <li>Cliquez sur la carte du commentaire. Si la marge est masquée, faites un clic droit sur le passage et choisissez le commentaire voulu.</li>
+      <li>Corrigez l’auteur ou le texte.</li>
+      <li>Cliquez sur <strong>Valider</strong> et attendez l’état <strong>à jour</strong>.</li>
+    </ol>
+    <p><strong>Annuler</strong> abandonne les changements de la fenêtre et conserve la version déjà enregistrée. Corriger un commentaire ne modifie ni la transcription, ni ses codages, ni ses repères temporels.</p>
+    <p>Dans un entretien ouvert en <strong>lecture seule</strong>, les commentaires restent visibles, mais leur création, leur modification et leur suppression ne sont pas proposées.</p>
+    <h2 id="notes">Relier une note au commentaire</h2>
+    <p>Dans l’onglet <strong>Notes</strong> de l’entretien, ouvrez une note ou sa vue feuille. Sélectionnez un passage de cette note, cliquez sur <strong>🔗 Lier à un commentaire</strong>, puis choisissez le commentaire. Une référence apparaît dans la note ; cliquez dessus pour rejoindre le passage commenté dans la transcription.</p>
+    <p>Le commentaire n’est pas copié dans la note. Modifier son texte actualise la référence affichée. Si vous supprimez le commentaire, la note reste enregistrée, mais ce lien ne peut plus rejoindre le passage.</p>
+    <h2 id="supprimer">Supprimer ou rétablir un commentaire</h2>
+    <ol>
+      <li>Ouvrez le commentaire depuis sa carte ou le clic droit sur son passage.</li>
+      <li>Cliquez sur <strong>Supprimer</strong>.</li>
+    </ol>
+    <p class="retenir"><strong>La suppression est immédiate et ne demande pas de confirmation.</strong> Elle retire la carte, la teinte et le lien du commentaire, mais conserve les mots de la transcription, les codages et les notes.</p>
+    <p>Tant que vous n’avez pas fermé l’entretien, ouvrez l’onglet <strong>Journal</strong> et cliquez sur la flèche <strong>↩</strong> de <strong>Commentaire supprimé</strong> pour le rétablir. Le journal de cette session n’est pas une sauvegarde durable : vérifiez le résultat avant de quitter.</p>
+    <h2 id="exporter">Vérifier les commentaires avant un export</h2>
+    <p>Les commentaires ne figurent pas dans les exports de lecture <strong>TXT, SRT, VTT, DOCX ou PDF</strong>. Ils sont en revanche conservés dans un export <strong>.sonal</strong> complet et dans le fichier <strong>HTML</strong>, même si la page HTML ne reproduit pas leurs cartes de marge. Un transfert de corpus vers <strong>QualCoder</strong> peut également les reprendre.</p>
+    <p class="retenir"><strong>La pseudonymisation de la transcription ne remplace pas automatiquement le texte ou l’auteur des commentaires.</strong> Relisez-les avant de transmettre un fichier qui les contient. Le rapport de pseudonymisation peut les signaler, mais il ne décide pas à votre place ce qui doit être retiré.</p>
+    <p>Un export est une copie destinée à la lecture ou à l’échange, pas une sauvegarde complète du corpus. Exporter ne modifie ni le commentaire ni l’entretien source.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="notes.html" rel="prev">← Précédent : écrire et consulter des notes</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="pseudonymiser.html" rel="next">Suivant : pseudonymiser et vérifier un entretien →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

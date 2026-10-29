@@ -92,6 +92,12 @@ exclusion est appliquée côté main, pas seulement dans le composant d’accuei
 Un ancien raccourci d’apprentissage reconnu est d’abord rattaché au registre des
 exemples, puis retiré des Récents, sans déplacer ni supprimer ses données.
 
+Pour l’accueil, une entrée locale peut porter la métadonnée transitoire `exemple`,
+issue de `ExemplesLocaux.reconnaitre`, jamais du nom du dossier. Le renderer range
+ces copies dans Corpus exemples et les autres entrées dans Reprendre votre travail.
+Le menu conserve la liste commune, l’ordre et les limites restent inchangés.
+Ce champ ne modifie ni `settings.json.recents` ni le format des fichiers corpus.
+
 **Retirer un récent supprime uniquement le raccourci**, ni le dossier, ni le
 miroir, ni le compte ou les fichiers serveur.
 

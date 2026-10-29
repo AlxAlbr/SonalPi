@@ -10,7 +10,7 @@ import { ClientLfsGitLab, identifierFichierGitLab, pointeurLfsGitLab } from '../
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { fixturePseudonymisation } from '../../test/fixtures/pseudonymisation'
 import { exporterSonal } from '../../src/renderer/formatSonal/exportSonal'
-import { attendreAccueil, attendreCorpus, lancer, retourCorpus } from '../util'
+import { attendreAccueil, attendreCorpus, lancer, ouvrirMigration, retourCorpus } from '../util'
 
 export const config = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''), token: process.env.GITLAB_USER1_TOKEN,
@@ -130,7 +130,7 @@ export async function lancerQualification(profil: string, preserverSettings = fa
 }
 export async function connecterSource(page: Page, source: Projet) {
   await attendreAccueil(page)
-  await page.locator('.migrer-gitlab').click()
+  await ouvrirMigration(page, 'gitlab')
   const modal = page.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
   await modal.getByLabel('Adresse du projet source', { exact: true }).fill(adresse(source))
   await modal.getByRole('combobox', { name: /^Connexion GitLab/ }).selectOption('jeton-personnel')

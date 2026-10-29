@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import MigrationCorpus from './MigrationCorpus.vue'
 import MigrationGitLab from './MigrationGitLab.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
 import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
+import ListeRecents from './ListeRecents.vue'
 import { utiliserSonal } from '../../composables/sonal'
 import type { EntreeRecent } from '../../../shared/format'
 
@@ -15,26 +16,35 @@ const {
   retirerRecent,
   ouvrirCatalogueParcours,
   ouvrirExemples,
-  // Modales déclenchables AUSSI depuis le menu applicatif : l'état est partagé
-  // via le contexte sonal (le menu peut les ouvrir depuis n'importe quelle vue).
   modaleNouveauCorpus,
   modaleCorpusDistant,
 } = utiliserSonal()
 
-// Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
-// avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
-// Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
-// avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
+const recentsPersonnels = computed(() => recents.value.filter((r) => r.type !== 'local' || !r.exemple))
+const recentsExemples = computed(() => recents.value.filter((r) => r.type === 'local' && r.exemple))
+const mediaCompact = window.matchMedia('(max-width: 800px)')
+const compact = ref(mediaCompact.matches)
+function actualiserLargeur(event: MediaQueryListEvent) { compact.value = event.matches }
+mediaCompact.addEventListener('change', actualiserLargeur)
+onBeforeUnmount(() => mediaCompact.removeEventListener('change', actualiserLargeur))
+// L’ordre du clavier suit aussi la priorité aux récents sur une petite fenêtre.
+const blocs = computed(() => {
+  const ordre = compact.value
+    ? ['recents', 'corpus', 'decouverte', 'exemples']
+    : ['decouverte', 'exemples', 'corpus', 'recents']
+  return ordre.filter((bloc) =>
+    (bloc !== 'exemples' || recentsExemples.value.length > 0)
+    && (bloc !== 'recents' || recentsPersonnels.value.length > 0),
+  )
+})
+
 const modaleMigration = ref(false)
 const modaleMigrationGitLab = ref(false)
-// Modales « Nouveau corpus… » et « Ouvrir un corpus distant » : état partagé
-// (déclenchées par les cartes ci-dessous ou par le menu applicatif).
 const modaleNouveau = modaleNouveauCorpus
 const modaleDistant = modaleCorpusDistant
 const modaleDistantFournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
-// Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur,
-// puis ouverture immédiate.
 const modaleNouveauDistant = ref(false)
+const ouvrirDocumentation = (entree: 'guide' | 'faq') => window.sonal.application.ouvrirDocumentation(entree)
 
 /** Demande le secret dans la modale lorsqu'un récent ne peut pas rouvrir seul. */
 async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
@@ -67,250 +77,119 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
 </script>
 
 <template>
-    <section class="ecran accueil">
-      <h2>Accueil</h2>
+  <section class="ecran accueil">
+    <h2>Accueil</h2>
+    <div class="grille-accueil">
+      <section v-for="bloc in blocs" :key="bloc" class="bloc-accueil" :class="`${bloc}-bloc`" :aria-labelledby="`titre-${bloc}`">
+        <template v-if="bloc === 'decouverte'">
+          <h3 id="titre-decouverte">Découvrir SonalPi</h3>
+          <p class="intro-bloc">Trouver de l'aide et apprendre les gestes.</p>
+          <div class="cartes-demo cartes-decouverte">
+            <button class="carte-demo documentation" @click="ouvrirDocumentation('guide')">
+              <span class="carte-titre">Documentation utilisateur</span>
+            </button>
+            <button class="carte-demo faq" @click="ouvrirDocumentation('faq')">
+              <span class="carte-titre">FAQ</span>
+            </button>
+            <button class="carte-demo parcours" @click="ouvrirCatalogueParcours()">
+              <span class="carte-titre">Parcours pas à pas</span>
+              <span class="carte-sous">Apprendre de manière guidée</span>
+            </button>
+            <button class="carte-demo exemples" @click="ouvrirExemples">
+              <span class="carte-titre">Explorer les corpus exemples</span>
+              <span class="carte-sous">Tester sur un corpus fictif <br> vierge ou annoté</span>
+            </button>
+          </div>
+        </template>
+        <template v-else-if="bloc === 'exemples'">
+          <h3 id="titre-exemples">Acceder à mes corpus exemples</h3>
+          <ListeRecents class="copies-exemples" :recents="recentsExemples" libelle="Copies d’exemples récentes" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
+        </template>
+        <template v-else-if="bloc === 'corpus'">
+          <h3 id="titre-corpus">Création de corpus et ouverture</h3>
+          <p class="intro-bloc">Commencer une enquête ou ouvrir un dossier existant.</p>
+          <div class="cartes-demo cartes-corpus">
+            <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
+              <span class="carte-titre">Nouveau corpus local</span>
+              <span class="carte-sous">Créer un dossier sur votre poste</span>
+            </button>
+            <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
+              <span class="carte-titre">Ouvrir un corpus local</span>
+              <span class="carte-sous">Choisir un dossier existant</span>
+            </button>
+            <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
+              <span class="carte-titre">Nouveau corpus distant</span>
+              <span class="carte-sous">Créer sur Nextcloud ou GitLab</span>
+            </button>
+            <button class="carte-demo distant-corpus" @click="modaleDistantFournisseur = 'nextcloud'; modaleDistant = true">
+              <span class="carte-titre">Ouvrir un corpus distant</span>
+              <span class="carte-sous">Rejoindre un corpus distant <br> déjà existant</span>
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <h3 id="titre-recents">Acceder à mes corpus de travail</h3>
+          <ListeRecents :recents="recentsPersonnels" libelle="Corpus récents" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
+        </template>
+      </section>
 
-      <div class="demo-bloc">
-        <h3 class="demo-titre">Découvrir SonalPi</h3>
-        <div class="cartes-demo">
-          <button class="carte-demo parcours" @click="ouvrirCatalogueParcours()">
-            <div class="carte-titre">Parcours pas à pas</div>
-            <div class="carte-sous">Apprendre les gestes, étape par étape.</div>
-          </button>
-          <button class="carte-demo exemples" @click="ouvrirExemples">
-            <div class="carte-titre">Explorer les corpus exemples</div>
-            <div class="carte-sous">Essayer librement les outils sur un exemple fourni.</div>
-          </button>
-        </div>
-        <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
-      </div>
-
-      <!-- Bloc "Vos corpus avec division : local (solo) et distant (collectif) -->
-      <div class="corpus-bloc">
-        <h3 class="corpus-titre">📁 Vos corpus</h3>
-        <!-- Ligne LOCALE -->
-        <div class="cartes-demo">
-          <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
-            <div class="carte-titre">➕ Nouveau corpus local</div>
-            <div class="carte-sous">Travail en solo,<br>sur votre poste</div>
-          </button>
-          <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
-            <div class="carte-titre">📂 Ouvrir un corpus local</div>
-            <div class="carte-sous">Choisir un dossier existant<br>(un dossier = un corpus)</div>
-          </button>
-        </div>
-
-        <div class="cartes-demo equipe-ligne">
-          <!-- Publie le squelette sur le serveur puis ouvre aussitôt :
-               même comportement que la création locale. -->
-          <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
-            <div class="carte-titre">☁️ Nouveau corpus distant</div>
-            <div class="carte-sous">Travail à plusieurs<br>sur Nextcloud ou GitLab</div>
-          </button>
-          <button class="carte-demo distant-corpus" @click="modaleDistantFournisseur = 'nextcloud'; modaleDistant = true">
-            <div class="carte-titre">☁️ Ouvrir un corpus distant</div>
-          </button>
-        </div>
-      </div>
-
-      <div class="migration-bloc">
-        <h3 class="migration-titre">🚧 Migration SonalPi1 vers SonalPi2 (Temporaire)</h3>
-        <div class="cartes-demo">
+      <details class="migration-bloc">
+        <summary>Migration SonalPi1 vers SonalPi2 (Temporaire)</summary>
+        <p class="aide-bloc">Reprendre un ancien corpus dans un nouveau dossier, sans modifier sa source.</p>
+        <div class="cartes-demo cartes-migration">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
-            <div class="carte-titre">Migration corpus local<br>(V1 → V2)</div>
-            <div class="carte-sous">Entretiens et réglages repris, documents supplémentaires conservés dans « Autres ». L’ancien dossier reste intact.</div>
+            <span class="carte-titre">Migration corpus local<br>(V1 → V2)</span>
+            <span class="carte-sous">Entretiens et réglages repris, documents supplémentaires conservés dans « Autres ». L’ancien dossier reste intact.</span>
           </button>
           <button class="carte-demo migrer-gitlab" @click="modaleMigrationGitLab = true">
-            <div class="carte-titre">Migration corpus GitLab<br>(V1 → V2)</div>
-            <div class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Médias copiés dans GitLab ou dans un espace externe.</div>
+            <span class="carte-titre">Migration corpus GitLab<br>(V1 → V2)</span>
+            <span class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Médias copiés dans GitLab ou dans un espace externe.</span>
           </button>
         </div>
-      </div>
+      </details>
+    </div>
 
-      <h3 class="recents-titre">Récents</h3>
-      <p v-if="recents.length === 0" class="vide">Aucun corpus récent.</p>
-      <ul class="recents">
-        <li v-for="r in recents" :key="r.type === 'distant' ? `d-${r.id}` : r.dir">
-          <button class="recent" @click="ouvrirRecentEntree(r)">
-            <span v-if="r.type === 'distant'" title="Corpus distant (serveur)">🌐</span>
-            {{ r.nom }}
-          </button>
-          <span class="recent-dir">{{ r.type === 'distant' ? r.url : r.dir }}</span>
-          <!-- Retire le RACCOURCI seulement : ni le dossier disque,
-               ni le miroir, ni le serveur ne sont touchés. -->
-          <button
-            class="x oubli-recent"
-            title="Retirer de la liste (ne supprime rien)"
-            @click="retirerRecent(r)"
-          >✕</button>
-        </li>
-      </ul>
-
-      <!-- Modale de migration SonalPi1 → SonalPi2 (aperçu → dossier dédié → exécution) -->
-      <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
-      <MigrationGitLab v-if="modaleMigrationGitLab" @fermer="modaleMigrationGitLab = false" />
-
-      <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
-      <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
-
-      <!-- Modale « Ouvrir un corpus distant » (comptes Nextcloud + connexion) -->
-      <CorpusDistant
-        v-if="modaleDistant"
-        :fournisseur-initiale="modaleDistantFournisseur"
-        @fermer="modaleDistant = false"
-      />
-
-      <!-- Assistant « Nouveau corpus distant » : créer directement sur le serveur -->
-      <NouveauCorpusDistant v-if="modaleNouveauDistant" @fermer="modaleNouveauDistant = false" />
-    </section>
+    <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
+    <MigrationGitLab v-if="modaleMigrationGitLab" @fermer="modaleMigrationGitLab = false" />
+    <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
+    <CorpusDistant v-if="modaleDistant" :fournisseur-initiale="modaleDistantFournisseur" @fermer="modaleDistant = false" />
+    <NouveauCorpusDistant v-if="modaleNouveauDistant" @fermer="modaleNouveauDistant = false" />
+  </section>
 </template>
 
 <style scoped>
-.ecran.accueil {
-  max-width: 640px;
+.accueil { max-width: 1160px; margin-inline: auto; }
+h2 { font-size: 1.05rem; margin: .5rem 0 .8rem; }
+.grille-accueil { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.bloc-accueil { min-width: 0; padding: 1rem; }
+.decouverte-bloc, .corpus-bloc { grid-column: 1; border: 1px solid #dae2ed; border-radius: 12px; background: #f8fafe; }
+.decouverte-bloc { grid-row: 1; background: #f2f7fd; }
+.corpus-bloc { grid-row: 2; background: #edf7ed; border-color: #c9dfcb; }
+.exemples-bloc { grid-column: 2; grid-row: 1; }
+.recents-bloc { grid-column: 2; grid-row: 2; --couleur-recent: #1c5c33; }
+h3 { font-size: 1rem; margin: 0; color: #294c70; }
+.exemples-bloc h3, .recents-bloc h3 { text-decoration: underline; text-underline-offset: .2em; }
+.recents-bloc h3, .corpus-bloc h3, .corpus-bloc .carte-titre { color: #1c5c33; }
+.exemples-bloc > .recents, .recents-bloc > .recents { margin-inline-start: .85rem; margin-top: .45rem; }
+.intro-bloc { font-size: .8rem; color: #586c81; margin: .35rem 0 .85rem; line-height: 1.4; }
+.cartes-demo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.carte-demo { display: block; width: 100%; min-width: 0; text-align: left; border: 1px solid #cbd9e9; border-radius: 8px; padding: .7rem .8rem; background: #fff; cursor: pointer; }
+.carte-demo:hover { border-color: #5284b6; background: #f7fbff; }
+.carte-titre { display: block; text-align: center; font-size: .88rem; font-weight: 600; color: #204f7b; line-height: 1.35; }
+.carte-sous { display: block; text-align: center; font-size: .75rem; color: #617286; margin-top: .3rem; line-height: 1.4; }
+.aide-bloc { font-size: .77rem; line-height: 1.5; color: #607184; margin: .7rem 0 0; }
+.copies-exemples { max-height: 8.5rem; }
+.migration-bloc { grid-column: 1; grid-row: 3; min-width: 0; border: 1px dashed #d9d5d0; border-radius: 9px; padding: .7rem 1rem; background: #fcfaf8; }
+summary, .cartes-migration .carte-titre { color: #6c5b4c; }
+summary { cursor: pointer; font-size: .82rem; font-weight: 600; }
+.cartes-migration { grid-template-columns: minmax(0, 1fr); margin-top: .7rem; }
+button:focus-visible, summary:focus-visible { outline: 3px solid #a55b00; outline-offset: 3px; }
+@media (max-width: 800px) {
+  .grille-accueil { grid-template-columns: minmax(0, 1fr); }
+  .bloc-accueil, .migration-bloc { grid-column: auto; grid-row: auto; }
 }
-.ecran.accueil h2 {
-  font-size: 1.05rem;
-  margin: 0.5rem 0;
-}
-/* --- Mini Corpus Test --- */
-.demo-bloc {
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 0.7rem 0.8rem 0.6rem;
-  margin: 0.3rem 0 1rem;
-  background: #f4f8fd;
-}
-.demo-titre {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #1565c0;
-  margin: 0 0 0.5rem;
-}
-.cartes-demo {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-}
-.carte-demo {
-  flex: 1 1 200px;
-  text-align: left;
-  border: 1px solid #c9dff5;
-  border-radius: 10px;
-  padding: 0.8rem 1rem;
-  background: #fff;
-  cursor: pointer;
-}
-.carte-demo:hover:not(:disabled) {
-  border-color: #2e73d8;
-  background: #f0f6ff;
-}
-.carte-demo:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-.demo-aide {
-  text-align: center;
-  margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  color: #999;
-  font-style: italic;
-}
-/* --- Ouvrir / migrer un corpus (groupé, comme Mini Corpus Test) --- */
-.corpus-bloc {
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 0.7rem 0.8rem 0.6rem;
-  margin: 0 0 1rem;
-  background: #f7f8fb;
-}
-.corpus-titre {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #37474f;
-  margin: 0 0 0.5rem;
-}
-.carte-titre {
-  text-align: center;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-.carte-sous {
-  text-align: center;
-  font-size: 0.78rem;
-  color: #888;
-  margin-top: 0.2rem;
-}
-/* Sous-titre de la ligne équipe : même idiome que les titres de bloc,
-   teinté nuage pour marquer la frontière locale/équipe. */
-.equipe-titre {
-  color: #0277bd;
-  margin-top: 0.6rem;
-}
-.equipe-ligne {
-  border: 1px solid #dceefb;
-  background: #f4f9fd;
-  border-radius: 8px;
-  padding: 0.6rem;
-}
-/* --- Migration SonalPi1 : rubrique propre au-dessus des Récents --- */
-.migration-bloc {
-  border: 1px dashed #d7ccc8;
-  border-radius: 10px;
-  padding: 0.7rem 0.8rem 0.6rem;
-  margin: 0 0 1rem;
-  background: #faf6f4;
-}
-.migration-titre {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #8d6e63;
-  margin: 0 0 0.5rem;
-}
-.recents-titre {
-  font-size: 0.9rem;
-  margin: 1.4rem 0 0.4rem;
-}
-.recents {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.recents li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-.recent {
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  background: #fff;
-  cursor: pointer;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.82rem;
-  color: #1565c0;
-  flex: none;
-}
-.recent:hover {
-  border-color: #2e73d8;
-  background: #f0f6ff;
-}
-.recent-dir {
-  font-size: 0.72rem;
-  color: #aaa;
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Croix discrète (révélée au survol de la ligne) — même idiome que les listes. */
-.oubli-recent {
-  opacity: 0.35;
-}
-.recents li:hover .oubli-recent {
-  opacity: 1;
+@media (max-width: 420px) {
+  .cartes-demo { grid-template-columns: minmax(0, 1fr); }
+  .bloc-accueil { padding: .8rem; }
 }
 </style>

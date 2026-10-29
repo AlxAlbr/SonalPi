@@ -1,6 +1,6 @@
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import type { EditorState, Transaction } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { EditorState } from '@tiptap/pm/state'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { estOrpheline } from '../../shared/entretien/annotation'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
@@ -15,11 +15,9 @@ export const commentairesPluginKey = new PluginKey('sonal-commentaires-marge')
  *  pas au passage près : zéro mesure DOM, zéro collision — l'empilement est le
  *  flux normal de la colonne (même idiome que la gouttière locuteurs).
  *
- *  Survol croisé carte ↔ plage : l'état (« quels commentaires sont survolés »)
- *  passe par une MÉTA de transaction et se lit À LA CONSTRUCTION des
- *  décorations — JAMAIS par mutation directe du DOM généré (une classe posée en
- *  dehors de PM serait une « mutation inattendue » : PM redessinerait le
- *  widget, ce qui re-déclencherait le survol… boucle infinie de redraws).
+ *  Le survol d’une plage repère sa carte par une méta de transaction.
+ *  Le survol inverse reste un simple style CSS.
+ *  Reconstruire la carte sous la souris empêcherait son clic d’ouvrir l’édition.
  *
  *  Le clic sur une carte ouvre l'édition (callback `editer`, branché par la
  *  couche Vue). Les cartes sont `contenteditable=false` : jamais de curseur
@@ -37,7 +35,6 @@ function commentairesVisibles(entretien: Entretien): Annotation[] {
 export function construireCarteCommentaire(
   a: Pick<Annotation, 'id' | 'auteur' | 'texte'>,
   editer: (id: string) => void,
-  surSurvol: (ids: string[]) => void,
   survolee: boolean,
 ): HTMLElement {
   const carte = document.createElement('div')
@@ -63,8 +60,6 @@ export function construireCarteCommentaire(
     e.stopPropagation()
     editer(a.id)
   })
-  carte.addEventListener('mouseenter', () => surSurvol([a.id]))
-  carte.addEventListener('mouseleave', () => surSurvol([]))
   return carte
 }
 
@@ -116,7 +111,7 @@ function construire(
         col.className = 'marge-commentaires'
         col.contentEditable = 'false'
         for (const a of ici)
-          col.appendChild(construireCarteCommentaire(a, editer, surSurvol, survolSet.has(a.id)))
+          col.appendChild(construireCarteCommentaire(a, editer, survolSet.has(a.id)))
         return col
       }, { side: -1, key: cle }),
     )
@@ -134,7 +129,7 @@ export function pluginCommentairesMarge(entretien: Entretien, editer: (id: strin
   /** Survol → méta (PM reste maître du DOM ; cf. note d'en-tête). Dédoublonné :
    *  ne pas re-dispatcher pour le même état (sinon boucle de redraws). */
   let survolCourant: string[] = []
-  function surSurvol(ids: string[], view?: { dispatch: (tr: Transaction) => void; state: EditorState }) {
+  function surSurvol(ids: string[], view?: EditorView) {
     if (view) {
       const actuel = survolCourant.join(',')
       const demande = [...ids].sort().join(',')

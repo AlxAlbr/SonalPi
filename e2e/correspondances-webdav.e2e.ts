@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { corpusImportWebDAV, entretienImportWebDAV, documentsImportWebDAV, serviceImportWebDAV, preparationImportWebDAV } from '../test/fixtures/correspondancesWebDAV'
-import { lancer, attendreAccueil } from './util'
+import { lancer, attendreAccueil, fermerAiguillage } from './util'
 
 type Panne = 'aucune' | 'avant-e2' | 'reponse-e1'
 type Sonde = { panne: Panne; accepte: boolean; publies: string[] }
@@ -45,6 +45,8 @@ async function connecter(page: Page, url: string, nouveau: boolean) {
   const secrets = page.locator('.modale-distant .secret-compte')
   for (let n = 0; n < await secrets.count(); n++) await secrets.nth(n).fill('max-max-1234')
   await page.locator('.modale-distant .mini.ouvrir').first().click()
+  // Première ouverture de ce corpus sur le poste : l'aiguillage mène aux entretiens.
+  await fermerAiguillage(page, 'entretiens', 120_000)
   await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 90_000 })
 }
 async function dialogue(page: Page) {

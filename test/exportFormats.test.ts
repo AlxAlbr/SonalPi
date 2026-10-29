@@ -207,6 +207,37 @@ describe('confidentialité des variables selon le format', () => {
   })
 })
 
+describe('commentaires selon le format', () => {
+  test('SONAL et HTML conservent les commentaires, contrairement aux formats de lecture textuels', () => {
+    const entree = entreeTeste()
+    entree.annotations.push({
+      id: 'commentaire-1',
+      type: 'commentaire',
+      from: 21,
+      to: 27,
+      auteur: 'Karine D.',
+      texte: 'Vérifier la date sensible.',
+    })
+    const ctx = contexte(entree)
+    const sonal = exporterSonal(entree)
+    const html = genererHtml(ctx, OPTIONS_TOUT)
+    expect(sonal).toContain('data-obs="Vérifier la date sensible."')
+    expect(sonal).toContain('data-auth="Karine D."')
+    expect(html).toContain('data-obs="Vérifier la date sensible."')
+    expect(html).toContain('data-auth="Karine D."')
+    expect(texteDe(html)).not.toContain('Vérifier la date sensible.')
+    for (const copie of [
+      genererTxt(ctx, OPTIONS_TOUT),
+      genererSrt(ctx, OPTIONS_TOUT),
+      genererVtt(ctx, OPTIONS_TOUT),
+      JSON.stringify(genererDonneesDocx(ctx, OPTIONS_TOUT)),
+    ]) {
+      expect(copie).not.toContain('Vérifier la date sensible.')
+      expect(copie).not.toContain('Karine D.')
+    }
+  })
+})
+
 describe('TXT', () => {
   test('avec toutes les options : en-tête, notes publiques, variables, corps horodaté et codé', () => {
     const out = genererTxt(contexte(), OPTIONS_TOUT)
@@ -375,7 +406,15 @@ describe('HTML', () => {
     expect(out).toContain('section-legend')
     expect(out).toContain('scat-')
     expect(out).toContain('btn-play-seg')
+    expect(out).not.toContain(' null }')
     expect(out).not.toContain('Ne doit pas sortir.')
+  })
+  test('la taille d’un thème produit une règle CSS valide', () => {
+    const ctx = contexte()
+    ctx.entree.codebook[0].taille = 24
+    const out = genererHtml(ctx, OPTIONS_TOUT)
+    expect(out).toContain('font-size: 24px; font-weight: bold;')
+    expect(out).not.toContain('{  24 }')
   })
   test('sans audio référencé : pas de player (corpus distant)', () => {
     const ctx = contexte()

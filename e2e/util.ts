@@ -56,6 +56,13 @@ export async function lancer(
 export async function attendreAccueil(page: Page): Promise<void> {
   await expect(page.locator('.ecran.accueil')).toBeVisible({ timeout: 20_000 })
 }
+/** Déplie la rubrique de migration avant de choisir son assistant. */
+export async function ouvrirMigration(page: Page, fournisseur: 'local' | 'gitlab' = 'local'): Promise<void> {
+  const rubrique = page.locator('.migration-bloc')
+  if (await rubrique.getAttribute('open') === null) await rubrique.locator('summary').click()
+  await rubrique.locator(fournisseur === 'gitlab' ? '.migrer-gitlab' : '.migrer-corpus').click()
+}
+
 /** Attend que l'écran Corpus soit affiché (pur wait, sans navigation). */
 export async function attendreCorpus(page: Page): Promise<void> {
   await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 20_000 })
@@ -129,7 +136,37 @@ export async function ouvrirPremierCompteDistant(page: Page, motDePasse: string)
     await secrets.nth(i).fill(motDePasse)
   }
   await page.locator('.modale-distant .mini.ouvrir').first().click()
+  await fermerAiguillage(page, 'entretiens', 120_000)
   await attendreCorpus(page)
+}
+
+/** Première ouverture d'un corpus sur ce poste : une fenêtre d'aiguillage
+ *  s'affiche par-dessus l'accueil de « Préparer et suivre » (corriger un entretien
+ *  ou gérer le projet). Les scénarios qui ne l'étudient pas la referment ici.
+ *  Elle arrive peu après l'ouverture (lecture des réglages), d'où l'attente. */
+export async function fermerAiguillage(
+  page: Page,
+  choix: 'entretiens' | 'projet' = 'projet',
+  delai = 2_000,
+): Promise<void> {
+  const modale = page.locator('.modale-aiguillage')
+  try {
+    await modale.waitFor({ state: 'visible', timeout: delai })
+  } catch {
+    return
+  }
+  const libelle = choix === 'entretiens'
+    ? 'Télécharger un entretien pour le corriger'
+    : "Aller vers l'interface de gestion de projet"
+  await modale.getByRole('button', { name: libelle }).click()
+  await expect(modale).toHaveCount(0)
+  // Corpus encore vide : ce choix ouvre l'ajout d'entretien, qu'on referme pour
+  //  laisser le scénario sur la liste.
+  const ajout = page.locator('.modale-ajout')
+  if (choix === 'entretiens' && await ajout.isVisible()) {
+    await ajout.getByRole('button', { name: 'Annuler' }).click()
+    await expect(ajout).toHaveCount(0)
+  }
 }
 
 /** Depuis l'écran Corpus, ouvre l'onglet Données. */

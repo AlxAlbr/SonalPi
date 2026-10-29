@@ -268,6 +268,7 @@ export async function exporterCorpus(
           entree: instantane.entretien,
           titre: instantane.titre,
           notes: instantane.notesPubliques,
+          categoriesNote: instantane.categoriesNote,
           audioUrl: instantane.audioLocal,
         }
 

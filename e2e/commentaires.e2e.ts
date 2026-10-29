@@ -5,11 +5,8 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, entrerEntretien, coderTheme, compterAnnotations, selectionner } from './util'
 
 /**
- *  Commentaires en marge (plan-comment) : clic droit → « Commenter » → modale
- *  (auteur + texte) → carte en marge sur le tour commenté ; édition et
- *  suppression par la même modale (clic carte) ; retrait d'un codage SANS
- *  resélectionner (clic droit sur le passage codé) ; persistance au
- *  rechargement.
+ *  Vérifie la création, l’affichage, l’édition et la persistance des commentaires.
+ *  Vérifie aussi le retrait contextuel d’un codage sans nouvelle sélection.
  */
 
 /** Clic droit AU CENTRE de la sélection courante ;

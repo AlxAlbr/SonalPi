@@ -6,22 +6,36 @@ naviguez avec les liens des pages. Elle fonctionne sans serveur et hors ligne.
 
 Dans SonalPi, le menu **Aide → Documentation utilisateur** ouvre ce même sommaire ;
 **Aide → FAQ** ouvre directement les questions fréquentes.
-Les nouvelles cartes de l’accueil seront ajoutées à la livraison de la refonte.
+Les cartes **Documentation utilisateur** et **FAQ**, dans **Découvrir SonalPi**
+sur l’accueil, ouvrent ces mêmes pages.
 
-## Pour commencer
+Les chapitres sont regroupés selon les parties du guide. Les rubriques encore
+vides ne sont pas affichées dans le sommaire utilisateur.
+
+## Découvrir et démarrer
 
 1. [Découvrir SonalPi](demarrer/presentation.html).
 2. [Comprendre les notions et se repérer](demarrer/se-reperer.html).
 3. [Choisir un parcours ou un corpus exemple](demarrer/exemples-parcours.html).
 4. [Créer et retrouver un corpus local](demarrer/corpus-local.html).
-5. [Préparer et importer une transcription](traiter/importer.html).
-6. [Gérer les entretiens et leurs médias](traiter/gerer-entretiens.html).
-7. [Relire et corriger un entretien](traiter/corriger.html).
-8. [Identifier les locuteurs et les tours de parole](traiter/locuteurs.html).
-9. [Coder un premier passage avec un thème](traiter/premier-codage.html).
-10. [Organiser et documenter ses thèmes](traiter/organiser-themes.html).
-11. [Définir les variables et saisir les données](traiter/donnees.html).
-12. [Écrire et consulter des notes](traiter/notes.html).
+
+## Importer et traiter
+
+1. [Préparer et importer une transcription](traiter/importer.html).
+2. [Gérer les entretiens et leurs médias](traiter/gerer-entretiens.html).
+3. [Relire et corriger un entretien](traiter/corriger.html).
+4. [Identifier les locuteurs et les tours de parole](traiter/locuteurs.html).
+5. [Coder un premier passage avec un thème](traiter/premier-codage.html).
+6. [Organiser et documenter ses thèmes](traiter/organiser-themes.html).
+7. [Définir les variables et saisir les données](traiter/donnees.html).
+8. [Écrire et consulter des notes](traiter/notes.html).
+9. [Commenter un passage](traiter/commentaires.html).
+10. [Pseudonymiser et vérifier un entretien](traiter/pseudonymiser.html).
+11. [Revenir sur une modification](traiter/annuler-restaurer.html).
+
+## Organiser et exporter
+
+1. [Exporter un entretien](organiser/exporter-entretien.html).
 
 Vous pouvez suivre cet ordre ou ouvrir directement la page qui vous intéresse.
 Pour essayer le codage sans importer vos propres documents, la page consacrée
@@ -29,9 +43,10 @@ au premier codage explique comment utiliser une copie d’un corpus exemple.
 
 ## Questions fréquentes
 
-[Consulter les questions sur les premiers pas](faq/premiers-pas.html) : corpus,
-formats d’import, exemples, Récents, locuteurs, statistiques des voix, thèmes,
-données, notes et navigation.
+[Consulter les questions fréquentes](faq/premiers-pas.html) : démarrage, corpus,
+transcriptions, médias, codage, locuteurs, données, notes, commentaires,
+pseudonymisation, annulation, sauvegarde, exports et partage. Les questions sont
+regroupées en neuf parties dans une seule page.
 
 ## Autres textes disponibles pendant la réécriture
 

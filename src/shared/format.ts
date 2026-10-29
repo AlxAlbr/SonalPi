@@ -184,7 +184,7 @@ export interface DossierCorpus {
  *  Une destination distante se rouvre par son fournisseur, jamais par son chemin miroir.
  */
 export type EntreeRecent =
-  | ({ type: 'local' } & DossierCorpus)
+  | ({ type: 'local'; exemple?: import('./exemples').ExempleId } & DossierCorpus)
   | {
       type: 'distant'
       id: string

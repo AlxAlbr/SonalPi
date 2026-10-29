@@ -111,6 +111,7 @@ export async function construireInstantane(
       reglesAnon: source.reglesAnon(),
     },
     notesPubliques: donnees.notes ?? [],
+    categoriesNote: source.categoriesNote(),
     audioLocal: null,
   })) as InstantaneEntretienExport
   instantane.audioLocal = refAudio ? await source.audioLocal(refAudio) : null
@@ -180,6 +181,7 @@ export async function exporterEntretien(
       entree: instantane.entretien,
       titre: instantane.titre,
       notes: instantane.notesPubliques,
+      categoriesNote: instantane.categoriesNote,
       audioUrl: instantane.audioLocal,
     }
     const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { attendreCorpus, ecrireSeedDemo, ouvrirOrganisation, ouvrirSurCorpus } from './util'
+import { attendreCorpus, ecrireSeedDemo, fermerAiguillage, ouvrirOrganisation, ouvrirSurCorpus } from './util'
 
 test('Cas occupe l’organisation, conserve ses filtres et relit une source modifiée', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-cas-navigation-')
@@ -79,6 +79,7 @@ test('un changement de corpus efface la recherche et le formulaire Cas', async (
     }, autre)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
     await page.locator('.carte-demo.ouvrir-corpus').click()
+    await fermerAiguillage(page, 'entretiens', 10_000)
     await attendreCorpus(page)
     await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
     await ouvrirOrganisation(page)

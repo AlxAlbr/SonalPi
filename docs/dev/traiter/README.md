@@ -12,8 +12,10 @@ actuel ; ce regroupement ne déplace aucun composant.
 | [pseudonymisation/](pseudonymisation/README.md) | Brouillons, décisions textuelles, règles corpus, fournisseurs et sorties. |
 | [thematiques/](thematiques/README.md) | Codebook, codages, hiérarchie et réaffectations. |
 | [notes/](notes/README.md) | Notes d’entretien, liens aux commentaires et locuteurs, consultation corpus et exports. |
+| [commentaires.md](commentaires.md) | Commentaires attachés au texte, marge, journal, lecture seule et sorties. |
 | [locuteurs/](locuteurs/README.md) | Attribution des tours, noms et pseudonymes, personnes et rapprochements entre entretiens. |
 | [variables.md](variables.md) | Définitions, modalités, valeurs, table de données et modifications en lot. |
+| [journaux-sauvegardes.md](journaux-sauvegardes.md) | Historiques d’annulation en session, copie ZIP locale et restauration. |
 
 ## Import des transcriptions
 

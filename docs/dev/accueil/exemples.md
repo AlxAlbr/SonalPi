@@ -133,6 +133,12 @@ ce bilan ou revenir au catalogue ne lance pas de guide.
 | Fenêtre de découverte, bilan de remise à zéro et catalogue | `src/renderer/components/accueil/DecouverteExemples.vue`, `CatalogueParcours.vue` |
 | Choix d’emplacement et lancement de l’installation | `src/renderer/components/accueil/InstallationExemple.vue` |
 
+L’accueil sépare visuellement les copies libres récentes des corpus personnels.
+Le catalogue conserve la liste des travaux enregistrés, même après retrait d’un
+raccourci récent. Les démos guidées restent accessibles par Parcours pas à pas.
+Le classement des récents repose sur le marqueur relu côté main, pas sur le nom.
+Recette de disposition et de reprise : `e2e/accueil-disposition.e2e.ts`.
+
 Tests de référence : `test/exemples.test.ts` (identité, destinations, installation,
 reprise et remise à zéro), `test/transitionContexte.test.ts` (fermeture avant
 publication), `e2e/demo.e2e.ts` (parcours d’interface) et

@@ -9,6 +9,7 @@ import type { CorpusFichier, EntretienFichier } from '../format'
 import type { EntreeExport, InstantaneEntretienExport } from './types'
 import { projeterSegments } from './projectionEntretien'
 import { nettoyerBaseNom } from './nomsFichiers'
+import { normaliserCategoriesNote } from '../entretien/notes'
 
 /** Résultat de l'assemblage d'un instantané par le main : soit un instantané
  *  comme un autre, soit un échec expliqué (fichier absent, version non prise
@@ -50,6 +51,7 @@ export function assemblerInstantaneCorpus(
       definitionsAnonLocales: fichier.definitionsAnonLocales ?? [],
     },
     notesPubliques: fichier.notes ?? [],
+    categoriesNote: normaliserCategoriesNote(corpus.categoriesNote),
     audioLocal,
   }
 }

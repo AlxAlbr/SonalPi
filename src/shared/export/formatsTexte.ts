@@ -409,7 +409,7 @@ function cssThemes(codebook: Categorie[], combos: string[]): string {
       taille != null && cat.taille != null && cat.taille > 18
         ? `font-size: ${taille}px; font-weight: bold;`
         : ''
-    if (gradient || taille) css += `.${classeDe(cat.codeExport)} { ${gradient} ${taille} }\n`
+    if (gradient || tailleStyle) css += `.${classeDe(cat.codeExport)} { ${gradient} ${tailleStyle} }\n`
   }
   const EPAISSEUR = 10
   for (const combo of new Set(combos)) {
@@ -692,6 +692,7 @@ body {
 }
 .section-notes pre { white-space: pre-wrap; font-family: inherit; }
 .var-pub { display: inline-block; margin-right: 14px; margin-bottom: 6px; font-size: 0.9em; }
+.var-pub b { margin-left: 0.4em; }
 #ent-contenu {
   line-height: 1.5rem;
   padding-bottom: 20px;
