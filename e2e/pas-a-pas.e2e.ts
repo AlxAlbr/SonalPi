@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, retourCorpus, selectionner, spotlightSur } from './util'
+import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, ouvrirGestionLocuteurs, retourCorpus, selectionner, spotlightSur } from './util'
 
 import { preparerApprentissage } from './exemples-util'
 
@@ -236,8 +236,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp')).toBeVisible()
 
   await expect(page.locator('.guide-pp')).toBeVisible()
+  await ouvrirGestionLocuteurs(page)
   await expect(page.locator('.liste-loc')).toBeVisible()
-  await expect(page.locator('[data-tour="ancre-guide-pp-locuteurs"] .guide-pp')).toBeVisible()
+  await expect(page.locator('[data-tour="gestion-locuteurs"] .guide-pp')).toBeVisible()
   // Ordre d'affichage = ordre d'apparition dans le SRT : Speaker 1 (l'ingénieure,
   // qui pose les questions) est la 1re ligne, Speaker 0 (Fatima) la 2ᵉ.
   const champs = page.locator('.nom-loc')

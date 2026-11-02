@@ -10,6 +10,7 @@ import {
   ajouterParModale,
   ouvrirEditionThemes,
   fermerEditionThemes,
+  selectionner,
 } from './util'
 
 /**
@@ -21,24 +22,40 @@ import {
  *  définition (store).
  */
 
+test('Entretien est le panneau initial et une sélection active Sélection', async () => {
+  const { app, page } = await ouvrir('sonal-tabs-selection-')
+  const tabEntretien = page.getByRole('tab', { name: 'Entretien' })
+  const tabSelection = page.locator('#onglet-outils-selection')
+
+  await expect(tabSelection).toHaveText('Sélection')
+  await expect(tabEntretien).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('#panneau-outils-entretien')).toBeVisible()
+  await expect(page.locator('#panneau-outils-selection')).not.toBeVisible()
+  await selectionner(page, 'Karine')
+  await expect(tabSelection).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('#panneau-outils-selection')).toBeVisible()
+  await expect(page.locator('.panneau-themes .theme-coder').first()).toBeVisible()
+  await app.close()
+})
+
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
   const { app, page } = await ouvrir('sonal-ds10-liste-')
   await page.locator('[data-onglet="themes"]').click()
 
-  // Beaucoup de thèmes : 25 ajouts via la fenêtre d'édition (le seed en a 7) →
-  // la liste déborde largement du panneau, les derniers ajouts sont hors écran.
+  // Les pondérations sont dans leur propre panneau ; les 25 ajouts s'ajoutent
+  // aux 3 thèmes ordinaires du corpus.
   await ouvrirEditionThemes(page)
   const ajouter = page.locator('.modale-themes .mini', { hasText: '+ Thème' })
   for (let i = 0; i < 25; i++) await ajouter.click()
   await fermerEditionThemes(page)
-  await expect(page.locator('.theme-coder')).toHaveCount(32)
+  await expect(page.locator('.panneau-themes .theme-coder')).toHaveCount(28)
 
   // Le dernier thème créé n'est PAS visible tant que le texte n'a pas défilé :
   // le panneau (collant) débordait sous le bord bas de la fenêtre.
   // Ce test couvre la régression ; avant, il fallait descendre dans le texte pour le voir —
   // les deux étaient liés.
   await page.evaluate(() => window.scrollTo(0, 0))
-  const dernier = page.locator('.theme-coder').last()
+  const dernier = page.locator('.panneau-themes .theme-coder').last()
   await expect
     .poll(async () => {
       const b = await dernier.boundingBox()
@@ -184,24 +201,25 @@ test('clic droit sur un thème : bascule actif ↔ passif sans ouvrir l\'éditio
   await app.close()
 })
 
-test('panneau Thématiques : replier/déplier une catégorie à enfants', async () => {
+test('panneau Sélection : la pondération est une troisième section et code un niveau', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
   await page.locator('[data-onglet="themes"]').click()
 
-  // « Pondérations » a des enfants (★★★ …) → icône de repli ; l'enfant est visible.
-  const pond = page.locator('.theme-coder', { hasText: 'Pondérations' })
-  await expect(pond.locator('.depliant')).toHaveCount(1)
-  const enfant = page.locator('.theme-coder', { hasText: 'Très important' })
-  await expect(enfant).toHaveCount(1)
+  const section = page.locator('.section-ponderations')
+  await expect(section).toBeVisible()
+  await expect(page.locator('.contenu-selection > .panneau-outil')).toHaveCount(3)
+  await expect(page.locator('.panneau-ponderations')).toContainText('Pondération')
+  await expect(section.locator('.bouton-ponderation .theme-nom')).toHaveText([
+    'Normal',
+    'Très important',
+    'Assez important',
+    'Important',
+  ])
+  await expect(page.locator('.liste-coder')).not.toContainText('Pondérations')
 
-  // Replier → l'enfant disparaît de la liste de codage (sans rien coder).
-  await pond.locator('.depliant').click()
-  await expect(enfant).toHaveCount(0)
-  await expect(page.locator('.editeur .annot')).toHaveCount(0) // pas de codage posé
-
-  // Déplier → il réapparaît.
-  await pond.locator('.depliant').click()
-  await expect(enfant).toHaveCount(1)
+  await selectionner(page, 'Karine')
+  await section.getByRole('button', { name: 'Très important', exact: true }).click()
+  await expect(page.locator('.editeur .annot[title="★★★ Très important"]')).toHaveCount(1)
   await app.close()
 })
 

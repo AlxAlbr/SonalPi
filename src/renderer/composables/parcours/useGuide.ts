@@ -336,7 +336,7 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Dans le panneau Locuteurs, renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
+          ? "Ouvrez « Gérer les locuteurs », puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
       fini: () =>
@@ -474,6 +474,14 @@ export function useGuide(deps: DepsGuide) {
     vue: Exclude<VueApplication, 'accueil'>
     parcoursSuivantId?: ParcoursId | null
   } | null>(null)
+
+  watch([deps.vue, etapeCourante, deps.ouvertId], ([vue, etape]) => {
+    if (vue !== 'entretien' || !etape) return
+    if (etape.id === 'renommer') deps.ongletDroite.value = 'locuteurs'
+    else if (etape.id === 'coder') deps.ongletDroite.value = 'themes'
+    else if (etape.id === 'variable') deps.ongletDroite.value = 'donnees'
+    else if (etape.id === 'noter') deps.ongletDroite.value = 'notes'
+  })
 
   watch(deps.vue, (vue) => {
     if (retestInfo.value && vue !== retestInfo.value.vue) retestInfo.value = null

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale } from './util'
+import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale, ouvrirGestionLocuteurs } from './util'
 
 /**
  *  LE JUGE DE PAIX : le parcours complet à travers les trois écrans
@@ -37,12 +37,14 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
   await expect.poll(() => compterAnnotations(page)).toBe(avant + 1)
 
   // 3) RENOMMER un locuteur (répercuté par référence).
-  await page.locator('[data-onglet="locuteurs"]').click()
+  await page.locator('[data-onglet="themes"]').click()
+  await ouvrirGestionLocuteurs(page)
   await page.locator('.nom-loc').first().fill('TEST-LOCUTEUR')
   await page.keyboard.press('Tab')
 
   // 4) SAISIR une donnée EAV de portée entretien — la variable « Lieu » (importée)
   //    offre la modalité « MonTest » : on la choisit (fiche de CET entretien).
+  await page.getByRole('tab', { name: 'Entretien' }).click()
   await page.locator('[data-onglet="donnees"]').click()
   await page.locator('.saisie-eav-sel').first().selectOption({ label: 'MonTest' })
   await expect(page.locator('header .etat')).toHaveText('à jour')

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
+import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import RapprochementNommage from './RapprochementNommage.vue'
 import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
 import icoLocuteurs from '../../../assets/icones/locuteurs.png'
@@ -65,96 +65,7 @@ watch(
   <aside class="panneau">
     <div class="corpus-tete">
       <h3 data-onglet="locuteurs" data-tour="onglet-locuteurs"><img class="icone-entete-panneau" :src="icoLocuteurs" alt="" />Locuteurs</h3>
-      <button class="mini" :aria-expanded="statistiquesOuvertes" aria-controls="stats-locuteurs" @click="statistiquesOuvertes = !statistiquesOuvertes">📊 Statistiques</button>
       <button v-if="!lectureSeule" class="mini" @click="nouveauLocuteur">+ Locuteur</button>
-    </div>
-
-    <div v-if="locuteurASupprimer" class="confirm-suppr">
-      Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
-      <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
-      <div class="confirm-actions">
-        <button class="danger" @click="confirmerSuppressionLocuteur">Supprimer</button>
-        <button @click="locuteurASupprimer = null">Annuler</button>
-      </div>
-    </div>
-
-    <div class="tableau-loc">
-      <div class="tableau-loc-tetes">
-        <span title="Couleur du nom — cliquer pour choisir"></span>
-        <span>Nom</span>
-        <span>Pseudo (optionnel)</span>
-        <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
-      </div>
-      <RapprochementNommage
-        v-if="rapprochementNommage"
-        :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
-        :cible="rapprochementNommage.cible"
-        :sources="rapprochementNommage.sources"
-        :nom="rapprochementNommage.nom"
-        :lien-actuel="rapprochementNommage.lienActuel"
-        :candidats="rapprochementNommage.candidats"
-        :occupe="rapprochementOccupe"
-        :message="messagePersonnes"
-        @reporter="reporterRapprochement"
-        @decider="deciderRapprochement"
-      />
-      <p
-        v-if="messagePersonnes"
-        :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
-        role="status"
-      >{{ messagePersonnes }}</p>
-      <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
-      <ul class="liste-loc">
-        <li v-for="(l, i) in locuteurs" :key="l.index">
-          <input
-            type="color"
-            class="carre-couleur"
-            :value="l.couleur ?? couleurPourLocuteur(l.index)"
-            :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
-            :disabled="lectureSeule"
-            @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
-          />
-          <input
-            class="nom-loc"
-            :data-tour="i === 0 ? 'nom-locuteur' : undefined"
-            :value="l.nom"
-            :disabled="lectureSeule"
-            @change="renommerLoc(l.index, $event)"
-          />
-          <div class="pseudo-cell">
-            <input
-              class="pseudo-loc"
-              :value="l.pseudo ?? ''"
-              placeholder="pseudo…"
-              title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
-              :disabled="lectureSeule"
-              @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-          <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
-            <input
-              type="checkbox"
-              :checked="l.interviewer ?? false"
-              :disabled="lectureSeule"
-              @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="glisseur"></span>
-            <span class="q">?</span>
-          </label>
-          <button
-            v-if="!lectureSeule"
-            class="x-loc"
-            title="Supprimer ce locuteur"
-            @click="demanderSuppressionLocuteur(l.index)"
-          >✕</button>
-          <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
-            Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
-          </span>
-          <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
-            Association à « {{ l.personneRef }} » en cours de vérification.
-          </span>
-        </li>
-      </ul>
     </div>
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
@@ -171,16 +82,128 @@ watch(
         <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
-    <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
+
+    <details class="gestion-locuteurs">
+      <summary data-tour="gestion-locuteurs">Gérer les locuteurs</summary>
+      <div class="gestion-contenu">
+        <button class="mini" :aria-expanded="statistiquesOuvertes" aria-controls="stats-locuteurs" @click="statistiquesOuvertes = !statistiquesOuvertes">📊 Statistiques</button>
+        <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
+
+        <div v-if="locuteurASupprimer" class="confirm-suppr">
+          Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
+          <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
+          <div class="confirm-actions">
+            <button class="danger" @click="confirmerSuppressionLocuteur">Supprimer</button>
+            <button @click="locuteurASupprimer = null">Annuler</button>
+          </div>
+        </div>
+
+        <div class="tableau-loc">
+          <div class="tableau-loc-tetes">
+            <span title="Couleur du nom — cliquer pour choisir"></span>
+            <span>Nom</span>
+            <span>Pseudo (optionnel)</span>
+            <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
+          </div>
+          <RapprochementNommage
+            v-if="rapprochementNommage"
+            :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
+            :cible="rapprochementNommage.cible"
+            :sources="rapprochementNommage.sources"
+            :nom="rapprochementNommage.nom"
+            :lien-actuel="rapprochementNommage.lienActuel"
+            :candidats="rapprochementNommage.candidats"
+            :occupe="rapprochementOccupe"
+            :message="messagePersonnes"
+            @reporter="reporterRapprochement"
+            @decider="deciderRapprochement"
+          />
+          <p
+            v-if="messagePersonnes"
+            :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
+            role="status"
+          >{{ messagePersonnes }}</p>
+          <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
+          <ul class="liste-loc">
+            <li v-for="(l, i) in locuteurs" :key="l.index">
+              <input
+                type="color"
+                class="carre-couleur"
+                :value="l.couleur ?? couleurPourLocuteur(l.index)"
+                :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
+                :disabled="lectureSeule"
+                @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
+              />
+              <input
+                class="nom-loc"
+                :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                :value="l.nom"
+                :disabled="lectureSeule"
+                @change="renommerLoc(l.index, $event)"
+              />
+              <div class="pseudo-cell">
+                <input
+                  class="pseudo-loc"
+                  :value="l.pseudo ?? ''"
+                  placeholder="pseudo…"
+                  title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
+                  :disabled="lectureSeule"
+                  @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
+                />
+              </div>
+              <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
+                <input
+                  type="checkbox"
+                  :checked="l.interviewer ?? false"
+                  :disabled="lectureSeule"
+                  @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="glisseur"></span>
+                <span class="q">?</span>
+              </label>
+              <button
+                v-if="!lectureSeule"
+                class="x-loc"
+                title="Supprimer ce locuteur"
+                @click="demanderSuppressionLocuteur(l.index)"
+              >✕</button>
+              <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
+                Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
+              </span>
+              <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
+                Association à « {{ l.personneRef }} » en cours de vérification.
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </details>
   </aside>
 </template>
 
 <style scoped>
-.locuteurs {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 0.6rem;
-  background: #fafafe;
+.attribuer {
+  margin-top: 0.45rem;
+}
+.attribuer .lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #444;
+  padding-bottom: 0.35rem;
+}
+.gestion-locuteurs {
+  margin-top: 0.5rem;
+  border-top: 1px solid #eee;
+  padding-top: 0.4rem;
+}
+.gestion-locuteurs summary {
+  color: #555;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.gestion-contenu {
+  padding-top: 0.45rem;
 }
 .liste-loc {
   list-style: none;
@@ -334,23 +357,11 @@ watch(
 .liste-loc li:hover .x-loc {
   opacity: 1;
 }
-.attribuer {
-  margin-top: 0.9rem;
-  border-top: 1px solid #eee;
-  padding-top: 0.7rem;
-}
-.attribuer .lbl {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #444;
-  text-decoration: underline;
-  padding-bottom: 0.35rem;
-}
 .boutons-loc {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin-top: 0.6rem;
+  margin-top: 0.35rem;
 }
 .attr {
   font-size: 0.75rem;

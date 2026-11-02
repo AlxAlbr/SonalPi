@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import JSZip from 'jszip'
 import type { CorpusFichier } from '../src/shared/format'
-import { lancer, coderTheme, entrerCorpus, entrerEntretien, fermerAiguillage, retourCorpus, selectionner } from './util'
+import { lancer, coderTheme, entrerCorpus, entrerEntretien, fermerAiguillage, ouvrirGestionLocuteurs, retourCorpus, selectionner } from './util'
 
 async function clicDroitSelection(page: Page) {
   const centre = await page.evaluate(() => {
@@ -72,7 +72,8 @@ test('manuel : distinguer Ctrl+Z, Journal de l’entretien et Actions récentes 
 
     await selectionner(page, 'Karine')
     await coderTheme(page, 'Famille')
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     await page.locator('.nom-loc').nth(1).fill('Karine D.')
     await page.locator('.nom-loc').nth(1).press('Tab')
     await creerCommentaire(page)

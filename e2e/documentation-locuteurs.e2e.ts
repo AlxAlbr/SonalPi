@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, retourCorpus, selectionner } from './util'
+import { lancer, attendreAccueil, ouvrirGestionLocuteurs, retourCorpus, selectionner } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 async function texteTranscription(page: Page): Promise<string> {
@@ -32,7 +32,8 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.carte-ent')).toHaveCount(4)
     const carte = page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' })
     await carte.locator('.crayon').click()
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     const liste = page.locator('.liste-loc li')
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.nom-loc').nth(0)).toHaveValue('Speaker 1')
@@ -116,7 +117,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await retourCorpus(page)
     await carte.locator('.crayon').click()
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
     await expect(attribue).toContainText(phrase)
     await expect(liste.nth(0).locator('.nom-loc')).toHaveValue('Enquêteur')
     await expect(liste.nth(0).locator('.interv input')).toBeChecked()
@@ -139,7 +140,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     expect(await page.evaluate(async (id) =>
       (await window.sonal.corpus.personnesInventaire()).personnes.some((p) => p.id === id), personneAvant)).toBe(true)
     await carte.locator('.crayon').click()
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.editeur p[data-loc="3"]')).toHaveCount(0)
     expect(await texteTranscription(page)).toBe(texteInitial)

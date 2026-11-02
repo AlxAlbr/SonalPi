@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, retourCorpus } from './util'
+import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, ouvrirGestionLocuteurs, retourCorpus } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 const titreResume = 'Résumé de l’entretien'
@@ -72,9 +72,11 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
     const avant = lire()
     await page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' }).locator('.crayon').click()
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     await page.locator('.nom-loc').nth(1).fill('Fatima')
     await page.locator('.nom-loc').nth(1).press('Tab')
+    await page.getByRole('tab', { name: 'Entretien' }).click()
     await page.locator('[data-onglet="notes"]').click()
     await nouvelleNote(page, 'Brouillon abandonné', 'Ce texte ne doit pas être enregistré.')
     await page.locator('.modale-note-pied').getByRole('button', { name: 'Annuler', exact: true }).click()

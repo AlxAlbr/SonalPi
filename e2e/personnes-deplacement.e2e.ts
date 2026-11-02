@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir } from './util'
+import { ouvrir, ouvrirGestionLocuteurs } from './util'
 
 test('nommage lié : Plus tard conserve le lien, déplacer change seulement l’identité', async () => {
   const { app, page } = await ouvrir('sonal-personnes-deplacement-')
   try {
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

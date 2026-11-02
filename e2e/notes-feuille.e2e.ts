@@ -43,7 +43,7 @@ async function selectionnerBloc(page: Page, n: number, i = 0) {
   )
 }
 
-test('un brouillon de note survit pendant que les autres panneaux restent visibles', async () => {
+test('un brouillon de note survit dans le panneau Entretien', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-brouillon-note-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -55,8 +55,10 @@ test('un brouillon de note survit pendant que les autres panneaux restent visibl
   await page.locator('.champ-titre-note input').fill('Titre en cours')
   await page.locator('.zone-corps-note').fill('Corps en cours')
 
-  await expect(page.locator('.panneau-locuteurs')).toBeVisible()
   await expect(page.locator('.panneau.notes')).toBeVisible()
+  await expect(page.locator('.panneau.donnees')).toBeVisible()
+  await expect(page.locator('.panneau.anon')).toBeVisible()
+  await expect(page.locator('#panneau-outils-selection')).not.toBeVisible()
 
   await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
   await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
@@ -79,8 +81,8 @@ test('feuille — lier un passage de note à un commentaire', async () => {
   await page.locator('[data-test="commentaire-valider"]').click()
   await expect(page.locator('.carte-commentaire').first()).toBeVisible()
 
-  // 2. Onglet Notes → créer une note avec du texte.
-  await page.locator('[data-onglet="notes"]').click()
+  // 2. Revenir aux outils d'entretien puis créer une note avec du texte.
+  await page.getByRole('tab', { name: 'Entretien' }).click()
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await expect(page.locator('.modale-note-fenetre')).toBeVisible()
   await page.locator('.zone-corps-note').click()

@@ -164,7 +164,7 @@ export function useEntretien(deps: {
     valeursGen: {},
     audioRef: null,
   })
-  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('locuteurs')
+  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('notes')
   // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
   // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
   // stockée — recalculée au moindre déplacement du curseur.
@@ -585,6 +585,7 @@ export function useEntretien(deps: {
           : 'Entretien introuvable sur le disque.'
       return false
     }
+    ongletDroite.value = 'notes'
     refusFormat.value = null
     chargement = true
     recherche.reinitialiser()

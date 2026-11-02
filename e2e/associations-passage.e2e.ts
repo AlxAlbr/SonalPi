@@ -40,6 +40,10 @@ test('le passage résume ses cas et les occurrences multiples de ses recueils', 
 
     await selectionner(page, 'Karine habite Lyon')
     const resume = page.locator('.resume-associations')
+    const sectionEntretien = page.locator('.section-texte-entretien')
+    await expect(sectionEntretien).toBeVisible()
+    expect(await resume.evaluate((el) => !!el.previousElementSibling?.classList.contains('section-texte-entretien'))).toBe(true)
+    await expect.poll(() => sectionEntretien.evaluate((el) => getComputedStyle(el).overflowY)).toBe('auto')
     await expect(resume.locator('summary').first()).toContainText('1 cas · 1 recueil')
     await resume.locator('summary').first().click()
     await expect(resume).toContainText('Portrait de Karine')

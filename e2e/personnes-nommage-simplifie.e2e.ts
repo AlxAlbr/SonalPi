@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { entrerCorpus, entrerEntretien, ouvrir } from './util'
+import { entrerCorpus, entrerEntretien, ouvrir, ouvrirGestionLocuteurs } from './util'
 
 test('le nommage affiche les informations divergentes et reprend la source choisie', async () => {
   const { app, page } = await ouvrir('sonal-nommage-donnees-')
@@ -19,7 +19,8 @@ test('le nommage affiche les informations divergentes et reprend la source chois
         else await api.personnesCommander({ type: 'lier', entretienId: id, locuteurId: `loc-${id}`, personneId })
       }
     })
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -54,7 +55,8 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
         await api.ecrireEntretien(id, data)
       }
     })
-    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="themes"]').click()
+    await ouvrirGestionLocuteurs(page)
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

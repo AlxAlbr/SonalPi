@@ -124,6 +124,11 @@ export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
+export async function ouvrirGestionLocuteurs(page: Page): Promise<void> {
+  const gestion = page.locator('.gestion-locuteurs')
+  if (await gestion.getAttribute('open') === null) await gestion.locator('summary').click()
+}
+
 /** Depuis la modale « Ouvrir un corpus distant » déjà connectée : ouvre le
  *  premier compte. Sans trousseau OS, le compte n'a pas de mot de passe
  *  conservé → un champ « Mot de passe pour cette session » apparaît sous le

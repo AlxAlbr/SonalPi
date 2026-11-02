@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirGestionLocuteurs } from './util'
 
 test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-e2e-'))
@@ -52,6 +52,8 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Ouvrir l’entretien' }).click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.getByText('Lié à « K. Dupont » — le nom saisi reste local.', { exact: true })).toHaveCount(0)
+    await page.locator('#onglet-outils-selection').click()
+    await ouvrirGestionLocuteurs(page)
     const panneauSuperieur = page.locator('.entretien-ecran .rangee-superieure')
     const panneauInferieur = page.locator('.entretien-ecran .rangee-inferieure')
     await expect(panneauSuperieur.locator('.panneau-outil')).toHaveCount(2)
@@ -99,6 +101,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.repertoire').getByRole('button', { name: 'Karine', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ouvrir l’entretien', exact: true }).click()
     await expect(page.locator('.lien-personne-loc')).toHaveCount(0)
+    await ouvrirGestionLocuteurs(page)
     const indexKarine = await page.locator('.nom-loc').evaluateAll(inputs => inputs.findIndex(input => (input as HTMLInputElement).value === 'Karine'))
     expect(indexKarine).toBeGreaterThanOrEqual(0)
     const nomKarine = page.locator('.nom-loc').nth(indexKarine)
