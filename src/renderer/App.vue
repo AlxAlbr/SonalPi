@@ -160,7 +160,7 @@ const {
 }
 .app.avec-navigation {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   column-gap: 1rem;
   row-gap: 0.75rem;
@@ -298,11 +298,5 @@ h1 small {
 }
 @media (max-width: 1080px) {
   .fil { margin-left: 0.7rem; }
-}
-@media (max-width: 780px) {
-  .app.avec-navigation {
-    grid-template-columns: 160px minmax(0, 1fr);
-    column-gap: 0.6rem;
-  }
 }
 </style>

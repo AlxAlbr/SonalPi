@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import icoDocuments from '../../assets/icones/documents.png'
+import icoThemes from '../../assets/icones/themes.png'
+import icoAnalyses from '../../assets/icones/analyses-croisees.svg'
+import icoExporter from '../../assets/icones/exporter.svg'
 
 // La barre déclenche les mêmes ouvertures que les onglets et le guidage.
 const {
@@ -25,34 +29,38 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         class="outil espace"
         data-tour="ouvrir-preparer"
         :class="{ actif: preparationActive }"
-        title="Accueil, tableau de bord et documents du projet"
+        title="Préparer et suivre"
+        aria-label="Préparer et suivre"
         :aria-current="preparationActive ? 'page' : undefined"
         @click="entrerPreparation()"
-      >Préparer et suivre</button>
+      ><img :src="icoDocuments" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-traiter"
         :class="{ actif: traitementActif }"
-        title="Corpus et entretiens"
+        title="Importer et traiter"
+        aria-label="Importer et traiter"
         :aria-current="traitementActif ? 'page' : undefined"
         @click="revenirTraitement()"
-      >Importer et traiter</button>
+      ><img :src="icoThemes" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-analyser"
         :class="{ actif: analyseActive }"
-        title="Tri et synthèse, Lexico et analyses croisées"
+        title="Analyser et interpréter"
+        aria-label="Analyser et interpréter"
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
-      >Analyser et interpréter</button>
+      ><img :src="icoAnalyses" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-organiser"
         :class="{ actif: organisationActive }"
-        title="Cas, recueils et export du corpus"
+        title="Organiser et exporter"
+        aria-label="Organiser et exporter"
         :aria-current="organisationActive ? 'page' : undefined"
         @click="entrerOrganisation()"
-      >Organiser et exporter</button>
+      ><img :src="icoExporter" alt="" /></button>
     </div>
   </nav>
 </template>
@@ -93,16 +101,24 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
 }
 /* Entrées principales : plus larges et lisibles, avec leur état actif. */
 .outil.espace {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.2rem;
-  white-space: normal;
-  font-size: 0.8rem;
-  padding: 0.55rem 0.45rem;
+  width: 3.2rem;
+  height: 3.2rem;
+  align-self: center;
+  padding: 0.45rem;
   font-weight: 600;
   color: #2c3a5e;
 }
+.outil.espace img {
+  width: 1.65rem;
+  height: 1.65rem;
+  object-fit: contain;
+  opacity: 0.7;
+}
+.outil.espace.actif img { opacity: 1; }
 .outil.espace.actif {
   background: #e3ebf9;
   border-color: #4a6fa5;
@@ -112,6 +128,5 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
 .outil.espace:hover { background: #f4f7fd; }
 @media (max-width: 780px) {
   .barre-outils { padding: 0.5rem; }
-  .outil.espace { font-size: 0.74rem; }
 }
 </style>

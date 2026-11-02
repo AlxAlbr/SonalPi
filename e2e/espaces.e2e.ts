@@ -120,6 +120,13 @@ test('les espaces principaux sont verticaux dans un panneau à gauche et affiche
 
     const barre = page.locator('.barre-outils')
     await expect(barre).toHaveCSS('border-style', 'solid')
+    const ongletsEspaces = barre.locator('button.espace')
+    await expect(ongletsEspaces).toHaveCount(4)
+    await expect(ongletsEspaces.nth(0)).toHaveAttribute('title', 'Préparer et suivre')
+    await expect(ongletsEspaces.nth(1)).toHaveAttribute('title', 'Importer et traiter')
+    await expect(ongletsEspaces.nth(2)).toHaveAttribute('title', 'Analyser et interpréter')
+    await expect(ongletsEspaces.nth(3)).toHaveAttribute('title', 'Organiser et exporter')
+    await expect(barre.locator('button.espace img')).toHaveCount(4)
     const hautContenu = await page.locator('.contenu-app').evaluate((el) => {
       const { top } = el.getBoundingClientRect()
       return top
@@ -133,19 +140,21 @@ test('les espaces principaux sont verticaux dans un panneau à gauche et affiche
     const positions = await barre.locator('button.espace').evaluateAll((boutons) =>
       boutons.map((bouton) => {
         const { top, left, width, height } = bouton.getBoundingClientRect()
-        return { top, bottom: top + height, centerX: left + width / 2, centerY: top + height / 2 }
+        return { top, bottom: top + height, left, right: left + width, centerX: left + width / 2, centerY: top + height / 2 }
       }),
     )
+    const panneau = await barre.evaluate((el) => {
+      const { top, left, width, height } = el.getBoundingClientRect()
+      return { top, left, right: left + width, centerY: top + height / 2 }
+    })
+    expect(panneau.right - panneau.left).toBeLessThan(100)
+    expect(positions.every(({ left, right }) => left >= panneau.left && right <= panneau.right)).toBe(true)
     expect(new Set(positions.map(({ top }) => top)).size).toBe(4)
     expect(new Set(positions.map(({ centerX }) => Math.round(centerX))).size).toBe(1)
     expect(positions[0].centerY).toBeLessThan(positions[1].centerY)
     expect(positions[1].centerY).toBeLessThan(positions[2].centerY)
     expect(positions[2].centerY).toBeLessThan(positions[3].centerY)
-    const panneau = await barre.evaluate((el) => {
-      const { top, height } = el.getBoundingClientRect()
-      return top + height / 2
-    })
-    expect(Math.abs((positions[0].top + positions[3].bottom) / 2 - panneau)).toBeLessThan(1)
+    expect(Math.abs((positions[0].top + positions[3].bottom) / 2 - panneau.centerY)).toBeLessThan(1)
     expect(await barre.evaluate((el) => el.getBoundingClientRect().left)).toBeLessThan(
       await page.locator('.contenu-app').evaluate((el) => el.getBoundingClientRect().left),
     )
