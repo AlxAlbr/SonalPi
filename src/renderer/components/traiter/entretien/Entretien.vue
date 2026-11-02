@@ -36,7 +36,6 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
-  retourCorpus,
   audio,
   verrouAutrui,
   statutSession,
@@ -98,9 +97,8 @@ function ouvrirRecueilsDepuisSelection() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent">
-        <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
-        <div class="barre">
+      <div class="grille-ent" :class="{ 'avec-barre': statutSession.etat !== 'aucune' }">
+        <div v-if="statutSession.etat !== 'aucune'" class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
@@ -115,7 +113,6 @@ function ouvrirRecueilsDepuisSelection() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
-          <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
         <section class="rangee-panneaux rangee-superieure" aria-label="Locuteurs et thématiques">
@@ -245,27 +242,24 @@ function ouvrirRecueilsDepuisSelection() {
   gap: 0.65rem;
   align-items: start;
   grid-template-areas:
-    'barre'
     'superieur'
     'droite'
     'inferieur';
   /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
   --barre-h: 2.4rem;
 }
-.retour {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid #bbb;
-  background: #fff;
-  border-radius: 5px;
-  cursor: pointer;
+.grille-ent.avec-barre {
+  grid-template-areas:
+    'barre'
+    'superieur'
+    'droite'
+    'inferieur';
 }
 .barre {
   grid-area: barre;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* Le retour au corpus reste à droite des statuts. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
