@@ -46,7 +46,7 @@ const {
 
 
 <template>
-  <main class="app">
+  <main class="app" :class="{ 'avec-navigation': vue !== 'accueil' }">
     <header :inert="exportCorpusEnCours">
       <div class="tete">
         <h1>
@@ -74,74 +74,76 @@ const {
           </template>
         </nav>
       </div>
-      <BarreOutils />
     </header>
+    <BarreOutils />
+    <div class="contenu-app">
 
-    <ResumeParcoursPasAPas v-if="pasAPas && vue !== 'accueil'" />
+      <ResumeParcoursPasAPas v-if="pasAPas && vue !== 'accueil'" />
 
-    <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
+      <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
-    <div v-if="messageOperationGlobale" class="banniere attente" role="status">
-      <span class="indicateur-attente" aria-hidden="true"></span>
-      <span>{{ messageOperationGlobale }}</span>
+      <div v-if="messageOperationGlobale" class="banniere attente" role="status">
+        <span class="indicateur-attente" aria-hidden="true"></span>
+        <span>{{ messageOperationGlobale }}</span>
+      </div>
+
+      <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
+           hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
+           remplace la précédente. -->
+      <div v-if="erreurGlobale" class="banniere refus">
+        <span>{{ erreurGlobale }}</span>
+        <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
+      </div>
+
+      <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
+           bascule automatique après suppression du dossier du corpus courant). -->
+      <div v-if="infoGlobale" class="banniere info">
+        <span>{{ infoGlobale }}</span>
+        <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
+      </div>
+
+      <div v-if="libelleRetourContexte" class="retour-contexte" :inert="exportCorpusEnCours">
+        <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
+      </div>
+      <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
+        Passage ajouté. Ouvrir la destination reste facultatif.
+        <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
+        <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
+      </div>
+      <div v-if="repereAnalyse && vue === 'analyser'" class="banniere info">
+        <span>Corpus exemple pour l’analyse. Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</span>
+        <button aria-label="Masquer le repère du corpus exemple" @click="repereAnalyse = false">×</button>
+      </div>
+      <Accueil v-show="vue === 'accueil'" />
+      <Corpus v-show="vue === 'corpus'" />
+      <!-- Les brouillons des espaces sont conservés jusqu'au changement de corpus. -->
+      <PreparerSuivre :key="`preparer-${revisionCorpus}`" v-show="vue === 'preparer'" />
+      <AnalyserInterpreter :key="`analyser-${revisionCorpus}`" v-show="vue === 'analyser'" />
+      <OrganiserExporter v-show="vue === 'organiser'" />
+      <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
+      <Entretien v-show="vue === 'entretien'" />
+
+      <!-- Une seule instance accompagne le parcours dans les vues qui fournissent ses ancres. -->
+      <GuidagePasAPas />
+      <DecouverteExemples />
+
+      <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
+           téléporté, ne s'affiche QUE si la liste est non vide. -->
+      <RepriseCrash />
+
+      <!-- Fusion assistée : copie de divergence proposée à la réouverture de l'entretien concerné. -->
+      <DivergenceCopie />
+
+      <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
+           ne s'affiche que si demandée. -->
+      <DesignationAudioDistante />
+      <DialogueAjoutCas v-if="casOuverts" :key="revisionCorpus" />
+      <DialogueAjoutRecueil v-if="recueilsOuverts" :key="revisionCorpus" />
+      <!-- Aiguillage de première ouverture : par-dessus l'accueil de
+           « Préparer et suivre », il ne s'affiche qu'une fois par corpus et par poste. -->
+      <AiguillagePremiereOuverture v-if="premiereOuvertureCorpus" />
+      <ModaleExportEntretien />
     </div>
-
-    <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
-         hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
-         remplace la précédente. -->
-    <div v-if="erreurGlobale" class="banniere refus">
-      <span>{{ erreurGlobale }}</span>
-      <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
-    </div>
-
-    <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
-         bascule automatique après suppression du dossier du corpus courant). -->
-    <div v-if="infoGlobale" class="banniere info">
-      <span>{{ infoGlobale }}</span>
-      <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
-    </div>
-
-    <div v-if="libelleRetourContexte" class="retour-contexte" :inert="exportCorpusEnCours">
-      <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
-    </div>
-    <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
-      Passage ajouté. Ouvrir la destination reste facultatif.
-      <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
-      <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
-    </div>
-    <div v-if="repereAnalyse && vue === 'analyser'" class="banniere info">
-      <span>Corpus exemple pour l’analyse. Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</span>
-      <button aria-label="Masquer le repère du corpus exemple" @click="repereAnalyse = false">×</button>
-    </div>
-    <Accueil v-show="vue === 'accueil'" />
-    <Corpus v-show="vue === 'corpus'" />
-    <!-- Les brouillons des espaces sont conservés jusqu'au changement de corpus. -->
-    <PreparerSuivre :key="`preparer-${revisionCorpus}`" v-show="vue === 'preparer'" />
-    <AnalyserInterpreter :key="`analyser-${revisionCorpus}`" v-show="vue === 'analyser'" />
-    <OrganiserExporter v-show="vue === 'organiser'" />
-    <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
-    <Entretien v-show="vue === 'entretien'" />
-
-    <!-- Une seule instance accompagne le parcours dans les vues qui fournissent ses ancres. -->
-    <GuidagePasAPas />
-    <DecouverteExemples />
-
-    <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
-         téléporté, ne s'affiche QUE si la liste est non vide. -->
-    <RepriseCrash />
-
-    <!-- Fusion assistée : copie de divergence proposée à la réouverture de l'entretien concerné. -->
-    <DivergenceCopie />
-
-    <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
-         ne s'affiche que si demandée. -->
-    <DesignationAudioDistante />
-    <DialogueAjoutCas v-if="casOuverts" :key="revisionCorpus" />
-    <DialogueAjoutRecueil v-if="recueilsOuverts" :key="revisionCorpus" />
-    <!-- Aiguillage de première ouverture : par-dessus l'accueil de
-         « Préparer et suivre », il ne s'affiche qu'une fois par corpus et par poste. -->
-    <AiguillagePremiereOuverture v-if="premiereOuvertureCorpus" />
-    <ModaleExportEntretien />
   </main>
 </template>
 
@@ -154,9 +156,21 @@ const {
   max-width: 1250px;
   margin: 1.2rem auto 0;
   padding: 0 1rem;
-  /* Hauteur de l'en-tête collant (titre + fil d'Ariane + barre d'outils) ;
-     elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
-  --entete-h: 5.6rem;
+  --entete-h: 3.6rem;
+}
+.app.avec-navigation {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+  align-items: start;
+}
+.app.avec-navigation > header {
+  grid-column: 1 / -1;
+}
+.contenu-app {
+  min-width: 0;
 }
 /* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
    fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
@@ -166,7 +180,7 @@ const {
   z-index: 40;
   background: #fff;
   box-sizing: border-box;
-  height: var(--entete-h);
+  min-height: var(--entete-h);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -282,10 +296,13 @@ h1 small {
 .fil .sep {
   color: #bbb;
 }
-/* Sur une fenêtre étroite, l'en-tête laisse plus de place aux boutons. */
 @media (max-width: 1080px) {
   .fil { margin-left: 0.7rem; }
-  .app { --entete-h: 7rem; }
-  .tete { align-items: flex-start; }
+}
+@media (max-width: 780px) {
+  .app.avec-navigation {
+    grid-template-columns: 160px minmax(0, 1fr);
+    column-gap: 0.6rem;
+  }
 }
 </style>
