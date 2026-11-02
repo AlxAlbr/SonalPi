@@ -19,7 +19,7 @@ const gouttiere = (t: string) => `.editeur .gouttiere-loc:has(> .loc-nom:text-is
  *  les locuteurs se corrigent après la vue d'ensemble ; le helper ramène donc
  *  toujours à l'onglet avant d'agir sur la liste). */
 async function ongletLocuteurs(page: import('@playwright/test').Page) {
-  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+  await page.locator('[data-onglet="locuteurs"]').click()
 }
 
 test('la gouttière affiche le nom du locuteur devant chaque tour', async () => {

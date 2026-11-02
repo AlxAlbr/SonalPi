@@ -43,22 +43,19 @@ async function selectionnerBloc(page: Page, n: number, i = 0) {
   )
 }
 
-test('un brouillon de note survit à un aller-retour entre onglets', async () => {
+test('un brouillon de note survit pendant que les autres panneaux restent visibles', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-brouillon-note-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()
   await entrerCorpus(page)
   await entrerEntretien(page)
 
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('[data-onglet="notes"]').click()
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await page.locator('.champ-titre-note input').fill('Titre en cours')
   await page.locator('.zone-corps-note').fill('Corps en cours')
 
-  await page.locator('.onglets button[data-onglet="locuteurs"]').dispatchEvent('click')
-  await expect(page.locator('.onglets button[data-onglet="locuteurs"]')).toHaveClass(/actif/)
-  await expect(page.locator('.panneau.notes')).toBeHidden()
-  await page.locator('.onglets button[data-onglet="notes"]').dispatchEvent('click')
+  await expect(page.locator('.panneau-locuteurs')).toBeVisible()
   await expect(page.locator('.panneau.notes')).toBeVisible()
 
   await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
@@ -83,7 +80,7 @@ test('feuille — lier un passage de note à un commentaire', async () => {
   await expect(page.locator('.carte-commentaire').first()).toBeVisible()
 
   // 2. Onglet Notes → créer une note avec du texte.
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('[data-onglet="notes"]').click()
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await expect(page.locator('.modale-note-fenetre')).toBeVisible()
   await page.locator('.zone-corps-note').click()

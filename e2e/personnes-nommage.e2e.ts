@@ -4,7 +4,7 @@ import { ouvrir } from './util'
 test('un nom spécifique crée une personne sans recopier le rôle ni renommer son identité ensuite', async () => {
   const { app, page } = await ouvrir('sonal-personnes-nommage-')
   try {
-    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

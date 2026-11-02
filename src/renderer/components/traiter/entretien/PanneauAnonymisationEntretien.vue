@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
+import icoAnon from '../../../assets/icones/anon.png'
 
 const props = defineProps<{
   actif: boolean
@@ -366,7 +367,7 @@ onBeforeUnmount(() => {
      Entrée sur le Pseudo pose les occurrences (barré + [pseudo], cf. editeur.css). -->
 <aside class="panneau anon">
   <div class="corpus-tete">
-    <h3>Pseudonymisation du texte</h3>
+    <h3 data-onglet="anon"><img class="icone-entete-panneau" :src="icoAnon" alt="" />Pseudonymisation du texte</h3>
     <div class="tete-actions">
       <button
         type="button"

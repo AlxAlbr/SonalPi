@@ -11,6 +11,7 @@ import {
 } from '../../../notes/sanitiser'
 import { utiliserSonal } from '../../../composables/sonal'
 import MenuLiensNote from './MenuLiensNote.vue'
+import icoNotes from '../../../assets/icones/notes.png'
 
 defineProps<{ lectureSeule: boolean }>()
 
@@ -259,7 +260,7 @@ function onDropNote(cibleId: string) {
 <template>
   <aside class="panneau notes">
     <div class="corpus-tete">
-      <h3>Notes</h3>
+      <h3 data-onglet="notes" data-tour="onglet-notes"><img class="icone-entete-panneau" :src="icoNotes" alt="" />Notes</h3>
       <div class="notes-outils">
         <button class="mini"
           :class="{ actif: vueNotes === 'cartes' }"

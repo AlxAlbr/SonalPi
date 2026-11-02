@@ -258,7 +258,7 @@ test('entretien sans fichier : création immédiate pour prendre des notes', asy
 
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Notes avant collecte')
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('[data-onglet="notes"]').click()
   await expect(page.locator('[data-tour="creer-note"]')).toBeVisible()
 
   await retourCorpus(page)

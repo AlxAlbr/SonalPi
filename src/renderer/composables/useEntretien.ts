@@ -164,9 +164,7 @@ export function useEntretien(deps: {
     valeursGen: {},
     audioRef: null,
   })
-  // L'entretien s'ouvre sur l'ACCUEIL par défaut : il présente les conseils et
-  // la vue d'ensemble des autres onglets (icone + titre) avant de commencer.
-  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('maison')
+  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('locuteurs')
   // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
   // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
   // stockée — recalculée au moindre déplacement du curseur.

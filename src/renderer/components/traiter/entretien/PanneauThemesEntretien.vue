@@ -4,6 +4,7 @@ import { visiblesThemes } from '../../../../shared/corpus/categories'
 import { utiliserSonal } from '../../../composables/sonal'
 import EditionThemes from '../partages/themes/EditionThemes.vue'
 import MenuTheme from '../partages/themes/MenuTheme.vue'
+import icoThemes from '../../../assets/icones/themes.png'
 
 defineProps<{ lectureSeuleContenu: boolean }>()
 
@@ -63,7 +64,7 @@ function basculerToutesDescriptions() {
 <template>
   <aside class="panneau themes-coder">
     <div class="corpus-tete">
-      <h3>Thématiques</h3>
+      <h3 data-onglet="themes" data-tour="onglet-themes"><img class="icone-entete-panneau" :src="icoThemes" alt="" />Thématiques</h3>
       <button
         v-if="idsDescriptions.length"
         class="toutes-descriptions"

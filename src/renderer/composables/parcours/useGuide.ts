@@ -146,7 +146,7 @@ export function useGuide(deps: DepsGuide) {
       // Le geste passe par la VRAIE modale d'ajout, zone SON seule (aucun fichier de texte) —
       // même mécanique que l'étape 1 avec le SRT.
       // Puis l'entretien s'ouvre et on écrit la note « à chaud » :
-      // le trou guide l'onglet Notes puis « + Note », puis détaille la modale de création (titre, corps,
+      // le trou guide le panneau Notes puis « + Note », puis détaille la modale de création (titre, corps,
       // Valider) sans bulle qui la masquerait ; le texte vit dans le panneau.
       // La garde `verifierChargementEtape2` n'autorise qu'audio/2RetraiteAnticipee.mp3 tant qu'elle n'est pas validée.
       // Lier le SRT plus tard se raconte (« Assigner un srt… ») :
@@ -171,13 +171,11 @@ export function useGuide(deps: DepsGuide) {
           }
           return '[data-tour="valider"]'
         }
-        // Dans l'entretien : onglet Notes → « + Note » → champs de la modale de note,
+        // Dans l'entretien : panneau Notes → « + Note » → champs de la modale,
         // chacun guidé à son tour (titre puis corps puis Valider).
         const modale = document.querySelector('.modale-note')
         if (!modale) {
-          return deps.ongletDroite.value === 'notes'
-            ? '[data-tour="creer-note"]'
-            : '[data-tour="onglet-notes"]'
+          return '[data-tour="creer-note"]'
         }
         const titre = (modale.querySelector('.champ-titre-note input') as HTMLInputElement | null)
           ?.value?.trim()
@@ -213,9 +211,6 @@ export function useGuide(deps: DepsGuide) {
         // Dans l'entretien : la note à chaud, champ par champ.
         const modale = document.querySelector('.modale-note')
         if (!modale) {
-          if (deps.ongletDroite.value !== 'notes') {
-            return "Ouvrez l'onglet Notes pour consigner vos impressions à chaud."
-          }
           return 'Cliquez sur « + Note » pour créer la note à chaud.'
         }
         const titre = (modale.querySelector('.champ-titre-note input') as HTMLInputElement | null)
@@ -341,7 +336,7 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Ouvrez l'onglet Locuteurs, puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
+          ? "Dans le panneau Locuteurs, renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
       fini: () =>
@@ -357,9 +352,7 @@ export function useGuide(deps: DepsGuide) {
       // Depuis la liste, on guide vers la carte déterministe de 1Coordinatrice.
       cible: () => {
         if (deps.vue.value !== 'entretien') return '[data-tour="carte-1Coordinatrice"] .crayon'
-        return deps.ongletDroite.value === 'themes'
-          ? '.panneau.themes-coder'
-          : '[data-tour="onglet-themes"]'
+        return '[data-tour="onglet-themes"]'
       },
       fait: () => {
         const id = Object.entries(deps.membership.value).find(([, r]) => r.titre === '1Coordinatrice')?.[0]
@@ -367,7 +360,7 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Ouvrez l'onglet Thématiques, sélectionnez un passage du texte, puis cliquez sur un thème pour le coder."
+          ? "Dans le panneau Thématiques, sélectionnez un passage du texte, puis cliquez sur un thème pour le coder."
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "ajouter ou retirer des annotations",
       fini: () =>
@@ -381,9 +374,7 @@ export function useGuide(deps: DepsGuide) {
       requiere: 'charger',
       cible: () => {
         if (deps.vue.value !== 'entretien') return '[data-tour="carte-1Coordinatrice"] .crayon'
-        return deps.ongletDroite.value === 'donnees'
-          ? '.panneau.donnees'
-          : '[data-tour="onglet-donnees"]'
+        return '[data-tour="onglet-donnees"]'
       },
       fait: () => {
         const id = Object.entries(deps.membership.value).find(([, r]) => r.titre === '1Coordinatrice')?.[0]
@@ -394,7 +385,7 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Ouvrez l'onglet Données, puis renseignez une valeur, par exemple le lieu de l'entretien."
+          ? "Dans le panneau Données, renseignez une valeur, par exemple le lieu de l'entretien."
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "modifier ou compléter les valeurs saisies",
       fini: () =>

@@ -119,6 +119,11 @@ const ciblePanneau = computed(() => {
   if (surfaceGuide.value === 'docs-cadre') return '[data-tour="ancre-guide-docs-cadre"]'
   if (surfaceGuide.value === 'analyse') return '[data-tour="ancre-guide-analyse"]'
   if (surfaceGuide.value === 'organisation') return '[data-tour="ancre-guide-organisation"]'
+  if (surfaceGuide.value === 'entretien') {
+    if (etapeCourante.value?.id === 'noter') return '[data-tour="ancre-guide-pp-notes"]'
+    if (etapeCourante.value?.id === 'renommer') return '[data-tour="ancre-guide-pp-locuteurs"]'
+    if (etapeCourante.value?.id === 'variable') return '[data-tour="ancre-guide-pp-donnees"]'
+  }
   return '[data-tour="ancre-guide-pp"]'
 })
 

@@ -23,7 +23,7 @@ import {
 
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
   const { app, page } = await ouvrir('sonal-ds10-liste-')
-  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await page.locator('[data-onglet="themes"]').click()
 
   // Beaucoup de thèmes : 25 ajouts via la fenêtre d'édition (le seed en a 7) →
   // la liste déborde largement du panneau, les derniers ajouts sont hors écran.
@@ -49,7 +49,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
 
   // Un défilement INTERNE du panneau le rend visible, sans toucher au texte :
   // on reste au début de l'entretien.
-  await page.locator('.colonne-gauche').evaluate((el) => {
+  await page.locator('.panneau-themes .panneau').evaluate((el) => {
     el.scrollTop = el.scrollHeight
   })
   const poche = await dernier.boundingBox()
@@ -66,7 +66,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
 test('créer un thème depuis l’entretien (fenêtre d’édition) → apparaît, prêt à coder', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
-  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
   await page.locator('.modale-themes .mini', { hasText: '+ Thème' }).click()
   await expect(page.locator('.liste-thm li[data-nom="Nouveau thème"]')).toHaveCount(1)
@@ -124,7 +124,7 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   await retourCorpus(page)
   await entrerEntretien(page, 0)
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
-  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await expect(page.locator('.modale-themes .msg-thm')).toContainText('1 autre')
@@ -186,7 +186,7 @@ test('clic droit sur un thème : bascule actif ↔ passif sans ouvrir l\'éditio
 
 test('panneau Thématiques : replier/déplier une catégorie à enfants', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
-  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await page.locator('[data-onglet="themes"]').click()
 
   // « Pondérations » a des enfants (★★★ …) → icône de repli ; l'enfant est visible.
   const pond = page.locator('.theme-coder', { hasText: 'Pondérations' })
@@ -207,7 +207,7 @@ test('panneau Thématiques : replier/déplier une catégorie à enfants', async 
 
 test('créer un thème : le champ nom est auto-focusé et présélectionné', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
-  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
 
   // « + Thème » → le champ nom du nouveau thème reçoit le focus.

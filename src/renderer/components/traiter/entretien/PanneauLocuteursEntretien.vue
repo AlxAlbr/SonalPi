@@ -4,6 +4,7 @@ import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
 import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
+import icoLocuteurs from '../../../assets/icones/locuteurs.png'
 
 const props = defineProps<{ actif: boolean; lectureSeule: boolean }>()
 
@@ -63,7 +64,7 @@ watch(
 <template>
   <aside class="panneau">
     <div class="corpus-tete">
-      <h3>Locuteurs</h3>
+      <h3 data-onglet="locuteurs" data-tour="onglet-locuteurs"><img class="icone-entete-panneau" :src="icoLocuteurs" alt="" />Locuteurs</h3>
       <button class="mini" :aria-expanded="statistiquesOuvertes" aria-controls="stats-locuteurs" @click="statistiquesOuvertes = !statistiquesOuvertes">📊 Statistiques</button>
       <button v-if="!lectureSeule" class="mini" @click="nouveauLocuteur">+ Locuteur</button>
     </div>

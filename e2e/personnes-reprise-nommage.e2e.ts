@@ -12,7 +12,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
       payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
       await api.ecrireEntretien(id, payload)
     })
-    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.locator('[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

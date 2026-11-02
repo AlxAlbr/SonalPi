@@ -9,7 +9,7 @@ import { ouvrir, coderTheme, selectionner } from './util'
  */
 
 async function ongletJournal(page: Page) {
-  await page.locator('.onglets button[data-onglet="journal"]').click()
+  await page.locator('[data-onglet="journal"]').click()
 }
 
 /** Code la 1re occurrence de `mot` avec `theme` (sélection réelle + clic-thème S3). */
@@ -48,7 +48,7 @@ test('annuler une attribution de locuteur → l’ancien loc restauré, la sciss
 
   // Attribuer « Lyon » (sous-partie du bloc 1, loc 1) à Karine → scission, loc 2.
   await selectionner(page, 'Lyon')
-  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+  await page.locator('[data-onglet="locuteurs"]').click()
   await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
   await expect(page.locator('.editeur p')).toHaveCount(4)
