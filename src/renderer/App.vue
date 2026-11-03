@@ -78,41 +78,43 @@ const {
     <BarreOutils />
     <div class="contenu-app">
 
-      <ResumeParcoursPasAPas v-if="pasAPas && vue !== 'accueil'" />
+      <div class="contexte-app">
+        <ResumeParcoursPasAPas v-if="pasAPas && vue !== 'accueil'" />
 
-      <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
+        <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
-      <div v-if="messageOperationGlobale" class="banniere attente" role="status">
-        <span class="indicateur-attente" aria-hidden="true"></span>
-        <span>{{ messageOperationGlobale }}</span>
-      </div>
+        <div v-if="messageOperationGlobale" class="banniere attente" role="status">
+          <span class="indicateur-attente" aria-hidden="true"></span>
+          <span>{{ messageOperationGlobale }}</span>
+        </div>
 
-      <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
-           hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
-           remplace la précédente. -->
-      <div v-if="erreurGlobale" class="banniere refus">
-        <span>{{ erreurGlobale }}</span>
-        <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
-      </div>
+        <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
+             hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
+             remplace la précédente. -->
+        <div v-if="erreurGlobale" class="banniere refus">
+          <span>{{ erreurGlobale }}</span>
+          <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
+        </div>
 
-      <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
-           bascule automatique après suppression du dossier du corpus courant). -->
-      <div v-if="infoGlobale" class="banniere info">
-        <span>{{ infoGlobale }}</span>
-        <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
-      </div>
+        <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
+             bascule automatique après suppression du dossier du corpus courant). -->
+        <div v-if="infoGlobale" class="banniere info">
+          <span>{{ infoGlobale }}</span>
+          <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
+        </div>
 
-      <div v-if="libelleRetourContexte" class="retour-contexte" :inert="exportCorpusEnCours">
-        <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
-      </div>
-      <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
-        Passage ajouté. Ouvrir la destination reste facultatif.
-        <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
-        <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
-      </div>
-      <div v-if="repereAnalyse && vue === 'analyser'" class="banniere info">
-        <span>Corpus exemple pour l’analyse. Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</span>
-        <button aria-label="Masquer le repère du corpus exemple" @click="repereAnalyse = false">×</button>
+        <div v-if="libelleRetourContexte" class="retour-contexte" :inert="exportCorpusEnCours">
+          <button :disabled="navigationContexteEnCours" @click="revenirContexte">← {{ libelleRetourContexte }}</button>
+        </div>
+        <div v-if="confirmationAjout && vue === 'entretien'" class="banniere info confirmation-ajout" role="status">
+          Passage ajouté. Ouvrir la destination reste facultatif.
+          <button v-for="destination in confirmationAjout.destinations" :key="destination.id" @click="ouvrirDestinationAjout(destination.id)">Ouvrir {{ confirmationAjout.type === 'cas' ? 'le cas' : 'le recueil' }} « {{ destination.nom }} »</button>
+          <button aria-label="Fermer la confirmation" @click="fermerConfirmationAjout">×</button>
+        </div>
+        <div v-if="repereAnalyse && vue === 'analyser'" class="banniere info">
+          <span>Corpus exemple pour l’analyse. Vous pouvez modifier cette copie. Choisissez un thème puis cliquez sur « Calculer », ou explorez Lexico.</span>
+          <button aria-label="Masquer le repère du corpus exemple" @click="repereAnalyse = false">×</button>
+        </div>
       </div>
       <Accueil v-show="vue === 'accueil'" />
       <Corpus v-show="vue === 'corpus'" />
@@ -159,18 +161,25 @@ const {
   --entete-h: 3.6rem;
 }
 .app.avec-navigation {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
+  grid-template-columns: 6rem minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
-  column-gap: 1rem;
-  row-gap: 0.75rem;
+  column-gap: 0;
+  row-gap: 0;
   align-items: start;
 }
 .app.avec-navigation > header {
   grid-column: 1 / -1;
+  width: 100%;
 }
 .contenu-app {
   min-width: 0;
+  max-width: 1250px;
+  padding-left: 0.75rem;
 }
 /* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
    fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
@@ -196,6 +205,25 @@ h1 {
 .tete {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1250px;
+  min-height: var(--entete-h);
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+.contexte-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 950px;
+  margin: 0 auto;
+}
+.retour-contexte {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 h1 small {
   color: #999;

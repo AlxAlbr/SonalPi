@@ -29,38 +29,46 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         class="outil espace"
         data-tour="ouvrir-preparer"
         :class="{ actif: preparationActive }"
-        title="Préparer et suivre"
-        aria-label="Préparer et suivre"
+        aria-label="Préparer & Suivre"
         :aria-current="preparationActive ? 'page' : undefined"
         @click="entrerPreparation()"
-      ><img :src="icoPlanning" alt="" /></button>
+      >
+        <img :src="icoPlanning" alt="" />
+        <span class="libelle-espace">Préparer &amp; Suivre</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-traiter"
         :class="{ actif: traitementActif }"
-        title="Importer et traiter"
-        aria-label="Importer et traiter"
+        aria-label="Importer &amp; Traiter"
         :aria-current="traitementActif ? 'page' : undefined"
         @click="revenirTraitement()"
-      ><img :src="icoEdition" alt="" /></button>
+      >
+        <img :src="icoEdition" alt="" />
+        <span class="libelle-espace">Importer &amp; Traiter</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-analyser"
         :class="{ actif: analyseActive }"
-        title="Analyser et interpréter"
-        aria-label="Analyser et interpréter"
+        aria-label="Analyser &amp; Interpréter"
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
-      ><img :src="icoAnalyse" alt="" /></button>
+      >
+        <img :src="icoAnalyse" alt="" />
+        <span class="libelle-espace">Analyser &amp; Interpréter</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-organiser"
         :class="{ actif: organisationActive }"
-        title="Organiser et exporter"
-        aria-label="Organiser et exporter"
+        aria-label="Organiser &amp; Exporter"
         :aria-current="organisationActive ? 'page' : undefined"
         @click="entrerOrganisation()"
-      ><img :src="icoExport" alt="" /></button>
+      >
+        <img :src="icoExport" alt="" />
+        <span class="libelle-espace">Organiser &amp; Exporter</span>
+      </button>
     </div>
   </nav>
 </template>
@@ -68,25 +76,18 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
 <style scoped>
 .barre-outils {
   position: sticky;
-  top: calc(var(--entete-h) + 1.2rem);
+  top: var(--entete-h);
   align-self: start;
   box-sizing: border-box;
-  height: calc(100vh - var(--entete-h) - 2.4rem);
-  min-height: min(24rem, calc(100vh - var(--entete-h) - 2.4rem));
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: calc(100vh - var(--entete-h));
+  min-height: min(24rem, calc(100vh - var(--entete-h)));
   min-width: 0;
-  padding: 0.75rem;
-  border: 1px solid #dfe3eb;
-  border-radius: 10px;
-  background: #fafafe;
+  overflow: hidden;
+  background: #19204d;
 }
 .ligne {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 0.5rem;
   width: 100%;
 }
 .outil {
@@ -103,30 +104,41 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
 .outil.espace {
   box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  align-self: center;
-  padding: 0.45rem;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0;
+  background: transparent;
   font-weight: 600;
-  color: #2c3a5e;
+  color: #fff;
+}
+.outil.espace:hover {
+  background: rgb(255 255 255 / 10%);
 }
 .outil.espace img {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.5rem;
+  height: 1.5rem;
   object-fit: contain;
-  opacity: 0.7;
+  filter: brightness(0) invert(1);
 }
-.outil.espace.actif img { opacity: 1; }
-.outil.espace.actif {
+.libelle-espace {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.outil.espace.actif,
+.outil.espace.actif:hover {
   background: #e3ebf9;
-  border-color: #4a6fa5;
   color: #1a3a6b;
-  box-shadow: inset 3px 0 0 #2f5aa8;
 }
-.outil.espace:hover { background: #f4f7fd; }
+.outil.espace.actif img { filter: none; }
 @media (max-width: 780px) {
-  .barre-outils { padding: 0.5rem; }
+  .libelle-espace { font-size: 0.62rem; }
 }
 </style>
