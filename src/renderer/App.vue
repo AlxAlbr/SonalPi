@@ -71,7 +71,6 @@ const {
             <span class="lien-nav courant">
               Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
             </span>
-            <button class="bouton-retour-corpus" @click="retourCorpus">← Retour au corpus</button>
           </template>
         </nav>
       </div>
@@ -296,16 +295,6 @@ h1 small {
 }
 .fil .sep {
   color: #bbb;
-}
-.bouton-retour-corpus {
-  margin-left: 0.3rem;
-  padding: 0.25rem 0.55rem;
-  border: 1px solid #bbb;
-  border-radius: 5px;
-  background: #fff;
-  color: #333;
-  cursor: pointer;
-  font-size: 0.85rem;
 }
 @media (max-width: 1080px) {
   .fil { margin-left: 0.7rem; }

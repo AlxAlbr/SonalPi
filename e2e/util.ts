@@ -124,11 +124,6 @@ export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-export async function ouvrirGestionLocuteurs(page: Page): Promise<void> {
-  const gestion = page.locator('.gestion-locuteurs')
-  if (await gestion.getAttribute('open') === null) await gestion.locator('summary').click()
-}
-
 /** Depuis la modale « Ouvrir un corpus distant » déjà connectée : ouvre le
  *  premier compte. Sans trousseau OS, le compte n'a pas de mot de passe
  *  conservé → un champ « Mot de passe pour cette session » apparaît sous le
@@ -264,7 +259,7 @@ export async function ajouterParModale(page: Page, zones: Array<'texte' | 'audio
 /** S3 : code la sélection courante avec un thème, en cliquant dessus dans l'onglet Thématique (le geste « clic = coder »). La sélection doit être posée AVANT.
  *  */
 export async function coderTheme(page: Page, nomTheme: string): Promise<void> {
-  await page.locator('[data-onglet="themes"]').click()
+  await page.locator('.onglets button[data-onglet="themes"]').click()
   await page.locator('.theme-coder', { hasText: nomTheme }).click()
 }
 

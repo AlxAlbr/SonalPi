@@ -43,23 +43,30 @@ async function selectionnerBloc(page: Page, n: number, i = 0) {
   )
 }
 
-test('le panneau Entretien masque temporairement Notes et Données', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-panneau-outils-'))
+test('un brouillon de note survit à un aller-retour entre onglets', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-brouillon-note-'))
   const app = await lancer(dir)
-  try {
-    const page = await app.firstWindow()
-    await entrerCorpus(page)
-    await entrerEntretien(page)
-    await expect(page.getByRole('tab')).toHaveCount(1)
-    await expect(page.locator('.panneau-notes, .panneau-donnees')).toHaveCount(0)
-    await expect(page.locator('.panneau-outil')).toHaveCount(4)
-  } finally {
-    await app.close()
-  }
+  const page = await app.firstWindow()
+  await entrerCorpus(page)
+  await entrerEntretien(page)
+
+  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('button.mini', { hasText: '+ Note' }).click()
+  await page.locator('.champ-titre-note input').fill('Titre en cours')
+  await page.locator('.zone-corps-note').fill('Corps en cours')
+
+  await page.locator('.onglets button[data-onglet="locuteurs"]').dispatchEvent('click')
+  await expect(page.locator('.onglets button[data-onglet="locuteurs"]')).toHaveClass(/actif/)
+  await expect(page.locator('.panneau.notes')).toBeHidden()
+  await page.locator('.onglets button[data-onglet="notes"]').dispatchEvent('click')
+  await expect(page.locator('.panneau.notes')).toBeVisible()
+
+  await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
+  await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
+  await app.close()
 })
 
 test('feuille — lier un passage de note à un commentaire', async () => {
-  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const dir = mkdtempSync(join(tmpdir(), 'sonal-feuille-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -75,8 +82,8 @@ test('feuille — lier un passage de note à un commentaire', async () => {
   await page.locator('[data-test="commentaire-valider"]').click()
   await expect(page.locator('.carte-commentaire').first()).toBeVisible()
 
-  // 2. Revenir aux outils d'entretien puis créer une note avec du texte.
-  await page.getByRole('tab', { name: 'Entretien' }).click()
+  // 2. Onglet Notes → créer une note avec du texte.
+  await page.locator('.onglets button[data-onglet="notes"]').click()
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await expect(page.locator('.modale-note-fenetre')).toBeVisible()
   await page.locator('.zone-corps-note').click()

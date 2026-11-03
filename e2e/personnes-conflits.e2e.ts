@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, ouvrirGestionLocuteurs } from './util'
+import { ouvrir } from './util'
 
 /**
  * Conflits survenus pendant que le dialogue de nommage est ouvert :
@@ -19,8 +19,7 @@ test('des données source modifiées pendant le dialogue bloquent la reprise san
       await api.ecrireEntretien(id, payload)
       return id
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -61,8 +60,7 @@ test('une source liée pendant le dialogue bloque une association devenue périm
       await api.ecrireEntretien(id, payload)
       return id
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -99,8 +97,7 @@ test('des propositions modifiées pendant le dialogue empêchent un refus en mas
       }
       return sortie
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

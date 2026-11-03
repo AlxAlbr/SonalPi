@@ -73,7 +73,7 @@ test('renommer un thème dans la fenêtre d’édition → reflété dans le pan
 
 test('ajouter une description la rend consultable sans déclencher de codage', async () => {
   const { app, page } = await ouvrir('sonal-description-theme-')
-  await page.locator('[data-onglet="themes"]').click()
+  await page.locator('.onglets button[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
 
   const ligne = page.locator('.liste-thm li[data-nom="Famille"]')

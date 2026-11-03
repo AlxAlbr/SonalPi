@@ -6,10 +6,22 @@ import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import ResumeAssociationsPassage from './ResumeAssociationsPassage.vue'
+import PanneauAccueilEntretien from './PanneauAccueilEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
+import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
+import PanneauJournalEntretien from './PanneauJournalEntretien.vue'
 import PanneauLocuteursEntretien from './PanneauLocuteursEntretien.vue'
+import PanneauNotesEntretien from './PanneauNotesEntretien.vue'
 import PanneauThemesEntretien from './PanneauThemesEntretien.vue'
 import { utiliserSonal } from '../../../composables/sonal'
+// Icônes des onglets (glyphe noir à plat).
+import icoThemes from '../../../assets/icones/themes.png'
+import icoLocuteurs from '../../../assets/icones/locuteurs.png'
+import icoDonnees from '../../../assets/icones/donnees.png'
+import icoJournal from '../../../assets/icones/journal.png'
+import icoNotes from '../../../assets/icones/notes.png'
+import icoMaison from '../../../assets/icones/maison.png'
+import icoAnon from '../../../assets/icones/anon.png'
 
 const {
   ongletDroite,
@@ -35,6 +47,7 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
+  retourCorpus,
   audio,
   verrouAutrui,
   statutSession,
@@ -96,8 +109,9 @@ function ouvrirRecueilsDepuisSelection() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent" :class="{ 'avec-barre': statutSession.etat !== 'aucune' }">
-        <div v-if="statutSession.etat !== 'aucune'" class="barre">
+      <div class="grille-ent">
+        <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
+        <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
@@ -112,35 +126,84 @@ function ouvrirRecueilsDepuisSelection() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
+          <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
-        <div class="ancre-guide-global" data-tour="ancre-guide-pp"></div>
+        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
+             collante, à défilement interne au-delà d'un écran,
+             pour rester visible pendant la lecture. -->
+        <div class="colonne-gauche">
+          <nav class="onglets">
+            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
+                 et sur le panneau d'accueil (vue d'ensemble).
+                 L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
+                 conseils et liste des autres onglets (icone + titre).
+                 Les NOTES suivent en DEUXIÈME. -->
+            <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
+              <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
+            </button>
+            <button data-onglet="notes" data-tour="onglet-notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
+              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
+            </button>
+            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
+              <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
+            </button>
+            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
+              <img class="ico-onglet" :src="icoAnon" alt="Pseudonymisation du texte" />
+            </button>
+            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
+              <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
+            </button>
+            <button data-onglet="donnees" data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" title="Données" @click="ongletDroite = 'donnees'">
+              <img class="ico-onglet" :src="icoDonnees" alt="Données" />
+            </button>
+            <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
+              <img class="ico-onglet" :src="icoJournal" alt="Journal" />
+            </button>
+          </nav>
 
-        <div class="colonne-outils">
-          <section id="panneau-outils-entretien" class="zone-outils" aria-label="Outils de l'entretien">
-            <div id="contenu-outils-entretien" class="contenu-outils contenu-entretien">
-              <div class="panneau-outil panneau-locuteurs" @pointerdown="ongletDroite = 'locuteurs'">
-                <div data-tour="ancre-guide-pp-locuteurs"></div>
-                <PanneauLocuteursEntretien :actif="true" :lecture-seule="roContenu" />
-              </div>
-              <div class="panneau-outil panneau-anon" @pointerdown="ongletDroite = 'anon'">
-                <PanneauAnonymisationEntretien
-                  :actif="true"
-                  :lecture-seule-contenu="roContenu"
-                />
-              </div>
-              <div class="panneau-outil panneau-ponderations" @pointerdown="ongletDroite = 'themes'">
-                <PanneauThemesEntretien partie="ponderation" :lecture-seule-contenu="roContenu" />
-              </div>
-              <div class="panneau-outil panneau-themes" @pointerdown="ongletDroite = 'themes'">
-                <div data-tour="ancre-guide-pp-themes"></div>
-                <PanneauThemesEntretien :lecture-seule-contenu="roContenu" />
-              </div>
-            </div>
-          </section>
-          <ResumeAssociationsPassage />
+          <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
+          <div data-tour="ancre-guide-pp"></div>
+
+          <PanneauAccueilEntretien v-show="ongletDroite === 'maison'" />
+
+          <PanneauThemesEntretien
+            v-show="ongletDroite === 'themes'"
+            :lecture-seule-contenu="roContenu"
+          />
+
+          <PanneauLocuteursEntretien
+            v-show="ongletDroite === 'locuteurs'"
+            :actif="ongletDroite === 'locuteurs'"
+            :lecture-seule="roContenu"
+          />
+
+          <PanneauDonneesEntretien
+            v-show="ongletDroite === 'donnees'"
+            :lecture-seule="roContenu"
+          />
+
+          <PanneauJournalEntretien
+            v-show="ongletDroite === 'journal'"
+            :lecture-seule="roContenu"
+          />
+
+          <PanneauNotesEntretien
+            v-show="ongletDroite === 'notes'"
+            :lecture-seule="roContenu"
+          />
+
+          <PanneauAnonymisationEntretien
+            v-show="ongletDroite === 'anon'"
+            :actif="ongletDroite === 'anon'"
+            :lecture-seule-contenu="roContenu"
+          />
         </div>
 
+        <!-- Colonne DROITE : en audio, lecteur (barre d'écoute + waveform)
+             collant puis éditeur ; en vidéo, zone média épinglée (lecteur +
+             waveform EMPILÉS à gauche ‖ panneau vidéo à droite) puis éditeur
+             pleine largeur dessous. -->
         <div class="colonne-droite">
           <div v-if="!estVideo" class="lecteur-ancre">
             <LecteurAudio />
@@ -155,11 +218,9 @@ function ouvrirRecueilsDepuisSelection() {
             </div>
             <VideoPanel v-show="videoVisible" />
           </div>
-          <section class="section-texte-entretien" aria-label="Texte de l’entretien">
-            <EditorContent :editor="editor" class="cadre" />
-          </section>
+          <ResumeAssociationsPassage />
+          <EditorContent :editor="editor" class="cadre" />
         </div>
-
       </div>
 
       <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
@@ -233,28 +294,29 @@ function ouvrirRecueilsDepuisSelection() {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, min(38vw, 30rem));
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.65rem;
-  align-items: stretch;
-  height: calc(100dvh - var(--entete-h) - 2.4rem);
-  min-height: 0;
-  grid-template-areas:
-    'guide guide'
-    'droite outils';
-}
-.grille-ent.avec-barre {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: 400px 1fr;
+  gap: 1rem;
+  align-items: start;
   grid-template-areas:
     'barre barre'
-    'guide guide'
-    'droite outils';
+    'gauche droite';
+  /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
+  --barre-h: 2.4rem;
+}
+.retour {
+  margin-left: auto;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
 }
 .barre {
   grid-area: barre;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Le retour au corpus reste à droite des statuts. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
@@ -263,12 +325,6 @@ function ouvrirRecueilsDepuisSelection() {
   background: #fff;
   height: var(--barre-h);
   box-sizing: border-box;
-}
-.ancre-guide-global {
-  grid-area: guide;
-}
-.ancre-guide-global:empty {
-  display: none;
 }
 /* Statut de session (publication) dans la barre d'actions */
 .statut-session {
@@ -306,121 +362,32 @@ function ouvrirRecueilsDepuisSelection() {
   padding: 0.8rem 1rem;
   background: #fff;
 }
-.section-texte-entretien {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-.section-texte-entretien .cadre {
-  min-height: 100%;
-  box-sizing: border-box;
-}
-.zone-outils {
+/* Colonne de gauche collante : onglets + panneau, reste visible ; au-delà d'un écran, elle défile en interne.
+   Ses points d'épinglage tiennent compte des deux barres épinglées du dessus (en-tête app + barre d'actions).
+   La hauteur max est RÉDUITE du même décalage que `top` :
+   sinon une liste longue (beaucoup de thèmes) déborderait sous le bord bas de la fenêtre,
+   et les derniers thèmes resteraient inaccessibles tant que le texte n'a pas défilé (la colonne collante repart vers le haut). */
+.colonne-gauche {
+  grid-area: gauche;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fafafe;
+  gap: 0.5rem;
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h));
+  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre d'actions et le bord bas de la fenêtre,
+     sinon son défilement interne garde les derniers éléments visibles SANS toucher au texte.
+     Le −1rem compense l'écart de la grille ; à la position naturelle (page en haut),
+     le panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
+  overflow-y: auto;
 }
-.contenu-outils {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0;
-  min-height: 0;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 0.25rem 0.5rem;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-.panneau-outil {
-  box-sizing: border-box;
-  flex: none;
-  min-width: 0;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid #e5e5ef;
-}
-.panneau-outil :deep(.panneau) {
-  box-sizing: border-box;
-  height: auto;
-  min-width: 0;
-  overflow: visible;
-  padding: 0.35rem;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.panneau-outil :deep(.corpus-tete) {
-  padding: 0.35rem 0 0.25rem;
-}
-.panneau-outil :deep(.corpus-tete h3) {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.panneau-outil :deep(.icone-entete-panneau) {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  flex: none;
-}
-/* Entretien : lecteur audio puis éditeur.
+/* Colonne de droite : lecteur audio puis éditeur.
    Le lecteur est collant en haut (fond opaque), pour rester visible pendant la lecture ;
    l'éditeur défile dessous. */
 .colonne-droite {
   grid-area: droite;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-}
-.colonne-outils {
-  grid-area: outils;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-}
-@media (max-width: 900px) {
-  .grille-ent {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    height: auto;
-    grid-template-areas:
-      'guide'
-      'droite'
-      'outils';
-  }
-  .grille-ent.avec-barre {
-    grid-template-rows: auto auto auto auto;
-    grid-template-areas:
-      'barre'
-      'guide'
-      'droite'
-      'outils';
-  }
-  .colonne-droite {
-    height: 70vh;
-    min-height: 24rem;
-  }
-  .colonne-outils {
-    height: auto;
-  }
-  .zone-outils {
-    height: 55vh;
-    min-height: 24rem;
-  }
 }
 .lecteur-ancre {
   position: sticky;
@@ -464,6 +431,56 @@ function ouvrirRecueilsDepuisSelection() {
   border-color: #2e73d8;
   color: #1565c0;
 }
+.onglets {
+  display: flex;
+  gap: 0.25rem;
+}
+.onglets button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: #f0f0f5;
+  padding: 0.3rem 0.1rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.onglets button.actif {
+  background: #fff;
+  font-weight: 600;
+  color: #1565c0;
+}
+/* Icônes des onglets (glyphes noirs), adoucies sur l'onglet inactif.
+   Plus grandes dans la barre gauche (20px) ; la liste d'accueil garde sa taille propre (20px, cf. .liste-tours).
+   L'onglet Anonymisation est un cran plus grand (23px). */
+.ico-onglet {
+  object-fit: contain;
+  opacity: 0.55;
+  flex: none;
+}
+.onglets .ico-onglet {
+  width: 20px;
+  height: 20px;
+}
+.onglets button[data-onglet="anon"] .ico-onglet {
+  width: 23px;
+  height: 23px;
+}
+.onglets button.actif .ico-onglet {
+  opacity: 1;
+}
+/* --- Onglet Thématique : clic = coder --- */
+.barre-aide {
+  flex: 1;
+  font-size: 0.72rem;
+  color: #999;
+  align-self: center;
+}
+
 /* Corpus distant — bandeau de lecture seule au-dessus de la grille. */
 .banniere-ro {
   background: #fff8e6;
@@ -477,7 +494,7 @@ function ouvrirRecueilsDepuisSelection() {
 
 /* --- Boîte recherche/remplacement (Ctrl+F) --------------------------------
  * Flottante en bas à droite de la fenêtre : visible quel que soit le
- * défilement du texte, sans recouvrir les panneaux de l'entretien. */
+ * défilement du texte, sans recouvrir le lecteur audio ni les onglets. */
 .barre-recherche {
   position: fixed;
   bottom: 0.8rem;

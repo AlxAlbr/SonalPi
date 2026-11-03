@@ -37,7 +37,7 @@ test('un corps de note hostile reste inerte dans un renderer isolé', async () =
     })
     await entrerCorpus(page)
     await entrerEntretien(page)
-    await page.locator('[data-onglet="notes"]').click()
+    await page.locator('.onglets button[data-onglet="notes"]').click()
 
     const corps = page.locator('.notes .corps-note')
     await expect(corps).toContainText('dessinpassage sûrlien')

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer, ouvrirGestionLocuteurs } from './util'
+import { entrerCorpus, lancer } from './util'
 
 test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-e2e-'))
@@ -52,31 +52,23 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Ouvrir l’entretien' }).click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.getByText('Lié à « K. Dupont » — le nom saisi reste local.', { exact: true })).toHaveCount(0)
-    await ouvrirGestionLocuteurs(page)
-    const panneauOutils = page.locator('.entretien-ecran .contenu-outils')
-    await expect(page.getByRole('tab')).toHaveCount(0)
-    await expect(panneauOutils.locator('.panneau-outil')).toHaveCount(4)
-    await expect(panneauOutils.locator('.panneau')).toHaveCount(4)
-    await expect(panneauOutils.locator('.panneau-outil h3').allTextContents()).resolves.toEqual([
-      'Locuteurs',
-      'Pseudonymisation du texte',
-      'Pondération',
-      'Thématiques',
-    ])
-    await expect(page.locator('.entretien-ecran button[data-onglet="maison"], .entretien-ecran button[data-onglet="journal"]')).toHaveCount(0)
-    await expect(panneauOutils).toHaveCSS('overflow-y', 'auto')
-    await expect(page.locator('.entretien-ecran .panneau-notes, .entretien-ecran .panneau-donnees')).toHaveCount(0)
-    for (const nom of ['locuteurs', 'themes', 'anon', 'ponderations']) {
-      const panneauOutil = page.locator(`.entretien-ecran .panneau-${nom}`)
-      await expect(panneauOutil).toBeVisible()
-      if (nom !== 'ponderations') {
-        await expect(panneauOutil.locator('.corpus-tete h3 img')).toBeVisible()
-      }
-    }
+    await expect(page.locator('.entretien-ecran button[data-onglet="locuteurs"].actif')).toHaveAttribute('title', 'Locuteurs')
+    await page.locator('.entretien-ecran button[data-onglet="notes"]').click()
+    await page.getByRole('button', { name: '+ Note', exact: true }).click()
+    await page.getByLabel('Titre (optionnel)').fill('Identité vérifiée')
+    await page.getByRole('group', { name: 'Concerne (optionnel)' }).getByRole('checkbox', { name: 'Karine' }).check()
+    await page.locator('.modale-note-pied').getByRole('button', { name: 'Valider' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toBeVisible()
     await expect(panneau.getByRole('heading', { name: 'Personne · K. Dupont' })).toBeVisible()
+    await expect(panneau.getByText('Notes liées (1)')).toBeVisible()
+    await panneau.getByText('Notes liées (1)').click()
+    await expect(panneau.getByText('Identité vérifiée')).toBeVisible()
+    await panneau.getByRole('button', { name: 'Ouvrir l’entretien dans Notes' }).click()
+    await expect(page.locator('.entretien-ecran button[data-onglet="notes"].actif')).toHaveAttribute('title', 'Notes')
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Modifier l’association…', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ne plus associer', exact: true }).click()
@@ -91,7 +83,6 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.repertoire').getByRole('button', { name: 'Karine', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ouvrir l’entretien', exact: true }).click()
     await expect(page.locator('.lien-personne-loc')).toHaveCount(0)
-    await ouvrirGestionLocuteurs(page)
     const indexKarine = await page.locator('.nom-loc').evaluateAll(inputs => inputs.findIndex(input => (input as HTMLInputElement).value === 'Karine'))
     expect(indexKarine).toBeGreaterThanOrEqual(0)
     const nomKarine = page.locator('.nom-loc').nth(indexKarine)

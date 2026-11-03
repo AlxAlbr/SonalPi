@@ -109,17 +109,14 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
 
-  // L'entretien s'ouvre sur son panneau unique d'outils.
-  await expect(page.getByRole('tab')).toHaveCount(0)
-  await expect(page.locator('.panneau-locuteurs .panneau')).toBeVisible()
-  await expect(page.locator('.panneau-anon .panneau')).toBeVisible()
-  await expect(page.locator('.panneau-notes, .panneau-donnees')).toHaveCount(0)
-  await expect(page.locator('.entretien-ecran .barre')).toHaveCount(0)
+  // Les cartes de l'accueil ouvrent aussi les onglets de l'entretien.
+  await page.locator('.maison .liste-tours').getByRole('button', { name: /^Notes/ }).click()
+  await expect(page.locator('[data-onglet="notes"]')).toHaveClass(/actif/)
+  await expect(page.locator('aside.panneau.notes')).toBeVisible()
 
   // Le bouton ferme l’entretien et revient au corpus.
   await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)
-  await expect(page.locator('.fil')).toContainText('Entretien (Entretien Karine)')
-  await page.locator('.fil').getByRole('button', { name: /Retour au corpus/ }).click()
+  await page.getByRole('button', { name: 'Retour au niveau Corpus', exact: true }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 

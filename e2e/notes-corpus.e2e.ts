@@ -18,7 +18,7 @@ test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note local
   ])
 
   await entrerEntretien(page)
-  await page.locator('[data-onglet="notes"]').click()
+  await page.locator('.onglets button[data-onglet="notes"]').click()
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await page.locator('.champ-titre-note input').fill('Note initiale')
   await page.locator('.zone-corps-note').fill('Corps initial')

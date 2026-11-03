@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, ouvrirGestionLocuteurs } from './util'
+import { ouvrir } from './util'
 
 test('un nom spécifique crée une personne sans recopier le rôle ni renommer son identité ensuite', async () => {
   const { app, page } = await ouvrir('sonal-personnes-nommage-')
   try {
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

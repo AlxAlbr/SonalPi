@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import EditionVariables from '../partages/donnees/EditionVariables.vue'
-import icoDonnees from '../../../assets/icones/donnees.png'
 
 defineProps<{ lectureSeule: boolean }>()
 
@@ -63,7 +62,7 @@ function focaliserLibre(el: unknown, cle: string) {
 <template>
   <aside class="panneau donnees">
     <div class="corpus-tete">
-      <h3 data-onglet="donnees" data-tour="onglet-donnees"><img class="icone-entete-panneau" :src="icoDonnees" alt="" />Données</h3>
+      <h3>Données</h3>
       <button
         v-if="!lectureSeule"
         class="crayon"

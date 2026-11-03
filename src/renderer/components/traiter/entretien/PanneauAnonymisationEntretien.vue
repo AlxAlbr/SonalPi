@@ -2,7 +2,6 @@
 import { nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
-import icoAnon from '../../../assets/icones/anon.png'
 
 const props = defineProps<{
   actif: boolean
@@ -308,19 +307,13 @@ function alimenterDepuisSelection() {
 // ProseMirror propage la sélection DOM de façon ASYNCHRONE (`selectionchange`) :
 // plutôt que deviner un délai fixe, on surveille `selectionAnon`, en attendant deux lectures consécutives égales après le relâchement.
 // On lit donc la sélection FINALE, jamais un état intermédiaire.
-// La sélection finale remplit la ligne active après le relâchement.
+// Et seulement si l'onglet Anon est ouvert ; ailleurs, la sélection reste neutre.
 const RELACHE_STEP = 16 // ms — cadence de surveillance (un frame)
 const RELACHE_STABILITE = 2 // lectures consécutives égales → sélection figée
 const RELACHE_CAP = 250 // ms — marge pire cas (alors on remplit quand même)
 let tidRelache = 0
-let interactionSelectionActive = false
-function auDebutInteractionSelection() {
-  interactionSelectionActive = props.actif
-}
 function surRelache() {
-  const traiterSelection = props.actif || interactionSelectionActive
-  interactionSelectionActive = false
-  if (!traiterSelection) return
+  if (!props.actif) return
   clearTimeout(tidRelache)
   const signature = (s: typeof selectionAnon.value) =>
     s ? `${s.from}|${s.to}|${s.texte}` : ''
@@ -352,10 +345,8 @@ function attacherEcouteurs(ed: typeof editor.value) {
   }
   domEditeur = ed?.view.dom ?? null
   if (domEditeur) {
-    domEditeur.addEventListener('mousedown', auDebutInteractionSelection)
     domEditeur.addEventListener('mouseup', surRelache)
     // Sélection au clavier (Maj+flèches) : peuplée à la levée de la touche.
-    domEditeur.addEventListener('keydown', auDebutInteractionSelection)
     domEditeur.addEventListener('keyup', surRelache)
   }
 }
@@ -363,9 +354,7 @@ watch(editor, attacherEcouteurs, { immediate: true })
 onBeforeUnmount(() => {
   clearTimeout(tidRelache)
   if (domEditeur) {
-    domEditeur.removeEventListener('mousedown', auDebutInteractionSelection)
     domEditeur.removeEventListener('mouseup', surRelache)
-    domEditeur.removeEventListener('keydown', auDebutInteractionSelection)
     domEditeur.removeEventListener('keyup', surRelache)
   }
 })
@@ -377,7 +366,7 @@ onBeforeUnmount(() => {
      Entrée sur le Pseudo pose les occurrences (barré + [pseudo], cf. editeur.css). -->
 <aside class="panneau anon">
   <div class="corpus-tete">
-    <h3 data-onglet="anon"><img class="icone-entete-panneau" :src="icoAnon" alt="" />Pseudonymisation du texte</h3>
+    <h3>Pseudonymisation du texte</h3>
     <div class="tete-actions">
       <button
         type="button"

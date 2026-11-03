@@ -23,7 +23,7 @@ test('recueil vivant dans l’organisation, ajout contextuel et retour à l’en
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
 
     await entrerEntretien(page)
-    await expect(page.locator('[data-onglet="recueils"]')).toHaveCount(0)
+    await expect(page.locator('.onglets button[data-onglet="recueils"]')).toHaveCount(0)
     await selectionner(page, 'Karine habite Lyon')
     const centre = await page.evaluate(() => {
       const plage = window.getSelection()!.getRangeAt(0).getBoundingClientRect()

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier } from '../src/shared/format'
-import { lancer, entrerCorpus, entrerEntretien, ajouterParModale, ouvrirGestionLocuteurs, retourCorpus, selectionner } from './util'
+import { lancer, entrerCorpus, entrerEntretien, ajouterParModale, retourCorpus, selectionner } from './util'
 
 const srt = `1
 00:00:00,000 --> 00:00:01,000
@@ -55,8 +55,7 @@ test('statistiques : tours, mots, silences exclus, navigation cyclique et actual
     await ajouterParModale(page, ['texte', 'audio'])
     await expect(page.locator('.editeur')).toContainText('Bonjour tout le monde')
     await expect.poll(() => page.locator('audio[data-sonal]').evaluate((el: HTMLAudioElement) => el.duration)).toBeGreaterThan(9)
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('[data-onglet="locuteurs"]').click()
     await page.locator('.liste-loc .interv').first().click()
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.json'), 'utf8')) as CorpusFichier
@@ -96,7 +95,7 @@ test('statistiques : tours, mots, silences exclus, navigation cyclique et actual
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await retourCorpus(page)
     await page.locator('.carte-ent').filter({ hasText: 'Paroles' }).locator('.crayon').click()
-    await page.locator('[data-onglet="themes"]').click()
+    await page.locator('[data-onglet="locuteurs"]').click()
     await expect(stats).toHaveCount(0)
     await toggle.click()
     await expect(stats.locator('.total-mots')).toContainText('19 mots')
@@ -114,8 +113,7 @@ test('statistiques : sans repères temporels, compter et naviguer ne modifie pas
     const page = await app.firstWindow()
     await entrerCorpus(page)
     await entrerEntretien(page)
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('[data-onglet="locuteurs"]').click()
     const texte = await page.locator('.editeur').innerText()
     await page.getByRole('button', { name: '📊 Statistiques', exact: true }).click()
     await expect(page.locator('.stats-locuteurs .limite-durees')).toContainText('Durées indisponibles')
@@ -143,8 +141,7 @@ test('statistiques : clavier et consultation dans une session annoncée en lectu
     }, JSON.parse(avant))
     await entrerEntretien(page)
     await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('[data-onglet="locuteurs"]').click()
     await expect(page.locator('.nom-loc').first()).toBeDisabled()
     const toggle = page.getByRole('button', { name: '📊 Statistiques', exact: true })
     await toggle.focus()

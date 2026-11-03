@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, coderTheme, ouvrirGestionLocuteurs, selectionner } from './util'
+import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
  *  Locuteurs. (1) attribuer le loc d'un bloc = commande de domaine (transaction
@@ -19,23 +19,8 @@ const gouttiere = (t: string) => `.editeur .gouttiere-loc:has(> .loc-nom:text-is
  *  les locuteurs se corrigent après la vue d'ensemble ; le helper ramène donc
  *  toujours à l'onglet avant d'agir sur la liste). */
 async function ongletLocuteurs(page: import('@playwright/test').Page) {
-  await page.locator('[data-onglet="themes"]').click()
-  await ouvrirGestionLocuteurs(page)
+  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
 }
-
-test('ajout et attribution restent visibles, gestion détaillée repliée', async () => {
-  const { app, page } = await ouvrir('sonal-loc-')
-  await page.locator('[data-onglet="themes"]').click()
-  const panneau = page.locator('.panneau-locuteurs')
-  const gestion = panneau.locator('.gestion-locuteurs')
-  await expect(gestion).not.toHaveAttribute('open', '')
-  await expect(panneau.getByRole('button', { name: '+ Locuteur', exact: true })).toBeVisible()
-  await expect(panneau.locator('.boutons-loc .attr')).toHaveCount(3)
-  await expect(panneau.locator('.tableau-loc')).toBeHidden()
-  await gestion.locator('summary').click()
-  await expect(panneau.locator('.tableau-loc')).toBeVisible()
-  await app.close()
-})
 
 test('la gouttière affiche le nom du locuteur devant chaque tour', async () => {
   const { app, page } = await ouvrir('sonal-loc-')

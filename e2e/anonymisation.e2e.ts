@@ -413,18 +413,19 @@ test('import ciblé local : confirmation, identité du locuteur et mémoire sans
   } finally { await app.close() }
 })
 
-test('la sélection alimente une ligne et son brouillon conserve le pseudo saisi', async () => {
+test('la sélection alimente une ligne et le brouillon survit au changement d’onglet', async () => {
   const { app, page } = await ouvrir('sonal-anon-brouillon-')
 
   await page.locator('[data-onglet="anon"]').click()
-  await page.locator('.editeur').dispatchEvent('mousedown')
   await selectionner(page, 'Lyon')
   await page.locator('.editeur').dispatchEvent('mouseup')
 
   const saisie = page.locator('.ligne-anon.saisie-anon').first()
   await expect(saisie.locator('.nom-saisie')).toHaveValue('Lyon')
   await saisie.locator('.pseudo-anon').fill('Ville témoin')
-  await page.locator('.editeur').click()
+
+  await page.locator('[data-onglet="notes"]').click()
+  await page.locator('[data-onglet="anon"]').click()
   const brouillon = page.locator('.ligne-anon.etat-brouillon', { hasText: 'Lyon' })
   await expect(brouillon).toBeVisible()
   await expect(brouillon.locator('.pseudo-anon')).toHaveValue('Ville témoin')

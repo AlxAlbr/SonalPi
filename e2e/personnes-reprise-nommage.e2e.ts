@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, ouvrirGestionLocuteurs } from './util'
+import { ouvrir } from './util'
 
 test('la reprise simplifiée au nommage peut être désactivée', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reprise-nommage-')
@@ -12,8 +12,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
       payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
       await api.ecrireEntretien(id, payload)
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

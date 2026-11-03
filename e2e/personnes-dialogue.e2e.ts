@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, ouvrirGestionLocuteurs } from './util'
+import { ouvrir } from './util'
 
 test('un nom proche est proposé avec une raison distincte', async () => {
   const { app, page } = await ouvrir('sonal-personnes-proche-')
@@ -12,8 +12,7 @@ test('un nom proche est proposé avec une raison distincte', async () => {
       payload.locuteurs = [{ id: 'maria-source', index: 0, nom: 'Maria Dupont', interviewer: false, valeursLoc: {}, personneRef: null }]
       await api.ecrireEntretien(id, payload)
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -44,8 +43,7 @@ test('une identité déjà rapprochée est présentée sur une seule ligne avec 
       const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], locuteurId: `marie-${ids[0]}`, nom: 'Marie Dupont' })
       await api.personnesCommander({ type: 'lier', entretienId: ids[1], locuteurId: `marie-${ids[1]}`, personneId })
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -79,8 +77,7 @@ test('une référence de Personne absente est diagnostiquée dans l’éditeur',
     })
     const carte = page.locator('.carte-ent', { hasText: 'Entretien Karine' })
     await carte.getByRole('button').click()
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     await expect(page.getByText(/Référence de personne absente.*pers-absente/)).toBeVisible()
     await expect(page.getByText(/Corrigez cette association dans Personnes/)).toBeVisible()
   } finally {
@@ -91,8 +88,7 @@ test('une référence de Personne absente est diagnostiquée dans l’éditeur',
 test('deux renommages immédiats ne créent que la Personne du nom final', async () => {
   const { app, page } = await ouvrir('sonal-personnes-renommage-rapide-')
   try {
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.evaluate((element) => {
       const input = element as HTMLInputElement
@@ -124,8 +120,7 @@ test('le nommage propose une identité et lie sans écraser la session', async (
       payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
       await api.ecrireEntretien(id, payload)
     })
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')

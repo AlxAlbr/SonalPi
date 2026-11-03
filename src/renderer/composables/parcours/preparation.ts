@@ -122,7 +122,7 @@ export function creerParcoursPreparation(deps: DepsParcoursPreparation): Definit
       fait: () => deps.ouvertId.value === deps.idEntretien() && notePreparationPresente(deps.notes.value),
       texte: () => {
         if (deps.vue.value !== 'entretien') return 'Ouvrez l’entretien préparatoire avec le crayon de sa carte.'
-        if (deps.ongletDroite.value !== 'notes') return 'Dans le panneau Notes, créez une note.'
+        if (deps.ongletDroite.value !== 'notes') return 'Ouvrez l’onglet Notes.'
         if (!document.querySelector('.modale-note')) return 'Créez une note avec « + Note ».'
         return 'Intitulez-la « Avant l’entretien », ajoutez une question ou une hypothèse, puis validez.'
       },

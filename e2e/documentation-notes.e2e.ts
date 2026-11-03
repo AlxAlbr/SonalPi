@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, ouvrirGestionLocuteurs, retourCorpus } from './util'
+import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, retourCorpus } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 const titreResume = 'Résumé de l’entretien'
@@ -49,7 +49,6 @@ async function exporter(app: ElectronApplication, page: Page, chemin: string): P
 }
 
 test('manuel : créer, relire et exporter les notes du terrain fictif sans modifier la transcription', async () => {
-  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-notes-'))
   const dossier = join(racine, 'exemple')
   const app = await lancer(join(racine, 'profil'), { executablePath: process.env.NOTES_E2E_EXECUTABLE })
@@ -73,11 +72,9 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
     const avant = lire()
     await page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' }).locator('.crayon').click()
-    await page.locator('[data-onglet="themes"]').click()
-    await ouvrirGestionLocuteurs(page)
+    await page.locator('[data-onglet="locuteurs"]').click()
     await page.locator('.nom-loc').nth(1).fill('Fatima')
     await page.locator('.nom-loc').nth(1).press('Tab')
-    await page.getByRole('tab', { name: 'Entretien' }).click()
     await page.locator('[data-onglet="notes"]').click()
     await nouvelleNote(page, 'Brouillon abandonné', 'Ce texte ne doit pas être enregistré.')
     await page.locator('.modale-note-pied').getByRole('button', { name: 'Annuler', exact: true }).click()
@@ -204,7 +201,6 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
 })
 
 test('manuel : créer une catégorie ou changer sa couleur est distinct de valider une note', async () => {
-  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-categorie-note-'))
   const app = await lancer(racine, { executablePath: process.env.NOTES_E2E_EXECUTABLE })
   try {
@@ -246,7 +242,6 @@ test('manuel : créer une catégorie ou changer sa couleur est distinct de valid
 })
 
 test('manuel : une session annoncée en lecture seule laisse consulter et copier une note privée', async () => {
-  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-notes-lecture-'))
   const app = await lancer(racine, { executablePath: process.env.NOTES_E2E_EXECUTABLE })
   try {

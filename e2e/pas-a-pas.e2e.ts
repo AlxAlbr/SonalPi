@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, ouvrirGestionLocuteurs, retourCorpus, selectionner, spotlightSur } from './util'
+import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, retourCorpus, selectionner, spotlightSur } from './util'
 
 import { preparerApprentissage } from './exemples-util'
 
@@ -36,7 +36,6 @@ async function preparerPasAPas(
 }
 
 test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une variable', async () => {
-  test.skip(true, 'Les sections Notes et Données sont temporairement retirées de la vue Entretien.')
   const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-'))
   const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-sources-'))
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-corpus-'))
@@ -152,9 +151,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.zone-audio .zone-fichier')).toContainText('2RetraiteAnticipee.mp3')
   await spotlightSur(page, '[data-tour="valider"]')
   await page.locator('.modale-ajout .valider').click()
-  await expect(page.locator('.modale-ajout')).not.toBeVisible({ timeout: 20_000 })
-  // Le 2e entretien (audio seul, au texte vide) existe et s'ouvre.
-  // Ici, la note se crée dans l'entretien, avec la consigne dans le panneau Notes.
+  // Le 2e entretien (audio seul, au texte vide) existe et s'OUVRE (contrairement à l'étape 1).
+  // Ici, la note se crée DANS l'entretien. La consigne devient un PANNEAU sous les onglets,
+  // et le TROU guide l'onglet Notes (pas de bulle qui masquerait la saisie).
   // Le panneau raconte le reste du scénario (lier le SRT plus tard).
   await expect(page.locator('.carte-ent')).toHaveCount(2)
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 5_000 })
@@ -162,10 +161,12 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp')).toContainText('à chaud')
   await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'false')
   await page.locator('.guide-pp .details-pp').click()
-  await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('.guide-pp')).toContainText('transcription')
-  // Le geste réel, guidé champ par champ : « + Note », titre,
+  await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'true')
+  await spotlightSur(page, '[data-tour="onglet-notes"]')
+  // Le geste réel, guidé champ par champ : onglet Notes, « + Note », titre,
   // corps, puis Valider — le trou suit chaque cible.
+  await page.locator('.onglets button[data-onglet="notes"]').click()
   await spotlightSur(page, '[data-tour="creer-note"]')
   await page.locator('button.mini', { hasText: '+ Note' }).click()
   await expect(page.locator('.modale-note-fenetre')).toBeVisible()
@@ -212,9 +213,10 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
 
   // --- Étape 4 : Renommer les locuteurs (lancée AU CLIC) ---
-  // L'entretien s'ouvre avec la consigne dans le panneau Locuteurs.
+  // L'entretien s'ouvre sur l'ACCUEIL (vue d'ensemble + conseils).
+  // La consigne devient un panneau sous les onglets, avant le panneau métier.
   // Aucun trou : les deux champs de nom restent accessibles.
-  // Les panneaux restent visibles sans action de navigation.
+  // Le geste commence par l'onglet Locuteurs (icone) : on le clique pour afficher la liste.
   await ouvrirCatalogueParcours(page)
   await page.locator('.liste-pp li').nth(3).locator('.ligne-pp').click()
   await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
@@ -225,6 +227,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
 
   // Le suivi global reste disponible dans l'entretien sans rappel en double.
+  await page.locator('.onglets button[data-onglet="maison"]').click()
   await expect(page.locator('.rappel-parcours')).toHaveCount(0)
   const suiviParcours = page.getByTestId('resume-parcours-global')
   await expect(suiviParcours).toContainText('Renommer les locuteurs')
@@ -236,10 +239,16 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.guide-pp')).toBeVisible()
 
+  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
   await expect(page.locator('.guide-pp')).toBeVisible()
-  await ouvrirGestionLocuteurs(page)
   await expect(page.locator('.liste-loc')).toBeVisible()
-  await expect(page.locator('[data-tour="gestion-locuteurs"] .guide-pp')).toBeVisible()
+  await expect.poll(async () =>
+    page.locator('[data-tour="ancre-guide-pp"]').evaluate((ancre) => {
+      const guide = ancre.querySelector('.guide-pp')
+      const liste = document.querySelector('.liste-loc')
+      return !!guide && !!liste && Boolean(guide.compareDocumentPosition(liste) & Node.DOCUMENT_POSITION_FOLLOWING)
+    }),
+  ).toBe(true)
   // Ordre d'affichage = ordre d'apparition dans le SRT : Speaker 1 (l'ingénieure,
   // qui pose les questions) est la 1re ligne, Speaker 0 (Fatima) la 2ᵉ.
   const champs = page.locator('.nom-loc')
@@ -266,7 +275,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // Un clic seul (curseur) peut tomber sur un espace où rien ne se code ;
   // la sélection garantit l'annotation (même helper que les tests audio).
   await selectionner(page, 'me recevoir')
-  await page.locator('[data-onglet="themes"]').click()
+  await page.locator('.onglets button[data-onglet="themes"]').click()
   await page.locator('.theme-coder').first().click()
   // Une annotation de codage existe → étape 5 cochée (guidage de nouveau arrêté)
   // et retour automatique au parcours dans l'Accueil du corpus.
@@ -283,7 +292,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await spotlightSur(page, '[data-tour="onglet-donnees"]')
   // La cible = onglet Données. La variable « Ville » (portée locuteur,
   // saisie libre) est pré-créée par le mode pas-à-pas → champ texte par locuteur.
-  await page.locator('[data-onglet="donnees"]').click()
+  await page.locator('.onglets button[data-onglet="donnees"]').click()
   const saisieLibre = page.locator('.panneau.donnees .saisie-eav-libre').first()
   await expect(saisieLibre).toBeVisible({ timeout: 5_000 })
   await saisieLibre.fill('Villebourg')
