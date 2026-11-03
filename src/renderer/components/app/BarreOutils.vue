@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
-import icoDocuments from '../../assets/icones/documents.png'
-import icoThemes from '../../assets/icones/themes.png'
-import icoAnalyses from '../../assets/icones/analyses-croisees.svg'
-import icoExporter from '../../assets/icones/exporter.svg'
+import icoPlanning from '../../assets/icones/espace-planning.svg'
+import icoEdition from '../../assets/icones/espace-edition.svg'
+import icoAnalyse from '../../assets/icones/espace-analyse.svg'
+import icoExport from '../../assets/icones/espace-export.svg'
 
 // La barre déclenche les mêmes ouvertures que les onglets et le guidage.
 const {
@@ -33,7 +33,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         aria-label="Préparer et suivre"
         :aria-current="preparationActive ? 'page' : undefined"
         @click="entrerPreparation()"
-      ><img :src="icoDocuments" alt="" /></button>
+      ><img :src="icoPlanning" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-traiter"
@@ -42,7 +42,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         aria-label="Importer et traiter"
         :aria-current="traitementActif ? 'page' : undefined"
         @click="revenirTraitement()"
-      ><img :src="icoThemes" alt="" /></button>
+      ><img :src="icoEdition" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-analyser"
@@ -51,7 +51,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         aria-label="Analyser et interpréter"
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
-      ><img :src="icoAnalyses" alt="" /></button>
+      ><img :src="icoAnalyse" alt="" /></button>
       <button
         class="outil espace"
         data-tour="ouvrir-organiser"
@@ -60,7 +60,7 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
         aria-label="Organiser et exporter"
         :aria-current="organisationActive ? 'page' : undefined"
         @click="entrerOrganisation()"
-      ><img :src="icoExporter" alt="" /></button>
+      ><img :src="icoExport" alt="" /></button>
     </div>
   </nav>
 </template>
