@@ -52,41 +52,31 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Ouvrir l’entretien' }).click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.getByText('Lié à « K. Dupont » — le nom saisi reste local.', { exact: true })).toHaveCount(0)
-    await page.locator('#onglet-outils-selection').click()
     await ouvrirGestionLocuteurs(page)
-    const panneauSuperieur = page.locator('.entretien-ecran .rangee-superieure')
-    const panneauInferieur = page.locator('.entretien-ecran .rangee-inferieure')
-    await expect(panneauSuperieur.locator('.panneau-outil')).toHaveCount(2)
-    await expect(panneauInferieur.locator('.panneau-outil')).toHaveCount(3)
-    await expect(page.locator('.entretien-ecran .panneau-outil')).toHaveCount(5)
-    await expect(page.locator('.entretien-ecran .panneau-outil .panneau')).toHaveCount(5)
-    await expect(panneauSuperieur).toContainText('Locuteurs')
-    await expect(panneauInferieur).toContainText('Notes')
+    const panneauOutils = page.locator('.entretien-ecran .contenu-outils')
+    await expect(page.getByRole('tab')).toHaveCount(0)
+    await expect(panneauOutils.locator('.panneau-outil')).toHaveCount(4)
+    await expect(panneauOutils.locator('.panneau')).toHaveCount(4)
+    await expect(panneauOutils.locator('.panneau-outil h3').allTextContents()).resolves.toEqual([
+      'Locuteurs',
+      'Pseudonymisation du texte',
+      'Pondération',
+      'Thématiques',
+    ])
     await expect(page.locator('.entretien-ecran button[data-onglet="maison"], .entretien-ecran button[data-onglet="journal"]')).toHaveCount(0)
-    await expect(panneauSuperieur).toHaveCSS('position', 'sticky')
-    await expect(panneauInferieur).toHaveCSS('position', 'sticky')
-    for (const nom of ['locuteurs', 'themes', 'notes', 'anon', 'donnees']) {
+    await expect(panneauOutils).toHaveCSS('overflow-y', 'auto')
+    await expect(page.locator('.entretien-ecran .panneau-notes, .entretien-ecran .panneau-donnees')).toHaveCount(0)
+    for (const nom of ['locuteurs', 'themes', 'anon', 'ponderations']) {
       const panneauOutil = page.locator(`.entretien-ecran .panneau-${nom}`)
       await expect(panneauOutil).toBeVisible()
-      await expect(panneauOutil.locator('.corpus-tete h3 img')).toBeVisible()
-      await expect(panneauOutil.locator('.panneau')).toHaveCSS('height', '144px')
-      await expect(panneauOutil.locator('.panneau')).toHaveCSS('overflow', 'auto')
+      if (nom !== 'ponderations') {
+        await expect(panneauOutil.locator('.corpus-tete h3 img')).toBeVisible()
+      }
     }
-    await page.getByRole('button', { name: '+ Note', exact: true }).click()
-    await page.getByLabel('Titre (optionnel)').fill('Identité vérifiée')
-    await page.getByRole('group', { name: 'Concerne (optionnel)' }).getByRole('checkbox', { name: 'Karine' }).check()
-    await page.locator('.modale-note-pied').getByRole('button', { name: 'Valider' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toBeVisible()
     await expect(panneau.getByRole('heading', { name: 'Personne · K. Dupont' })).toBeVisible()
-    await expect(panneau.getByText('Notes liées (1)')).toBeVisible()
-    await panneau.getByText('Notes liées (1)').click()
-    await expect(panneau.getByText('Identité vérifiée')).toBeVisible()
-    await panneau.getByRole('button', { name: 'Ouvrir l’entretien dans Notes' }).click()
-    await expect(page.locator('.entretien-ecran .panneau-notes')).toBeVisible()
-    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
-  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Modifier l’association…', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ne plus associer', exact: true }).click()

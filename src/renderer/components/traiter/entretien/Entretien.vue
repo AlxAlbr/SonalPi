@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -7,15 +7,12 @@ import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import ResumeAssociationsPassage from './ResumeAssociationsPassage.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
-import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
 import PanneauLocuteursEntretien from './PanneauLocuteursEntretien.vue'
-import PanneauNotesEntretien from './PanneauNotesEntretien.vue'
 import PanneauThemesEntretien from './PanneauThemesEntretien.vue'
 import { utiliserSonal } from '../../../composables/sonal'
 
 const {
   ongletDroite,
-  selectionPassage,
   rechercheOuverte,
   rechercheTexte,
   remplacementTexte,
@@ -46,23 +43,6 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
 } = utiliserSonal()
-
-const ongletOutils = computed({
-  get: () => (ongletDroite.value === 'locuteurs' || ongletDroite.value === 'themes' ? 'selection' : 'entretien'),
-  set: (onglet: 'entretien' | 'selection') => {
-    ongletDroite.value = onglet === 'selection' ? 'themes' : 'notes'
-  },
-})
-
-watch(selectionPassage, (selection) => {
-  if (selection) {
-    ongletDroite.value = 'themes'
-  }
-})
-
-function choisirOngletOutils(onglet: 'entretien' | 'selection') {
-  ongletOutils.value = onglet
-}
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -136,73 +116,30 @@ function ouvrirRecueilsDepuisSelection() {
 
         <div class="ancre-guide-global" data-tour="ancre-guide-pp"></div>
 
-        <section class="zone-outils" aria-label="Outils de l'entretien">
-          <div class="onglets-outils" role="tablist" aria-label="Outils">
-            <button
-              id="onglet-outils-entretien"
-              type="button"
-              role="tab"
-              :aria-selected="ongletOutils === 'entretien'"
-              aria-controls="panneau-outils-entretien"
-              :class="{ actif: ongletOutils === 'entretien' }"
-              @click="choisirOngletOutils('entretien')"
-            >Entretien</button>
-            <button
-              id="onglet-outils-selection"
-              type="button"
-              role="tab"
-              data-onglet="themes"
-              data-tour="onglet-themes"
-              :aria-selected="ongletOutils === 'selection'"
-              aria-controls="panneau-outils-selection"
-              :class="{ actif: ongletOutils === 'selection' }"
-              @click="choisirOngletOutils('selection')"
-            >Sélection</button>
-          </div>
-
-          <div
-            id="panneau-outils-entretien"
-            class="contenu-outils contenu-entretien"
-            role="tabpanel"
-            aria-labelledby="onglet-outils-entretien"
-            v-show="ongletOutils === 'entretien'"
-          >
-            <div class="panneau-outil panneau-notes" @pointerdown="ongletDroite = 'notes'">
-              <div data-tour="ancre-guide-pp-notes"></div>
-              <PanneauNotesEntretien :lecture-seule="roContenu" />
+        <div class="colonne-outils">
+          <section id="panneau-outils-entretien" class="zone-outils" aria-label="Outils de l'entretien">
+            <div id="contenu-outils-entretien" class="contenu-outils contenu-entretien">
+              <div class="panneau-outil panneau-locuteurs" @pointerdown="ongletDroite = 'locuteurs'">
+                <div data-tour="ancre-guide-pp-locuteurs"></div>
+                <PanneauLocuteursEntretien :actif="true" :lecture-seule="roContenu" />
+              </div>
+              <div class="panneau-outil panneau-anon" @pointerdown="ongletDroite = 'anon'">
+                <PanneauAnonymisationEntretien
+                  :actif="true"
+                  :lecture-seule-contenu="roContenu"
+                />
+              </div>
+              <div class="panneau-outil panneau-ponderations" @pointerdown="ongletDroite = 'themes'">
+                <PanneauThemesEntretien partie="ponderation" :lecture-seule-contenu="roContenu" />
+              </div>
+              <div class="panneau-outil panneau-themes" @pointerdown="ongletDroite = 'themes'">
+                <div data-tour="ancre-guide-pp-themes"></div>
+                <PanneauThemesEntretien :lecture-seule-contenu="roContenu" />
+              </div>
             </div>
-            <div class="panneau-outil panneau-donnees" @pointerdown="ongletDroite = 'donnees'">
-              <div data-tour="ancre-guide-pp-donnees"></div>
-              <PanneauDonneesEntretien :lecture-seule="roContenu" />
-            </div>
-            <div class="panneau-outil panneau-anon" @pointerdown="ongletDroite = 'anon'">
-              <PanneauAnonymisationEntretien
-                :actif="ongletOutils === 'entretien'"
-                :lecture-seule-contenu="roContenu"
-              />
-            </div>
-          </div>
-
-          <div
-            id="panneau-outils-selection"
-            class="contenu-outils contenu-selection"
-            role="tabpanel"
-            aria-labelledby="onglet-outils-selection"
-            v-show="ongletOutils === 'selection'"
-          >
-            <div class="panneau-outil panneau-locuteurs" @pointerdown="ongletDroite = 'locuteurs'">
-              <div data-tour="ancre-guide-pp-locuteurs"></div>
-              <PanneauLocuteursEntretien :actif="ongletOutils === 'selection'" :lecture-seule="roContenu" />
-            </div>
-            <div class="panneau-outil panneau-themes" @pointerdown="ongletDroite = 'themes'">
-              <div data-tour="ancre-guide-pp-themes"></div>
-              <PanneauThemesEntretien :lecture-seule-contenu="roContenu" />
-            </div>
-            <div class="panneau-outil panneau-ponderations" @pointerdown="ongletDroite = 'themes'">
-              <PanneauThemesEntretien partie="ponderation" :lecture-seule-contenu="roContenu" />
-            </div>
-          </div>
-        </section>
+          </section>
+          <ResumeAssociationsPassage />
+        </div>
 
         <div class="colonne-droite">
           <div v-if="!estVideo" class="lecteur-ancre">
@@ -221,7 +158,6 @@ function ouvrirRecueilsDepuisSelection() {
           <section class="section-texte-entretien" aria-label="Texte de l’entretien">
             <EditorContent :editor="editor" class="cadre" />
           </section>
-          <ResumeAssociationsPassage />
         </div>
 
       </div>
@@ -297,20 +233,22 @@ function ouvrirRecueilsDepuisSelection() {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, min(38vw, 30rem));
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.65rem;
-  align-items: start;
+  align-items: stretch;
+  height: calc(100dvh - var(--entete-h) - 2.4rem);
+  min-height: 0;
   grid-template-areas:
-    'guide'
-    'outils'
-    'droite';
+    'guide guide'
+    'droite outils';
 }
 .grille-ent.avec-barre {
+  grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas:
-    'barre'
-    'guide'
-    'outils'
-    'droite';
+    'barre barre'
+    'guide guide'
+    'droite outils';
 }
 .barre {
   grid-area: barre;
@@ -369,8 +307,9 @@ function ouvrirRecueilsDepuisSelection() {
   background: #fff;
 }
 .section-texte-entretien {
-  height: clamp(20rem, 55vh, 48rem);
+  flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -380,69 +319,41 @@ function ouvrirRecueilsDepuisSelection() {
   box-sizing: border-box;
 }
 .zone-outils {
-  grid-area: outils;
-  height: 9rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-width: 0;
+  min-height: 0;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid #ddd;
   border-radius: 8px;
   background: #fafafe;
 }
-.onglets-outils {
-  display: flex;
-  align-items: stretch;
-  gap: 0.25rem;
-  height: 2rem;
-  padding: 0 0.5rem;
-  border-bottom: 1px solid #ddd;
-}
-.onglets-outils button {
-  padding: 0.25rem 0.75rem;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: #555;
-  font: inherit;
-  cursor: pointer;
-}
-.onglets-outils button.actif {
-  border-bottom-color: #2e73d8;
-  color: #1565c0;
-  font-weight: 600;
-}
-.onglets-outils button:focus-visible {
-  outline: 2px solid #2e73d8;
-  outline-offset: -2px;
-}
 .contenu-outils {
-  display: grid;
-  gap: 0.5rem;
-  height: calc(100% - 2rem);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
   min-width: 0;
   box-sizing: border-box;
   padding: 0.25rem 0.5rem;
-  overflow: hidden;
-}
-.contenu-entretien {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.contenu-selection {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: auto;
+  scrollbar-width: thin;
 }
 .panneau-outil {
   box-sizing: border-box;
-  height: 100%;
+  flex: none;
   min-width: 0;
-  overflow: auto;
-  scrollbar-width: thin;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e5e5ef;
 }
 .panneau-outil :deep(.panneau) {
   box-sizing: border-box;
-  height: 100%;
+  height: auto;
   min-width: 0;
-  overflow: auto;
-  scrollbar-width: thin;
+  overflow: visible;
   padding: 0.35rem;
   border: 0;
   border-radius: 0;
@@ -469,7 +380,47 @@ function ouvrirRecueilsDepuisSelection() {
   grid-area: droite;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
+}
+.colonne-outils {
+  grid-area: outils;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .grille-ent {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    height: auto;
+    grid-template-areas:
+      'guide'
+      'droite'
+      'outils';
+  }
+  .grille-ent.avec-barre {
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas:
+      'barre'
+      'guide'
+      'droite'
+      'outils';
+  }
+  .colonne-droite {
+    height: 70vh;
+    min-height: 24rem;
+  }
+  .colonne-outils {
+    height: auto;
+  }
+  .zone-outils {
+    height: 55vh;
+    min-height: 24rem;
+  }
 }
 .lecteur-ancre {
   position: sticky;

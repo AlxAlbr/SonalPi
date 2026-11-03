@@ -43,29 +43,23 @@ async function selectionnerBloc(page: Page, n: number, i = 0) {
   )
 }
 
-test('un brouillon de note survit dans le panneau Entretien', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-brouillon-note-'))
+test('le panneau Entretien masque temporairement Notes et Données', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-panneau-outils-'))
   const app = await lancer(dir)
-  const page = await app.firstWindow()
-  await entrerCorpus(page)
-  await entrerEntretien(page)
-
-  await page.locator('[data-onglet="notes"]').click()
-  await page.locator('button.mini', { hasText: '+ Note' }).click()
-  await page.locator('.champ-titre-note input').fill('Titre en cours')
-  await page.locator('.zone-corps-note').fill('Corps en cours')
-
-  await expect(page.locator('.panneau.notes')).toBeVisible()
-  await expect(page.locator('.panneau.donnees')).toBeVisible()
-  await expect(page.locator('.panneau.anon')).toBeVisible()
-  await expect(page.locator('#panneau-outils-selection')).not.toBeVisible()
-
-  await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
-  await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
-  await app.close()
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    await expect(page.getByRole('tab')).toHaveCount(1)
+    await expect(page.locator('.panneau-notes, .panneau-donnees')).toHaveCount(0)
+    await expect(page.locator('.panneau-outil')).toHaveCount(4)
+  } finally {
+    await app.close()
+  }
 })
 
 test('feuille — lier un passage de note à un commentaire', async () => {
+  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const dir = mkdtempSync(join(tmpdir(), 'sonal-feuille-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()

@@ -36,6 +36,7 @@ async function preparerPasAPas(
 }
 
 test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une variable', async () => {
+  test.skip(true, 'Les sections Notes et Données sont temporairement retirées de la vue Entretien.')
   const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-'))
   const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-sources-'))
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-corpus-'))

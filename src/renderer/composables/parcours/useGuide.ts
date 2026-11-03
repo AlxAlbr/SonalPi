@@ -208,6 +208,9 @@ export function useGuide(deps: DepsGuide) {
           }
           return "Cliquez sur « Valider » pour créer l'entretien, puis ouvrez ses Notes."
         }
+        if (!document.querySelector('.panneau-notes')) {
+          return 'La section Notes est temporairement indisponible dans cette vue.'
+        }
         // Dans l'entretien : la note à chaud, champ par champ.
         const modale = document.querySelector('.modale-note')
         if (!modale) {
@@ -385,7 +388,9 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Dans le panneau Données, renseignez une valeur, par exemple le lieu de l'entretien."
+          ? document.querySelector('.panneau-donnees')
+            ? "Dans le panneau Données, renseignez une valeur, par exemple le lieu de l'entretien."
+            : 'La section Données est temporairement indisponible dans cette vue.'
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "modifier ou compléter les valeurs saisies",
       fini: () =>

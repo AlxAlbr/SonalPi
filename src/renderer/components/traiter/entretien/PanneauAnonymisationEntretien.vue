@@ -308,7 +308,7 @@ function alimenterDepuisSelection() {
 // ProseMirror propage la sélection DOM de façon ASYNCHRONE (`selectionchange`) :
 // plutôt que deviner un délai fixe, on surveille `selectionAnon`, en attendant deux lectures consécutives égales après le relâchement.
 // On lit donc la sélection FINALE, jamais un état intermédiaire.
-// Et seulement si l'onglet Anon est ouvert ; ailleurs, la sélection reste neutre.
+// La sélection finale remplit la ligne active après le relâchement.
 const RELACHE_STEP = 16 // ms — cadence de surveillance (un frame)
 const RELACHE_STABILITE = 2 // lectures consécutives égales → sélection figée
 const RELACHE_CAP = 250 // ms — marge pire cas (alors on remplit quand même)

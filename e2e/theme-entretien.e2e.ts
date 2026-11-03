@@ -22,25 +22,54 @@ import {
  *  définition (store).
  */
 
-test('Entretien est le panneau initial et une sélection active Sélection', async () => {
+test('Entretien affiche un panneau unique avec les outils dans l’ordre demandé', async () => {
   const { app, page } = await ouvrir('sonal-tabs-selection-')
-  const tabEntretien = page.getByRole('tab', { name: 'Entretien' })
-  const tabSelection = page.locator('#onglet-outils-selection')
+  const panneau = page.locator('#panneau-outils-entretien')
 
-  await expect(tabSelection).toHaveText('Sélection')
-  await expect(tabEntretien).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('#panneau-outils-entretien')).toBeVisible()
-  await expect(page.locator('#panneau-outils-selection')).not.toBeVisible()
+  await expect(page.getByRole('tab')).toHaveCount(0)
+  await expect(panneau).toBeVisible()
+  await expect(panneau.locator('.panneau-outil')).toHaveCount(4)
+  expect(await panneau.locator('.panneau-outil h3').allTextContents()).toEqual([
+    'Locuteurs',
+    'Pseudonymisation du texte',
+    'Pondération',
+    'Thématiques',
+  ])
+  await expect(page.locator('.contenu-outils')).toHaveCSS('overflow-y', 'auto')
   await selectionner(page, 'Karine')
-  await expect(tabSelection).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('#panneau-outils-selection')).toBeVisible()
+  await expect(page.locator('.resume-associations')).toBeVisible()
+  await expect(page.locator('.zone-outils')).toHaveCSS('border-top-width', '1px')
+  await page.locator('.editeur').evaluate((el) => { (el as HTMLElement).style.minHeight = '1500px' })
+  const { panneauHaut, resumeBas, entretienHaut, entretienBas, scroll, hauteurContenu } =
+    await page.evaluate(() => {
+      const tools = document.querySelector('.zone-outils')!.getBoundingClientRect()
+      const resume = document.querySelector('.resume-associations')!.getBoundingClientRect()
+      const text = document.querySelector('.section-texte-entretien')!
+      const bounds = text.getBoundingClientRect()
+      return {
+        panneauHaut: tools.top,
+        resumeBas: resume.bottom,
+        entretienHaut: bounds.top,
+        entretienBas: bounds.bottom,
+        scroll: getComputedStyle(text).overflowY,
+        hauteurContenu: text.scrollHeight - text.clientHeight,
+      }
+    })
+  expect(panneauHaut).toBeLessThanOrEqual(entretienHaut + 2)
+  expect(resumeBas).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight))
+  expect(entretienBas).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight))
+  expect(scroll).toBe('auto')
+  expect(hauteurContenu).toBeGreaterThan(0)
+  await page.locator('.section-texte-entretien').evaluate((el) => { el.scrollTop = 100 })
+  expect(await page.locator('.section-texte-entretien').evaluate((el) => el.scrollTop)).toBe(100)
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  await expect(page.locator('.panneau-notes, .panneau-donnees')).toHaveCount(0)
   await expect(page.locator('.panneau-themes .theme-coder').first()).toBeVisible()
   await app.close()
 })
 
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
   const { app, page } = await ouvrir('sonal-ds10-liste-')
-  await page.locator('[data-onglet="themes"]').click()
 
   // Les pondérations sont dans leur propre panneau ; les 25 ajouts s'ajoutent
   // aux 3 thèmes ordinaires du corpus.
@@ -50,10 +79,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
   await fermerEditionThemes(page)
   await expect(page.locator('.panneau-themes .theme-coder')).toHaveCount(28)
 
-  // Le dernier thème créé n'est PAS visible tant que le texte n'a pas défilé :
-  // le panneau (collant) débordait sous le bord bas de la fenêtre.
-  // Ce test couvre la régression ; avant, il fallait descendre dans le texte pour le voir —
-  // les deux étaient liés.
+  // Les thèmes longs restent accessibles dans le défilement du panneau latéral.
   await page.evaluate(() => window.scrollTo(0, 0))
   const dernier = page.locator('.panneau-themes .theme-coder').last()
   await expect
@@ -64,9 +90,9 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
     })
     .toBe(true)
 
-  // Un défilement INTERNE du panneau le rend visible, sans toucher au texte :
+  // Le panneau défile sans toucher au texte :
   // on reste au début de l'entretien.
-  await page.locator('.panneau-themes .panneau').evaluate((el) => {
+  await page.locator('.contenu-outils').evaluate((el) => {
     el.scrollTop = el.scrollHeight
   })
   const poche = await dernier.boundingBox()
@@ -82,8 +108,6 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
 
 test('créer un thème depuis l’entretien (fenêtre d’édition) → apparaît, prêt à coder', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
-  // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
-  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
   await page.locator('.modale-themes .mini', { hasText: '+ Thème' }).click()
   await expect(page.locator('.liste-thm li[data-nom="Nouveau thème"]')).toHaveCount(1)
@@ -140,8 +164,6 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   // refus affiché DANS la fenêtre d'édition.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
-  // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
-  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await expect(page.locator('.modale-themes .msg-thm')).toContainText('1 autre')
@@ -203,11 +225,9 @@ test('clic droit sur un thème : bascule actif ↔ passif sans ouvrir l\'éditio
 
 test('panneau Sélection : la pondération est une troisième section et code un niveau', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
-  await page.locator('[data-onglet="themes"]').click()
-
   const section = page.locator('.section-ponderations')
   await expect(section).toBeVisible()
-  await expect(page.locator('.contenu-selection > .panneau-outil')).toHaveCount(3)
+  await expect(page.locator('.contenu-entretien > .panneau-outil')).toHaveCount(4)
   await expect(page.locator('.panneau-ponderations')).toContainText('Pondération')
   await expect(section.locator('.bouton-ponderation .theme-nom')).toHaveText([
     'Normal',
@@ -225,7 +245,6 @@ test('panneau Sélection : la pondération est une troisième section et code un
 
 test('créer un thème : le champ nom est auto-focusé et présélectionné', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
-  await page.locator('[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
 
   // « + Thème » → le champ nom du nouveau thème reçoit le focus.

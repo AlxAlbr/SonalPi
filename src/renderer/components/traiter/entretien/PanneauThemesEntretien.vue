@@ -76,7 +76,7 @@ function basculerRepli(id: string) {
 <template>
   <aside class="panneau themes-coder">
     <div v-if="props.partie === 'themes'" class="corpus-tete">
-      <h3><img class="icone-entete-panneau" :src="icoThemes" alt="" />Thématiques</h3>
+      <h3 data-onglet="themes" data-tour="onglet-themes"><img class="icone-entete-panneau" :src="icoThemes" alt="" />Thématiques</h3>
       <button v-if="!lectureSeule" class="mini" @click="ajouterThemeDepuisPanneau">+ Thème</button>
       <button
         v-if="!lectureSeule"

@@ -49,6 +49,7 @@ async function exporter(app: ElectronApplication, page: Page, chemin: string): P
 }
 
 test('manuel : créer, relire et exporter les notes du terrain fictif sans modifier la transcription', async () => {
+  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-notes-'))
   const dossier = join(racine, 'exemple')
   const app = await lancer(join(racine, 'profil'), { executablePath: process.env.NOTES_E2E_EXECUTABLE })
@@ -203,6 +204,7 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
 })
 
 test('manuel : créer une catégorie ou changer sa couleur est distinct de valider une note', async () => {
+  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-categorie-note-'))
   const app = await lancer(racine, { executablePath: process.env.NOTES_E2E_EXECUTABLE })
   try {
@@ -244,6 +246,7 @@ test('manuel : créer une catégorie ou changer sa couleur est distinct de valid
 })
 
 test('manuel : une session annoncée en lecture seule laisse consulter et copier une note privée', async () => {
+  test.skip(true, 'Le panneau Notes est temporairement retiré de la vue Entretien.')
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-notes-lecture-'))
   const app = await lancer(racine, { executablePath: process.env.NOTES_E2E_EXECUTABLE })
   try {

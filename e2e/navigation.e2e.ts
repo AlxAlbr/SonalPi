@@ -109,9 +109,11 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
 
-  // L'entretien s'ouvre par défaut sur ses outils de prise de notes et de données.
-  await expect(page.getByRole('tab', { name: 'Entretien' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('aside.panneau.notes')).toBeVisible()
+  // L'entretien s'ouvre sur son panneau unique d'outils.
+  await expect(page.getByRole('tab')).toHaveCount(0)
+  await expect(page.locator('.panneau-locuteurs .panneau')).toBeVisible()
+  await expect(page.locator('.panneau-anon .panneau')).toBeVisible()
+  await expect(page.locator('.panneau-notes, .panneau-donnees')).toHaveCount(0)
   await expect(page.locator('.entretien-ecran .barre')).toHaveCount(0)
 
   // Le bouton ferme l’entretien et revient au corpus.
