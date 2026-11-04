@@ -123,7 +123,6 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(Math.abs(geometrie.panneau.height - geometrie.volet.height)).toBeLessThan(2)
   expect(geometrie.panneau.rayonHautGauche).toBe('8px')
   expect(Math.abs(geometrie.espaceEditeur - bordReplie.espaceEditeur)).toBeLessThan(2)
-  await page.locator('button.mini', { hasText: '+ Note' }).click()
   await page.locator('.champ-titre-note input').fill('Titre en cours')
   await page.locator('.zone-corps-note').fill('Corps en cours')
 
@@ -137,6 +136,10 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
 
   await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
   await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
+  await page.locator('.creer-note-inline').click()
+  await expect(page.locator('.carte-note')).toContainText('Titre en cours')
+  await expect(page.locator('.champ-titre-note input')).toHaveValue('')
+  await expect(page.locator('.zone-corps-note')).toHaveText('')
   await app.close()
 })
 
@@ -158,12 +161,13 @@ test('feuille — lier un passage de note à un commentaire', async () => {
 
   // 2. Onglet Notes → créer une note avec du texte.
   await page.locator('.onglets button[data-onglet="notes"]').click()
-  await page.locator('button.mini', { hasText: '+ Note' }).click()
-  await expect(page.locator('.modale-note-fenetre')).toBeVisible()
+  const formulaire = page.locator('.nouvelle-note-inline')
   await page.locator('.zone-corps-note').click()
   await page.keyboard.type('Une note de terrain importante pour la demonstration')
-  await page.locator('.modale-note-pied .principal').click()
+  await formulaire.getByRole('button', { name: 'Créer une note', exact: true }).click()
   await expect(page.locator('.carte-note')).toHaveCount(1)
+  await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('')
+  await expect(formulaire.locator('.zone-corps-note')).toHaveText('')
 
   // 3. Vue feuille : sélection dans le bloc, puis bouton Lier.
   await page.locator('.notes-outils button[title*="Vue feuille"]').click()

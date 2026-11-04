@@ -164,19 +164,16 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.guide-pp')).toContainText('transcription')
   await expect(page.locator('.guide-pp .details-pp')).toHaveAttribute('aria-expanded', 'true')
   await spotlightSur(page, '[data-tour="onglet-notes"]')
-  // Le geste réel, guidé champ par champ : onglet Notes, « + Note », titre,
-  // corps, puis Valider — le trou suit chaque cible.
+  // Le geste réel, guidé champ par champ : onglet Notes, titre, corps,
+  // puis création — le trou suit chaque cible.
   await page.locator('.onglets button[data-onglet="notes"]').click()
-  await spotlightSur(page, '[data-tour="creer-note"]')
-  await page.locator('button.mini', { hasText: '+ Note' }).click()
-  await expect(page.locator('.modale-note-fenetre')).toBeVisible()
-  await spotlightSur(page, '.modale-note .champ-titre-note input')
-  await page.locator('.modale-note .champ-titre-note input').fill('Impressions du retour d’entretien')
-  await spotlightSur(page, '.modale-note .zone-corps-note')
-  await page.locator('.zone-corps-note').click()
+  await spotlightSur(page, '[data-tour="note-titre"]')
+  await page.locator('[data-tour="note-titre"]').fill('Impressions du retour d’entretien')
+  await spotlightSur(page, '.nouvelle-note-inline .zone-corps-note')
+  await page.locator('.nouvelle-note-inline .zone-corps-note').click()
   await page.keyboard.type('Le projet semble hésitant, à vérifier à la relecture.')
-  await spotlightSur(page, '.modale-note-pied .principal')
-  await page.locator('.modale-note-pied .principal').click()
+  await spotlightSur(page, '[data-tour="creer-note"]')
+  await page.locator('[data-tour="creer-note"]').click()
   // Le second entretien est en place (audio référencé) et une note existe →
   // étape 2 cochée, la consigne-panneau disparaît. On RESTE dans l'entretien —
   // pas de retour automatique à l'écran Corpus : le message « terminé »

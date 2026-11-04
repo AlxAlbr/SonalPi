@@ -36,6 +36,7 @@ export function useNotesEntretien(deps: {
 }) {
   const notes = ref<Note[]>([])
   const brouillonNote = ref<BrouillonNote | null>(null)
+  const brouillonEditionNote = ref<BrouillonNote | null>(null)
   const avertissementNote = ref('')
   const menuLiensNote = ref<{ x: number; y: number; liens: string[] } | null>(null)
   let passageLie: HTMLElement | null = null
@@ -50,6 +51,7 @@ export function useNotesEntretien(deps: {
 
   function reinitialiserEtatVolatil() {
     brouillonNote.value = null
+    brouillonEditionNote.value = null
     avertissementNote.value = ''
     fermerMenuLiensNote()
   }
@@ -88,7 +90,7 @@ export function useNotesEntretien(deps: {
     const note = notes.value.find((candidate) => candidate.id === id)
     if (!note) return
     avertissementNote.value = ''
-    brouillonNote.value = reactive<BrouillonNote>({
+    brouillonEditionNote.value = reactive<BrouillonNote>({
       id: note.id,
       categorieId: note.categorieId,
       titre: note.titre,
@@ -100,8 +102,7 @@ export function useNotesEntretien(deps: {
     })
   }
 
-  function validerNote() {
-    const brouillon = brouillonNote.value
+  function validerBrouillonNote(brouillon: BrouillonNote | null) {
     if (!brouillon) return
     if (brouillon.categorieId === ' autre') {
       avertissementNote.value =
@@ -142,12 +143,21 @@ export function useNotesEntretien(deps: {
         modifieLe: null,
       })
     }
-    brouillonNote.value = null
+    if (brouillon.id) brouillonEditionNote.value = null
+    else brouillonNote.value = null
     deps.planifierSauvegarde()
   }
 
+  function validerNote() {
+    validerBrouillonNote(brouillonNote.value)
+  }
+
+  function validerEditionNote() {
+    validerBrouillonNote(brouillonEditionNote.value)
+  }
+
   function annulerNote() {
-    brouillonNote.value = null
+    brouillonEditionNote.value = null
   }
 
   function ecrireCorpsNote(id: string, htmlBrut: string) {
@@ -247,6 +257,14 @@ export function useNotesEntretien(deps: {
     }
   }
 
+  function sauvegarderCorpsZone(zone: HTMLElement) {
+    if (brouillonNote.value && !zone.hasAttribute('data-note-id')) {
+      brouillonNote.value.corps = zone.innerHTML
+    } else {
+      syncZoneHorsModale?.(zone)
+    }
+  }
+
   function lierPassage(event: MouseEvent, zone: HTMLElement) {
     const selection = document.getSelection()
     const existant = selection
@@ -258,8 +276,7 @@ export function useNotesEntretien(deps: {
     }
     const passage = envelopperSelection(zone, 'em')
     if (!passage) return
-    if (brouillonNote.value) brouillonNote.value.corps = zone.innerHTML
-    else syncZoneHorsModale?.(zone)
+    sauvegarderCorpsZone(zone)
     ouvrirMenuSur(passage, zone, event)
   }
 
@@ -289,8 +306,7 @@ export function useNotesEntretien(deps: {
       if (passageLie.tagName.toLowerCase() === 'em') deballer(passageLie)
     }
     decoreRefsCommentaires(zoneLiee, document, resolverCommentaires)
-    if (brouillonNote.value) brouillonNote.value.corps = zoneLiee.innerHTML
-    else syncZoneHorsModale?.(zoneLiee)
+    sauvegarderCorpsZone(zoneLiee)
   }
 
   function enregistrerSyncZoneHorsModale(
@@ -343,6 +359,7 @@ export function useNotesEntretien(deps: {
   return {
     notes,
     brouillonNote,
+    brouillonEditionNote,
     avertissementNote,
     commentairesPourLiaison,
     menuLiensNote,
@@ -352,6 +369,7 @@ export function useNotesEntretien(deps: {
     ajouterNote,
     editerNote,
     validerNote,
+    validerEditionNote,
     annulerNote,
     ecrireCorpsNote,
     ecrireTitreNote,

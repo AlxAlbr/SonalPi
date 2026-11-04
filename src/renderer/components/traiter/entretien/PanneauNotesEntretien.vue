@@ -12,15 +12,17 @@ import {
 import { utiliserSonal } from '../../../composables/sonal'
 import MenuLiensNote from './MenuLiensNote.vue'
 
-defineProps<{ lectureSeule: boolean }>()
+const props = defineProps<{ lectureSeule: boolean }>()
 
 const {
   locuteurs,
   notes,
   brouillonNote,
+  brouillonEditionNote,
   ajouterNote,
   editerNote,
   validerNote,
+  validerEditionNote,
   annulerNote,
   avertissementNote,
   ecrireCorpsNote,
@@ -46,12 +48,20 @@ const {
 } = utiliserSonal()
 const vueNotes = ref<'cartes' | 'texte'>('cartes')
 const zoneCorpsNote = ref<HTMLElement | null>(null)
-const creationCategorie = ref<{ nom: string; couleur: string } | null>(null)
+const zoneCorpsEditionNote = ref<HTMLElement | null>(null)
+const creationCategorie = ref<{ nom: string; couleur: string; cible: 'creation' | 'edition' } | null>(null)
 watch(
-  () => brouillonNote.value?.categorieId,
+  [() => brouillonNote.value?.categorieId, () => brouillonEditionNote.value?.categorieId],
   () => {
     avertissementNote.value = ''
   },
+)
+watch(
+  [brouillonNote, () => props.lectureSeule],
+  ([brouillon, lectureSeule]) => {
+    if (!lectureSeule && !brouillon) ajouterNote()
+  },
+  { immediate: true, flush: 'sync' },
 )
 watch(
   () => brouillonNote.value?.id ?? 'new',
@@ -64,19 +74,52 @@ watch(
     })
   },
 )
+watch(
+  () => brouillonEditionNote.value?.id,
+  () => {
+    nextTick(() => {
+      if (zoneCorpsEditionNote.value && brouillonEditionNote.value) {
+        zoneCorpsEditionNote.value.innerHTML = brouillonEditionNote.value.corps || ''
+        decoreRefsCommentaires(zoneCorpsEditionNote.value, document, resolverCommentaires)
+      }
+    })
+  },
+)
 function onSaisieCorpsNote() {
   if (brouillonNote.value && zoneCorpsNote.value) {
     pruneRefsCommentaires(zoneCorpsNote.value)
     brouillonNote.value.corps = zoneCorpsNote.value.innerHTML
   }
 }
-function marquerDansModale() {
+function onSaisieCorpsEditionNote() {
+  if (brouillonEditionNote.value && zoneCorpsEditionNote.value) {
+    pruneRefsCommentaires(zoneCorpsEditionNote.value)
+    brouillonEditionNote.value.corps = zoneCorpsEditionNote.value.innerHTML
+  }
+}
+function marquerDansCorpsNote() {
   if (!zoneCorpsNote.value) return
   marquerPassage(zoneCorpsNote.value)
   if (brouillonNote.value) brouillonNote.value.corps = zoneCorpsNote.value.innerHTML
 }
+function marquerDansCorpsEditionNote() {
+  if (!zoneCorpsEditionNote.value) return
+  marquerPassage(zoneCorpsEditionNote.value)
+  if (brouillonEditionNote.value) brouillonEditionNote.value.corps = zoneCorpsEditionNote.value.innerHTML
+}
+function creerNoteInline() {
+  const brouillonCourant = brouillonNote.value
+  if (!brouillonCourant || brouillonCourant.id) return
+  validerNote()
+  if (brouillonNote.value !== brouillonCourant && zoneCorpsNote.value) {
+    zoneCorpsNote.value.innerHTML = ''
+  }
+}
 function onContextmenuCorpsNote(e: MouseEvent) {
   if (zoneCorpsNote.value) ouvrirMenuLiensNote(e, zoneCorpsNote.value)
+}
+function onContextmenuCorpsEditionNote(e: MouseEvent) {
+  if (zoneCorpsEditionNote.value) ouvrirMenuLiensNote(e, zoneCorpsEditionNote.value)
 }
 function corpsAvecRefs(n: { corps: string }): string {
   return corpsAvecRefsCommentaires(corpsOuVide(n), document, resolverCommentaires)
@@ -85,17 +128,20 @@ function clicRefCommentaire(e: MouseEvent) {
   const ref = (e.target as HTMLElement | null)?.closest('[data-ref]')
   if (ref) allerAuCommentaire(ref.getAttribute('data-ref')!)
 }
-function ouvrirCreationCategorie() {
-  creationCategorie.value = { nom: '', couleur: '#ffb74d' }
+function ouvrirCreationCategorie(cible: 'creation' | 'edition' = 'creation') {
+  creationCategorie.value = { nom: '', couleur: '#ffb74d', cible }
 }
 async function validerCreationCategorie() {
   const c = creationCategorie.value
   if (!c || !c.nom.trim()) return
   const id = await ajouterCategorieNote(c.nom, c.couleur)
-  if (brouillonNote.value) brouillonNote.value.categorieId = id
+  if (c.cible === 'creation' && brouillonNote.value) brouillonNote.value.categorieId = id
+  if (c.cible === 'edition' && brouillonEditionNote.value) brouillonEditionNote.value.categorieId = id
   creationCategorie.value = null
 }
-const notesTriees = computed(() => notes.value.slice().sort((a, b) => a.rang - b.rang))
+const notesTriees = computed(() =>
+  notes.value.slice().sort((a, b) => b.creeLe.localeCompare(a.creeLe) || b.rang - a.rang),
+)
 function nomsLocuteursNote(note: { locuteurIds?: string[] }): string[] {
   const ids = new Set(note.locuteurIds ?? [])
   return locuteurs.value.filter((locuteur) => locuteur.id && ids.has(locuteur.id)).map((locuteur) => locuteur.nom)
@@ -258,9 +304,78 @@ function onDropNote(cibleId: string) {
 
 <template>
   <aside class="panneau notes">
-    <div class="corpus-tete">
-      <h3>Notes</h3>
-      <div class="notes-outils">
+    <section v-if="!lectureSeule && brouillonNote && !brouillonNote.id" class="nouvelle-note-inline">
+      <label class="champ-note champ-titre-note">
+        <span>Titre (optionnel)</span>
+        <input data-tour="note-titre" type="text" v-model="brouillonNote.titre" placeholder="ex. hypothèse centrale" />
+      </label>
+      <div
+        ref="zoneCorpsNote"
+        class="zone-corps-note"
+        contenteditable="true"
+        data-placeholder="Votre note… (sélectionnez un passage puis ✏ pour le marquer)"
+        @input="onSaisieCorpsNote"
+        @contextmenu="onContextmenuCorpsNote"
+        @click="clicRefCommentaire"
+      ></div>
+      <div class="barre-outils-note">
+        <button class="mini" title="Mettre en gras le passage sélectionné (passage important, toggle)"
+          @click="marquerDansCorpsNote">✏ Marquer comme important</button>
+        <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
+          @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
+      </div>
+      <details class="options-avancees-note">
+        <summary>Options avancées</summary>
+        <fieldset class="cibles-note-form">
+          <legend>Concerne (optionnel)</legend>
+          <p>Associez cette note aux locuteurs concernés pour la retrouver dans Personnes.</p>
+          <div v-if="locuteurs.some((locuteur) => locuteur.id)" class="choix-cibles-note">
+            <label v-for="locuteur in locuteurs.filter((item) => item.id)" :key="locuteur.id">
+              <input v-model="brouillonNote.locuteurIds" type="checkbox" :value="locuteur.id" />
+              <span>{{ locuteur.nom || 'Locuteur sans nom' }}</span>
+            </label>
+          </div>
+          <p v-else>Aucun locuteur n’est disponible dans cet entretien.</p>
+        </fieldset>
+        <div class="modale-note-meta">
+          <label class="champ-note">
+            <span>Catégorie</span>
+            <select v-model="brouillonNote.categorieId">
+              <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
+              <option value=" autre">autre…</option>
+            </select>
+            <input v-if="brouillonNote.categorieId !== ' autre'" type="color"
+              class="carre-couleur"
+              :value="couleurCategorieNote(brouillonNote.categorieId)"
+              :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonNote.categorieId)} »`"
+              @change="majCouleurCategorieNote(brouillonNote.categorieId, ($event.target as HTMLInputElement).value)"
+            />
+            <button v-else type="button" class="carre-couleur carre-creation"
+              title="Nouvelle catégorie (nom + couleur)"
+              @click="ouvrirCreationCategorie()">＋</button>
+          </label>
+          <label class="champ-note">
+            <span>Date</span>
+            <input type="date" v-model="brouillonNote.date" />
+            <button v-if="brouillonNote.date" class="mini" title="Pas de date" @click="brouillonNote.date = null">✕</button>
+          </label>
+          <label class="champ-note">
+            <span>Statut</span>
+            <select v-model="brouillonNote.statut">
+              <option value="prive">privé</option>
+              <option value="public">public</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
+      <button type="button" class="principal creer-note-inline" data-tour="creer-note" @click="creerNoteInline">
+        Créer une note
+      </button>
+    </section>
+
+    <div class="notes-outils">
+      <div class="notes-outils-vues">
         <button class="mini"
           :class="{ actif: vueNotes === 'cartes' }"
           title="Vue cartes"
@@ -269,6 +384,8 @@ function onDropNote(cibleId: string) {
           :class="{ actif: vueNotes === 'texte' }"
           title="Vue feuille (toutes les notes à la suite, éditables)"
           @click="vueNotes = 'texte'">📄</button>
+      </div>
+      <div class="notes-outils-actions">
         <button class="mini"
           :class="{ actif: voletRechercheNotes }"
           title="Rechercher et filtrer les notes"
@@ -277,7 +394,6 @@ function onDropNote(cibleId: string) {
           :title="notesCopiees ? 'Copié !' : 'Copier les notes affichées dans le presse-papier'"
           @click="copierNotes">{{ notesCopiees ? '✓' : '📋' }}</button>
       </div>
-      <button v-if="!lectureSeule" class="mini" data-tour="creer-note" @click="ajouterNote">+ Note</button>
     </div>
 
     <div v-if="voletRechercheNotes" class="volet-recherche-notes">
@@ -307,7 +423,7 @@ function onDropNote(cibleId: string) {
 
     <div v-if="vueNotes === 'cartes'" class="notes-cartes">
       <p v-if="notesAffichees.length === 0" class="vide">
-        {{ rechercheActive ? 'Aucune note ne correspond.' : 'Aucune note — « + Note » pour en créer une.' }}
+        {{ rechercheActive ? 'Aucune note ne correspond.' : 'Aucune note pour le moment.' }}
       </p>
       <article v-for="n in notesAffichees" :key="n.id" class="carte-note"
         :draggable="!lectureSeule"
@@ -333,7 +449,7 @@ function onDropNote(cibleId: string) {
 
     <div v-else ref="feuilleEl" class="notes-texte">
       <p v-if="notesAffichees.length === 0" class="vide">
-        {{ rechercheActive ? 'Aucune note ne correspond.' : '(aucune note)' }}
+        {{ rechercheActive ? 'Aucune note ne correspond.' : 'Aucune note pour le moment.' }}
       </p>
       <div v-if="!lectureSeule && notesAffichees.length > 0" class="barre-outils-note">
         <button class="mini" title="Mettre en gras le passage sélectionné (passage important, toggle)"
@@ -362,32 +478,32 @@ function onDropNote(cibleId: string) {
     </div>
 
     <Teleport to="body">
-      <div v-if="brouillonNote" class="modale-note">
+      <div v-if="brouillonEditionNote?.id" class="modale-note">
         <div class="modale-note-fond" @click="annulerNote"></div>
         <div class="modale-note-fenetre">
           <div class="corpus-tete">
-            <h3>{{ brouillonNote.id ? 'Éditer la note' : 'Nouvelle note' }}</h3>
+            <h3>Éditer la note</h3>
             <button class="mini" title="Fermer" @click="annulerNote">✕</button>
           </div>
           <div class="modale-note-corps">
             <label class="champ-note champ-titre-note">
               <span>Titre (optionnel)</span>
-              <input type="text" v-model="brouillonNote.titre" placeholder="ex. hypothèse centrale" />
+              <input type="text" v-model="brouillonEditionNote.titre" placeholder="ex. hypothèse centrale" />
             </label>
             <div
-              ref="zoneCorpsNote"
+              ref="zoneCorpsEditionNote"
               class="zone-corps-note"
               contenteditable="true"
               data-placeholder="Votre note… (sélectionnez un passage puis ✏ pour le marquer)"
-              @input="onSaisieCorpsNote"
-              @contextmenu="onContextmenuCorpsNote"
+              @input="onSaisieCorpsEditionNote"
+              @contextmenu="onContextmenuCorpsEditionNote"
               @click="clicRefCommentaire"
             ></div>
             <div class="barre-outils-note">
               <button class="mini" title="Mettre en gras le passage sélectionné (passage important, toggle)"
-                @click="marquerDansModale">✏ Marquer comme important</button>
+                @click="marquerDansCorpsEditionNote">✏ Marquer comme important</button>
               <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
-                @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
+                @click="zoneCorpsEditionNote && lierPassage($event, zoneCorpsEditionNote)">🔗 Lier à un commentaire</button>
             </div>
             <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
             <fieldset class="cibles-note-form">
@@ -395,7 +511,7 @@ function onDropNote(cibleId: string) {
               <p>Associez cette note aux locuteurs concernés pour la retrouver dans Personnes.</p>
               <div v-if="locuteurs.some((locuteur) => locuteur.id)" class="choix-cibles-note">
                 <label v-for="locuteur in locuteurs.filter((item) => item.id)" :key="locuteur.id">
-                  <input v-model="brouillonNote.locuteurIds" type="checkbox" :value="locuteur.id" />
+                  <input v-model="brouillonEditionNote.locuteurIds" type="checkbox" :value="locuteur.id" />
                   <span>{{ locuteur.nom || 'Locuteur sans nom' }}</span>
                 </label>
               </div>
@@ -404,28 +520,28 @@ function onDropNote(cibleId: string) {
             <div class="modale-note-meta">
               <label class="champ-note">
                 <span>Catégorie</span>
-                <select v-model="brouillonNote.categorieId">
+                <select v-model="brouillonEditionNote.categorieId">
                   <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
                   <option value=" autre">autre…</option>
                 </select>
-                <input v-if="brouillonNote.categorieId !== ' autre'" type="color"
+                <input v-if="brouillonEditionNote.categorieId !== ' autre'" type="color"
                   class="carre-couleur"
-                  :value="couleurCategorieNote(brouillonNote.categorieId)"
-                  :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonNote.categorieId)} »`"
-                  @change="majCouleurCategorieNote(brouillonNote.categorieId, ($event.target as HTMLInputElement).value)"
+                  :value="couleurCategorieNote(brouillonEditionNote.categorieId)"
+                  :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonEditionNote.categorieId)} »`"
+                  @change="majCouleurCategorieNote(brouillonEditionNote.categorieId, ($event.target as HTMLInputElement).value)"
                 />
                 <button v-else type="button" class="carre-couleur carre-creation"
                   title="Nouvelle catégorie (nom + couleur)"
-                  @click="ouvrirCreationCategorie">＋</button>
+                  @click="ouvrirCreationCategorie('edition')">＋</button>
               </label>
               <label class="champ-note">
                 <span>Date</span>
-                <input type="date" v-model="brouillonNote.date" />
-                <button v-if="brouillonNote.date" class="mini" title="Pas de date" @click="brouillonNote.date = null">✕</button>
+                <input type="date" v-model="brouillonEditionNote.date" />
+                <button v-if="brouillonEditionNote.date" class="mini" title="Pas de date" @click="brouillonEditionNote.date = null">✕</button>
               </label>
               <label class="champ-note">
                 <span>Statut</span>
-                <select v-model="brouillonNote.statut">
+                <select v-model="brouillonEditionNote.statut">
                   <option value="prive">privé</option>
                   <option value="public">public</option>
                 </select>
@@ -433,28 +549,28 @@ function onDropNote(cibleId: string) {
             </div>
           </div>
           <div class="modale-note-pied">
-            <button class="principal" @click="validerNote">Valider</button>
+            <button class="principal" @click="validerEditionNote">Valider</button>
             <button @click="annulerNote">Annuler</button>
           </div>
         </div>
 
-        <div v-if="creationCategorie" class="sous-modale-categorie">
-          <div class="sous-modale-fond" @click="creationCategorie = null"></div>
-          <div class="sous-modale-fenetre">
-            <h4>Nouvelle catégorie</h4>
-            <label class="champ-note">
-              <span>Nom</span>
-              <input v-model="creationCategorie.nom" placeholder="ex. synthèse" @keyup.enter="validerCreationCategorie" />
-            </label>
-            <label class="champ-note">
-              <span>Couleur</span>
-              <input type="color" v-model="creationCategorie.couleur" />
-            </label>
-            <div class="modale-note-pied">
-              <button class="principal" :disabled="!creationCategorie.nom.trim()" title="Donnez un nom à la catégorie"
-                @click="validerCreationCategorie">Créer</button>
-              <button @click="creationCategorie = null">Annuler</button>
-            </div>
+      </div>
+      <div v-if="creationCategorie" class="sous-modale-categorie">
+        <div class="sous-modale-fond" @click="creationCategorie = null"></div>
+        <div class="sous-modale-fenetre">
+          <h4>Nouvelle catégorie</h4>
+          <label class="champ-note">
+            <span>Nom</span>
+            <input v-model="creationCategorie.nom" placeholder="ex. synthèse" @keyup.enter="validerCreationCategorie" />
+          </label>
+          <label class="champ-note">
+            <span>Couleur</span>
+            <input type="color" v-model="creationCategorie.couleur" />
+          </label>
+          <div class="modale-note-pied">
+            <button class="principal" :disabled="!creationCategorie.nom.trim()" title="Donnez un nom à la catégorie"
+              @click="validerCreationCategorie">Créer</button>
+            <button @click="creationCategorie = null">Annuler</button>
           </div>
         </div>
       </div>
@@ -495,7 +611,16 @@ function onDropNote(cibleId: string) {
 
 .notes-outils {
   display: flex;
+  align-items: center;
   gap: 0.25rem;
+  padding-bottom: 0.75rem;
+}
+.notes-outils-vues,
+.notes-outils-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+.notes-outils-actions {
   margin-left: auto;
 }
 .notes-outils .mini.actif {
@@ -504,10 +629,7 @@ function onDropNote(cibleId: string) {
 }
 .notes-outils .mini {
   font-size: 0.95rem;
-  padding: 0.1rem 0.35rem;
 }
-.notes-outils .mini:nth-child(1) { margin-left: -0.3rem; }
-.notes-outils .mini:nth-child(2) { margin-right: 0.35rem; }
 .carre-creation {
   display: inline-flex;
   align-items: center;
@@ -697,6 +819,58 @@ function onDropNote(cibleId: string) {
   background: none;
   outline: none;
 }
+.nouvelle-note-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e2e2;
+}
+.nouvelle-note-inline .champ-titre-note {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.nouvelle-note-inline .champ-titre-note span {
+  min-width: 0;
+}
+.nouvelle-note-inline .champ-titre-note input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.nouvelle-note-inline .zone-corps-note {
+  min-height: 5rem;
+}
+.options-avancees-note {
+  border-top: 1px solid #e2e2e2;
+  padding-top: 0.4rem;
+  font-size: 0.8rem;
+}
+.options-avancees-note summary {
+  color: #555;
+  cursor: pointer;
+  font-weight: 600;
+}
+.options-avancees-note .cibles-note-form {
+  padding: 0.5rem;
+}
+.creer-note-inline {
+  align-self: flex-end;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #6485d6;
+  border-radius: 5px;
+  background: #6485d6;
+  color: #fff;
+  cursor: pointer;
+}
+.creer-note-inline:hover {
+  background: #5273c2;
+}
+.creer-note-inline:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+}
 
 .modale-note {
   position: fixed;
@@ -802,7 +976,7 @@ function onDropNote(cibleId: string) {
 }
 
 .sous-modale-categorie {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 60;
   display: grid;

@@ -497,11 +497,15 @@ function basculerNotes() {
   outline-offset: 2px;
   z-index: 1;
 }
-.lecteur-ancre {
-  position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  z-index: 20;
-  background: #fff;
+.lecteur-barre {
+  flex: 1 1 0;
+  height: 100%;
+  min-width: min-content;
+}
+.lecteur-barre :deep(.lecteur-audio) {
+  height: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0;
 }
 /* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
    Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :

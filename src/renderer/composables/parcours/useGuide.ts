@@ -171,20 +171,26 @@ export function useGuide(deps: DepsGuide) {
           }
           return '[data-tour="valider"]'
         }
-        // Dans l'entretien : onglet Notes → « + Note » → champs de la modale de note,
-        // chacun guidé à son tour (titre puis corps puis Valider).
+        // Dans l'entretien : languette Notes → formulaire inline, champ par champ.
         const modale = document.querySelector('.modale-note')
-        if (!modale) {
-          return deps.ongletDroite.value === 'notes'
-            ? '[data-tour="creer-note"]'
-            : '[data-tour="onglet-notes"]'
+        if (modale) {
+          const titre = (modale.querySelector('.champ-titre-note input') as HTMLInputElement | null)
+            ?.value?.trim()
+          const corps = modale.querySelector('.zone-corps-note')?.textContent?.trim()
+          if (!titre && !corps) return '.modale-note .champ-titre-note input'
+          if (!corps) return '.modale-note .zone-corps-note'
+          return '.modale-note-pied .principal'
         }
-        const titre = (modale.querySelector('.champ-titre-note input') as HTMLInputElement | null)
+        const boutonNotes = document.querySelector('[data-tour="onglet-notes"]')
+        if (boutonNotes?.getAttribute('aria-expanded') !== 'true') return '[data-tour="onglet-notes"]'
+        const formulaire = document.querySelector('.nouvelle-note-inline')
+        if (!formulaire) return '[data-tour="onglet-notes"]'
+        const titre = (formulaire.querySelector('[data-tour="note-titre"]') as HTMLInputElement | null)
           ?.value?.trim()
-        const corps = modale.querySelector('.zone-corps-note')?.textContent?.trim()
-        if (!titre && !corps) return '.modale-note .champ-titre-note input'
-        if (!corps) return '.modale-note .zone-corps-note'
-        return '.modale-note-pied .principal'
+        const corps = formulaire.querySelector('.zone-corps-note')?.textContent?.trim()
+        if (!titre && !corps) return '[data-tour="note-titre"]'
+        if (!corps) return '.nouvelle-note-inline .zone-corps-note'
+        return '[data-tour="creer-note"]'
       },
       panneau: true,
       panneauAvecTrou: true,

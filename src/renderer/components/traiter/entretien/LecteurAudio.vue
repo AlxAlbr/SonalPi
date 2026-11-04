@@ -293,6 +293,11 @@ dès que les droits seront ouverts.
   align-items: center;
   gap: 0.4rem;
   flex: none;
+  white-space: nowrap;
+}
+.commandes > *,
+.groupe-vitesse > * {
+  flex-shrink: 0;
 }
 .play {
   width: 2rem;
