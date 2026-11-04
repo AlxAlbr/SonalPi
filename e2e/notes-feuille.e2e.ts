@@ -80,23 +80,35 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   }
   await verifierPositionLanguette()
   await expect(panneauNotes).toBeVisible()
-  await expect(panneauNotes.locator('.corpus-tete')).toBeHidden()
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
   const bordReplie = await page.evaluate(() => {
     const panneau = document.querySelector('.panneau.notes')!.getBoundingClientRect()
+    const volet = document.querySelector('.volet-notes')!.getBoundingClientRect()
     const languette = document.querySelector('.notes-languette button')!.getBoundingClientRect()
     return {
+      largeurPanneau: panneau.width,
+      largeurVolet: volet.width,
       panneauGauche: panneau.left,
       panneauDroite: panneau.right,
-      centreLanguette: languette.left + languette.width / 2,
+      languetteGauche: languette.left,
+      languetteDroite: languette.right,
       largeurFenetre: window.innerWidth,
-      espaceEditeur: panneau.left - document.querySelector('.colonne-droite')!.getBoundingClientRect().right,
-      rayonHautGauche: getComputedStyle(document.querySelector('.panneau.notes')!).borderTopLeftRadius,
+      debordementHorizontal: document.documentElement.scrollWidth > window.innerWidth,
+      bordVolet: volet.right,
+      languetteVisible: getComputedStyle(document.querySelector('.notes-languette')!).visibility,
+      debordementVolet: getComputedStyle(document.querySelector('.cadre-notes')!).overflowX,
+      espaceEditeur: volet.left - document.querySelector('.colonne-droite')!.getBoundingClientRect().right,
     }
   })
-  expect(Math.abs(bordReplie.panneauGauche - bordReplie.centreLanguette)).toBeLessThan(2)
-  expect(bordReplie.panneauGauche).toBeLessThan(bordReplie.largeurFenetre)
-  expect(bordReplie.panneauDroite).toBeGreaterThan(bordReplie.largeurFenetre)
-  expect(bordReplie.rayonHautGauche).toBe('8px')
+  expect(bordReplie.largeurPanneau).toBeGreaterThan(bordReplie.largeurVolet)
+  expect(bordReplie.panneauGauche).toBeLessThan(bordReplie.bordVolet)
+  expect(bordReplie.panneauDroite).toBeGreaterThan(bordReplie.bordVolet)
+  expect(bordReplie.languetteGauche).toBeGreaterThanOrEqual(0)
+  expect(bordReplie.languetteDroite).toBeLessThanOrEqual(bordReplie.bordVolet)
+  expect(bordReplie.bordVolet).toBeLessThanOrEqual(bordReplie.largeurFenetre)
+  expect(bordReplie.languetteVisible).toBe('visible')
+  expect(bordReplie.debordementVolet).toBe('clip')
+  expect(bordReplie.debordementHorizontal).toBe(false)
   await languette.click()
   await expect.poll(async () => (await transcription.boundingBox())!.width).toBeLessThan(largeurFermee)
   const largeurPanneauOuvert = await page.evaluate(() => Math.round(Math.min(360, window.innerWidth * 0.34)))
@@ -130,9 +142,9 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   await expect(page.locator('.onglets button[data-onglet="locuteurs"]')).toHaveClass(/actif/)
   await expect(panneauNotes).toBeVisible()
   await languette.dispatchEvent('click')
-  await expect(panneauNotes.locator('.corpus-tete')).toBeHidden()
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
   await languette.dispatchEvent('click')
-  await expect(panneauNotes.locator('.corpus-tete')).toBeVisible()
+  await expect(panneauNotes.locator('.notes-outils')).toBeVisible()
 
   await expect(page.locator('.champ-titre-note input')).toHaveValue('Titre en cours')
   await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
@@ -190,10 +202,10 @@ test('feuille — lier un passage de note à un commentaire', async () => {
 
   const languette = page.locator('.onglets button[data-onglet="notes"]')
   await languette.click()
-  await expect(page.locator('.panneau.notes .corpus-tete')).toBeHidden()
+  await expect(page.locator('.panneau.notes .notes-outils')).toBeHidden()
   await page.locator('.onglets button[data-onglet="maison"]').click()
   await page.locator('.liste-tours button').first().click()
-  await expect(page.locator('.panneau.notes .corpus-tete')).toBeVisible()
+  await expect(page.locator('.panneau.notes .notes-outils')).toBeVisible()
 
   await app.close()
 })

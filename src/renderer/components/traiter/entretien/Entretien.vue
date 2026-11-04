@@ -223,11 +223,13 @@ function basculerNotes() {
         </div>
 
         <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
-          <PanneauNotesEntretien
-            id="panneau-notes-entretien"
-            :class="{ replie: !voletNotesOuvert }"
-            :lecture-seule="roContenu"
-          />
+          <div class="cadre-notes">
+            <PanneauNotesEntretien
+              id="panneau-notes-entretien"
+              :class="{ replie: !voletNotesOuvert }"
+              :lecture-seule="roContenu"
+            />
+          </div>
           <div class="onglets notes-languette">
             <button
               data-onglet="notes"
@@ -436,16 +438,25 @@ function basculerNotes() {
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   box-sizing: border-box;
 }
-.volet-notes > .panneau {
+.cadre-notes {
   flex: 1 1 0;
-  width: auto;
-  height: 100%;
   min-width: 0;
+  height: 100%;
+}
+.cadre-notes > .panneau {
+  width: 100%;
+  height: 100%;
   box-sizing: border-box;
   border-radius: 8px;
   overflow-y: auto;
 }
-.volet-notes:not(.ouvert) > .panneau {
+.volet-notes:not(.ouvert) > .cadre-notes {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+.volet-notes:not(.ouvert) .cadre-notes > .panneau {
   position: absolute;
   top: 0;
   left: 0;
@@ -455,7 +466,7 @@ function basculerNotes() {
   overflow: hidden;
   pointer-events: none;
 }
-.volet-notes:not(.ouvert) > .panneau > * {
+.volet-notes:not(.ouvert) .cadre-notes > .panneau > * {
   visibility: hidden;
 }
 .notes-languette {
@@ -466,7 +477,10 @@ function basculerNotes() {
   width: 2.75rem;
   transform: translateY(-50%);
 }
-.volet-notes.ouvert > .panneau {
+.volet-notes:not(.ouvert) .notes-languette {
+  left: -1.375rem;
+}
+.volet-notes.ouvert > .cadre-notes > .panneau {
   order: 1;
   padding-left: 2.25rem;
 }
