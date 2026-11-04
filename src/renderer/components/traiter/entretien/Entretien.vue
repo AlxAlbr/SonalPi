@@ -117,7 +117,7 @@ function basculerNotes() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent" :class="{ 'notes-ouvert': voletNotesOuvert }">
+      <div class="grille-ent" :class="{ 'notes-ouvert': voletNotesOuvert, 'mode-audio': !estVideo }">
         <!-- Le retour au corpus reste accessible au-dessus des panneaux de travail. -->
         <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
@@ -134,6 +134,9 @@ function basculerNotes() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
+          <div v-if="!estVideo" class="lecteur-barre">
+            <LecteurAudio />
+          </div>
           <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
@@ -202,15 +205,11 @@ function basculerNotes() {
           />
         </div>
 
-        <!-- Colonne DROITE : en audio, lecteur (barre d'écoute + waveform)
-             collant puis éditeur ; en vidéo, zone média épinglée (lecteur +
-             waveform EMPILÉS à gauche ‖ panneau vidéo à droite) puis éditeur
-             pleine largeur dessous. -->
+        <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
+             (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
+             puis éditeur pleine largeur dessous. -->
         <div class="colonne-droite">
-          <div v-if="!estVideo" class="lecteur-ancre">
-            <LecteurAudio />
-          </div>
-          <div v-else class="zone-media">
+          <div v-if="estVideo" class="zone-media">
             <div class="tele">
               <LecteurAudio :empile="true" />
               <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
@@ -318,6 +317,7 @@ function basculerNotes() {
 .grille-ent {
   display: grid;
   --volet-notes-largeur: min(360px, 34vw);
+  --panneaux-decalage: 1rem;
   grid-template-columns: 400px minmax(0, 1fr) 3.25rem;
   gap: 1rem;
   align-items: start;
@@ -327,6 +327,9 @@ function basculerNotes() {
   transition: grid-template-columns 220ms ease;
   /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
   --barre-h: 2.4rem;
+}
+.grille-ent.mode-audio {
+  --barre-h: calc(3rem + var(--panneaux-decalage));
 }
 .grille-ent.notes-ouvert {
   grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-largeur);
@@ -353,6 +356,13 @@ function basculerNotes() {
   background: #fff;
   height: var(--barre-h);
   box-sizing: border-box;
+}
+.mode-audio .retour {
+  align-self: stretch;
+  box-sizing: border-box;
+}
+.mode-audio .barre {
+  padding-top: var(--panneaux-decalage);
 }
 /* Statut de session (publication) dans la barre d'actions */
 .statut-session {
@@ -401,17 +411,13 @@ function basculerNotes() {
   flex-direction: column;
   gap: 0.5rem;
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre d'actions et le bord bas de la fenêtre,
-     sinon son défilement interne garde les derniers éléments visibles SANS toucher au texte.
-     Le −1rem compense l'écart de la grille ; à la position naturelle (page en haut),
-     le panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
-  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  /* Le panneau reste entièrement visible entre la barre fixe et le bas de la fenêtre,
+     avec une marge inférieure d'un rem. */
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   overflow-y: auto;
 }
-/* Colonne de droite : lecteur audio puis éditeur.
-   Le lecteur est collant en haut (fond opaque), pour rester visible pendant la lecture ;
-   l'éditeur défile dessous. */
+/* Colonne de droite : l'éditeur de transcription et, en vidéo, la zone média. */
 .colonne-droite {
   grid-area: droite;
   display: flex;
@@ -425,9 +431,9 @@ function basculerNotes() {
   align-self: start;
   min-width: 0;
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
-  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   box-sizing: border-box;
 }
 .volet-notes > .panneau {
