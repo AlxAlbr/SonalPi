@@ -5,7 +5,6 @@ import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
-import ResumeAssociationsPassage from './ResumeAssociationsPassage.vue'
 import PanneauAccueilEntretien from './PanneauAccueilEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
@@ -218,7 +217,6 @@ function ouvrirRecueilsDepuisSelection() {
             </div>
             <VideoPanel v-show="videoVisible" />
           </div>
-          <ResumeAssociationsPassage />
           <EditorContent :editor="editor" class="cadre" />
         </div>
       </div>
