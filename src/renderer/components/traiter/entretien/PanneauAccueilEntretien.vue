@@ -8,6 +8,7 @@ import icoNotes from '../../../assets/icones/notes.png'
 import icoThemes from '../../../assets/icones/themes.png'
 
 const { ongletDroite } = utiliserSonal()
+const emit = defineEmits<{ ouvrirNotes: [] }>()
 </script>
 
 <template>
@@ -26,7 +27,7 @@ const { ongletDroite } = utiliserSonal()
     </p>
     <ul class="liste-tours">
       <li>
-        <button type="button" @click="ongletDroite = 'notes'">
+        <button type="button" @click="emit('ouvrirNotes')">
           <img class="ico-onglet" :src="icoNotes" alt="" />
           <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) ; mettez un passage en GRAS (important) ou en ITALIQUE lié à un commentaire.</span>
         </button>

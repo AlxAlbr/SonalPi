@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -55,6 +55,7 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
 } = utiliserSonal()
+const voletNotesOuvert = ref(false)
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -98,6 +99,14 @@ function ouvrirRecueilsDepuisSelection() {
   void afficherRecueilsPourAssociation()
 }
 
+function ouvrirVoletNotes() {
+  voletNotesOuvert.value = true
+}
+
+function basculerNotes() {
+  voletNotesOuvert.value = !voletNotesOuvert.value
+}
+
 </script>
 
 <template>
@@ -108,8 +117,8 @@ function ouvrirRecueilsDepuisSelection() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent">
-        <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
+      <div class="grille-ent" :class="{ 'notes-ouvert': voletNotesOuvert }">
+        <!-- Le retour au corpus reste accessible au-dessus des panneaux de travail. -->
         <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
@@ -133,16 +142,12 @@ function ouvrirRecueilsDepuisSelection() {
              pour rester visible pendant la lecture. -->
         <div class="colonne-gauche">
           <nav class="onglets">
-            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
-                 et sur le panneau d'accueil (vue d'ensemble).
-                 L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
-                 conseils et liste des autres onglets (icone + titre).
-                 Les NOTES suivent en DEUXIÈME. -->
+              <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
+                et sur le panneau d'accueil (vue d'ensemble).
+                L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
+                conseils et liste des autres onglets (icone + titre). -->
             <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
               <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
-            </button>
-            <button data-onglet="notes" data-tour="onglet-notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
-              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
             </button>
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
@@ -164,7 +169,10 @@ function ouvrirRecueilsDepuisSelection() {
           <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
           <div data-tour="ancre-guide-pp"></div>
 
-          <PanneauAccueilEntretien v-show="ongletDroite === 'maison'" />
+          <PanneauAccueilEntretien
+            v-show="ongletDroite === 'maison'"
+            @ouvrir-notes="ouvrirVoletNotes"
+          />
 
           <PanneauThemesEntretien
             v-show="ongletDroite === 'themes'"
@@ -184,11 +192,6 @@ function ouvrirRecueilsDepuisSelection() {
 
           <PanneauJournalEntretien
             v-show="ongletDroite === 'journal'"
-            :lecture-seule="roContenu"
-          />
-
-          <PanneauNotesEntretien
-            v-show="ongletDroite === 'notes'"
             :lecture-seule="roContenu"
           />
 
@@ -219,6 +222,28 @@ function ouvrirRecueilsDepuisSelection() {
           </div>
           <EditorContent :editor="editor" class="cadre" />
         </div>
+
+        <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
+          <PanneauNotesEntretien
+            id="panneau-notes-entretien"
+            :class="{ replie: !voletNotesOuvert }"
+            :lecture-seule="roContenu"
+          />
+          <div class="onglets notes-languette">
+            <button
+              data-onglet="notes"
+              data-tour="onglet-notes"
+              :class="{ actif: voletNotesOuvert }"
+              :aria-expanded="voletNotesOuvert"
+              aria-controls="panneau-notes-entretien"
+              title="Notes"
+              @click="basculerNotes"
+            >
+              <img class="ico-onglet" :src="icoNotes" alt="" />
+              <span>Notes</span>
+            </button>
+          </div>
+        </aside>
       </div>
 
       <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
@@ -292,14 +317,19 @@ function ouvrirRecueilsDepuisSelection() {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: 400px 1fr;
+  --volet-notes-largeur: min(360px, 34vw);
+  grid-template-columns: 400px minmax(0, 1fr) 3.25rem;
   gap: 1rem;
   align-items: start;
   grid-template-areas:
-    'barre barre'
-    'gauche droite';
+    'barre barre barre'
+    'gauche droite volet';
+  transition: grid-template-columns 220ms ease;
   /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
   --barre-h: 2.4rem;
+}
+.grille-ent.notes-ouvert {
+  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-largeur);
 }
 .retour {
   margin-left: auto;
@@ -386,6 +416,86 @@ function ouvrirRecueilsDepuisSelection() {
   grid-area: droite;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+.volet-notes {
+  grid-area: volet;
+  display: flex;
+  align-items: stretch;
+  align-self: start;
+  min-width: 0;
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h));
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
+  box-sizing: border-box;
+}
+.volet-notes > .panneau {
+  flex: 1 1 0;
+  width: auto;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 8px;
+  overflow-y: auto;
+}
+.volet-notes:not(.ouvert) > .panneau {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--volet-notes-largeur);
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.volet-notes:not(.ouvert) > .panneau > * {
+  visibility: hidden;
+}
+.notes-languette {
+  position: absolute;
+  z-index: 25;
+  top: 50%;
+  left: -1.375rem;
+  width: 2.75rem;
+  transform: translateY(-50%);
+}
+.volet-notes.ouvert > .panneau {
+  order: 1;
+  padding-left: 2.25rem;
+}
+.volet-notes.ouvert .notes-languette {
+  left: -1.375rem;
+  margin-right: -1.375rem;
+}
+.notes-languette button {
+  border: 1px solid #ddd;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 6rem;
+  box-sizing: border-box;
+  padding: 0.4rem 0.2rem;
+  border-radius: 6px;
+}
+.volet-notes .notes-languette button {
+  border-bottom: 1px solid #ddd;
+  border-radius: 6px;
+}
+.notes-languette button span {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.notes-languette .ico-onglet {
+  width: 20px;
+  height: 20px;
+}
+.notes-languette button:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+  z-index: 1;
 }
 .lecteur-ancre {
   position: sticky;
@@ -544,5 +654,22 @@ function ouvrirRecueilsDepuisSelection() {
 }
 .barre-recherche .fermer {
   color: #888;
+}
+@media (max-width: 1000px) {
+  .grille-ent {
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) 3.25rem;
+  }
+  .grille-ent.notes-ouvert {
+    --volet-notes-largeur: min(320px, 34vw);
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-largeur);
+  }
+  .grille-ent:not(.notes-ouvert) {
+    --volet-notes-largeur: min(320px, 34vw);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grille-ent {
+    transition: none;
+  }
 }
 </style>
