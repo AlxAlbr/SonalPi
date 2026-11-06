@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transférer vers QualCoder — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html#exports-partage">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Organiser et exporter</p>
+    <h1>Transférer vers QualCoder</h1>
+    <p>Pour poursuivre une analyse dans QualCoder, SonalPi peut créer un projet contenant vos transcriptions, vos codages et les cas que vous choisissez. Par exemple, vous pouvez transmettre les entretiens d’une association et les passages rassemblés dans un cas consacré à son fonctionnement.</p>
+    <p class="retenir"><strong>Ce transfert contient le texte original, sans pseudonymisation.</strong> Les réglages et le rapport des formats de lecture ne s’appliquent pas à ce projet. Ne le diffusez pas en pensant que les noms ont été remplacés.</p>
+    <p>Le projet obtenu est indépendant du corpus SonalPi : le transfert ne modifie pas votre travail et ne synchronise pas les deux logiciels. Conservez le corpus natif et sa <a href="../traiter/annuler-restaurer.html#sauvegarder">sauvegarde</a>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#selection">Choisir les entretiens et les cas</a></li>
+        <li><a href="#contenu-transfere">Comprendre ce qui est transféré</a></li>
+        <li><a href="#cas">Vérifier les matériaux des cas</a></li>
+        <li><a href="#destination">Créer le projet dans un dossier distinct</a></li>
+        <li><a href="#controle">Contrôler le projet dans QualCoder</a></li>
+        <li><a href="#confidentialite">Vérifier les informations sensibles</a></li>
+        <li><a href="#reprendre">Reprendre après une annulation ou un échec</a></li>
+      </ul>
+    </nav>
+    <h2 id="selection">Choisir les entretiens et les cas</h2>
+    <ol>
+      <li>Ouvrez le corpus, puis <strong>Organiser &amp; Exporter → Exporter le corpus</strong>. Le menu <strong>Corpus → Exporter le corpus…</strong> ouvre le même outil.</li>
+      <li>Cochez les entretiens à transférer. Pour une sélection restreinte, décochez <strong>Tous les entretiens</strong>, puis cochez les titres voulus.</li>
+      <li>Dans <strong>Type d’export</strong>, choisissez <strong>Projet QualCoder (.qda)</strong>.</li>
+      <li>Dans <strong>Cas à intégrer au projet QualCoder</strong>, cochez les cas souhaités. Décochez <strong>Tous les cas</strong> pour ne conserver que certains d’entre eux.</li>
+      <li>Relisez à droite le nombre d’entretiens et de cas, ainsi que l’avertissement sur l’absence de pseudonymisation.</li>
+    </ol>
+    <p>Vous pouvez exporter des entretiens sans aucun cas. En revanche, vous devez sélectionner au moins un entretien. Les entretiens et les cas sont tous cochés lors de la première ouverture ; vérifiez les choix conservés si vous revenez dans l’outil.</p>
+    <figure>
+      <img src="../medias/qualcoder-reglages.png" alt="Le type Projet QualCoder est sélectionné ; les cas peuvent être cochés à gauche et le récapitulatif à droite annonce un texte sans pseudonymisation.">
+      <figcaption>Les cases des cas choisissent leur présence dans le projet, pas les seules portions de transcription à transmettre.</figcaption>
+    </figure>
+    <h2 id="contenu-transfere">Comprendre ce qui est transféré</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Dans SonalPi</th><th>Dans le projet QualCoder</th></tr></thead>
+        <tbody>
+          <tr><td>Entretiens sélectionnés</td><td>Leur transcription complète, en texte, avec leur titre comme nom de source. Choisir un cas ne limite pas ces textes à ses passages.</td></tr>
+          <tr><td>Thèmes et codages</td><td>Les thèmes du corpus deviennent des codes et des catégories, avec leur organisation ; les descriptions deviennent des mémos de codes. Les codages des sources sélectionnées sont rattachés au texte.</td></tr>
+          <tr><td>Commentaires de passage</td><td>Des annotations avec leur texte et leur auteur.</td></tr>
+          <tr><td>Variables d’entretien non privées renseignées</td><td>Des attributs de fichier, avec les libellés des réponses.</td></tr>
+          <tr><td>Cas sélectionnés</td><td>Leur nom, leur mémo et les passages disponibles dans les entretiens sélectionnés.</td></tr>
+          <tr><td>Attributs de cas non privés</td><td>Les valeurs saisies et les valeurs dérivées disponibles et cohérentes, sous des noms commençant par « Cas — ».</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Ce transfert ne reprend pas tous les objets SonalPi : les notes d’entretien, les recueils, le tableau de bord, les documents du projet et les résultats d’analyse ne sont pas transférés. Les personnes et les locuteurs ne deviennent pas automatiquement des cas ; leurs variables de locuteur ne sont pas transférées comme telles.</p>
+    <p>Les enregistrements audio et vidéo ne sont pas copiés. Les repères temporels, la lecture synchronisée et les règles de pseudonymisation ne sont pas repris. Il s’agit d’un projet textuel natif QualCoder, pas d’un fichier d’échange REFI-QDA.</p>
+    <h2 id="cas">Vérifier les matériaux des cas</h2>
+    <p>Un cas rassemble des passages pour une unité d’étude : une personne, une association ou une situation, par exemple. Il peut contenir des passages ajoutés à la main ou trouvés par une règle.</p>
+    <p>Dans le projet exporté, ces règles deviennent des <strong>passages fixes</strong>. Elles ne se recalculeront pas lorsque vous modifierez les textes dans QualCoder. Les familles et les recettes d’attributs ne deviennent pas des automatismes dans le logiciel destinataire.</p>
+    <p class="retenir"><strong>Une sélection partielle d’entretiens peut produire un cas incomplet.</strong> Cocher un cas n’ajoute pas automatiquement les entretiens manquants à l’export. Un cas peut même être créé sans passage si aucun de ses matériaux n’est disponible dans la sélection.</p>
+    <p>Avant le transfert, consultez les cas dans SonalPi et incluez leurs sources utiles. Après le transfert, comparez leurs passages et leurs attributs. Une valeur dérivée calculée sur une sélection réduite ne suffit pas à décrire l’ensemble du cas ; une valeur absente ou contradictoire n’est pas remplacée par une ancienne valeur.</p>
+    <h2 id="destination">Créer le projet dans un dossier distinct</h2>
+    <ol>
+      <li>Cliquez sur <strong>Exporter 1 entretien</strong> ou <strong>Exporter … entretiens</strong>, selon votre sélection.</li>
+      <li>Choisissez une nouvelle destination, distincte du corpus SonalPi. Le nom proposé se termine par <strong>_qualcoder.qda</strong>.</li>
+      <li>Conservez l’extension <strong>.qda</strong> et attendez le message <strong>Projet QualCoder créé</strong>.</li>
+    </ol>
+    <p>Le résultat est un <strong>dossier</strong> se terminant par <strong>.qda</strong>, pas un document unique. Il contient <strong>data.qda</strong> et des sous-dossiers, notamment <strong>audio</strong>, <strong>documents</strong>, <strong>images</strong> et <strong>video</strong>. Leur présence ne signifie pas que des médias ont été transférés.</p>
+    <p>La destination doit être vide ou ne pas encore exister. SonalPi refuse un dossier contenant déjà des fichiers : il ne fusionne pas ce transfert avec un ancien projet QualCoder. Pour déplacer ou transmettre le résultat, gardez le dossier <strong>.qda</strong> entier.</p>
+    <p>L’export ne déclenche ni l’enregistrement ni la publication de vos entretiens. L’entretien ouvert est repris dans son état courant ; les autres sont lus depuis leurs données disponibles. Enregistrez d’abord votre travail si vous souhaitez conserver le même état dans SonalPi.</p>
+    <h2 id="controle">Contrôler le projet dans QualCoder</h2>
+    <figure>
+      <img src="../medias/qualcoder-resultat.png" alt="Le bilan Projet QualCoder créé confirme la fin du transfert et propose Préparer un autre export.">
+      <figcaption>Ce bilan confirme la création du dossier. Il ne remplace pas la vérification de son contenu dans QualCoder.</figcaption>
+    </figure>
+    <p>Dans QualCoder, utilisez l’ouverture d’un projet existant et choisissez le dossier <strong>.qda</strong> produit. L’ouverture réelle selon votre version de QualCoder reste à vérifier ; ne supprimez pas le corpus SonalPi sur la seule foi du message de réussite.</p>
+    <ol>
+      <li>Comparez les sources à la liste d’entretiens sélectionnés et relisez plusieurs débuts et fins de transcription.</li>
+      <li>Contrôlez les codes, leurs descriptions et les mots réellement couverts par quelques codages, y compris près d’un changement de paragraphe.</li>
+      <li>Vérifiez les commentaires, les noms de cas, leurs mémos et les passages associés.</li>
+      <li>Comparez les attributs attendus et leurs valeurs. Recherchez particulièrement les cas vides ou incomplets après une sélection partielle.</li>
+      <li>Gardez le corpus SonalPi et le projet transféré séparés : les modifications faites dans QualCoder ne reviennent pas automatiquement dans SonalPi.</li>
+    </ol>
+    <p>Le bilan actuel ne fournit pas de rapport détaillé des éléments omis. Un projet créé peut donc demander des corrections ou un nouveau transfert avec davantage de sources.</p>
+    <h2 id="confidentialite">Vérifier les informations sensibles</h2>
+    <p class="retenir"><strong>Les pseudonymes préparés dans SonalPi ne sont pas appliqués à cet export.</strong> Le texte original, les titres des sources, les commentaires et leurs auteurs, les noms et mémos de cas ainsi que les libellés de thèmes peuvent identifier des personnes.</p>
+    <p>Les variables et attributs marqués privés sont exclus, mais ce statut ne masque pas les mêmes informations écrites ailleurs. Les thèmes du corpus sont transférés même s’ils ne sont pas utilisés dans les entretiens choisis.</p>
+    <p>Un transfert non pseudonymisé peut convenir à un échange au sein du même projet avec des destinataires autorisés. <a href="verifier-partage.html">Adaptez le contenu à l’usage prévu</a> et vérifiez les conditions de conservation. Si vous cherchez une copie à relire avec les remplacements configurés, utilisez plutôt les <a href="exporter-corpus.html#options">formats de lecture pseudonymisés</a>.</p>
+    <h2 id="reprendre">Reprendre après une annulation ou un échec</h2>
+    <p>Annuler le choix de destination ne crée pas de projet pour ce lancement. Cliquez sur <strong>Préparer un autre export</strong> pour retrouver les réglages. Contrairement au lot de lecture, le transfert QualCoder ne propose pas d’arrêt après l’entretien courant.</p>
+    <p>Si la destination contient déjà des fichiers, choisissez un nouveau nom après <strong>Préparer un autre export</strong>. Si un entretien sélectionné est illisible, le transfert échoue au lieu de continuer avec les autres : vérifiez la source, puis relancez l’export. Ne prenez pas un ancien dossier pour le résultat de la tentative en échec.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="exporter-corpus.html" rel="prev">← Précédent : exporter un lot d’entretiens</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="verifier-partage.html" rel="next">Suivant : vérifier les données avant diffusion →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

@@ -7,7 +7,7 @@ paquet Linux sont vérifiées. Le premier sous-lot du socle V1 ajoute la présen
 la découverte des exemples et l’import des transcriptions. La gestion des entretiens,
 la correction, les locuteurs, les thèmes, les données, les notes, les commentaires,
 la pseudonymisation, l’annulation et les exports individuel et par lot portent
-l’ensemble à dix-sept chapitres et cinquante-deux réponses FAQ.
+l’ensemble à dix-sept chapitres et cinquante-deux réponses FAQ avant le transfert QualCoder.
 L’import Word/PDF a été repris de la V1 ; les TXT tabulés Tadddam/NVivo et les noms
 SRT ont été adaptés de Whispurge. La table de données propose maintenant un export
 CSV des colonnes affichées, avec variables privées sur choix explicite. Le guide
@@ -38,6 +38,36 @@ parties, dont une section consacrée aux exports et au partage.
 Le chapitre Exporter un lot d’entretiens complète les formats de lecture avec la
 sélection, le rapport, les documents combinés, les médias et le bilan. Sa recette
 est vérifiée dans le paquet Linux, avec copie des médias originaux explicitement signalée.
+Le chapitre Transférer vers QualCoder ajoute ensuite deux captures et quatre réponses
+FAQ, soit dix-huit chapitres et cinquante-six réponses. Le transfert textuel, les cas
+et les attributs sont vérifiés dans le paquet Linux ; l’ouverture réelle du projet
+par QualCoder reste à qualifier. Une correction permet l’export des cas contenant
+des passages ajoutés manuellement.
+Le chapitre Vérifier les données avant diffusion complète ensuite le guide :
+dix-neuf chapitres et cinquante-huit réponses FAQ. Il adapte le contenu au destinataire,
+y compris pour un échange non pseudonymisé au sein d’un projet. La pseudonymisation
+reste limitée au texte. Ce sous-lot est rédigé sans nouvelle recette ni modification
+applicative, conformément à la demande de l’utilisateur.
+La page Retrouver ses fichiers, sauvegarder et déplacer reprend ensuite la restauration
+locale déjà éprouvée et complète les médias externes et le changement d’ordinateur.
+Avec ses deux réponses FAQ, le guide atteint vingt chapitres et soixante réponses.
+Cet ajout reste rédactionnel, sans nouvelle recette ni reconstruction du paquet.
+Le chapitre Organiser le tableau de bord ouvre ensuite Préparer et suivre :
+suivi manuel indépendant des entretiens, cases, badges, structure et affichage.
+Ses trois réponses FAQ ouvrent une dixième partie ; le guide compte vingt et un
+chapitres et soixante-trois réponses. La rédaction s’appuie sur les composants,
+le modèle et les recettes existantes, sans les relancer.
+Le chapitre Réunir les documents du projet complète Préparer et suivre : copie
+locale, classement, aperçus et modification dans l’application habituelle, avec
+les différences Nextcloud/GitLab explicites. Ses trois réponses FAQ portent le guide
+à vingt-deux chapitres et soixante-six réponses. Aucun nouveau test ni empaquetage
+n’est exécuté pour ce sous-lot rédactionnel.
+Le chapitre Utiliser les modèles fournis termine ensuite Préparer et suivre :
+consultation, copie personnelle et ajout au projet, avec trois réponses FAQ.
+Le guide compte vingt-trois chapitres et soixante-neuf réponses. Les quatre fichiers
+exemples ne contiennent actuellement que leur titre et « À venir. » : le chapitre
+signale cette limite sans les présenter comme des modèles prêts à l’emploi.
+Aucun nouveau test, empaquetage, contenu de modèle ou changement applicatif.
 
 Le [suivi de rédaction](suivi-documentation-utilisateur-v2.md) contient
 le sommaire détaillé, la matrice des sources, les divergences et les recettes.
@@ -504,10 +534,32 @@ La page d’accueil du site regroupe les chapitres selon les parties du plan et
 n’affiche pas les rubriques encore vides. Les cartes de l’application sont désormais accessibles dans l’essai
 UX anticipé ; leur intégration finale reste au lot 8.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O06**.
-La dernière recette figure dans la section 26 du suivi.
+**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06 et P01–P03**.
+Les sections 28 à 32 du suivi décrivent O08, A06 et P01–P03, rédigés sans nouvelle recette.
+La dernière recette exécutée reste celle de la section 27.
 
-**Prochaine rédaction : O07 — Transférer vers QualCoder**.
+**Prochaine rédaction proposée : T05 — Relier une personne entre plusieurs entretiens**.
+Le chapitre Utiliser les modèles fournis (P03) et ses trois réponses FAQ sont rédigés,
+à relire. Les ressources, composants et recettes existantes ont été relus sans les
+exécuter. Les quatre fichiers sont encore des emplacements « À venir. », pas des
+modèles rédigés ; les documents validés par l’organisme restent nécessaires.
+Le chapitre Réunir les documents du projet (P02) et ses trois réponses FAQ sont rédigés,
+à relire. Les services et les recettes existantes ont été relus sans nouveau test,
+notamment sans solliciter Nextcloud ou GitLab.
+Le chapitre Organiser le tableau de bord (P01) et ses trois réponses FAQ sont rédigés,
+à relire, sans nouveau test ni empaquetage. Un défaut des déplacements droite/bas
+est consigné dans le suivi pour correction ultérieure ; la procédure décrit les
+placements à l’ajout et les déplacements gauche/haut.
+Le chapitre Retrouver ses fichiers, sauvegarder et déplacer (A06) et ses deux réponses
+FAQ sont rédigés, à relire. La restauration reprend l’essai déjà réussi avec T13 ;
+les compléments sur le déplacement et le changement d’ordinateur n’ont pas fait
+l’objet d’une nouvelle recette.
+Le chapitre Vérifier les données avant diffusion (O08) et ses deux réponses FAQ
+sont rédigés, à relire : choix selon le destinataire, avec ou sans pseudonymisation
+du texte. Aucun test ni nouvel empaquetage n’a été exécuté pour cet ajout.
+Le chapitre Transférer vers QualCoder (O07), ses deux captures et ses quatre réponses
+FAQ sont rédigés ; le transfert est vérifié dans le paquet Linux, à relire.
+L’ouverture réelle dans une version installée de QualCoder reste à qualifier.
 Le chapitre Exporter un lot d’entretiens (O06), ses deux captures et ses quatre réponses
 FAQ sont rédigés et vérifiés dans le paquet Linux, à relire.
 Le chapitre Exporter un entretien (O05), ses deux captures et ses quatre réponses
@@ -524,9 +576,13 @@ branchement de l’import des modèles a été corrigé et vérifié dans le paq
 L’export CSV et les statistiques de locuteurs demandés ensuite ont été ajoutés,
 documentés et vérifiés dans le paquet Linux. Les notes, les commentaires et la
 pseudonymisation, le retour sur une modification et les exports individuel et par lot
-ont également été documentés ; la suite éditoriale est le transfert vers QualCoder.
+ont également été documentés. Le transfert vers QualCoder et le contrôle des données
+avant diffusion complètent cet ensemble. La page générale sur les fichiers,
+la sauvegarde et le déplacement est également rédigée. Préparer et suivre couvre
+le tableau de bord, les documents du projet et les exemples encore à compléter ;
+la suite proposée porte sur les personnes communes à plusieurs entretiens.
 L’installation attend la confirmation des liens de diffusion V2. L’essai de
 restauration d’une copie ZIP locale a réussi ; la page générale sur la sauvegarde
-et le déplacement reste à rédiger.
+et le déplacement s’appuie sur ce résultat, sans nouvelle qualification empaquetée.
 Les huit fichiers utilisateur préexistants restent inchangés. L’accueil applicatif
 fait désormais l’objet de l’essai UX, sans changement du contenu des corpus.

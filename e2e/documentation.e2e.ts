@@ -42,21 +42,27 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Documentation utilisateur')
       await expect(lecture.locator('main > h2')).toHaveText([
         'Découvrir et démarrer',
+        'Préparer et suivre',
         'Importer et traiter',
         'Organiser et exporter',
         'Questions fréquentes',
         'Lire et pratiquer à votre rythme',
       ])
-      await expect(lecture.locator('main > ol')).toHaveCount(3)
-      await expect(lecture.locator('main > ol').nth(0).locator('li')).toHaveCount(4)
-      await expect(lecture.locator('main > ol').nth(1).locator('li')).toHaveCount(11)
-      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(2)
+      await expect(lecture.locator('main > ol')).toHaveCount(4)
+      await expect(lecture.locator('main > ol').nth(0).locator('li')).toHaveCount(5)
+      await expect(lecture.locator('main > ol').nth(1).locator('li')).toHaveCount(3)
+      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(11)
+      await expect(lecture.locator('main > ol').nth(3).locator('li')).toHaveCount(4)
       await lecture.setViewportSize({ width: 390, height: 844 })
       for (const chapitre of [
         'Découvrir SonalPi',
         'Comprendre les notions et se repérer',
         'Choisir un parcours ou un corpus exemple',
         'Créer et retrouver un corpus local',
+        'Retrouver ses fichiers, sauvegarder et déplacer',
+        'Organiser le tableau de bord',
+        'Réunir les documents du projet',
+        'Utiliser les modèles fournis',
         'Préparer et importer une transcription',
         'Gérer les entretiens et leurs médias',
         'Relire et corriger un entretien',
@@ -70,6 +76,8 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         'Revenir sur une modification',
         'Exporter un entretien',
         'Exporter un lot d’entretiens',
+        'Transférer vers QualCoder',
+        'Vérifier les données avant diffusion',
       ]) {
         await lecture.locator('.suite a[rel="next"]').click()
         await expect(lecture.getByRole('heading', { level: 1 })).toHaveText(chapitre)
@@ -80,8 +88,32 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       }
       await lecture.getByRole('link', { name: /Suivant : questions/ }).click()
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes')
-      await expect(lecture.locator('main > h2')).toHaveCount(9)
-      await expect(lecture.locator('main > h3')).toHaveCount(52)
+      await expect(lecture.locator('main > h2')).toHaveCount(10)
+      await expect(lecture.locator('main > h3')).toHaveCount(69)
+      await lecture.getByRole('link', { name: 'Comprendre le contenu actuel des exemples.' }).click()
+      await expect(lecture).toHaveURL(/documents-exemples\.html#contenu-exemples$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Enregistrer et modifier une copie personnelle.' }).click()
+      await expect(lecture).toHaveURL(/documents-exemples\.html#copier$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Conserver votre document dans le projet.' }).click()
+      await expect(lecture).toHaveURL(/documents-exemples\.html#projet$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre les aperçus des documents.' }).click()
+      await expect(lecture).toHaveURL(/documents-projet\.html#apercus$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre les lignes du tableau de bord.' }).click()
+      await expect(lecture).toHaveURL(/tableau-de-bord\.html#ouvrir$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Déplacer le corpus ou changer d’ordinateur.' }).click()
+      await expect(lecture).toHaveURL(/sauvegarder-deplacer\.html#deplacer$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Adapter le contenu au destinataire.' }).click()
+      await expect(lecture).toHaveURL(/verifier-partage\.html#destinataire$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Vérifier les informations sensibles du projet QualCoder.' }).click()
+      await expect(lecture).toHaveURL(/qualcoder\.html#confidentialite$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
       await lecture.getByRole('link', { name: 'Contrôler le bilan et les fichiers du lot.' }).click()
       await expect(lecture).toHaveURL(/exporter-corpus\.html#bilan$/)
       await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()

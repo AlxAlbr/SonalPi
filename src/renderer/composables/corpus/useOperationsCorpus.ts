@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, toRaw, type Ref } from 'vue'
 import { importerFichier } from '../../formatSonal/sas'
 import type { VueApplication } from '../espaces'
 import {
@@ -386,7 +386,7 @@ export function useOperationsCorpus(deps: {
           famillesCas: deps.corpus.famillesCas.value,
           attributsCas: deps.corpus.attributsCas.value,
           codebook: Object.fromEntries(deps.corpus.codebook.value.map((category) => [category.id, category])),
-          cas: deps.corpus.cas.value,
+          cas: structuredClone(toRaw(deps.corpus.cas.value)),
         },
         personnes: Object.fromEntries(inventaire.personnes.map((personne) => [personne.id, personne])),
         casSelectionnes,

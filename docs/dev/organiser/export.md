@@ -4,6 +4,8 @@ La procédure utilisateur de l’entretien ouvert est décrite dans
 [Exporter un entretien](../../user/organiser/exporter-entretien.html).
 Le parcours de lecture du corpus est décrit dans
 [Exporter un lot d’entretiens](../../user/organiser/exporter-corpus.html).
+Le transfert natif est décrit dans
+[Transférer vers QualCoder](../../user/organiser/qualcoder.html).
 
 Un export est une **photographie destinée à être lue ou échangée**, pas une
 sauvegarde des données natives. Il ne sauvegarde pas implicitement l’entretien
@@ -86,6 +88,10 @@ les offsets ProseMirror ne sont pas directement utilisables dans QualCoder.
 Toute évolution doit vérifier les textes sélectionnés, Unicode et sauts de ligne
 contre les bornes exportées, pas seulement l’ouverture de la base SQLite.
 
+Les cas issus de l’état Vue sont copiés avec `structuredClone(toRaw(...))` avant
+l’assemblage : la résolution des rattachements manuels clone leurs références et
+ne peut pas recevoir un proxy réactif.
+
 Les matériaux des cas sont résolus sur les sources sélectionnées pour l’export ;
 leurs règles deviennent des résultats, sans conserver leur dynamisme. Une
 sélection partielle de sources ne certifie donc pas l’exhaustivité d’un cas ou
@@ -115,5 +121,10 @@ Tests : `test/exportEntretienService.test.ts`, `test/exportCorpusService.test.ts
 `e2e/export-corpus.e2e.ts`. La recette utilisateur
 `e2e/documentation-exporter-lot.e2e.ts` vérifie aussi les quatre formats de lecture,
 le rapport séparé, les copies de médias avec et sans pseudonymisation et les
-échecs partiels. Pour les règles de projection sensible, voir aussi
+échecs partiels. `e2e/documentation-qualcoder.e2e.ts` vérifie le transfert des textes
+originaux, codages, commentaires, cas manuels et avec règle, attributs publics,
+sélections partielles, absence de médias, annulation et refus d’une destination
+occupée ou d’une source illisible. La vérification SQLite ne qualifie pas à elle
+seule l’ouverture dans une version installée de QualCoder.
+Pour les règles de projection sensible, voir aussi
 [les sorties de pseudonymisation](../traiter/pseudonymisation/sorties.md).

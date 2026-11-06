@@ -18,6 +18,13 @@ vides ne sont pas affichées dans le sommaire utilisateur.
 2. [Comprendre les notions et se repérer](demarrer/se-reperer.html).
 3. [Choisir un parcours ou un corpus exemple](demarrer/exemples-parcours.html).
 4. [Créer et retrouver un corpus local](demarrer/corpus-local.html).
+5. [Retrouver ses fichiers, sauvegarder et déplacer](demarrer/sauvegarder-deplacer.html).
+
+## Préparer et suivre
+
+1. [Organiser le tableau de bord](preparer/tableau-de-bord.html).
+2. [Réunir les documents du projet](preparer/documents-projet.html).
+3. [Utiliser les modèles fournis](preparer/documents-exemples.html) : fichiers exemples encore à compléter et copie personnelle.
 
 ## Importer et traiter
 
@@ -37,6 +44,8 @@ vides ne sont pas affichées dans le sommaire utilisateur.
 
 1. [Exporter un entretien](organiser/exporter-entretien.html).
 2. [Exporter un lot d’entretiens](organiser/exporter-corpus.html).
+3. [Transférer vers QualCoder](organiser/qualcoder.html).
+4. [Vérifier les données avant diffusion](organiser/verifier-partage.html).
 
 Vous pouvez suivre cet ordre ou ouvrir directement la page qui vous intéresse.
 Pour essayer le codage sans importer vos propres documents, la page consacrée
@@ -45,9 +54,10 @@ au premier codage explique comment utiliser une copie d’un corpus exemple.
 ## Questions fréquentes
 
 [Consulter les questions fréquentes](faq/premiers-pas.html) : démarrage, corpus,
-transcriptions, médias, codage, locuteurs, données, notes, commentaires,
+tableau de bord, documents du projet et exemples, transcriptions, médias, codage, locuteurs,
+données, notes, commentaires,
 pseudonymisation, annulation, sauvegarde, exports et partage. Les questions sont
-regroupées en neuf parties dans une seule page.
+regroupées en dix parties dans une seule page.
 
 ## Autres textes disponibles pendant la réécriture
 

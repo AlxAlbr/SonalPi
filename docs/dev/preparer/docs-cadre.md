@@ -1,5 +1,9 @@
 # Documents cadre — repères développeur
 
+Les procédures utilisateur sont décrites dans
+[Réunir les documents du projet](../../user/preparer/documents-projet.html) et
+[Utiliser les modèles fournis](../../user/preparer/documents-exemples.html).
+
 Les onglets **Documents du projet** et **Documents exemples** partagent un
 explorateur de fichiers. SonalPi les liste, fournit quelques aperçus et permet
 d’enregistrer une copie. **Il ne modifie ni ne convertit leur contenu** :
@@ -14,7 +18,8 @@ Les documents du projet vivent hors de `corpus.json`, sous
 Les exemples sont des ressources indépendantes du corpus, livrées depuis
 `ressources/docsCadreExemples/` et copiées dans les ressources de l’application
 empaquetée. Ils sont toujours en lecture seule et ne sont pas ajoutés au corpus
-par leur simple consultation.
+par leur simple consultation. Les quatre fichiers livrés contiennent actuellement
+leur titre et « À venir. » seulement ; ne pas les présenter comme des modèles rédigés.
 
 | Source | Lecture | Actions sur les originaux |
 |---|---|---|

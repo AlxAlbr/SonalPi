@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vérifier les données avant diffusion — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html#exports-partage">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Organiser et exporter</p>
+    <h1>Vérifier les données avant diffusion</h1>
+    <p>Avant de transmettre un fichier, vérifiez qu’il contient les informations utiles à son destinataire. Envoyer des entretiens à un collègue du même projet et diffuser des extraits dans une publication ne répondent pas au même besoin.</p>
+    <p class="retenir"><strong>Partager ne signifie pas nécessairement pseudonymiser.</strong> Un échange non pseudonymisé peut être adapté au sein d’un projet de recherche, avec des personnes autorisées à consulter ces données. Le choix dépend des destinataires, de l’usage prévu et des engagements pris pour l’enquête.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#destinataire">Choisir le contenu selon le destinataire</a></li>
+        <li><a href="#pseudonymisation">Choisir de pseudonymiser ou non le texte</a></li>
+        <li><a href="#fichiers">Vérifier les fichiers à transmettre</a></li>
+        <li><a href="#envoi">Faire une dernière vérification avant l’envoi</a></li>
+      </ul>
+    </nav>
+    <h2 id="destinataire">Choisir le contenu selon le destinataire</h2>
+    <p>Commencez par préciser ce que la personne doit pouvoir faire : relire un entretien, comparer des extraits ou reprendre une analyse dans un autre logiciel. Ne joignez que les informations nécessaires à cet usage.</p>
+    <ul>
+      <li>Pour une relecture, choisissez un <a href="exporter-entretien.html#formats">format de lecture</a> ou un <a href="exporter-corpus.html#formats">document combiné</a>.</li>
+      <li>Pour poursuivre l’analyse dans QualCoder, utilisez le <a href="qualcoder.html">transfert dédié</a>, qui reprend le texte original sans pseudonymisation.</li>
+      <li>Décidez séparément si les notes, variables, commentaires ou enregistrements sont utiles à cet échange.</li>
+    </ul>
+    <h2 id="pseudonymisation">Choisir de pseudonymiser ou non le texte</h2>
+    <p>Dans les formats qui le proposent, vérifiez la case <strong>Appliquer la pseudonymisation</strong>. Décochez-la si vous souhaitez transmettre le texte original. Ne vous fiez pas au réglage initial : il varie selon le format.</p>
+    <p>Si l’échange demande un texte pseudonymisé, préparez les remplacements dans <a href="../traiter/pseudonymiser.html">l’outil de pseudonymisation</a>, puis activez cette option à l’export. Consultez le rapport lorsqu’il est proposé et relisez le résultat : le contexte peut encore permettre de reconnaître une personne.</p>
+    <p>Le module de pseudonymisation traite le texte ; il ne transforme pas les enregistrements audio ou vidéo. Le choix de joindre ces fichiers est indépendant du choix de pseudonymiser la transcription.</p>
+    <h2 id="fichiers">Vérifier les fichiers à transmettre</h2>
+    <p>Ouvrez les fichiers produits et examinez le dossier d’envoi, plutôt que de vous limiter aux cases choisies dans SonalPi.</p>
+    <ol>
+      <li><strong>Entretiens et passages.</strong> Retrouvez-vous les sources attendues, dans leur bonne version ? Le texte est-il original ou pseudonymisé comme vous le souhaitiez ?</li>
+      <li><strong>Informations d’accompagnement.</strong> Vérifiez les titres, noms de fichiers, notes, commentaires et auteurs, libellés de thèmes et valeurs de variables. Leur présence peut être utile et voulue ; assurez-vous qu’elle convient au destinataire.</li>
+      <li><strong>Contenu propre au format.</strong> Un fichier HTML conserve les commentaires sans les afficher. Un fichier SONAL complet peut conserver des variables privées. Les exclusions des formats de lecture ne s’appliquent pas indistinctement à toutes les sorties : consultez le <a href="exporter-entretien.html#contenus">contenu de chaque format</a> et les <a href="qualcoder.html#contenu-transfere">éléments transférés vers QualCoder</a>.</li>
+      <li><strong>Enregistrements.</strong> Si vous avez demandé leur <a href="exporter-corpus.html#medias">copie dans un lot HTML</a>, ils restent les originaux, même avec une transcription pseudonymisée. Joignez-les seulement si cet envoi est prévu ; sinon, préparez un dossier sans ces fichiers.</li>
+      <li><strong>Fichiers annexes.</strong> Examinez aussi l’index du lot et les rapports enregistrés. Le rapport de pseudonymisation sert au contrôle des remplacements ; il n’a pas à accompagner systématiquement les documents transmis.</li>
+    </ol>
+    <p>Par exemple, un collègue chargé de relire les entretiens dans le même projet peut avoir besoin des noms réels et de l’audio. Pour transmettre uniquement des extraits pseudonymisés à un autre destinataire, préparez plutôt les textes nécessaires sans joindre automatiquement les enregistrements, rapports ou fichiers de travail.</p>
+    <h2 id="envoi">Faire une dernière vérification avant l’envoi</h2>
+    <ul>
+      <li>Le destinataire et le moyen d’envoi conviennent-ils aux données partagées et aux règles du projet ?</li>
+      <li>Le dossier contient-il seulement les fichiers prévus, sans ancienne version ni ajout involontaire ?</li>
+      <li>Le destinataire saura-t-il ce qu’il reçoit : textes originaux ou pseudonymisés, sélection complète ou partielle, présence ou absence des médias ?</li>
+    </ul>
+    <p>Gardez votre corpus de travail séparé de ces copies. Si vous corrigez un élément dans SonalPi après l’export, produisez de nouveaux fichiers : les copies déjà exportées ne se mettent pas à jour.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="qualcoder.html" rel="prev">← Précédent : transférer vers QualCoder</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../faq/premiers-pas.html#exports-partage" rel="next">Suivant : questions fréquentes →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

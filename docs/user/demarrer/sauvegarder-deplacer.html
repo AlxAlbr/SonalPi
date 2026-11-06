@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retrouver ses fichiers, sauvegarder et déplacer — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html#annulation-sauvegarde">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre">Découvrir et démarrer</p>
+    <h1>Retrouver ses fichiers, sauvegarder et déplacer</h1>
+    <p>Pour conserver votre travail ou le reprendre sur un autre ordinateur, gardez ensemble les données du corpus et les fichiers nécessaires à votre étude. Cette page concerne les <strong>corpus locaux</strong>.</p>
+    <p class="retenir"><strong>Le dossier du corpus et les enregistrements sont deux choses distinctes.</strong> SonalPi conserve vos transcriptions et votre analyse dans le corpus ; un audio ou une vidéo associé reste à l’emplacement où vous l’avez choisi.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#fichiers">Retrouver les fichiers de travail</a></li>
+        <li><a href="#conserver">Distinguer enregistrement, sauvegarde et export</a></li>
+        <li><a href="#sauvegarder">Créer une copie de sauvegarde ZIP</a></li>
+        <li><a href="#restaurer">Restaurer dans un nouveau dossier</a></li>
+        <li><a href="#deplacer">Déplacer le corpus ou changer d’ordinateur</a></li>
+        <li><a href="#medias">Retrouver les enregistrements après le déplacement</a></li>
+        <li><a href="#distant">Et pour un corpus distant ?</a></li>
+      </ul>
+    </nav>
+    <h2 id="fichiers">Retrouver les fichiers de travail</h2>
+    <p>Le corpus est le dossier dédié choisi lors de sa <a href="corpus-local.html#creer">création</a>. Sur l’accueil, dans <strong>Reprendre votre travail</strong>, le chemin sous le nom du corpus local vous aide à retrouver cet emplacement dans votre gestionnaire de fichiers.</p>
+    <p>Ce dossier contient le fichier <strong>corpus.json</strong> et les sous-dossiers utilisés par SonalPi, dont <strong>entretiens/</strong>. Ils conservent les transcriptions travaillées, les codages, les notes et l’organisation du corpus. Ne déplacez pas un seul de ces fichiers pour copier votre étude : conservez le dossier entier, sans modifier son contenu à la main.</p>
+    <ul>
+      <li><strong>Transcriptions d’origine :</strong> les fichiers importés restent à leur emplacement initial. Les corrections faites dans SonalPi sont conservées dans le corpus, pas réécrites dans ces originaux.</li>
+      <li><strong>Audio et vidéo :</strong> les fichiers associés sont référencés, pas automatiquement copiés dans le corpus. Conservez-les séparément s’ils se trouvent ailleurs.</li>
+      <li><strong>Documents du projet :</strong> les copies présentes dans le dossier du corpus accompagnent sa sauvegarde. Conservez aussi les autres documents de l’étude restés à l’extérieur.</li>
+    </ul>
+    <p>Par exemple, si <strong>Enquete-associations</strong> contient votre corpus et qu’un autre dossier contient les enregistrements, prévoyez de conserver les deux. Garder les fichiers de transcription d’origine est utile pour vos archives, mais ils ne remplacent pas le corpus travaillé.</p>
+    <h2 id="conserver">Distinguer enregistrement, sauvegarde et export</h2>
+    <ul>
+      <li><strong>L’enregistrement automatique</strong> conserve les modifications courantes dans le corpus. Attendez l’état <strong>à jour</strong> de l’entretien avant de fermer SonalPi. Il ne constitue pas un historique de toutes les versions.</li>
+      <li><strong>La copie de sauvegarde</strong> conserve un état daté, que vous pourrez retrouver sans remplacer immédiatement votre travail actuel.</li>
+      <li><strong>L’export</strong> produit des documents de lecture ou d’échange. Même un export de tous les entretiens ne conserve pas l’ensemble du corpus natif.</li>
+    </ul>
+    <p>Conservez plusieurs sauvegardes datées, notamment avant une réorganisation importante. Une copie sur le même disque aide à retrouver un état antérieur, mais ne protège pas contre la perte de ce disque : gardez aussi une copie sur un autre support ou dans un espace de sauvegarde adapté aux données du projet.</p>
+    <h2 id="sauvegarder">Créer une copie de sauvegarde ZIP</h2>
+    <ol>
+      <li>Ouvrez le corpus local à sauvegarder et vérifiez que vos dernières modifications sont enregistrées.</li>
+      <li>Choisissez <strong>Corpus → Faire une copie de sauvegarde du corpus (ZIP)…</strong>.</li>
+      <li>Enregistrez le ZIP <strong>en dehors du dossier du corpus</strong>. Le nom proposé comporte la date ; distinguez aussi vos copies si vous en créez plusieurs le même jour.</li>
+      <li>Attendez le message <strong>Copie de sauvegarde créée</strong>. Si une erreur est signalée, ne considérez pas cette tentative comme une sauvegarde réussie.</li>
+      <li>Copiez séparément les enregistrements et les autres documents externes nécessaires à votre étude.</li>
+    </ol>
+    <p>SonalPi termine d’abord l’enregistrement de l’entretien ouvert, puis prépare l’archive. Celle-ci conserve les données du corpus, ses documents internes et les éléments de sa corbeille. Elle ne va pas chercher les fichiers audio ou vidéo référencés à l’extérieur du dossier.</p>
+    <p>Une sauvegarde conserve les données de travail, y compris le texte original et les informations privées. Son rôle est de permettre la reprise de l’étude, pas de préparer une copie de diffusion. Conservez-la dans un emplacement adapté aux personnes autorisées à accéder à ces données.</p>
+    <h2 id="restaurer">Restaurer dans un nouveau dossier</h2>
+    <p>Restaurer consiste à décompresser le ZIP, puis à ouvrir le dossier obtenu comme un corpus local. Aucun réimport des transcriptions n’est nécessaire.</p>
+    <ol>
+      <li>Fermez SonalPi et gardez le corpus actuel intact.</li>
+      <li>Dans votre gestionnaire de fichiers, créez un nouveau dossier vide, par exemple <strong>Enquete-associations-restauree</strong>.</li>
+      <li>Décompressez le ZIP dans ce dossier. Repérez le dossier qui contient directement <strong>corpus.json</strong> : c’est celui qu’il faudra ouvrir, même si votre outil de décompression a ajouté un dossier intermédiaire.</li>
+      <li>Relancez SonalPi. Sur l’accueil, choisissez <strong>Ouvrir un corpus local</strong>, puis sélectionnez ce dossier, pas le ZIP ni le fichier <strong>corpus.json</strong>.</li>
+      <li>Vérifiez les entretiens, notes, thèmes, données, cas, recueils et documents attendus, puis essayez la lecture des enregistrements associés.</li>
+    </ol>
+    <p class="retenir"><strong>Ne décompressez pas une ancienne sauvegarde par-dessus le corpus de travail.</strong> Ouvrez-la séparément pour comparer les états. Elle contient le travail présent à sa date, pas les modifications effectuées ensuite.</p>
+    <p>Une restauration vérifiée vous permet de confirmer que vous avez bien conservé ce qui est nécessaire à la reprise. Gardez l’archive et l’original tant que vous n’avez pas terminé ce contrôle.</p>
+    <h2 id="deplacer">Déplacer le corpus ou changer d’ordinateur</h2>
+    <p>Vous pouvez utiliser la sauvegarde ZIP et la procédure de restauration ci-dessus. Vous pouvez aussi copier directement le dossier entier :</p>
+    <ol>
+      <li>Attendez la fin de l’enregistrement, puis fermez SonalPi avant de copier les fichiers.</li>
+      <li>Copiez le dossier complet du corpus vers sa nouvelle destination, sans le fusionner avec un autre corpus.</li>
+      <li>Copiez aussi les enregistrements externes et les autres documents nécessaires. Pour un changement d’ordinateur, conservez l’original le temps de vérifier la copie.</li>
+      <li>Dans SonalPi sur le poste de destination, utilisez <strong>Ouvrir un corpus local</strong> pour sélectionner le dossier copié.</li>
+      <li>Contrôlez le travail retrouvé et réassignez les médias dont le chemin a changé.</li>
+    </ol>
+    <p>Les Récents sont des raccourcis vers un emplacement : ils ne se mettent pas automatiquement à suivre un dossier déplacé. Ouvrez le nouvel emplacement, puis retirez au besoin l’ancien raccourci avec sa croix. Cela ne supprime pas les fichiers.</p>
+    <p>Après une copie, choisissez clairement le dossier dans lequel vous poursuivez l’étude. Les modifications de l’un ne sont pas reportées dans l’autre. Échanger des copies locales ne remplace pas le travail à plusieurs sur un corpus distant.</p>
+    <h2 id="medias">Retrouver les enregistrements après le déplacement</h2>
+    <p>Un enregistrement copié peut être présent sur le nouvel ordinateur sans que SonalPi connaisse son nouvel emplacement. Cela ne signifie pas que la transcription ou les codages ont disparu.</p>
+    <ol>
+      <li>Ouvrez l’entretien avec son crayon.</li>
+      <li>Si le lecteur signale un fichier introuvable, cliquez sur <strong>Assigner un audio…</strong> et choisissez le bon fichier à son nouvel emplacement. Cette commande permet aussi d’associer une vidéo.</li>
+      <li>Vous pouvez également utiliser <strong>Remplacer l’audio…</strong> dans la fiche de l’entretien.</li>
+      <li>Essayez la lecture et vérifiez que le fichier correspond à l’entretien et à ses repères temporels.</li>
+    </ol>
+    <p>Cette association ne remplace pas la transcription. Voir aussi <a href="../traiter/gerer-entretiens.html#retrouver-media">Retrouver un fichier déplacé</a>.</p>
+    <h2 id="distant">Et pour un corpus distant ?</h2>
+    <p>La commande ZIP décrite ici n’est pas disponible pour les corpus distants. Leur sauvegarde doit être prévue avec les responsables du serveur et du projet, en tenant compte aussi de l’emplacement des médias. Ne traitez pas une copie locale de données distantes comme une sauvegarde complète garantie.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="corpus-local.html" rel="prev">← Précédent : créer et retrouver un corpus local</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../preparer/tableau-de-bord.html" rel="next">Suivant : organiser le tableau de bord →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

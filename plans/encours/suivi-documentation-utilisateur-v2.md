@@ -16,8 +16,12 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
 - Lot 4 : **sous-lots rédigés et vérifiés localement**, à relire : présentation,
   découverte des exemples, import, gestion des entretiens, correction, locuteurs,
   organisation des thèmes, variables, saisie des données, notes, commentaires,
-  pseudonymisation, retour sur une modification et exports individuel et par lot.
-  Dix-sept chapitres et cinquante-deux réponses FAQ sont disponibles.
+  pseudonymisation, retour sur une modification, exports individuel et par lot,
+  et transfert textuel vers QualCoder.
+  Le contrôle avant diffusion (O08) et la sauvegarde/déplacement (A06) complètent
+  ces pages par une rédaction sans nouvelle recette, dans le cadre demandé.
+  Avec les chapitres Préparer et suivre (P01 à P03), vingt-trois chapitres et
+  soixante-neuf réponses FAQ sont disponibles.
 - Sommaire utilisateur : regroupé selon les parties du plan, avec seulement les
   rubriques qui contiennent déjà des chapitres publiés.
 - Import Word/PDF : **ajouté à la demande de l’utilisateur**, selon le principe V1 ;
@@ -52,7 +56,32 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   et quatre nouvelles réponses FAQ ; sélection, formats combinés, copie des médias,
   rapport, bilan et reprise. Un avertissement rappelle que les médias copiés restent
   les originaux même si le texte est pseudonymisé.
-- FAQ : **une page unique**, réorganisée en neuf parties et cinquante-deux questions.
+- QualCoder : **chapitre O07 rédigé et transfert vérifié dans le paquet Linux**,
+  deux captures et quatre réponses FAQ ; textes originaux, codages, commentaires,
+  cas et attributs publics. Correction de l’export des cas à rattachements manuels.
+  L’ouverture du résultat dans QualCoder reste à qualifier sur une version installée.
+- Partage : **chapitre O08 rédigé, à relire**, avec deux réponses FAQ, sans nouvelle
+  capture ni modification applicative. Le partage non pseudonymisé est un usage
+  explicite ; la pseudonymisation reste limitée au texte. Aucun test relancé,
+  conformément à la demande de l’utilisateur ; O08 n’est pas encore qualifié dans le paquet.
+- Fichiers et sauvegarde : **chapitre A06 rédigé, à relire**, avec deux réponses FAQ,
+  sans nouvelle capture ni modification applicative. Il reprend la restauration
+  déjà éprouvée avec T13 et complète la conservation des médias, le déplacement
+  et le changement d’ordinateur. Aucun test ni empaquetage relancé pour cet ajout.
+- Lot 5, Préparer : **chapitre P01 rédigé, à relire**, avec trois réponses FAQ.
+  Suivi manuel indépendant des entretiens, cellules, badges, structure et affichage.
+  Lecture du code et des recettes existantes, sans nouveau test ni empaquetage.
+- Documents du projet : **chapitre P02 rédigé, à relire**, avec trois réponses FAQ.
+  Copie locale, sous-dossiers, aperçus, ouverture externe et copies indépendantes ;
+  consultation Nextcloud et indisponibilité GitLab distinguées depuis les sources.
+  Aucun nouveau test local ou distant, empaquetage ou changement applicatif.
+- Modèles fournis : **chapitre P03 rédigé, à relire**, avec trois réponses FAQ.
+  Consultation, copie personnelle et ajout au projet ; les quatre fichiers livrés
+  contiennent seulement leur titre et « À venir. », pas des modèles rédigés.
+  Aucun nouveau test, empaquetage, contenu de modèle ou changement applicatif.
+- FAQ : **une page unique**, réorganisée en dix parties et soixante-neuf questions.
+  La partie Préparer et suivre accueille les questions du tableau, des documents
+  du projet et des exemples.
   Les pages FAQ thématiques prévues deviennent des sections de cette page.
 - `markdown-it` et ses types : retirés ; aucun nouveau lecteur Electron ou Vue.
 - Accueil : **essai UX anticipé à la demande**, deux étages et deux colonnes,
@@ -60,12 +89,15 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   Réalisé et vérifié, à relire ; la consolidation finale reste au lot 8.
 - Huit fichiers utilisateur préexistants : **inchangés**.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes et les chapitres T11 à O06.
-Prochaine rédaction : O07 — Transférer vers QualCoder.** Le paquet Linux contient O05 et O06,
+**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06 et P01–P03.
+Prochaine rédaction proposée : T05 — Relier une personne entre plusieurs entretiens.**
+O08, A06 et P01–P03 sont rédigés sans nouvelle recette, avec leurs réponses FAQ.
+Le paquet Linux précédemment vérifié contient O05 à O07,
 T13 avec sa restauration vérifiée, T11 et les ajustements d’accueil ; T12 est vérifié localement.
 L’installation attend les liens de diffusion. La page générale sur la sauvegarde et
-le déplacement reste à rédiger à partir de l’essai désormais réussi. Les procédures
-distantes et les paquets Windows/macOS restent à qualifier.
+le déplacement est rédigée à partir de l’essai réussi ; ses compléments et son
+intégration restent sans nouvelle recette. Les procédures distantes et les paquets
+Windows/macOS restent à qualifier.
 Le plan et ce suivi sont regroupés dans `plans/encours/`.
 
 Les nouveaux textes se lisent depuis [le sommaire HTML](../../docs/user/index.html),
@@ -113,7 +145,7 @@ son dossier est **Enquete-associations**. La distinction sert à expliquer les R
 
 Les illustrations sont de vraies captures V2, recadrées sur le contenu utile,
 sans montage des commandes ni données réelles. Aucun média V1 n’est recopié.
-Vingt-quatre illustrations V2 accompagnent les chapitres disponibles.
+Vingt-six illustrations V2 accompagnent les chapitres disponibles.
 
 ## 3. Sommaire détaillé et registre des pages
 
@@ -121,7 +153,8 @@ Les chemins ci-dessous sont relatifs à `docs/user/`. Ils désignent des destina
 de rédaction, pas des liens vers des fichiers déjà créés. Le sommaire utilisateur
 ne donne de liens que vers les textes effectivement disponibles.
 
-États : **À rédiger** ; **Rédigé et vérifié localement, à relire** ;
+États : **À rédiger** ; **Rédigé, à relire (sans nouvelle recette)** ;
+**Rédigé et vérifié localement, à relire** ;
 **Pilote vérifié localement et accepté**. La validation
 éditoriale et la qualification d’une procédure distante sont distinctes d’une
 simple lecture du code ou d’un essai local. Les pages sont désormais écrites
@@ -136,15 +169,15 @@ directement en HTML, avec `style.css` comme présentation commune.
 | A03 | Installer et mettre à jour — `demarrer/installation.html` | V1 installation ; vérifier liens publics, paquets distribués et parcours par système. | À rédiger |
 | A04 | Choisir un parcours ou un exemple — `demarrer/exemples-parcours.html` | V2 découverte ; installation, copies distinctes, reprise, pause et remise à zéro. | Rédigé et vérifié localement, à relire |
 | A05 | Créer et retrouver un corpus local — `demarrer/corpus-local.html` | V1 projet ; création, dossier existant, récents, retrait et réouverture. | Pilote vérifié localement et accepté |
-| A06 | Retrouver ses fichiers, sauvegarder et déplacer — `demarrer/sauvegarder-deplacer.html` | V1 projet/entretiens, archive V2 ; vérifier contenu natif, médias externes et restauration. | À rédiger |
+| A06 | Retrouver ses fichiers, sauvegarder et déplacer — `demarrer/sauvegarder-deplacer.html` | V1 projet/entretiens, archive V2 ; dossier complet, médias externes, restauration séparée et déplacement. | Rédigé, à relire ; reprend la restauration T13, sans nouvelle recette |
 
 ### Préparer et suivre
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| P01 | Organiser le tableau de bord — `preparer/tableau-de-bord.html` | V2 vue-corpus, doc développeur ; cellules, structure, badges et sauvegarde. | À rédiger |
-| P02 | Réunir les documents du projet — `preparer/documents-projet.html` | V2 docs-cadre ; ajout, navigation, aperçus et limites local/distant. | À rédiger |
-| P03 | Utiliser les modèles fournis — `preparer/documents-exemples.html` | V2 docs-cadre ; consultation et enregistrement d’une copie sans modification du modèle. | À rédiger |
+| P01 | Organiser le tableau de bord — `preparer/tableau-de-bord.html` | V2 vue-corpus, doc développeur, composants et modèle ; suivi manuel, cellules, structure, badges et enregistrement. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| P02 | Réunir les documents du projet — `preparer/documents-projet.html` | V2 docs-cadre, composants et services ; ajout, navigation, aperçus et limites local/Nextcloud/GitLab. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| P03 | Utiliser les modèles fournis — `preparer/documents-exemples.html` | V2 docs-cadre, ressources livrées et composants ; consultation, copie et ajout au projet, avec fichiers « À venir. » explicitement signalés. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
 
 ### Importer et traiter
 
@@ -185,8 +218,8 @@ directement en HTML, avec `style.css` comme présentation commune.
 | O04 | Associer un passage et retrouver ses utilisations — `organiser/associations-passages.html` | V2 vue-corpus ; ajouts contextuels, associations, chevauchements et retour. | À rédiger |
 | O05 | Exporter un entretien — `organiser/exporter-entretien.html` | V1 export, export V2 ; contenu effectif et options propres à chaque format. | Rédigé et vérifié dans le paquet Linux, à relire |
 | O06 | Exporter un lot d’entretiens — `organiser/exporter-corpus.html` | Doc développeur et outil V2 ; sélection, options, rapport, erreurs et annulation. | Rédigé et vérifié dans le paquet Linux, à relire |
-| O07 | Transférer vers QualCoder — `organiser/qualcoder.html` | V2 cas, doc développeur ; sources, cas, attributs, limites et données non pseudonymisées. | À rédiger |
-| O08 | Vérifier les données avant diffusion — `organiser/verifier-partage.html` | V2 sorties ; texte, notes, variables privées, médias originaux et rapport sensible. | À rédiger |
+| O07 | Transférer vers QualCoder — `organiser/qualcoder.html` | V2 cas, doc développeur ; sources, cas, attributs, limites et données non pseudonymisées. | Rédigé et transfert vérifié dans le paquet Linux, à relire ; ouverture dans QualCoder à qualifier |
+| O08 | Vérifier les données avant diffusion — `organiser/verifier-partage.html` | V2 sorties ; contenu adapté au destinataire, partage avec ou sans pseudonymisation du texte, contrôle des fichiers joints. | Rédigé, à relire ; sans nouvelle recette à la demande de l’utilisateur |
 
 ### Travailler à plusieurs et migrer
 
@@ -205,8 +238,8 @@ directement en HTML, avec `style.css` comme présentation commune.
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| F01 | Questions fréquentes — `faq/premiers-pas.html` | Cinquante-deux réponses classées en neuf parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; quarante-cinq nouvelles à relire |
-| F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Huit réponses vérifiées dans le paquet Linux, à compléter et relire |
+| F01 | Questions fréquentes — `faq/premiers-pas.html` | Soixante-neuf réponses classées en dix parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; soixante-deux nouvelles à relire, dont treize sans nouvelle recette |
+| F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Douze réponses liées à O05–O07 vérifiées dans le paquet Linux ; deux liées à O08 rédigées sans nouvelle recette ; à relire |
 | F03 | Future section Analyses de F01 | Alimenter lors de N01–N06. | À compléter dans la FAQ unique |
 | F04 | Future section Travail collectif et migration de F01 | Alimenter lors de E01–M02, après recettes réelles. | À compléter dans la FAQ unique |
 | G01 | Glossaire — `glossaire.html` | Reprendre les définitions courtes de A02 puis compléter sans créer un cours technique. | À rédiger |
@@ -372,16 +405,22 @@ sans contrôle. Les destinations sont les ID du sommaire ci-dessus.
 | Variables privées | Le statut est parfois décrit comme une exclusion universelle de tous les exports. | T09/F01 distinguent exports de lecture, corpus et `.sonal` complet ; vérification pour les deux portées dans `test/exportFormats.test.ts`. |
 | Import de modèle | Le bouton appelait `dialog.choisirJson`, exposé à tort dans le groupe `export` du preload. | Fonction replacée dans `dialog` conformément au contrat ; export/import réels et application du modèle vérifiés en développement et dans le paquet Linux. |
 | Table de données V1 | V1 propose export CSV et déplacement manuel de variables/modalités. | Export CSV ajouté en section 16 ; le déplacement manuel reste absent. Le modèle JSON ne transporte aucune réponse. |
-| Export et confidentialité | Les protections des exports de lecture ne valent pas pour toutes les sorties, notamment QualCoder et médias originaux. | O05–O08 doivent expliciter les différences, pas promettre un export anonyme. |
-| Sauvegarde | L’export de lecture et un dossier sans médias externes peuvent être insuffisants. | A06 doit tester l’archive et la restauration avant une procédure complète. |
+| Export et confidentialité | Les protections des exports de lecture ne valent pas pour toutes les sorties, notamment QualCoder et médias originaux. | O05–O08 explicitent les différences, sans promettre un export anonyme. O08 distingue les usages avec et sans pseudonymisation. |
+| Portée de la pseudonymisation et partage | L’utilisateur confirme que le module doit rester limité au texte et que le partage non pseudonymisé est un usage légitime, notamment au sein d’un projet. | O08 adapte les contrôles au destinataire, sans imposer la pseudonymisation ni prévoir son extension aux autres contenus. |
+| Sauvegarde | L’export de lecture et un dossier sans médias externes peuvent être insuffisants. | Restauration locale vérifiée avec T13 ; A06 rédigé pour l’ensemble des fichiers et médias, sans nouvelle recette. |
+| Cas manuels dans QualCoder | La résolution d’un rattachement manuel tentait de cloner une référence Vue réactive et interrompait l’export. | Corrigé : copie des cas hors réactivité à l’entrée de l’assemblage ; recette O07 locale et empaquetée. |
+| Libellés des espaces | Les recettes précédentes portaient sur une interface affichant notamment « Organiser & Exporter ». Après transfert des seuls ajouts de `max-suite-aide` sur `multiongletcorpus`, la barre affiche « Organiser et exporter » et « Préparer et suivre ». | P01–P03 utilisent « Préparer et suivre » ; helper de navigation fondé sur `data-tour`. Harmonisation des autres pages lors de la consolidation ; les anciennes recettes ne qualifient pas à nouveau cette base. |
+| Compatibilité QualCoder | Le projet est généré et inspecté dans SQLite, mais QualCoder n’est pas installé sur ce poste. | Ne pas présenter la recette O07 comme une ouverture réelle dans QualCoder ; qualification par version encore nécessaire. |
+| Tableau visible sur l’accueil | L’ancienne source `vue-corpus.md` décrit encore la grille sur l’accueil de Préparer. | P01 suit les composants actuels : grille réservée à l’onglet Tableau de bord. La source antérieure reste inchangée. |
+| Déplacements droite/bas du tableau | À la lecture, les boutons passent le voisin suivant à une commande qui insère avant cette cible ; cela laisse l’ordre inchangé pour un voisin immédiat. | Écart applicatif à corriger et vérifier ultérieurement. P01 décrit le placement à l’ajout et les déplacements gauche/haut, sans promettre le fonctionnement de droite/bas. Aucun changement applicatif dans ce sous-lot. |
+| Contenu des documents exemples | Les quatre fichiers livrés sous `ressources/docsCadreExemples/` contiennent seulement leur titre et « À venir. ». | P03 et ses réponses FAQ signalent l’absence de modèles rédigés. Les documents validés par l’organisme restent nécessaires ; aucune rédaction des modèles ni garantie de conformité dans ce sous-lot. |
 | Étendue de l’aide embarquée | L’utilisateur demande une navigation simple sans lecteur spécifique. | Décidé : HTML direct ouvert dans le navigateur, pas de conversion ni de moteur de recherche. |
 
 ### Réserve de questions FAQ pour les prochains lots
 
-En plus des vingt-sept réponses présentes dans F01 :
+En complément des réponses déjà présentes dans F01 :
 - Comment retrouver un enregistrement d’équipe inaccessible ? → E05, puis F04.
   La recherche d’un fichier local déplacé est désormais expliquée dans T02/F01.
-- Que faut-il sauvegarder pour pouvoir reprendre sur un autre poste ? → A06, puis F02.
 - Le texte pseudonymisé et les médias peuvent-ils être partagés tels quels ? → T12/O08, puis F02.
 - Pourquoi mes filtres ne donnent-ils aucun résultat ? → N02/N03/N05, puis F03.
 - Pourquoi une analyse est-elle incomplète ou plus à jour ? → N06, puis F03.
@@ -1896,4 +1935,362 @@ Faire relire O06 et ses quatre réponses FAQ, puis poursuivre avec
 **O07 — Transférer vers QualCoder**. L’installation attend les liens publics ;
 les procédures distantes et les paquets Windows/macOS restent à qualifier.
 
+## 27. Transférer vers QualCoder
 
+Page ajoutée : [Transférer vers QualCoder](../../docs/user/organiser/qualcoder.html).
+Le guide comporte **dix-huit chapitres**, **cinquante-six réponses FAQ** en neuf
+parties et **vingt-six illustrations V2**.
+
+### Sources et périmètre
+
+- Sources confrontées : `docs/user/cas.md`, documentation développeur des exports,
+  panneau Exporter le corpus, assemblage QualCoder, résolution des cas et écriture
+  du projet natif dans `src/main/exportQualcoder.ts`.
+- Le chapitre décrit les sélections indépendantes des entretiens et des cas, les
+  transcriptions complètes, codages, commentaires et auteurs, thèmes et descriptions,
+  variables d’entretien et attributs de cas non privés.
+- Les cas avec règle deviennent des passages fixes. Sélectionner un cas ne complète
+  pas la sélection des sources ; un cas peut donc être incomplet, voire vide. Les
+  valeurs dérivées demandent un contrôle du périmètre et de leur cohérence.
+- Le texte original est exporté sans pseudonymisation. Les commentaires, auteurs,
+  titres, noms et mémos de cas restent sensibles. Les thèmes du corpus sont inclus,
+  même non utilisés dans les sources retenues.
+- Les notes d’entretien, médias, recueils et autres objets non repris sont distingués
+  explicitement. Le dossier `.qda` est un projet textuel indépendant, pas un fichier
+  REFI-QDA, une sauvegarde native SonalPi ou une synchronisation entre logiciels.
+- Destination vide, annulation, refus d’écrasement et échec global sur source illisible
+  expliqués. Le bilan ne fournit pas de rapport détaillé des éléments omis.
+
+### Correction applicative et adaptation de recette
+
+- Un cas avec rattachement manuel faisait échouer l’export : la résolution appelait
+  `structuredClone` sur une référence Vue réactive. Les cas sont désormais copiés
+  avec `structuredClone(toRaw(...))` avant l’assemblage dans `useOperationsCorpus.ts`.
+  La recette vérifie ensemble un cas avec règle et un cas manuel.
+- Le helper `ouvrirOrganisation` utilisait l’ancien nom accessible de la barre.
+  Il utilise maintenant le repère `data-tour="ouvrir-organiser"`, comme les autres
+  helpers d’espace ; le scénario d’accueil de l’export utilise aussi ce repère.
+  Aucun changement de navigation applicative n’a été nécessaire.
+- O07 reprend le libellé actuel « Organiser & Exporter ». Les pages antérieures
+  seront harmonisées lors de la consolidation éditoriale.
+
+### Documentation et captures
+
+- `medias/qualcoder-reglages.png` montre deux entretiens, un cas avec règle et un cas
+  manuel, avec l’avertissement sur le texte sans pseudonymisation.
+- `medias/qualcoder-resultat.png` montre le bilan réel de création, recadré sur son
+  contenu utile. Il ne s’agit pas d’une capture de QualCoder.
+- Quatre questions rejoignent Exports et partage : pseudonymes, cas versus extraits,
+  objets non transférés et dossier de destination. Sommaire, README, liens de suite
+  et documentation développeur actualisés.
+
+### Recette
+
+- Typage, compilation, empaquetage Linux et `git diff --check` réussis.
+- **12 tests ciblés réussis** dans trois fichiers : assemblage, écriture QualCoder
+  et intégrité des pages, ancres, images et styles du site documentaire.
+- **10/10 scénarios Electron locaux réussis** : trois nouvelles recettes O07, six
+  scénarios existants d’export de corpus et lecture documentaire hors ligne.
+- La recette principale inspecte `data.qda` en lecture seule : intégrité SQLite,
+  deux sources complètes, nom réel conservé malgré un pseudonyme configuré,
+  sélection textuelle d’un codage, commentaire et auteur, description d’un thème,
+  passages des deux cas, attributs publics et absence des définitions privées.
+- Un second export réduit les sources et les cas ; il conserve un cas avec seulement
+  la source retenue. Les sous-dossiers médias restent vides malgré une référence
+  locale accessible ; le corpus natif n’est pas modifié par le transfert.
+- Les autres recettes vérifient la sélection vide, l’annulation de destination,
+  le refus d’un dossier occupé sans toucher à son contenu, la reprise sans cas et
+  l’échec sans création de projet lorsqu’une source devient illisible.
+- **4/4 scénarios réussis dans le paquet Linux** : les trois recettes O07 et la
+  navigation du guide et de la FAQ hors ligne, sans JavaScript, à 390 pixels.
+  Les dix-huit chapitres, leurs images et les cinquante-six questions sont parcourus.
+- Aucun serveur GitLab ou Nextcloud réel sollicité. **QualCoder n’est pas installé
+  ici : l’ouverture réelle du projet dans ce logiciel reste à qualifier**, de même
+  que les paquets Windows/macOS. Le chapitre conserve explicitement cette réserve.
+
+Commandes principales :
+
+```bash
+npm run typecheck
+npx vitest run test/exportQualcoder.test.ts test/exportQualcoderModele.test.ts test/documentation.test.ts
+SONAL_DOC_CAPTURES=1 npx playwright test e2e/documentation-qualcoder.e2e.ts --project=local --workers=1
+npx playwright test e2e/documentation-qualcoder.e2e.ts e2e/documentation.e2e.ts e2e/export-corpus.e2e.ts --project=local --workers=1
+npm run pack:dir
+QUALCODER_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" DOCS_E2E_EXECUTABLE="$PWD/dist/linux-unpacked/sonalpi2" npx playwright test e2e/documentation-qualcoder.e2e.ts e2e/documentation.e2e.ts --project=local --workers=1
+```
+
+### Suite
+
+Faire relire O07, ses deux captures et ses quatre réponses FAQ. Poursuivre avec
+**O08 — Vérifier les données avant diffusion**. Conserver une qualification réelle
+par version de QualCoder parmi les contrôles restant à réaliser. L’installation
+attend les liens publics ; les procédures distantes restent à qualifier.
+
+## 28. Vérifier les données avant diffusion
+
+Page ajoutée : [Vérifier les données avant diffusion](../../docs/user/organiser/verifier-partage.html).
+Le guide comporte **dix-neuf chapitres**, **cinquante-huit réponses FAQ** en neuf
+parties et toujours **vingt-six illustrations V2**.
+
+### Cadrage confirmé par l’utilisateur
+
+- La pseudonymisation reste limitée au texte. Ce sous-lot ne prévoit aucune
+  extension aux médias ou aux autres contenus et ne modifie pas le module.
+- Transmettre des fichiers non pseudonymisés est un usage à part entière,
+  notamment entre personnes autorisées au sein d’un même projet de recherche.
+- La page aide à choisir et contrôler le contenu selon le destinataire et l’usage,
+  sans transformer toute transmission en obligation de pseudonymisation.
+- À la demande de l’utilisateur, aucun nouveau test ni empaquetage n’est exécuté.
+
+### Contenu et intégration documentaire
+
+- Choix des fichiers et du format selon l’usage ; option de pseudonymisation
+  activée ou désactivée selon le besoin, et médias choisis séparément.
+- Liste courte de vérification : sources et versions, informations d’accompagnement,
+  contenu propre au format, enregistrements, index et rapports joints.
+- Exemples d’un échange interne avec noms réels et audio, et d’un envoi limité à
+  des extraits pseudonymisés. Aucun de ces usages n’est présenté comme le choix universel.
+- Liens vers les procédures existantes plutôt qu’une répétition des réglages
+  d’export. Le chapitre QualCoder reconnaît aussi explicitement l’échange interne
+  non pseudonymisé et renvoie à cette page.
+- Deux réponses FAQ : faut-il toujours pseudonymiser et que vérifier avant l’envoi
+  à un collègue ? Sommaire, README et liens de suite actualisés.
+- Les attentes de `e2e/documentation.e2e.ts` sont actualisées pour le chapitre,
+  les cinquante-huit questions et le renvoi FAQ ; le scénario n’est pas relancé.
+- Aucune nouvelle capture ni modification applicative. O08 et ses réponses FAQ
+  sont **rédigés, à relire**, sans nouvelle qualification locale ou empaquetée.
+  Les résultats de la section 27 concernent l’état antérieur à cet ajout.
+
+### Suite
+
+Faire relire O08 et ses deux réponses FAQ. Prochaine rédaction proposée :
+**A06 — Retrouver ses fichiers, sauvegarder et déplacer**, à partir de la restauration
+locale déjà éprouvée avec T13. L’installation attend les liens publics ;
+l’ouverture réelle dans QualCoder et les procédures distantes restent à qualifier.
+
+## 29. Retrouver ses fichiers, sauvegarder et déplacer
+
+Page ajoutée : [Retrouver ses fichiers, sauvegarder et déplacer](../../docs/user/demarrer/sauvegarder-deplacer.html).
+Le guide comporte **vingt chapitres**, **soixante réponses FAQ** en neuf parties
+et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Relecture de `src/main/archiveCorpus.ts`, de la commande ZIP dans
+  `src/renderer/composables/sonal.ts`, de la documentation développeur des
+  sauvegardes et des chapitres Corpus local, Gestion des médias et Annulation.
+- Reprise de la recette existante
+  `e2e/documentation-annuler-restaurer.e2e.ts` : création d’une archive, modification
+  ultérieure du corpus courant et ouverture de la restauration dans un dossier
+  séparé, déjà vérifiées localement et dans le paquet Linux lors de T13.
+- Le chapitre distingue le dossier natif, les transcriptions d’origine et les
+  médias référencés à l’extérieur. Il explique la différence entre enregistrement
+  automatique, sauvegarde datée et export de lecture ou d’échange.
+- Création du ZIP hors du corpus, conservation séparée des médias, restauration
+  dans un dossier vide et choix du dossier contenant directement `corpus.json`.
+- Déplacement par copie du dossier entier après fermeture de SonalPi, réouverture
+  au nouvel emplacement, choix explicite de la copie de travail et réassociation
+  des médias. Aucun réimport de transcriptions ni fusion manuelle de dossiers.
+- Les Récents restent des raccourcis vers un emplacement ; deux copies ne sont
+  pas synchronisées. La commande ZIP reste réservée au local, sans promesse de
+  sauvegarde complète d’un corpus distant par une copie locale.
+- La sauvegarde conserve les originaux et les informations privées. Elle est
+  destinée à la reprise du travail, pas à constituer un export de diffusion.
+
+### Intégration et état des vérifications
+
+- A06 rejoint Découvrir et démarrer, entre Corpus local et Importer.
+  Sommaire, README et liens Précédent/Suivant actualisés.
+- T13 conserve ses ancres et sa procédure déjà vérifiée, avec un renvoi vers A06
+  pour la conservation générale et le changement d’ordinateur.
+- Deux réponses rejoignent Annulation et sauvegarde dans la FAQ unique : fichiers
+  nécessaires pour reprendre sur un autre poste, et raccourci après déplacement.
+- Les attentes de `e2e/documentation.e2e.ts` intègrent le vingtième chapitre,
+  les soixante questions et le nouveau renvoi FAQ ; le scénario n’est pas relancé.
+- Aucune nouvelle capture, modification applicative, exécution de test ou
+  reconstruction du paquet. **A06 et ses réponses sont rédigés, à relire** ;
+  la recette T13 ne qualifie pas à elle seule tous les compléments de déplacement,
+  les variantes des outils de décompression ou le changement de système.
+
+### Suite
+
+Faire relire A06 et ses deux réponses FAQ. Prochaine rédaction proposée :
+**P01 — Organiser le tableau de bord**, puis les documents du projet et les modèles
+fournis. L’installation attend les liens publics ; les procédures distantes,
+l’ouverture réelle dans QualCoder et les paquets Windows/macOS restent à qualifier.
+
+## 30. Organiser le tableau de bord
+
+Page ajoutée : [Organiser le tableau de bord](../../docs/user/preparer/tableau-de-bord.html).
+Elle ouvre la partie **Préparer et suivre** du sommaire et s’insère entre A06 et
+Importer. Le guide comporte **vingt et un chapitres**, **soixante-trois réponses FAQ**
+classées en **dix parties**, et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/dev/preparer/tableau-bord.md`, ancienne présentation dans
+  `docs/user/vue-corpus.md`, `PreparerSuivre.vue`, `TableauBord.vue`,
+  `PanneauTableauBord.vue`, `useTableauBordCorpus.ts` et le modèle partagé
+  `src/shared/corpus/tableaubord.ts`.
+- Le tableau est présenté comme un suivi manuel et libre, sans lien automatique
+  avec les entretiens réels. Les lignes initiales ne créent pas d’entretien ;
+  un badge OK ne constitue pas une validation du travail.
+- La procédure décrit les ajouts avec choix de position, les colonnes traversantes,
+  le renommage, l’édition d’une case avec Appliquer/Annuler, les badges, la date,
+  le responsable et leurs options d’affichage.
+- Les notes sont consultables au survol et distinctes des notes d’entretien.
+  La date de première saisie n’est pas automatiquement remplacée à chaque correction.
+  Le responsable est du texte libre, pas une attribution de droits ou une notification.
+- Le défilement et le redimensionnement sont distingués des données du corpus :
+  largeurs et hauteurs restent des préférences du poste.
+- Retirer un badge ne vide pas la note ; vider badge, note et responsable retire
+  la cellule et sa date. Supprimer une ligne ou colonne retire ses cases, pas les
+  entretiens réels. Un badge utilisé reste protégé contre la suppression.
+- Enregistrement par validation, message d’échec au-dessus de la grille et
+  consultation en lecture seule expliqués sans mécanismes internes.
+- L’ancien texte décrivant la grille sur l’accueil n’est pas repris. Le libellé
+  de barre actuel « Préparer & Suivre » et l’onglet Tableau de bord sont utilisés.
+- Un écart de placement droite/bas est relevé à la lecture et consigné dans les
+  divergences : les gestes décrits se limitent au choix de position lors de l’ajout
+  et aux déplacements gauche/haut. La correction reste hors de ce sous-lot documentaire.
+
+### Intégration et état des vérifications
+
+- Nouvelle partie Préparer et suivre dans le sommaire et le README ; liens de suite
+  A06 → P01 → Importer actualisés. Renvoi utilisateur dans la documentation développeur.
+- Trois questions FAQ dans la nouvelle partie Préparer et suivre : indépendance des
+  lignes et entretiens, lecture des notes de case, sens du badge OK.
+- Les attentes de `e2e/documentation.e2e.ts` sont actualisées pour les quatre listes
+  de chapitres, vingt et un chapitres, dix parties FAQ et soixante-trois questions,
+  ainsi que le lien vers P01 ; le scénario n’est pas relancé.
+- `e2e/tableaubord.e2e.ts` est relu comme source des gestes existants (badges,
+  dates, affichage, insertion et dimensions), sans nouvelle exécution. Le code des
+  composants et du modèle ne remplace pas une recette dans l’application.
+- Aucun nouveau test, serveur distant, empaquetage ou capture. Aucune modification
+  applicative. **P01 et ses trois réponses FAQ sont rédigés, à relire**, sans nouvelle
+  qualification locale, distante ou empaquetée.
+
+### Suite
+
+Faire relire P01 et ses trois réponses FAQ. Prochaine rédaction proposée :
+**P02 — Réunir les documents du projet**, puis P03 pour les modèles fournis.
+Conserver le défaut de déplacement droite/bas parmi les corrections applicatives
+à reprendre. L’installation attend les liens publics ; les recettes distantes,
+l’ouverture réelle dans QualCoder et les paquets Windows/macOS restent à qualifier.
+
+## 31. Réunir les documents du projet
+
+Page ajoutée : [Réunir les documents du projet](../../docs/user/preparer/documents-projet.html).
+Le guide comporte **vingt-deux chapitres**, **soixante-six réponses FAQ** en dix
+parties et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/user/docs-cadre.md`, `docs/dev/preparer/docs-cadre.md`,
+  composants de navigation, fiche et aperçus documentaires, `useDocsCadre.ts`,
+  `src/shared/docsCadre.ts`, services locaux et distants et handlers de
+  `src/main/index.ts`.
+- La page distingue les documents propres au corpus, les documents exemples et
+  l’import d’une transcription. Un ajout documentaire ne crée pas d’entretien.
+- Ajout local comme copie dans `DocsPrepaProjet/`, conservation dans la sauvegarde
+  du corpus, création de sous-dossiers et navigation par le fil des dossiers.
+- Les homonymes ne sont pas remplacés : l’ajout par sélecteur peut rouvrir le choix
+  de fichier puis utiliser un nom libre ; le dépôt refuse le fichier homonyme.
+  Un dépôt multiple peut réussir pour certains fichiers et échouer pour d’autres.
+- Aperçus texte brut, image et PDF distingués des fiches sans aperçu des documents
+  bureautiques, HTML et autres formats. Une limite d’aperçu n’est pas une limite de
+  conservation ; le fichier peut être ouvert ou copié ailleurs.
+- Ouvrir lance l’application habituelle sur la copie du corpus. Les modifications
+  enregistrées dans ce fichier concernent cette copie, pas la source initiale.
+  Enregistrer une copie ne convertit pas le contenu et ne crée pas de synchronisation.
+- Réorganisation par le gestionnaire de fichiers local, sans promettre une corbeille
+  SonalPi à ces opérations externes. Actualisation et disparition d’un dossier expliquées.
+- Nextcloud : consultation sur le serveur et copie locale à la demande ; ajout,
+  édition et réorganisation depuis le navigateur selon les droits et outils du serveur.
+  Une liste conservée après erreur ne garantit pas un accès hors ligne aux documents.
+- GitLab : documents du projet indisponibles dans cet outil ; documents exemples
+  séparés et disponibles. Ces indications proviennent de la lecture des sources,
+  pas d’une nouvelle qualification des fournisseurs.
+
+### Intégration et état des vérifications
+
+- P02 rejoint Préparer et suivre entre Tableau de bord et Importer. Sommaire,
+  README, liens de suite et renvoi dans la documentation développeur actualisés.
+- Trois réponses rejoignent la FAQ Préparer et suivre : copie dans le corpus,
+  absence d’aperçu Word et modification d’un document.
+- Les attentes de `e2e/documentation.e2e.ts` intègrent les vingt-deux chapitres,
+  soixante-six questions et le renvoi vers les aperçus ; le scénario n’est pas relancé.
+- Relecture de `e2e/docs-cadre.e2e.ts` et `e2e/docs-cadre-nextcloud.e2e.ts` comme
+  sources des gestes, sans les exécuter. Aucun banc Docker ou serveur réel sollicité.
+- Aucune nouvelle capture, modification applicative, exécution de test ni
+  reconstruction du paquet. **P02 et ses trois réponses FAQ sont rédigés, à relire**,
+  sans nouvelle qualification locale, distante ou empaquetée.
+
+### Suite
+
+Faire relire P02 et ses trois réponses FAQ. Prochaine rédaction proposée :
+**P03 — Utiliser les modèles fournis**. Conserver la correction des déplacements
+Droite/Bas du tableau parmi les points applicatifs à reprendre. L’installation
+attend les liens publics ; les recettes distantes, l’ouverture réelle dans QualCoder
+et les paquets Windows/macOS restent à qualifier.
+
+## 32. Utiliser les modèles fournis
+
+Page ajoutée : [Utiliser les modèles fournis](../../docs/user/preparer/documents-exemples.html).
+Elle complète Préparer et suivre entre les documents du projet et l’import.
+Le guide comporte **vingt-trois chapitres**, **soixante-neuf réponses FAQ** en dix
+parties et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/user/docs-cadre.md`, `docs/dev/preparer/docs-cadre.md`,
+  les quatre fichiers de `ressources/docsCadreExemples/`, `DocsCadreCote.vue`,
+  `DocsCadrePanneau.vue`, `PreparerSuivre.vue`, `useDocsCadre.ts` et les handlers
+  de lecture et de copie dans `src/main/index.ts`. Le chemin des ressources
+  embarquées et leur inclusion dans `package.json` sont également relus.
+- Point essentiel : les guides de correction et de pseudonymisation, la déclaration
+  de traitement et la notice de consentement ne contiennent que leur titre et
+  « À venir. ». La page et la FAQ ne les présentent pas comme des modèles rédigés.
+  Actualiser ne complète pas ces fichiers et ne télécharge pas de nouveau modèle.
+- Consultation depuis Documents exemples, navigation dans DPO et retour au premier
+  niveau ; distinction avec les documents du projet et les corpus d’exercice.
+- Enregistrer une copie conserve le contenu et le format actuels, sans enrichissement
+  ni conversion. La page indique le message de réussite, l’annulation et le contrôle
+  de la destination en cas d’échec. La rédaction se fait dans une application externe
+  sur la copie, jamais sur l’exemple installé.
+- Aucun ajout automatique au corpus : ajout explicite du document personnel dans
+  Documents du projet en local, dépôt depuis le navigateur sur Nextcloud et limite
+  GitLab rappelés avec renvoi vers P02. Les copies ne se synchronisent pas entre elles.
+- Les exemples sont locaux, indépendants du corpus et consultables même lors d’une
+  coupure réseau ; cette disponibilité ne vaut pas pour les documents du projet distant.
+- Les consignes de l’organisme et du DPO restent prioritaires. Aucune garantie de
+  conformité ni de notice prête à l’emploi ; lire un guide ne configure pas la
+  pseudonymisation de SonalPi.
+
+### Intégration et état des vérifications
+
+- Sommaire, README et liens de suite P02 → P03 → Importer actualisés ; renvoi dans
+  la documentation développeur, avec mention de l’état réel des ressources.
+- Trois réponses rejoignent Préparer et suivre dans la FAQ : mention « À venir. »,
+  modification d’une copie et absence d’ajout automatique au corpus.
+- Les attentes de `e2e/documentation.e2e.ts` intègrent les vingt-trois chapitres,
+  soixante-neuf questions et les trois liens FAQ de P03 ; le scénario n’est pas relancé.
+- `e2e/docs-cadre.e2e.ts`, `e2e/docs-cadre-paquet.e2e.ts`, les passages relatifs aux
+  exemples de `e2e/docs-cadre-nextcloud.e2e.ts` et les tests documentaires existants
+  sont relus comme sources, sans exécution. Aucun serveur ou banc Docker sollicité.
+- La branche de travail part désormais de `multiongletcorpus`, sans les changements
+  préexistants de `test-new-design`. Le libellé de barre dans P01 et P02 est ajusté
+  à « Préparer et suivre », comme dans P03 ; les anciennes recettes consignées dans
+  ce suivi ne constituent pas une nouvelle qualification de cette base.
+- Aucune nouvelle capture, modification applicative, rédaction des fichiers modèles,
+  exécution de test ni reconstruction du paquet. **P03 et ses trois réponses FAQ
+  sont rédigés, à relire**, sans nouvelle qualification locale, distante ou empaquetée.
+
+### Suite
+
+Faire relire P03 et ses trois réponses FAQ, notamment l’avertissement sur les fichiers
+encore à compléter. Prochaine rédaction proposée : **T05 — Relier une personne entre
+plusieurs entretiens**, puis T08 pour la réorganisation des codages. Le défaut de
+déplacement Droite/Bas du tableau reste hors de ce sous-lot. L’installation attend
+les liens publics ; les recettes distantes, l’ouverture réelle dans QualCoder et les
+paquets Windows/macOS restent à qualifier.

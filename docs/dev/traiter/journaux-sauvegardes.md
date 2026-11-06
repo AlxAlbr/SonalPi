@@ -2,6 +2,8 @@
 
 La procédure utilisateur est décrite dans
 [Revenir sur une modification](../../user/traiter/annuler-restaurer.html).
+La conservation des fichiers, la restauration et le changement d’ordinateur sont
+regroupés dans [Retrouver ses fichiers, sauvegarder et déplacer](../../user/demarrer/sauvegarder-deplacer.html).
 
 ## Trois mécanismes distincts
 

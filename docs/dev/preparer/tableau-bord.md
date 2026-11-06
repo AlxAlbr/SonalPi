@@ -1,5 +1,8 @@
 # Tableau de bord — repères développeur
 
+La procédure utilisateur est décrite dans
+[Organiser le tableau de bord](../../user/preparer/tableau-de-bord.html).
+
 Le tableau de bord est un **suivi manuel du travail**, stocké dans
 `corpus.json.tableaubord`. Ce n’est ni un bilan calculé ni la liste des entretiens
 du corpus : ses lignes sont des libellés libres, sans lien avec le `membership`.

@@ -38,7 +38,7 @@ test('accueil harmonisé, réglages persistants et sélection vide sans modale',
   try {
     const page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
+    await page.locator('[data-tour="ouvrir-organiser"]').click()
     const nav = page.locator('.onglets-organisation')
     await expect(nav.getByRole('button', { name: 'Accueil', exact: true })).toHaveAttribute('aria-current', 'page')
     await expect(nav.locator('button img')).toHaveCount(4)
