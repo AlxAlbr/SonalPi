@@ -5,6 +5,15 @@ transcriptions. **Les occurrences et tableaux restent en mémoire** ; seuls les
 traitements lexicaux choisis sont enregistrés dans `corpus.json.lexico`.
 Un regroupement lexical ne réécrit jamais les paroles de l’entretien.
 
+La procédure utilisateur est décrite dans
+[Explorer les mots avec Lexico](../../user/analyser/lexico.html).
+Elle distingue les filtres de matériaux des réglages du tableau visible.
+[Adapter le traitement lexical](../../user/analyser/traitement-lexical.html)
+détaille les mots outils, regroupements, concaténations et possibilités d’annulation.
+[Vérifier et interpréter les résultats](../../user/analyser/verifier-resultats.html)
+complète ces procédures par le contrôle des critères, le retour aux sources et
+les précautions de comparaison entre outils.
+
 ## Indexer sans révéler le texte remplacé
 
 Une occurrence porte sa forme, son texte affichable, l’entretien et ses bornes
@@ -33,6 +42,8 @@ L’index source reste inchangé. Une concaténation réunit une séquence du m�
 entretien et locuteur ; les règles les plus longues passent en premier. Un
 regroupement change la clé d’agrégation, mais conserve le texte des occurrences
 pour les concordances. Les mots outils sont évalués avant et après regroupement.
+Le compteur préparatoire des concaténations parcourt l’index source avant filtres
+et traitements ; il peut donc différer des occurrences finales de la règle ajoutée.
 
 Les filtres combinent un OU dans une sélection et un ET entre dimensions.
 Une sélection explicite vide ne signifie pas « tout ». Les variables de locuteur
@@ -49,6 +60,12 @@ Les traitements et personnalisations des listes de mots outils passent par
 concurrent. Le geste `lexico.modifier-traitements` suit les transactions de
 définitions en local, GitLab et WebDAV. L’annulation conserve au plus trente
 instantanés en session ; ce n’est pas un historique persistant du corpus.
+
+Les personnalisations de listes sont distinctes des mots outils actifs.
+Enregistrer ou restaurer une liste ne modifie pas les exclusions déjà appliquées ;
+le bouton de la liste ajoute son contenu courant aux exclusions.
+Tout retirer vide les mots outils, regroupements et concaténations actifs,
+mais conserve les personnalisations de listes.
 
 Le composable possède son propre chargement, limité à quatre sources simultanées.
 Il lit l’entretien ouvert en mémoire, les autres sans verrou, et remplace l’index

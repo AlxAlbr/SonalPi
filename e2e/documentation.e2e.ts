@@ -44,15 +44,19 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         'Découvrir et démarrer',
         'Préparer et suivre',
         'Importer et traiter',
+        'Analyser et interpréter',
         'Organiser et exporter',
         'Questions fréquentes',
         'Lire et pratiquer à votre rythme',
       ])
-      await expect(lecture.locator('main > ol')).toHaveCount(4)
+      await expect(lecture.locator('main > h3')).toHaveText(['Au niveau du corpus', 'Dans un entretien'])
+      await expect(lecture.locator('main > ol')).toHaveCount(6)
       await expect(lecture.locator('main > ol').nth(0).locator('li')).toHaveCount(5)
       await expect(lecture.locator('main > ol').nth(1).locator('li')).toHaveCount(3)
-      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(11)
-      await expect(lecture.locator('main > ol').nth(3).locator('li')).toHaveCount(4)
+      await expect(lecture.locator('main > ol').nth(2).locator('li')).toHaveCount(7)
+      await expect(lecture.locator('main > ol').nth(3).locator('li')).toHaveCount(7)
+      await expect(lecture.locator('main > ol').nth(4).locator('li')).toHaveCount(5)
+      await expect(lecture.locator('main > ol').nth(5).locator('li')).toHaveCount(4)
       await lecture.setViewportSize({ width: 390, height: 844 })
       for (const chapitre of [
         'Découvrir SonalPi',
@@ -65,15 +69,23 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
         'Utiliser les modèles fournis',
         'Préparer et importer une transcription',
         'Gérer les entretiens et leurs médias',
+        'Rechercher dans les entretiens',
+        'Relier une personne entre plusieurs entretiens',
+        'Organiser et documenter ses thèmes',
+        'Réorganiser les codages',
+        'Définir les variables et saisir les données',
         'Relire et corriger un entretien',
         'Identifier les locuteurs et les tours de parole',
         'Coder un premier passage avec un thème',
-        'Organiser et documenter ses thèmes',
-        'Définir les variables et saisir les données',
         'Écrire et consulter des notes',
         'Commenter un passage',
         'Pseudonymiser et vérifier un entretien',
         'Revenir sur une modification',
+        'Rassembler des passages avec Tri et synthèse',
+        'Explorer les mots avec Lexico',
+        'Adapter le traitement lexical',
+        'Comparer avec les analyses croisées',
+        'Vérifier et interpréter les résultats',
         'Exporter un entretien',
         'Exporter un lot d’entretiens',
         'Transférer vers QualCoder',
@@ -88,8 +100,76 @@ test('l’aide ouvre des pages locales navigables hors ligne, sans fermer l’en
       }
       await lecture.getByRole('link', { name: /Suivant : questions/ }).click()
       await expect(lecture.getByRole('heading', { level: 1 })).toHaveText('Questions fréquentes')
-      await expect(lecture.locator('main > h2')).toHaveCount(10)
-      await expect(lecture.locator('main > h3')).toHaveCount(69)
+      await expect(lecture.locator('main > h2')).toHaveCount(12)
+      await expect(lecture.locator('main > h3')).toHaveCount(101)
+      const sommaireFaq = lecture.getByRole('navigation', { name: 'Sommaire de la FAQ', exact: true })
+      await expect(sommaireFaq.locator(':scope > ul > li > a')).toHaveText(await lecture.locator('main > h2').allTextContents())
+      await expect(sommaireFaq.locator('ul ul a')).toHaveText(await lecture.locator('main > h3').allTextContents())
+      const destinationsQuestions = await lecture.locator('main > h3').evaluateAll((titres) => titres.map((titre) => `#${titre.id}`))
+      expect(await sommaireFaq.locator('ul ul a').evaluateAll((liens) => liens.map((lien) => lien.getAttribute('href')))).toEqual(destinationsQuestions)
+      const positionThemeSommaire = await sommaireFaq.locator(':scope > ul > li > a').first().boundingBox()
+      const positionQuestionSommaire = await sommaireFaq.locator('ul ul a').first().boundingBox()
+      expect(positionQuestionSommaire!.x).toBeGreaterThan(positionThemeSommaire!.x)
+      await sommaireFaq.getByRole('link', { name: 'Dois-je créer un corpus pour un seul entretien ?', exact: true }).click()
+      await expect(lecture).toHaveURL(/premiers-pas\.html#un-entretien$/)
+      await expect(lecture.locator('#un-entretien')).toBeInViewport()
+      const positionTheme = await lecture.locator('#demarrer-corpus').boundingBox()
+      const positionQuestion = await lecture.locator('#un-entretien').boundingBox()
+      const positionReponse = await lecture.locator('#un-entretien + p').boundingBox()
+      const positionRenvoi = await lecture.locator('#un-entretien + p + p').boundingBox()
+      expect(positionQuestion!.x).toBeGreaterThan(positionTheme!.x)
+      expect(positionReponse!.x).toBe(positionQuestion!.x)
+      expect(positionRenvoi!.x).toBe(positionQuestion!.x)
+      const pucesQuestions = await lecture.locator('main > h3').evaluateAll((titres) => titres.map((titre) => getComputedStyle(titre, '::before').content))
+      expect(pucesQuestions.every((contenu) => contenu === '""')).toBe(true)
+      await lecture.getByRole('link', { name: 'Distinguer actualité du résultat et validation de l’analyse.' }).click()
+      await expect(lecture).toHaveURL(/verifier-resultats\.html#etat$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Garder une trace des choix et de leurs limites.' }).click()
+      await expect(lecture).toHaveURL(/verifier-resultats\.html#trace$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre Passages, Volume et Couverture.' }).click()
+      await expect(lecture).toHaveURL(/analyses-croisees\.html#mesures$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Vérifier le périmètre et l’état de l’export des analyses croisées.' }).click()
+      await expect(lecture).toHaveURL(/analyses-croisees\.html#exporter$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Distinguer la liste proposée des mots outils actifs.' }).click()
+      await expect(lecture).toHaveURL(/traitement-lexical\.html#listes$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Retirer une règle ou utiliser l’annulation de session.' }).click()
+      await expect(lecture).toHaveURL(/traitement-lexical\.html#revenir$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre Sans restriction et les sélections explicites.' }).click()
+      await expect(lecture).toHaveURL(/lexico\.html#filtres$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Exporter les lignes affichées avec les bonnes précautions.' }).click()
+      await expect(lecture).toHaveURL(/lexico\.html#exporter$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre la combinaison des critères de synthèse.' }).click()
+      await expect(lecture).toHaveURL(/tri-synthese\.html#criteres$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Choisir le texte et contrôler la sortie de synthèse.' }).click()
+      await expect(lecture).toHaveURL(/tri-synthese\.html#copier-exporter$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Choisir entre recherche du corpus et de l’entretien.' }).click()
+      await expect(lecture).toHaveURL(/rechercher\.html#choisir$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Vérifier la portée et l’actualité des résultats de recherche.' }).click()
+      await expect(lecture).toHaveURL(/rechercher\.html#limites$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Comprendre le transfert et le maintien de la source.' }).click()
+      await expect(lecture).toHaveURL(/reorganiser-codages\.html#transferer$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Lire le bilan et reprendre les entretiens restants.' }).click()
+      await expect(lecture).toHaveURL(/reorganiser-codages\.html#bilan$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Vérifier une proposition de rapprochement.' }).click()
+      await expect(lecture).toHaveURL(/personnes\.html#rapprochements$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
+      await lecture.getByRole('link', { name: 'Corriger les associations d’une personne.' }).click()
+      await expect(lecture).toHaveURL(/personnes\.html#corriger$/)
+      await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()
       await lecture.getByRole('link', { name: 'Comprendre le contenu actuel des exemples.' }).click()
       await expect(lecture).toHaveURL(/documents-exemples\.html#contenu-exemples$/)
       await lecture.locator('header').getByRole('link', { name: 'FAQ', exact: true }).click()

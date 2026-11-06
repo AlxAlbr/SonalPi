@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relier une personne entre plusieurs entretiens — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#traiter">Importer et traiter</a> → <a href="../index.html#traiter-corpus">Corpus</a></p>
+    <h1>Relier une personne entre plusieurs entretiens</h1>
+    <p>Une même personne peut intervenir dans plusieurs entretiens sous des noms différents. Le répertoire <strong>Personnes</strong> permet de retrouver ces entretiens et leurs notes sur une seule fiche, sans uniformiser les informations recueillies à chaque rencontre.</p>
+    <p>Par exemple, dans une enquête fictive, vous avez confirmé que « Fatima » et « La coordinatrice » désignent la même participante dans deux entretiens. Vous pouvez les associer à une personne nommée « Fatima — coordinatrice ». Ces deux noms locaux restent inchangés.</p>
+    <p class="notice">Les corrections décrites ici concernent un <strong>corpus local</strong>. Dans un corpus Nextcloud ou GitLab, le répertoire peut être consulté, mais ses commandes de correction ne sont pas disponibles actuellement, même avec une connexion active. Un bouton visible ou un message annonçant des corrections à distance ne garantit pas que l’action soit disponible.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#repertoire">Ouvrir le répertoire et comprendre les fiches</a></li>
+        <li><a href="#associer">Créer une personne et lui associer un autre entretien</a></li>
+        <li><a href="#rapprochements">Vérifier les rapprochements proposés</a></li>
+        <li><a href="#reunir">Réunir deux fiches de la même personne</a></li>
+        <li><a href="#corriger">Corriger une association ou séparer une fiche</a></li>
+        <li><a href="#notes-donnees">Consulter les notes et les données</a></li>
+        <li><a href="#conserver">Vérifier l’enregistrement et les possibilités d’annulation</a></li>
+      </ul>
+    </nav>
+    <h2 id="repertoire">Ouvrir le répertoire et comprendre les fiches</h2>
+    <p>Dans <strong>Importer et traiter</strong>, revenez à la vue <strong>Corpus</strong> si un entretien est ouvert, puis choisissez l’onglet <strong>Personnes</strong>.</p>
+    <ul>
+      <li><strong>Personnes identifiées</strong> présente les fiches communes au corpus et leur nombre d’entretiens.</li>
+      <li><strong>Locuteurs à associer</strong> présente, par entretien, les noms qui n’ont pas encore de fiche commune ou dont l’association est à corriger.</li>
+      <li><strong>Rapprochements à vérifier</strong> propose des noms ou des rôles proches à examiner. Une proposition n’est pas une association confirmée.</li>
+    </ul>
+    <p>Le champ <strong>Nom ou entretien</strong> cherche parmi les noms de référence, les noms locaux et les titres d’entretien. Cliquez sur un résultat pour afficher son détail. Les listes des personnes et des locuteurs peuvent être repliées.</p>
+    <p>Un <strong>locuteur</strong> appartient à un entretien ; une <strong>personne</strong> relie plusieurs de ces locuteurs dans le corpus. Une personne ne peut être associée qu’à <strong>un locuteur par entretien</strong>. Si une même voix apparaît deux fois dans un entretien, corrigez d’abord <a href="locuteurs.html#attribuer">l’attribution des paroles</a> : réunir des fiches ne corrige pas la transcription.</p>
+    <h2 id="associer">Créer une personne et lui associer un autre entretien</h2>
+    <p>Vérifiez d’abord si la fiche existe déjà : <a href="locuteurs.html#personnes">le nommage d’un locuteur dans l’entretien</a> a pu la créer.</p>
+    <ol>
+      <li>Dans <strong>Locuteurs à associer</strong>, choisissez le nom sous le titre du bon entretien.</li>
+      <li>Si aucune fiche ne correspond, renseignez <strong>Nouvelle personne</strong>, puis cliquez sur <strong>Créer</strong>. La fiche s’ouvre avec ce premier entretien.</li>
+      <li>Choisissez ensuite le locuteur du deuxième entretien dans la liste de gauche.</li>
+      <li>Dans <strong>Associer à</strong>, sélectionnez la personne existante. Les titres d’entretien aident à distinguer les homonymes.</li>
+      <li>Cliquez sur <strong>Associer</strong>, relisez les noms et l’entretien concernés, puis sur <strong>Confirmer</strong>.</li>
+      <li>Ouvrez la fiche dans <strong>Personnes identifiées</strong> et vérifiez sa liste <strong>Noms et entretiens</strong>.</li>
+    </ol>
+    <p>Une personne déjà représentée dans cet entretien ne peut pas être choisie pour un second locuteur. Deux personnes qui portent le même nom peuvent, en revanche, conserver deux fiches distinctes.</p>
+    <p>Le champ <strong>Nom de référence</strong> de la fiche se valide avec <strong>Entrée</strong> ou en quittant le champ. Le renommer ne change ni les noms locaux, ni les mots de la transcription, ni les pseudonymes, rôles ou réponses aux variables.</p>
+    <h2 id="rapprochements">Vérifier les rapprochements proposés</h2>
+    <ol>
+      <li>Choisissez une proposition dans <strong>Rapprochements à vérifier</strong>, ou utilisez le filtre <strong>À vérifier</strong>.</li>
+      <li>Examinez les noms, les entretiens et la raison proposée. Les boutons sous <strong>Aller à l’entretien</strong> permettent de vérifier les sources.</li>
+      <li>Si vous reconnaissez la même personne, cliquez sur <strong>C’est la même personne…</strong> et relisez la confirmation. Si les deux côtés possèdent déjà des fiches, la confirmation propose de les réunir.</li>
+      <li>Pour conserver les informations propres à chaque entretien, laissez décochée l’option de reprise des informations, puis cliquez sur <strong>Confirmer</strong> ou <strong>Réunir</strong>, selon le dialogue.</li>
+    </ol>
+    <p class="retenir"><strong>Un même nom ou un même rôle ne prouve pas une identité.</strong> Deux personnes peuvent s’appeler Fatima ; deux enquêteurs peuvent avoir mené des entretiens différents. Si vous hésitez, cliquez sur <strong>Annuler</strong> : aucune décision n’est prise.</p>
+    <p>Si les personnes sont différentes, choisissez <strong>Personne différente</strong>. La décision rejoint <strong>Écartées</strong> ; elle peut aussi créer une fiche distincte pour un locuteur nommé qui n’en avait pas. Pour réexaminer la proposition, choisissez le locuteur dans <strong>Écartées</strong>, cliquez sur <strong>Annuler le refus</strong>, puis revenez à <strong>Toutes</strong> ou <strong>À vérifier</strong>.</p>
+    <h3>Reprendre des informations : un choix distinct de l’association</h3>
+    <p>Quand des informations diffèrent, le dialogue peut proposer <strong>Reprendre toutes les informations disponibles</strong> vers un locuteur et un entretien nommés. Cette option est décochée dans le répertoire. Si vous l’activez, vérifiez les changements affichés et choisissez l’entretien source lorsque plusieurs sources diffèrent.</p>
+    <p>Cette copie ponctuelle peut <strong>remplacer le pseudonyme, le rôle et les réponses aux variables disponibles</strong> du seul locuteur indiqué. Elle ne modifie pas les autres membres de la fiche et ne crée pas de synchronisation future. Une différence peut être légitime, par exemple une profession qui a changé entre deux rencontres.</p>
+    <p>Ne confondez pas ce choix avec le dialogue ouvert lors du nommage dans l’entretien : celui-ci propose par défaut de compléter le pseudonyme et le statut manquants, sans reprendre les autres variables. Relisez toujours le contenu annoncé avant de confirmer.</p>
+    <h2 id="reunir">Réunir deux fiches de la même personne</h2>
+    <p>Utilisez cette commande si deux fiches distinctes regroupent déjà chacune des entretiens de la même personne, et si vous voulez les rassembler entièrement.</p>
+    <ol>
+      <li>Ouvrez l’une des fiches dans <strong>Personnes identifiées</strong>, puis dépliez <strong>Réunir…</strong>.</li>
+      <li>Choisissez l’autre fiche dans <strong>Avec</strong>, puis cliquez sur <strong>Continuer…</strong>.</li>
+      <li>Vérifiez les deux listes d’entretiens et, si les noms diffèrent, le <strong>Nom de référence à conserver</strong>.</li>
+      <li>Laissez la reprise des informations décochée si vous voulez seulement rassembler les associations. Cliquez sur <strong>Réunir</strong>.</li>
+    </ol>
+    <p>La fiche conservée s’ouvre avec les entretiens réunis ; l’autre fiche disparaît. Les noms locaux, les textes et les informations des locuteurs restent inchangés, sauf la copie d’informations explicitement choisie. Les cas qui utilisaient la fiche absorbée sont réorientés vers la personne conservée.</p>
+    <p>La réunion est refusée si elle aboutirait à deux locuteurs de la même personne dans un entretien, si un entretien est indisponible ou si les données ont changé depuis l’aperçu. Corrigez les associations ou actualisez le répertoire, puis examinez une nouvelle confirmation.</p>
+    <h2 id="corriger">Corriger une association ou séparer une fiche</h2>
+    <h3>Changer seulement un locuteur</h3>
+    <ol>
+      <li>Dans <strong>Noms et entretiens</strong> de la fiche, cliquez sur <strong>Modifier l’association…</strong> pour le locuteur concerné.</li>
+      <li>Choisissez une autre personne dans <strong>Associer à</strong>, puis cliquez sur <strong>Changer</strong>. Pour retirer seulement le lien, cliquez sur <strong>Ne plus associer</strong>.</li>
+      <li>Relisez la confirmation puis cliquez sur <strong>Confirmer</strong>.</li>
+    </ol>
+    <p>Seul le locuteur choisi change d’association. Ses paroles, nom, pseudonyme, rôle, données et notes sont conservés. Après une dissociation volontaire, renommer ce locuteur ne recrée pas automatiquement une fiche : associez-le explicitement si nécessaire.</p>
+    <h3>Créer une nouvelle personne avec plusieurs locuteurs</h3>
+    <ol>
+      <li>Ouvrez la fiche qui réunit trop de locuteurs, puis dépliez <strong>Séparer…</strong>.</li>
+      <li>Cochez les locuteurs à déplacer et renseignez le <strong>Nom de la nouvelle personne</strong>. Laissez au moins un locuteur sur la fiche d’origine.</li>
+      <li>Cliquez sur <strong>Continuer…</strong>, vérifiez la liste et le nombre de locuteurs conservés, puis sur <strong>Séparer</strong>.</li>
+    </ol>
+    <p>La nouvelle fiche s’ouvre après réussite. Les informations des entretiens ne sont pas recopiées ni effacées. Vérifiez aussi les cas qui reposent sur la personne d’origine : ils ne désignent pas automatiquement la nouvelle personne créée.</p>
+    <h3>Retirer une fiche devenue vide</h3>
+    <p>Une fiche sans entretien reste dans le répertoire jusqu’à sa suppression explicite. Ouvrez-la, choisissez <strong>Supprimer cette personne</strong> et confirmez. Cette suppression exige que tous les entretiens soient lisibles et qu’aucun cas n’utilise encore cette personne. Si un cas la référence, examinez-le avant de retirer son lien à la personne. Supprimer la fiche ne supprime pas de transcription.</p>
+    <h2 id="notes-donnees">Consulter les notes et les données</h2>
+    <p>Dans une fiche, <strong>Ouvrir l’entretien</strong> mène à son onglet Locuteurs. Pour revenir au répertoire, utilisez <strong>Corpus</strong> dans le fil de navigation du haut.</p>
+    <p><strong>Notes liées</strong> réunit les notes dont le champ <strong>Concerne</strong> vise les locuteurs de cette personne. Les notes ne sont ni copiées ni déplacées : leur catégorie, leur date et leur statut restent ceux de l’entretien. Une correction d’association change la liste des notes réunies. <strong>Ouvrir l’entretien dans Notes</strong> permet de les modifier à leur source.</p>
+    <p>Le tableau <strong>Données de locuteur</strong> compare les réponses aux variables d’un entretien à l’autre. Il sert à les consulter ; pour les corriger, ouvrez l’entretien ou <a href="donnees.html">la table de données du corpus</a>. Une case vide n’est pas une réponse négative.</p>
+    <p class="retenir"><strong>Le répertoire n’est pas une vue pseudonymisée.</strong> Les noms de référence, les noms locaux, les données et les notes peuvent contenir des informations sensibles, y compris des notes privées. Associer une personne ou renommer sa fiche ne pseudonymise pas les transcriptions.</p>
+    <h2 id="conserver">Vérifier l’enregistrement et les possibilités d’annulation</h2>
+    <p>Les corrections validées sont enregistrées directement dans le corpus local. Le répertoire affiche un message de réussite puis se recharge. En cas d’erreur, lisez le message et cliquez sur <strong>Actualiser</strong> avant de décider quoi reprendre : une fiche a pu être créée sans que son association ait abouti. Ne créez pas une seconde fiche sans vérifier la première.</p>
+    <p>Si des entretiens sont signalés indisponibles, ouvrez le détail de l’avertissement. Le répertoire ne représente alors pas nécessairement tout le corpus. Après un échec d’actualisation, le dernier résultat affiché peut ne plus être à jour ; il ne prouve pas qu’une association est absente.</p>
+    <p><strong>À vérifier</strong> signale aussi les associations vers une fiche absente et les personnes liées plusieurs fois au même entretien. Aucune association incorrecte n’est supprimée automatiquement : examinez les entretiens puis corrigez les liens concernés.</p>
+    <p><strong>Annuler une modification…</strong> ouvre les actions récentes de Personnes : certains renommages, changements d’association et refus simples peuvent être annulés pendant la session, si leur état le permet. Les créations, suppressions de fiche, rapprochements avec reprise d’informations, réunions et séparations ne bénéficient pas d’une annulation générale. Pour ces opérations, vérifiez la confirmation et <a href="../demarrer/sauvegarder-deplacer.html#sauvegarder">préparez une sauvegarde</a> si nécessaire.</p>
+    <p>Pour aller plus loin : <a href="notes.html#classer">associer des notes aux locuteurs</a>, <a href="annuler-restaurer.html#journal-corpus">comprendre le Journal du corpus</a> ou <a href="../faq/premiers-pas.html#personnes-homonymes">consulter les questions sur les personnes</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="rechercher.html" rel="prev">← Précédent : rechercher dans les entretiens</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="organiser-themes.html" rel="next">Suivant : organiser ses thèmes →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

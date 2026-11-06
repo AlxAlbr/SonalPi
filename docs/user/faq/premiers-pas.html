@@ -17,22 +17,161 @@
       </nav>
     </div>
   </header>
-  <main id="contenu">
+  <main id="contenu" class="faq">
     <h1>Questions fréquentes</h1>
-    <p>Les questions sont regroupées par thème. Choisissez une partie ci-dessous ou recherchez un mot dans la page avec la commande habituelle de votre navigateur.</p>
-    <nav class="sommaire" aria-label="Thèmes de la FAQ">
-      <strong>Choisissez un thème</strong>
+    <p>Les questions sont regroupées par thème. Choisissez un thème ou directement une question dans le sommaire ci-dessous. Vous pouvez aussi rechercher un mot dans la page avec la commande habituelle de votre navigateur.</p>
+    <nav class="sommaire sommaire-faq" aria-label="Sommaire de la FAQ">
+      <strong>Thèmes et questions</strong>
       <ul>
-        <li><a href="#demarrer-corpus">Démarrer et retrouver un corpus</a></li>
-        <li><a href="#preparer-suivi">Préparer et suivre</a></li>
-        <li><a href="#transcriptions-medias">Transcriptions, entretiens et médias</a></li>
-        <li><a href="#codage-themes">Codage et thèmes</a></li>
-        <li><a href="#locuteurs">Locuteurs et prises de parole</a></li>
-        <li><a href="#variables-donnees">Variables et données</a></li>
-        <li><a href="#notes-commentaires">Notes et commentaires</a></li>
-        <li><a href="#pseudonymisation">Pseudonymisation</a></li>
-        <li><a href="#annulation-sauvegarde">Annulation et sauvegarde</a></li>
-        <li><a href="#exports-partage">Exports et partage</a></li>
+        <li><a href="#demarrer-corpus">Démarrer et retrouver un corpus</a>
+          <ul>
+            <li><a href="#un-entretien">Dois-je créer un corpus pour un seul entretien ?</a></li>
+            <li><a href="#choisir-exemple">Quel exemple choisir pour découvrir les outils ?</a></li>
+            <li><a href="#demo-recents">Pourquoi ma démo n’apparaît-elle pas dans les Récents ?</a></li>
+            <li><a href="#nom-recents">Pourquoi mon projet porte-t-il un autre nom dans les Récents ?</a></li>
+            <li><a href="#croix-recents">Ai-je supprimé mon corpus en cliquant sur la croix des Récents ?</a></li>
+            <li><a href="#changer-espace">Changer d’espace ferme-t-il mon entretien ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#preparer-suivi">Préparer et suivre</a>
+          <ul>
+            <li><a href="#tableau-entretiens">Pourquoi le tableau de bord ne reprend-il pas les entretiens importés ?</a></li>
+            <li><a href="#tableau-notes">Où lire les notes d’une case du tableau de bord ?</a></li>
+            <li><a href="#tableau-badge">Le badge « OK » vérifie-t-il que le travail est terminé ?</a></li>
+            <li><a href="#document-copie">Ajouter un document du projet conserve-t-il une copie dans le corpus ?</a></li>
+            <li><a href="#document-sans-apercu">Pourquoi mon document Word n’a-t-il pas d’aperçu dans SonalPi ?</a></li>
+            <li><a href="#document-modifier">Comment modifier un document du projet ?</a></li>
+            <li><a href="#modeles-a-venir">Pourquoi les documents exemples affichent-ils « À venir. » ?</a></li>
+            <li><a href="#modele-modifier">Puis-je modifier un document exemple dans SonalPi ?</a></li>
+            <li><a href="#modele-projet">Ma copie d’un exemple est-elle automatiquement ajoutée au corpus ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#transcriptions-medias">Transcriptions, entretiens et médias</a>
+          <ul>
+            <li><a href="#transcription-automatique">SonalPi transcrit-il automatiquement mon enregistrement ?</a></li>
+            <li><a href="#word-pdf">Puis-je importer une transcription Word ou PDF ?</a></li>
+            <li><a href="#effacer-audio">Effacer l’audio supprime-t-il mon enregistrement ?</a></li>
+            <li><a href="#audio-introuvable">Que faire si mon enregistrement est introuvable ?</a></li>
+            <li><a href="#fermer-correction">Fermer l’entretien annule-t-il mes corrections ?</a></li>
+            <li><a href="#tri-longueur">Le tri par longueur utilise-t-il la durée audio ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#recherche-remplacement">Rechercher et remplacer</a>
+          <ul>
+            <li><a href="#recherche-portee">Pourquoi Ctrl + F ne cherche-t-il que dans un entretien ?</a></li>
+            <li><a href="#recherche-mot-entier">Pourquoi la recherche trouve-t-elle un mot plus long que celui saisi ?</a></li>
+            <li><a href="#recherche-vide">Aucune occurrence signifie-t-il que le sujet est absent du corpus ?</a></li>
+            <li><a href="#remplacer-tout-corpus">Le bouton Tout remplace-t-il le texte dans tous les entretiens ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#codage-themes">Codage et thèmes</a>
+          <ul>
+            <li><a href="#sans-audio">Puis-je coder une transcription sans fichier audio ?</a></li>
+            <li><a href="#second-clic">Pourquoi mon codage disparaît-il quand je clique une seconde fois ?</a></li>
+            <li><a href="#theme-commun">Le thème que je viens de créer concerne-t-il seulement cet entretien ?</a></li>
+            <li><a href="#sous-theme-parent">Coder un sous-thème code-t-il aussi son parent ?</a></li>
+            <li><a href="#theme-passif">Rendre un thème passif supprime-t-il ses codages ?</a></li>
+            <li><a href="#deplacer-theme">Déplacer un thème transfère-t-il ses codages à son nouveau parent ?</a></li>
+            <li><a href="#transfert-source">Conserver la source lors d’un transfert conserve-t-il aussi ses codages ?</a></li>
+            <li><a href="#division-incomplete">Dois-je répartir tous les codages pour diviser un thème ?</a></li>
+            <li><a href="#annuler-reorganisation">Puis-je annuler une fusion ou un transfert depuis le Journal ?</a></li>
+            <li><a href="#lot-themes-partiel">Un lot de réorganisation partiel a-t-il annulé les changements déjà réussis ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#locuteurs">Locuteurs, personnes et prises de parole</a>
+          <ul>
+            <li><a href="#renommer-locuteur">Renommer un locuteur change-t-il son nom dans tous les entretiens ?</a></li>
+            <li><a href="#role-enqueteur">Comment indiquer qui pose les questions ?</a></li>
+            <li><a href="#supprimer-locuteur">Supprimer un locuteur efface-t-il ses paroles ?</a></li>
+            <li><a href="#pseudo-locuteur">Le champ Pseudo masque-t-il tous les noms dans le texte ?</a></li>
+            <li><a href="#statistiques-locuteurs">Comment connaître la part de chaque locuteur ?</a></li>
+            <li><a href="#personnes-homonymes">Deux locuteurs portant le même nom sont-ils automatiquement la même personne ?</a></li>
+            <li><a href="#personne-donnees">Associer une personne uniformise-t-il ses pseudonymes et ses données ?</a></li>
+            <li><a href="#personne-erreur">Comment retirer un entretien associé à la mauvaise personne ?</a></li>
+            <li><a href="#personnes-distant">Puis-je corriger les personnes dans un corpus Nextcloud ou GitLab ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#variables-donnees">Variables et données</a>
+          <ul>
+            <li><a href="#variable-partout">Créer une variable remplit-il tous les entretiens ?</a></li>
+            <li><a href="#variable-privee">Une variable privée est-elle cachée aux autres utilisateurs du corpus ?</a></li>
+            <li><a href="#effacer-valeur">Effacer une cellule supprime-t-il sa modalité ?</a></li>
+            <li><a href="#modele-reponses">Exporter un modèle enregistre-t-il les réponses des entretiens ?</a></li>
+            <li><a href="#export-csv">Comment reprendre les réponses dans un tableur ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#notes-commentaires">Notes et commentaires</a>
+          <ul>
+            <li><a href="#note-commentaire">Quelle différence entre une note et un commentaire ?</a></li>
+            <li><a href="#corps-note">Pourquoi le texte de ma note n’apparaît-il pas dans sa carte ?</a></li>
+            <li><a href="#note-privee">Une note privée est-elle visible seulement par moi ?</a></li>
+            <li><a href="#export-notes">L’export des notes peut-il contenir des notes privées ?</a></li>
+            <li><a href="#commentaire-marge">Pourquoi mon commentaire n’apparaît-il plus dans la marge ?</a></li>
+            <li><a href="#supprimer-commentaire">Supprimer un commentaire efface-t-il le passage ?</a></li>
+            <li><a href="#commentaire-pseudonymise">La pseudonymisation masque-t-elle mes commentaires ?</a></li>
+            <li><a href="#export-commentaires">Dans quels exports mes commentaires apparaissent-ils ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#pseudonymisation">Pseudonymisation</a>
+          <ul>
+            <li><a href="#pseudo-anonyme">La pseudonymisation garantit-elle que l’entretien est anonyme ?</a></li>
+            <li><a href="#pseudo-a-traiter">Pourquoi une règle de pseudonymisation reste-t-elle « à traiter » ?</a></li>
+            <li><a href="#pseudo-exception">Comment laisser une occurrence en clair sans perdre la règle ?</a></li>
+            <li><a href="#pseudo-variantes">Puis-je employer deux pseudonymes pour la même entité ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#annulation-sauvegarde">Annulation et sauvegarde</a>
+          <ul>
+            <li><a href="#journal-ferme">Puis-je encore annuler après avoir fermé l’entretien ?</a></li>
+            <li><a href="#journal-grise">Pourquoi la flèche d’une action récente est-elle grisée ?</a></li>
+            <li><a href="#journal-sauvegarde">Le Journal remplace-t-il une sauvegarde du corpus ?</a></li>
+            <li><a href="#sauvegarde-audio">La copie ZIP contient-elle mes enregistrements audio ou vidéo ?</a></li>
+            <li><a href="#sauvegarde-autre-poste">Que faut-il conserver pour reprendre sur un autre ordinateur ?</a></li>
+            <li><a href="#deplacement-recents">Déplacer un corpus met-il à jour son raccourci dans les Récents ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#analyses-resultats">Analyses et résultats</a>
+          <ul>
+            <li><a href="#synthese-sans-extrait">Pourquoi Tri et synthèse ne montre-t-il aucun extrait ?</a></li>
+            <li><a href="#synthese-themes-ensemble">Deux thèmes dans le même entretien suffisent-ils pour « au même endroit » ?</a></li>
+            <li><a href="#synthese-export-grise">Pourquoi l’export TXT de la synthèse est-il grisé ?</a></li>
+            <li><a href="#synthese-texte-exporte">La copie et l’export de synthèse utilisent-ils le texte pseudonymisé ?</a></li>
+            <li><a href="#lexico-cases-decoches">Pourquoi Lexico analyse-t-il des entretiens alors que leurs cases sont décochées ?</a></li>
+            <li><a href="#lexico-bilan-tableau">Pourquoi le bilan Lexico compte-t-il plus de formes que le tableau n’en montre ?</a></li>
+            <li><a href="#lexico-contexte-filtre">Pourquoi une concordance Lexico montre-t-elle des mots hors du thème sélectionné ?</a></li>
+            <li><a href="#lexico-export-tableau">Que contient l’export CSV ou TSV de Lexico ?</a></li>
+            <li><a href="#lexico-mots-outils-texte">Ajouter un mot aux mots outils l’efface-t-il des entretiens ?</a></li>
+            <li><a href="#lexico-groupe-expression">Quelle différence entre regrouper des mots et réunir une expression ?</a></li>
+            <li><a href="#lexico-restaurer-liste">Pourquoi Restaurer la liste d’origine ne réaffiche-t-il pas les mots exclus ?</a></li>
+            <li><a href="#lexico-annulation-session">Puis-je annuler un traitement lexical après avoir rouvert le corpus ?</a></li>
+            <li><a href="#analyse-passages-codages">Pourquoi le nombre de passages d’une analyse croisée diffère-t-il de mes codages ?</a></li>
+            <li><a href="#analyse-couvertures-cumul">Pourquoi les couvertures des thèmes ne s’additionnent-elles pas à 100 % ?</a></li>
+            <li><a href="#analyse-vers-synthese">Pourquoi Tri et synthèse ne retrouve-t-il pas les mêmes passages qu’une case de la matrice ?</a></li>
+            <li><a href="#analyse-export-perimetre">Que reprend l’export des analyses croisées ?</a></li>
+            <li><a href="#resultat-a-jour-conclusion">Le statut À jour signifie-t-il que mon analyse est terminée ?</a></li>
+            <li><a href="#frequence-importance">Un mot plus fréquent désigne-t-il forcément un sujet plus important ?</a></li>
+            <li><a href="#mesures-outils-differentes">Pourquoi les outils d’analyse donnent-ils des chiffres différents ?</a></li>
+            <li><a href="#conserver-comparaison">Que conserver pour comparer un résultat avec un calcul ultérieur ?</a></li>
+          </ul>
+        </li>
+        <li><a href="#exports-partage">Exports et partage</a>
+          <ul>
+            <li><a href="#export-sauvegarde">Exporter un entretien sauvegarde-t-il mon corpus ?</a></li>
+            <li><a href="#sous-titres-vides">Pourquoi mon fichier SRT ou VTT est-il vide ou incomplet ?</a></li>
+            <li><a href="#html-audio">Le fichier HTML contient-il l’enregistrement audio ou vidéo ?</a></li>
+            <li><a href="#export-anonyme">Un export pseudonymisé peut-il être transmis sans autre vérification ?</a></li>
+            <li><a href="#lot-combine">Comment réunir plusieurs entretiens dans un seul document ?</a></li>
+            <li><a href="#lot-medias">Un lot pseudonymisé peut-il encore contenir les enregistrements originaux ?</a></li>
+            <li><a href="#lot-arret">Arrêter un export supprime-t-il les fichiers déjà créés ?</a></li>
+            <li><a href="#lot-echec">« Export terminé » signifie-t-il que tout a réussi ?</a></li>
+            <li><a href="#qualcoder-pseudo">Le projet QualCoder utilise-t-il mes pseudonymes ?</a></li>
+            <li><a href="#qualcoder-cas">Choisir un cas exporte-t-il seulement ses extraits ?</a></li>
+            <li><a href="#qualcoder-medias">Le projet QualCoder contient-il les médias et tout mon travail SonalPi ?</a></li>
+            <li><a href="#qualcoder-dossier">Puis-je exporter dans un projet QualCoder déjà utilisé ?</a></li>
+            <li><a href="#partage-sans-pseudo">Dois-je pseudonymiser tous les fichiers que je transmets ?</a></li>
+            <li><a href="#partage-controle">Que vérifier avant d’envoyer des fichiers à un collègue ?</a></li>
+          </ul>
+        </li>
       </ul>
     </nav>
     <h2 id="demarrer-corpus">Démarrer et retrouver un corpus</h2>
@@ -53,7 +192,7 @@
     <p><a href="../demarrer/corpus-local.html#ouvrir">Ouvrir un corpus absent des Récents.</a></p>
     <h3 id="changer-espace">Changer d’espace ferme-t-il mon entretien ?</h3>
     <p>Non. Vous pouvez consulter un autre espace et retrouver l’entretien avec <strong>Importer et traiter</strong>. En revanche, <strong>Corpus</strong> et <strong>Accueil</strong> dans le fil de navigation du haut ferment l’entretien pour revenir à ces vues.</p>
-    <p><a href="../demarrer/se-reperer.html#changer-espace">Comprendre les changements d’espace.</a></p>
+    <p><a href="../demarrer/se-reperer.html#changer-espace">Comprendre les changements d’espace.</a> Dans <strong>Importer et traiter</strong>, distinguez aussi <a href="../demarrer/se-reperer.html#niveaux-traitement">les niveaux Corpus et Entretien</a> : revenir au niveau Corpus ferme l’entretien.</p>
     <h2 id="preparer-suivi">Préparer et suivre</h2>
     <h3 id="tableau-entretiens">Pourquoi le tableau de bord ne reprend-il pas les entretiens importés ?</h3>
     <p>Ses lignes sont des repères libres que vous renseignez vous-même, indépendamment des entretiens réels. Les lignes initiales « Entretien 1 » et « Entretien 2 » ne créent aucun entretien. Importer ou renommer une transcription ne met pas le tableau à jour.</p>
@@ -101,6 +240,19 @@
     <h3 id="tri-longueur">Le tri par longueur utilise-t-il la durée audio ?</h3>
     <p>Non. Il classe les entretiens selon le nombre de mots de leur transcription, les plus longs en premier.</p>
     <p><a href="../traiter/gerer-entretiens.html#trier">Choisir un ordre de tri.</a></p>
+    <h2 id="recherche-remplacement">Rechercher et remplacer</h2>
+    <h3 id="recherche-portee">Pourquoi Ctrl + F ne cherche-t-il que dans un entretien ?</h3>
+    <p>Le raccourci agit au niveau affiché dans <strong>Importer et traiter</strong>. Pour chercher dans toutes les transcriptions disponibles, revenez au niveau <strong>Corpus</strong>, puis utilisez <strong>Ctrl + F</strong> ou <strong>Commande + F</strong>. Ce retour ferme l’entretien ; la recherche globale ne se lance pas depuis sa boîte de recherche.</p>
+    <p><a href="../traiter/rechercher.html#choisir">Choisir entre recherche du corpus et de l’entretien.</a></p>
+    <h3 id="recherche-mot-entier">Pourquoi la recherche trouve-t-elle un mot plus long que celui saisi ?</h3>
+    <p>Sans restriction, une suite de lettres peut être trouvée au milieu d’un mot. Dans la recherche du corpus, cochez <strong>Mot entier</strong> pour éviter ces correspondances. L’entretien ne propose pas cette option. Les majuscules ne distinguent pas les résultats, mais les accents comptent.</p>
+    <p><a href="../traiter/rechercher.html#formulation">Adapter le mot ou l’expression recherchés.</a></p>
+    <h3 id="recherche-vide">Aucune occurrence signifie-t-il que le sujet est absent du corpus ?</h3>
+    <p>Non. Vérifiez l’orthographe et les accents, essayez d’autres formulations et relancez la recherche si vous avez modifié les transcriptions. Sur un corpus distant, actualisez d’abord la copie de votre poste si vous êtes connecté.</p>
+    <p><a href="../traiter/rechercher.html#limites">Vérifier la portée et l’actualité des résultats de recherche.</a></p>
+    <h3 id="remplacer-tout-corpus">Le bouton Tout remplace-t-il le texte dans tous les entretiens ?</h3>
+    <p>Non. Il remplace immédiatement les occurrences trouvées dans la seule transcription ouverte, sans confirmation supplémentaire. Une recherche courte peut aussi modifier des morceaux de mots. Le panneau de recherche du corpus n’a pas de remplacement global ; relisez les contextes avant de corriger en lot.</p>
+    <p><a href="../traiter/rechercher.html#remplacer">Remplacer du texte sans confondre entretien et corpus.</a></p>
     <h2 id="codage-themes">Codage et thèmes</h2>
     <h3 id="sans-audio">Puis-je coder une transcription sans fichier audio ?</h3>
     <p>Oui. Le codage porte sur le texte. L’enregistrement est utile pour vérifier ce qui a été dit, mais il n’est pas nécessaire pour associer un thème à un passage.</p>
@@ -120,7 +272,19 @@
     <h3 id="deplacer-theme">Déplacer un thème transfère-t-il ses codages à son nouveau parent ?</h3>
     <p>Non. Cela change sa place dans la grille. Ses passages gardent le même thème, et ses sous-thèmes le suivent. Ce déplacement n’est pas une fusion ni un transfert de codages.</p>
     <p><a href="../traiter/organiser-themes.html#deplacer">Changer l’ordre ou le parent d’un thème.</a></p>
-    <h2 id="locuteurs">Locuteurs et prises de parole</h2>
+    <h3 id="transfert-source">Conserver la source lors d’un transfert conserve-t-il aussi ses codages ?</h3>
+    <p>Non. Les codages sont déplacés vers la cible ; seule la définition du thème source reste dans la grille. Ce n’est pas une copie. Les codages propres à ses sous-thèmes ne sont pas transférés automatiquement avec ceux du parent.</p>
+    <p><a href="../traiter/reorganiser-codages.html#transferer">Comprendre le transfert et le maintien de la source.</a></p>
+    <h3 id="division-incomplete">Dois-je répartir tous les codages pour diviser un thème ?</h3>
+    <p>Seulement si vous demandez de supprimer la source : chaque codage doit alors recevoir une destination, y compris les orphelins sans plage de texte exploitable. Si la source est conservée, les codages sans destination restent sur elle. Les destinations doivent être créées avant de commencer.</p>
+    <p><a href="../traiter/reorganiser-codages.html#diviser">Répartir les codages et traiter les passages sans texte.</a></p>
+    <h3 id="annuler-reorganisation">Puis-je annuler une fusion ou un transfert depuis le Journal ?</h3>
+    <p>Non. Les opérations de l’atelier ne sont pas annulables depuis le Journal du corpus. Relisez l’aperçu avant de confirmer et préparez une sauvegarde locale avant une réorganisation importante. Un transfert inverse ne reconstitue pas forcément le classement initial.</p>
+    <p><a href="../traiter/reorganiser-codages.html#apercu">Vérifier les conséquences avant d’appliquer.</a></p>
+    <h3 id="lot-themes-partiel">Un lot de réorganisation partiel a-t-il annulé les changements déjà réussis ?</h3>
+    <p>Non. Sur Nextcloud et GitLab, les entretiens sont traités un par un et les réussites restent enregistrées. Si une publication est inconnue, utilisez d’abord <strong>Vérifier la publication</strong>, puis <strong>Recalculer et reprendre</strong> lorsque le résultat est connu. <strong>Clôturer le suivi sans reprendre</strong> conserve les changements réussis et renonce au reste ; ce n’est pas une annulation.</p>
+    <p><a href="../traiter/reorganiser-codages.html#bilan">Lire le bilan et reprendre les entretiens restants.</a></p>
+    <h2 id="locuteurs">Locuteurs, personnes et prises de parole</h2>
     <h3 id="renommer-locuteur">Renommer un locuteur change-t-il son nom dans tous les entretiens ?</h3>
     <p>Non. Cela change les libellés de ses prises de parole dans l’entretien ouvert, pas les mots transcrits ni les noms des autres entretiens. SonalPi peut proposer de le rapprocher d’une personne déjà rencontrée : vérifiez cette proposition avant de la confirmer.</p>
     <p><a href="../traiter/locuteurs.html#personnes">Distinguer le locuteur de la personne du corpus.</a></p>
@@ -136,6 +300,18 @@
     <h3 id="statistiques-locuteurs">Comment connaître la part de chaque locuteur ?</h3>
     <p>Dans l’onglet <strong>Locuteurs</strong> de l’entretien, cliquez sur <strong>📊 Statistiques</strong>. Le bilan compare les tours de parole et les mots, passages sans locuteur compris. <strong>Suivante</strong> parcourt les interventions de la voix choisie. Les durées sont estimées à partir des repères du texte : elles peuvent être partielles ou indisponibles, et ne mesurent pas automatiquement la voix.</p>
     <p><a href="../traiter/locuteurs.html#statistiques">Lire le bilan et parcourir les prises de parole.</a></p>
+    <h3 id="personnes-homonymes">Deux locuteurs portant le même nom sont-ils automatiquement la même personne ?</h3>
+    <p>Non. Un nom identique ou un même rôle peut produire une proposition, mais vous devez vérifier les entretiens avant de confirmer le rapprochement. Deux homonymes peuvent conserver des fiches distinctes ; <strong>Personne différente</strong> mémorise votre décision, qui reste révocable dans <strong>Écartées</strong>.</p>
+    <p><a href="../traiter/personnes.html#rapprochements">Vérifier une proposition de rapprochement.</a></p>
+    <h3 id="personne-donnees">Associer une personne uniformise-t-il ses pseudonymes et ses données ?</h3>
+    <p>Non. Les noms, pseudonymes, rôles et réponses restent propres à chaque entretien. Renommer la fiche ne les modifie pas. Le dialogue peut proposer une copie ponctuelle d’informations vers un locuteur nommé : ne l’activez que si les remplacements annoncés sont souhaités. Il n’y a pas de synchronisation future.</p>
+    <p><a href="../traiter/personnes.html#associer">Comprendre la fiche et ses associations.</a></p>
+    <h3 id="personne-erreur">Comment retirer un entretien associé à la mauvaise personne ?</h3>
+    <p>Dans la fiche, utilisez <strong>Modifier l’association…</strong> sur le locuteur concerné, puis choisissez une autre personne ou <strong>Ne plus associer</strong> et confirmez. Cela conserve ses paroles et ses informations. Pour placer plusieurs locuteurs dans une nouvelle fiche, utilisez <strong>Séparer…</strong> en laissant au moins un locuteur sur la fiche d’origine.</p>
+    <p><a href="../traiter/personnes.html#corriger">Corriger les associations d’une personne.</a></p>
+    <h3 id="personnes-distant">Puis-je corriger les personnes dans un corpus Nextcloud ou GitLab ?</h3>
+    <p>Pas actuellement depuis le répertoire <strong>Personnes</strong>. Sa consultation est distincte de ses commandes de correction, qui ne sont pas disponibles sur ces deux fournisseurs, même en ligne. Si un bouton ou un message semble annoncer le contraire, ne considérez pas la correction comme enregistrée sans résultat de réussite.</p>
+    <p><a href="../traiter/personnes.html">Connaître le périmètre du répertoire Personnes.</a></p>
     <h2 id="variables-donnees">Variables et données</h2>
     <h3 id="variable-partout">Créer une variable remplit-il tous les entretiens ?</h3>
     <p>Non. Cela crée une question commune au corpus, mais les réponses restent à saisir pour chaque entretien ou locuteur. La commande <strong>⇊</strong> est une action distincte : elle applique une même valeur à plusieurs entretiens et peut remplacer leurs réponses existantes.</p>
@@ -209,6 +385,67 @@
     <h3 id="deplacement-recents">Déplacer un corpus met-il à jour son raccourci dans les Récents ?</h3>
     <p>Non. Ouvrez son nouvel emplacement avec <strong>Ouvrir un corpus local</strong>, puis retirez au besoin l’ancien raccourci avec sa croix. Si vous avez conservé deux copies, choisissez clairement celle dans laquelle poursuivre : leurs modifications ne sont pas synchronisées.</p>
     <p><a href="../demarrer/sauvegarder-deplacer.html#fichiers">Retrouver les fichiers de travail.</a></p>
+    <h2 id="analyses-resultats">Analyses et résultats</h2>
+    <h3 id="synthese-sans-extrait">Pourquoi Tri et synthèse ne montre-t-il aucun extrait ?</h3>
+    <p>Choisissez au moins un thème déjà appliqué à des passages ou un cas contenant des matériaux, puis calculez la synthèse. Vérifiez aussi les entretiens cochés, les restrictions de personne et de variable, et l’exclusion éventuelle des paroles des enquêteurs. Commencez avec un seul thème, puis ajoutez les critères un par un en actualisant.</p>
+    <p><a href="../analyser/tri-synthese.html#resultats">Vérifier les critères d’une synthèse sans extrait.</a></p>
+    <h3 id="synthese-themes-ensemble">Deux thèmes dans le même entretien suffisent-ils pour « au même endroit » ?</h3>
+    <p>Non. <strong>Tous les thèmes sélectionnés au même endroit</strong> exige que leurs codages se chevauchent sur le passage. Pour rassembler les passages de l’un ou l’autre thème, choisissez <strong>Au moins un thème sélectionné</strong>. Les autres critères continuent de restreindre la sélection.</p>
+    <p><a href="../analyser/tri-synthese.html#criteres">Comprendre la combinaison des critères de synthèse.</a></p>
+    <h3 id="synthese-export-grise">Pourquoi l’export TXT de la synthèse est-il grisé ?</h3>
+    <p>Il faut un résultat calculé, non périmé et sans problème signalé. Si les critères ou les sources ont changé, cliquez sur <strong>Actualiser la synthèse</strong>. Si <strong>Résultat incomplet</strong> est affiché, dépliez-le, traitez les éléments indiqués puis actualisez. Les anciens extraits peuvent rester lisibles sans être prêts à exporter.</p>
+    <p><a href="../analyser/tri-synthese.html#actualiser">Actualiser une synthèse périmée ou incomplète.</a></p>
+    <h3 id="synthese-texte-exporte">La copie et l’export de synthèse utilisent-ils le texte pseudonymisé ?</h3>
+    <p>Ils suivent le choix <strong>Affichage</strong> : texte pseudonymisé au départ, ou texte original sur choix explicite. La pseudonymisation ne garantit pas l’anonymat des titres et des critères ; le TXT peut aussi reprendre des variables privées utilisées comme filtres. Relisez le contenu avant de le partager.</p>
+    <p><a href="../analyser/tri-synthese.html#copier-exporter">Choisir le texte et contrôler la sortie de synthèse.</a></p>
+    <h3 id="lexico-cases-decoches">Pourquoi Lexico analyse-t-il des entretiens alors que leurs cases sont décochées ?</h3>
+    <p>Avec le badge <strong>Sans restriction</strong>, aucun entretien précis n’est imposé : tous restent inclus. Cocher une case crée un filtre explicite ; <strong>Tout décocher</strong> conserve un filtre vide, tandis que <strong>Retirer ce filtre</strong> revient à Sans restriction. Regardez le badge et le résumé, pas seulement les cases.</p>
+    <p><a href="../analyser/lexico.html#filtres">Comprendre Sans restriction et les sélections explicites.</a></p>
+    <h3 id="lexico-bilan-tableau">Pourquoi le bilan Lexico compte-t-il plus de formes que le tableau n’en montre ?</h3>
+    <p>Le champ <strong>Rechercher une forme</strong>, la <strong>Fréquence minimale</strong> et <strong>Afficher les nombres</strong> changent seulement les lignes visibles. Le bilan décrit les matériaux retenus après les filtres et les traitements. Videz la recherche et remettez la fréquence à 1 pour retrouver un tableau plus large, puis vérifiez les nombres si nécessaire.</p>
+    <p><a href="../analyser/lexico.html#affichage">Distinguer les matériaux analysés et le tableau affiché.</a></p>
+    <h3 id="lexico-contexte-filtre">Pourquoi une concordance Lexico montre-t-elle des mots hors du thème sélectionné ?</h3>
+    <p>Le filtre décide quelles occurrences compter, mais le contexte qui les entoure peut dépasser le passage codé. Seule l’occurrence mise en évidence est comptée ; les mots voisins aident à la comprendre. Cliquez sur la concordance pour relire la source.</p>
+    <p><a href="../analyser/lexico.html#concordances">Lire les concordances sans les confondre avec les comptes.</a></p>
+    <h3 id="lexico-export-tableau">Que contient l’export CSV ou TSV de Lexico ?</h3>
+    <p>Les lignes actuellement affichées, avec leurs occurrences et nombres d’entretiens, ainsi que les sources, critères et paramètres d’affichage. Il n’ajoute pas les concordances. Le résumé masque les personnes choisies et le détail des variables privées, mais des noms peuvent rester dans les formes ou les titres : contrôlez le fichier avant diffusion.</p>
+    <p><a href="../analyser/lexico.html#exporter">Exporter les lignes affichées avec les bonnes précautions.</a></p>
+    <h3 id="lexico-mots-outils-texte">Ajouter un mot aux mots outils l’efface-t-il des entretiens ?</h3>
+    <p>Non. Il est écarté des comptes et des concordances de Lexico, mais reste dans les transcriptions. La règle est enregistrée pour le corpus, pas seulement pour le tableau affiché. Utilisez <strong>Retirer</strong> près du mot outil pour ne plus l’exclure.</p>
+    <p><a href="../analyser/traitement-lexical.html#mots-outils">Écarter une forme sans modifier les paroles.</a></p>
+    <h3 id="lexico-groupe-expression">Quelle différence entre regrouper des mots et réunir une expression ?</h3>
+    <p>Un regroupement compte plusieurs formes sous un même libellé, par exemple « travaille » et « travailler » sous « travailler ». Une concaténation réunit des formes successives, par exemple « prise + en + charge », en une seule unité. Ces choix sont manuels et ne réécrivent pas les transcriptions.</p>
+    <p><a href="../analyser/traitement-lexical.html#choisir">Choisir entre mots outils, regroupements et expressions.</a></p>
+    <h3 id="lexico-restaurer-liste">Pourquoi Restaurer la liste d’origine ne réaffiche-t-il pas les mots exclus ?</h3>
+    <p>Cette commande remet à l’état initial la liste proposée par un bouton comme <strong>+ Articles</strong>, pas les exclusions déjà appliquées. Pour réafficher un mot, retirez-le des mots outils actifs, puis vérifiez les autres filtres et traitements. Personnaliser une liste ne modifie pas automatiquement ces exclusions.</p>
+    <p><a href="../analyser/traitement-lexical.html#listes">Distinguer la liste proposée des mots outils actifs.</a></p>
+    <h3 id="lexico-annulation-session">Puis-je annuler un traitement lexical après avoir rouvert le corpus ?</h3>
+    <p>Les règles enregistrées sont conservées, mais le bouton <strong>Annuler la dernière modification</strong> utilise un historique limité à la session, avec au plus trente changements. Après réouverture, retirez les règles concernées si nécessaire. <strong>Tout retirer</strong> enlève les trois types de traitements actifs, sans effacer les textes ni les personnalisations des listes proposées.</p>
+    <p><a href="../analyser/traitement-lexical.html#revenir">Retirer une règle ou utiliser l’annulation de session.</a></p>
+    <h3 id="analyse-passages-codages">Pourquoi le nombre de passages d’une analyse croisée diffère-t-il de mes codages ?</h3>
+    <p>La mesure <strong>Passages</strong> compte les zones retenues après regroupement et découpage, pas les annotations posées une à une. Des codages qui se recouvrent peuvent contribuer à un même passage ; un codage peut aussi alimenter plusieurs passages. Cliquez sur la case pour consulter ses justificatifs.</p>
+    <p><a href="../analyser/analyses-croisees.html#mesures">Comprendre Passages, Volume et Couverture.</a></p>
+    <h3 id="analyse-couvertures-cumul">Pourquoi les couvertures des thèmes ne s’additionnent-elles pas à 100 % ?</h3>
+    <p>Les thèmes ne découpent pas nécessairement tout le texte et peuvent se chevaucher. Un même passage peut contribuer à plusieurs thèmes ; additionner leurs pourcentages compterait alors plusieurs fois cette zone. La couverture décrit du texte source, pas une durée audio ni l’importance du thème.</p>
+    <p><a href="../analyser/analyses-croisees.html#mesures">Lire les couvertures et les totaux sans doubler les passages.</a></p>
+    <h3 id="analyse-vers-synthese">Pourquoi Tri et synthèse ne retrouve-t-il pas les mêmes passages qu’une case de la matrice ?</h3>
+    <p><strong>Afficher dans Tri et synthèse</strong> prépare le thème et l’entretien, sans lancer le calcul ni effacer les autres critères de synthèse. Vérifiez les restrictions de personne, de variable et de cas, ainsi que <strong>Inclure les paroles des enquêteurs</strong>, puis calculez. La matrice n’exclut pas par défaut les paroles d’enquêteur codées, contrairement à Tri et synthèse.</p>
+    <p><a href="../analyser/analyses-croisees.html#synthese">Passer d’une case à Tri et synthèse en vérifiant les critères.</a></p>
+    <h3 id="analyse-export-perimetre">Que reprend l’export des analyses croisées ?</h3>
+    <p>Tous les thèmes et entretiens du dernier calcul, même masqués par une recherche ou une option d’affichage. Le fichier contient les mesures et les intitulés, pas les textes justificatifs. Un résultat incomplet mais non périmé peut être exporté : son état est indiqué et les valeurs indisponibles restent vides, pas à zéro. Contrôlez le périmètre et les intitulés avant de partager.</p>
+    <p><a href="../analyser/analyses-croisees.html#exporter">Vérifier le périmètre et l’état de l’export des analyses croisées.</a></p>
+    <h3 id="resultat-a-jour-conclusion">Le statut À jour signifie-t-il que mon analyse est terminée ?</h3>
+    <p>Non. Il décrit le résultat calculé sur les données disponibles, pas la qualité du codage ni la validité d’une conclusion. Vérifiez encore la sélection, les unités comptées et les passages sources. Dans un corpus partagé, ce statut ne garantit pas non plus que tous les postes ont le même état.</p>
+    <p><a href="../analyser/verifier-resultats.html#etat">Distinguer actualité du résultat et validation de l’analyse.</a></p>
+    <h3 id="frequence-importance">Un mot plus fréquent désigne-t-il forcément un sujet plus important ?</h3>
+    <p>Non. La fréquence peut dépendre de la longueur d’un entretien, des questions posées ou des répétitions d’une seule personne. Comparez aussi la répartition entre sources, relisez les contextes et cherchez les passages qui nuancent votre lecture. Un sujet peut être exprimé sans le mot recherché.</p>
+    <p><a href="../analyser/verifier-resultats.html#interpreter">Interpréter les chiffres en revenant aux propos.</a></p>
+    <h3 id="mesures-outils-differentes">Pourquoi les outils d’analyse donnent-ils des chiffres différents ?</h3>
+    <p>Ils ne mesurent pas tous la même chose : Lexico compte des occurrences de formes, Tri et synthèse rassemble des extraits et la matrice mesure les passages, volumes ou couvertures des thèmes. Les sélections, traitements et paroles d’enquêteur retenues peuvent aussi différer. Vérifiez les unités et les critères avant de comparer les nombres.</p>
+    <p><a href="../analyser/verifier-resultats.html#selection">Contrôler le périmètre d’une comparaison.</a></p>
+    <h3 id="conserver-comparaison">Que conserver pour comparer un résultat avec un calcul ultérieur ?</h3>
+    <p>Notez la date, les sources, les critères, la mesure, les traitements et le mode de texte utilisés, puis conservez la sortie utile et les passages qui soutiennent votre lecture. Un export ne recrée pas les réglages dans SonalPi ni l’ancienne version des sources. Pour retrouver un état du corpus local, prévoyez une sauvegarde datée.</p>
+    <p><a href="../analyser/verifier-resultats.html#trace">Garder une trace des choix et de leurs limites.</a></p>
     <h2 id="exports-partage">Exports et partage</h2>
     <h3 id="export-sauvegarde">Exporter un entretien sauvegarde-t-il mon corpus ?</h3>
     <p>Non. L’export crée une copie de lecture ou d’échange d’un entretien. Il ne conserve pas tous les fichiers natifs, les autres entretiens ni l’ensemble des objets du corpus. Pour pouvoir restaurer un corpus local, créez une copie ZIP.</p>

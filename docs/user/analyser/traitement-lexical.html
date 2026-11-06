@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adapter le traitement lexical — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#analyser">Analyser et interpréter</a> → Lexico</p>
+    <h1>Adapter le traitement lexical</h1>
+    <p>Le <strong>traitement lexical</strong> permet d’adapter la manière dont Lexico compte les mots, <strong>sans modifier les transcriptions</strong>. Vous pouvez écarter certains mots de l’analyse, réunir plusieurs formes sous un même nom ou compter une expression comme une seule unité.</p>
+    <p>Ces choix ne sont pas obligatoires pour <a href="lexico.html">consulter l’index et ses concordances</a>. Partez des mots réellement présents dans votre corpus : les exemples ci-dessous illustrent les opérations, sans imposer de corpus d’exercice.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#choisir">Choisir le bon réglage</a></li>
+        <li><a href="#ouvrir">Ouvrir les traitements et vérifier leur portée</a></li>
+        <li><a href="#mots-outils">Écarter des mots de l’analyse</a></li>
+        <li><a href="#listes">Consulter et personnaliser les listes proposées</a></li>
+        <li><a href="#regrouper">Regrouper plusieurs formes</a></li>
+        <li><a href="#expressions">Compter une expression comme une unité</a></li>
+        <li><a href="#verifier">Vérifier les effets sur les comptes</a></li>
+        <li><a href="#revenir">Retirer une règle ou annuler une modification</a></li>
+      </ul>
+    </nav>
+    <h2 id="choisir">Choisir le bon réglage</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Votre besoin</th><th scope="col">Nom dans Lexico</th><th scope="col">Exemple</th></tr></thead>
+        <tbody>
+          <tr><td>Ne pas compter certaines formes.</td><td><strong>Mots outils</strong></td><td>Écarter « le » et « de » si ces mots n’aident pas votre analyse.</td></tr>
+          <tr><td>Compter ensemble plusieurs formes sous un libellé commun.</td><td><strong>Regroupements et lemmes manuels</strong></td><td>Réunir « travaille », « travaillons » et « travailler » sous « travailler ».</td></tr>
+          <tr><td>Compter plusieurs formes successives comme une expression.</td><td><strong>Concaténations</strong></td><td>Réunir « prise + en + charge » sous « prise en charge ».</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Les regroupements sont <strong>manuels</strong> : Lexico ne décide pas que deux mots ont le même sens. Un mot fréquent n’est pas forcément inutile ; retirer « pas » ou « non », par exemple, peut masquer une distinction importante pour votre recherche.</p>
+    <h2 id="ouvrir">Ouvrir les traitements et vérifier leur portée</h2>
+    <ol>
+      <li>Ouvrez <strong>Analyser et interpréter → Lexico</strong> et attendez le chargement de l’index.</li>
+      <li>Cliquez sur <strong>Traitement lexical</strong>, au-dessus du tableau.</li>
+      <li>Examinez les règles déjà présentes dans les trois rubriques avant d’en ajouter une.</li>
+    </ol>
+    <p>Les règles sont <strong>communes au corpus</strong>, pas limitées aux lignes visibles ou aux entretiens que vous avez momentanément sélectionnés. Leurs effets se retrouvent dans Lexico lorsque vous changez de filtre. Sur un corpus partagé, leur enregistrement concerne aussi les autres utilisateurs du même corpus.</p>
+    <p>Les boutons d’ajout, <strong>Appliquer</strong> et <strong>Retirer</strong> enregistrent les changements au fil des actions. Refermer le panneau ne les annule pas. En lecture seule, les règles restent consultables, mais leur modification est désactivée.</p>
+    <h2 id="mots-outils">Écarter des mots de l’analyse</h2>
+    <p>Un mot outil est ici une forme que vous choisissez d’exclure de l’index et des concordances. Ses occurrences restent dans la transcription : elles ne sont plus comptées par Lexico tant que cette exclusion s’applique.</p>
+    <h3>Depuis le tableau</h3>
+    <ol>
+      <li>Cochez les petites cases des formes à écarter. Cliquez sur les cases, et non seulement sur les noms qui ouvrent les concordances.</li>
+      <li>Vérifiez le nombre de formes sélectionnées dans la barre qui apparaît au-dessus du tableau.</li>
+      <li>Cliquez sur <strong>Ajouter aux mots outils</strong>.</li>
+    </ol>
+    <p>Après réussite, les formes quittent le tableau et les comptes sont recalculés. La sélection de cases est vidée. Si vous ne voulez plus agir sur les cases cochées, utilisez <strong>Effacer la sélection</strong> avant de lancer l’action.</p>
+    <h3>Depuis le panneau</h3>
+    <p>Dans <strong>Mots outils</strong>, saisissez une forme dans <strong>Ajouter une forme</strong>, puis cliquez sur <strong>Ajouter</strong>. Pour une liste proposée, examinez son contenu avec l’icône en forme d’œil avant de cliquer sur son bouton, par exemple <strong>+ Articles</strong>.</p>
+    <p>Pour ne plus exclure une forme, cliquez sur <strong>Retirer</strong> à côté de cette forme dans la liste des mots outils actifs. Si elle n’apparaît toujours pas dans le tableau, vérifiez les filtres, la recherche, la fréquence minimale et les autres traitements.</p>
+    <h2 id="listes">Consulter et personnaliser les listes proposées</h2>
+    <p>Les boutons <strong>+ Articles</strong>, <strong>+ Pronoms</strong> et les autres listes sont des aides pour ajouter plusieurs exclusions. Vous pouvez adapter leur contenu pour votre corpus :</p>
+    <ol>
+      <li>Cliquez sur l’<strong>œil</strong> près du nom de la liste.</li>
+      <li>Retirez une entrée avec sa croix, ou renseignez <strong>Ajouter à cette liste</strong> puis cliquez sur <strong>Ajouter</strong>.</li>
+      <li>Cliquez sur <strong>Enregistrer cette liste</strong> pour conserver sa personnalisation dans le corpus.</li>
+      <li>Si vous souhaitez ensuite écarter ses mots de l’analyse, cliquez sur le bouton <strong>+ nom de la liste</strong>.</li>
+    </ol>
+    <p class="retenir"><strong>Personnaliser une liste et appliquer ses mots sont deux actions différentes.</strong> Retirer un mot de la liste proposée ne le retire pas des exclusions déjà actives. Inversement, ajouter un mot à cette liste ne l’exclut pas tant que vous ne l’avez pas appliquée.</p>
+    <p><strong>Restaurer la liste d’origine</strong> retire seulement la personnalisation de la liste proposée. Cette commande ne remet pas à zéro les mots outils déjà appliqués. Avant <strong>Enregistrer cette liste</strong>, refermer son détail ne valide pas les ajouts ou retraits du brouillon.</p>
+    <h2 id="regrouper">Regrouper plusieurs formes</h2>
+    <ol>
+      <li>Dans le tableau, cochez les formes que vous souhaitez compter ensemble.</li>
+      <li>Cliquez sur <strong>Regrouper / lemmatiser</strong>.</li>
+      <li>Renseignez la <strong>Forme de regroupement</strong> : le libellé commun qui apparaîtra dans l’index.</li>
+      <li>Vérifiez les formes annoncées, puis cliquez sur <strong>Appliquer</strong>. <strong>Annuler</strong> ferme cette saisie sans appliquer le nouveau regroupement.</li>
+      <li>Ouvrez les concordances de la forme obtenue pour contrôler les emplois réunis.</li>
+    </ol>
+    <p>Vous pouvez regrouper des formes conjuguées, des singuliers et pluriels, ou des graphies dont le rapprochement vous paraît pertinent. Une seule forme peut également recevoir un autre libellé dans l’index. Dans tous les cas, <strong>les concordances conservent les mots effectivement présents dans les transcriptions</strong>.</p>
+    <p>Une ressemblance de forme ne garantit pas un même sens. Avant de réunir des mots, comparez leurs contextes. Le nombre d’entretiens de la ligne obtenue compte les sources distinctes : réunir deux formes présentes dans le même entretien ne compte pas cet entretien deux fois.</p>
+    <p>La règle apparaît sous <strong>Regroupements et lemmes manuels</strong>. Pour revoir sa composition, retirez-la, puis sélectionnez les formes souhaitées et créez un nouveau regroupement. Aucun mot de la transcription n’est remplacé par cette opération.</p>
+    <h2 id="expressions">Compter une expression comme une unité</h2>
+    <p>L’interface appelle cette opération une <strong>concaténation</strong>. Elle réunit une suite de formes, dans le même ordre, pour compter l’expression au lieu de ses mots séparés à ces endroits.</p>
+    <ol>
+      <li>Repérez dans vos concordances une expression que vous souhaitez compter ensemble.</li>
+      <li>Dans <strong>Concaténations</strong>, renseignez <strong>Suite de formes</strong> en séparant les formes par <strong>+</strong>, par exemple <code>prise + en + charge</code>.</li>
+      <li>Indiquez la <strong>Forme obtenue</strong>, c’est-à-dire le libellé de l’expression dans le tableau. Si vous laissez ce champ vide, les formes sont réunies avec des espaces.</li>
+      <li>Vérifiez le nombre de <strong>suites trouvées</strong>. Le bouton <strong>Ajouter la concaténation</strong> devient disponible lorsqu’une suite d’au moins deux formes est trouvée.</li>
+      <li>Cliquez sur ce bouton, puis relisez les concordances de la forme obtenue.</li>
+    </ol>
+    <p>Le repérage utilise les formes de l’index chargé et reste dans un même entretien et un même locuteur. Il ne suffit pas que les mots apparaissent quelque part dans la même phrase : ils doivent se suivre dans l’ordre demandé. Vérifiez les contextes pour confirmer que l’expression retenue correspond bien à votre question.</p>
+    <p>Le compteur avant ajout porte sur les suites trouvées dans l’index chargé, pas seulement dans les matériaux retenus par vos filtres. Il n’annonce donc pas nécessairement le nombre d’occurrences de la future ligne après filtrage. Si d’autres règles réunissent déjà certaines de ces formes, contrôlez aussi le résultat après ajout.</p>
+    <p>Une expression réunie peut faire diminuer le total d’occurrences : une suite de trois mots devient une seule unité là où elle est reconnue. Les mots employés séparément ailleurs restent analysés selon les autres règles actives.</p>
+    <h2 id="verifier">Vérifier les effets sur les comptes</h2>
+    <p>Après chaque changement enregistré, Lexico recalcule le tableau et les concordances à partir de l’index chargé. Il n’est pas nécessaire de cliquer sur Actualiser pour appliquer une règle ; utilisez cette commande si les transcriptions ont changé.</p>
+    <ul>
+      <li>Les mots outils retirent des occurrences de l’analyse.</li>
+      <li>Un regroupement réunit des lignes sous un libellé commun, sans supprimer leurs occurrences.</li>
+      <li>Une concaténation change l’unité comptée en réunissant des formes successives.</li>
+    </ul>
+    <p>Les règles peuvent se combiner. Une expression est réunie avant l’exclusion des mots outils : écarter « en » n’empêche pas à lui seul de compter « prise en charge ». En revanche, exclure le libellé de l’expression ou d’un regroupement peut masquer la ligne obtenue.</p>
+    <p>Vérifiez aussi <strong>Rechercher une forme</strong> : après un regroupement, une recherche restée sur l’ancien libellé peut masquer la nouvelle ligne. Les filtres de matériaux et le seuil de fréquence continuent également de s’appliquer.</p>
+    <p>Pour comparer deux résultats, conservez les mêmes filtres et paramètres d’affichage, puis changez un réglage à la fois. Les <a href="lexico.html#exporter">exports CSV et TSV</a> suivants reprennent les comptes et les lignes affichées après ces traitements ; un fichier déjà exporté ne se met pas à jour automatiquement.</p>
+    <h2 id="revenir">Retirer une règle ou annuler une modification</h2>
+    <ul>
+      <li><strong>Retirer</strong>, près d’un mot outil, d’un regroupement ou d’une concaténation, enlève uniquement cette règle.</li>
+      <li><strong>Annuler la dernière modification</strong>, dans le panneau Traitement lexical, rétablit l’état des réglages précédant le dernier changement pris en charge. Vous pouvez l’utiliser plusieurs fois tant que l’historique de la session le permet.</li>
+      <li><strong>Tout retirer</strong> enlève les mots outils actifs, les regroupements et les concaténations du corpus. Cette action est immédiate, sans confirmation supplémentaire ; elle ne supprime aucun texte et conserve les personnalisations des listes proposées.</li>
+    </ul>
+    <p>L’annulation des traitements garde au plus <strong>trente changements pendant la session</strong> ; ce n’est pas un historique conservé à la fermeture du corpus. Les règles enregistrées, elles, restent disponibles à la prochaine ouverture. Vous pouvez alors les retirer individuellement, mais ne comptez pas sur le bouton d’annulation pour retrouver toute leur histoire.</p>
+    <p><strong>Réinitialiser la sélection</strong>, dans le bilan de Lexico, ne retire pas les traitements : cette commande concerne les filtres de matériaux. <strong>Restaurer la liste d’origine</strong> concerne seulement une liste proposée. Choisissez la commande correspondant à ce que vous souhaitez réellement remettre à zéro.</p>
+    <p>Les changements enregistrés sont communs au corpus local ou partagé. Sur Nextcloud ou GitLab, vous devez disposer d’un accès permettant la modification ; en lecture seule, contentez-vous de consulter les réglages. Si un message indique qu’ils ont changé entre-temps, actualisez le corpus et examinez les règles actuelles avant de recommencer.</p>
+    <p>Le traitement lexical ne remplace ni une correction du texte, ni un codage, ni une pseudonymisation. Pour reprendre le texte lui-même, utilisez <a href="../traiter/corriger.html">la correction de l’entretien</a>. Pour comprendre les comptes, retrouvez <a href="lexico.html">la lecture de l’index Lexico</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="lexico.html" rel="prev">← Précédent : explorer les mots avec Lexico</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="analyses-croisees.html" rel="next">Suivant : comparer avec les analyses croisées →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

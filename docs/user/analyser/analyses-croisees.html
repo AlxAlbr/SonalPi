@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comparer avec les analyses croisées — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#analyser">Analyser et interpréter</a> → Analyses croisées</p>
+    <h1>Comparer avec les analyses croisées</h1>
+    <p>Les <strong>Analyses croisées</strong> présentent un tableau des thèmes par entretien. Chaque case indique combien de passages contribuent à un thème, quel volume de texte ils représentent ou quelle part de l’entretien ils couvrent. Un clic sur une case permet de relire les passages correspondants.</p>
+    <p>Vous pouvez ainsi repérer où un thème est davantage développé, puis vérifier ce que cette différence signifie dans les propos. L’outil compare les <strong>thèmes et les entretiens</strong> : ce n’est pas un croisement de variables ni un calcul de cooccurrences entre thèmes.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#calculer">Choisir les thèmes et les entretiens</a></li>
+        <li><a href="#mesures">Comprendre Passages, Volume et Couverture</a></li>
+        <li><a href="#tableau">Ajuster la présentation du tableau</a></li>
+        <li><a href="#passages">Revenir des chiffres aux passages</a></li>
+        <li><a href="#synthese">Poursuivre dans Tri et synthèse</a></li>
+        <li><a href="#actualiser">Actualiser et lire les avertissements</a></li>
+        <li><a href="#exporter">Exporter la comparaison</a></li>
+      </ul>
+    </nav>
+    <h2 id="calculer">Choisir les thèmes et les entretiens</h2>
+    <p>Partez des thèmes déjà utilisés dans votre propre corpus. Si vous n’avez encore associé aucun thème au texte, consultez <a href="../traiter/premier-codage.html">comment coder un passage</a>. Aucun nom de thème particulier ni corpus d’exercice n’est requis.</p>
+    <ol>
+      <li>Ouvrez <strong>Analyser et interpréter → Analyses croisées</strong>.</li>
+      <li>À gauche, dans <strong>Thèmes</strong>, cochez les thèmes à comparer. Pour un premier essai, gardez une petite sélection afin de pouvoir vérifier les résultats facilement.</li>
+      <li>Dans <strong>Entretiens</strong>, cochez les sources à examiner. Les commandes <strong>Tout sélectionner</strong> et <strong>Tout désélectionner</strong> concernent la liste affichée à gauche.</li>
+      <li>Cliquez sur <strong>Calculer l’analyse</strong>. Il faut au moins un thème et un entretien pour activer cette commande.</li>
+      <li>Lisez le tableau : les thèmes forment les lignes et les entretiens les colonnes. Une case correspond à un thème dans un entretien.</li>
+    </ol>
+    <p>Au premier accès, les thèmes et entretiens existants sont sélectionnés, mais aucun calcul n’est lancé automatiquement. Choisir un thème parent ne coche pas ses sous-thèmes à sa place ; sélectionnez ceux que vous souhaitez examiner.</p>
+    <p>Cette analyse porte sur les codages des sources choisies, y compris ceux des paroles des enquêteurs. Les restrictions de personne, de variable ou de cas définies dans d’autres outils, ainsi que les traitements lexicaux, ne s’appliquent pas à cette matrice.</p>
+    <h2 id="mesures">Comprendre Passages, Volume et Couverture</h2>
+    <p>Le menu <strong>Valeur affichée</strong> change la mesure présentée dans les cases, sans modifier les thèmes ou entretiens retenus ni demander un nouveau calcul.</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Mesure</th><th scope="col">Ce qu’elle décrit</th><th scope="col">Comment la lire</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Passages</th><td>Le nombre de passages retenus pour le thème dans cet entretien.</td><td>Ce n’est pas nécessairement le nombre de codages posés : des zones qui se recouvrent peuvent être réunies et un codage peut contribuer à plusieurs passages.</td></tr>
+          <tr><th scope="row">Volume</th><td>La longueur de texte source couverte par le thème, affichée en caractères source.</td><td>Les recouvrements d’un même thème ne sont pas comptés deux fois. La valeur ne mesure ni les mots ni la durée audio.</td></tr>
+          <tr><th scope="row">Couverture</th><td>La part du texte source de l’entretien couverte par le thème, en pourcentage.</td><td>Elle rapporte le volume à la longueur de l’entretien. Elle aide à comparer des transcriptions de longueurs différentes, sans mesurer l’importance du sujet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Une couverture de 20 % correspond approximativement à un cinquième du texte source, pas à 20 % du temps de parole enregistré. Le choix de texte pseudonymisé ou original dans les justificatifs ne change pas les chiffres : les mesures portent toujours sur les positions dans la transcription source.</p>
+    <p>La couleur complète la valeur numérique : une case plus foncée correspond à une valeur plus élevée sur l’échelle affichée. Ce n’est pas un test de différence statistique. Vérifiez la mesure choisie avant de comparer deux cases.</p>
+    <h3>Lire les totaux sans additionner les thèmes</h3>
+    <p>La colonne <strong>Total</strong> rassemble les résultats d’un même thème dans les entretiens sélectionnés. Pour la couverture, le total est calculé sur leurs longueurs cumulées : ce n’est pas la moyenne simple des pourcentages affichés. Un entretien plus long pèse davantage dans ce résultat.</p>
+    <p class="retenir"><strong>Plusieurs thèmes peuvent couvrir le même texte.</strong> Le même passage peut contribuer à plusieurs lignes. Additionner leurs volumes ou pourcentages peut donc compter plusieurs fois une même zone ; le tableau ne propose pas de total par entretien obtenu en additionnant les thèmes.</p>
+    <h2 id="tableau">Ajuster la présentation du tableau</h2>
+    <ul>
+      <li><strong>Rechercher un thème</strong> et <strong>Rechercher un entretien</strong> limitent les lignes et colonnes visibles selon leur intitulé.</li>
+      <li><strong>Afficher les thèmes sans résultat</strong> et <strong>Afficher les entretiens sans résultat</strong> permettent de garder ou de masquer les lignes et colonnes sans passage retenu.</li>
+      <li><strong>Trier les thèmes</strong> propose l’ordre du corpus, le nom ou le total décroissant de la mesure choisie.</li>
+      <li><strong>Masquer la sélection</strong> libère de la place pour le tableau ; <strong>Afficher la sélection</strong> retrouve les listes à gauche.</li>
+    </ul>
+    <p>Ces commandes changent la <strong>présentation</strong>, pas la sélection calculée. Les totaux continuent donc de porter sur les entretiens du dernier calcul, y compris ceux temporairement masqués. Pour réellement retirer un entretien ou un thème du calcul, décochez-le à gauche et cliquez sur <strong>Actualiser l’analyse</strong>.</p>
+    <p>Si vous ne voyez pas une source ou un thème attendu, vérifiez d’abord les recherches, les options d’affichage et la sélection. Un zéro signifie qu’aucun passage n’a été retenu pour cette case dans les codages analysés, pas que le sujet n’a jamais été abordé.</p>
+    <h2 id="passages">Revenir des chiffres aux passages</h2>
+    <ol>
+      <li>Cliquez sur une case du tableau. Le panneau <strong>Justificatifs de la cellule</strong> présente ses trois mesures et les passages qui les alimentent.</li>
+      <li>Dépliez <strong>Afficher le contexte</strong> pour lire les mots entourant un passage.</li>
+      <li>Cliquez sur <strong>Ouvrir dans l’entretien</strong> pour rejoindre ce passage dans sa transcription.</li>
+      <li>Utilisez le retour à l’analyse proposé en haut lorsqu’il est affiché, ou rouvrez <strong>Analyser et interpréter → Analyses croisées</strong>. Si vous avez corrigé la source, actualisez le résultat.</li>
+    </ol>
+    <p>Une case à zéro peut être ouverte, mais n’a aucun passage justificatif. La croix <strong>Fermer le détail</strong> ou la touche <strong>Échap</strong> ferme le panneau sans quitter l’analyse.</p>
+    <p><strong>Texte des justificatifs</strong> est réglé sur <strong>Pseudonymisé</strong> au départ. Vous pouvez choisir <strong>Original — peut contenir des identités</strong> pour relire les paroles d’origine. Ce choix concerne le détail et son contexte, pas les mesures de la matrice. Les remplacements dépendent des décisions de pseudonymisation déjà présentes ; les titres et le contexte restent à contrôler avant toute diffusion.</p>
+    <h2 id="synthese">Poursuivre dans Tri et synthèse</h2>
+    <p>Dans le détail d’une case, <strong>Afficher dans Tri et synthèse</strong> prépare le thème et l’entretien correspondants dans <a href="tri-synthese.html">Tri et synthèse</a>. Vérifiez les critères, puis cliquez sur <strong>Calculer la synthèse</strong> ou <strong>Actualiser la synthèse</strong> : ce passage d’un outil à l’autre ne lance pas le calcul à votre place.</p>
+    <p>Les autres critères déjà définis dans Tri et synthèse restent conservés. Une restriction de personne, de variable ou de cas peut donc réduire les extraits obtenus. Vérifiez aussi <strong>Inclure les paroles des enquêteurs</strong> : contrairement à la matrice, Tri et synthèse les exclut au départ. Il ne faut pas attendre automatiquement le même nombre de passages dans les deux outils.</p>
+    <h2 id="actualiser">Actualiser et lire les avertissements</h2>
+    <p><strong>Périmé</strong> signifie que les sources ou la sélection ont changé après le calcul. Le résultat précédent reste visible pour la lecture, mais l’ouverture des passages, le passage vers Tri et synthèse et l’export attendent une actualisation. Cliquez sur <strong>Actualiser l’analyse</strong> après avoir vérifié la sélection.</p>
+    <p>Si <strong>Résultat incomplet</strong> est affiché, dépliez-le pour consulter les éléments indiqués. Une source signalée <strong>Indisponible</strong> ne doit pas être interprétée comme une colonne de zéros. La couverture peut également être indisponible si la longueur source ne permet pas son calcul. Les autres valeurs restent consultables, mais les totaux peuvent ne représenter que les données disponibles.</p>
+    <p>Sur Nextcloud ou GitLab, le calcul utilise les données disponibles sur votre poste et le texte en mémoire de l’entretien ouvert ; il ne publie pas vos corrections. Pour reprendre les changements d’équipe, actualisez le corpus lorsque vous êtes connecté, puis l’analyse.</p>
+    <p>Le calcul ne modifie ni le texte ni les codages. Les résultats restent en mémoire pendant la consultation des outils ; ils ne constituent pas une analyse enregistrée à rouvrir après fermeture du corpus. Un export permet d’en garder une trace.</p>
+    <h2 id="exporter">Exporter la comparaison</h2>
+    <ol>
+      <li>Vérifiez la sélection du dernier calcul, la mesure et l’état du résultat.</li>
+      <li>Choisissez le <strong>Format d’export</strong> : CSV ou TSV.</li>
+      <li>Choisissez la <strong>Disposition d’export</strong> : Matrice ou Format long.</li>
+      <li>Cliquez sur <strong>Exporter</strong>, choisissez la destination et ouvrez le fichier pour en contrôler le contenu.</li>
+    </ol>
+    <ul>
+      <li><strong>Matrice :</strong> les thèmes restent en lignes et les entretiens en colonnes, avec la mesure choisie dans Valeur affichée et la colonne Total.</li>
+      <li><strong>Format long :</strong> une ligne par couple thème/entretien, avec Passages, Volume, Couverture et l’état de la source. Les trois mesures sont présentes, même si une seule était affichée à l’écran.</li>
+    </ul>
+    <p class="retenir"><strong>L’export reprend toute la sélection du dernier calcul, pas seulement ce que vous voyez.</strong> Les recherches, le masquage des lignes ou colonnes sans résultat et le tri de présentation ne réduisent pas ce fichier. C’est une différence avec <a href="lexico.html#exporter">l’export Lexico</a>. Pour exporter une sélection plus petite, modifiez les cases à gauche, puis recalculez avant d’exporter.</p>
+    <p>Contrairement à Tri et synthèse et à Lexico, <strong>un résultat incomplet mais non périmé peut être exporté</strong>. Le fichier indique son état et les problèmes signalés ; les valeurs indisponibles restent vides, elles ne sont pas remplacées par zéro. Conservez ces indications si vous partagez un résultat partiel.</p>
+    <p>Le fichier contient la date du calcul, les mesures, les noms de thèmes et les titres d’entretien, mais pas les transcriptions ni le texte des justificatifs. Choisir Original dans les justificatifs n’ajoute pas leurs paroles à l’export. Les intitulés et les messages joints peuvent toutefois contenir des informations sensibles : <a href="../organiser/verifier-partage.html">vérifiez le fichier selon son destinataire</a>.</p>
+    <p>Le CSV utilise la <strong>virgule</strong> comme séparateur ; le TSV utilise la <strong>tabulation</strong>. Choisissez UTF-8 si le tableur vous demande l’encodage. En local, le dossier proposé est <code>resultats/analyses-croisees/</code> dans le corpus ; pour un corpus distant, c’est <strong>Documents</strong> sur votre poste, sans envoi automatique au serveur.</p>
+    <p>Enfin, un chiffre plus élevé n’explique pas à lui seul une différence entre entretiens. Tenez compte de leur longueur, des questions posées et de la cohérence du codage, puis revenez aux propos avant de conclure.</p>
+    <p>La page <a href="verifier-resultats.html">Vérifier et interpréter les résultats</a> propose une méthode commune pour contrôler la sélection, revenir aux propos et conserver une trace de l’analyse.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="traitement-lexical.html" rel="prev">← Précédent : adapter le traitement lexical</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="verifier-resultats.html" rel="next">Suivant : vérifier et interpréter les résultats →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

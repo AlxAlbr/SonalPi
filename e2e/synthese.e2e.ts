@@ -19,7 +19,7 @@ test('calcule les extraits après une sélection modifiée dans l’espace d’a
   await cote.getByRole('tab', { name: /^Thèmes/ }).click()
   const choixFamille = cote.locator('label').filter({ hasText: 'Famille' })
   await choixFamille.locator('input').check()
-  await page.getByRole('button', { name: 'Calculer' }).click()
+  await page.getByRole('button', { name: 'Calculer la synthèse', exact: true }).click()
 
   await expect(page.locator('.espace-analyse .panneau-synthese .bilan'))
     .toContainText(/1 entretien\(s\) · [1-9]\d* extrait\(s\)/)

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rechercher dans les entretiens — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#traiter">Importer et traiter</a> → <a href="../index.html#traiter-corpus">Corpus</a> et <a href="../index.html#traiter-entretien">Entretien</a></p>
+    <h1>Rechercher dans les entretiens</h1>
+    <p>Retrouvez un mot ou une expression dans les transcriptions, puis relisez les passages dans leur contexte. Vous pouvez chercher dans l’ensemble du corpus, ou seulement dans l’entretien ouvert. La recherche ne demande ni codage préalable ni enregistrement audio.</p>
+    <p>Ces deux recherches se lancent dans <strong>Importer et traiter</strong>, avec le même raccourci : <strong>Ctrl + F</strong> sous Windows/Linux, <strong>Commande + F</strong> sous macOS. Le niveau affiché détermine où vous cherchez.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#choisir">Choisir où chercher</a></li>
+        <li><a href="#corpus">Chercher dans l’ensemble des entretiens</a></li>
+        <li><a href="#contexte">Ouvrir un résultat et relire le contexte</a></li>
+        <li><a href="#entretien">Chercher dans l’entretien ouvert</a></li>
+        <li><a href="#remplacer">Remplacer du texte avec prudence</a></li>
+        <li><a href="#formulation">Adapter les mots recherchés</a></li>
+        <li><a href="#limites">Vérifier la portée et l’actualité des résultats</a></li>
+      </ul>
+    </nav>
+    <h2 id="choisir">Choisir où chercher</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Vous êtes au niveau…</th><th scope="col">Ctrl + F / Commande + F</th><th scope="col">Ce que vous pouvez faire</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Corpus</th><td>Ouvre le panneau Recherche dans les transcriptions du corpus.</td><td>Lire des extraits regroupés par entretien, utiliser Mot entier et ouvrir un passage.</td></tr>
+          <tr><th scope="row">Entretien</th><td>Ouvre la boîte de recherche dans la transcription affichée.</td><td>Parcourir les occurrences et, si l’entretien est modifiable, remplacer du texte.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Les deux recherches portent sur les <strong>paroles transcrites</strong>, pas sur les titres d’entretien, les noms des locuteurs affichés au-dessus des tours, les notes, les commentaires ou les valeurs des variables. Un nom n’est trouvé que s’il figure aussi dans les phrases. Pour les autres contenus, utilisez la recherche de leur outil, par exemple <a href="notes.html#corpus">Notes</a> ou <a href="personnes.html#repertoire">Personnes</a>.</p>
+    <h2 id="corpus">Chercher dans l’ensemble des entretiens</h2>
+    <ol>
+      <li>Dans <strong>Importer et traiter</strong>, revenez au niveau <strong>Corpus</strong> si un entretien est ouvert. Ce retour ferme l’entretien.</li>
+      <li>Appuyez sur <strong>Ctrl + F</strong> ou <strong>Commande + F</strong>. La recherche n’a pas de bouton dédié dans la barre d’icônes du corpus.</li>
+      <li>Saisissez le mot ou l’expression dans <strong>Rechercher dans le corpus</strong>.</li>
+      <li>Cliquez sur <strong>Rechercher</strong> ou appuyez sur <strong>Entrée</strong>, puis attendez le résultat.</li>
+      <li>Si nécessaire, cochez <strong>Mot entier</strong>. Ce changement relance la recherche : « le » peut alors trouver « le », mais pas la fin de « parle ».</li>
+    </ol>
+    <p>Le panneau annonce un nombre d’occurrences et d’entretiens contenant un résultat, puis présente les extraits par entretien. Une occurrence est une correspondance trouvée dans le texte ; plusieurs peuvent appartenir à la même phrase ou au même passage.</p>
+    <p>Sans <strong>Mot entier</strong>, une recherche peut trouver une partie de mot. Par exemple, « bénévol » peut retrouver « bénévole » et « bénévolat » s’ils figurent dans les transcriptions. L’extrait peut mettre en évidence le mot complet contenant la partie recherchée.</p>
+    <p>Si vous changez les mots saisis, cliquez de nouveau sur <strong>Rechercher</strong> : la liste n’est pas recalculée au fil de cette saisie. Le bouton <strong>Effacer</strong>, lorsqu’il est affiché sous les résultats, retire la requête et sa liste sans effacer les transcriptions. La croix <strong>Fermer la recherche</strong> ou <strong>Échap</strong> quitte le panneau.</p>
+    <h2 id="contexte">Ouvrir un résultat et relire le contexte</h2>
+    <ul>
+      <li><strong>Dans la liste d’extraits :</strong> cliquez sur un extrait pour ouvrir l’entretien à la position trouvée.</li>
+      <li><strong>Sur les cartes :</strong> les petits marqueurs de recherche repèrent les occurrences le long du texte. Cliquez sur l’un d’eux pour afficher son extrait à gauche, sans ouvrir l’entretien.</li>
+      <li><strong>Depuis cet extrait :</strong> cliquez sur <strong>Ouvrir l’entretien ici →</strong> pour rejoindre le passage dans la transcription.</li>
+    </ul>
+    <p>Les marqueurs indiquent une place dans le <strong>texte</strong>, pas une seconde de l’enregistrement. Leur proximité ne prouve pas que deux paroles ont été prononcées au même moment. L’extrait montre seulement un contexte court : ouvrez la source pour interpréter ce qui a été dit.</p>
+    <p>Pour revenir à l’ensemble, utilisez <strong>Retour au niveau Corpus</strong> ou <strong>Corpus</strong> dans le fil de navigation. Relancez la recherche si vous avez corrigé le texte entre-temps. Pour mettre en évidence le mot dans l’entretien ouvert, lancez aussi sa propre recherche avec <strong>Ctrl + F</strong> ou <strong>Commande + F</strong>.</p>
+    <h2 id="entretien">Chercher dans l’entretien ouvert</h2>
+    <ol>
+      <li>Ouvrez l’entretien, puis appuyez sur <strong>Ctrl + F</strong> ou <strong>Commande + F</strong>.</li>
+      <li>Saisissez le mot ou l’expression dans le champ <strong>Rechercher…</strong>. Ici, les résultats se mettent à jour pendant la saisie et les occurrences sont mises en évidence dans le texte.</li>
+      <li>Utilisez les flèches <strong>Occurrence précédente</strong> et <strong>Occurrence suivante</strong> pour les parcourir. <strong>Entrée</strong> dans le champ de recherche passe au résultat suivant ; après le dernier, vous revenez au premier.</li>
+      <li>Lisez le compteur : <strong>2/5</strong> signifie que vous consultez la deuxième occurrence sur cinq ; <strong>0/0</strong> signifie qu’aucune correspondance n’est trouvée pour cette recherche.</li>
+    </ol>
+    <p>Si le champ de recherche est encore vide et que vous avez sélectionné des mots dans la transcription, l’ouverture de la boîte peut reprendre cette sélection comme requête. Vérifiez toujours le texte affiché dans le champ.</p>
+    <p>La boîte de l’entretien ne propose pas l’option <strong>Mot entier</strong> : une courte suite de lettres peut aussi être trouvée au milieu d’un mot. Fermez la boîte avec sa croix ou avec <strong>Échap</strong> depuis l’un de ses champs. Fermer la recherche retire les surlignages, pas le texte.</p>
+    <h2 id="remplacer">Remplacer du texte avec prudence</h2>
+    <p>Le remplacement concerne uniquement <strong>l’entretien ouvert</strong>. Il n’existe pas de remplacement global depuis le panneau de recherche du corpus. En lecture seule, les commandes de remplacement sont masquées, mais la recherche reste consultable.</p>
+    <ol>
+      <li>Recherchez le texte à corriger et relisez les occurrences.</li>
+      <li>Renseignez <strong>Remplacer par…</strong>.</li>
+      <li>Cliquez sur <strong>Remplacer</strong> pour modifier l’occurrence courante, ou sur <strong>Tout</strong> pour modifier toutes les occurrences trouvées dans cet entretien.</li>
+      <li>Relisez les phrases corrigées et vérifiez l’état d’enregistrement avant de fermer l’entretien.</li>
+    </ol>
+    <figure>
+      <img src="../medias/rechercher-remplacer.png" alt="La boîte de recherche d’un entretien présente le texte recherché, le compteur d’occurrences, le champ Remplacer par… et les boutons Remplacer et Tout.">
+      <figcaption>La recherche et le remplacement portent sur la transcription ouverte, pas sur tous les entretiens.</figcaption>
+    </figure>
+    <p class="retenir"><strong>Tout applique immédiatement le remplacement, sans confirmation supplémentaire.</strong> Une recherche courte peut aussi modifier des morceaux de mots ; un même nom peut désigner plusieurs personnes. Un champ de remplacement vide supprime le texte trouvé. Préférez les corrections une par une si les contextes diffèrent.</p>
+    <p>Pour revenir sur un remplacement récent, utilisez <strong>Édition → Annuler</strong> ou <strong>Ctrl + Z</strong> / <strong>Commande + Z</strong> dans l’éditeur. Le remplacement par <strong>Tout</strong> forme une seule action d’annulation. Cela ne remplace pas une <a href="../demarrer/sauvegarder-deplacer.html">sauvegarde</a> ni ne garantit une annulation après fermeture de l’entretien.</p>
+    <p>Remplacer un nom dans le texte est une <strong>correction de la transcription</strong>, pas une règle de pseudonymisation. Pour conserver l’original et décider des remplacements à la diffusion, utilisez <a href="pseudonymiser.html">la pseudonymisation</a>.</p>
+    <h2 id="formulation">Adapter les mots recherchés</h2>
+    <ul>
+      <li><strong>Majuscules et minuscules :</strong> elles ne distinguent pas les résultats. « LYON » peut retrouver « Lyon ».</li>
+      <li><strong>Accents :</strong> ils comptent. « benevole » ne remplace pas la recherche de « bénévole ».</li>
+      <li><strong>Expression :</strong> les mots et les espaces doivent se suivre comme dans le texte. Une expression coupée entre deux paragraphes n’est pas trouvée comme une seule occurrence.</li>
+      <li><strong>Variantes :</strong> les pluriels, les synonymes et les fautes de transcription ne sont pas regroupés automatiquement. Essayez plusieurs formulations.</li>
+      <li><strong>Caractères spéciaux :</strong> la recherche lit ce que vous saisissez. Une étoile ou les mots « ET » et « OU » ne construisent pas une recherche combinée.</li>
+    </ul>
+    <p>Ces recherches lisent le texte d’origine conservé dans la transcription. Elles ne cherchent pas à la place de celui-ci dans les pseudonymes seulement affichés par les règles de pseudonymisation. Les résultats peuvent donc montrer des noms réels : ne les diffusez pas sans <a href="../organiser/verifier-partage.html">contrôle du contenu</a>.</p>
+    <h2 id="limites">Vérifier la portée et l’actualité des résultats</h2>
+    <p>La recherche du corpus lit les entretiens disponibles au moment du lancement. Elle n’est pas un suivi permanent des corrections : après une modification ou un nouvel import, relancez-la. Une liste conservée à l’écran n’est pas nécessairement à jour.</p>
+    <p class="retenir"><strong>L’absence de résultat ne signifie pas forcément que le sujet est absent.</strong> Vérifiez l’orthographe et les accents, essayez d’autres formulations et relancez la recherche si vous avez modifié les transcriptions.</p>
+    <p>Sur un corpus Nextcloud ou GitLab, la recherche du corpus utilise la copie disponible sur votre poste ; elle n’effectue pas une nouvelle lecture de chaque transcription sur le serveur à chaque requête. Si vous êtes connecté, utilisez <strong>Actualiser</strong> dans le corpus avant de rechercher des changements récents. Hors ligne, les résultats éventuels ne garantissent ni l’accès à toutes les sources ni leur actualité sur le serveur.</p>
+    <p>Dans l’entretien, la recherche suit les changements du texte affiché, mais ne remplace pas les règles d’enregistrement et de publication du corpus. Consulter une occurrence ne donne pas de droit de modification supplémentaire.</p>
+    <p>Une fréquence de mots n’est pas une conclusion sur leur importance. Relisez les passages en tenant compte de la personne qui parle et du contexte de l’entretien ; un même thème peut être exprimé sans le mot recherché.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="gerer-entretiens.html" rel="prev">← Précédent : gérer les entretiens et leurs médias</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="personnes.html" rel="next">Suivant : relier une personne entre plusieurs entretiens →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

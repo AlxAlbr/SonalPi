@@ -5,6 +5,10 @@ hiérarchie, tandis que les entretiens portent les codages. Cette séparation
 permet de modifier l’apparence ou la documentation d’un thème sans réécrire ses
 usages.
 
+La procédure utilisateur est décrite dans
+[Réorganiser les codages](../../../user/traiter/reorganiser-codages.html) :
+transfert, fusion, division, contrôle de l’aperçu et reprise d’un lot incomplet.
+
 ## Définition d’un thème
 
 ```ts

@@ -5,6 +5,12 @@ La vue d’ensemble et la liste d’extraits présentent **la même collection**
 Résultat, critères et sélection restent en mémoire : calculer une synthèse ne
 modifie ni `corpus.json` ni les entretiens.
 
+La procédure utilisateur est décrite dans
+[Rassembler des passages avec Tri et synthèse](../../user/analyser/tri-synthese.html).
+La méthode transversale de contrôle et d’interprétation figure dans
+[Vérifier et interpréter les résultats](../../user/analyser/verifier-resultats.html).
+Elle distingue notamment l’export TXT de la copie d’un extrait ancien ou incomplet.
+
 ## Ce que calcule le moteur
 
 Le moteur reçoit des plages thématiques, des tours de parole et les matériaux

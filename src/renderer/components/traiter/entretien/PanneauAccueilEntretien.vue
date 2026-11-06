@@ -15,7 +15,8 @@ const { ongletDroite } = utiliserSonal()
     <div class="corpus-tete">
       <h3>Importer et traiter</h3>
     </div>
-    <p class="accueil-intro">Niveau entretien</p>
+    <p class="accueil-intro">Niveau Entretien</p>
+    <p>Travaillez sur cette transcription et ses passages. Pour organiser l’ensemble des entretiens, utilisez <strong>Retour au niveau Corpus</strong>.</p>
     <p class="raccourci">
       🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
       pour lancer puis arrêter la lecture de l'audio.

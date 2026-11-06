@@ -50,6 +50,34 @@ Tests : `test/importTranscriptions.test.ts`, `test/importBureautique.test.ts`,
 La [procédure utilisateur](../../user/traiter/importer.html) décrit le même ajout
 que pour les autres formats, sans dialogue supplémentaire.
 
+## Recherche dans les transcriptions
+
+La [procédure utilisateur](../../user/traiter/rechercher.html) distingue deux parcours
+ouverts par Ctrl+F ou Cmd+F dans Importer et traiter :
+
+- `Corpus.vue` lit les entretiens par `corpus:lireEntretien`, puis appelle
+  `editor/rechercheCorpus.ts`. La recherche est littérale, insensible à la casse,
+  sensible aux accents et limitée à chaque paragraphe. L’option Mot entier contrôle
+  les frontières de la correspondance. Les marqueurs utilisent l’axe du texte,
+  pas le temps du média. Une nouvelle saisie exige un lancement explicite.
+- `useRechercheEntretien.ts` et `editor/recherche.ts` parcourent le document ouvert.
+  La recherche suit la saisie et les corrections ; elle n’a pas d’option Mot entier.
+  Remplacer et Tout écrivent dans cet entretien seulement. La boîte masque leurs
+  commandes lorsque le contenu est en lecture seule.
+
+La recherche corpus n’a pas de bilan de complétude : les lectures `ok: false`
+sont sautées et un corps de texte non interprétable produit une liste vide.
+Une exception de lecture peut interrompre le calcul. Aucun avertissement détaillé
+sur les sources écartées ni indicateur de péremption n’est actuellement fourni.
+La documentation ne transforme donc pas un résultat vide en preuve d’absence.
+Le canal de lecture passe par le store du corpus courant ; pour un corpus distant,
+il lit la copie locale et ne lance pas un nouvel inventaire serveur à chaque recherche.
+
+Tests existants : `test/editor.rechercheCorpus.test.ts`,
+`test/trouverOccurrences.test.ts`, `e2e/recherche-entretien.e2e.ts` et
+`e2e/documentation-traitement.e2e.ts`. La capture de recherche/remplacement produite
+par cette dernière recette est réutilisée par le chapitre Recherche.
+
 ## Deux niveaux, des vues partagées
 
 Le code des composants distingue trois emplacements :

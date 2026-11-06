@@ -5,6 +5,13 @@ justifient chaque cellule. Ce n’est ni une matrice de cooccurrences entre thè
 ni une analyse statistique des variables. Le résultat et la sélection restent
 en mémoire ; le calcul ne modifie aucune donnée du corpus.
 
+La procédure utilisateur est décrite dans
+[Comparer avec les analyses croisées](../../user/analyser/analyses-croisees.html).
+Elle distingue les trois mesures, la présentation et le périmètre exporté.
+[Vérifier et interpréter les résultats](../../user/analyser/verifier-resultats.html)
+relie ces contrôles aux autres outils, sans confondre fraîcheur, complétude et
+validité de l’interprétation.
+
 ## Sens des mesures
 
 Le moteur reçoit les contributions thématiques de chaque entretien, leurs bornes

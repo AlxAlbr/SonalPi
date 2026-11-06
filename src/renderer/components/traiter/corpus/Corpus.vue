@@ -351,6 +351,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </span>
       </div>
 
+      <p class="niveau-traitement">Niveau Corpus <span>Ensemble des entretiens</span></p>
       <nav class="onglets-corpus" aria-label="Navigation du corpus">
         <button :class="{ actif: ongletCorpus === 'accueil' }" title="Accueil" aria-label="Accueil" :aria-current="ongletCorpus === 'accueil' ? 'page' : undefined" @click="choisirOnglet('accueil')"><img class="ico-onglet-corpus" :src="icoMaison" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'notes' }" title="Notes" aria-label="Notes" :aria-current="ongletCorpus === 'notes' ? 'page' : undefined" @click="choisirOnglet('notes')"><img class="ico-onglet-corpus" :src="icoNotes" alt="" /></button>
@@ -493,6 +494,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <h3>Importer et traiter</h3>
             </div>
             <p class="accueil-intro">Niveau Corpus</p>
+            <p>Organisez l’ensemble de vos entretiens et leurs outils communs. Pour travailler sur une transcription, ouvrez l’entretien avec le crayon de sa carte.</p>
             <p class="raccourci">
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
@@ -839,6 +841,17 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
+.niveau-traitement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #2c3a5e;
+}
+.niveau-traitement span { font-size: 0.8rem; font-weight: 400; color: #555; }
 .onglets-corpus {
   display: flex;
   gap: 0.25rem;

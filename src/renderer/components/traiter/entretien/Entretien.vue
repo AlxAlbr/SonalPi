@@ -109,6 +109,7 @@ function ouvrirRecueilsDepuisSelection() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
+      <p class="niveau-traitement">Niveau Entretien <span>Transcription ouverte</span></p>
       <div class="grille-ent">
         <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
         <div class="barre">
@@ -133,7 +134,7 @@ function ouvrirRecueilsDepuisSelection() {
              collante, à défilement interne au-delà d'un écran,
              pour rester visible pendant la lecture. -->
         <div class="colonne-gauche">
-          <nav class="onglets">
+          <nav class="onglets" aria-label="Navigation de l’entretien">
             <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
                  et sur le panneau d'accueil (vue d'ensemble).
                  L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
@@ -292,6 +293,17 @@ function ouvrirRecueilsDepuisSelection() {
 </template>
 
 <style scoped>
+.niveau-traitement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #2c3a5e;
+}
+.niveau-traitement span { font-size: 0.8rem; font-weight: 400; color: #555; }
 .grille-ent {
   display: grid;
   grid-template-columns: 400px 1fr;

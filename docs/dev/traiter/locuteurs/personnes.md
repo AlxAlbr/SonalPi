@@ -4,6 +4,10 @@ Le répertoire Personnes donne une vue transverse des locuteurs. La fiche porte
 un nom de référence ; les libellés locaux, pseudonymes, valeurs et notes restent
 chez leurs propriétaires dans chaque entretien.
 
+La procédure utilisateur est décrite dans
+[Relier une personne entre plusieurs entretiens](../../../user/traiter/personnes.html).
+Elle distingue les corrections locales de la consultation distante.
+
 ## Inventaire et liens
 
 `personnesInventaire()` rassemble les définitions du corpus, les locuteurs et

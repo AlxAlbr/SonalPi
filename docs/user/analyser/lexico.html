@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explorer les mots avec Lexico — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#analyser">Analyser et interpréter</a> → Lexico</p>
+    <h1>Explorer les mots avec Lexico</h1>
+    <p><strong>Lexico</strong> dresse la liste des mots présents dans les transcriptions, compte leurs occurrences et permet de les relire dans leur contexte. Il aide à repérer des expressions récurrentes et à comparer leur présence dans les entretiens.</p>
+    <p>Vous pouvez commencer avec votre propre corpus dès qu’il contient une transcription. Aucun thème, cas ou exercice préalable n’est nécessaire. Si vous préférez essayer sans utiliser vos données, vous pouvez <a href="../demarrer/exemples-parcours.html">ouvrir une copie d’un corpus exemple</a>.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#ouvrir">Ouvrir Lexico et lire l’index</a></li>
+        <li><a href="#concordances">Lire les concordances et retrouver la source</a></li>
+        <li><a href="#affichage">Ajuster le tableau sans changer les matériaux</a></li>
+        <li><a href="#filtres">Choisir les textes et les paroles à analyser</a></li>
+        <li><a href="#traitements">Comprendre ce qui est compté</a></li>
+        <li><a href="#bilan">Lire le bilan et actualiser</a></li>
+        <li><a href="#exporter">Exporter le tableau dans un tableur</a></li>
+      </ul>
+    </nav>
+    <h2 id="ouvrir">Ouvrir Lexico et lire l’index</h2>
+    <ol>
+      <li>Ouvrez votre corpus, puis <strong>Analyser et interpréter → Lexico</strong>.</li>
+      <li>Attendez la fin de l’analyse. L’index se charge à l’ouverture de l’outil ; vous n’avez pas à sélectionner un thème pour le lancer.</li>
+      <li>Pour une première exploration, vérifiez les filtres à gauche. Le badge <strong>Sans restriction</strong> indique qu’un onglet ne retire aucun mot. Si vous souhaitez repartir sans vos restrictions précédentes, utilisez <strong>Réinitialiser la sélection</strong> dans le bilan.</li>
+      <li>Choisissez une forme dans le tableau pour lire ses occurrences.</li>
+    </ol>
+    <p>Le tableau présente trois colonnes :</p>
+    <ul>
+      <li><strong>Forme :</strong> le mot ou le libellé sous lequel les occurrences sont réunies.</li>
+      <li><strong>Occurrences :</strong> combien de fois cette forme apparaît dans les matériaux retenus.</li>
+      <li><strong>Entretiens :</strong> le nombre d’entretiens distincts contenant au moins une de ces occurrences.</li>
+    </ul>
+    <p>Par exemple, une ligne indiquant 15 occurrences dans 3 entretiens ne signifie pas que le mot apparaît cinq fois dans chacun : un seul entretien peut en contenir la majorité. Cliquez sur un en-tête pour trier le tableau ; un nouveau clic inverse le sens du tri.</p>
+    <p>Les paroles des enquêteurs sont exclues au départ, d’après le rôle renseigné dans <a href="../traiter/locuteurs.html#interviewer">Locuteurs</a>. Cochez <strong>Inclure les paroles des enquêteurs</strong> à gauche si vous souhaitez aussi analyser leurs questions et interventions.</p>
+    <h2 id="concordances">Lire les concordances et retrouver la source</h2>
+    <ol>
+      <li>Cliquez sur le nom d’une forme ou sur sa ligne dans le tableau. La section <strong>Concordances</strong> s’ouvre en dessous.</li>
+      <li>Lisez les mots qui entourent chaque occurrence mise en évidence et le titre de son entretien.</li>
+      <li>Cliquez sur une concordance pour ouvrir l’entretien à cette position et relire un passage plus large.</li>
+      <li>Pour revenir aux résultats, utilisez le retour à l’analyse proposé en haut de la fenêtre lorsqu’il est affiché, ou rouvrez <strong>Analyser et interpréter → Lexico</strong>.</li>
+    </ol>
+    <p>Les petites cases du tableau servent à sélectionner des formes pour les traitements lexicaux, pas à ouvrir les concordances. La croix <strong>Fermer les concordances</strong> ferme ce détail sans retirer la forme de l’index.</p>
+    <p class="retenir"><strong>Le contexte n’est pas ajouté au comptage.</strong> Il peut dépasser les passages retenus par un filtre de thème ou de cas. Seule l’occurrence mise en évidence est comptée ; les mots voisins servent à comprendre son emploi.</p>
+    <p>Une fréquence ne dit pas à elle seule ce qu’un mot signifie ni son importance pour l’enquête. Relisez plusieurs emplois : le même mot peut désigner des choses différentes, et un sujet peut être exprimé avec plusieurs mots.</p>
+    <h2 id="affichage">Ajuster le tableau sans changer les matériaux</h2>
+    <ul>
+      <li><strong>Rechercher une forme</strong> réduit les lignes visibles aux formes contenant la suite saisie. Ce champ ignore les majuscules et les accents pour retrouver les lignes ; il ne fusionne pas leurs comptes.</li>
+      <li><strong>Fréquence minimale</strong> masque les formes dont le nombre d’occurrences est inférieur au seuil choisi. Remettez 1 pour retrouver les formes rares.</li>
+      <li><strong>Afficher les nombres</strong>, décoché au départ, rend visibles les lignes constituées de nombres.</li>
+    </ul>
+    <p>Ces réglages s’appliquent immédiatement au <strong>tableau visible</strong>. Ils ne changent ni les transcriptions ni les matériaux annoncés dans le bilan. Celui-ci peut donc indiquer davantage de formes que le nombre de lignes actuellement affichées.</p>
+    <p>La recherche du tableau n’est pas <a href="../traiter/rechercher.html">la recherche de mots dans les transcriptions</a> : elle retrouve les formes déjà présentes dans cet index, après les filtres et les traitements. Pour retrouver un tableau plus large, videz aussi ce champ et vérifiez le seuil et les nombres.</p>
+    <h2 id="filtres">Choisir les textes et les paroles à analyser</h2>
+    <p>Les filtres de gauche choisissent les <strong>matériaux analysés</strong>. Ils modifient immédiatement les comptes de l’index déjà chargé. Si le panneau est masqué, cliquez sur <strong>Afficher les filtres</strong>.</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Onglet</th><th scope="col">Ce qui est retenu lorsque vous faites un choix</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Entretiens</th><td>Les mots des entretiens choisis.</td></tr>
+          <tr><th scope="row">Variables</th><td>Les entretiens portant les réponses choisies, ou les paroles des locuteurs portant ces réponses si la variable concerne les locuteurs. Non renseigné désigne une réponse absente, pas une réponse négative.</td></tr>
+          <tr><th scope="row">Personnes</th><td>Les paroles des personnes choisies, selon leurs associations aux locuteurs. Les options Locuteurs sans personne associée et Passages sans locuteur permettent d’inclure explicitement ces autres paroles.</td></tr>
+          <tr><th scope="row">Thèmes</th><td>Les mots qui rencontrent les passages codés avec au moins un thème choisi. Cochez les sous-thèmes souhaités : choisir leur parent ne les sélectionne pas automatiquement.</td></tr>
+          <tr><th scope="row">Cas</th><td>Les mots présents dans les matériaux des cas choisis. L’onglet apparaît seulement si le corpus contient des cas.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Dans une liste, plusieurs choix retiennent l’un <strong>ou</strong> l’autre ; entre plusieurs filtres, les conditions doivent être satisfaites <strong>ensemble</strong>. Choisir une personne et un thème retient ainsi les mots de cette personne dans les passages codés avec ce thème, pas l’ensemble de ses paroles ajouté à tous les mots du thème.</p>
+    <h3>Sans restriction, tout cocher ou tout décocher ?</h3>
+    <ul>
+      <li><strong>Sans restriction :</strong> cet onglet ne retire aucun mot. Les cases peuvent toutes être décochées sans que les matériaux soient exclus.</li>
+      <li><strong>Tout cocher :</strong> sélectionne explicitement les éléments actuellement dans la liste. De futurs entretiens ne seront pas ajoutés automatiquement à ce choix après actualisation.</li>
+      <li><strong>Tout décocher :</strong> conserve un filtre avec une sélection vide ; cela peut donc ne laisser aucun résultat.</li>
+      <li><strong>Retirer ce filtre :</strong> revient à Sans restriction pour l’onglet ou la variable concernée.</li>
+    </ul>
+    <p>Cocher toutes les personnes ne couvre pas les paroles des locuteurs sans personne associée. De même, tous les thèmes ou tous les cas ne couvrent pas les passages qui n’en ont aucun. Pour analyser sans ces restrictions, retirez les filtres plutôt que de tout cocher.</p>
+    <p>Changer d’onglet ou masquer les filtres ne les retire pas. Les badges et <strong>Voir les critères</strong> dans le bilan permettent de les retrouver. <strong>Réinitialiser la sélection</strong> retire les filtres de matériaux et rétablit l’exclusion initiale des enquêteurs ; cela ne vide pas la recherche du tableau, ne remet pas sa fréquence minimale à 1 et ne retire pas les traitements lexicaux.</p>
+    <h2 id="traitements">Comprendre ce qui est compté</h2>
+    <p>Lexico réunit les différences de majuscules, mais conserve les accents et les graphies. Les formes singulières, plurielles ou conjuguées ne sont pas ramenées automatiquement à un même mot. Les apostrophes et les traits d’union à l’intérieur d’un mot peuvent faire partie de sa forme.</p>
+    <p>L’index utilise le <strong>texte pseudonymisé</strong>. Un pseudonyme remplaçant une entité compte comme une seule unité, même s’il contient plusieurs mots ; les mots remplacés ne sont pas comptés à cet emplacement. Les noms laissés en clair restent toutefois dans le texte analysé. Contrairement à Tri et synthèse, Lexico ne propose pas de bascule vers le texte original.</p>
+    <p>Des <strong>traitements lexicaux</strong> peuvent déjà être enregistrés dans votre corpus : les mots outils écartent des formes, les regroupements réunissent plusieurs graphies sous un libellé commun et les concaténations réunissent des formes successives. Le bouton <strong>Traitement lexical</strong> permet de consulter ces réglages. Ils influencent les comptes sans réécrire les paroles des entretiens.</p>
+    <p>Pour modifier ces règles, consultez <a href="traitement-lexical.html">Adapter le traitement lexical</a> : écarter des mots, regrouper des formes, réunir une expression et revenir sur vos choix.</p>
+    <p>Lorsqu’un regroupement est actif, les concordances conservent les mots effectivement présents, même si le tableau les classe sous un autre libellé. Avant de comparer deux résultats, vérifiez donc les matériaux choisis et les traitements, pas seulement le nom de la forme.</p>
+    <h2 id="bilan">Lire le bilan et actualiser</h2>
+    <p>Le bilan distingue les <strong>entretiens avec résultats</strong>, les <strong>occurrences</strong>, les <strong>formes</strong> et les critères appliqués. Il décrit les matériaux retenus après les filtres et les traitements, avant les restrictions d’affichage du tableau. Un entretien sans occurrence retenue ne compte pas comme un entretien avec résultats.</p>
+    <p>Si aucune forme n’est affichée, vérifiez d’abord le champ de recherche, la fréquence minimale et l’affichage des nombres, puis les badges des filtres, les paroles d’enquêteur et les traitements actifs.</p>
+    <p>Après une correction des transcriptions ou de la pseudonymisation, utilisez <strong>Actualiser</strong>. L’outil recharge aussi l’index à son ouverture lorsqu’il est absent ou signalé comme périmé. Si l’avertissement <strong>Les sources ont changé</strong> apparaît, l’ancien résultat reste lisible, mais son export est bloqué : actualisez avant d’interpréter les comptes ou de rejoindre une ancienne position dans le texte.</p>
+    <p>Si <strong>Analyse incomplète</strong> est affiché, dépliez l’avertissement, examinez les éléments indiqués puis actualisez après leur résolution. Le résultat disponible reste consultable ; l’export reste désactivé. Si un filtre utilise un cas qui a disparu, choisissez <strong>Retirer le filtre Cas</strong> seulement si vous souhaitez élargir la sélection.</p>
+    <p>Sur Nextcloud ou GitLab, l’index utilise les données disponibles sur votre poste et le texte en mémoire de l’entretien ouvert. Il ne publie pas vos corrections. Pour reprendre des changements d’équipe, actualisez le corpus lorsque vous êtes connecté, puis Lexico.</p>
+    <h2 id="exporter">Exporter le tableau dans un tableur</h2>
+    <ol>
+      <li>Vérifiez les matériaux et les traitements, puis les lignes affichées : recherche, fréquence minimale, nombres et tri.</li>
+      <li>Assurez-vous que l’analyse est à jour et sans problème signalé ; sinon, consultez le bilan et actualisez.</li>
+      <li>Cliquez sur <strong>Exporter CSV</strong> ou <strong>Exporter TSV</strong>, puis choisissez le nom et l’emplacement du fichier.</li>
+      <li>Ouvrez le fichier et contrôlez son contenu avant de le partager.</li>
+    </ol>
+    <p>L’export reprend <strong>les lignes du tableau actuellement affichées</strong>, dans leur ordre, avec les colonnes Forme, Occurrences et Entretiens. Cocher des formes pour un traitement ne limite pas l’export à ces seules cases. Les concordances et les textes des entretiens ne sont pas ajoutés.</p>
+    <p>Le fichier ajoute une date, les sources demandées, le résumé des critères, le nombre de traitements et les paramètres d’affichage. Les noms des personnes choisies et le détail des variables privées sont masqués dans ce résumé. Cela ne retire pas les noms qui figureraient dans une forme, un titre de source ou un autre libellé libre : <a href="../organiser/verifier-partage.html">contrôlez la sortie selon son destinataire</a>.</p>
+    <p>Si le tableur demande des options d’import, choisissez <strong>UTF-8</strong> et le séparateur <strong>virgule</strong> pour le CSV, ou <strong>tabulation</strong> pour le TSV. Ce CSV utilise la virgule, contrairement à l’export de la table de données du corpus qui utilise le point-virgule.</p>
+    <p>En local, le dossier proposé est <code>resultats/lexico/</code> dans le corpus. Pour un corpus distant, SonalPi propose <strong>Documents</strong> sur votre poste : le fichier n’est pas envoyé automatiquement à Nextcloud ou GitLab. L’export conserve une sortie de lecture, pas une sauvegarde complète ni une analyse qui se mettra à jour dans le tableur.</p>
+    <p>Pour comparer les fréquences avec prudence et garder une trace de vos choix, consultez <a href="verifier-resultats.html">Vérifier et interpréter les résultats</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="tri-synthese.html" rel="prev">← Précédent : rassembler des passages avec Tri et synthèse</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="traitement-lexical.html" rel="next">Suivant : adapter le traitement lexical →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

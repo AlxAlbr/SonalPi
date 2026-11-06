@@ -24,10 +24,18 @@ h2 { font-size: 1.35rem; margin-top: 2.2rem; }
 h3 { font-size: 1.1rem; margin-top: 1.6rem; }
 [id] { scroll-margin-top: 1.5rem; }
 .chapitre { font-size: .9rem; color: #5b6877; margin: 0; }
+.sous-partie { margin-inline-start: clamp(.75rem, 3vw, 1.5rem); }
 .notice, .retenir { padding: .8rem 1rem; border-left: 4px solid #7396b8; background: #f0f5fb; }
 .sommaire { margin: 1.5rem 0; padding: 1rem 1.4rem; background: #f5f7fa; border-radius: .4rem; }
 .sommaire ul { margin-bottom: 0; }
 li + li { margin-top: .5rem; }
+.sommaire-faq ul { list-style: none; padding-inline-start: 0; }
+.sommaire-faq > ul > li > a { font-weight: 700; }
+.sommaire-faq > ul > li + li { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #d7dfe9; }
+.sommaire-faq ul ul { margin-top: .6rem; padding-inline-start: clamp(.75rem, 3vw, 1.5rem); font-size: .95rem; }
+.faq > h3, .faq > h3 ~ p { margin-inline-start: clamp(.75rem, 3vw, 1.5rem); }
+.faq > h3 { position: relative; }
+.faq > h3::before { content: ""; position: absolute; inset-inline-start: -.65rem; top: .45em; width: .3em; height: .3em; border-radius: 50%; background: currentColor; }
 figure { margin: 1.8rem 0; }
 img { display: block; max-width: 100%; height: auto; border: 1px solid #d7dfe9; border-radius: .35rem; }
 figcaption { font-size: .9rem; color: #5b6877; margin-top: .5rem; }

@@ -68,6 +68,61 @@ Le guide compte vingt-trois chapitres et soixante-neuf réponses. Les quatre fic
 exemples ne contiennent actuellement que leur titre et « À venir. » : le chapitre
 signale cette limite sans les présenter comme des modèles prêts à l’emploi.
 Aucun nouveau test, empaquetage, contenu de modèle ou changement applicatif.
+Le chapitre Relier une personne entre plusieurs entretiens complète ensuite Traiter :
+associations, rapprochements, réunion, séparation, notes liées et copie d’informations.
+Avec quatre réponses FAQ supplémentaires, le guide atteint vingt-quatre chapitres et
+soixante-treize réponses. Les corrections restent limitées au corpus local : les
+commandes sont refusées sur Nextcloud et GitLab, malgré les indications contraires
+de l’ancienne source et de certains messages de l’interface. Ce sous-lot reste
+rédactionnel, sans nouvelle recette, capture, empaquetage ou modification applicative.
+À la demande de l’utilisateur, Importer et traiter distingue ensuite deux niveaux :
+Corpus et Entretien. Le sommaire et les chemins des pages sont réorganisés ; les
+chapitres communs restent uniques avec des accès directs aux sections concernées.
+Un repère de niveau reste visible dans l’application quel que soit l’onglet choisi.
+Cette présentation est à relire et à vérifier, sans nouveau test ni empaquetage.
+Le chapitre Réorganiser les codages (T08) complète ensuite le niveau Corpus :
+transfert, fusion, division, aperçu, bilan et reprise. Ses quatre réponses FAQ
+portent le guide à vingt-cinq chapitres et soixante-dix-sept réponses. Les limites
+Nextcloud/GitLab et les succès conservés d’un lot partiel sont explicités depuis
+les sources, sans nouveau test, capture, empaquetage ou changement applicatif.
+Le chapitre Rechercher dans les entretiens (N01) complète ensuite Importer et traiter,
+aux niveaux Corpus et Entretien, plutôt qu’Analyser : les commandes y sont réellement
+accessibles. Recherche littérale, extraits, retour au contexte et remplacement sont
+séparés ; les limites de complétude et d’actualité sont explicites. Avec quatre
+réponses FAQ, le guide atteint vingt-six chapitres et quatre-vingt-une réponses en
+onze parties. La capture existante de T03 est réutilisée, sans nouvelle recette,
+modification applicative, illustration ou reconstruction du paquet.
+Le chapitre Rassembler des passages avec Tri et synthèse (N02) ouvre ensuite Analyser
+et interpréter : premier calcul, critères, deux vues, contexte, actualisation, copie
+et export TXT. Avec ses quatre réponses FAQ, le guide compte vingt-sept chapitres et
+quatre-vingt-cinq réponses en douze parties. Le texte distingue les états affichés
+Périmé et Résultat incomplet, ainsi que les protections différentes de la copie et
+de l’export, sans nouvelle recette, capture, empaquetage ou modification applicative.
+Le chapitre Explorer les mots avec Lexico (N03) suit : index, concordances, sélection
+des matériaux, affichage, bilan et export CSV/TSV. Il part du corpus du lecteur,
+sans thème ni exercice requis. Ses quatre réponses FAQ portent le guide à vingt-huit
+chapitres et quatre-vingt-neuf réponses, toujours en douze parties. Les traitements
+lexicaux sont présentés comme des réglages pouvant modifier les comptes, avec leurs
+procédures réservées à N04. Aucun nouveau test, capture, empaquetage ou changement applicatif.
+Le chapitre Adapter le traitement lexical (N04) détaille ensuite les trois usages :
+écarter des mots, regrouper des formes et compter une expression comme une unité.
+Il distingue les listes proposées des exclusions actives, les règles communes au
+corpus de l’affichage et l’historique d’annulation des réglages persistés. Ses quatre
+réponses FAQ portent le guide à vingt-neuf chapitres et quatre-vingt-treize réponses,
+toujours en douze parties. Aucun nouveau test, capture, empaquetage ou changement applicatif.
+Le chapitre Comparer avec les analyses croisées (N05) complète ensuite l’analyse :
+matrice thèmes/entretiens, mesures, totaux, justificatifs, lien vers Synthèse et
+export. Ses quatre réponses FAQ portent le guide à trente chapitres et quatre-vingt-dix-sept
+réponses. La sélection calculée est distinguée de la présentation ; l’export d’un
+résultat incomplet non périmé est explicite. Aucun nouveau test, capture, empaquetage
+ou changement applicatif pour ce sous-lot rédactionnel.
+Le chapitre Vérifier et interpréter les résultats (N06) termine ensuite cette partie :
+contrôle de la sélection, actualité et complétude, retour aux propos, sens des chiffres,
+trace des choix et périmètre des sorties. La méthode s’applique au corpus du lecteur,
+sans quatrième outil ni exercice à ouvrir. Ses quatre réponses FAQ portent le guide
+à trente et un chapitres et cent une réponses, en douze parties. Les différences de
+navigation, copie et export restent explicites. Aucun nouveau test, capture,
+empaquetage ou changement applicatif.
 
 Le [suivi de rédaction](suivi-documentation-utilisateur-v2.md) contient
 le sommaire détaillé, la matrice des sources, les divergences et les recettes.
@@ -196,8 +251,10 @@ Le mode de consultation et l’empaquetage doivent donc être traités explicite
    complète ; elle ne maintient pas une seconde version du manuel.
 6. **Distinguer ce qui est disponible, limité ou absent.** Ne pas présenter un
    chantier prévu comme une fonction utilisable.
-7. **Illustrer avec les corpus fictifs fournis.** Pas de données réelles,
-   d’identifiants, de secrets ni de chemins personnels dans les captures.
+7. **Illustrer avec les corpus fictifs fournis, sans en faire un prérequis.**
+   Les procédures s’appliquent au corpus du lecteur ; les exemples restent facultatifs,
+   compréhensibles sur place et indépendants d’un exercice antérieur. Pas de données
+   réelles, d’identifiants, de secrets ni de chemins personnels dans les captures.
 8. **Préserver les précautions essentielles.** Pseudonymiser ne garantit pas
    l’anonymat ; un export de lecture n’est pas une sauvegarde complète.
 9. **Ne pas imposer les mécanismes internes au lecteur.** Les informations
@@ -238,20 +295,36 @@ rédaction ; il reste ajustable après relecture des pilotes.
 
 ### C. Importer et traiter
 
-- Ajouter un entretien : texte, audio, vidéo et formats effectivement acceptés.
-- Préparer une transcription et vérifier son import.
+Un même espace, deux niveaux clairement indiqués dans le guide et l’application.
+
+#### Au niveau du corpus
+
+- Préparer une transcription, ajouter un entretien et vérifier son import.
 - Gérer les entretiens : nom, ordre, média associé et suppression.
+- Rechercher dans les transcriptions du corpus et revenir aux passages sources.
+- Relier les personnes entre plusieurs entretiens et corriger les associations.
+- Organiser les thèmes et réorganiser les codages.
+- Définir les variables, renseigner et consulter la table de données.
+- Consulter les notes de l’ensemble, contrôler les règles de pseudonymisation
+  et examiner les actions récentes du corpus.
+
+#### Dans un entretien
+
 - Relire et corriger ; naviguer entre texte et média ; utiliser les repères temporels.
-- Identifier les locuteurs, corriger les tours de parole et relier les personnes.
-- Créer les thèmes, coder un passage et réorganiser les codages.
-- Définir les variables et renseigner les données.
-- Écrire des notes et des commentaires.
-- Pseudonymiser et contrôler les remplacements.
-- Comprendre l’enregistrement et les possibilités réelles d’annulation/restauration.
+- Rechercher et remplacer du texte dans la transcription ouverte.
+- Identifier les locuteurs et corriger les tours de parole.
+- Coder les passages avec les thèmes communs.
+- Renseigner les données de l’entretien et de ses locuteurs.
+- Écrire des notes et commenter les passages.
+- Pseudonymiser le texte et contrôler les remplacements.
+- Comprendre l’enregistrement, le Journal et les possibilités d’annulation.
+
+La recherche, les données, les notes, la pseudonymisation et l’annulation couvrent les deux niveaux :
+un seul chapitre par sujet, avec des accès directs aux sections pertinentes.
+La sauvegarde et la restauration restent expliquées dans les pages existantes.
 
 ### D. Analyser et interpréter
 
-- Rechercher dans les entretiens.
 - Rassembler les passages avec Tri et synthèse.
 - Explorer les mots et les concordances avec Lexico.
 - Comparer avec les analyses croisées.
@@ -362,6 +435,12 @@ Le sommaire, les liens entre pages et les liens **Précédent / Suivant** suffis
 La recherche et l’impression sont celles du navigateur ; pas de moteur de recherche
 spécifique au guide. La compilation copie HTML, CSS et illustrations dans les
 ressources de l’application, à l’extérieur de l’archive applicative.
+
+La FAQ présente les thèmes et toutes leurs questions dans son sommaire, avec des
+liens directs vers les réponses. Chaque ajout ou reformulation de question doit
+mettre à jour ce sommaire statique, en conservant le même intitulé et le même ordre.
+Dans le corps de la FAQ, les questions et leurs réponses partagent un retrait
+sous les titres de thèmes, plus léger sur petit écran. Le sommaire reste distinct.
 
 À vérifier : liens et ancres valides, ressources toutes locales, lecture au clavier,
 affichage étroit et paquet utilisable hors ligne. Aucun lien documentaire ne doit
@@ -534,11 +613,71 @@ La page d’accueil du site regroupe les chapitres selon les parties du plan et
 n’affiche pas les rubriques encore vides. Les cartes de l’application sont désormais accessibles dans l’essai
 UX anticipé ; leur intégration finale reste au lot 8.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06 et P01–P03**.
-Les sections 28 à 32 du suivi décrivent O08, A06 et P01–P03, rédigés sans nouvelle recette.
-La dernière recette exécutée reste celle de la section 27.
+**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06, P01–P03, T05, T08 et N01–N06**.
+Les sections 28 à 33 du suivi décrivent O08, A06, P01–P03 et T05, rédigés sans nouvelle recette.
+La section 34 décrit la séparation Corpus / Entretien dans le guide et les repères
+applicatifs correspondants, à relire et à vérifier sans nouvelle qualification.
+Les sections 35 à 41 ajoutent T08 et N01–N06, sans nouvelle recette. La dernière
+recette exécutée reste celle de la section 27.
+La section 42 décrit le sommaire complet de la FAQ demandé par l’utilisateur :
+thèmes et questions, accès directs et, après correction demandée, retrait des
+questions et de leurs réponses sous les titres de thèmes dans le corps du texte.
+Présentation et attentes de recette adaptées, sans nouvelle exécution ni capture.
 
-**Prochaine rédaction proposée : T05 — Relier une personne entre plusieurs entretiens**.
+**Prochaine rédaction proposée : O01 — Constituer et consulter un cas**.
+Le chapitre Vérifier et interpréter les résultats (N06) et ses quatre réponses FAQ
+sont rédigés, à relire. La page transversale propose une méthode de contrôle, des
+retours aux sources et une trace des choix sans répéter les procédures des outils.
+Elle distingue actualité, complétude et validité d’une conclusion ; la comparaison
+respecte les unités, les rôles et les traitements. Les différences de navigation,
+les exports incomplets et la copie d’extraits anciens restent explicites. Sources
+et recettes existantes relues, sans nouvelle exécution, capture ou empaquetage.
+Le chapitre Comparer avec les analyses croisées (N05) et ses quatre réponses FAQ
+sont rédigés, à relire. Il explique le tableau thèmes/entretiens, les trois mesures,
+les totaux et les justificatifs sans exiger un exercice. Les autres critères de
+Synthèse restent conservés lorsqu’on y envoie une case. Les exportations Matrice
+et Format long reprennent la sélection calculée, pas seulement les cellules
+visibles ; un résultat incomplet non périmé est exportable avec ses indications.
+Ces différences sont confrontées au code et aux recettes existantes, sans les relancer.
+Le chapitre Adapter le traitement lexical (N04) et ses quatre réponses FAQ sont
+rédigés, à relire. L’explication commence par les usages courants avant les termes
+de l’interface. Les trois procédures, la personnalisation des listes, leur application,
+la portée corpus et les limites de l’annulation sont confrontées au code et aux tests
+existants, sans nouvelle exécution. Les exemples restent indépendants du terrain
+pédagogique ; le texte des transcriptions n’est pas modifié par ces opérations.
+Le chapitre Explorer les mots avec Lexico (N03) et ses quatre réponses FAQ sont
+rédigés, à relire. Il distingue les filtres de matériaux des réglages du tableau,
+les occurrences de leur contexte et les comptes du bilan des lignes exportées.
+La procédure est autonome et les exemples facultatifs. Les sources confirment
+l’index pseudonymisé, les sélections explicites et la sortie locale CSV/TSV ;
+aucun nouveau test ni banc distant n’est sollicité.
+Le chapitre Rassembler des passages avec Tri et synthèse (N02) et ses quatre réponses
+FAQ sont rédigés, à relire. Les critères, les deux vues et l’export sont confrontés
+aux composants et au moteur sans nouvelle exécution. Après relecture, la procédure
+part d’un thème déjà utilisé dans le corpus du lecteur, sans imposer les noms du
+terrain pédagogique. L’exemple reste facultatif ; cette règle vaut aussi pour les
+pages suivantes et la relecture des précédentes. Les cas restent facultatifs. Les avertissements se limitent aux états
+effectivement affichés, sans anticiper des fichiers endommagés. La copie suit le
+mode de texte mais ne bloque pas un résultat périmé ou incomplet, contrairement
+au TXT ; le contrôle du contenu et des critères sensibles est explicite.
+Le chapitre Rechercher dans les entretiens (N01) et ses quatre réponses FAQ sont
+rédigés, à relire. Il rejoint Importer et traiter avec un chapitre unique pour
+Corpus et Entretien. Le remplacement est retiré de la procédure détaillée de T03,
+qui conserve son ancre et un renvoi. Après relecture, la précaution sur un résultat
+vide se concentre sur les graphies, les accents, les formulations et la relance après
+correction. Les cas techniques de fichiers indisponibles restent dans le suivi
+et la documentation développeur, sans alourdir le guide courant. Les limites de
+la copie distante sont également décrites, sans nouvelle qualification.
+Le chapitre Réorganiser les codages (T08) et ses quatre réponses FAQ sont rédigés,
+à relire. Il couvre les trois opérations, la confirmation, les doublons exacts,
+les sous-thèmes, la répartition manuelle et les bilans partiels. Les commandes
+et gardes distinguent Nextcloud, limité aux opérations conservant la source,
+et GitLab, avec fusion et retrait final ; aucune recette distante n’est relancée.
+Le chapitre Relier une personne entre plusieurs entretiens (T05) et ses quatre réponses
+FAQ sont rédigés, à relire. Les composants, commandes, gardes et recettes existantes
+ont été relus sans les exécuter. Les différences entre association et copie de données,
+ainsi que l’indisponibilité des corrections distantes, sont explicites ; les messages
+applicatifs contradictoires restent à harmoniser ultérieurement.
 Le chapitre Utiliser les modèles fournis (P03) et ses trois réponses FAQ sont rédigés,
 à relire. Les ressources, composants et recettes existantes ont été relus sans les
 exécuter. Les quatre fichiers sont encore des emplacements « À venir. », pas des
@@ -580,7 +719,11 @@ ont également été documentés. Le transfert vers QualCoder et le contrôle de
 avant diffusion complètent cet ensemble. La page générale sur les fichiers,
 la sauvegarde et le déplacement est également rédigée. Préparer et suivre couvre
 le tableau de bord, les documents du projet et les exemples encore à compléter ;
-la suite proposée porte sur les personnes communes à plusieurs entretiens.
+les personnes communes à plusieurs entretiens et la réorganisation des codages sont
+désormais documentées. La recherche dans les textes les complète ; Analyser et
+interpréter couvre Tri et synthèse, la consultation de Lexico et ses traitements.
+Les analyses croisées complètent cet ensemble ; la suite proposée rassemble les
+précautions de vérification et d’interprétation des résultats.
 L’installation attend la confirmation des liens de diffusion V2. L’essai de
 restauration d’une copie ZIP locale a réussi ; la page générale sur la sauvegarde
 et le déplacement s’appuie sur ce résultat, sans nouvelle qualification empaquetée.

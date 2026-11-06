@@ -20,10 +20,15 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   et transfert textuel vers QualCoder.
   Le contrôle avant diffusion (O08) et la sauvegarde/déplacement (A06) complètent
   ces pages par une rédaction sans nouvelle recette, dans le cadre demandé.
-  Avec les chapitres Préparer et suivre (P01 à P03), vingt-trois chapitres et
-  soixante-neuf réponses FAQ sont disponibles.
+  Avec les chapitres Préparer et suivre (P01 à P03), Personnes (T05),
+  Réorganiser les codages (T08), Recherche (N01), Tri et synthèse (N02), Lexico
+  et ses traitements (N03–N04), les analyses croisées (N05) et la vérification des
+  résultats (N06), trente et un chapitres et cent une réponses FAQ sont disponibles.
 - Sommaire utilisateur : regroupé selon les parties du plan, avec seulement les
-  rubriques qui contiennent déjà des chapitres publiés.
+  rubriques qui contiennent déjà des chapitres publiés. Importer et traiter distingue
+  désormais les niveaux Corpus et Entretien ; les chapitres communs restent uniques.
+  Un repère de niveau reste visible au-dessus des outils de l’application.
+  Réorganisation et présentation à relire, sans nouvelle recette.
 - Import Word/PDF : **ajouté à la demande de l’utilisateur**, selon le principe V1 ;
   sélection, dépôt et paquet Linux vérifiés, documentation et capture actualisées.
 - Imports repris de Whispurge : **TXT tabulé et noms SRT ajoutés et vérifiés** ;
@@ -79,7 +84,45 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   Consultation, copie personnelle et ajout au projet ; les quatre fichiers livrés
   contiennent seulement leur titre et « À venir. », pas des modèles rédigés.
   Aucun nouveau test, empaquetage, contenu de modèle ou changement applicatif.
-- FAQ : **une page unique**, réorganisée en dix parties et soixante-neuf questions.
+- Personnes : **chapitre T05 rédigé, à relire**, avec quatre réponses FAQ.
+  Création, associations, rapprochements, réunion, séparation, notes et données ;
+  commandes limitées au local, contrairement à l’ancienne source utilisateur.
+  Sources et recettes existantes relues, sans nouveau test ni empaquetage.
+- Réorganisation des codages : **chapitre T08 rédigé, à relire**, avec quatre
+  réponses FAQ. Transfert, fusion, division, aperçu, bilan, limites par fournisseur
+  et reprise des lots incomplets. Sources et recettes existantes relues,
+  sans nouveau test, serveur distant, capture, empaquetage ou changement applicatif.
+- Recherche : **chapitre N01 rédigé, à relire**, avec quatre réponses FAQ.
+  Recherche corpus, extraits et contexte, recherche/remplacement dans l’entretien,
+  graphies et limites des résultats. Rattaché à Importer et traiter selon les
+  commandes effectives, plutôt qu’à Analyser. Capture existante de T03 réutilisée,
+  sans nouveau test, empaquetage ou changement applicatif.
+- Tri et synthèse : **chapitre N02 rédigé, à relire**, avec quatre réponses FAQ.
+  Premier calcul avec un thème, combinaison des critères, deux vues, contexte,
+  résultat périmé ou incomplet, copie et TXT dans le mode de texte courant.
+  Sources et recettes relues, sans nouvelle exécution ni capture ou empaquetage.
+- Lexico : **chapitre N03 rédigé, à relire**, avec quatre réponses FAQ.
+  Index, concordances, filtres de matériaux, réglages du tableau, bilan et export
+  CSV/TSV. Procédure autonome, sans thème ni exercice requis ; traitements détaillés
+  dans N04. Sources et recettes relues, sans nouveau test ni empaquetage.
+- Traitement lexical : **chapitre N04 rédigé, à relire**, avec quatre réponses FAQ.
+  Mots outils, listes proposées, regroupements, expressions, portée corpus et
+  annulation de session. Exemples autonomes, sans corpus d’exercice requis.
+  Aucun nouveau test, capture, changement applicatif ou empaquetage.
+- Analyses croisées : **chapitre N05 rédigé, à relire**, avec quatre réponses FAQ.
+  Matrice thèmes/entretiens, mesures, totaux, justificatifs, lien vers Synthèse et
+  exports. Procédure autonome ; export du périmètre calculé, y compris incomplet
+  si non périmé, distingué des autres outils. Aucun nouveau test ni empaquetage.
+- Vérifier et interpréter : **chapitre N06 rédigé, à relire**, avec quatre réponses FAQ.
+  Méthode transversale sur le corpus du lecteur : sélection, état du résultat,
+  retour aux propos, comparaison, trace des choix et sorties. Les différences de
+  navigation, copie et export sont conservées, sans nouvelle recette ni empaquetage.
+- FAQ : **une page unique**, réorganisée en douze parties et cent une questions.
+  À la demande de l’utilisateur, le sommaire contient aussi toutes les questions
+  sous leur thème, avec des liens directs. Après correction demandée, les questions
+  et leurs réponses sont aussi en retrait sous les thèmes dans le corps du texte,
+  sans modifier le sommaire. Présentation à relire, sans nouvelle recette ; chaque
+  ajout de question doit enrichir ce sommaire.
   La partie Préparer et suivre accueille les questions du tableau, des documents
   du projet et des exemples.
   Les pages FAQ thématiques prévues deviennent des sections de cette page.
@@ -89,9 +132,11 @@ le HTML direct, ouvert dans le navigateur, sans conversion Markdown.
   Réalisé et vérifié, à relire ; la consolidation finale reste au lot 8.
 - Huit fichiers utilisateur préexistants : **inchangés**.
 
-**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06 et P01–P03.
-Prochaine rédaction proposée : T05 — Relier une personne entre plusieurs entretiens.**
-O08, A06 et P01–P03 sont rédigés sans nouvelle recette, avec leurs réponses FAQ.
+**À relire d’abord : l’essai d’accueil en deux colonnes, les chapitres T11 à O08, A06, P01–P03, T05, T08 et N01–N06.
+Prochaine rédaction proposée : O01 — Constituer et consulter un cas.**
+La séparation Corpus / Entretien du sommaire et les repères applicatifs de la section 34
+sont également à relire, sans nouvelle qualification.
+O08, A06, P01–P03, T05, T08 et N01–N06 sont rédigés sans nouvelle recette, avec leurs réponses FAQ.
 Le paquet Linux précédemment vérifié contient O05 à O07,
 T13 avec sa restauration vérifiée, T11 et les ajustements d’accueil ; T12 est vérifié localement.
 L’installation attend les liens de diffusion. La page générale sur la sauvegarde et
@@ -112,6 +157,9 @@ copiés dans le paquet documentaire.
 - Une personne qui mène une étude qualitative, sans présumer de compétence technique.
 - Vouvoiement ; phrases courtes ; titres orientés tâche.
 - Expliquer d’abord l’utilité, puis l’action et son résultat.
+- Rendre chaque procédure utilisable avec le corpus du lecteur, sans supposer un
+  exercice préalable. Les exemples doivent être compréhensibles sur place et
+  facultatifs ; ne pas imposer un thème ou un entretien du terrain pédagogique.
 - Employer les noms visibles dans l’interface : **Thématiques** dans l’entretien,
   **Thèmes** dans la vue corpus ; ne pas uniformiser au prix d’un faux libellé.
 - Employer « thème » pour la notion, « codage » pour son association à un passage.
@@ -134,6 +182,10 @@ des espaces. Les précautions sur les données ne sont pas cachées dans des dé
 Une FAQ répond en quelques phrases et renvoie à la page de référence.
 
 ### Fil rouge et illustrations
+
+Le fil rouge sert aux illustrations et aux essais facultatifs, pas à définir les
+étapes génériques du manuel. Ce principe, précisé après relecture de N02, est aussi
+à appliquer lors de la relecture des pages antérieures.
 
 Utiliser le terrain fictif fourni sur l’aide aux devoirs dans les associations.
 Pour le premier codage, choisir **Entretiens déjà importés**, entretien
@@ -181,32 +233,50 @@ directement en HTML, avec `style.css` comme présentation commune.
 
 ### Importer et traiter
 
+Un même espace comporte deux niveaux. Les identifiants des pages restent stables ;
+leur ordre de lecture suit désormais le regroupement ci-dessous. Les états antérieurs
+consignent les procédures déjà éprouvées, pas une qualification de la réorganisation.
+
+#### Au niveau du corpus
+
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
 | T01 | Préparer et importer une transcription — `traiter/importer.html` | V1 entretiens ; formats acceptés, exemples SRT/TXT testés, locuteurs et contrôle du résultat. | Rédigé et vérifié localement, à relire |
 | T02 | Gérer les entretiens et leurs médias — `traiter/gerer-entretiens.html` | V1 entretiens ; nom, tri, suppression, références audio/vidéo et réassociation. | Rédigé et vérifié localement, à relire |
+| N01 | Rechercher dans les entretiens — `traiter/rechercher.html` | Recherche corpus, contexte, recherche/remplacement de l’entretien, règles textuelles et limites ; page commune aux deux niveaux. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| T05 | Relier une personne entre plusieurs entretiens — `traiter/personnes.html` | V2 vue-corpus, documentation développeur, composants, gardes et recettes existantes ; associations, corrections, notes et limites distantes. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| T07 | Organiser et documenter ses thèmes — `traiter/organiser-themes.html` | V1 catégories, V2 vue-corpus ; hiérarchie, descriptions, couleurs, activation et suppression. | Rédigé et vérifié localement, à relire |
+| T08 | Réorganiser les codages — `traiter/reorganiser-codages.html` | V2 vue-corpus, documentation développeur, atelier, répartition, modèle et gardes ; transfert/fusion/division, aperçu, bilan et reprise par fournisseur. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| T09 | Définir les variables et saisir les données — `traiter/donnees.html` | V1 base de données, V2 table ; portée, modalités, confidentialité, saisie, lots et export CSV. Couvre aussi la saisie dans l’entretien. | Rédigé et vérifié localement, à relire |
+
+Accès transversaux sans seconde page : T10 pour les notes du corpus, T12 pour le
+contrôle des règles de pseudonymisation et T13 pour le Journal du corpus.
+
+#### Dans un entretien
+
+| ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
+| --- | --- | --- | --- |
 | T03 | Relire et corriger un entretien — `traiter/corriger.html` | V1 édition ; enregistrement, texte/média, repères et raccourcis réellement actifs. | Rédigé et vérifié localement, à relire |
 | T04 | Identifier les locuteurs et les tours de parole — `traiter/locuteurs.html` | V1 locuteurs ; noms, rôles, attribution, suppression, pseudo et rapprochements. Statistiques et navigation ajoutées, durées estimées et limites explicites. | Rédigé et vérifié localement, à relire |
-| T05 | Relier une personne entre plusieurs entretiens — `traiter/personnes.html` | V2 vue-corpus ; création, association, corrections et conséquences. | À rédiger |
 | T06 | Coder un premier passage avec un thème — `traiter/premier-codage.html` | V1 catégories/codage ; création de thème, sélection, pose, retrait et réouverture. | Pilote vérifié localement et accepté |
-| T07 | Organiser et documenter ses thèmes — `traiter/organiser-themes.html` | V1 catégories, V2 vue-corpus ; hiérarchie, descriptions, couleurs, activation et suppression. | Rédigé et vérifié localement, à relire |
-| T08 | Réorganiser les codages — `traiter/reorganiser-codages.html` | V2 vue-corpus ; transfert/fusion/division, aperçu, reprise et différences fournisseurs. | À rédiger |
-| T09 | Définir les variables et saisir les données — `traiter/donnees.html` | V1 base de données, V2 table ; portée, modalités, confidentialité, saisie, lots et export CSV. | Rédigé et vérifié localement, à relire |
-| T10 | Écrire et consulter des notes — `traiter/notes.html` | V1 notes, V2 vue-corpus ; catégories partagées, enregistrement, statuts, consultation et export Markdown filtré. | Rédigé et vérifié localement, à relire |
+| T10 | Écrire et consulter des notes — `traiter/notes.html` | V1 notes, V2 vue-corpus ; catégories partagées, enregistrement, statuts, consultation et export Markdown filtré. Couvre les deux niveaux. | Rédigé et vérifié localement, à relire |
 | T11 | Commenter un passage — `traiter/commentaires.html` | V2 entretien ; sélection, auteur, édition, retrait et export. | Rédigé et vérifié localement, à relire |
-| T12 | Pseudonymiser et vérifier un entretien — `traiter/pseudonymiser.html` | V1 pseudonymisation, V2 vue-corpus ; règles, occurrences, variantes, exceptions et contrôle. | Rédigé et vérifié localement, à relire |
-| T13 | Revenir sur une modification — `traiter/annuler-restaurer.html` | V2 journaux et sauvegardes ; vérifier précisément les opérations annulables et leur portée. | Rédigé et vérifié dans le paquet Linux, à relire |
+| T12 | Pseudonymiser et vérifier un entretien — `traiter/pseudonymiser.html` | V1 pseudonymisation, V2 vue-corpus ; règles, occurrences, variantes, exceptions et contrôle. Couvre les deux niveaux. | Rédigé et vérifié localement, à relire |
+| T13 | Revenir sur une modification — `traiter/annuler-restaurer.html` | V2 journaux et sauvegardes ; vérifier précisément les opérations annulables et leur portée. Couvre les deux niveaux. | Rédigé et vérifié dans le paquet Linux, à relire |
+
+La saisie des données dans l’entretien renvoie à T09, sans dupliquer le chapitre.
+La recherche et le remplacement renvoient à N01 ; son identifiant reste stable,
+mais la page rejoint Traiter plutôt qu’Analyser, conformément aux commandes réelles.
 
 ### Analyser et interpréter
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| N01 | Rechercher dans les entretiens — `analyser/rechercher.html` | V2 recherche ; distinguer recherche corpus et recherche/remplacement d’entretien. | À rédiger |
-| N02 | Rassembler des passages avec Tri et synthèse — `analyser/tri-synthese.html` | V2 synthese ; critères, calcul, extraits, copie, export et retour à la source. | À rédiger |
-| N03 | Explorer les mots avec Lexico — `analyser/lexico.html` | V2 lexico ; index, filtres, concordances, bilan et export. | À rédiger |
-| N04 | Adapter le traitement lexical — `analyser/traitement-lexical.html` | V2 lexico ; mots outils, regroupements, concaténations et annulation. | À rédiger |
-| N05 | Comparer avec les analyses croisées — `analyser/analyses-croisees.html` | Doc développeur et outil V2 ; mesures, critères et retour aux passages. | À rédiger |
-| N06 | Vérifier et interpréter les résultats — `analyser/verifier-resultats.html` | V2 outils/parcours ; filtres, sources manquantes, péremption et précautions d’interprétation. | À rédiger |
+| N02 | Rassembler des passages avec Tri et synthèse — `analyser/tri-synthese.html` | V2 synthese, documentation développeur, critères, moteur, projection et exports ; calcul, filtres, deux vues, contexte, fraîcheur, copie et TXT. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| N03 | Explorer les mots avec Lexico — `analyser/lexico.html` | V2 lexico, documentation développeur, composants, chargement, moteur et export ; index, filtres, concordances, bilan et tableau CSV/TSV. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| N04 | Adapter le traitement lexical — `analyser/traitement-lexical.html` | V2 lexico, composants, composable, règles et persistance ; mots outils, listes, regroupements, concaténations, portée corpus et annulation. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| N05 | Comparer avec les analyses croisées — `analyser/analyses-croisees.html` | Documentation développeur, sélection, matrice, justificatifs, moteur, projection et export ; mesures, totaux, retour aux passages et périmètre exporté. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
+| N06 | Vérifier et interpréter les résultats — `analyser/verifier-resultats.html` | Documentation développeur, composables, panneaux et retours ; sélection, actualité, complétude, mesures, sources, trace des choix et sorties. | Rédigé, à relire ; sources et recettes existantes relues, sans nouvelle recette |
 
 ### Organiser et exporter
 
@@ -238,9 +308,9 @@ directement en HTML, avec `style.css` comme présentation commune.
 
 | ID | Page et chemin cible | Source principale ; contrôle à réaliser | État |
 | --- | --- | --- | --- |
-| F01 | Questions fréquentes — `faq/premiers-pas.html` | Soixante-neuf réponses classées en dix parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; soixante-deux nouvelles à relire, dont treize sans nouvelle recette |
+| F01 | Questions fréquentes — `faq/premiers-pas.html` | Cent une réponses classées en douze parties ; ne pas dupliquer les procédures. | Sept réponses acceptées ; quatre-vingt-quatorze nouvelles à relire, dont quarante-cinq sans nouvelle recette |
 | F02 | Section Exports et partage de F01 — `faq/premiers-pas.html#exports-partage` | Alimenter lors de A06, T12 et O05–O08. | Douze réponses liées à O05–O07 vérifiées dans le paquet Linux ; deux liées à O08 rédigées sans nouvelle recette ; à relire |
-| F03 | Future section Analyses de F01 | Alimenter lors de N01–N06. | À compléter dans la FAQ unique |
+| F03 | Section Analyses et résultats de F01 — `faq/premiers-pas.html#analyses-resultats` | Alimenter lors de N02–N06 ; N01 possède une section Recherche distincte. | Vingt réponses N02–N06 rédigées, à relire, sans nouvelle recette |
 | F04 | Future section Travail collectif et migration de F01 | Alimenter lors de E01–M02, après recettes réelles. | À compléter dans la FAQ unique |
 | G01 | Glossaire — `glossaire.html` | Reprendre les définitions courtes de A02 puis compléter sans créer un cours technique. | À rédiger |
 
@@ -340,7 +410,7 @@ sans contrôle. Les destinations sont les ID du sommaire ci-dessus.
 | Ajouter un passage à un cas ou à un recueil | O04. | Confirmation sans navigation forcée et annulation sans écriture. |
 | Voir les utilisations du passage | O04. | Inclusion exacte/englobante/chevauchante, plusieurs occurrences et vérification incomplète. |
 | Chargement et actualisation | N06, E04. | Dernier résultat lisible versus résultat complet et à jour. |
-| Thèmes : transfert, fusion, division et reprises | T08. | Local, WebDAV et GitLab à qualifier séparément. |
+| Thèmes : transfert, fusion, division et reprises | T08 rédigé, sans nouvelle recette. | Disponibilité confrontée aux gardes : Nextcloud conserve la source et ne propose pas la fusion ; GitLab propose les variantes avec retrait. Qualification réelle par fournisseur encore nécessaire. |
 | Notes | T10. | Deux modes d’enregistrement, consultation, statuts sans restriction d’accès personnelle, copie et export des notes filtrées. |
 | Personnes | T05. | Associations entre entretiens, renommage et corrections. |
 | Cas | O01. | Fusionner avec `cas.md`, ne pas maintenir une seconde description. |
@@ -354,11 +424,11 @@ sans contrôle. Les destinations sont les ID du sommaire ci-dessus.
 | Documents exemples | P03. | Modèles en lecture seule et copie utilisateur. |
 | Corpus distant | P02, E02. | Consultation Nextcloud et absence sur GitLab à revérifier. |
 | Fichiers cachés et exclusions | P02 en difficulté courante si nécessaire. | Ne pas encombrer l’initiation avec l’inventaire technique. |
-| `synthese` : procédure, vues et contexte | N02. | Exemple concret et retour à la source. |
+| `synthese` : procédure, vues et contexte | N02 rédigé, sans nouvelle recette. | Exemple avec un thème, libellé Calculer la synthèse, deux vues d’une même sélection et retour à la source. |
 | Texte original / résultat périmé ou incomplet | N02, N06, O08. | Diffusion et possibilités d’export/navigation. |
-| `lexico` : lire l’index et concordances | N03. | Ce qui est compté et ce qui relève du contexte. |
-| Limiter les matériaux | N03. | Sans restriction versus sélection explicite, rôles enquêteurs et intersection des critères. |
-| Traitement lexical | N04. | Mots outils, regroupements, concaténations et annulation. |
+| `lexico` : lire l’index et concordances | N03 rédigé, sans nouvelle recette. | Index pseudonymisé, occurrences et entretiens distincts ; contexte hors filtre non ajouté aux comptes. |
+| Limiter les matériaux | N03 rédigé, sans nouvelle recette. | Sans restriction versus sélection explicite, rôles enquêteurs et intersection des critères ; affichage du tableau distinct du périmètre du bilan. |
+| Traitement lexical | N04 rédigé, sans nouvelle recette. | Listes proposées distinctes des exclusions actives, regroupements manuels, concaténations, portée corpus et historique limité à la session. |
 | Bilan / exporter | N03, N06, O08. | Bilan public, champs privés, tableau affiché et destination locale/distante. |
 | `cas` : cas, personne, thème, variable, recueil | A02, O01. | Définitions cohérentes ; ne pas reprendre le tutoiement. |
 | Ouvrir / cas vide / depuis une personne | O01. | Conditions de création et règle dynamique. |
@@ -413,7 +483,9 @@ sans contrôle. Les destinations sont les ID du sommaire ci-dessus.
 | Compatibilité QualCoder | Le projet est généré et inspecté dans SQLite, mais QualCoder n’est pas installé sur ce poste. | Ne pas présenter la recette O07 comme une ouverture réelle dans QualCoder ; qualification par version encore nécessaire. |
 | Tableau visible sur l’accueil | L’ancienne source `vue-corpus.md` décrit encore la grille sur l’accueil de Préparer. | P01 suit les composants actuels : grille réservée à l’onglet Tableau de bord. La source antérieure reste inchangée. |
 | Déplacements droite/bas du tableau | À la lecture, les boutons passent le voisin suivant à une commande qui insère avant cette cible ; cela laisse l’ordre inchangé pour un voisin immédiat. | Écart applicatif à corriger et vérifier ultérieurement. P01 décrit le placement à l’ajout et les déplacements gauche/haut, sans promettre le fonctionnement de droite/bas. Aucun changement applicatif dans ce sous-lot. |
+| Corrections des personnes à distance | `vue-corpus.md` et les messages de Personnes annoncent des corrections distantes ; le dispatch `corpus:personnesCommander` exige pourtant `personnes.commande`, classé indisponible pour GitLab et WebDAV. | T05 et la FAQ décrivent les corrections locales et la consultation distante, sans promettre une activation à la reconnexion. Les branches de transactions WebDAV présentes ne contournent pas cette garde. Messages applicatifs à harmoniser ultérieurement ; aucun changement applicatif ni essai distant dans ce sous-lot. |
 | Contenu des documents exemples | Les quatre fichiers livrés sous `ressources/docsCadreExemples/` contiennent seulement leur titre et « À venir. ». | P03 et ses réponses FAQ signalent l’absence de modèles rédigés. Les documents validés par l’organisme restent nécessaires ; aucune rédaction des modèles ni garantie de conformité dans ce sous-lot. |
+| Recherche corpus et complétude | Le panneau saute les lectures indisponibles et le moteur retourne une liste vide pour un corps non interprétable, sans bilan détaillé des sources. Il ne marque pas les résultats périmés après correction ; la lecture distante utilise la copie locale. | N01 et la FAQ ne présentent pas « Aucune occurrence » comme une preuve d’absence dans tout le corpus. Vérification des sources, actualisation distante puis relance explicite ; amélioration des avertissements à reprendre ultérieurement, sans modification applicative ni recette dans ce sous-lot. |
 | Étendue de l’aide embarquée | L’utilisateur demande une navigation simple sans lecteur spécifique. | Décidé : HTML direct ouvert dans le navigateur, pas de conversion ni de moteur de recherche. |
 
 ### Réserve de questions FAQ pour les prochains lots
@@ -2294,3 +2366,689 @@ plusieurs entretiens**, puis T08 pour la réorganisation des codages. Le défaut
 déplacement Droite/Bas du tableau reste hors de ce sous-lot. L’installation attend
 les liens publics ; les recettes distantes, l’ouverture réelle dans QualCoder et les
 paquets Windows/macOS restent à qualifier.
+
+## 33. Relier une personne entre plusieurs entretiens
+
+Page ajoutée : [Relier une personne entre plusieurs entretiens](../../docs/user/traiter/personnes.html).
+Elle s’insère entre Locuteurs et Premier codage. Le guide comporte **vingt-quatre
+chapitres**, **soixante-treize réponses FAQ** en dix parties et toujours **vingt-six
+illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : section Personnes de `docs/user/vue-corpus.md`,
+  `docs/dev/traiter/locuteurs/personnes.md`, `PersonnesCorpus.vue`,
+  `RapprochementCorpus.vue`, `useLocuteursEntretien.ts`, modèle
+  `src/shared/corpus/personnes.ts`, commandes de `src/main/corpusStore.ts`,
+  dispatch dans `src/main/index.ts` et politique
+  `src/main/gitlab/politiqueGestes.ts`.
+- Distinction entre locuteur local et personne du corpus, avec un exemple fictif
+  de participante nommée différemment dans deux entretiens ; un seul locuteur
+  par personne et par entretien. Deux homonymes peuvent rester distincts.
+- Procédure de création puis association explicite, nom de référence, recherche,
+  suggestions, refus révocables dans Écartées, réunion et séparation des fiches.
+  Les corrections d’une seule association sont distinguées d’une réunion entière.
+- La reprise d’informations du répertoire est décochée par défaut et peut remplacer
+  les informations du seul locuteur indiqué. Elle est distinguée du dialogue de
+  nommage dans l’entretien, qui propose par défaut de compléter pseudonyme et statut
+  manquants, sans copier les autres variables. Aucune synchronisation future.
+- Notes liées sans copie, comparaison des données, retour aux entretiens et
+  précautions sur les informations sensibles. Vérification des cas après séparation,
+  réorientation vers la personne conservée après réunion.
+- Enregistrement direct des corrections locales, erreurs et répertoire incomplet,
+  actualisation avant reprise et limites de l’annulation. Pas de promesse d’annulation
+  générale des créations, suppressions, reprises, réunions ou séparations.
+- Divergence confirmée à la lecture : les commandes de personnes restent refusées
+  sur Nextcloud/WebDAV et GitLab par la garde de dispatch, malgré les branches de
+  transactions présentes et les messages de l’interface annonçant des corrections
+  connectées. T05 et la FAQ limitent explicitement les corrections au local ;
+  l’ancienne source reste inchangée et les messages applicatifs sont à harmoniser.
+
+### Intégration et état des vérifications
+
+- Sommaire, README et liens de suite Locuteurs → Personnes → Premier codage
+  actualisés ; renvoi ajouté dans la documentation développeur.
+- Quatre réponses rejoignent la partie Locuteurs, personnes et prises de parole :
+  homonymes, absence d’uniformisation des données, correction d’association et
+  indisponibilité des corrections distantes. Les dix parties FAQ sont conservées.
+- Les attentes de `e2e/documentation.e2e.ts` intègrent le vingt-quatrième chapitre,
+  les soixante-treize questions et deux liens vers T05 ; le scénario n’est pas relancé.
+- Relecture de `e2e/personnes.e2e.ts`, `e2e/personnes-regroupement.e2e.ts`,
+  `e2e/personnes-separation.e2e.ts` et `e2e/rapprochements-personnes.e2e.ts`
+  comme sources des gestes et confirmations, sans exécution.
+- Aucune nouvelle capture, modification applicative, exécution de test ni
+  reconstruction du paquet. Aucun serveur ou banc Docker sollicité.
+  **T05 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle
+  qualification locale, distante ou empaquetée.
+
+### Suite
+
+Faire relire T05 et ses quatre réponses FAQ, notamment la distinction entre
+association et copie d’informations, et la limite des commandes distantes.
+Prochaine rédaction proposée : **T08 — Réorganiser les codages**. Conserver les
+messages distants de Personnes et les déplacements Droite/Bas du tableau parmi
+les points applicatifs à reprendre. L’installation attend les liens publics ;
+les recettes distantes, l’ouverture réelle dans QualCoder et les paquets
+Windows/macOS restent à qualifier.
+
+## 34. Distinguer Corpus et Entretien dans Importer et traiter
+
+À la demande de l’utilisateur, la documentation et les repères de l’interface
+distinguent deux niveaux dans le même espace, sans créer un cinquième espace.
+Le guide conserve **vingt-quatre chapitres**, **soixante-treize réponses FAQ**
+et **vingt-six illustrations V2**.
+
+### Réorganisation documentaire
+
+- Sommaire HTML, README et registre des pages séparés en **Au niveau du corpus**
+  et **Dans un entretien**, avec conservation des fichiers, des ancres existantes
+  et des identifiants de suivi. Après relecture, l’utilisateur demande aussi un
+  retrait visuel des deux sous-rubriques et de leur contenu ; la classe
+  `sous-partie` utilise un retrait réduit sur petit écran, sans changer la structure.
+- Corpus : import, gestion des entretiens et médias, personnes, organisation des
+  thèmes, variables et table de données. T08 rejoindra ce groupe lors de sa rédaction.
+- Entretien : correction, locuteurs, premier codage, notes, commentaires,
+  pseudonymisation et annulation.
+- Les chapitres communs restent uniques : liens directs vers les notes du corpus,
+  le contrôle de pseudonymisation et le Journal corpus ; renvoi vers la saisie des
+  données depuis le groupe Entretien. Les en-têtes indiquent les deux niveaux
+  lorsqu’ils sont couverts, sans dupliquer les procédures.
+- Nouveau passage dans Se repérer : sélectionner une carte n’ouvre pas l’entretien ;
+  le crayon l’ouvre ; Retour au niveau Corpus ou le fil Corpus ferme l’entretien.
+  La réponse FAQ sur le changement d’espace renvoie à cette distinction.
+- Les liens Précédent/Suivant suivent le nouveau regroupement : import → gestion
+  → personnes → thèmes → données → correction → locuteurs → premier codage
+  → notes → commentaires → pseudonymisation → annulation. Le prérequis du thème
+  d’exercice est explicité pour permettre une consultation indépendante.
+
+### Repères dans l’application et qualification
+
+- `Corpus.vue` et `Entretien.vue` affichent un repère **Niveau Corpus** ou
+  **Niveau Entretien** au-dessus des outils, indépendamment de l’onglet choisi.
+  La navigation de l’entretien possède un nom accessible distinct de celle du corpus.
+- Les deux panneaux d’accueil expliquent leur échelle et comment rejoindre l’autre
+  niveau. Aucune modification des commandes, de la fermeture, de la sauvegarde,
+  des droits ou de la mémoire de navigation.
+- Attentes de `e2e/documentation.e2e.ts` adaptées aux cinq listes de chapitres,
+  aux deux sous-rubriques et au nouvel ordre de lecture. `e2e/navigation.e2e.ts`
+  couvre les repères dans les deux niveaux, y compris hors de l’onglet Accueil.
+  Ces scénarios ne sont pas relancés.
+- Aucun nouveau test exécuté, empaquetage, serveur distant ou capture. Les anciennes
+  captures ne sont pas refaites et les recettes antérieures ne qualifient pas cette
+  présentation. Réorganisation et repères **à relire et à vérifier dans l’application**.
+
+### Suite
+
+Faire relire les deux sous-rubriques, les chemins des pages et les nouveaux repères.
+Poursuivre avec **T08 — Réorganiser les codages**, au niveau Corpus. Les limites
+et qualifications encore ouvertes consignées en section 33 restent inchangées.
+
+## 35. Réorganiser les codages
+
+Page ajoutée : [Réorganiser les codages](../../docs/user/traiter/reorganiser-codages.html).
+Elle rejoint **Au niveau du corpus**, entre Organisation des thèmes et Données.
+Le guide compte **vingt-cinq chapitres**, **soixante-dix-sept réponses FAQ** en dix
+parties et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : section Thèmes de `docs/user/vue-corpus.md`, documentation
+  développeur `docs/dev/traiter/thematiques/corpus.md` et `fournisseurs.md`,
+  `ThemesOpsCorpus.vue`, `RepartitionTheme.vue`, orchestration
+  `useOperationsThemesCorpus.ts`, réaffectation et finalisation dans
+  `src/shared/corpus/themes.ts`, dispatch `src/main/ipcOperationsThemes.ts`
+  et capacités dans `src/main/gitlab/politiqueGestes.ts`.
+- Distinction entre organisation de la grille et réaffectation des codages.
+  Exemple fictif sur le bénévolat, trois opérations présentées par leur besoin,
+  avec rappel de la sauvegarde locale et de l’absence d’annulation dans le Journal.
+- Transfert vers une cible existante ou nouvelle : conserver la source garde sa
+  définition, pas ses codages. Ses sous-thèmes ne sont pas transférés avec elle.
+  Si la source est retirée, ses sous-thèmes rejoignent son ancien parent.
+- Fusion vers l’une des deux sources ou une troisième cible existante : retrait
+  des définitions non retenues, déplacement de leurs enfants directs vers la cible
+  et maintien de la place de celle-ci. Les destinations incompatibles ne sont pas
+  présentées comme un refus à contourner.
+- Division manuelle vers deux à quatre destinations déjà créées, attribution
+  individuelle ou par entretien, raccourcis 1 à 4 et examen des passages sans texte.
+  Tout attribuer remplace les choix de l’entretien ; le retrait de source exige
+  tous les codages répartis, orphelins compris.
+- Aperçu sans écriture, doublons sur plage exacte, chevauchements conservés,
+  données indisponibles non assimilées à zéro, fraîcheur des choix et consultation
+  du contexte avec recalcul au retour. Les transcriptions, commentaires et
+  pseudonymisations ne sont pas réécrits par la réorganisation.
+- Différences vérifiées dans les sources, sans essai réel : local avec contrôle
+  avant application ; Nextcloud connecté limité au transfert et à la division
+  conservant la source ; GitLab avec fusion et retrait final des sources.
+  Lecture seule, hors ligne et sessions d’entretien à fermer explicités.
+- Bilan et suivi distant : succès acquis, entretiens à reprendre ou différés,
+  publication inconnue à vérifier sans renvoi automatique, reprise explicite,
+  destinations conservées et choix de division à réexaminer. La clôture du suivi
+  n’annule pas les résultats. En local, résultat inconnu à vérifier par réouverture,
+  sans promettre une reprise malgré une modification extérieure non reconnue.
+
+### Intégration et état des vérifications
+
+- Sommaire HTML et README enrichis dans la sous-partie Corpus, avec conservation
+  du retrait visuel demandé. Liens de suite Organisation des thèmes → Réorganiser
+  les codages → Données actualisés ; renvoi dans la documentation développeur.
+- Quatre réponses FAQ dans Codage et thèmes : source conservée lors d’un transfert,
+  division incomplète, absence d’annulation au Journal et résultats partiels.
+- `e2e/documentation.e2e.ts` attend désormais six chapitres dans la liste Corpus,
+  le vingt-cinquième chapitre dans la lecture suivie, soixante-dix-sept questions
+  et deux nouveaux renvois FAQ. Le scénario n’est pas relancé.
+- Relecture de `e2e/themes-operations.e2e.ts` et des passages de
+  `test/themesOpsRenderer.test.ts` et `test/themesOpsWebDAVRenderer.test.ts`
+  consacrés aux bilans, aux publications inconnues, à la reprise et à la clôture.
+  Ces recettes servent de sources, sans nouvelle exécution.
+- Aucun nouveau test local ou distant, serveur ou banc Docker, empaquetage,
+  capture ou changement applicatif pour ce sous-lot. **T08 et ses quatre réponses
+  FAQ sont rédigés, à relire**, sans nouvelle qualification locale, distante ou
+  empaquetée. Les recettes anciennes ne certifient pas cette rédaction.
+
+### Suite
+
+Faire relire T08 et ses réponses FAQ, en particulier le maintien de la définition
+source sans copie des codages, les sous-thèmes et les conséquences d’un lot partiel.
+Prochaine rédaction proposée : **N01 — Rechercher dans les entretiens**, puis les
+outils d’analyse. Conserver les qualifications distantes, le contrôle des repères
+Corpus / Entretien, les messages distants de Personnes, le défaut Droite/Bas du
+tableau, les liens d’installation et l’ouverture réelle dans QualCoder parmi les
+points encore ouverts.
+
+## 36. Rechercher dans les entretiens
+
+Page ajoutée : [Rechercher dans les entretiens](../../docs/user/traiter/rechercher.html).
+Le guide compte **vingt-six chapitres**, **quatre-vingt-une réponses FAQ** en
+**onze parties** et toujours **vingt-six illustrations V2**.
+
+### Placement et sources
+
+- L’identifiant N01 est conservé, mais la destination initiale
+  `analyser/rechercher.html` devient `traiter/rechercher.html` : les deux commandes
+  sont dans Importer et traiter, aux niveaux Corpus et Entretien. Le chapitre
+  rejoint la liste Corpus après Gestion des entretiens ; un accès direct depuis
+  Entretien évite de dupliquer les procédures. Analyser s’ouvrira avec N02.
+- Sources relues : recherche et marqueurs dans `Corpus.vue`, fonctions
+  `src/renderer/editor/rechercheCorpus.ts` et `recherche.ts`, composable
+  `useRechercheEntretien.ts`, boîte dans `Entretien.vue`, lecture dans
+  `src/main/corpusStore.ts`, canal de lecture dans `src/main/index.ts`
+  et ouverture au passage dans `useOperationsCorpus.ts`.
+- Tests et recettes existants relus comme sources, sans exécution :
+  `test/editor.rechercheCorpus.test.ts`, `test/trouverOccurrences.test.ts`,
+  `e2e/recherche-entretien.e2e.ts` et passage recherche/remplacement déjà consigné
+  pour T03 dans `e2e/documentation-traitement.e2e.ts`.
+
+### Rédaction et limites explicites
+
+- Même raccourci Ctrl+F / Cmd+F, portée déterminée par le niveau affiché.
+  Corpus : lancement explicite, Mot entier, occurrences par entretien, marqueurs
+  sur l’axe du texte, extrait sans ouverture puis accès à la source.
+  Entretien : recherche au fil de la saisie, compteur, navigation cyclique,
+  reprise possible d’une sélection initiale et fermeture des surlignages.
+- Recherche littérale dans les paroles transcrites : casse ignorée, accents pris
+  en compte, absence de correspondance à cheval sur deux paragraphes, de synonymes
+  ou de recherche combinée. Les notes, commentaires, noms de locuteurs et variables
+  ne sont pas recherchés dans ces deux parcours. Le texte original reste la source,
+  pas les pseudonymes seulement affichés par les annotations.
+- Remplacement limité à l’entretien modifiable : pas de Mot entier dans cette
+  boîte, Tout immédiat sans confirmation, remplacement vide supprimant le texte,
+  annulation récente dans l’éditeur et différence avec la pseudonymisation.
+- Limite confirmée à la lecture : la recherche corpus ne possède pas de bilan de
+  complétude ni de péremption. Les lectures `ok: false` sont ignorées ; un corps
+  non interprétable produit zéro résultat, et une exception peut interrompre le
+  calcul. Le chapitre et la FAQ ne concluent jamais qu’un corpus entier est exempt
+  d’un mot sur la seule base de la liste. Les avertissements restent à améliorer.
+  Après relecture, l’utilisateur juge excessive la mention de textes illisibles
+  dans le guide courant : cette précision et le contrôle systématique d’ouverture
+  sont retirés du chapitre et de la FAQ. L’explication se limite à l’orthographe,
+  aux accents, aux formulations et à la relance après correction ; le constat
+  technique reste dans ce suivi et la documentation développeur.
+- La lecture distante utilise la copie du poste, pas une nouvelle lecture serveur
+  à chaque requête. Actualisation et relance explicites avant de conclure ; aucune
+  promesse d’analyse complète ou à jour hors ligne. Les nombres restent des
+  correspondances textuelles, pas des conclusions sur les sujets de l’enquête.
+
+### Intégration et état des vérifications
+
+- Sommaire, README, registre et plan ajustés au placement effectif dans Traiter.
+  Liens Gestion des entretiens → Recherche → Personnes actualisés, retrait visuel
+  des sous-parties conservé. La section `corriger.html#rechercher` reste accessible
+  avec un résumé et des renvois vers la procédure unique.
+- La capture `rechercher-remplacer.png` déjà produite lors de T03 est déplacée
+  éditorialement vers N01 ; aucun fichier image n’est recréé. Les vingt-six
+  illustrations existantes sont conservées, sans nouvelle qualification de leur
+  concordance avec les repères applicatifs ajoutés depuis.
+- Quatre réponses dans une nouvelle section FAQ Rechercher et remplacer : portée
+  du raccourci, parties de mots, recherche vide et portée du bouton Tout.
+- `e2e/documentation.e2e.ts` attend sept chapitres dans la liste Corpus, le
+  vingt-sixième chapitre dans la lecture suivie, onze parties FAQ, quatre-vingt-une
+  questions et deux nouveaux renvois. Le scénario n’est pas relancé.
+- La documentation développeur de Traiter décrit les deux moteurs et les limites
+  de complétude. Aucun changement applicatif, nouveau test local ou distant,
+  serveur ou banc Docker, capture ou empaquetage pour ce sous-lot.
+  **N01 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+
+### Suite
+
+Faire relire N01, ses quatre réponses FAQ et son placement dans Importer et traiter,
+notamment les limites d’un résultat vide et les précautions du remplacement.
+Prochaine rédaction proposée : **N02 — Rassembler des passages avec Tri et synthèse**.
+Conserver le signalement des recherches incomplètes, les qualifications distantes,
+les repères Corpus / Entretien et les points applicatifs déjà ouverts parmi les
+travaux restant à vérifier.
+
+## 37. Rassembler des passages avec Tri et synthèse
+
+Page ajoutée : [Rassembler des passages avec Tri et synthèse](../../docs/user/analyser/tri-synthese.html).
+Elle ouvre **Analyser et interpréter**, après les chapitres de traitement et avant
+les exports. Le guide compte **vingt-sept chapitres**, **quatre-vingt-cinq réponses
+FAQ** en **douze parties**, et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/user/synthese.md`, `docs/dev/analyser/synthese.md`,
+  `AnalyserInterpreter.vue`, `SyntheseCote.vue`, `SynthesePanneau.vue`,
+  `VueEnsembleSynthese.vue`, `ListeExtraitsSynthese.vue`, `useSyntheseCorpus.ts`
+  et `useSourcesAnalyseCorpus.ts`.
+- Contrats, moteur, résumé et export sous `src/shared/synthese/`, projection dans
+  `src/renderer/editor/synthese.ts`, ouverture de la source et péremption dans
+  `src/renderer/composables/sonal.ts`, choix de destination TXT dans `src/main/index.ts`.
+- Après relecture, l’utilisateur relève une dépendance excessive au terrain
+  pédagogique. La procédure part désormais d’un thème déjà utilisé dans le corpus
+  du lecteur, sans nom imposé ni exercice préalable. Le corpus exemple devient
+  facultatif ; l’illustration Horaires / Fatigue explique son contexte sur place.
+  Ce principe est inscrit dans le cadre éditorial pour les pages suivantes et
+  la relecture des précédentes.
+- Calcul à partir d’au moins un thème ou un cas, sans exiger de cas pour le premier
+  essai. L’outil ne rédige pas de résumé automatique et ne recode pas les sources.
+- Critères expliqués progressivement : entretiens sélectionnés, rôle enquêteur
+  exclu au départ, variables d’entretien ou de locuteur, personne qui parle plutôt
+  que personne mentionnée, cas facultatifs et onglet masqué en l’absence de cas.
+  Tous les thèmes au même endroit signifie chevauchement des codages, non simple
+  présence dans le même entretien. Plusieurs dimensions se restreignent mutuellement.
+- Deux représentations d’une même collection, affichage des entretiens sans extrait,
+  contexte et ouverture à la source. Les barres suivent le texte, pas la durée audio ;
+  les extraits et caractères source ne sont pas des comptes de codages ou de secondes.
+- Diagnostic d’un résultat vide centré sur les choix ordinaires : thème non utilisé,
+  entretiens décochés, correspondance des thèmes, critères et rôle d’enquêteur.
+  Les avertissements techniques ne sont développés que lorsque l’interface affiche
+  effectivement Périmé ou Résultat incomplet, conformément au retour éditorial N01.
+- Résultat périmé encore lisible, navigation et export bloqués jusqu’au recalcul ;
+  résultat incomplet consultable, export bloqué. Le bouton Copier n’a pas ces gardes :
+  la page demande de vérifier le bilan avant de réutiliser une citation.
+- Mode pseudonymisé au départ ou original sur choix explicite, commun à l’écran,
+  au contexte, à la copie et au TXT. Titres et critères restent à contrôler ; le
+  résumé peut inclure les variables privées utilisées pour filtrer.
+- Copie du seul texte d’un extrait et TXT avec date, résumé des critères, sources,
+  locuteurs et thèmes, sans média ni contexte ajouté. Destination locale proposée
+  dans `resultats/synthese/`, Documents du poste en distant, sans publication automatique.
+  Les calculs en mémoire ne remplacent ni un export conservé ni une sauvegarde.
+- Local et distant distingués sans nouvelle recette : données du poste et entretien
+  ouvert en mémoire, absence de publication déclenchée par le calcul, actualisation
+  du corpus puis de la synthèse pour reprendre les changements d’équipe.
+
+### Intégration et état des vérifications
+
+- Nouvelle partie Analyser et interpréter dans le sommaire et le README, sans entrée
+  vide pour Lexico ou les analyses croisées. Liens de suite Annulation → Tri et
+  synthèse → Exporter un entretien actualisés ; renvoi dans la documentation développeur.
+- Quatre réponses dans la nouvelle partie FAQ Analyses et résultats : aucun extrait,
+  thèmes au même endroit, export grisé et mode de texte de la copie ou de l’export.
+- `e2e/documentation.e2e.ts` adapté aux six listes de chapitres, à la nouvelle partie,
+  au vingt-septième chapitre, aux douze parties FAQ, aux quatre-vingt-cinq questions
+  et à deux renvois. Le scénario n’est pas relancé.
+- `test/synthese.test.ts` et `e2e/synthese.e2e.ts` relus comme sources, sans exécution.
+  L’attente du bouton de cette dernière recette utilise maintenant le libellé réel
+  Calculer la synthèse plutôt que Calculer ; ce changement n’est pas qualifié par
+  un nouveau passage dans Electron.
+- Aucune nouvelle capture, modification applicative, exécution de test local ou
+  distant, sollicitation de serveur ou de banc Docker, ni reconstruction du paquet.
+  **N02 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+  Le fichier source utilisateur `synthese.md` reste inchangé pour la consolidation.
+
+### Suite
+
+Faire relire N02 et ses réponses FAQ, en particulier les intersections de critères,
+la différence entre copie et export, et les informations sensibles dans le TXT.
+Prochaine rédaction proposée : **N03 — Explorer les mots avec Lexico**, puis N04
+pour les traitements lexicaux. Les qualifications distantes, les repères Corpus /
+Entretien, les liens d’installation et les points applicatifs déjà consignés restent
+à reprendre séparément.
+
+## 38. Explorer les mots avec Lexico
+
+Page ajoutée : [Explorer les mots avec Lexico](../../docs/user/analyser/lexico.html).
+Elle complète Analyser et interpréter entre Tri et synthèse et les exports.
+Le guide compte **vingt-huit chapitres**, **quatre-vingt-neuf réponses FAQ** en
+**douze parties**, et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/user/lexico.md`, `docs/dev/analyser/lexico.md`,
+  `LexicoCote.vue`, `LexicoPanneau.vue`, `useLexicoCorpus.ts`, extraction dans
+  `src/renderer/editor/lexico.ts`, sélection et agrégation dans
+  `src/shared/lexico/moteur.ts`, contrats dans `types.ts`, export dans `export.ts`
+  et destination dans `src/main/index.ts`.
+- Entrée autonome depuis le corpus du lecteur, sans thème, cas ou exercice requis.
+  La copie d’un corpus exemple reste facultative ; aucun nom de thème ni entretien
+  du terrain pédagogique n’est imposé. Le petit exemple chiffré explique les deux
+  comptes sans présumer de données particulières.
+- Chargement à l’ouverture, occurrences et nombre d’entretiens distincts,
+  tri des colonnes, clic de ligne versus cases destinées aux traitements,
+  concordances et accès à la source. Seule l’occurrence centrale est comptée :
+  les mots du contexte peuvent dépasser le périmètre thématique ou de cas.
+- Distinction centrale entre filtres de matériaux et affichage du tableau :
+  recherche de forme, fréquence minimale et nombres ne changent pas le bilan.
+  La recherche du tableau ignore les accents pour retrouver les lignes, sans
+  fusionner les graphies distinctes de l’index.
+- Sans restriction, sélection explicite de la liste actuelle et sélection vide
+  distinguées. Tout cocher n’inclut pas automatiquement les futurs entretiens,
+  toutes les personnes ne couvrent pas les locuteurs non associés et tous les cas
+  ne couvrent pas les passages hors cas. Réinitialiser la sélection retire les
+  filtres et rétablit l’exclusion des enquêteurs, mais conserve affichage et traitements.
+- Filtres appliqués à la même occurrence, variables d’entretien ou de locuteur,
+  rôles enquêteurs, personnes qui parlent et matériaux existants des cas.
+  Contrairement à Tri et synthèse, les filtres dérivent immédiatement les comptes
+  de l’index chargé ; Actualiser sert à renouveler les sources.
+- Index pseudonymisé dès la construction : pseudonyme multi-mot compté comme une
+  unité, mots remplacés non comptés à cet emplacement, noms restés en clair toujours
+  possibles. Pas de bascule vers l’original. Les traitements enregistrés expliquent
+  d’autres différences de comptes sans réécrire les transcriptions ; leurs procédures
+  de modification restent réservées à N04.
+- Avertissements décrits seulement lorsqu’ils sont affichés : sources changées,
+  Analyse incomplète ou filtre de cas indisponible. Export bloqué pour un résultat
+  périmé ou incomplet. La navigation dans une concordance n’a pas la garde de
+  péremption de Tri et synthèse ; le chapitre demande donc d’actualiser avant de
+  rejoindre une ancienne position, sans présenter ce bouton comme désactivé.
+- CSV/TSV des seules lignes affichées, pas des seules cases cochées ni des
+  concordances. Sources demandées, résumé et paramètres joints ; identités des
+  filtres de personnes et détail des variables privées masqués dans le résumé,
+  sans garantie d’anonymat des formes ou des titres. CSV séparé par virgule,
+  TSV par tabulation ; dossier local `resultats/lexico/` ou Documents du poste
+  en distant, sans publication automatique sur le serveur.
+
+### Intégration et état des vérifications
+
+- Sommaire et README enrichis, liens Tri et synthèse → Lexico → Exporter un entretien
+  actualisés ; renvoi ajouté dans la documentation développeur.
+- Quatre réponses dans Analyses et résultats : cases décochées sans restriction,
+  différence bilan/tableau, contexte hors filtre et contenu de l’export.
+- `e2e/documentation.e2e.ts` adapté aux deux chapitres d’Analyse, au vingt-huitième
+  chapitre de la lecture suivie, aux quatre-vingt-neuf questions et à deux renvois
+  FAQ. Les douze parties FAQ et les six listes du sommaire sont conservées.
+  Le scénario n’est pas relancé.
+- Relecture de `test/lexico.test.ts` et des passages Lexico de
+  `e2e/espaces-contexte.e2e.ts` comme sources du comportement, sans exécution.
+- Aucune nouvelle capture, modification applicative, exécution de test local ou
+  distant, sollicitation de serveur ou de banc Docker, ni reconstruction du paquet.
+  **N03 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+  L’ancien fichier `docs/user/lexico.md` reste inchangé pour la consolidation.
+
+### Suite
+
+Faire relire N03 et ses réponses FAQ, notamment la différence entre les filtres et
+l’affichage, le contexte non compté et le périmètre des exports.
+Prochaine rédaction proposée : **N04 — Adapter le traitement lexical**. Conserver
+les exemples facultatifs et les procédures applicables au corpus du lecteur.
+Les qualifications distantes et les autres points ouverts restent à traiter
+séparément.
+
+## 39. Adapter le traitement lexical
+
+Page ajoutée : [Adapter le traitement lexical](../../docs/user/analyser/traitement-lexical.html).
+Elle suit la consultation de Lexico dans Analyser et interpréter. Le guide compte
+**vingt-neuf chapitres**, **quatre-vingt-treize réponses FAQ** en **douze parties**
+et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/dev/analyser/lexico.md`, règles dans
+  `src/shared/lexico/traitements.ts`, actions et formulaires dans `LexicoPanneau.vue`,
+  enregistrement, annulation et remise à zéro dans `useLexicoCorpus.ts`.
+  Disponibilité distante confrontée au geste `lexico.modifier-traitements` et au
+  dispatch de `corpus:lexicoCommander` dans `src/main/index.ts`.
+- L’utilisateur a demandé le sens de « traitement lexical » avant cette rédaction.
+  Le chapitre commence donc par les trois usages en langage courant : écarter
+  des mots, compter ensemble des formes, compter une expression comme une unité.
+  Les noms de l’interface sont introduits ensuite. Exemples compréhensibles sur
+  place, sans noms de thèmes ou d’entretiens pédagogiques requis.
+- Mots outils depuis les cases du tableau ou la saisie directe, lecture des listes
+  proposées avant application et retrait d’une exclusion. Le texte des entretiens
+  reste conservé ; les règles sont communes au corpus, pas au seul filtre courant.
+- Personnalisation distincte de l’application : Enregistrer cette liste conserve
+  le contenu proposé par le bouton de liste, sans modifier les exclusions actives.
+  Restaurer la liste d’origine retire seulement la personnalisation. Les brouillons
+  ne sont pas validés à la fermeture du détail.
+- Regroupement manuel de plusieurs formes ou changement de libellé d’une seule,
+  Appliquer / Annuler et vérification des concordances. Les paroles restent celles
+  de la transcription ; les entretiens distincts ne sont pas additionnés deux fois.
+- Expression décrite avant le terme Concaténations : suite de formes séparées par +,
+  libellé facultatif, nombre de suites trouvées, ajout et vérification. Le compteur
+  préparatoire parcourt l’index chargé avant les filtres et traitements, pas les
+  seuls matériaux retenus. Une règle déjà active peut modifier le résultat final.
+- Effet des trois opérations sur les comptes, influence des filtres et de la recherche
+  restée sur un ancien libellé, expression réunie avant mots outils et contrôle des
+  concordances. Aucun remplacement du texte, des codages ou de la pseudonymisation.
+- Retrait individuel, annulation de session limitée à trente changements et Tout
+  retirer distingués. Tout retirer agit sans confirmation, conserve les textes et
+  les personnalisations des listes proposées. Réinitialiser la sélection ne retire
+  pas les traitements. Règles persistées et historique non persistant explicités.
+- Lecture seule consultable, enregistrement commun au corpus partagé et refus d’un
+  changement concurrent expliqués sans mécanismes internes. Ces indications viennent
+  des sources, pas d’une nouvelle qualification Nextcloud ou GitLab.
+
+### Intégration et état des vérifications
+
+- Sommaire, README et liens Lexico → Traitement lexical → Exporter un entretien
+  actualisés ; renvoi ajouté depuis N03 et dans la documentation développeur.
+- Quatre réponses dans Analyses et résultats : conservation du texte, différence
+  regroupement/expression, restauration d’une liste et annulation après réouverture.
+- `e2e/documentation.e2e.ts` adapté aux trois chapitres d’Analyse, au vingt-neuvième
+  chapitre de la lecture suivie, aux quatre-vingt-treize questions et à deux renvois
+  FAQ. Les douze parties FAQ et les six listes du sommaire sont conservées.
+  Le scénario n’est pas relancé.
+- Relecture des passages de `test/lexico.test.ts` sur les trois traitements et
+  les listes, de `test/corpusStore.test.ts` sur la persistance et le refus d’une
+  base modifiée, et de `e2e/espaces-contexte.e2e.ts` sur le brouillon de regroupement.
+  Ces tests et recettes servent de sources, sans nouvelle exécution.
+- Aucune nouvelle capture, modification applicative, exécution de test local ou
+  distant, sollicitation de serveur ou de banc Docker, ni reconstruction du paquet.
+  **N04 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+  L’ancien fichier utilisateur `lexico.md` reste inchangé pour la consolidation.
+
+### Suite
+
+Faire relire N04 et ses réponses FAQ, particulièrement les listes proposées versus
+les exclusions actives, la portée commune au corpus et la durée de l’annulation.
+Prochaine rédaction proposée : **N05 — Comparer avec les analyses croisées**, puis
+N06 pour la vérification et l’interprétation des résultats. Conserver des exemples
+facultatifs, des procédures autonomes et les qualifications distantes séparées.
+
+## 40. Comparer avec les analyses croisées
+
+Page ajoutée : [Comparer avec les analyses croisées](../../docs/user/analyser/analyses-croisees.html).
+Elle suit Traitement lexical dans Analyser et interpréter. Le guide compte
+**trente chapitres**, **quatre-vingt-dix-sept réponses FAQ** en **douze parties**,
+et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Sources relues : `docs/dev/analyser/analyses-croisees.md`, sélection dans
+  `AnalysesCote.vue`, présentation et export dans `AnalysesPanneau.vue`, matrice
+  et justificatifs dans `MatriceThemesMateriaux.vue` et `DetailCelluleAnalyse.vue`.
+- Calcul et fraîcheur dans `useAnalysesCroisees.ts`, moteur et export sous
+  `src/shared/analysesCroisees/`, projection dans
+  `src/renderer/editor/analysesCroisees.ts`, destination dans `src/main/index.ts`
+  et préparation de Synthèse dans `src/renderer/composables/sonal.ts`.
+- Portée annoncée dès l’entrée : tableau thèmes par entretiens, pas croisement
+  de variables ni cooccurrences de thèmes. Le lecteur choisit des thèmes déjà
+  utilisés dans son propre corpus ; aucun thème d’exercice n’est imposé.
+- Sélection explicite d’au moins un thème et un entretien, initialisation sans
+  calcul automatique, sous-thèmes cochés séparément et calcul à la demande.
+  Les filtres des autres outils et les traitements lexicaux ne sont pas repris.
+  Les paroles des enquêteurs codées restent comptées.
+- Passages distincts des annotations posées, volume sans double recouvrement
+  d’un même thème et couverture rapportée à la longueur source. Pas de durée
+  audio ni de longueur du texte pseudonymisé. Couverture totale pondérée par
+  les longueurs, non moyenne simple ; pas de total par colonne additionnant
+  les thèmes qui peuvent se superposer.
+- Recherches, masquage des zéros et tri limités à la présentation ; les totaux
+  restent ceux du calcul complet. Zéro décrit les codages retenus, pas l’absence
+  du sujet dans les propos. Justificatifs, contexte, retour à la source et mode
+  pseudonymisé/original sans modification des mesures.
+- Afficher dans Tri et synthèse prépare seulement le thème et l’entretien.
+  Les autres critères et l’exclusion initiale des enquêteurs y restent actifs ;
+  calcul et relecture des critères sont nécessaires, sans promesse d’une copie
+  identique des passages de la matrice.
+- Périmé bloque l’ouverture des passages, le passage vers Synthèse et l’export,
+  sans effacer l’ancien résultat. Résultat incomplet décrit uniquement les
+  avertissements effectivement affichés ; indisponible n’est pas zéro.
+  Lecture distante sur les données du poste, sans publication des corrections.
+- Export Matrice pour la mesure choisie, ou Format long avec les trois mesures
+  pour chaque couple thème/entretien. Le fichier reprend toute la sélection du
+  dernier calcul, sans suivre les recherches, le masquage ou le tri de présentation.
+  Contrairement à Lexico et Synthèse, un résultat incomplet non périmé reste
+  exportable, avec état, diagnostics et valeurs indisponibles vides.
+- CSV/TSV avec date, valeurs et intitulés, sans transcriptions ni justificatifs.
+  Choisir le texte original dans le détail n’ajoute pas les paroles au fichier ;
+  les champs libres et les messages restent à contrôler. Destination locale
+  `resultats/analyses-croisees/` ou Documents du poste en distant, sans publication
+  automatique. Aucun chiffre n’est présenté comme une conclusion statistique.
+
+### Intégration et état des vérifications
+
+- Sommaire, README et liens Traitement lexical → Analyses croisées → Exporter un
+  entretien actualisés ; renvoi ajouté dans la documentation développeur.
+- Quatre réponses dans Analyses et résultats : passages versus codages, couvertures
+  non additionnables, différence avec Synthèse et périmètre/état de l’export.
+- `e2e/documentation.e2e.ts` adapté aux quatre chapitres d’Analyse, au trentième
+  chapitre de la lecture suivie, aux quatre-vingt-dix-sept questions et à deux
+  renvois FAQ. Douze parties FAQ et six listes du sommaire conservées.
+  Le scénario n’est pas relancé.
+- `test/analysesCroisees.test.ts` relu pour les mesures et exports ; passages de
+  `e2e/analyse-pas-a-pas.e2e.ts` relus pour le calcul et le lien vers Synthèse,
+  sans les exécuter ni imposer les données de ce parcours dans la documentation.
+- Aucune nouvelle capture, modification applicative, exécution de test local ou
+  distant, sollicitation de serveur ou de banc Docker, ni reconstruction du paquet.
+  **N05 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+
+### Suite
+
+Faire relire N05 et ses réponses FAQ, particulièrement le sens des mesures,
+les critères conservés en passant à Synthèse et les exports de sélections masquées
+ou de résultats incomplets. Prochaine rédaction proposée : **N06 — Vérifier et
+interpréter les résultats**, sans répéter les procédures propres aux outils.
+Conserver les recettes distantes et les autres qualifications ouvertes à part.
+
+## 41. Vérifier et interpréter les résultats
+
+Page ajoutée : [Vérifier et interpréter les résultats](../../docs/user/analyser/verifier-resultats.html).
+Elle termine la partie Analyser et interpréter, après les Analyses croisées.
+Le guide compte **trente et un chapitres**, **cent une réponses FAQ** en
+**douze parties**, et toujours **vingt-six illustrations V2**.
+
+### Sources et rédaction
+
+- Documentation développeur des trois analyses et des retours contextuels relue,
+  avec les pages utilisateur N02 à N05 comme points d’entrée vers les procédures.
+- Critères appliqués, péremption et possibilités d’export confrontés aux composables
+  `useSyntheseCorpus.ts`, `useLexicoCorpus.ts` et `useAnalysesCroisees.ts`.
+  `useSourcesAnalyseCorpus.ts` confirme le chargement des données du poste et de
+  l’entretien ouvert en mémoire ; aucun calcul ne vaut publication à l’équipe.
+- Libellés et états relus dans les panneaux, la matrice et les justificatifs.
+  La méthode ne crée pas un quatrième outil et ne demande aucun corpus d’exercice.
+  L’exemple de fréquence est facultatif et expliqué sur place.
+- Sélection des sources, intersection des critères, inclusion des enquêteurs,
+  traitements Lexico et affichage distingués. Le détail de Synthèse décrit le
+  dernier calcul ; les filtres Lexico s’appliquent à l’index déjà chargé.
+- Actualité et complétude séparées, avec les avertissements réellement affichés,
+  sans développer d’hypothèses de corruption. Un zéro n’est pas une preuve
+  d’absence du sujet ; une valeur indisponible n’est pas un zéro.
+- Retour aux propos, locuteur et contexte avant de conclure. Une consultation
+  liée ne restaure pas un ancien contenu ni n’annule les corrections ; une
+  navigation libre peut terminer le retour proposé. L’actualisation reste explicite
+  lorsqu’elle est nécessaire, sans annoncer un recalcul automatique commun aux outils.
+- Navigation bloquée si périmée dans Synthèse et les Analyses croisées, mais pas
+  de garde équivalente sur le clic de concordance Lexico. Les recommandations
+  tiennent compte de cette différence plutôt que de promettre une protection uniforme.
+- Unités des trois outils, longueur des entretiens, cohérence du codage, répartition
+  et contre-exemples utilisés pour l’interprétation. Pas de conclusion automatique
+  d’importance, de représentativité ou de durée audio à partir des chiffres.
+- Trace conseillée dans les notes de travail : question, date, corpus, sources,
+  critères, mesures, traitements, mode de texte, avertissements et passages retenus.
+  Les exports ne restaurent ni les réglages ni l’ancienne version des sources ;
+  renvoi à la sauvegarde datée pour conserver un état du corpus local.
+- Tableau transversal des sorties : TXT des extraits, lignes affichées de Lexico,
+  sélection calculée complète des Analyses croisées. Résultat incomplet exportable
+  seulement dans ce dernier outil s’il n’est pas périmé ; copie d’un extrait de
+  synthèse encore possible sur un résultat ancien ou incomplet. Contrôle final
+  du destinataire et des champs d’accompagnement renvoyé au chapitre de diffusion.
+
+### Intégration et état des vérifications
+
+- Sommaire, README et liens Analyses croisées → Vérifier les résultats → Exporter
+  un entretien actualisés. Renvoi ajouté depuis les trois outils et leurs documents
+  développeur, sans dupliquer leurs procédures détaillées.
+- Quatre réponses ajoutées à Analyses et résultats : sens du statut À jour,
+  fréquence versus importance, chiffres différents entre outils et conservation
+  des choix pour une comparaison ultérieure. Cette partie comporte vingt réponses.
+- `e2e/documentation.e2e.ts` adapté aux cinq chapitres d’Analyse, au trente et unième
+  chapitre de la lecture suivie, aux cent une questions et à deux renvois FAQ.
+  La FAQ conserve ses douze parties et le sommaire ses six listes.
+  Le scénario n’est pas relancé.
+- Passages de `test/synthese.test.ts`, `test/analysesCroisees.test.ts`,
+  `test/retoursContextuels.test.ts` et `e2e/espaces-contexte.e2e.ts` relus comme
+  sources, sans exécution. Ils éclairent les unités, les retours et la reprise
+  d’un index Lexico périmé ; ils ne qualifient pas à nouveau le guide.
+- Contrôle rédactionnel : `git diff --check` sans erreur et comptage textuel
+  cohérent avec trente et un chapitres, cent une réponses et vingt-six illustrations.
+  Aucun parcours de navigation ni scénario applicatif exécuté pour ce contrôle.
+- Aucune nouvelle capture, modification applicative, exécution de test local ou
+  distant, sollicitation de serveur ou de banc Docker, ni reconstruction du paquet.
+  **N06 et ses quatre réponses FAQ sont rédigés, à relire**, sans nouvelle recette.
+  La dernière recette réellement exécutée reste celle de la section 27.
+
+### Suite
+
+Faire relire N06 et ses réponses FAQ, particulièrement les états du résultat,
+les unités comparées, le retour après correction et la portée des sorties.
+Prochaine rédaction proposée : **O01 — Constituer et consulter un cas**, puis
+les familles et attributs de cas (O02), les recueils (O03) et les associations de
+passages (O04). Garder des procédures autonomes, des exemples facultatifs et les
+qualifications distantes ou empaquetées séparées de la rédaction.
+
+## 42. Sommaire complet et alignement de la FAQ
+
+À la demande de l’utilisateur, la [FAQ](../../docs/user/faq/premiers-pas.html)
+présente désormais ses **cent une questions sous leurs douze thèmes** dans le
+sommaire, avec leurs intitulés complets et un lien direct vers chaque réponse.
+Les réponses et leurs ancres sont inchangées ; le guide reste à trente et un
+chapitres et vingt-six illustrations.
+
+- Sommaire en listes imbriquées statiques, sans script ni dépendance réseau.
+  Les thèmes restent cliquables, en gras, avec une séparation entre les groupes.
+- Après un second retour utilisateur, le retrait des questions sous les thèmes
+  est rétabli dans le sommaire. Il utilise la même amplitude adaptative que le corps
+  du texte, sans modifier le retrait des questions et réponses déjà corrigé.
+- Correction demandée dans le corps du texte : le premier décalage des seuls titres
+  vers la gauche ne rendait pas le retrait attendu. Les questions, réponses et liens
+  de complément sont désormais alignés ensemble en retrait sous les titres de thèmes.
+  Le retrait s’adapte à la largeur de l’écran et reste limité à la FAQ, y compris
+  à l’impression ; aucun titre ne déborde désormais vers la marge gauche.
+- Une petite puce décorative est ensuite ajoutée devant chaque question dans le
+  corps du texte, à la demande de l’utilisateur. Elle ne change ni les intitulés,
+  ni les ancres, ni le sommaire. Les retraits des questions et réponses sont conservés.
+  L’attente de présence des puces est ajoutée au scénario, sans l’exécuter.
+- `docs/user/style.css` limite ces règles aux classes de la FAQ.
+  L’introduction présente l’accès par thème ou directement par question.
+- `e2e/documentation.e2e.ts` adapté pour comparer les thèmes, les questions et leurs
+  destinations avec les titres du corps ; accès direct à une réponse, retrait sous
+  le thème dans le sommaire comme dans le texte et alignement question/réponse/renvoi
+  prévus dans les attentes corrigées du scénario. Celui-ci n’est pas relancé.
+- Règle ajoutée au plan : toute question nouvelle ou reformulée met à jour le
+  sommaire statique, avec le même intitulé et le même ordre.
+- `git diff --check` sans erreur. Aucune nouvelle exécution de test, ouverture de
+  navigateur de recette, capture, sollicitation de serveur ou reconstruction du paquet.
+  Présentation à relire dans le navigateur lors d’une prochaine qualification.
+
+Prochaine rédaction inchangée : **O01 — Constituer et consulter un cas**.

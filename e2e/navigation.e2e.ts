@@ -78,6 +78,7 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
   await expect(page.locator('.accueil-corpus h3')).toHaveText('Importer et traiter')
   await expect(page.locator('.accueil-corpus .accueil-intro')).toHaveText('Niveau Corpus')
+  await expect(page.locator('.corpus-ecran > .niveau-traitement')).toContainText('Niveau Corpus')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')
   await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
   await expect(page.locator('.accueil-corpus')).toContainText('Cas')
@@ -86,6 +87,7 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.cartes-ent')).toBeVisible()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible()
+  await expect(page.locator('.corpus-ecran > .niveau-traitement')).toBeVisible()
   await expect(page.locator('.grille-corpus')).toBeHidden()
   await expect(page.locator('.fil')).not.toContainText('Table de données')
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
@@ -108,11 +110,14 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
+  await expect(page.locator('.entretien-ecran > .niveau-traitement')).toContainText('Niveau Entretien')
+  await expect(page.getByRole('navigation', { name: 'Navigation de l’entretien', exact: true })).toBeVisible()
 
   // Les cartes de l'accueil ouvrent aussi les onglets de l'entretien.
   await page.locator('.maison .liste-tours').getByRole('button', { name: /^Notes/ }).click()
   await expect(page.locator('[data-onglet="notes"]')).toHaveClass(/actif/)
   await expect(page.locator('aside.panneau.notes')).toBeVisible()
+  await expect(page.locator('.entretien-ecran > .niveau-traitement')).toBeVisible()
 
   // Le bouton ferme l’entretien et revient au corpus.
   await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)

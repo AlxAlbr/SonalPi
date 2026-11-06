@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Réorganiser les codages — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#traiter">Importer et traiter</a> → <a href="../index.html#traiter-corpus">Corpus</a></p>
+    <h1>Réorganiser les codages</h1>
+    <p>Votre grille évolue pendant l’analyse : deux thèmes deviennent redondants, ou un thème trop large mérite d’être séparé. L’<strong>Atelier des thématiques</strong> permet de changer le thème associé aux passages déjà codés, à l’échelle du corpus.</p>
+    <p>Par exemple, dans une enquête fictive sur le bénévolat, vous pouvez réunir « Disponibilités » et « Organisation du temps », ou répartir les codages d’« Engagement bénévole » entre « Motivations » et « Contraintes ». Ces opérations ne réécrivent ni les transcriptions, ni les commentaires, ni les remplacements de pseudonymisation.</p>
+    <p class="retenir"><strong>Ces opérations ne s’annulent pas depuis le Journal du corpus.</strong> Préparez une <a href="../demarrer/sauvegarder-deplacer.html#sauvegarder">sauvegarde de votre corpus local</a> avant une réorganisation importante. Un transfert inverse ne reconstitue pas nécessairement le classement initial, notamment si des doublons ont été retirés.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#choisir">Choisir la bonne opération</a></li>
+        <li><a href="#ouvrir">Ouvrir l’atelier</a></li>
+        <li><a href="#transferer">Transférer les codages vers un autre thème</a></li>
+        <li><a href="#fusionner">Fusionner deux thèmes</a></li>
+        <li><a href="#diviser">Répartir les codages d’un thème</a></li>
+        <li><a href="#apercu">Relire l’aperçu et appliquer</a></li>
+        <li><a href="#fournisseurs">Comprendre les différences local, Nextcloud et GitLab</a></li>
+        <li><a href="#bilan">Lire le bilan et reprendre un lot incomplet</a></li>
+      </ul>
+    </nav>
+    <h2 id="choisir">Choisir la bonne opération</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Votre besoin</th><th scope="col">Commande</th><th scope="col">Résultat</th></tr></thead>
+        <tbody>
+          <tr><td>Déplacer tous les codages d’un thème vers un autre.</td><td><strong>Transférer…</strong></td><td>Les codages quittent la source pour la cible ; la définition du thème source peut être conservée.</td></tr>
+          <tr><td>Réunir deux thèmes qui désignent désormais la même idée.</td><td><strong>Fusionner…</strong></td><td>Les codages rejoignent un thème existant ; les thèmes non retenus comme résultat sont retirés.</td></tr>
+          <tr><td>Reclasser les passages d’un thème trop large.</td><td><strong>Diviser…</strong></td><td>Vous choisissez une destination pour chaque codage parmi deux à quatre thèmes existants.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Pour seulement changer un nom, une description ou la place d’un thème dans la grille, utilisez plutôt <a href="organiser-themes.html">l’édition des thèmes</a>. Pour corriger un seul passage, <a href="premier-codage.html#retirer-codage">retirez son codage dans l’entretien</a>, puis appliquez le bon thème.</p>
+    <p>Les opérations portent sur les codages des thèmes choisis, pas automatiquement sur ceux de leurs sous-thèmes. Déplacer les sous-thèmes dans la grille ne change pas le thème associé à leurs propres passages.</p>
+    <h2 id="ouvrir">Ouvrir l’atelier</h2>
+    <ol>
+      <li>Dans <strong>Importer et traiter</strong>, revenez au niveau <strong>Corpus</strong>.</li>
+      <li>Choisissez l’onglet <strong>Thèmes</strong>. La grille et son crayon restent à gauche ; l’<strong>Atelier des thématiques</strong> remplace les cartes d’entretiens à droite.</li>
+      <li>Choisissez <strong>Transférer…</strong>, <strong>Fusionner…</strong> ou <strong>Diviser…</strong>.</li>
+    </ol>
+    <p>Avant de commencer, terminez vos corrections et fermez les entretiens concernés ouverts en modification. Sur un corpus partagé, une session d’entretien à reprendre peut aussi empêcher sa réorganisation : suivez le message affiché avant de continuer.</p>
+    <p>Un bouton grisé possède une explication : absence de thèmes, destinations insuffisantes, opération indisponible sur ce corpus ou lot précédent à terminer. Pour diviser, créez d’abord les thèmes de destination avec le crayon de la grille.</p>
+    <h2 id="transferer">Transférer les codages vers un autre thème</h2>
+    <ol>
+      <li>Cliquez sur <strong>Transférer…</strong>, puis choisissez la <strong>Thématique source</strong>.</li>
+      <li>Choisissez une <strong>Thématique cible</strong> existante. Pour en créer une à l’application, cochez <strong>Créer une nouvelle thématique cible</strong> et renseignez son nom, sa couleur et son parent.</li>
+      <li>Laissez <strong>Conserver la thématique source</strong> cochée si vous souhaitez garder ce thème dans la grille. Décochez-la seulement si vous souhaitez aussi le retirer et si cette option est disponible.</li>
+      <li>Cliquez sur <strong>Voir l’aperçu</strong>, puis suivez <a href="#apercu">la vérification commune</a>.</li>
+    </ol>
+    <p class="retenir"><strong>Conserver la source ne copie pas ses codages.</strong> Ils sont déplacés vers la cible ; seule la définition du thème source reste disponible pour de nouveaux codages. Si vous retirez la source, ses sous-thèmes remontent sous son ancien parent, sans perdre leurs propres codages.</p>
+    <h2 id="fusionner">Fusionner deux thèmes</h2>
+    <ol>
+      <li>Cliquez sur <strong>Fusionner…</strong>, puis choisissez la <strong>Première thématique</strong> et la <strong>Deuxième thématique</strong>.</li>
+      <li>Choisissez la <strong>Thématique résultante</strong>. Elle doit déjà exister : l’une des deux sources, ou un troisième thème créé au préalable.</li>
+      <li>Cliquez sur <strong>Voir l’aperçu</strong>. Vérifiez les thèmes qui seront retirés et les sous-thèmes déplacés, puis suivez <a href="#apercu">la vérification commune</a>.</li>
+    </ol>
+    <p>Si le résultat est l’une des sources, l’autre est retirée ; si c’est un troisième thème, les deux sources sont retirées. Les sous-thèmes directs des thèmes retirés rejoignent le thème résultant. Celui-ci conserve sa propre place dans la grille.</p>
+    <p>Un thème situé sous une source à retirer n’est pas proposé comme résultat si cette position rend la fusion impossible. Ne contournez pas ce refus en supprimant des thèmes utilisés ; revoyez d’abord l’organisation souhaitée.</p>
+    <h2 id="diviser">Répartir les codages d’un thème</h2>
+    <ol>
+      <li>Créez au préalable les deux à quatre thèmes de destination, puis cliquez sur <strong>Diviser…</strong>.</li>
+      <li>Choisissez la <strong>Thématique source</strong>, le <strong>Nombre de destinations</strong> et chacune des destinations existantes.</li>
+      <li>Si l’option est disponible, ne cochez <strong>Supprimer la source après répartition complète</strong> que si vous souhaitez retirer entièrement ce thème.</li>
+      <li>Cliquez sur <strong>Préparer la répartition</strong>, puis dépliez un entretien pour lire ses passages.</li>
+      <li>Pour chaque codage, cochez sa destination, ou laissez <strong>Source</strong> pour ne pas le déplacer. Sur la ligne sélectionnée, les touches <strong>1 à 4</strong> choisissent la destination correspondante.</li>
+      <li>Pour classer tous les codages de l’entretien déplié de la même façon, choisissez <strong>Tout attribuer à</strong>, puis cliquez sur <strong>Attribuer tout cet entretien</strong>. Ce choix remplace aussi les destinations déjà attribuées dans cet entretien.</li>
+      <li>Examinez également <strong>Passages sans texte (orphelins compris)</strong>, puis cliquez sur <strong>Voir l’aperçu final</strong>.</li>
+    </ol>
+    <p>Chaque codage reçoit au plus une destination dans cette répartition. Les codages sans choix restent sur la source si elle est conservée. Si vous demandez son retrait, <strong>tous</strong> les codages doivent recevoir une destination, y compris ceux signalés comme orphelins, qui n’ont plus de plage de texte exploitable.</p>
+    <p>Les destinations gardent leur place dans la grille. Si la source est retirée, ses sous-thèmes sont replacés sous son ancien parent. Les sous-thèmes ne sont pas eux-mêmes divisés.</p>
+    <p><strong>Consulter l’entretien</strong> permet de lire le contexte dans l’éditeur, mais invalide l’aperçu. Au retour au Corpus, utilisez <strong>Recalculer avec les choix</strong>. Si les fichiers ont changé et que ces choix ne sont plus valides, <strong>Repartir de l’état actuel</strong> recommence la répartition sans les réutiliser automatiquement. Changer de corpus efface ce brouillon.</p>
+    <h2 id="apercu">Relire l’aperçu et appliquer</h2>
+    <p>L’aperçu et les choix de répartition ne modifient pas encore les fichiers. Avant de confirmer, contrôlez :</p>
+    <ul>
+      <li>Les noms des sources et des destinations, et le maintien ou le retrait des thèmes.</li>
+      <li>Le nombre de codages observés et d’entretiens concernés. Il ne s’agit pas nécessairement de passages tous différents.</li>
+      <li>Les <strong>Orphelins</strong>, les <strong>Doublons prévisibles</strong> et les sous-thèmes déplacés lors d’une fusion.</li>
+      <li>Les entretiens indisponibles et les autres obstacles signalés. Un entretien illisible n’est pas un entretien sans codage.</li>
+    </ul>
+    <p>Si la cible possède déjà un codage sur <strong>exactement la même plage</strong>, ce codage cible est conservé et le doublon transféré est retiré. Des plages qui se chevauchent seulement restent distinctes. Les doublons anciens déjà présents dans la cible ne font pas l’objet d’un nettoyage général.</p>
+    <p>Utilisez <strong>Modifier les choix</strong> pour corriger la demande. Si l’aperçu est périmé, recalculez-le avec les commandes proposées ; une confirmation ancienne ne doit pas être réutilisée après une modification des sources.</p>
+    <p>Cliquez sur <strong>Confirmer et appliquer</strong> seulement après cette relecture. C’est l’étape qui lance l’enregistrement. Attendez le bilan : les commandes sont désactivées pendant la modification et aucune interruption n’est proposée pendant l’écriture.</p>
+    <h2 id="fournisseurs">Comprendre les différences local, Nextcloud et GitLab</h2>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Corpus</th><th scope="col">Opérations proposées</th><th scope="col">À surveiller</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Local</th><td>Transfert, fusion et division, avec maintien ou retrait de source selon le choix.</td><td>Les fichiers sont contrôlés à nouveau avant application ; un changement depuis l’aperçu impose un recalcul.</td></tr>
+          <tr><th scope="row">Nextcloud connecté</th><td>Transfert et division, toujours avec source conservée. Pas de fusion ni de retrait de source.</td><td>Les compteurs portent sur les entretiens effectivement lus. Les entretiens indisponibles sont signalés et restent à traiter.</td></tr>
+          <tr><th scope="row">GitLab connecté</th><td>Transfert, fusion et division, y compris avec retrait de source.</td><td>Le retrait final des thèmes peut rester en attente même si des codages ont déjà été déplacés.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Sur un corpus distant en lecture seule ou hors ligne, ces corrections ne sont pas disponibles. Une connexion ne garantit pas que chaque entretien puisse être modifié : un collègue peut déjà l’utiliser ou ses données peuvent avoir changé.</p>
+    <p>Sur GitLab, l’aperçu peut proposer <strong>Traiter les entretiens observés libres</strong> ou <strong>Tenter tous les entretiens prévus</strong>. Le premier choix laisse les autres entretiens en attente ; le second tente aussi leur traitement, sans forcer leur disponibilité. L’état affiché est une observation, pas une garantie pour la suite.</p>
+    <p class="notice">Sur Nextcloud et GitLab, les entretiens sont traités un par un. Un échec sur l’un d’eux n’annule pas les réussites précédentes. Consultez toujours le bilan avant de relancer quoi que ce soit.</p>
+    <h2 id="bilan">Lire le bilan et reprendre un lot incomplet</h2>
+    <p><strong>Opération appliquée</strong> indique les entretiens modifiés, les codages réaffectés et les doublons retirés. Fermez le bilan, puis vérifiez les compteurs des thèmes et quelques passages dans les entretiens. Si seule l’actualisation des usages a échoué, le résultat peut déjà être enregistré : ne relancez pas l’opération pour cette seule raison.</p>
+    <p><strong>Opération non appliquée</strong> indique le refus à résoudre. Recalculez depuis l’état actuel après avoir corrigé sa cause. Un message <strong>Résultat à vérifier</strong> ne signifie ni réussite ni absence de changement.</p>
+    <h3>Dans un corpus local après une interruption</h3>
+    <p>Si le résultat reste inconnu, fermez puis rouvrez le corpus avant un nouveau lancement. SonalPi peut terminer une opération interrompue à la réouverture ; s’il signale un problème, conservez les fichiers et le message plutôt que de répéter l’opération à l’aveugle. Cette reprise n’est pas une annulation.</p>
+    <h3>Dans un corpus distant après un résultat partiel</h3>
+    <ol>
+      <li>Lisez les listes <strong>Entretiens réussis</strong>, <strong>Entretiens à reprendre</strong>, <strong>Entretiens non traités</strong> et, le cas échéant, <strong>Publications inconnues — à vérifier</strong>.</li>
+      <li>Si une publication est inconnue, utilisez d’abord <strong>Vérifier la publication</strong>. Cette vérification recherche le résultat enregistré ; elle ne renvoie pas automatiquement la modification.</li>
+      <li>Une fois le résultat établi et les obstacles résolus, choisissez <strong>Recalculer et reprendre</strong>. Les destinations du lot sont conservées. Pour une division, les codages encore à répartir doivent être examinés à nouveau.</li>
+      <li>Relisez le nouvel aperçu et confirmez explicitement la reprise.</li>
+    </ol>
+    <p>Le suivi d’un lot distant incomplet se retrouve dans l’atelier après fermeture du bilan ou redémarrage. Il doit être repris ou clôturé avant un nouveau lot. Si sa lecture échoue, utilisez <strong>Réessayer la lecture du suivi</strong> plutôt que de démarrer une autre opération.</p>
+    <p>Sur GitLab, contrôlez aussi le <strong>Retrait demandé</strong> et la <strong>Finalisation</strong>. Le retrait d’une source exige une dernière vérification de l’ensemble du corpus ; une nouvelle utilisation du thème, un changement d’entretien ou la taille du corpus peut le bloquer. Les réaffectations déjà réussies restent enregistrées.</p>
+    <p class="retenir"><strong>Clôturer le suivi sans reprendre n’annule rien.</strong> Cette commande conserve les codages déjà déplacés et les thèmes créés ; elle renonce au traitement restant du lot. Elle n’est proposée qu’une fois les résultats connus. <strong>Fermer le bilan</strong> ferme seulement sa fenêtre et laisse le suivi disponible.</p>
+    <p>Pour continuer : <a href="organiser-themes.html">organiser la grille des thèmes</a>, <a href="premier-codage.html">coder dans un entretien</a> ou <a href="../faq/premiers-pas.html#transfert-source">consulter les questions sur la réorganisation</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="organiser-themes.html" rel="prev">← Précédent : organiser ses thèmes</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="donnees.html" rel="next">Suivant : définir les variables et saisir les données →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>

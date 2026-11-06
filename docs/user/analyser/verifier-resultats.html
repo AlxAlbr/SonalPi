@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vérifier et interpréter les résultats — SonalPi</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="saut" href="#contenu">Aller au contenu</a>
+  <header class="entete">
+    <div class="entete-interieur">
+      <a class="marque" href="../index.html">SonalPi</a>
+      <nav aria-label="Navigation principale">
+        <a href="../index.html">Guide utilisateur</a>
+        <a href="../faq/premiers-pas.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenu">
+    <p class="chapitre"><a href="../index.html#analyser">Analyser et interpréter</a></p>
+    <h1>Vérifier et interpréter les résultats</h1>
+    <p>Une liste de mots, un ensemble d’extraits ou une matrice de thèmes aide à explorer un corpus. Avant d’en tirer une conclusion, vérifiez <strong>ce qui a été retenu</strong>, <strong>l’état du résultat</strong> et <strong>les propos qui le justifient</strong>.</p>
+    <p>Cette page propose une méthode de lecture commune à <a href="tri-synthese.html">Tri et synthèse</a>, <a href="lexico.html">Lexico</a> et aux <a href="analyses-croisees.html">Analyses croisées</a>. Ce n’est pas un outil supplémentaire à ouvrir : vous pouvez effectuer ces vérifications sur vos propres résultats, sans exercice préalable.</p>
+    <nav class="sommaire" aria-label="Dans cette page">
+      <strong>Dans cette page</strong>
+      <ul>
+        <li><a href="#selection">Vérifier ce qui entre dans le résultat</a></li>
+        <li><a href="#etat">Distinguer résultat actuel, périmé et incomplet</a></li>
+        <li><a href="#sources">Revenir aux passages sans perdre le fil</a></li>
+        <li><a href="#interpreter">Comparer sans confondre les mesures</a></li>
+        <li><a href="#trace">Garder une trace de vos choix</a></li>
+        <li><a href="#sorties">Contrôler ce qui sera copié ou exporté</a></li>
+      </ul>
+    </nav>
+    <h2 id="selection">Vérifier ce qui entre dans le résultat</h2>
+    <p>Commencez par formuler votre question : comparez-vous un thème entre plusieurs entretiens, les mots d’un groupe de personnes ou les passages répondant à plusieurs critères ? Puis relisez les choix de l’outil :</p>
+    <ol>
+      <li><strong>Les sources :</strong> les entretiens attendus sont-ils retenus ? Une sélection vide ne signifie pas nécessairement « tous » ; dans Lexico, regardez le badge Sans restriction plutôt que les seules cases.</li>
+      <li><strong>Les critères :</strong> les personnes, variables, thèmes ou cas sélectionnés correspondent-ils à votre question ? Dans Lexico et Tri et synthèse, plusieurs critères se restreignent mutuellement.</li>
+      <li><strong>Les paroles des enquêteurs :</strong> sont-elles incluses ? Lexico et Tri et synthèse les excluent au départ, alors que les Analyses croisées comptent leurs passages codés.</li>
+      <li><strong>Le traitement des mots :</strong> si vous utilisez Lexico, des exclusions, regroupements ou expressions réunies changent-ils ce qui est compté ?</li>
+      <li><strong>L’affichage :</strong> une recherche, un seuil de fréquence ou des lignes masquées limitent-ils seulement ce que vous voyez ?</li>
+    </ol>
+    <p>Dans Tri et synthèse, <strong>Détail des critères</strong> décrit le résultat du dernier calcul, pas nécessairement les nouveaux choix que vous venez de faire. Dans Lexico, <strong>Voir les critères</strong> rappelle les filtres appliqués à l’index. Dans les Analyses croisées, les cases de sélection à gauche ne remplacent pas le calcul : actualisez après les avoir modifiées.</p>
+    <p>Pour comprendre une différence inattendue, partez d’une sélection simple, puis changez <strong>un critère à la fois</strong>. Les étapes propres à chaque outil restent décrites dans <a href="tri-synthese.html#criteres">les critères de synthèse</a>, <a href="lexico.html#filtres">les filtres Lexico</a> et <a href="analyses-croisees.html#calculer">la sélection des analyses croisées</a>.</p>
+    <h2 id="etat">Distinguer résultat actuel, périmé et incomplet</h2>
+    <p>Attendez la fin du chargement ou du calcul avant de noter un chiffre. Lisez ensuite le bilan et les éventuels avertissements ; les intitulés varient selon l’outil :</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">État affiché</th><th scope="col">Ce qu’il signifie</th><th scope="col">Action utile</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">À calculer</th><td>L’outil attend une sélection et un premier calcul.</td><td>Choisissez les matériaux nécessaires, puis lancez le calcul.</td></tr>
+          <tr><th scope="row">À jour</th><td>Le résultat correspond au calcul effectué sur les données disponibles dans l’application.</td><td>Vérifiez encore la sélection et le sens des mesures ; ce statut ne valide pas votre interprétation.</td></tr>
+          <tr><th scope="row">Périmé / Les sources ont changé</th><td>Le résultat encore visible est antérieur à une modification des sources ou des choix.</td><td>Vérifiez les critères, puis actualisez l’outil avant de conclure ou d’exporter.</td></tr>
+          <tr><th scope="row">Résultat incomplet / Analyse incomplète</th><td>Le calcul signale des éléments qui n’ont pas pu être pris en compte normalement.</td><td>Dépliez l’avertissement, examinez les éléments indiqués et actualisez après leur résolution. Gardez cette réserve si vous utilisez les données disponibles.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Actuel</strong> et <strong>complet</strong> répondent à deux questions différentes. Un résultat peut être récent mais partiel. Dans la matrice, une valeur signalée Indisponible n’est pas un zéro ; un résultat vide ou une case à zéro ne prouve pas à lui seul que le sujet n’a jamais été abordé.</p>
+    <p>Les commandes d’actualisation sont <strong>Actualiser la synthèse</strong>, <strong>Actualiser</strong> dans Lexico et <strong>Actualiser l’analyse</strong> dans les Analyses croisées. Changer les filtres Lexico recalcule immédiatement les comptes de l’index chargé ; cela ne remplace pas une actualisation des transcriptions si elles ont changé.</p>
+    <p>Sur un corpus partagé, ces analyses utilisent les données disponibles sur votre poste et, pour l’entretien ouvert, le texte en cours de travail. Elles ne publient pas vos corrections. Si vous attendez des changements de collègues, actualisez d’abord le corpus lorsque vous êtes connecté, puis l’analyse. Un résultat marqué À jour n’est pas une preuve que tous les postes disposent du même état.</p>
+    <h2 id="sources">Revenir aux passages sans perdre le fil</h2>
+    <ol>
+      <li>Choisissez un résultat que vous comptez utiliser : extrait, forme de l’index ou case de la matrice.</li>
+      <li>Lisez son contexte et vérifiez qui parle, à quelle question et dans quelle situation.</li>
+      <li>Ouvrez la source pour relire un passage plus large : <strong>Ouvrir dans l’entretien</strong> depuis un extrait ou un justificatif, ou clic sur une concordance dans Lexico.</li>
+      <li>Revenez à l’analyse avec le retour proposé en haut de la fenêtre lorsqu’il est affiché, ou en rouvrant l’outil dans <strong>Analyser et interpréter</strong>.</li>
+      <li>Si vous avez corrigé le texte, les rôles, les codages ou les informations utilisées par l’analyse, actualisez avant de reprendre la comparaison.</li>
+    </ol>
+    <p>Le retour à l’analyse retrouve votre travail de consultation ; il <strong>n’annule pas les corrections</strong> effectuées dans l’entretien et ne remet pas les sources dans leur ancien état. Changer librement d’espace ou fermer un entretien peut faire disparaître ce retour proposé : les boutons des espaces permettent toujours de retrouver les outils.</p>
+    <p>Un résultat périmé bloque l’ouverture des passages dans Tri et synthèse et les Analyses croisées. Dans Lexico, le clic sur une concordance n’a pas cette même protection : si l’outil signale un changement de source, actualisez avant de vous fier à son ancienne position.</p>
+    <p>Le contexte peut dépasser les matériaux sélectionnés, notamment dans les concordances Lexico : les mots voisins aident à comprendre l’occurrence sans être tous ajoutés au compte. Le <strong>texte original</strong> et le <strong>texte pseudonymisé</strong> ne sont pas non plus interchangeables pour diffuser une citation ; vérifiez le mode de lecture lorsqu’un choix est proposé.</p>
+    <h2 id="interpreter">Comparer sans confondre les mesures</h2>
+    <p>Les outils ne comptent pas tous la même chose :</p>
+    <ul>
+      <li><strong>Lexico :</strong> occurrences d’une forme et nombre d’entretiens distincts où elle est retenue, après les filtres et traitements.</li>
+      <li><strong>Tri et synthèse :</strong> extraits répondant aux critères et volume de texte source retenu.</li>
+      <li><strong>Analyses croisées :</strong> passages, volume ou couverture d’un thème dans chaque entretien.</li>
+    </ul>
+    <p>Un nombre d’occurrences n’est donc ni un nombre de personnes, ni un nombre de codages, ni une durée de parole. Les barres et les volumes des analyses se rapportent au texte, pas au temps de l’enregistrement. Pour les pourcentages et les recouvrements, consultez <a href="analyses-croisees.html#mesures">le sens des mesures et des totaux</a>.</p>
+    <p>Par exemple, un mot prononcé vingt fois dans un seul entretien n’est pas nécessairement plus partagé qu’un autre présent dix fois dans cinq entretiens. Le premier peut refléter un récit plus long, une question insistante ou un emploi particulier. Les concordances et les passages permettent de comprendre cette différence.</p>
+    <p>Avant de conclure, demandez-vous :</p>
+    <ul>
+      <li>Les entretiens ont-ils des longueurs et des situations comparables ? Les mêmes questions ont-elles été posées ?</li>
+      <li>Les thèmes ont-ils été appliqués de façon cohérente ? Une absence de codage peut-elle expliquer un zéro ?</li>
+      <li>Une même forme a-t-elle plusieurs sens, ou le même sujet est-il exprimé avec d’autres mots ?</li>
+      <li>Le résultat dépend-il surtout d’un entretien ou d’une seule personne ?</li>
+      <li>Quels passages nuancent ou contredisent l’interprétation envisagée ?</li>
+    </ul>
+    <p class="retenir"><strong>Un chiffre est un repère pour l’analyse, pas une conclusion automatique.</strong> Appuyez l’interprétation sur les propos, les choix de sélection et les conditions de l’enquête, pas seulement sur le classement d’un tableau.</p>
+    <h2 id="trace">Garder une trace de vos choix</h2>
+    <p>Si vous souhaitez comparer deux résultats plus tard, notez dans vos notes de travail :</p>
+    <ul>
+      <li>La question étudiée, le corpus utilisé et la date du calcul ou de l’actualisation.</li>
+      <li>Les entretiens retenus et les critères : thèmes, personnes, cas, variables et inclusion des enquêteurs selon l’outil.</li>
+      <li>La mesure choisie et, pour Lexico, les traitements et les réglages d’affichage.</li>
+      <li>Le mode de texte utilisé pour les extraits ou justificatifs, ainsi que les avertissements éventuels.</li>
+      <li>Les passages qui soutiennent votre lecture, ceux qui la nuancent et les limites que vous retenez.</li>
+    </ul>
+    <p>Les exports permettent de conserver une sortie datée, mais ne recréent pas à eux seuls les critères dans SonalPi ni une ancienne version des sources. Les traitements Lexico restent enregistrés dans le corpus ; cela ne conserve pas pour autant tous les états successifs du tableau.</p>
+    <p>Si vous devez pouvoir reprendre le corpus local dans l’état correspondant à une étape d’analyse, conservez aussi une <a href="../demarrer/sauvegarder-deplacer.html">sauvegarde datée</a>. Un même nom de corpus ne garantit pas que ses transcriptions et codages soient restés identiques entre deux calculs.</p>
+    <h2 id="sorties">Contrôler ce qui sera copié ou exporté</h2>
+    <p>Avant de transmettre un résultat, vérifiez le périmètre de la sortie : les outils n’exportent pas tous ce qui est visible de la même façon.</p>
+    <div class="tableau">
+      <table>
+        <thead><tr><th scope="col">Sortie</th><th scope="col">Périmètre</th><th scope="col">Si le résultat est incomplet</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><a href="tri-synthese.html#copier-exporter">TXT de Tri et synthèse</a></th><td>Les extraits calculés, dans le mode de texte courant, avec leur résumé de critères.</td><td>Export bloqué jusqu’à résolution et actualisation.</td></tr>
+          <tr><th scope="row"><a href="lexico.html#exporter">CSV/TSV de Lexico</a></th><td>Les lignes actuellement affichées après recherche, seuil de fréquence, nombres et tri.</td><td>Export bloqué jusqu’à résolution et actualisation.</td></tr>
+          <tr><th scope="row"><a href="analyses-croisees.html#exporter">CSV/TSV des Analyses croisées</a></th><td>Toute la sélection du dernier calcul, même si des lignes ou colonnes sont masquées à l’écran.</td><td>Export possible si non périmé, avec état et indications joints ; les valeurs indisponibles restent vides.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Un résultat périmé bloque ces trois exports. Le bouton <strong>Copier</strong> d’un extrait de synthèse reste toutefois utilisable sur un résultat ancien ou incomplet : sa disponibilité ne certifie pas l’actualité de la citation.</p>
+    <p>Ouvrez le fichier final et vérifiez son état, ses sources et ses intitulés. Un texte pseudonymisé peut encore contenir des informations identifiantes dans le contexte ou les champs d’accompagnement ; adaptez le contenu au destinataire avec <a href="../organiser/verifier-partage.html">les vérifications avant diffusion</a>.</p>
+    <nav class="suite" aria-label="Suite de la lecture">
+      <a href="analyses-croisees.html" rel="prev">← Précédent : comparer avec les analyses croisées</a>
+      <a href="../index.html">Sommaire</a>
+      <a href="../organiser/exporter-entretien.html" rel="next">Suivant : exporter un entretien →</a>
+    </nav>
+  </main>
+  <footer class="pied">SonalPi — Documentation utilisateur V2</footer>
+</body>
+</html>
