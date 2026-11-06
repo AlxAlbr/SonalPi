@@ -828,15 +828,15 @@ function onDropNote(cibleId: string) {
   border-bottom: 1px solid #e2e2e2;
 }
 .nouvelle-note-inline .champ-titre-note {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  flex-direction: row;
 }
 .nouvelle-note-inline .champ-titre-note span {
   min-width: 0;
+  white-space: nowrap;
 }
 .nouvelle-note-inline .champ-titre-note input {
-  width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 .nouvelle-note-inline .zone-corps-note {

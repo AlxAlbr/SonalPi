@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -56,6 +56,17 @@ const {
   afficherRecueilsPourAssociation,
 } = utiliserSonal()
 const voletNotesOuvert = ref(false)
+const largeurNotesPersonnalisee = ref<number | null>(null)
+const ignorerClicNotes = ref(false)
+const redimensionnementNotesActif = ref(false)
+const largeurMinimaleNotes = 240
+let xDebutGlissementNotes: number | null = null
+let largeurDebutGlissementNotes = 0
+let idPointeurNotes: number | null = null
+let glissementNotesActif = false
+let glissementDepuisReplie = false
+let positionsPointeurNotes: Array<{ x: number; temps: number }> = []
+let animationInertieNotes: number | null = null
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -89,6 +100,10 @@ const compteRecherche = computed(() => {
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
 
+onBeforeUnmount(() => {
+  if (animationInertieNotes !== null) cancelAnimationFrame(animationInertieNotes)
+})
+
 function ouvrirCasDepuisSelection() {
   fermerMenu()
   void afficherCasPourAssociation()
@@ -107,6 +122,134 @@ function basculerNotes() {
   voletNotesOuvert.value = !voletNotesOuvert.value
 }
 
+function largeurNotesFermee(): number {
+  const grille = document.querySelector<HTMLElement>('.grille-ent')
+  if (!grille) return 52
+  const largeur = getComputedStyle(grille).getPropertyValue('--volet-notes-largeur-fermee')
+  const racine = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+  return Number.parseFloat(largeur) * racine
+}
+
+async function commencerGlissementNotes(event: PointerEvent) {
+  if (event.button !== 0) return
+  if (animationInertieNotes !== null) {
+    cancelAnimationFrame(animationInertieNotes)
+    animationInertieNotes = null
+    redimensionnementNotesActif.value = false
+  }
+  const volet = document.querySelector<HTMLElement>('.volet-notes')
+  const panneau = document.querySelector<HTMLElement>('#panneau-notes-entretien')
+  if (!volet || !panneau) return
+  xDebutGlissementNotes = event.clientX
+  glissementDepuisReplie = !voletNotesOuvert.value
+  largeurDebutGlissementNotes = glissementDepuisReplie
+    ? volet.getBoundingClientRect().width
+    : panneau.getBoundingClientRect().width
+  idPointeurNotes = event.pointerId
+  glissementNotesActif = false
+  positionsPointeurNotes = [{ x: event.clientX, temps: performance.now() }]
+  redimensionnementNotesActif.value = true
+  const bouton = event.currentTarget as HTMLButtonElement
+  bouton.setPointerCapture(event.pointerId)
+  await nextTick()
+  if (idPointeurNotes !== event.pointerId) return
+  largeurDebutGlissementNotes = glissementDepuisReplie
+    ? volet.getBoundingClientRect().width
+    : panneau.getBoundingClientRect().width
+}
+
+function glisserNotes(event: PointerEvent) {
+  if (event.pointerId !== idPointeurNotes || xDebutGlissementNotes === null) return
+  const deplacement = xDebutGlissementNotes - event.clientX
+  if (!glissementNotesActif && Math.abs(deplacement) < 4) return
+  glissementNotesActif = true
+  redimensionnementNotesActif.value = true
+  const largeurMax = Math.max(240, window.innerWidth * 0.85)
+  largeurNotesPersonnalisee.value = Math.max(
+    largeurNotesFermee(),
+    Math.min(largeurMax, largeurDebutGlissementNotes + deplacement),
+  )
+  voletNotesOuvert.value = true
+  const temps = performance.now()
+  positionsPointeurNotes.push({ x: event.clientX, temps })
+  positionsPointeurNotes = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
+}
+
+function terminerGlissementNotesAuRepos() {
+  if (largeurNotesPersonnalisee.value !== null && largeurNotesPersonnalisee.value < largeurMinimaleNotes) {
+    voletNotesOuvert.value = false
+    largeurNotesPersonnalisee.value = null
+  }
+  redimensionnementNotesActif.value = false
+}
+
+function lancerInertieNotes(vitesse: number) {
+  const largeurFermee = largeurNotesFermee()
+  const limiteLargeur = Math.max(240, window.innerWidth * 0.85)
+  let derniereImage = performance.now()
+  const dureeFreinage = 140
+  const animer = (temps: number) => {
+    const ecoule = Math.min(temps - derniereImage, 32)
+    derniereImage = temps
+    const facteur = Math.exp(-ecoule / dureeFreinage)
+    const deplacement = vitesse * dureeFreinage * (1 - facteur)
+    const largeur = largeurNotesPersonnalisee.value ?? 0
+    const largeurMin = vitesse < 0 ? largeurFermee : 0
+    const nouvelleLargeur = Math.max(largeurMin, Math.min(limiteLargeur, largeur + deplacement))
+    largeurNotesPersonnalisee.value = nouvelleLargeur
+    vitesse *= facteur
+
+    if (Math.abs(vitesse) < 0.04 || nouvelleLargeur === largeur) {
+      animationInertieNotes = null
+      terminerGlissementNotesAuRepos()
+      return
+    }
+    animationInertieNotes = requestAnimationFrame(animer)
+  }
+  animationInertieNotes = requestAnimationFrame(animer)
+}
+
+function terminerGlissementNotes(event: PointerEvent) {
+  if (event.pointerId !== idPointeurNotes) return
+  if (glissementNotesActif) {
+    ignorerClicNotes.value = true
+    window.setTimeout(() => {
+      ignorerClicNotes.value = false
+    }, 0)
+  }
+  const temps = performance.now()
+  const derniersMouvements = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
+  const premierMouvement = derniersMouvements[0]
+  const dernierMouvement = derniersMouvements[derniersMouvements.length - 1]
+  const duree = dernierMouvement && premierMouvement
+    ? dernierMouvement.temps - premierMouvement.temps
+    : 0
+  const vitesse = dernierMouvement && premierMouvement && duree > 0
+    ? Math.max(-1.8, Math.min(1.8, (premierMouvement.x - dernierMouvement.x) / duree))
+    : 0
+  xDebutGlissementNotes = null
+  idPointeurNotes = null
+  positionsPointeurNotes = []
+  const vitesseInertie = event.type === 'pointercancel' ? 0 : vitesse
+  if (glissementNotesActif && Math.abs(vitesseInertie) >= 0.12) {
+    lancerInertieNotes(vitesseInertie)
+    glissementNotesActif = false
+    glissementDepuisReplie = false
+    return
+  }
+  if (glissementNotesActif) terminerGlissementNotesAuRepos()
+  glissementNotesActif = false
+  glissementDepuisReplie = false
+}
+
+function cliquerNotes() {
+  if (ignorerClicNotes.value) {
+    ignorerClicNotes.value = false
+    return
+  }
+  basculerNotes()
+}
+
 </script>
 
 <template>
@@ -117,7 +260,17 @@ function basculerNotes() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent" :class="{ 'notes-ouvert': voletNotesOuvert, 'mode-audio': !estVideo }">
+      <div
+        class="grille-ent"
+        :class="{
+          'notes-ouvert': voletNotesOuvert,
+          'mode-audio': !estVideo,
+          'redimensionnement-notes': redimensionnementNotesActif,
+        }"
+        :style="largeurNotesPersonnalisee !== null
+          ? { '--volet-notes-largeur-personnalisee': `${largeurNotesPersonnalisee}px` }
+          : undefined"
+      >
         <!-- Le retour au corpus reste accessible au-dessus des panneaux de travail. -->
         <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
@@ -237,10 +390,14 @@ function basculerNotes() {
               :class="{ actif: voletNotesOuvert }"
               :aria-expanded="voletNotesOuvert"
               aria-controls="panneau-notes-entretien"
-              title="Notes"
-              @click="basculerNotes"
+              title="Notes — faites glisser pour redimensionner"
+              @pointerdown="commencerGlissementNotes"
+              @pointermove="glisserNotes"
+              @pointerup="terminerGlissementNotes"
+              @pointercancel="terminerGlissementNotes"
+              @click="cliquerNotes"
             >
-              <img class="ico-onglet" :src="icoNotes" alt="" />
+              <img class="ico-onglet" :src="icoNotes" alt="" draggable="false" />
               <span>Notes</span>
             </button>
           </div>
@@ -319,8 +476,11 @@ function basculerNotes() {
 .grille-ent {
   display: grid;
   --volet-notes-largeur: min(360px, 34vw);
+  --volet-notes-largeur-fermee: 3.25rem;
+  --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
+  --volet-notes-colonne: min(var(--volet-notes-largeur-ajustee), var(--volet-notes-largeur));
   --panneaux-decalage: 1rem;
-  grid-template-columns: 400px minmax(0, 1fr) 3.25rem;
+  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-largeur-fermee);
   gap: 1rem;
   align-items: start;
   grid-template-areas:
@@ -334,7 +494,15 @@ function basculerNotes() {
   --barre-h: calc(3rem + var(--panneaux-decalage));
 }
 .grille-ent.notes-ouvert {
-  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-largeur);
+  --volet-notes-decalage: calc(var(--volet-notes-colonne) - var(--volet-notes-largeur-ajustee));
+  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-colonne);
+}
+.grille-ent.redimensionnement-notes {
+  transition: none;
+}
+.grille-ent.redimensionnement-notes .cadre-notes,
+.grille-ent.redimensionnement-notes .notes-languette {
+  transition: none;
 }
 .retour {
   margin-left: auto;
@@ -433,35 +601,47 @@ function basculerNotes() {
   align-self: start;
   min-width: 0;
   position: sticky;
+  transform: translateX(calc(var(--panneaux-decalage) - 2px));
+  z-index: 22;
   top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
   height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   box-sizing: border-box;
 }
 .cadre-notes {
-  flex: 1 1 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--volet-notes-largeur-ajustee);
   min-width: 0;
   height: 100%;
+  overflow: clip;
+  transition: transform 220ms ease;
 }
 .cadre-notes > .panneau {
-  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max(240px, var(--volet-notes-largeur-ajustee));
   height: 100%;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  padding-right: 1rem;
   overflow-y: auto;
 }
 .volet-notes:not(.ouvert) > .cadre-notes {
-  position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
   overflow: clip;
   pointer-events: none;
 }
 .volet-notes:not(.ouvert) .cadre-notes > .panneau {
-  position: absolute;
-  top: 0;
   left: 0;
-  width: var(--volet-notes-largeur);
-  height: 100%;
+  right: auto;
+  width: var(--volet-notes-largeur-ajustee);
   padding: 0;
   overflow: hidden;
   pointer-events: none;
@@ -476,6 +656,7 @@ function basculerNotes() {
   left: -1.375rem;
   width: 2.75rem;
   transform: translateY(-50%);
+  transition: translate 220ms ease;
 }
 .volet-notes:not(.ouvert) .notes-languette {
   left: -1.375rem;
@@ -484,9 +665,12 @@ function basculerNotes() {
   order: 1;
   padding-left: 2.25rem;
 }
+.volet-notes.ouvert > .cadre-notes {
+  transform: translateX(var(--volet-notes-decalage));
+}
 .volet-notes.ouvert .notes-languette {
   left: -1.375rem;
-  margin-right: -1.375rem;
+  translate: var(--volet-notes-decalage) 0;
 }
 .notes-languette button {
   border: 1px solid #ddd;
@@ -555,7 +739,9 @@ function basculerNotes() {
   color: #555;
   font-size: 0.75rem;
   font-weight: 600;
-  cursor: pointer;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
   padding: 0.2rem 0.6rem;
   margin-top: 0.1rem;
 }
@@ -681,11 +867,11 @@ function basculerNotes() {
 }
 @media (max-width: 1000px) {
   .grille-ent {
-    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) 3.25rem;
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
   }
   .grille-ent.notes-ouvert {
     --volet-notes-largeur: min(320px, 34vw);
-    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-largeur);
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-colonne);
   }
   .grille-ent:not(.notes-ouvert) {
     --volet-notes-largeur: min(320px, 34vw);
@@ -693,6 +879,10 @@ function basculerNotes() {
 }
 @media (prefers-reduced-motion: reduce) {
   .grille-ent {
+    transition: none;
+  }
+  .cadre-notes,
+  .notes-languette {
     transition: none;
   }
 }

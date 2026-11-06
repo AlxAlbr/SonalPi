@@ -109,10 +109,48 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(bordReplie.languetteVisible).toBe('visible')
   expect(bordReplie.debordementVolet).toBe('clip')
   expect(bordReplie.debordementHorizontal).toBe(false)
-  await languette.click()
+  const alignementOuverture = await page.evaluate(async () => {
+    const bouton = document.querySelector<HTMLElement>('.notes-languette button')!
+    const panneau = document.querySelector<HTMLElement>('.panneau.notes')!
+    const xInitial = panneau.getBoundingClientRect().left
+    let ecartMaximal = 0
+    bouton.click()
+    for (let frame = 0; frame < 20; frame++) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const bordPanneau = panneau.getBoundingClientRect().left
+      const bordLanguette = bouton.getBoundingClientRect().right - 22
+      ecartMaximal = Math.max(ecartMaximal, Math.abs(bordPanneau - bordLanguette))
+    }
+    return {
+      ecartMaximal,
+      deplacementPanneau: Math.abs(panneau.getBoundingClientRect().left - xInitial),
+    }
+  })
+  expect(alignementOuverture.ecartMaximal).toBeLessThan(2)
+  expect(alignementOuverture.deplacementPanneau).toBeGreaterThan(100)
   await expect.poll(async () => (await transcription.boundingBox())!.width).toBeLessThan(largeurFermee)
   const largeurPanneauOuvert = await page.evaluate(() => Math.round(Math.min(360, window.innerWidth * 0.34)))
   await expect.poll(async () => Math.round((await panneauNotes.boundingBox())!.width)).toBe(largeurPanneauOuvert)
+  const bordDroitPanneauOuvert = await page.evaluate(() => {
+    const panneau = document.querySelector('.panneau.notes')!
+    const style = getComputedStyle(panneau)
+    return {
+      droite: panneau.getBoundingClientRect().right,
+      largeurFenetre: window.innerWidth,
+      bordureDroite: style.borderRightWidth,
+      rayonsDroite: [style.borderTopRightRadius, style.borderBottomRightRadius],
+      paddingDroite: Number.parseFloat(style.paddingRight),
+    }
+  })
+  expect(Math.abs(bordDroitPanneauOuvert.droite - bordDroitPanneauOuvert.largeurFenetre)).toBeLessThan(2)
+  expect(bordDroitPanneauOuvert.bordureDroite).toBe('0px')
+  expect(bordDroitPanneauOuvert.rayonsDroite).toEqual(['0px', '0px'])
+  expect(bordDroitPanneauOuvert.paddingDroite).toBeGreaterThan(12)
+  await expect.poll(async () => page.evaluate((espaceAttendu) => {
+    const panneau = document.querySelector('.panneau.notes')!.getBoundingClientRect()
+    const editeur = document.querySelector('.colonne-droite')!.getBoundingClientRect()
+    return Math.abs(panneau.left - editeur.right - espaceAttendu)
+  }, bordReplie.espaceEditeur + 16)).toBeLessThan(2)
   await expect(page.locator('.onglets button[data-onglet="maison"]')).toHaveClass(/actif/)
   await expect(panneauNotes).toBeVisible()
   await verifierPositionLanguette()
@@ -134,7 +172,52 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(geometrie.bouton.x + geometrie.bouton.width).toBeGreaterThan(geometrie.panneau.x)
   expect(Math.abs(geometrie.panneau.height - geometrie.volet.height)).toBeLessThan(2)
   expect(geometrie.panneau.rayonHautGauche).toBe('8px')
-  expect(Math.abs(geometrie.espaceEditeur - bordReplie.espaceEditeur)).toBeLessThan(2)
+  expect(Math.abs(geometrie.espaceEditeur - bordReplie.espaceEditeur - 16)).toBeLessThan(2)
+  const largeurStandard = (await panneauNotes.boundingBox())!.width
+  const largeurEditeurAvantGlissement = (await transcription.boundingBox())!.width
+  const largeurTitreAvantGlissement = (await page.locator('.champ-titre-note input').boundingBox())!.width
+  const alignementTitreCorps = await page.evaluate(() => {
+    const champTitre = document.querySelector('.nouvelle-note-inline .champ-titre-note')!.getBoundingClientRect()
+    const libelleTitre = document.querySelector('.nouvelle-note-inline .champ-titre-note span')!.getBoundingClientRect()
+    const entreeTitre = document.querySelector('.nouvelle-note-inline .champ-titre-note input')!.getBoundingClientRect()
+    const corps = document.querySelector('.nouvelle-note-inline .zone-corps-note')!.getBoundingClientRect()
+    return {
+      libelleEntreeSurMemeLigne: Math.abs(libelleTitre.top + libelleTitre.height / 2 - entreeTitre.top - entreeTitre.height / 2),
+      largeurChampTitre: champTitre.width,
+      largeurCorps: corps.width,
+    }
+  })
+  expect(alignementTitreCorps.libelleEntreeSurMemeLigne).toBeLessThan(2)
+  expect(Math.abs(alignementTitreCorps.largeurChampTitre - alignementTitreCorps.largeurCorps)).toBeLessThan(2)
+  const bordDroitNotesAvantGlissement = (await panneauNotes.boundingBox())!.x + largeurStandard
+  const boiteLanguette = (await languette.boundingBox())!
+  const xDebutGlissement = boiteLanguette.x + boiteLanguette.width / 2
+  const yGlissement = boiteLanguette.y + boiteLanguette.height / 2
+  const bordGaucheNotesAvantGlissement = (await panneauNotes.boundingBox())!.x
+  await page.mouse.move(xDebutGlissement, yGlissement)
+  await page.mouse.down()
+  for (let etape = 1; etape <= 8; etape++) {
+    const x = xDebutGlissement - etape * 17.5
+    await page.mouse.move(x, yGlissement)
+    const bordGaucheNotes = (await panneauNotes.boundingBox())!.x
+    expect(Math.abs(bordGaucheNotes - (bordGaucheNotesAvantGlissement - etape * 17.5))).toBeLessThan(3)
+  }
+  await page.mouse.up()
+  await expect.poll(async () => (await panneauNotes.boundingBox())!.width).toBeGreaterThan(largeurStandard + 100)
+  const geometrieApresGlissement = await page.evaluate(() => {
+    const panneau = document.querySelector('.panneau.notes')!.getBoundingClientRect()
+    const editeur = document.querySelector('.colonne-droite')!.getBoundingClientRect()
+    const titre = document.querySelector('.champ-titre-note input')!.getBoundingClientRect()
+    return {
+      panneau: { left: panneau.left, right: panneau.right, width: panneau.width },
+      editeur: { right: editeur.right, width: editeur.width },
+      titre: { width: titre.width },
+    }
+  })
+  expect(Math.abs(geometrieApresGlissement.panneau.right - bordDroitNotesAvantGlissement)).toBeLessThan(2)
+  expect(geometrieApresGlissement.panneau.left).toBeLessThan(geometrieApresGlissement.editeur.right)
+  expect(Math.abs(geometrieApresGlissement.editeur.width - largeurEditeurAvantGlissement)).toBeLessThan(2)
+  expect(geometrieApresGlissement.titre.width).toBeGreaterThan(largeurTitreAvantGlissement + 100)
   await page.locator('.champ-titre-note input').fill('Titre en cours')
   await page.locator('.zone-corps-note').fill('Corps en cours')
 
@@ -152,6 +235,93 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   await expect(page.locator('.carte-note')).toContainText('Titre en cours')
   await expect(page.locator('.champ-titre-note input')).toHaveValue('')
   await expect(page.locator('.zone-corps-note')).toHaveText('')
+
+  await languette.click()
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
+  await expect.poll(async () => (await voletNotes.boundingBox())!.width).toBeCloseTo(52, 0)
+  const iconeNotes = languette.locator('img')
+  await expect(iconeNotes).toHaveAttribute('draggable', 'false')
+  const boiteIconeNotes = (await iconeNotes.boundingBox())!
+  const xDebutOuverture = boiteIconeNotes.x + boiteIconeNotes.width / 2
+  const yOuverture = boiteIconeNotes.y + boiteIconeNotes.height / 2
+  const bordCadreFerme = (await page.locator('.cadre-notes').boundingBox())!.x
+  await page.mouse.move(xDebutOuverture, yOuverture)
+  await page.mouse.down()
+  for (let etape = 1; etape <= 8; etape++) {
+    const x = xDebutOuverture - etape * 15
+    await page.mouse.move(x, yOuverture)
+    await expect.poll(async () => (await page.locator('.cadre-notes').boundingBox())!.x)
+      .toBeCloseTo(bordCadreFerme - etape * 15, 0)
+    await page.waitForTimeout(150)
+  }
+  const geometriePanEnCours = await page.evaluate(() => {
+    const panneau = document.querySelector('.panneau.notes')!.getBoundingClientRect()
+    const cadre = document.querySelector('.cadre-notes')!.getBoundingClientRect()
+    const corps = document.querySelector('.nouvelle-note-inline .zone-corps-note')!.getBoundingClientRect()
+    return {
+      largeurPanneau: panneau.width,
+      largeurCadre: cadre.width,
+      largeurCorps: corps.width,
+      debordementHorizontal: document.documentElement.scrollWidth > window.innerWidth,
+    }
+  })
+  expect(geometriePanEnCours.largeurPanneau).toBeGreaterThanOrEqual(240)
+  expect(geometriePanEnCours.largeurCadre).toBeLessThan(240)
+  expect(geometriePanEnCours.largeurCorps).toBeGreaterThan(180)
+  expect(geometriePanEnCours.debordementHorizontal).toBe(false)
+  await page.mouse.up()
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
+  await expect.poll(async () => (await voletNotes.boundingBox())!.width).toBeCloseTo(52, 0)
+
+  const iconeFermee = (await iconeNotes.boundingBox())!
+  const xDebutPanSuffisant = iconeFermee.x + iconeFermee.width / 2
+  const yPanSuffisant = iconeFermee.y + iconeFermee.height / 2
+  const bordCadreAvantPanSuffisant = (await page.locator('.cadre-notes').boundingBox())!.x
+  await page.mouse.move(xDebutPanSuffisant, yPanSuffisant)
+  await page.mouse.down()
+  for (let etape = 1; etape <= 13; etape++) {
+    const x = xDebutPanSuffisant - etape * 15
+    await page.mouse.move(x, yPanSuffisant)
+    await expect.poll(async () => (await page.locator('.cadre-notes').boundingBox())!.x)
+      .toBeCloseTo(bordCadreAvantPanSuffisant - etape * 15, 0)
+    await expect.poll(async () => (await panneauNotes.boundingBox())!.width).toBeGreaterThanOrEqual(240)
+  }
+  await page.mouse.up()
+  await expect(panneauNotes.locator('.notes-outils')).toBeVisible()
+  await expect.poll(async () => (await panneauNotes.boundingBox())!.width).toBeGreaterThanOrEqual(240)
+  const largeurAuRelachement = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.querySelector('.grille-ent')!).getPropertyValue('--volet-notes-largeur-personnalisee')),
+  )
+  await expect.poll(async () => page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.querySelector('.grille-ent')!).getPropertyValue('--volet-notes-largeur-personnalisee')),
+  )).toBeGreaterThan(largeurAuRelachement + 20)
+
+  await languette.click()
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
+  await expect.poll(async () => (await voletNotes.boundingBox())!.width).toBeCloseTo(52, 0)
+  await languette.click()
+  await expect(panneauNotes.locator('.notes-outils')).toBeVisible()
+  const languetteOuverte = (await languette.boundingBox())!
+  const xDepartFermetureRapide = languetteOuverte.x + languetteOuverte.width / 2
+  const yFermetureRapide = languetteOuverte.y + languetteOuverte.height / 2
+  const panneauOuvert = (await panneauNotes.boundingBox())!
+  const largeurFermeeCourante = (await voletNotes.boundingBox())!.width
+  const bordFerme = panneauOuvert.x + panneauOuvert.width - largeurFermeeCourante
+  const largeurOuverte = panneauOuvert.width
+  await page.mouse.move(xDepartFermetureRapide, yFermetureRapide)
+  await page.mouse.down()
+  const nbEtapesFermeture = Math.ceil((largeurOuverte - largeurFermeeCourante) / 50)
+  let bordPanneauMax = (await panneauNotes.boundingBox())!.x
+  for (let etape = 1; etape <= nbEtapesFermeture; etape++) {
+    await page.mouse.move(xDepartFermetureRapide + etape * 50, yFermetureRapide)
+    await page.waitForTimeout(150)
+    const bordPanneau = (await panneauNotes.boundingBox())!.x
+    bordPanneauMax = Math.max(bordPanneauMax, bordPanneau)
+    expect(bordPanneau).toBeLessThanOrEqual(bordFerme + 2)
+  }
+  await page.mouse.up()
+  expect(bordPanneauMax).toBeLessThanOrEqual(bordFerme + 2)
+  await expect(panneauNotes.locator('.notes-outils')).toBeHidden()
   await app.close()
 })
 
