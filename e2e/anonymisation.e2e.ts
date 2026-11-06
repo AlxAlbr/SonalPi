@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import {
   lancer,
   entrerCorpus,
+  entrerEntretien,
   ajouterParModale,
   ouvrir,
   ouvrirSurCorpus,
@@ -431,6 +432,53 @@ test('la sélection alimente une ligne et le brouillon survit au changement d’
   await expect(brouillon.locator('.pseudo-anon')).toHaveValue('Ville témoin')
 
   await app.close()
+})
+
+test('la sélection ne remplit une ligne que si l’option est activée', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-selection-option-'))
+  let app = await lancer(dir)
+  try {
+    let page = await app.firstWindow()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    await page.locator('[data-onglet="anon"]').click()
+    let option = page.getByRole('switch', { name: 'Ajouter automatiquement le texte sélectionné' })
+    let etat = page.locator('.selection-option-etat')
+    await expect(option).toBeChecked()
+    await expect(etat).toHaveText('Activé')
+    await option.uncheck()
+    await expect(etat).toHaveText('Désactivé')
+    let editeur = page.locator('.colonne-droite .editeur')
+    await expect(page.locator('.colonne-droite')).not.toHaveClass(/selection-pseudo-active/)
+    expect(await editeur.evaluate((el) => getComputedStyle(el).cursor)).toBe('auto')
+
+    await app.close()
+    app = await lancer(dir, { preserverSettings: true })
+    page = await app.firstWindow()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    await page.locator('[data-onglet="anon"]').click()
+    option = page.getByRole('switch', { name: 'Ajouter automatiquement le texte sélectionné' })
+    etat = page.locator('.selection-option-etat')
+    editeur = page.locator('.colonne-droite .editeur')
+    await expect(option).not.toBeChecked()
+    await expect(etat).toHaveText('Désactivé')
+    await expect(page.locator('.colonne-droite')).not.toHaveClass(/selection-pseudo-active/)
+
+    await selectionner(page, 'Lyon')
+    await page.locator('.editeur').dispatchEvent('mouseup')
+    const nom = page.locator('.ligne-anon.saisie-anon .nom-saisie').first()
+    await expect(nom).toHaveValue('')
+
+    await option.check()
+    await expect(page.locator('.colonne-droite')).toHaveClass(/selection-pseudo-active/)
+    expect(await editeur.evaluate((el) => getComputedStyle(el).cursor)).toContain('url(')
+    await selectionner(page, 'Lyon')
+    await page.locator('.editeur').dispatchEvent('mouseup')
+    await expect(nom).toHaveValue('Lyon')
+  } finally {
+    if (app) await app.close()
+  }
 })
 
 test('round-trip anonymisation : import → export → ré-import, règles corpus préservées sans doublon', async () => {

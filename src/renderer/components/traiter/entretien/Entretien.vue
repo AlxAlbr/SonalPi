@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -99,6 +99,11 @@ const compteRecherche = computed(() => {
 })
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
+const CLE_AJOUT_SELECTION = 'sonal:pseudonymisation:ajout-selection'
+const ajoutSelectionActif = ref(localStorage.getItem(CLE_AJOUT_SELECTION) !== 'false')
+watch(ajoutSelectionActif, (actif) => {
+  localStorage.setItem(CLE_AJOUT_SELECTION, String(actif))
+}, { flush: 'sync' })
 
 onBeforeUnmount(() => {
   if (animationInertieNotes !== null) cancelAnimationFrame(animationInertieNotes)
@@ -355,13 +360,14 @@ function cliquerNotes() {
             v-show="ongletDroite === 'anon'"
             :actif="ongletDroite === 'anon'"
             :lecture-seule-contenu="roContenu"
+            v-model:ajout-selection-actif="ajoutSelectionActif"
           />
         </div>
 
         <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
-        <div class="colonne-droite">
+        <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletDroite === 'anon' && ajoutSelectionActif }">
           <div v-if="estVideo" class="zone-media">
             <div class="tele">
               <LecteurAudio :empile="true" />

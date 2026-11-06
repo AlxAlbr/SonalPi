@@ -7,6 +7,7 @@ const props = defineProps<{
   actif: boolean
   lectureSeuleContenu: boolean
 }>()
+const ajoutSelectionActif = defineModel<boolean>('ajoutSelectionActif', { required: true })
 
 const {
   selectionAnon,
@@ -313,7 +314,7 @@ const RELACHE_STABILITE = 2 // lectures consécutives égales → sélection fig
 const RELACHE_CAP = 250 // ms — marge pire cas (alors on remplit quand même)
 let tidRelache = 0
 function surRelache() {
-  if (!props.actif) return
+  if (!props.actif || !ajoutSelectionActif.value) return
   clearTimeout(tidRelache)
   const signature = (s: typeof selectionAnon.value) =>
     s ? `${s.from}|${s.to}|${s.texte}` : ''
@@ -321,6 +322,7 @@ function surRelache() {
   let stables = 0
   const depart = Date.now()
   const surveiller = () => {
+    if (!props.actif || !ajoutSelectionActif.value) return
     const courante = signature(selectionAnon.value)
     if (courante === precedente) stables++
     else {
@@ -387,6 +389,15 @@ onBeforeUnmount(() => {
     Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
     Plusieurs graphies d'un même nom : sépare-les par « / » (ex. Lyon/Lyons). Multi-pseudo : « Claire / Rebecca » dans Pseudo, puis clic droit sur une occurrence pour basculer.
   </p>
+  <label class="selection-option">
+    <span class="selection-option-texte">
+      <span class="selection-option-titre">Ajouter automatiquement le texte sélectionné</span>
+    </span>
+    <span class="selection-option-commande">
+      <input v-model="ajoutSelectionActif" type="checkbox" role="switch" aria-label="Ajouter automatiquement le texte sélectionné" />
+      <span class="selection-option-etat" aria-hidden="true">{{ ajoutSelectionActif ? 'Activé' : 'Désactivé' }}</span>
+    </span>
+  </label>
   <p v-if="hintAnon" class="hint-codage">{{ hintAnon }}</p>
 
   <table class="tableau-anon">
@@ -617,6 +628,65 @@ onBeforeUnmount(() => {
   padding: 0.3rem 0.5rem;
   font-size: 0.75rem;
   margin: 0.3rem 0;
+}
+.selection-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: 0.3rem 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #d5e0ee;
+  border-radius: 6px;
+  background: #f5f8fc;
+  cursor: pointer;
+}
+.selection-option-titre {
+  color: #26384d;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.selection-option-commande {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+  color: #5f6b78;
+  font-size: 0.7rem;
+}
+.selection-option-commande input {
+  appearance: none;
+  position: relative;
+  width: 2.25rem;
+  height: 1.3rem;
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #aaa;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.selection-option-commande input::before {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.selection-option-commande input:checked {
+  background: #2e73d8;
+}
+.selection-option-commande input:checked::before {
+  transform: translateX(0.95rem);
+}
+.selection-option-commande input:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
 }
 /* --- Panneau Anon --- */
 /* Tableau Anon : layout FIXE — le nom d'entité est borné (ellipsis au survol) et

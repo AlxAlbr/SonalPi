@@ -13,6 +13,10 @@
   line-height: 1.9;
 }
 
+.colonne-droite.selection-pseudo-active .editeur {
+  cursor: url('../assets/icones/anon-selection.svg') 5 16, text;
+}
+
 /* Gouttière des locuteurs (refonte étape 2, §3.2) : le nom passe AU-DESSUS du
  * bloc (layout SonalPi1 .ligloc) — barré + [pseudo] sans décaler le texte, qui
  * démarre pleine largeur dessous. Le widget est BLOC (sa propre ligne) ; le
