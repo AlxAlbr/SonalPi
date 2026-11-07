@@ -98,7 +98,7 @@ export class RenommagesAnonGitLab {
       if (j && empreinteCorrespondance(j.demande) !== empreinteCorrespondance(preparation.demande)) throw new Error('La reprise ne correspond pas au lot.')
       this.enCours = true
       try {
-        await this.avecBail('corpus.json', async (droit) => {
+        await this.avecBail('corpus.crp', async (droit) => {
           const frais = await this.lecteur.lireInstantane(false)
           exigerAbsenceDissociationGitLab(frais.corpus)
           if (empreinteCorrespondance(frais.corpus) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé depuis l’inventaire. Recalculez le renommage.')
@@ -139,7 +139,7 @@ export class RenommagesAnonGitLab {
           j.nouvellesCibles = []
           this.journal.ecrire(j)
           if (!j.definitionConfirmee) {
-            const source = await this.lire('corpus.json', this.options.destination.branche)
+            const source = await this.lire('corpus.crp', this.options.destination.branche)
             const corpus = JSON.parse(source.contenu) as CorpusFichier
             if (empreinteCorrespondance(corpus) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé avant la publication. Recalculez la reprise.')
             corpus.reglesAnon[j.demande.regleId] = structuredClone(j.regleApres)
@@ -154,7 +154,7 @@ export class RenommagesAnonGitLab {
             await this.avecBail(`entretiens/${cible.id}.json`, async (droit) => {
               this.exigerSansSession(cible.id)
               const sha = await this.options.depot.resoudreTete(this.options.destination.branche)
-              const corpusSource = await this.lire('corpus.json', sha)
+              const corpusSource = await this.lire('corpus.crp', sha)
               const corpus = JSON.parse(corpusSource.contenu) as CorpusFichier
               this.verifierRegle(j!, corpus)
               if (!Object.hasOwn(corpus.membership, cible.id)) throw new Error('La cible ne fait plus partie du corpus.')

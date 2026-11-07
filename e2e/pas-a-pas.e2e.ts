@@ -414,13 +414,13 @@ test('réouverture depuis les parcours : l’historique est conservé sans lance
   // Attendre que l'historique soit écrit dans le MARQUEUR du corpus (watch →
   // corpus:marquerDemo) avant de fermer — sinon le test pourrait lire trop tôt.
   await expect
-    .poll(() => JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo?.parcours?.traitement?.validees ?? [])
+    .poll(() => JSON.parse(readFileSync(join(corpusDir, 'corpus.crp'), 'utf8')).demo?.parcours?.traitement?.validees ?? [])
     .toContain('charger')
   await app.close()
 
   // L'historique est PERSISTÉ dans le marqueur du corpus :
   // L’étape « charger » est mémorisée dans la progression du traitement.
-  const marqueur = JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo
+  const marqueur = JSON.parse(readFileSync(join(corpusDir, 'corpus.crp'), 'utf8')).demo
   expect(marqueur.usage).toBe('apprentissage')
   expect(marqueur.parcours.traitement.validees).toContain('charger')
   expect(marqueur.dernierParcoursId).toBe('traitement')

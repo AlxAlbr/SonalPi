@@ -269,7 +269,7 @@ describe('Personnes — stockage local', () => {
       if (plan.operation !== 'remplacement') throw new Error('Plan inattendu')
       expect(plan.ordre).toBe('corpus-puis-entretiens')
       writeFileSync(join(dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan }))
-      writeFileSync(join(dir, 'corpus.json'), JSON.stringify(plan.corpusApres))
+      writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(plan.corpusApres))
       throw new Error('Arrêt simulé')
     })
     expect(() => store.personnesCommander({
@@ -290,9 +290,9 @@ describe('Personnes — stockage local', () => {
     const [a, b] = store.personnesInventaire().locuteurs
     const p1 = store.personnesCommander({ type: 'creer', entretienId: a.entretienId, locuteurId: a.locuteurId, nom: 'A' })!
     const p2 = store.personnesCommander({ type: 'creer', entretienId: b.entretienId, locuteurId: b.locuteurId, nom: 'B' })!
-    const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
     expect(() => store.personnesCommander({ type: 'fusionner', conserverId: p1, absorberId: p2, attendu: JSON.stringify(store.personnesInventaire()) })).toThrow('Réunion impossible')
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
   })
 
   test('reprend la fusion après un arrêt entre deux remplacements', () => {
@@ -310,7 +310,7 @@ describe('Personnes — stockage local', () => {
       throw new Error('Arrêt simulé')
     })
     expect(() => store.personnesCommander({ type: 'fusionner', conserverId: p1, absorberId: p2, attendu: JSON.stringify(store.personnesInventaire()) })).toThrow('Arrêt simulé')
-    expect(Object.keys(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).personnes)).toHaveLength(2)
+    expect(Object.keys(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).personnes)).toHaveLength(2)
     const apres = new CorpusStore(dir).personnesInventaire()
     expect(apres.personnes.map(p => p.id)).toEqual([p1])
     expect(apres.locuteurs.filter(l => l.personneRef === p1)).toHaveLength(2)
@@ -358,7 +358,7 @@ describe('Personnes — stockage local', () => {
 
   test('un corpus ancien sans personnes reçoit un répertoire vide sans réécriture', () => {
     const { dir, store } = preparer()
-    const fichier = join(dir, 'corpus.json')
+    const fichier = join(dir, 'corpus.crp')
     const c = JSON.parse(readFileSync(fichier, 'utf8'))
     delete c.personnes
     const contenu = JSON.stringify(c)

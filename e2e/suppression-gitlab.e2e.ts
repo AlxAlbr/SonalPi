@@ -176,8 +176,8 @@ async function instrumenterSuppression(app: ElectronApplication, projet: number,
       if (adresse.pathname === `/api/v4/projects/${args.projet}/repository/commits` && init?.method === 'POST') {
         const commit = JSON.parse(String(init.body))
         if (commit.commit_message.startsWith('Sonal suppression-anon-')) {
-          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.json' || a.file_path.startsWith('entretiens/')))
-          if (a.file_path === 'corpus.json') {
+          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.crp' || a.file_path.startsWith('entretiens/')))
+          if (a.file_path === 'corpus.crp') {
             const contenu = JSON.parse(a.encoding === 'base64' ? Buffer.from(a.content, 'base64').toString('utf8') : a.content)
             phase = contenu.reglesAnon.personne ? 'barriere' : 'retrait'
           } else phase = a.file_path.split('/').at(-1).replace('.json', '')
@@ -200,7 +200,7 @@ async function bancSuppression(suffixe: string) {
   f.corpus.nom = 'Suppression synthétique'
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : suppression synthétique', actions: [
-    { action: 'create', file_path: 'corpus.json', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
+    { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
   const second = await api<{ id: number }>('/user', configuration.token2 as string)
   await api(`/projects/${projet.id}/members`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }) })
@@ -254,7 +254,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
         return { premier, second }
       })
       expect(consommation.premier).toContain('Confirmez'); expect(consommation.second).toContain('expiré')
-      const corpusTenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.json'))
+      const corpusTenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.crp'))
       if (!corpusTenu.ok) throw new Error('Bail synthétique corpus indisponible')
       try {
         modal = await ouvrirSuppression(page); await modal.getByRole('checkbox').check()
@@ -278,7 +278,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       await expect(modal).toContainText('5 passage(s) concerné(s)', { timeout: 30_000 }); await expect(modal.getByRole('checkbox')).not.toBeChecked()
       await modal.getByRole('checkbox').check(); await modal.getByRole('button', { name: 'Confirmer la suppression globale' }).click()
       await expect(modal).toHaveCount(0, { timeout: 30_000 })
-      expect(JSON.parse((await b.depot.lireFichier('corpus.json', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
+      expect(JSON.parse((await b.depot.lireFichier('corpus.crp', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
       for (const source of b.f.sources) {
         const actuel = JSON.parse((await b.depot.lireFichier(`entretiens/${source.id}.json`, 'main'))!.contenu)
         const attendu = structuredClone(source.data); attendu.lastModified = actuel.lastModified
@@ -326,7 +326,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       await expect(modal).toContainText('Le serveur n’a pas confirmé le résultat', { timeout: 30_000 })
       await expect(modal.getByRole('button', { name: 'Recalculer la reprise', exact: true })).toBeDisabled()
       await page.screenshot({ path: info.outputPath('suppression-gitlab-indeterminee.png') })
-      expect(JSON.parse((await b.depot.lireFichier('corpus.json', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
+      expect(JSON.parse((await b.depot.lireFichier('corpus.crp', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
       await app.evaluate(() => { (globalThis as unknown as { sondeSuppression: SondeSuppression }).sondeSuppression.mode = 'normal' })
       await modal.getByRole('button', { name: 'Relire le suivi GitLab', exact: true }).click()
       await expect(modal).toHaveCount(0, { timeout: 30_000 })
@@ -342,7 +342,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       await ouvrirDepuisFormulaireGitLab(page, shim, session, identifiantsDe(configuration.utilisateur as string), '', String(b.projet.id)); await attendreCorpus(page)
       const modal = await ouvrirSuppression(page); await modal.getByRole('checkbox').check(); await modal.getByRole('button', { name: 'Confirmer la suppression globale' }).click()
       await expect.poll(() => app.evaluate(() => (globalThis as unknown as { sondeSuppression: SondeSuppression }).sondeSuppression.accepte), { timeout: 30_000 }).toBe(true)
-      const cheminBail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.json'))
+      const cheminBail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.crp'))
       const bailAvant = JSON.parse((await b.depot.lireFichier(cheminBail, 'main'))!.contenu)
       const cheminEntretien = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'entretiens/e1.json'))
       const bailEntretien = JSON.parse((await b.depot.lireFichier(cheminEntretien, 'main'))!.contenu)

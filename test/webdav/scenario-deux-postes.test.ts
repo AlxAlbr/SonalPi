@@ -113,7 +113,7 @@ async function amorcerServeur(base: string): Promise<{ original: string | null }
   })
   let original: string | null = null
   try {
-    original = await client.getTexte('corpus.json')
+    original = await client.getTexte('corpus.crp')
   } catch {
     /* pas encore de corpus */
   }
@@ -122,20 +122,20 @@ async function amorcerServeur(base: string): Promise<{ original: string | null }
   await client.supprimer('verrous/ent-deux-postes.lock.json').catch(() => {})
   await client.deverrouiller('entretiens/ent-deux-postes.json').catch(() => {})
   // État de données initial connu : membership avec UN entretien + son fichier.
-  await client.putTexte('corpus.json', corpusInitial())
+  await client.putTexte('corpus.crp', corpusInitial())
   await client.putTexte('entretiens/ent-deux-postes.json', entretienInitial())
   await client.supprimer('corbeille/ent-deux-postes.json').catch(() => {})
   return { original }
 }
 
-/** Restaure l'état d'avant le scénario (le banc contrat lit corpus.json). */
+/** Restaure l'état d'avant le scénario (le banc contrat lit corpus.crp). */
 async function nettoyer(base: string, original: string | null): Promise<void> {
   const client = new ClientWebDAV({
     baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`,
     identifiants: MAX,
   })
-  if (original !== null) await client.putTexte('corpus.json', original).catch(() => {})
-  else await client.supprimer('corpus.json').catch(() => {})
+  if (original !== null) await client.putTexte('corpus.crp', original).catch(() => {})
+  else await client.supprimer('corpus.crp').catch(() => {})
   await client.supprimer('entretiens/ent-deux-postes.json').catch(() => {})
   await client.supprimer('corbeille/ent-deux-postes.json').catch(() => {})
   await client.supprimer('verrous/corpus.lock.json').catch(() => {})
@@ -165,7 +165,7 @@ async function corpusServeur(base: string): Promise<CorpusFichier> {
     baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`,
     identifiants: MAX,
   })
-  return JSON.parse(await client.getTexte('corpus.json')) as CorpusFichier
+  return JSON.parse(await client.getTexte('corpus.crp')) as CorpusFichier
 }
 
 /** LA TRAME commune — identique sur les deux piles, seule la variante du verrou entretien diffère. Le protocole s'adapte, l'utilisateur ne choisit rien. */

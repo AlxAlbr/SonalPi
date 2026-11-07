@@ -27,11 +27,11 @@ function banc(nombre = 3) {
   f.sources.slice(2).forEach((s) => { s.data.annotations = [] })
   const dir = mkdtempSync(join(tmpdir(), 'renommage-cible-gitlab-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
   const miroir = structuredClone(f.corpus); miroir.reglesAnon.personne.pseudos = ['Miroir périmé', 'Rebecca']
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(miroir))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(miroir))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify({ ...s.data, lastModified: 'miroir-périmé' }))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const depot = new DepotMemoire()
-  depot.charger(new Map([['racine/corpus.json', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
+  depot.charger(new Map([['racine/corpus.crp', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
   const coordination = new BailGitLab({ branche: 'main', depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 's1' }) })
   const journal = new JournalPublicationGitLab('destination', join(dir, 'operations'))
   const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal, attendre: async () => {} })
@@ -69,7 +69,7 @@ function sessionDistante(b: ReturnType<typeof banc>, id: string) {
     cheminRelatif: `entretiens/${id}.json`, cheminDistant: `racine/entretiens/${id}.json`, branche: 'main', depot: b.depot, coordination: bob, publication: pub,
     stockageLocal: { lire: async () => contenu, ecrire: async (s) => { contenu = s } },
     preparerGardeDefinitions: async (candidat, avant) => {
-      const cp = (await b.depot.lireFichier('racine/corpus.json', 'main'))!
+      const cp = (await b.depot.lireFichier('racine/corpus.crp', 'main'))!
       verifierContenusReferencesDefinitions(candidat, cp.contenu, avant)
       return { action: 'garde', chemin: cp.chemin, commitId: cp.commitId, executable: cp.executable }
     } })
@@ -84,7 +84,7 @@ describe('renommage GitLab par lot ciblé', () => {
     expect(await b.service.appliquer(preparation)).toMatchObject({ annotations: 4, incluses: 2, entretiens: 2, definitionModifiee: true, statut: 'termine' })
     const commits = donnees(b)
     expect(commits).toHaveLength(3); expect(commits.map((c) => c.actions.length)).toEqual([2, 3, 3])
-    expect(commits[0].actions.find((a) => a.file_path === 'racine/corpus.json')?.content).toContain('Nouvelle')
+    expect(commits[0].actions.find((a) => a.file_path === 'racine/corpus.crp')?.content).toContain('Nouvelle')
     expect(commits.flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
     for (const source of b.sources.slice(0, 2)) {
       const attendu = structuredClone(source.data); for (const a of attendu.annotations) if (['a0', 'a5'].includes(a.id)) a.pseudo = 'Nouvelle'
@@ -136,7 +136,7 @@ describe('renommage GitLab par lot ciblé', () => {
     const payload = structuredClone(b.sources[2].data); payload.annotations = [structuredClone(b.sources[0].data.annotations[0])]
     const transactions = new TransactionsGitLab(b.options)
     await expect(transactions.importerEntretien('Import périmé', payload, [], [], [])).rejects.toThrow('variante choisie')
-    expect(Object.keys(JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu).membership)).toHaveLength(3)
+    expect(Object.keys(JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu).membership)).toHaveLength(3)
     payload.annotations[0].pseudo = 'Nouvelle'
     await expect(transactions.importerEntretien('Import actuel', payload, [], [], [])).resolves.toHaveProperty('id')
   })
@@ -147,9 +147,9 @@ describe('renommage GitLab par lot ciblé', () => {
     b.depot.avantCommit = (actions) => {
       if (!fait && actions.some((a) => a.file_path === 'racine/entretiens/e3.json')) {
         fait = true
-        const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu)
+        const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu)
         cp.reglesAnon.personne.pseudos = ['Nouvelle', 'Rebecca']
-        b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(cp))
+        b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(cp))
       }
     }
     expect(await bob.session.publier()).toMatchObject({ statut: 'refuse', raison: 'references' })
@@ -189,7 +189,7 @@ describe('renommage GitLab par lot ciblé', () => {
     const b = banc(), p = (await b.preparer()).preparation
     let fait = false
     b.depot.avantCommit = (actions) => {
-      if (!fait && actions.some((a) => a.file_path === 'racine/corpus.json' && a.content?.includes('Nouvelle') && !actions.some((a) => a.file_path.includes('/entretiens/')))) {
+      if (!fait && actions.some((a) => a.file_path === 'racine/corpus.crp' && a.content?.includes('Nouvelle') && !actions.some((a) => a.file_path.includes('/entretiens/')))) {
         fait = true; b.changer('e3', (e) => { e.annotations = [structuredClone(b.sources[0].data.annotations[0])] })
       }
     }
@@ -209,16 +209,16 @@ describe('renommage GitLab par lot ciblé', () => {
   })
   test('cible sortie du membership pendant le lot : nouveau consentement la retire sans toucher son fichier', async () => {
     const b = banc(); b.sessions.push('e2'); await b.service.appliquer((await b.preparer()).preparation)
-    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu)
+    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu)
     delete cp.membership.e2; cp.ordreEntretiens = ['e1', 'e3']
-    b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(cp)); b.sessions.length = 0
+    b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(cp)); b.sessions.length = 0
     expect(await b.service.appliquer((await b.reprise()).preparation)).toMatchObject({ statut: 'termine', annotations: 2, ciblesRetirees: ['e2'] })
     expect(b.lire('e2').annotations[0].pseudo).toBe('Claire'); expect(donnees(b)).toHaveLength(2)
   })
   test('corpus changé, source indisponible, token étranger ou défaut de consentement : aucune autorité', async () => {
     const b = banc(), p = (await b.preparer()).preparation
-    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu) as CorpusFichier; cp.titre = 'Concurrent'
-    b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(cp))
+    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu) as CorpusFichier; cp.titre = 'Concurrent'
+    b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(cp))
     await expect(b.service.appliquer(p)).rejects.toThrow('corpus a changé')
     await expect(b.service.appliquer({ ...p, store: new CorpusStore(b.dir) })).rejects.toThrow('corpus a changé')
     b.depot.fichiers.delete('racine/entretiens/e3.json')
@@ -258,7 +258,7 @@ describe('renommage GitLab par lot ciblé', () => {
   })
   test.each(['definition', 'entretien'])('issue inconnue de %s, redémarrage et reprise sans rejeu', async (phase) => {
     const b = banc(), p = (await b.preparer()).preparation
-    b.depot.avantCommit = (actions) => { if (phase === 'definition' ? actions.some((a) => a.file_path === 'racine/corpus.json') && !actions.some((a) => a.file_path.includes('/entretiens/')) : actions.some((a) => a.file_path === 'racine/entretiens/e1.json')) { b.depot.echouerApresAccepter(new Error('réponse perdue')); b.depot.rendreCommitsIllisibles() } }
+    b.depot.avantCommit = (actions) => { if (phase === 'definition' ? actions.some((a) => a.file_path === 'racine/corpus.crp') && !actions.some((a) => a.file_path.includes('/entretiens/')) : actions.some((a) => a.file_path === 'racine/entretiens/e1.json')) { b.depot.echouerApresAccepter(new Error('réponse perdue')); b.depot.rendreCommitsIllisibles() } }
     expect((await b.service.appliquer(p)).statut).toBe('indetermine')
     const entree = b.journal.lister()[0]; expect(entree.droits).toHaveLength(1)
     expect(statSync(join(b.dir, 'operations/candidates', entree.candidat)).mode & 0o777).toBe(0o600)
@@ -290,17 +290,17 @@ describe('renommage GitLab par lot ciblé', () => {
   })
   test('catégorie changée pendant un lot incomplet : nouvelle reprise la conserve', async () => {
     const b = banc(); b.sessions.push('e2'); await b.service.appliquer((await b.preparer()).preparation)
-    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu)
+    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu)
     cp.reglesAnon.personne.categorie = 'Catégorie concurrente'
-    b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(cp)); b.sessions.length = 0
+    b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(cp)); b.sessions.length = 0
     expect((await b.service.appliquer((await b.reprise()).preparation)).statut).toBe('termine')
-    expect(JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu).reglesAnon.personne.categorie).toBe('Catégorie concurrente')
+    expect(JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu).reglesAnon.personne.categorie).toBe('Catégorie concurrente')
   })
   test('définition divergente pendant un lot incomplet : reprise refusée sans écrasement', async () => {
     const b = banc(); b.sessions.push('e2'); await b.service.appliquer((await b.preparer()).preparation)
-    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu)
+    const cp = JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu)
     cp.reglesAnon.personne.pseudos = ['Modification concurrente', 'Rebecca']
-    b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(cp))
+    b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(cp))
     await expect(b.reprise()).rejects.toThrow('définition du lot a changé')
     expect(b.lire('e2').annotations[0].pseudo).toBe('Claire'); expect(donnees(b)).toHaveLength(2)
   })

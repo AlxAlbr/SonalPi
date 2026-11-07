@@ -11,7 +11,7 @@ import type { TransfertFichiersDistants } from '../../src/main/distant/transfert
 import { corpusDistantValide, entretienDistantValide } from '../webdav/fixturesCorpusDistant'
 
 const MEDIA = 'audios/e1.mp3'
-const CHEMINS = ['corpus.json', 'entretiens', 'entretiens/e1.json', 'audios', MEDIA]
+const CHEMINS = ['corpus.crp', 'entretiens', 'entretiens/e1.json', 'audios', MEDIA]
 
 /** Port de transfert qui note ce qu'il rapporterait, sans lire le serveur. */
 function transfertFactice() {
@@ -49,7 +49,7 @@ function lectureFactice(designation: unknown = { chemin: MEDIA }) {
     },
     async lireTexte(chemin) {
       lectures.push(chemin)
-      if (chemin === 'corpus.json') return corpusDistantValide(['e1'])
+      if (chemin === 'corpus.crp') return corpusDistantValide(['e1'])
       return entretienDistantValide({
         meta: { valeursGen: {}, audioRef: null, audioDistant: designation as never },
       })
@@ -84,7 +84,7 @@ describe('miroir — emplacement explicite des médias', () => {
         return entrees
       },
       async lireTexte(chemin) {
-        return chemin === 'corpus.json' ? corpusDistantValide(['e1', 'e2']) : entretienDistantValide({
+        return chemin === 'corpus.crp' ? corpusDistantValide(['e1', 'e2']) : entretienDistantValide({
           meta: { valeursGen: {}, audioRef: null, audioDistant: {
             chemin: chemin === 'entretiens/e1.json' ? MEDIA : 'audios/e2.mp3', fournisseur: 'gitlab',
           } },
@@ -102,12 +102,12 @@ describe('miroir — emplacement explicite des médias', () => {
     try {
       await expect(miroir.tirer([], annulation.signal)).rejects.toMatchObject({ name: 'AbortError' })
       expect(transfert.rapportes).toEqual([MEDIA])
-      expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+      expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
       expect(existsSync(join(dir, MEDIA))).toBe(false)
       const tirage = await miroir.tirer()
       expect(tirage.inaccessibles).toEqual([])
       expect(transfert.rapportes).toEqual([MEDIA, MEDIA, 'audios/e2.mp3'])
-      expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+      expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
       expect(existsSync(join(dir, 'audios/e2.mp3'))).toBe(true)
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })
@@ -149,7 +149,7 @@ describe('miroir — emplacement explicite des médias', () => {
     const tirage = await miroir.tirer()
 
     expect(tirage.inaccessibles).toEqual([])
-    expect(tirage.telecharges).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(tirage.telecharges).toEqual(['corpus.crp', 'entretiens/e1.json'])
     expect(inventaires).toEqual(['', 'entretiens'])
     expect(lectures).not.toContain(MEDIA)
     expect(rapportes).toEqual([])

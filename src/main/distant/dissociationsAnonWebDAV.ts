@@ -137,7 +137,7 @@ export class DissociationsAnonWebDAV {
         if (!j.barriereConfirmee || !egaux(protegees, j.protegees)) {
           const apres = structuredClone(frais.corpus)
           apres.dissociationAnon = { ...barriereDissociationWebDAV(j), cibles: protegees }
-          await this.publier(j, { phase: 'barriere', chemin: 'corpus.json', avant: frais.sourceCorpus.contenu,
+          await this.publier(j, { phase: 'barriere', chemin: 'corpus.crp', avant: frais.sourceCorpus.contenu,
             apres: this.serialiser(apres, frais.sourceCorpus.contenu), etagAvant: frais.sourceCorpus.etag }, garantir)
         }
       })
@@ -145,7 +145,7 @@ export class DissociationsAnonWebDAV {
         try {
           await this.avecVerrous([c.id], async (maintenir, garantir) => {
             await maintenir()
-            const corpusSource = await this.lire('corpus.json'), corpus = this.corpus(corpusSource.contenu)
+            const corpusSource = await this.lire('corpus.crp'), corpus = this.corpus(corpusSource.contenu)
             this.verifierCorpus(j!, corpus)
             if (!Object.hasOwn(corpus.membership, c.id)) throw new Error('La cible ne fait plus partie du corpus. Recalculez la reprise.')
             const source = await this.lire(`entretiens/${c.id}.json`)
@@ -154,7 +154,7 @@ export class DissociationsAnonWebDAV {
             apres.lastModified = new Date(this.maintenant()).toISOString()
             verifierBarriereDissociationWebDAV(corpus, apres, c.id)
             c.avant = source.contenu; c.apres = this.serialiser(apres, source.contenu)
-            const garde = await this.lire('corpus.json')
+            const garde = await this.lire('corpus.crp')
             if (garde.etag !== corpusSource.etag || garde.contenu !== corpusSource.contenu) throw new Error('Le corpus a changé avant le PUT de la cible.')
             await this.publier(j!, { phase: 'entretien', chemin: `entretiens/${c.id}.json`, avant: c.avant, apres: c.apres, etagAvant: source.etag }, garantir)
           })
@@ -173,7 +173,7 @@ export class DissociationsAnonWebDAV {
         }
         const apres = structuredClone(final.corpus)
         delete apres.reglesAnon[j!.demande.regleId]; delete apres.dissociationAnon
-        await this.publier(j!, { phase: 'retrait', chemin: 'corpus.json', avant: final.sourceCorpus.contenu,
+        await this.publier(j!, { phase: 'retrait', chemin: 'corpus.crp', avant: final.sourceCorpus.contenu,
           apres: this.serialiser(apres, final.sourceCorpus.contenu), etagAvant: final.sourceCorpus.etag }, garantir)
       })
       return this.bilan(j!)
@@ -212,7 +212,7 @@ export class DissociationsAnonWebDAV {
   }
   private installerActuels(j: LotDissociationWebDAV, s: Instantane) {
     try {
-      this.deps.miroir('corpus.json', s.sourceCorpus.contenu, s.sourceCorpus.etag)
+      this.deps.miroir('corpus.crp', s.sourceCorpus.contenu, s.sourceCorpus.etag)
       for (const c of j.cibles.filter((c) => c.etat === 'confirme' && Object.hasOwn(s.corpus.membership, c.id) && !this.sessionPresente(c.id))) {
         const source = s.entretiens.find((e) => e.id === c.id)?.source
         if (!source) throw new Error()
@@ -302,7 +302,7 @@ export class DissociationsAnonWebDAV {
   }
   private async lireInventaire(maintenir?: () => Promise<void>): Promise<Instantane> {
     await maintenir?.()
-    const premier = await this.lire('corpus.json'), corpus = this.corpus(premier.contenu)
+    const premier = await this.lire('corpus.crp'), corpus = this.corpus(premier.contenu)
     const entretiens: Instantane['entretiens'] = []
     let octets = Buffer.byteLength(premier.contenu)
     if (octets > 64 * 1024 * 1024) throw new InventaireTropGrand('L’inventaire de dissociation dépasse 64 Mio.')
@@ -320,7 +320,7 @@ export class DissociationsAnonWebDAV {
       }
     }
     await maintenir?.()
-    const dernier = await this.lire('corpus.json')
+    const dernier = await this.lire('corpus.crp')
     if (dernier.etag !== premier.etag || dernier.contenu !== premier.contenu) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez la dissociation.')
     return { corpus, sourceCorpus: dernier, entretiens }
   }

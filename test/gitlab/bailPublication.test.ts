@@ -353,7 +353,7 @@ describe('publication GitLab sous droit', () => {
   })
 
   test('un corps trop lourd est refusé avant l’envoi', () => {
-    const action = { action: 'update', file_path: 'corpus.json', content: 'x'.repeat(1024) }
+    const action = { action: 'update', file_path: 'corpus.crp', content: 'x'.repeat(1024) }
     expect(() => verifierBornesPublication('main', 'Sonal operation', [action])).not.toThrow()
     const lourd = Array.from({ length: 3 }, (_vide, index) => ({
       ...action,
@@ -417,11 +417,11 @@ describe('publication GitLab sous droit', () => {
 
   test('le plan de publication refuse juste au-dessus de sa valeur', () => {
     expect(() => verifierBornesPublication('main', 'Sonal operation', [{
-      action: 'update', file_path: 'corpus.json',
+      action: 'update', file_path: 'corpus.crp',
       content: 'x'.repeat(TAILLE_MAX_DOCUMENT_GITLAB - 8 * 1024),
     }])).not.toThrow()
     expect(() => verifierBornesPublication('main', 'Sonal operation', [{
-      action: 'update', file_path: 'corpus.json',
+      action: 'update', file_path: 'corpus.crp',
       content: 'x'.repeat(TAILLE_MAX_DOCUMENT_GITLAB),
     }])).toThrow(/Kio acceptés par GitLab/)
   })

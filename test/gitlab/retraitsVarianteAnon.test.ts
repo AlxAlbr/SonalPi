@@ -121,7 +121,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
   })
   test.each(['barriere', 'entretien', 'retrait'])('réponse acceptée perdue : %s, preuve sans second commit', async (phase) => {
     const b = banc(); b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.action === 'update' && (phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path.endsWith('/corpus.json')
+      if (actions.some((a) => a.action === 'update' && (phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path.endsWith('/corpus.crp')
         && (phase === 'barriere' ? !!JSON.parse(a.content!).retraitVarianteAnon : JSON.parse(a.content!).reglesAnon.personne.pseudos.length === 1)))) {
         b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles()
       }
@@ -149,7 +149,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
   test('coordination neuve : reconnaissance sans libérer les droits persistants ni publier la suite', async () => {
     const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/e1.json'))) { b.depot.echouerApresAccepter(new Error('Perte')); b.depot.rendreCommitsIllisibles() } }
     const r = await appliquer(b); b.depot.avantCommit = () => {}; b.depot.rendreCommits()
-    const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.json')), avant = b.depot.fichiers.get(chemin)!.contenu
+    const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.crp')), avant = b.depot.fichiers.get(chemin)!.contenu
     const coordination = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 'neuve' }) })
     const publication = new PublieurGitLab({ branche: 'main', depot: b.depot, coordination, journal: b.journal, attendre: async () => {} })
     await reprendreOperationsGitLab({ depot: b.depot, coordination, journal: b.journal, dirMiroir: b.dir }); expect(b.journal.lister()).toHaveLength(1)
@@ -161,7 +161,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/e1.json'))) { b.depot.echouerApresAccepter(new Error('Perte')); b.depot.rendreCommitsIllisibles() } }
     const r = await appliquer(b), entree = structuredClone(b.journal.lister()[0])
     if (cas === 'contenu') entree.actions.find((a) => a.file_path.endsWith('/e1.json'))!.contentSha256 = '0'.repeat(64)
-    else entree.actions = entree.actions.filter((a) => a.file_path !== 'racine/corpus.json')
+    else entree.actions = entree.actions.filter((a) => a.file_path !== 'racine/corpus.crp')
     vi.spyOn(b.journal, 'lister').mockReturnValue([entree]); expect(b.service.publicationDuLotSeule()).toBe(false)
     await expect(b.service.relireSuivi(r.operationId)).rejects.toThrow('ne correspond pas'); expect(commits(b)).toHaveLength(2)
   })
@@ -200,7 +200,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     writeFileSync(fichier(b), JSON.stringify(j)); expect(() => new RetraitsVarianteAnonGitLab(b.options, () => [])).toThrow('invalide')
   })
   test('course sur acquis à la finalisation : garde rejette, reprise garde la version indépendante actuelle', async () => {
-    const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/corpus.json') && JSON.parse(a.content!).reglesAnon.personne.pseudos.length === 1)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' }) }
+    const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/corpus.crp') && JSON.parse(a.content!).reglesAnon.personne.pseudos.length === 1)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' }) }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', varianteRetiree: false, annotations: 6 }); b.depot.avantCommit = () => {}
     expect(await reprendre(b)).toMatchObject({ statut: 'termine' }); expect(b.lire('e1').locuteurs[0].pseudo).toBe('Concurrent')
   })
@@ -216,8 +216,8 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
   })
   test('ouverture sans services de suivi refusée avant toute lecture réseau ou remplacement du miroir', async () => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)
-    const client = { resoudreBranche: vi.fn() }, avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8')
+    const client = { resoudreBranche: vi.fn() }, avant = readFileSync(join(b.dir, 'corpus.crp'), 'utf8')
     await expect(preparerContexteGitLabLectureSeule({ id: 'destination', dirLocal: b.dir, branche: 'main', racine: 'racine', client: client as never })).rejects.toThrow('exige ses services GitLab')
-    expect(client.resoudreBranche).not.toHaveBeenCalled(); expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(client.resoudreBranche).not.toHaveBeenCalled(); expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(avant)
   })
 })

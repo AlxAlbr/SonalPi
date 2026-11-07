@@ -26,7 +26,7 @@ async function banc(natif: boolean) {
   f.sources[2].data.annotations = []
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }); serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-renommage-contexte-')); dossiers.push(dirLocal)
   const puts: string[] = []; const pieges = { avant: async (_chemin: string, _init?: RequestInit) => {}, apres: async (_chemin: string, _init?: RequestInit) => {} }
@@ -34,7 +34,7 @@ async function banc(natif: boolean) {
     const chemin = new URL(String(url)).pathname.replace(`${serveur.racineDav}/`, '')
     await pieges.avant(chemin, init)
     const r = await serveur.fetch(url, init)
-    if (r.ok && init?.method === 'PUT' && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) puts.push(chemin)
+    if (r.ok && init?.method === 'PUT' && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) puts.push(chemin)
     await pieges.apres(chemin, init)
     return r
   }
@@ -180,7 +180,7 @@ for (const natif of [false, true]) describe(`raccordement renommage WebDAV — $
     data.annotations = [{ ...data.annotations[0], regle: 'nouvelle-regle', pseudo: 'Valide' }]
     const regle = { id: 'nouvelle-regle', entite: ['Nadine'], pseudos: ['Valide'] }
     expect(await b.contexte.transactions.importerEntretien('Nouvelle définition', data, [], [], [regle])).toHaveProperty('id')
-    expect(JSON.parse(b.serveur.contenuDe('corpus.json')!).reglesAnon['nouvelle-regle']).toEqual(regle)
+    expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).reglesAnon['nouvelle-regle']).toEqual(regle)
   })
   test('sauvegarde incertaine : garde corpus conservée, renommage bloqué, autosave plus récente préservée', async () => {
     const b = await banc(natif); const a = await b.preparer(); await b.contexte.ouvrirEntretienPourEdition('e3')

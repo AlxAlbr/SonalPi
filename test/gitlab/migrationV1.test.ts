@@ -198,7 +198,7 @@ describe('préparation de migration GitLab V1', () => {
     expect(await preparateur.lireEntretien(source.preparationId, 1)).toBeNull()
   })
 
-  it.each(['corpus.json', 'entretiens/e.json', 'medias/audio.mp3', 'README.mp3', 'recherche.txt', 'docs/README.md'])('refuse un contenu utilisateur préexistant : %s', async (chemin) => {
+  it.each(['corpus.crp', 'entretiens/e.json', 'medias/audio.mp3', 'README.mp3', 'recherche.txt', 'docs/README.md'])('refuse un contenu utilisateur préexistant : %s', async (chemin) => {
     const { preparateur } = banc({ fichiersCible: ['README.md', chemin] })
     const source = await preparateur.decouvrir(demande)
     await expect(preparateur.preparer({ preparationId: source.preparationId, cheminCrp: 'terrain/corpus.crp', cible })).rejects.toThrow('contient déjà')

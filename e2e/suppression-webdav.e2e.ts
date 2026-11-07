@@ -18,9 +18,9 @@ async function instrumenter(app: ElectronApplication, racine: string, perte: Son
     g.sondeSuppression = { perte: args.perte, accepte: false, publies: [], probes: [] }
     g.fetch = async (url, init) => {
       const adresse = url instanceof Request ? url.url : String(url), methode = init?.method ?? (url instanceof Request ? url.method : 'GET')
-      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.json` ? adresse.split('/').at(-1)! : ''
+      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.crp` ? adresse.split('/').at(-1)! : ''
       const s = g.sondeSuppression
-      if (s.perte === 'finale' && s.accepte && id === 'corpus.json' && methode === 'GET') throw new Error('Relecture synthétique indisponible')
+      if (s.perte === 'finale' && s.accepte && id === 'corpus.crp' && methode === 'GET') throw new Error('Relecture synthétique indisponible')
       const r = await original(url, init)
       if (adresse.startsWith(args.racine)) {
         const auth = new Headers(init?.headers ?? (url instanceof Request ? url.headers : undefined)).get('Authorization')
@@ -28,8 +28,8 @@ async function instrumenter(app: ElectronApplication, racine: string, perte: Son
           authConforme: auth === `Basic ${Buffer.from('max:max-max-1234').toString('base64')}` })
       }
       if (id && methode === 'PUT' && r.ok) {
-        const retrait = id === 'corpus.json' && !JSON.parse(init!.body as string).suppressionAnon
-        s.publies.push(id === 'corpus.json' ? retrait ? 'retrait' : 'barriere' : id)
+        const retrait = id === 'corpus.crp' && !JSON.parse(init!.body as string).suppressionAnon
+        s.publies.push(id === 'corpus.crp' ? retrait ? 'retrait' : 'barriere' : id)
         // Dépasse le délai du tirage automatique pendant une publication réelle.
         if (args.retarderPremiereCible && id === 'e1.json' && s.publies.filter((p) => p === id).length === 1) await new Promise((r) => setTimeout(r, 65_000))
         if (s.perte === 'finale' && retrait || s.perte === 'kill' && id === 'e1.json') {
@@ -83,7 +83,7 @@ async function banc(port: number) {
   const f = fixtureSuppressionAnon()
   f.corpus.nom = 'Suppression synthétique'
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
-  await client.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+  await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-suppression-'))
   const lancement = () => lancer(profil)
@@ -180,7 +180,7 @@ for (const port of [8080, 8081]) test.describe(`suppression WebDAV :${port}`, ()
       await expect(modal).toContainText('Le serveur n’a pas confirmé le résultat', { timeout: 90_000 })
       await expect(modal.getByRole('button', { name: 'Recalculer la reprise', exact: true })).toBeDisabled()
       await page.screenshot({ path: info.outputPath('suppression-webdav-indeterminee.png') })
-      expect(JSON.parse(await b.client.getTexte('corpus.json')).reglesAnon.personne).toBeUndefined()
+      expect(JSON.parse(await b.client.getTexte('corpus.crp')).reglesAnon.personne).toBeUndefined()
       await app.evaluate(() => { (globalThis as unknown as { sondeSuppression: Sonde }).sondeSuppression.perte = 'aucune' })
       await modal.getByRole('button', { name: 'Relire le suivi WebDAV', exact: true }).click()
       await expect(modal).toBeHidden({ timeout: 90_000 })

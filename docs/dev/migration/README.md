@@ -1,11 +1,12 @@
 # Migration SonalPi1 — local et GitLab
 
 La migration transforme un corpus SonalPi1 en **un nouveau corpus SonalPi2**,
-sans modifier la source. Elle est accessible depuis l’accueil, en local ou depuis
-GitLab. Ce n’est ni une ouverture ordinaire, ni une migration de `formatVersion`
+dans une destination distincte. Le sélecteur de CRP reconnaît la V1 locale ;
+la carte GitLab conserve son parcours dédié. Après succès local, seul le CRP V1
+est renommé en `.crp.sauvegarde-v1` ; la source GitLab n'est pas modifiée. Ce n’est ni une ouverture ordinaire, ni une migration de `formatVersion`
 d’un corpus déjà natif. Guide fonctionnel : [migrer un corpus](../../user/migration-v1.md).
 
-## Le parcours à comprendre
+## Le parcours GitLab à comprendre
 
 ```text
 Choisir le .crp et une destination distincte
@@ -35,17 +36,17 @@ fusion des imports, pas aux seuls identifiants de la source.
 
 Un ancien résultat conservé n’est pas une analyse que SonalPi2 sait rouvrir.
 Les fichiers d’`Autres/` ne sont pas ajoutés automatiquement aux documents de
-préparation. `BilanMigration.vue` résume les entretiens, réglages, documents et
-éléments non repris ; les détails sont repliés, mais les avertissements restent
+préparation. Dans le parcours GitLab, `BilanMigration.vue` résume les entretiens,
+réglages, documents et éléments non repris ; les détails sont repliés, mais les avertissements restent
 visibles. Une erreur de lecture n’est jamais traitée comme un document vide.
 
 | Différence | Local | GitLab |
 |---|---|---|
 | Source | Fichiers du poste, revérifiés avant installation. | Documents lus à un même commit source figé. |
 | Destination | Nouveau dossier distinct. | Autre dépôt, vide ou limité aux fichiers techniques admis. |
-| Médias | Restent référencés à leur ancien emplacement, sans copie. | Copiés dans GitLab/LFS ou une base WebDAV externe. |
+| Médias | Internes copiés sous `medias/` ; externes référencés à leur emplacement réel. | Copiés dans GitLab/LFS ou une base WebDAV externe. |
 | Documents supplémentaires | `<nouveau-corpus>/Autres/`. | `Autres/` du nouveau dépôt, même si les médias vont sur WebDAV. |
-| Interruption | Pas de reprise générale de migration ; des copies partielles peuvent subsister. | Suivi durable des copies et publications pour une reprise contrôlée. |
+| Interruption | Préparation annulable et nettoyée ; aucune cible partielle activée. Pas de reprise persistante. | Suivi durable des copies et publications pour une reprise contrôlée. |
 
 ## Les limites de l’inventaire
 
@@ -60,27 +61,38 @@ collisions de casse ou de normalisation Unicode sont refusées sans renommage
 silencieux. Les liens symboliques locaux ne sont pas suivis.
 
 Ce classement ne détecte pas tous les secrets dans le contenu des documents ni
-l’appartenance de tout fichier à un corpus voisin. Les ambiguïtés doivent rester
-visibles dans le bilan avant confirmation.
+l’appartenance de tout fichier à un corpus voisin. Dans le parcours GitLab, les
+ambiguïtés restent visibles dans le bilan avant confirmation d'un envoi distant.
 
-## Local : installer après fermeture du contexte courant
+## Local : préparer un corpus complet, puis basculer
 
 `ConservationMigrationLocale` lie le bilan au `.crp`, à la destination et aux
 empreintes des documents. Avant exécution, il relit l’inventaire et vérifie les
 parents des chemins pour empêcher une substitution par lien symbolique.
 
-L’installation suit quatre étapes :
+`MigrationV1` construit un store non actif dans un dossier temporaire voisin de
+la destination. Il vérifie les transcriptions et médias déclarés avant écriture,
+distingue les chemins réels internes/externes et contrôle les sources avant la
+bascule. Une référence manquante n'est pas transformée en entretien vide.
 
-1. préparer les données et copier les documents dans un temporaire sur le même
-   système de fichiers, en contrôlant tailles et SHA-256 ;
-2. fermer le contexte précédent par `creerTransitionsLocales` ;
-3. créer `Autres/` exclusivement, installer sans écraser, puis finaliser le corpus ;
-4. retirer la préparation sans toucher aux originaux ni aux copies installées.
+Les médias internes sont copiés en flux et vérifiés. Les conversions HTML restent
+dans le sas du renderer ; le pont ne lit les transcriptions que par index dans la
+tentative en cours. Les réglages Lexico et les documents `Autres/` admissibles sont
+repris par les services existants, avec annulation des flux documentaires également.
+La fenêtre locale ne montre ni aperçu technique ni bilan de réussites.
 
-Les copies sont privées (`0600` sur POSIX). Un refus de fermeture ne publie ni
-documents ni corpus ; un dossier `Autres/` préexistant ou apparu entre-temps n’est
-pas écrasé. Une panne pendant l’installation peut laisser un résultat partiel,
-mais ne doit jamais être annoncée comme une réussite.
+Une fois les imports terminés, le renderer vide encore l'autosave. Le main passe
+par sa file de transitions et `executerTransitionPreparee` pour fermer/publier le
+contexte précédent, promouvoir le dossier et installer son store. Après application
+réussie à l'interface, le CRP V1 est marqué comme sauvegarde par lien exclusif puis
+retrait de son nom initial, sans écraser une sauvegarde apparue entre deux contrôles.
+Un refus de ce dernier renommage laisse la V2 valide ouverte et produit un avertissement.
+
+L'annulation attend l'arrêt des écritures puis nettoie seulement le dossier de
+préparation dont l'identité est conservée. Une substitution ou un refus de nettoyage
+signale l'emplacement à vérifier et libère la tentative, sans effacer de données
+apparues à sa place. La courte bascule finale n'est pas annulable. Un arrêt brutal
+peut laisser un temporaire non actif, sans reprise automatique au redémarrage.
 
 ## GitLab : publication et reprise
 
@@ -94,7 +106,7 @@ leurs références. Un homonyme différent n’est pas remplacé. Les documents
 `Autres/` exigent LFS sur la cible ; leurs attributs restent dans
 `Autres/.gitattributes`, sans recopier ceux de la source. Les JSON natifs restent
 hors LFS. La publication respecte les limites d’actions et de taille, avec
-`corpus.json` **en dernier**, en une fois ou par lots prévus par le protocole.
+`corpus.crp` **en dernier**, en une fois ou par lots prévus par le protocole.
 Une cible sans branche peut être initialisée par ce parcours, pas par une simple
 consultation.
 
@@ -127,7 +139,7 @@ sont refusées ; WebDAV et GitLab ne forment pas une transaction atomique commun
 |---|---|
 | Conversion du corpus et réglages Lexico | `src/shared/corpus/migrationCrp.ts`, `src/main/migrationLexicoV1.ts` |
 | Classement et exclusions des documents | `src/shared/corpus/conservationMigration.ts`, `src/main/conservationMigration.ts` |
-| Bilan et installation locale | `src/main/conservationMigrationLocale.ts`, `src/main/transitionContexte.ts` |
+| Préparation et installation locale | `src/main/migrationV1.ts`, `src/main/conservationMigrationLocale.ts`, `src/main/transitionContexte.ts` |
 | Préparation et conversion GitLab | `src/main/gitlab/preparationMigration.ts`, `src/main/gitlab/documentsMigration.ts` |
 | Lecture et copies GitLab | `src/main/gitlab/lectureV1.ts`, `src/main/gitlab/copieMediasMigration.ts` |
 | Publication, suivi et reprise GitLab | `src/main/gitlab/operationMigration.ts`, `src/main/gitlab/suiviMigration.ts`, `src/main/gitlab/migration.ts` |
@@ -140,7 +152,8 @@ Pour les règles communes et le local : `test/migrationCrp.test.ts`,
 Pour GitLab : `test/gitlab/migrationV1.test.ts`, `test/gitlab/documentsMigration.test.ts`,
 `test/gitlab/copieMediasMigration.test.ts`, `test/gitlab/operationMigration.test.ts`,
 `test/gitlab/serviceMigration.test.ts` et `test/migrationGitLabRenderer.test.ts`.
-`e2e/migration-v1.e2e.ts` couvre les parcours locaux et simulés.
+`e2e/migration-v1.e2e.ts` couvre le local ; `e2e/migration-gitlab-interface.e2e.ts`
+conserve les contrôles d'interface et d'accès GitLab simulés.
 
 ## Rejouer la recette réelle
 

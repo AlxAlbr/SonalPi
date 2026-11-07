@@ -113,7 +113,7 @@ export interface EntreeJournalPublication {
   suppression?: SuppressionJournalGitLab
 }
 
-/** La ressource canonique de `corpus.json`, seule à même de reconnaître une
+/** La ressource canonique de `corpus.crp`, seule à même de reconnaître une
  *  ancienne entrée de publication de corpus. */
 export interface RessourceCorpusJournal {
   chemin: string
@@ -145,7 +145,7 @@ export class JournalPublicationGitLab {
     chmodSync(this.candidates, 0o700)
   }
 
-  /** Entrées qui écrivent `corpus.json` et sont encore journalisées : elles
+  /** Entrées qui écrivent `corpus.crp` et sont encore journalisées : elles
    *  bloquent toute nouvelle transaction sur le corpus, et toute nouvelle
    *  suppression, tant qu'elles ne sont pas réconciliées. Une entrée de nature
    *  inconnue bloque aussi. */
@@ -616,7 +616,7 @@ function verifierDroitJournal(valeur: unknown): DroitJournalGitLab {
  *
  *  Une publication de corpus ne peut être déduite de la forme de sa première
  *  action : seule l'égalité exacte avec la ressource canonique de
- *  `corpus.json`, conjointe à des actions toutes compatibles avec une
+ *  `corpus.crp`, conjointe à des actions toutes compatibles avec une
  *  transaction de corpus, autorise cette lecture. Le reste reste « inconnue »,
  *  donc récupérable et bloquant. */
 function classerAncienne(

@@ -107,7 +107,7 @@ interface BaseFraiche {
 }
 
 /** Transactions de corpus GitLab : définitions, création et import.
- *  Toutes prennent le bail de `corpus.json`, calculent sur la base fraîche du
+ *  Toutes prennent le bail de `corpus.crp`, calculent sur la base fraîche du
  *  serveur, et n'installent leur candidat qu'une fois le sort de la publication
  *  connu. */
 export class TransactionsGitLab {
@@ -121,7 +121,7 @@ export class TransactionsGitLab {
     this.racine = normaliserRacineGitLab(options.destination.racine)
     this.branche = options.destination.branche
     this.nouvelleOperation = options.nouvelleOperation ?? (() => randomUUID())
-    this.cheminCorpus = this.cheminDistant('corpus.json')
+    this.cheminCorpus = this.cheminDistant('corpus.crp')
     this.ressourceCorpus = cleRessourceBailGitLab(
       options.destination.branche,
       this.cheminCorpus,
@@ -171,7 +171,7 @@ export class TransactionsGitLab {
     })
   }
 
-  /** Mutation de définitions calculée sur le seul `corpus.json` lu sur
+  /** Mutation de définitions calculée sur le seul `corpus.crp` lu sur
    *  GitLab. Une commande sans changement est un succès sans commit de données :
    *  la base fraîche est néanmoins installée, pour ne pas rester en retard. */
   executerDefinitions<T>(
@@ -223,7 +223,7 @@ export class TransactionsGitLab {
   /** Mutation de définitions qui écrit une référence ou une recette.
    *
    *  Chaque source nécessaire est lue sur un même instantané Git que
-   *  `corpus.json`, et entre dans le commit sous une garde sans contenu : si
+   *  `corpus.crp`, et entre dans le commit sous une garde sans contenu : si
    *  une source a bougé depuis la lecture, tout le commit est refusé
    *  et le corpus publié reste intact. Les copies sous session ne sont jamais
    *  remplacées, et le miroir n'est écrit qu'après confirmation. */
@@ -332,7 +332,7 @@ export class TransactionsGitLab {
    *
    *  Le tri ne produit qu'un ordre : une lecture légèrement périmée donne un
    *  rang faux, corrigé au tri suivant, jamais une référence pendante. Aucun
-   *  entretien n'est donc gardé, et le commit ne porte que `corpus.json` et la
+   *  entretien n'est donc gardé, et le commit ne porte que `corpus.crp` et la
    *  mutation du bail. Les contenus sont lus par l'endpoint brut, au SHA du
    *  corpus, hors de la limite de la lecture avec garde.
    *
@@ -727,7 +727,7 @@ export class TransactionsGitLab {
     })
   }
 
-  /** Remplace localement `corpus.json` par un état confirmé côté serveur. */
+  /** Remplace localement `corpus.crp` par un état confirmé côté serveur. */
   private installer(identifiant: string, corpusApres: CorpusFichier): void {
     this.options.store.appliquerTransactionFichiers({
       operation: 'remplacement',
@@ -799,7 +799,7 @@ export class TransactionsGitLab {
   /** Base fraîche du serveur, avec la garde qui la protège. */
   private async lireBaseFraiche(ref: string): Promise<FichierGitLab> {
     const distant = await this.options.depot.lireFichier(this.cheminCorpus, ref)
-    if (!distant) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+    if (!distant) throw new Error('Le fichier corpus.crp est introuvable sur GitLab.')
     this.verifierCorpus(distant.contenu)
     return distant
   }
@@ -971,7 +971,7 @@ export class TransactionsGitLab {
     try {
       corpus = JSON.parse(contenu) as { formatVersion?: unknown }
     } catch {
-      throw new Error('Le fichier corpus.json de GitLab est illisible.')
+      throw new Error('Le fichier corpus.crp de GitLab est illisible.')
     }
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error('La version du corpus GitLab n’est pas prise en charge.')

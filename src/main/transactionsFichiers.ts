@@ -258,7 +258,7 @@ function synchroniserDossier(dossier: string): void {
   }
 }
 
-/** Coordonne les mutations locales qui touchent `corpus.json` et les entretiens.
+/** Coordonne les mutations locales qui touchent `corpus.crp` et les entretiens.
  *  Le journal contient l'intention complète et permet de terminer l'opération après un arrêt. */
 export class TransactionsFichiersCorpus {
   private readonly journal: string
@@ -297,7 +297,7 @@ export class TransactionsFichiersCorpus {
   }
 
   private appliquer(plan: PlanTransactionFichiers): void {
-    const fichierCorpus = join(this.dir, 'corpus.json')
+    const fichierCorpus = join(this.dir, 'corpus.crp')
     const apres = contenuJson(plan.corpusApres)
     const courant = existsSync(fichierCorpus) ? readFileSync(fichierCorpus, 'utf8') : null
     const correspondAvant = correspondAuCorpus(courant, plan.corpusAvant)
@@ -306,7 +306,7 @@ export class TransactionsFichiersCorpus {
     const correspondIntermediaire = intermediaire !== undefined && correspondAuCorpus(courant, intermediaire)
     if (!correspondAvant && !correspondApres && !correspondIntermediaire) {
       throw new Error(
-        `La transaction de fichiers « ${plan.id} » ne peut pas être reprise : corpus.json a changé.`,
+        `La transaction de fichiers « ${plan.id} » ne peut pas être reprise : corpus.crp a changé.`,
       )
     }
     if (plan.operation === 'remplacement') {

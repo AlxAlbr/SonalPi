@@ -23,7 +23,7 @@ function attente() {
 }
 async function banc(natif: boolean) {
   const f = fixtureRetraitVarianteAnon(), serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
-  serveur.creerDossierRelatif('verrous'); serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.creerDossierRelatif('verrous'); serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dir = mkdtempSync(join(tmpdir(), 'sonal-retrait-contexte-')); dirs.push(dir)
   const puts: string[] = [], pieges = { avant: async (_p: string, _i?: RequestInit) => {} }
@@ -31,7 +31,7 @@ async function banc(natif: boolean) {
     const p = new URL(String(url)).pathname.replace(`${serveur.racineDav}/`, '')
     await pieges.avant(p, init)
     const r = await serveur.fetch(url, init)
-    if (r.ok && init?.method === 'PUT' && (p === 'corpus.json' || p.startsWith('entretiens/'))) puts.push(p)
+    if (r.ok && init?.method === 'PUT' && (p === 'corpus.crp' || p.startsWith('entretiens/'))) puts.push(p)
     return r
   }
   const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, transport)
@@ -121,7 +121,7 @@ for (const natif of [false, true]) describe(`contexte retrait WebDAV : ${natif ?
     }
     const r = await b.contexte.retirerVarianteAnon(p.token, true)
     expect(fermee).toBe(true); expect(r).toMatchObject({ statut: 'partiel', annotations: 0 })
-    expect(b.puts).toEqual(['corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp'])
     expect(b.contexte.lireSuiviRetraitVarianteAnon()).toMatchObject({ statut: 'partiel' })
     expect(() => b.contexte.preparerRepriseRetraitVarianteAnon(r.operationId)).toThrow('pas disponible')
     expect((await b.contexte.relireSuiviRetraitVarianteAnon(r.operationId)).statut).toBe('partiel')

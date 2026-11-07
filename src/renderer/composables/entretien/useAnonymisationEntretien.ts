@@ -823,7 +823,7 @@ export function useAnonymisationEntretien(deps: {
   /* ── Réconciliation POST-PULL ───────────────────────────────────────────
    * En multi-user, une règle corpus régentant une entité déjà travaillée
    * localement peut APPARAÎTRE pendant la session (un collègue l'a poussée
-   * entre deux pulls). Au prochain tirage qui ramène un corpus.json modifié,
+   * entre deux pulls). Au prochain tirage qui ramène un corpus.crp modifié,
    * l'orchestrateur appelle ceci : mêmes décisions que le dialogue de
    * promotion (« Aligner / Garder les deux »), jamais de divergence silencieuse.
    * ───────────────────────────────────────────────────────────────────────*/

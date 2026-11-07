@@ -119,6 +119,6 @@ export class DocumentsMigrationGitLab {
       const chemin = `entretiens/${id}.json`
       yield { action: 'create', chemin, contenu: JSON.stringify(JSON.parse(readFileSync(join(this.dossier, chemin), 'utf8'))) }
     }
-    yield { action: 'create', chemin: 'corpus.json', contenu: JSON.stringify(this.store.ouvrir()) }
+    yield { action: 'create', chemin: 'corpus.crp', contenu: JSON.stringify(this.store.ouvrir()) }
   }
 }

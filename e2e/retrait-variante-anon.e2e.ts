@@ -104,7 +104,7 @@ test('retrait local interrompu : journal v5, relance et choix acquis non réécr
     expect(data.annotations.filter((a: { regle?: string; pseudo?: string }) => a.regle === regle.id && a.pseudo === 'Claire')).toHaveLength(0)
     expect(JSON.parse(readFileSync(join(dir, '.transaction-fichiers.json'), 'utf8')).formatVersion).toBe(5)
     expect(statSync(join(dir, '.transaction-fichiers.json')).mode & 0o777).toBe(0o600)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon[regle.id].pseudos).toEqual(['Claire', 'Rebecca'])
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).reglesAnon[regle.id].pseudos).toEqual(['Claire', 'Rebecca'])
     await app.close(); app = await lancer(profil, { preserverSettings: true }); page = await app.firstWindow()
     await page.getByRole('button', { name: 'corpus', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Pseudonymisation', exact: true })).toBeVisible({ timeout: 20_000 })

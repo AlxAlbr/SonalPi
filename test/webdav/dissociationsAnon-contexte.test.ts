@@ -26,7 +26,7 @@ async function banc(natif: boolean) {
   const f = fixtureDissociationAnon()
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }); serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-dissociation-contexte-')); dossiers.push(dirLocal)
   const puts: string[] = [], pieges = { avant: async (_p: string, _init?: RequestInit) => {}, apres: async (_p: string, _init?: RequestInit) => {} }
@@ -34,7 +34,7 @@ async function banc(natif: boolean) {
     const p = new URL(String(url)).pathname.replace(`${serveur.racineDav}/`, '')
     await pieges.avant(p, init)
     const r = await serveur.fetch(url, init)
-    if (r.ok && init?.method === 'PUT' && (p === 'corpus.json' || p.startsWith('entretiens/'))) puts.push(p)
+    if (r.ok && init?.method === 'PUT' && (p === 'corpus.crp' || p.startsWith('entretiens/'))) puts.push(p)
     await pieges.apres(p, init); return r
   }
   const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, transport)
@@ -107,7 +107,7 @@ for (const natif of [false, true]) describe(`assemblage dissociation WebDAV : ${
     finally { suite.terminer() }
     await tirage
     const depart = attente(), fin = attente()
-    b.pieges.avant = async (chemin, init) => { if (chemin === 'corpus.json' && init?.method === 'GET') { depart.terminer(); await fin.promise } }
+    b.pieges.avant = async (chemin, init) => { if (chemin === 'corpus.crp' && init?.method === 'GET') { depart.terminer(); await fin.promise } }
     const lecture = b.preparer(); await depart.promise
     try { await expect(b.contexte.fermer()).rejects.toThrow('dissociation') }
     finally { fin.terminer() }
@@ -161,7 +161,7 @@ for (const natif of [false, true]) describe(`assemblage dissociation WebDAV : ${
     await b.contexte.actualiser()
     expect(b.contexte.lireSuiviDissociationAnon()).toMatchObject({ annotations: 4, statut: 'partiel' })
     expect(readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8')).toBe(acquis)
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
     const reprise = await b.contexte.preparerRepriseDissociationAnon(r.operationId)
     expect(await b.contexte.dissocierRegleAnon(reprise.token, true)).toMatchObject({ statut: 'termine' })
   })

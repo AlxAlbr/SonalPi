@@ -264,7 +264,7 @@ describe('copie exacte en flux', () => {
   it('refuse un nom qui sortirait de DocsPrepaProjet', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const destination = join(mkdtempSync(join(tmpdir(), 'sonal-docs-')), 'copie.json')
-    await expect(enregistrerCopieDistant(client(serveur), '../corpus.json', destination)).rejects.toThrow(
+    await expect(enregistrerCopieDistant(client(serveur), '../corpus.crp', destination)).rejects.toThrow(
       'Nom de document invalide',
     )
   })

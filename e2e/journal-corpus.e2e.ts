@@ -84,7 +84,7 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
     }, autreCorpus)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await page.locator('.ouvrir-dossier').click()
     await fermerAiguillage(page)
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
     await attendreCorpus(page)

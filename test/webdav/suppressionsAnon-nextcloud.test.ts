@@ -34,7 +34,7 @@ for (const port of [8080, 8081]) {
       const tiers = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: olivier })
       await origin.creerDossier('entretiens'); await origin.creerDossier('verrous')
       const f = fixtureSuppressionAnon()
-      await origin.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+      await origin.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
       for (const s of f.sources) await origin.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
       const dir = mkdtempSync(join(tmpdir(), 'sonal-suppression-nc-')), natif = port === 8080
       const puts: string[] = [], miroirs = new Map<string, string>()
@@ -45,7 +45,7 @@ for (const port of [8080, 8081]) {
         if (panne.lectures === p && init?.method === 'GET') throw new Error('lecture perdue')
         await avant.action(p, init)
         const r = await fetch(url, init)
-        if (init?.method === 'PUT' && r.ok && (p === 'corpus.json' || p.startsWith('entretiens/'))) {
+        if (init?.method === 'PUT' && r.ok && (p === 'corpus.crp' || p.startsWith('entretiens/'))) {
           puts.push(p)
           if (panne.reponse === p) { panne.lectures = p; await r.body?.cancel(); throw new Error('réponse perdue') }
         }
@@ -72,13 +72,13 @@ for (const port of [8080, 8081]) {
       try {
         const avant = await b.origin.getTexte('entretiens/e3.json')
         expect(await b.service.appliquer(b.preparation.token, true)).toMatchObject({ statut: 'termine', annotations: 8, regleRetiree: true })
-        expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+        expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
         expect(await b.origin.getTexte('entretiens/e3.json')).toBe(avant)
         const apres = JSON.parse(await b.tiers.getTexte('entretiens/e1.json')) as EntretienFichier
         expect(apres.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
         expect(apres.definitionsAnonLocales).toEqual(b.f.sources[0].data.definitionsAnonLocales)
         expect(apres.annotations).toEqual(b.f.sources[0].data.annotations.filter((a) => a.regle !== 'personne'))
-        const c = JSON.parse(await b.origin.getTexte('corpus.json')) as CorpusFichier
+        const c = JSON.parse(await b.origin.getTexte('corpus.crp')) as CorpusFichier
         expect(c.reglesAnon.personne).toBeUndefined(); expect(c.suppressionAnon).toBeUndefined()
       } finally { await rendre(); await b.nettoyer() }
     })
@@ -148,13 +148,13 @@ for (const port of [8080, 8081]) {
     test('barrière et retrait perdus : chaque phase reconnue sans deuxième PUT', { timeout: 120_000 }, async () => {
       const b = await banc()
       try {
-        b.panne.reponse = 'corpus.json'
+        b.panne.reponse = 'corpus.crp'
         const debut = await b.service.appliquer(b.preparation.token, true)
         expect(debut).toMatchObject({ statut: 'indetermine', annotations: 0 })
         b.panne.reponse = ''; b.panne.lectures = ''
         await b.service.relireSuivi(debut.operationId)
         b.avant.action = async (p, init) => {
-          if (p === 'corpus.json' && init?.method === 'PUT' && !JSON.parse(init.body as string).suppressionAnon) b.panne.reponse = 'corpus.json'
+          if (p === 'corpus.crp' && init?.method === 'PUT' && !JSON.parse(init.body as string).suppressionAnon) b.panne.reponse = 'corpus.crp'
         }
         const fin = await b.reprendre(debut.operationId)
         expect(fin).toMatchObject({ statut: 'indetermine', annotations: 8 })
@@ -200,7 +200,7 @@ for (const port of [8080, 8081]) {
         }
         expect(await relance.relireSuivi(suivi.operationId)).toMatchObject({ statut: 'partiel', annotations: 4 })
         expect(await b.reprendre(suivi.operationId, relance)).toMatchObject({ statut: 'termine', annotations: 8 })
-        expect(b.puts).toEqual(['entretiens/e2.json', 'corpus.json'])
+        expect(b.puts).toEqual(['entretiens/e2.json', 'corpus.crp'])
         expect(await b.origin.getTexte('entretiens/e1.json')).toBe(acquis)
       } finally {
         if (enfant.exitCode === null && enfant.signalCode === null) { enfant.kill('SIGKILL'); await sortie }

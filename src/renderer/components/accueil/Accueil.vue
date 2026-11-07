@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import MigrationCorpus from './MigrationCorpus.vue'
 import MigrationGitLab from './MigrationGitLab.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
-import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
 import ListeRecents from './ListeRecents.vue'
 import { utiliserSonal } from '../../composables/sonal'
@@ -12,12 +10,17 @@ import type { EntreeRecent } from '../../../shared/format'
 const {
   recents,
   choisirDossier,
+  choisirFichier,
+  ouvertureEnCours,
+  ouvrirAuthentification,
+  migrationGitLabProposee,
+  ouvrirMigrationGitLab,
+  fermerMigrationGitLab,
   ouvrirRecent,
   retirerRecent,
   ouvrirCatalogueParcours,
   ouvrirExemples,
   modaleNouveauCorpus,
-  modaleCorpusDistant,
 } = utiliserSonal()
 
 const recentsPersonnels = computed(() => recents.value.filter((r) => r.type !== 'local' || !r.exemple))
@@ -38,11 +41,7 @@ const blocs = computed(() => {
   )
 })
 
-const modaleMigration = ref(false)
-const modaleMigrationGitLab = ref(false)
 const modaleNouveau = modaleNouveauCorpus
-const modaleDistant = modaleCorpusDistant
-const modaleDistantFournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
 const modaleNouveauDistant = ref(false)
 const ouvrirDocumentation = (entree: 'guide' | 'faq') => window.sonal.application.ouvrirDocumentation(entree)
 
@@ -54,21 +53,19 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
         const destination = (await window.sonal.gitlab.lister())
           .find((candidate) => candidate.id === entree.id)
         if (destination && !destination.connexionDisponible) {
-          modaleDistantFournisseur.value = 'gitlab'
-          modaleDistant.value = true
+          void ouvrirAuthentification('gitlab')
           return
         }
       } else {
         const compte = (await window.sonal.webdav.lister())
           .find((candidate) => candidate.id === entree.id)
         if (compte && !compte.motDePasseDisponible) {
-          modaleDistant.value = true
+          void ouvrirAuthentification('webdav')
           return
         }
       }
     } catch {
-      modaleDistantFournisseur.value = entree.fournisseur === 'gitlab' ? 'gitlab' : 'nextcloud'
-      modaleDistant.value = true
+      void ouvrirAuthentification(entree.fournisseur === 'gitlab' ? 'gitlab' : 'webdav')
       return
     }
   }
@@ -103,45 +100,42 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
         </template>
         <template v-else-if="bloc === 'exemples'">
           <h3 id="titre-exemples">Acceder à mes corpus exemples</h3>
-          <ListeRecents class="copies-exemples" :recents="recentsExemples" libelle="Copies d’exemples récentes" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
+          <ListeRecents :occupe="ouvertureEnCours" class="copies-exemples" :recents="recentsExemples" libelle="Copies d’exemples récentes" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
         </template>
         <template v-else-if="bloc === 'corpus'">
           <h3 id="titre-corpus">Création de corpus et ouverture</h3>
           <p class="intro-bloc">Commencer une enquête ou ouvrir un dossier existant.</p>
           <div class="cartes-demo cartes-corpus">
-            <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
+            <button class="carte-demo nouveau-corpus" :disabled="ouvertureEnCours" @click="modaleNouveau = true">
               <span class="carte-titre">Nouveau corpus local</span>
               <span class="carte-sous">Créer un dossier sur votre poste</span>
             </button>
-            <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
+            <button class="carte-demo ouvrir-corpus" :disabled="ouvertureEnCours" @click="choisirFichier">
               <span class="carte-titre">Ouvrir un corpus local</span>
-              <span class="carte-sous">Choisir un dossier existant</span>
+              <span class="carte-sous">Fichier .crp SonalPi1 ou SonalPi2</span>
             </button>
-            <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
+            <button class="carte-demo nouveau-corpus-distant" :disabled="ouvertureEnCours" @click="modaleNouveauDistant = true">
               <span class="carte-titre">Nouveau corpus distant</span>
               <span class="carte-sous">Créer sur Nextcloud ou GitLab</span>
             </button>
-            <button class="carte-demo distant-corpus" @click="modaleDistantFournisseur = 'nextcloud'; modaleDistant = true">
+            <button class="carte-demo distant-corpus" :disabled="ouvertureEnCours" @click="ouvrirAuthentification('webdav')">
               <span class="carte-titre">Ouvrir un corpus distant</span>
               <span class="carte-sous">Rejoindre un corpus distant <br> déjà existant</span>
             </button>
           </div>
+          <button class="ouvrir-dossier" :disabled="ouvertureEnCours" @click="choisirDossier">Ouvrir par dossier…</button>
         </template>
         <template v-else>
           <h3 id="titre-recents">Acceder à mes corpus de travail</h3>
-          <ListeRecents :recents="recentsPersonnels" libelle="Corpus récents" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
+          <ListeRecents :occupe="ouvertureEnCours" :recents="recentsPersonnels" libelle="Corpus récents" @ouvrir="ouvrirRecentEntree" @retirer="retirerRecent" />
         </template>
       </section>
 
       <details class="migration-bloc">
         <summary>Migration SonalPi1 vers SonalPi2 (Temporaire)</summary>
-        <p class="aide-bloc">Reprendre un ancien corpus dans un nouveau dossier, sans modifier sa source.</p>
+        <p class="aide-bloc">Reprendre un ancien corpus GitLab dans un nouveau dépôt, sans modifier sa source.</p>
         <div class="cartes-demo cartes-migration">
-          <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
-            <span class="carte-titre">Migration corpus local<br>(V1 → V2)</span>
-            <span class="carte-sous">Entretiens et réglages repris, documents supplémentaires conservés dans « Autres ». L’ancien dossier reste intact.</span>
-          </button>
-          <button class="carte-demo migrer-gitlab" @click="modaleMigrationGitLab = true">
+          <button class="carte-demo migrer-gitlab" :disabled="ouvertureEnCours" @click="ouvrirMigrationGitLab">
             <span class="carte-titre">Migration corpus GitLab<br>(V1 → V2)</span>
             <span class="carte-sous">Vers un nouveau dépôt, sans modifier la source. Médias copiés dans GitLab ou dans un espace externe.</span>
           </button>
@@ -149,10 +143,8 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
       </details>
     </div>
 
-    <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
-    <MigrationGitLab v-if="modaleMigrationGitLab" @fermer="modaleMigrationGitLab = false" />
+    <MigrationGitLab v-if="migrationGitLabProposee" @fermer="fermerMigrationGitLab" />
     <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
-    <CorpusDistant v-if="modaleDistant" :fournisseur-initiale="modaleDistantFournisseur" @fermer="modaleDistant = false" />
     <NouveauCorpusDistant v-if="modaleNouveauDistant" @fermer="modaleNouveauDistant = false" />
   </section>
 </template>

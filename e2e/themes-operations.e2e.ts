@@ -122,7 +122,7 @@ test('changer de corpus vide un ancien atelier conservé pendant la consultation
   await app.evaluate(({ dialog }, chemin) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chemin] })
   }, dir)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-dossier').click()
   await fermerAiguillage(page)
   await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
   await attendreCorpus(page)

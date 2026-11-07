@@ -20,11 +20,11 @@ function banc(nombre = 3) {
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const dir = mkdtempSync(join(tmpdir(), 'dissociation-gitlab-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
   const miroir = structuredClone(f.corpus); miroir.reglesAnon.personne.pseudos = ['Miroir périmé']
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(miroir))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(miroir))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify({ ...s.data, lastModified: 'miroir-périmé' }))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const depot = new DepotMemoire()
-  depot.charger(new Map([['racine/corpus.json', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
+  depot.charger(new Map([['racine/corpus.crp', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
   const coordination = new BailGitLab({ branche: 'main', depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 's1' }) })
   const journal = new JournalPublicationGitLab('destination', join(dir, 'operations'))
   const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal, attendre: async () => {} })
@@ -33,9 +33,9 @@ function banc(nombre = 3) {
   let maintenant = Date.now()
   const service = new DissociationsAnonGitLab(options, () => sessions, () => maintenant)
   const lire = (id: string): EntretienFichier => JSON.parse(depot.fichiers.get(`racine/entretiens/${id}.json`)!.contenu)
-  const cp = (): CorpusFichier => JSON.parse(depot.fichiers.get('racine/corpus.json')!.contenu)
+  const cp = (): CorpusFichier => JSON.parse(depot.fichiers.get('racine/corpus.crp')!.contenu)
   const changer = (id: string, fn: (e: EntretienFichier) => void) => { const e = lire(id); fn(e); depot.modifierHorsProtocole(`racine/entretiens/${id}.json`, JSON.stringify(e)) }
-  const changerCorpus = (fn: (c: CorpusFichier) => void) => { const c = cp(); fn(c); depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(c)) }
+  const changerCorpus = (fn: (c: CorpusFichier) => void) => { const c = cp(); fn(c); depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(c)) }
   return { ...f, dir, store, depot, coordination, journal, publication, options, sessions, service, lire, cp, changer, changerCorpus,
     expirer: () => { maintenant += 300_001 }, preparer: () => service.preparer(f.demande) }
 }
@@ -160,7 +160,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test.each(['barriere', 'entretien', 'retrait'])('réponse perdue après %s : reconnaissance sans second commit', async (phase) => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path === 'racine/corpus.json' && a.content !== undefined
+      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path === 'racine/corpus.crp' && a.content !== undefined
         && (phase === 'barriere' ? !!JSON.parse(a.content).dissociationAnon : !JSON.parse(a.content).reglesAnon.personne))) b.depot.echouerApresAccepter(new Error('Réponse perdue'))
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'termine' }); expect(commits(b)).toHaveLength(4)
@@ -168,7 +168,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test.each(['barriere', 'entretien'])('issue inconnue de %s : journal privé et relance sans rejeu', async (phase) => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path === 'racine/corpus.json' && a.content !== undefined)) {
+      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path === 'racine/corpus.crp' && a.content !== undefined)) {
         b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles()
       }
     }
@@ -203,7 +203,7 @@ describe('moteur technique de dissociation GitLab', () => {
     vi.spyOn(b.publication, 'publierSousDroit').mockImplementation(async (p, d) => {
       const a = p.actions.find((a) => a.action === 'update')!
       const data = 'contenu' in a ? JSON.parse(a.contenu) : null
-      if (phase === 'entretien' ? a.chemin.endsWith('/e2.json') : a.chemin.endsWith('/corpus.json') && (phase === 'barriere' ? !!data.dissociationAnon : !data.reglesAnon.personne)) throw new Error('Arrêt avant transport')
+      if (phase === 'entretien' ? a.chemin.endsWith('/e2.json') : a.chemin.endsWith('/corpus.crp') && (phase === 'barriere' ? !!data.dissociationAnon : !data.reglesAnon.personne)) throw new Error('Arrêt avant transport')
       return publier(p, d)
     })
     expect(await appliquer(b)).toMatchObject({ statut: 'indetermine' })
@@ -214,7 +214,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test('retrait accepté, historique indisponible : règle supprimée, reconnaissance sans nouveau commit', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
         b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles()
       }
     }
@@ -228,7 +228,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test('corpus changé entre scan final et commit : suppression refusée, succès conservés', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) b.changerCorpus((c) => { c.titre = 'Concurrent' })
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) b.changerCorpus((c) => { c.titre = 'Concurrent' })
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', entretiens: 2, regleRetiree: false })
     expect(b.cp().titre).toBe('Concurrent'); expect(b.cp().reglesAnon.personne).toBeDefined()
@@ -238,7 +238,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test('enregistrement coopératif entre contrôle final et retrait : les anciens liens sont refusés', async () => {
     const b = banc(); let refusObserve = false
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
         expect(() => verifierReferencesDefinitions(b.sources[0].data, b.cp(), b.sources[0].data)).toThrow('dissociation')
         refusObserve = true
       }
@@ -246,7 +246,7 @@ describe('moteur technique de dissociation GitLab', () => {
     expect(await appliquer(b)).toMatchObject({ statut: 'termine' }); expect(refusObserve).toBe(true)
   })
   test('publication préparée avant la barrière : la garde corpus interdit son envoi tardif', async () => {
-    const b = banc(), cp = (await b.depot.lireFichier('racine/corpus.json', 'main'))!
+    const b = banc(), cp = (await b.depot.lireFichier('racine/corpus.crp', 'main'))!
     await appliquer(b)
     const bob = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'bob', machineId: 'autre', sessionId: 's2' }) })
     const bail = await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/entretiens/e3.json'))
@@ -282,7 +282,7 @@ describe('moteur technique de dissociation GitLab', () => {
   test('course sur une mémoire acquise juste avant le commit final : garde refusée, règle conservée', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) b.changer('e1', (e) => { e.definitionsAnonLocales!.pop() })
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) b.changer('e1', (e) => { e.definitionsAnonLocales!.pop() })
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', entretiens: 2, regleRetiree: false })
     expect(b.cp().reglesAnon.personne).toBeDefined(); expect(commits(b)).toHaveLength(3)

@@ -72,7 +72,7 @@ export class GardePseudosWebDAV {
     const debut = Date.now()
     const preuve = await provider.battre(cheminCorpus)
     if (!preuve.ok) throw new Error('Le verrou des définitions a été perdu. Aucun PUT envoyé.')
-    const source = await this.client.getTexteAvecEtag('corpus.json')
+    const source = await this.client.getTexteAvecEtag('corpus.crp')
     if (!etagImportWebDAVFort(source.etag)) throw new Error('Le serveur ne fournit pas d’ETag fort. Aucun PUT envoyé.')
     let corpus: CorpusFichier; let avant: EntretienFichier; let candidat: EntretienFichier
     try { corpus = JSON.parse(source.contenu); avant = JSON.parse(contenuAvant); candidat = JSON.parse(contenu) }
@@ -88,7 +88,7 @@ export class GardePseudosWebDAV {
       regles[id] = regle
     }
     verifierChoixPseudosAnon(candidat.annotations, regles, avant.annotations)
-    const frais = await this.client.getTexteAvecEtag('corpus.json')
+    const frais = await this.client.getTexteAvecEtag('corpus.crp')
     if (frais.etag !== source.etag || frais.contenu !== source.contenu) throw new Error('Les définitions ont changé. Aucun PUT envoyé.')
     if (Date.now() + 60_000 >= debut + preuve.dureeGarantieMs) throw new Error('Le verrou des définitions va expirer. Aucun PUT envoyé.')
     const intention: EnvoiGardePseudosWebDAV = { version: 1, destination: this.destination, chemin, contenu }

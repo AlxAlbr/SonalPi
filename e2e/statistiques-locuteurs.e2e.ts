@@ -58,7 +58,7 @@ test('statistiques : tours, mots, silences exclus, navigation cyclique et actual
     await page.locator('[data-onglet="locuteurs"]').click()
     await page.locator('.liste-loc .interv').first().click()
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
-    const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.json'), 'utf8')) as CorpusFichier
+    const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(corpus.membership).find(([, ref]) => ref.titre === 'Paroles')![0]
     const chemin = join(profil, 'corpus/entretiens', `${id}.json`)
     const avant = readFileSync(chemin, 'utf8')

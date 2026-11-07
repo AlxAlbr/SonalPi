@@ -20,6 +20,7 @@ import { DepotMemoire } from './depotMemoire'
 import { decoderCorrespondances, preparerImportCorrespondances } from '../../src/shared/corpus/importCorrespondances'
 import { empreinteDefinitionsCorrespondance } from '../../src/main/tablesCorrespondance'
 import { empreinteAnon } from '../../src/shared/entretien/anon/classification'
+import { gesteAutorise } from '../../src/main/gitlab/politiqueGestes'
 
 const destination: ConfigDestinationGitLab = {
   fournisseur: 'gitlab',
@@ -129,18 +130,18 @@ function banc(options: { serveur?: CorpusFichier; local?: CorpusFichier | null }
   const local = options.local === undefined ? squeletteCorpus('copie périmée')
     : options.local
   if (local) {
-    writeFileSync(join(dirLocal, 'corpus.json'), JSON.stringify(local, null, 2), 'utf8')
+    writeFileSync(join(dirLocal, 'corpus.crp'), JSON.stringify(local, null, 2), 'utf8')
   }
   const store = new CorpusStore(dirLocal)
   store.lectureSeule = true
   const dirJournal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-journal-'))
   const journal = new JournalPublicationGitLab(destination.id, dirJournal, undefined, {
-    chemin: `${RACINE}/corpus.json`,
-    resourceHash: cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`),
+    chemin: `${RACINE}/corpus.crp`,
+    resourceHash: cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.crp`),
   })
   const depot = new DepotMemoire()
   const serveur = options.serveur ?? squeletteCorpus('Corpus partagé')
-  depot.charger(new Map([[`${RACINE}/corpus.json`, JSON.stringify(serveur, null, 2)]]))
+  depot.charger(new Map([[`${RACINE}/corpus.crp`, JSON.stringify(serveur, null, 2)]]))
   const coordination = new BailGitLab({
     branche: destination.branche,
     depot,
@@ -165,7 +166,7 @@ function banc(options: { serveur?: CorpusFichier; local?: CorpusFichier | null }
     journal,
     transactions,
     file,
-    lireLocal: () => JSON.parse(readFileSync(join(dirLocal, 'corpus.json'), 'utf8')) as CorpusFichier,
+    lireLocal: () => JSON.parse(readFileSync(join(dirLocal, 'corpus.crp'), 'utf8')) as CorpusFichier,
   }
 }
 
@@ -181,6 +182,16 @@ function actionsDeDonnees(depot: DepotMemoire) {
 }
 
 describe('définitions du corpus GitLab', () => {
+  test('renomme le corpus sous droit sans modifier les autres définitions ni les entretiens', async () => {
+    const serveur = corpusAvecTheme()
+    const { transactions, lireLocal, depot } = banc({ serveur })
+    expect(gesteAutorise('gitlab', 'corpus.renommer')).toBe(true)
+    const resultat = await transactions.executerDefinitions((store) => store.poserNom('  Nouveau nom  '))
+    expect(resultat.corpus).toEqual({ ...serveur, nom: 'Nouveau nom' })
+    expect(lireLocal().nom).toBe('Nouveau nom')
+    expect(JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu).nom).toBe('Nouveau nom')
+    expect(actionsDeDonnees(depot).map((action) => action.file_path)).toEqual([`${RACINE}/corpus.crp`])
+  })
   test('calcule sur la base fraîche du serveur et n’écrit le miroir qu’après confirmation', async () => {
     const serveur = corpusAvecTheme('Thème du serveur')
     const { transactions, lireLocal, depot } = banc({ serveur })
@@ -192,7 +203,7 @@ describe('définitions du corpus GitLab', () => {
     expect(resultat.corpus.codebook[ID_THEME]).toBeDefined()
     expect(Object.values(resultat.corpus.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     expect(Object.keys(lireLocal().codebook)).toEqual(Object.keys(resultat.corpus.codebook))
-    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu) as CorpusFichier
     expect(Object.values(publie.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     expect(commitsDeDonnees(depot)).toHaveLength(1)
     // Le bail est pris puis libéré : deux commits de coordination.
@@ -216,7 +227,7 @@ describe('définitions du corpus GitLab', () => {
 
     expect(resultat.corpus.lexico?.motsOutils).toEqual(['le', 'la'])
     expect(lireLocal().lexico?.motsOutils).toEqual(['le', 'la'])
-    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu) as CorpusFichier
     expect(publie.lexico?.motsOutils).toEqual(['le', 'la'])
     expect(commitsDeDonnees(depot)).toHaveLength(1)
   })
@@ -229,7 +240,7 @@ describe('définitions du corpus GitLab', () => {
       (store) => store.tableaubordCommander({ type: 'ajouter-colonne', id: '', nom: '' }),
     )).rejects.toThrow(/nom est obligatoire/)
     expect(lireLocal()).toEqual(avant)
-    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu) as CorpusFichier
     expect(nomDuTheme(publie)).toBe('Thème serveur')
     expect(commitsDeDonnees(depot)).toHaveLength(0)
   })
@@ -262,14 +273,14 @@ describe('définitions du corpus GitLab', () => {
     expect(depot.commits).toHaveLength(3)
   })
 
-  test('une garde périmée sur corpus.json est refusée par GitLab', async () => {
+  test('une garde périmée sur corpus.crp est refusée par GitLab', async () => {
     const { transactions, depot, lireLocal } = banc()
-    // Un tiers modifie corpus.json entre la lecture et la publication.
+    // Un tiers modifie corpus.crp entre la lecture et la publication.
     const verifier = { valide: true }
     const lireOriginal = depot.lireFichier.bind(depot)
     depot.lireFichier = async (chemin: string): Promise<FichierGitLab | null> => {
       const fichier = await lireOriginal(chemin)
-      if (verifier.valide && chemin === `${RACINE}/corpus.json`) {
+      if (verifier.valide && chemin === `${RACINE}/corpus.crp`) {
         verifier.valide = false
         depot.modifierHorsProtocole(chemin, JSON.stringify(corpusAvecTheme('Concurrent')))
       }
@@ -291,7 +302,7 @@ describe('définitions du corpus GitLab', () => {
       dureeBailMs: 600_000,
     })
     const acquisition = await coordination.acquireRessource(
-      cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`),
+      cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.crp`),
     )
     expect(acquisition.ok).toBe(true)
 
@@ -312,7 +323,7 @@ describe('définitions du corpus GitLab', () => {
       dureeBailMs: 600_000,
     })
     const acquisition = await autre.acquireRessource(
-      cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`),
+      cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.crp`),
     )
     expect(acquisition.ok).toBe(true)
 
@@ -326,7 +337,7 @@ describe('définitions du corpus GitLab', () => {
 
   test('le store de préparation refuse toute lecture d’entretien', async () => {
     const serveur = corpusAvecTheme()
-    serveur.membership.e1 = { titre: 'E1', date: null, lastModified: null, rangAjout: 0 }
+    serveur.membership.e1 = { titre: 'E1', date: null, lastModified: '2026-01-01T00:00:00.000Z', rangAjout: 0 }
     const serveurOrd = { ...serveur, ordreEntretiens: ['e1'] } as CorpusFichier
     const { transactions } = banc({ serveur: serveurOrd })
 
@@ -346,7 +357,7 @@ describe('définitions du corpus GitLab', () => {
 
   test('une commande dépendante des entretiens échoue même quand le fichier manque', async () => {
     const serveur = corpusAvecTheme()
-    serveur.membership.e1 = { titre: 'E1', date: null, lastModified: null, rangAjout: 0 }
+    serveur.membership.e1 = { titre: 'E1', date: null, lastModified: '2026-01-01T00:00:00.000Z', rangAjout: 0 }
     serveur.ordreEntretiens = ['e1']
     const { transactions } = banc({ serveur })
 
@@ -462,7 +473,7 @@ describe('reprise après coupure', () => {
       etat: 'indetermine',
       actions: [{
         action: 'update',
-        file_path: `${RACINE}/corpus.json`,
+        file_path: `${RACINE}/corpus.crp`,
         content: '{}',
         last_commit_id: 'b'.repeat(40),
       }],
@@ -491,7 +502,7 @@ describe('reprise après coupure', () => {
     expect(Object.values(resultat.corpus.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     expect(nomsLocaux).toContain('Thème ajouté')
     expect(journal.transactionsCorpusJournalisees()).toHaveLength(0)
-    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu) as CorpusFichier
     expect(Object.values(publie.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     // Le bail a pu être rendu : la garde porte bien sur le commit publié.
     expect([...depot.commits].at(-1)?.actions.some(
@@ -513,7 +524,7 @@ describe('reprise après coupure', () => {
     expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
     // Le miroir, lui, n'a pas bougé : c'est le tirage suivant qui le remettra.
     expect(Object.values(lireLocal().codebook).map((c) => c.nom)).not.toContain('Thème ajouté')
-    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu) as CorpusFichier
     expect(Object.values(publie.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     const [entree] = journal.lister()
     expect(entree.nature).toBe('transaction-corpus')
@@ -620,8 +631,8 @@ describe('écritures courtes d’entretien GitLab', () => {
     expect(local.meta.valeursGen).toEqual({ v1: 'm1' })
     const actions = b.depot.commits.find((commit) =>
       commit.actions.some((action) => action.file_path === `${RACINE}/entretiens/e1.json`))!.actions
-    expect(actions.map((action) => action.file_path)).toContain(`${RACINE}/corpus.json`)
-    expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu)).toEqual(serveur)
+    expect(actions.map((action) => action.file_path)).toContain(`${RACINE}/corpus.crp`)
+    expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
     expect(b.journal.lister()).toHaveLength(0)
   })
 
@@ -638,7 +649,7 @@ describe('écritures courtes d’entretien GitLab', () => {
       suppressionFaite = true
       const concurrent = corpusAvecValeurs()
       concurrent.variables.v1.modalites = []
-      b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(concurrent, null, 2))
+      b.depot.modifierHorsProtocole(`${RACINE}/corpus.crp`, JSON.stringify(concurrent, null, 2))
     }
 
     await expect(b.transactions.poserValeursEntretien('e1', [{
@@ -710,7 +721,7 @@ describe('écritures courtes d’entretien GitLab', () => {
     const b = banc({ serveur, local: structuredClone(serveur) })
     const fraiche = structuredClone(serveur)
     fraiche.reglesAnon.r1.pseudos = ['Autre variante']
-    b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(fraiche))
+    b.depot.modifierHorsProtocole(`${RACINE}/corpus.crp`, JSON.stringify(fraiche))
     await expect(b.transactions.verifierRegleAnonSession(serveur.reglesAnon.r1)).rejects.toThrow('La règle distante a changé')
     expect(b.store.ouvrir().reglesAnon.r1.pseudos).toEqual(serveur.reglesAnon.r1.pseudos)
     expect(b.depot.commits).toHaveLength(0)
@@ -721,7 +732,7 @@ describe('écritures courtes d’entretien GitLab', () => {
     const b = banc({ serveur, local: structuredClone(serveur) })
     const fraiche = structuredClone(serveur)
     fraiche.reglesAnon.r1.categorie = 'LOC'
-    b.depot.modifierHorsProtocole(`${RACINE}/corpus.json`, JSON.stringify(fraiche))
+    b.depot.modifierHorsProtocole(`${RACINE}/corpus.crp`, JSON.stringify(fraiche))
     await expect(b.transactions.verifierRegleAnonSession(serveur.reglesAnon.r1)).resolves.toBeUndefined()
     expect(b.depot.commits).toHaveLength(0)
   })
@@ -763,7 +774,7 @@ describe('écritures courtes d’entretien GitLab', () => {
 
 function hashRessourceCorpus(): string {
   return createHash('sha256')
-    .update(cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`), 'utf8')
+    .update(cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.crp`), 'utf8')
     .digest('hex')
 }
 
@@ -772,7 +783,7 @@ describe('store de préparation', () => {
     const dossier = mkdtempSync(join(tmpdir(), 'sonal-preparation-'))
     const store = new CorpusStore(dossier)
     store.activerModePreparation()
-    writeFileSync(join(dossier, 'corpus.json'), JSON.stringify(corpusAvecTheme()), 'utf8')
+    writeFileSync(join(dossier, 'corpus.crp'), JSON.stringify(corpusAvecTheme()), 'utf8')
     expect(() => store.avecEcritureCorpus(() => { throw new Error('refus métier') }))
       .toThrow('refus métier')
     expect(store.avecEcritureCorpus(() => store.ouvrir().codebook)).toBeDefined()
@@ -782,7 +793,7 @@ describe('store de préparation', () => {
     const dossier = mkdtempSync(join(tmpdir(), 'sonal-preparation-'))
     const store = new CorpusStore(dossier)
     store.activerModePreparation()
-    writeFileSync(join(dossier, 'corpus.json'), JSON.stringify(corpusAvecTheme()), 'utf8')
+    writeFileSync(join(dossier, 'corpus.crp'), JSON.stringify(corpusAvecTheme()), 'utf8')
     expect(() => store.avecEcritureCorpus(async () => 'trop tard'))
       .toThrow(/doit être synchrone/)
     // L'autorisation est révoquée quoi qu'il arrive.
@@ -793,7 +804,7 @@ describe('store de préparation', () => {
     const dossier = mkdtempSync(join(tmpdir(), 'sonal-preparation-'))
     const store = new CorpusStore(dossier)
     store.activerModePreparation()
-    writeFileSync(join(dossier, 'corpus.json'), JSON.stringify(corpusAvecTheme()), 'utf8')
+    writeFileSync(join(dossier, 'corpus.crp'), JSON.stringify(corpusAvecTheme()), 'utf8')
     store.ouvrir()
     expect(existsSync(join(dossier, 'entretiens'))).toBe(true)
     expect(existsSync(join(dossier, 'entretiens', 'e1.json'))).toBe(false)

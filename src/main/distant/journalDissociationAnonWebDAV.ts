@@ -83,7 +83,7 @@ export class JournalDissociationAnonWebDAV {
       if (!j.barriereConfirmee || !c || c.etat !== 'a-faire' || !j.protegees.includes(c.id) || c.avant !== e.avant || c.apres !== e.apres) throw new Error('Intention cible invalide.')
       return
     }
-    if (e.chemin !== 'corpus.json') throw new Error('Destination de dissociation invalide.')
+    if (e.chemin !== 'corpus.crp') throw new Error('Destination de dissociation invalide.')
     const avant = JSON.parse(e.avant) as CorpusFichier, apres = JSON.parse(e.apres)
     if (avant.formatVersion !== FORMAT_VERSION || !egauxDissociationWebDAV(avant.reglesAnon?.[j.demande.regleId], j.corpusAvant.reglesAnon[j.demande.regleId])
       || (j.barriereConfirmee ? !egauxDissociationWebDAV(lireBarriereDissociationWebDAV(avant), barriereDissociationWebDAV(j)) : avant.dissociationAnon !== undefined)) throw new Error('Source corpus invalide.')

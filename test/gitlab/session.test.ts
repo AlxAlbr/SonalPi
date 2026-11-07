@@ -177,9 +177,9 @@ describe('session GitLab', () => {
     expect([...depot.fichiers.keys()].some((chemin) => chemin.startsWith('.sonal/verrous/'))).toBe(false)
   })
 
-  test('publie l’entretien avec une garde inchangée de corpus.json', async () => {
+  test('publie l’entretien avec une garde inchangée de corpus.crp', async () => {
     const depot = new DepotSession()
-    depot.fichiers.set('corpus.json', {
+    depot.fichiers.set('corpus.crp', {
       contenu: '{"formatVersion":8}',
       commitId: '2'.repeat(40),
     })
@@ -195,10 +195,10 @@ describe('session GitLab', () => {
       5 * 60 * 1000,
       60_000,
       async () => {
-        const corpus = await depot.lireFichier('corpus.json')
+        const corpus = await depot.lireFichier('corpus.crp')
         return {
           action: 'update',
-          chemin: 'corpus.json',
+          chemin: 'corpus.crp',
           contenu: corpus!.contenu,
           commitId: corpus!.commitId,
         }
@@ -212,12 +212,12 @@ describe('session GitLab', () => {
 
     const commit = depot.commits.find((entree) =>
       entree.actions.some((action) => action.file_path === 'entretiens/e1.json'))
-    expect(commit?.actions.map((action) => action.file_path)).toContain('corpus.json')
+    expect(commit?.actions.map((action) => action.file_path)).toContain('corpus.crp')
   })
 
   test('une suppression concurrente de définition refuse atomiquement la publication', async () => {
     const depot = new DepotSession()
-    depot.fichiers.set('corpus.json', {
+    depot.fichiers.set('corpus.crp', {
       contenu: '{"formatVersion":8,"codebook":{"theme":{}}}',
       commitId: '2'.repeat(40),
     })
@@ -238,14 +238,14 @@ describe('session GitLab', () => {
         if (validations > 1) {
           throw new ReferencesDefinitionsInvalidesError('Le thème a été supprimé.')
         }
-        const corpus = await depot.lireFichier('corpus.json')
-        depot.fichiers.set('corpus.json', {
+        const corpus = await depot.lireFichier('corpus.crp')
+        depot.fichiers.set('corpus.crp', {
           contenu: '{"formatVersion":8,"codebook":{}}',
           commitId: '3'.repeat(40),
         })
         return {
           action: 'update',
-          chemin: 'corpus.json',
+          chemin: 'corpus.crp',
           contenu: corpus!.contenu,
           commitId: corpus!.commitId,
         }
@@ -266,7 +266,7 @@ describe('session GitLab', () => {
 
   test('revalide une modification indépendante du corpus avant de republier', async () => {
     const depot = new DepotSession()
-    depot.fichiers.set('corpus.json', {
+    depot.fichiers.set('corpus.crp', {
       contenu: '{"formatVersion":8,"nom":"avant"}',
       commitId: '2'.repeat(40),
     })
@@ -284,16 +284,16 @@ describe('session GitLab', () => {
       60_000,
       async () => {
         validations += 1
-        const corpus = await depot.lireFichier('corpus.json')
+        const corpus = await depot.lireFichier('corpus.crp')
         if (validations === 1) {
-          depot.fichiers.set('corpus.json', {
+          depot.fichiers.set('corpus.crp', {
             contenu: '{"formatVersion":8,"nom":"après"}',
             commitId: '3'.repeat(40),
           })
         }
         return {
           action: 'update',
-          chemin: 'corpus.json',
+          chemin: 'corpus.crp',
           contenu: corpus!.contenu,
           commitId: corpus!.commitId,
         }

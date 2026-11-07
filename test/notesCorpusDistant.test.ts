@@ -55,7 +55,7 @@ describe('Notes du corpus — consultation distante', () => {
         e1: { titre: 'Entretien distant', date: null, lastModified: '2025-01-01T10:00:00.000Z' },
       },
     }
-    serveur.poser('corpus.json', JSON.stringify(corpus))
+    serveur.poser('corpus.crp', JSON.stringify(corpus))
     serveur.poser('entretiens/e1.json', JSON.stringify(entretien(note('Version A', 'Corps A'))))
 
     const dossier = mkdtempSync(join(tmpdir(), 'sonal-notes-distantes-'))

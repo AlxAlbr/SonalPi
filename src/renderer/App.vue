@@ -19,6 +19,9 @@ import AiguillagePremiereOuverture from './components/app/AiguillagePremiereOuve
 import ResumeParcoursPasAPas from './components/app/ResumeParcoursPasAPas.vue'
 import DecouverteExemples from './components/accueil/DecouverteExemples.vue'
 import { messageOperationGlobale } from './operationGlobaleCorpus'
+import MigrationCorpus from './components/accueil/MigrationCorpus.vue'
+import CorpusDistant from './components/accueil/CorpusDistant.vue'
+import RenommerCorpus from './components/app/RenommerCorpus.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ;
@@ -41,6 +44,9 @@ const {
   repereAnalyse,
   pasAPas,
   premiereOuvertureCorpus,
+  migrationProposee, fermerMigration,
+  renommagePropose, fermerRenommage,
+  authentificationProposee, fermerAuthentification,
 } = fournirSonal()
 </script>
 
@@ -142,6 +148,9 @@ const {
          « Préparer et suivre », il ne s'affiche qu'une fois par corpus et par poste. -->
     <AiguillagePremiereOuverture v-if="premiereOuvertureCorpus" />
     <ModaleExportEntretien />
+    <MigrationCorpus v-if="migrationProposee" :initial="migrationProposee" @fermer="fermerMigration" />
+    <RenommerCorpus v-if="renommagePropose" @fermer="fermerRenommage" />
+    <CorpusDistant v-if="authentificationProposee" :fournisseur-initiale="authentificationProposee === 'gitlab' ? 'gitlab' : 'nextcloud'" @fermer="fermerAuthentification" />
   </main>
 </template>
 

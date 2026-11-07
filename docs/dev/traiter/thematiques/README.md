@@ -9,7 +9,7 @@ restent documentés dans [distant/](../../distant/README.md).
 
 | Notion | Stockage | Sens |
 |---|---|---|
-| Thème | `corpus.json.codebook` | Définition partagée : nom, description, couleur, taille, ordre et parent. |
+| Thème | `corpus.crp.codebook` | Définition partagée : nom, description, couleur, taille, ordre et parent. |
 | Codage | `Annotation{type:'codage'}` dans un entretien | Application d’un thème à une plage de texte. |
 | Résumé thématique | Rien | Vue dérivée des codages, projetée sur l’axe du texte. |
 

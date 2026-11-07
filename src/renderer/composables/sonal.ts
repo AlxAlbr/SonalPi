@@ -389,6 +389,7 @@ export function creerSonal() {
       annulerEtAttendreSauvegarde: ent.annulerEtAttendreSauvegarde,
     },
     effets: {
+      annulerPreparation: () => annulerMigration(),
       rafraichirCorpusSansFermer: () => rafraichirCorpusDepuisDistant(),
       nettoyerMiroirChange: () => nettoyerMiroirDepuisDistant(),
       detecterDivergencesAnon: ent.detecterDivergencesPostTirage,
@@ -507,6 +508,11 @@ export function creerSonal() {
     appliquerCorpus,
     chargerCorpus,
     preparerBascule,
+    ouvertureEnCours, choisirFichier,
+    migrationProposee, fermerMigration,
+    renommagePropose, ouvrirRenommage, fermerRenommage, renommerCorpus,
+    authentificationProposee, ouvrirAuthentification, fermerAuthentification,
+    migrationGitLabProposee, ouvrirMigrationGitLab, fermerMigrationGitLab,
     choisirDossier,
     creerNouveauCorpus,
     ouvrirRecent,
@@ -625,6 +631,7 @@ export function creerSonal() {
     divergenceProposee,
     entretienASupprimer,
     migrerDepuisV1,
+    etatMigration, annulationMigrationDemandee, annulerMigration,
     proposerFusionDivergence,
     reinitialiserDivergence,
     confirmerFusion,
@@ -1290,7 +1297,10 @@ export function creerSonal() {
   // Le main construit le menu et émet ; ICI on route vers les modales et les
   // fonctions d'orchestration, comme si l'utilisateur avait cliqué dans l'UI.
   const modaleNouveauCorpus = ref(false)
-  const modaleCorpusDistant = ref(false)
+  const modaleCorpusDistant = computed({
+    get: () => authentificationProposee.value !== null,
+    set: (ouvrir: boolean) => { if (ouvrir) void ouvrirAuthentification(); else fermerAuthentification() },
+  })
   const exemples = useExemples({
     guide, vue,
     creer: creerNouveauCorpus,
@@ -1394,7 +1404,7 @@ export function creerSonal() {
         }
         case 'ouvrir-corpus':
           // Dialogue natif + bascule : marche depuis n'importe quelle vue.
-          await choisirDossier()
+          await choisirFichier()
           break
         case 'enregistrer':
           // Hors entretien ouvert, rien à enregistrer (les définitions corpus
@@ -1643,6 +1653,12 @@ export function creerSonal() {
     listeEntretiens,
     modaleNouveauCorpus,
     modaleCorpusDistant,
+    ouvertureEnCours, choisirFichier,
+    migrationProposee, fermerMigration,
+    renommagePropose, ouvrirRenommage, fermerRenommage, renommerCorpus,
+    authentificationProposee, ouvrirAuthentification, fermerAuthentification,
+    migrationGitLabProposee, ouvrirMigrationGitLab, fermerMigrationGitLab,
+    etatMigration, annulationMigrationDemandee, annulerMigration,
     demandeAjoutEntretien,
     premiereOuvertureCorpus,
     corrigerPremiereOuverturePossible,

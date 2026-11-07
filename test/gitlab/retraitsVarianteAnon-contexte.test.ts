@@ -177,7 +177,7 @@ describe('raccord protégé du retrait de variante au contexte GitLab', () => {
       if (actions.some((a) => {
         if (a.action !== 'update') return false
         if (phase === 'entretien') return a.file_path.endsWith('/e1.json')
-        if (!a.file_path.endsWith('/corpus.json') || a.content === undefined) return false
+        if (!a.file_path.endsWith('/corpus.crp') || a.content === undefined) return false
         const c = JSON.parse(a.content)
         return phase === 'barriere' ? Boolean(c.retraitVarianteAnon) : c.reglesAnon.personne.pseudos.length === 1
       })) { b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles() }
@@ -209,7 +209,7 @@ describe('raccord protégé du retrait de variante au contexte GitLab', () => {
     }
     if (cas === 'miroir') vi.spyOn(b.store, 'installerEntretienDistant').mockImplementationOnce(() => { throw new Error('Disque') })
     await b.appliquer()
-    const avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8'), publication = b.journal.lister(), transport = vi.fn()
+    const avant = readFileSync(join(b.dir, 'corpus.crp'), 'utf8'), publication = b.journal.lister(), transport = vi.fn()
     const client = new ClientGitLab({ urlInstance: 'https://gitlab.example.org', projetId: 1, autorisation: { type: 'jeton-prive', jeton: 'test' } }, transport)
     const preparation = await preparerContexteGitLabLectureSeule({
       id: 'destination', dirLocal: b.dir, branche: 'main', racine: 'racine', client,
@@ -217,7 +217,7 @@ describe('raccord protégé du retrait de variante au contexte GitLab', () => {
       creerTransactions: (store, file) => new TransactionsGitLab({ ...b.options, store, file }),
     })
     expect(transport).not.toHaveBeenCalled()
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(avant)
     expect(b.journal.lister()).toEqual(publication)
     expect(preparation.contexte.lireSuiviRetraitVarianteAnon()?.statut).toBe(cas === 'indetermine' ? 'indetermine' : 'partiel')
     expect(preparation.verrousIndisponibles).toBe(true)

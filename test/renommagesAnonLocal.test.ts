@@ -22,13 +22,13 @@ function banc() {
   const f = fixtureRenommageAnon()
   const dir = mkdtempSync(join(tmpdir(), 'renommage-anon-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens'))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify(s.data))
   let store = new CorpusStore(dir); store.ouvrir()
   let maintenant = Date.parse('2026-10-10T00:00:00.000Z'), local = true
   const cache = new RenommagesAnon({ store: () => store, maintenant: () => maintenant, local: () => local })
   const lire = (id = 'e1'): EntretienFichier => JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8'))
-  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
   return { dir, get store() { return store }, cache, lire, corpus, preparer: () => cache.preparer(f.demande),
     changerStore: () => { store = new CorpusStore(dir) }, expirer: () => { maintenant += 300_001 }, distant: () => { local = false } }
 }
@@ -59,7 +59,7 @@ describe('renommage global local avec inventaire privé', () => {
       const c = b.corpus()
       if (cas === 'regle') c.reglesAnon.personne.categorie = 'Nouvelle catégorie'
       else c.membership.e3 = { titre: 'Nouveau membre', date: null, lastModified: 'concurrent' }
-      writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c))
+      writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c))
     }
     expect(() => b.cache.appliquer(a.token, true)).toThrow('changé'); expect(b.lire()).toEqual(avant)
     expect(existsSync(join(b.dir, '.transaction-fichiers.json'))).toBe(false)
@@ -90,7 +90,7 @@ describe('renommage global local avec inventaire privé', () => {
   })
   test('lecture bornée avant décodage et aperçu de plus de 8 Mio refusé sans écriture', () => {
     const b = banc(), avant = b.lire()
-    const budget = statSync(join(b.dir, 'corpus.json')).size + statSync(join(b.dir, 'entretiens/e1.json')).size
+    const budget = statSync(join(b.dir, 'corpus.crp')).size + statSync(join(b.dir, 'entretiens/e1.json')).size
     const s = b.store.instantaneCorrespondances(true, budget)
     expect(s.entretiens[0].ok).toBe(true); expect(s.entretiens[1].ok).toBe(false)
     expect(() => b.store.instantaneCorrespondances(true, 1)).toThrow('limite de lecture')
@@ -109,14 +109,14 @@ describe('renommage global local avec inventaire privé', () => {
     const a = b.cache.preparer({ regleId: 'vide', ancienPseudo: 'Inutilisée', nouveauPseudo: 'Autre' })
     expect(b.cache.appliquer(a.token, true)).toEqual({ annotations: 0, incluses: 0, entretiens: 0, definitionModifiee: true })
     expect(b.lire()).toEqual(avant)
-    const c = readFileSync(join(b.dir, 'corpus.json'), 'utf8')
+    const c = readFileSync(join(b.dir, 'corpus.crp'), 'utf8')
     const identique = b.cache.preparer({ regleId: 'vide', ancienPseudo: 'Autre', nouveauPseudo: 'Autre' })
     expect(b.cache.appliquer(identique.token, true).definitionModifiee).toBe(false)
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(c)
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(c)
   })
   test.each([['e2', false], ['corpus', false], ['e2', true]] as const)('interruption avant %s, concurrence %s : acquis conservés et reprise gardée', (destination, concurrence) => {
     const b = banc(), avant = b.lire('e2'), a = b.preparer()
-    injection.destination = destination === 'corpus' ? join(b.dir, 'corpus.json') : join(b.dir, 'entretiens/e2.json')
+    injection.destination = destination === 'corpus' ? join(b.dir, 'corpus.crp') : join(b.dir, 'entretiens/e2.json')
     expect(() => b.cache.appliquer(a.token, true)).toThrow('Interruption synthétique')
     expect(b.lire().annotations[0].pseudo).toBe('Nouvelle')
     expect(b.corpus().reglesAnon.personne.pseudos[0]).toBe('Claire')

@@ -22,7 +22,7 @@ test('première ouverture : aiguillage affiché, puis « gestion de projet »', 
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
   }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-dossier').click()
 
   // L'accueil de la préparation est déjà en place derrière la fenêtre.
   await expect(aiguillage(page)).toBeVisible()
@@ -60,7 +60,7 @@ test('première ouverture : « corriger un entretien » mène aux entretiens du 
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
   }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-dossier').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await page.getByRole('button', { name: 'Télécharger un entretien pour le corriger' }).click()
@@ -79,7 +79,7 @@ test('première ouverture d’un corpus vide : « corriger » ouvre l’ajout d�
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
   }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-dossier').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await page.getByRole('button', { name: 'Télécharger un entretien pour le corriger' }).click()
@@ -97,7 +97,7 @@ test('refermer l’aiguillage laisse l’accueil affiché et ne le remontre plus
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
   }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-dossier').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await aiguillage(page).getByRole('button', { name: 'Fermer' }).click()

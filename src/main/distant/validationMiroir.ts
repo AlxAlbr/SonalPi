@@ -15,19 +15,19 @@ type ObjetJson = Record<string, unknown>
 /** Valide la vue métier complète avant de remplacer un fichier du miroir. */
 export function validerCandidatsMiroir(options: OptionsValidationCandidatsMiroir): void {
   const parChemin = new Map(options.candidats.map((entree) => [entree.chemin, entree]))
-  if (!parChemin.has('corpus.json')) {
-    throw new Error("Le dossier distant ne contient pas de corpus.json.")
+  if (!parChemin.has('corpus.crp')) {
+    throw new Error("Le dossier distant ne contient pas de corpus.crp.")
   }
 
-  const corpus = parserObjet(contenuDisponible('corpus.json', options), 'corpus.json')
-  validerVersion(corpus, 'corpus.json')
+  const corpus = parserObjet(contenuDisponible('corpus.crp', options), 'corpus.crp')
+  validerVersion(corpus, 'corpus.crp')
   for (const champ of ['codebook', 'variables', 'reglesAnon', 'membership'] as const) {
     if (!estObjet(corpus[champ])) {
-      throw new Error(`Le fichier corpus.json ne contient pas un bloc ${champ} valide.`)
+      throw new Error(`Le fichier corpus.crp ne contient pas un bloc ${champ} valide.`)
     }
   }
   if (corpus.personnes !== undefined && !estObjet(corpus.personnes)) {
-    throw new Error('Le fichier corpus.json ne contient pas un bloc personnes valide.')
+    throw new Error('Le fichier corpus.crp ne contient pas un bloc personnes valide.')
   }
 
   const membership = corpus.membership as ObjetJson
@@ -48,7 +48,7 @@ export function validerCandidatsMiroir(options: OptionsValidationCandidatsMiroir
       throw new Error(`Le corpus distant contient des chemins incompatibles : ${JSON.stringify(entree.chemin)}.`)
     }
     cheminsSansCasse.add(cle)
-    if (entree.chemin === 'corpus.json') continue
+    if (entree.chemin === 'corpus.crp') continue
     if (!cheminEntretienSain(entree.chemin)) {
       throw new Error(`Le corpus distant contient un chemin métier invalide : ${JSON.stringify(entree.chemin)}.`)
     }

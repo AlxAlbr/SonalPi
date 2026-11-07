@@ -65,7 +65,7 @@ decrire('suppressions de définitions GitLab — qualification à deux comptes',
     try {
       expect(gesteAutorise('gitlab', 'theme.supprimer')).toBe(true)
       await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
       alice.requetes.length = 0
       const debut = performance.now()
       const resultat = await alice.transactions.executerSuppressionDefinitions(
@@ -73,7 +73,7 @@ decrire('suppressions de définitions GitLab — qualification à deux comptes',
       )
       const duree = performance.now() - debut
       expect(resultat.valeur.ok).toBe(true)
-      expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+      expect(await commitsTouchant(`${racine}/corpus.crp`) - avant).toBe(1)
       expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(3)
       console.log(
         `[banc D2] suppression face à une session ouverte — 1 commit de données, `
@@ -98,7 +98,7 @@ decrire('suppressions de définitions GitLab — qualification à deux comptes',
       expect(session.etat()).toMatchObject({ etat: 'edition' })
 
       const corpusDistant = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+        await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
       )) as CorpusFichier
       expect(corpusDistant.codebook.theme).toBeUndefined()
       const sourceDistante = JSON.parse(contenuDe(
@@ -142,7 +142,7 @@ decrire('suppressions de définitions GitLab — qualification à deux comptes',
     }])
 
     try {
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
       alice.requetes.length = 0
       const debut = performance.now()
       const resultat = await alice.transactions.executerSuppressionDefinitions(
@@ -150,14 +150,14 @@ decrire('suppressions de définitions GitLab — qualification à deux comptes',
       )
       const duree = performance.now() - debut
       expect(resultat.valeur).toEqual({ ok: false, usages: 1 })
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
+      expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant)
       expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(2)
       console.log(
         `[banc D2] usage publié — 0 commit de données, 2 commits de coordination, `
         + `${alice.requetes.length} requêtes, ${Math.round(duree)} ms`,
       )
       const corpusDistant = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+        await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
       )) as CorpusFichier
       expect(corpusDistant.codebook.theme).toBeDefined()
     } finally {

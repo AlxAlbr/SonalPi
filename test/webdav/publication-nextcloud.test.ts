@@ -4,8 +4,8 @@
  *  backend qui n'a pas été écrit pour elle.
  *
  *  SKIPPÉ AUTOMATIQUEMENT si les piles ne répondent pas :
- *   npm run nc:up && npm run nc:provision      (pile A : NC31 + files_lock)
- *   npm run nc-b:up && npm run nc-b:provision  (pile B : NC29 sans files_lock)
+ *   npm run nc:up      (pile A : NC31 + files_lock)
+ *   npm run nc-b:up    (pile B : NC29 sans files_lock)
  *
  *  Ce que le serveur mémoire ne peut pas prouver ici :
  *   - la chaîne de MKCOL réelle (un MKCOL Nextcloud refuse sans parent → 409,
@@ -62,11 +62,11 @@ async function scenarioPublication(base: string) {
   const profil = await profilerServeur(new ClientWebDAV(config))
   expect(profil.preconditions, profil.notes?.join(' ; ')).toBe(true)
 
-  // 3. Création sur cible imbriquée : dossiers techniques + corpus.json gardé.
+  // 3. Création sur cible imbriquée : dossiers techniques + corpus.crp gardé.
   await publieur.publierSquelette('Terrain P3')
 
   const client = new ClientWebDAV(config)
-  const contenu = JSON.parse(await client.getTexte('corpus.json')) as { nom?: string }
+  const contenu = JSON.parse(await client.getTexte('corpus.crp')) as { nom?: string }
   expect(contenu.nom).toBe('Terrain P3')
   const dossiers = (await client.propfind('')).filter((e) => e.dossier).map((e) => e.chemin)
   expect(dossiers).toEqual(
@@ -97,7 +97,7 @@ async function scenarioPublication(base: string) {
     baseUrl: `${base}/remote.php/dav/files/olivier/Corpus-${TS}`,
     identifiants: OLIVIER,
   })
-  const vuParOlivier = JSON.parse(await clientOlivier.getTexte('corpus.json')) as {
+  const vuParOlivier = JSON.parse(await clientOlivier.getTexte('corpus.crp')) as {
     nom?: string
   }
   expect(vuParOlivier.nom).toBe('Terrain P3')

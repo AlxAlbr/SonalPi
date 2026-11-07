@@ -218,7 +218,7 @@ describe('CorpusStore — familles et migration v6', () => {
     corpus.recueils = { r: { id: 'r', nom: 'Recueil', creeLe: dateFamille, modifieLe: dateFamille, modeTexte: 'original', items: [] } }
     const data = sourceFamille()
     data.formatVersion = 6
-    const fichier = join(dir, 'corpus.json')
+    const fichier = join(dir, 'corpus.crp')
     writeFileSync(fichier, JSON.stringify(corpus))
     for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))
     const store = new CorpusStore(dir)

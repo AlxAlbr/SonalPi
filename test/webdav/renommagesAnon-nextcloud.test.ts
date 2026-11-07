@@ -39,7 +39,7 @@ for (const port of [8080, 8081]) {
       await origin.creerDossier('entretiens'); await origin.creerDossier('verrous')
       const f = fixtureRenommageAnon(['e1', 'e2', 'e3'])
       f.sources[2].data.annotations = []
-      await origin.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+      await origin.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
       for (const s of f.sources) await origin.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
       const natif = port === 8080
       const dir = mkdtempSync(join(tmpdir(), 'sonal-renommage-nc-'))
@@ -49,7 +49,7 @@ for (const port of [8080, 8081]) {
         const chemin = decodeURIComponent(new URL(String(url)).pathname)
         if (panne.lectures && chemin.endsWith('/entretiens/e1.json') && init?.method === 'GET') throw new Error('lecture perdue')
         const r = await fetch(url, init)
-        if (init?.method === 'PUT' && r.ok && (chemin.endsWith('/corpus.json') || chemin.includes('/entretiens/'))) puts.push(chemin.split('/').slice(-2).join('/'))
+        if (init?.method === 'PUT' && r.ok && (chemin.endsWith('/corpus.crp') || chemin.includes('/entretiens/'))) puts.push(chemin.split('/').slice(-2).join('/'))
         if (panne.apresE1 && chemin.endsWith('/entretiens/e1.json') && init?.method === 'PUT') {
           panne.lectures = true
           await r.body?.cancel(); throw new Error('réponse perdue')

@@ -65,7 +65,7 @@ test('manuel : créer, retrouver, modifier, exporter, supprimer et rétablir un 
     }).getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…', exact: true }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
-    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(corpus.membership).find(([, ref]) => ref.titre === '1Coordinatrice')![0]
     const fichier = join(dossier, 'entretiens', `${id}.json`)
     const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier

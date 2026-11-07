@@ -16,7 +16,7 @@ import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
  *  titres/dates, jamais le contenu des entretiens) et REQUÊTES corpus (matrice,
- *  usages) obtenues comme projections du main. Isomorphe à `corpus.json` et à
+ *  usages) obtenues comme projections du main. Isomorphe à `corpus.crp` et à
  *  `shared/corpus/` ; ne tient jamais tous les entretiens.
  *
  *  `flush` (injecté) : demande à l'orchestration de sauver l'entretien ouvert

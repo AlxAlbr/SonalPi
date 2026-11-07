@@ -20,10 +20,10 @@ import type { TraitementsLexico } from './lexico/types'
  *  référencé sur place, plus de copie dans `<corpus>/audio/`. Migration au
  *  store : refs relatives résolues en absolues, PNG d'onde déplacés vers `png/`.
  *
- *  formatVersion 4 : les recueils partagés vivent dans `corpus.json` et les
+ *  formatVersion 4 : les recueils partagés vivent dans `corpus.crp` et les
  *  repères de leurs passages vivent avec chaque entretien.
  *
- *  formatVersion 5 : les cas analytiques partagés vivent dans `corpus.json` et
+ *  formatVersion 5 : les cas analytiques partagés vivent dans `corpus.crp` et
  *  réutilisent les repères de passage des entretiens.
  *
  *  formatVersion 6 : les règles de cas réunissent des personnes ou des entretiens entiers.
@@ -65,10 +65,10 @@ export interface MarqueurDemo {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// Corpus — dossier et `corpus.json` (définitions + membership).
+// Corpus — dossier et `corpus.crp` (définitions + membership).
 // ══════════════════════════════════════════════════════════════════════════
 
-/** Règle corpus = mappage `entité → pseudo` PARTAGÉ entre entretiens, vivant DANS `corpus.json.reglesAnon` (la SEULE vérité « règle »).
+/** Règle corpus = mappage `entité → pseudo` PARTAGÉ entre entretiens, vivant DANS `corpus.crp.reglesAnon` (la SEULE vérité « règle »).
  *  Pas de champ `actif` : la mise en veille est un brouillon entretien-local. `entite[]`/`pseudos[]` préparent le multi-alias/multi-pseudo ;
  *  pas encore activé. */
 export interface RegleAnon {
@@ -92,7 +92,7 @@ export interface SourceV1 {
   dateCreation: string | null
 }
 
-/** `corpus.json` — définitions + membership. */
+/** `corpus.crp` — définitions + membership. */
 export interface CorpusFichier {
   formatVersion: number
   codebook: Record<string, Categorie>
@@ -106,7 +106,7 @@ export interface CorpusFichier {
   membership: Record<string, EntretienRef>
   /** Ordre courant des entretiens. Absent dans les anciens corpus. */
   ordreEntretiens?: string[]
-  /** Identité du PROJET : vit dans corpus.json → insensible au renommage du dossier.
+  /** Identité du PROJET : vit dans corpus.crp → insensible au renommage du dossier.
    *  Champ ADDITIF optionnel. */
   nom?: string
   /** Trace d'origine — champ ADDITIF optionnel. */

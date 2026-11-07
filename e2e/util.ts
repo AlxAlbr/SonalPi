@@ -17,7 +17,7 @@ function launchEnv() {
 
 export async function lancer(
   userDataDir: string,
-  opts?: { preserverSettings?: boolean; executablePath?: string; repertoireApplication?: string; env?: Record<string, string> },
+  opts?: { preserverSettings?: boolean; executablePath?: string; repertoireApplication?: string; env?: Record<string, string>; fichiers?: string[] },
 ): Promise<ElectronApplication> {
   // Un corpus neuf naît VIDE (S8 rév.) ; les specs reposent sur la baseline de démo « Karine »,
   // écrite dans le corpus par défaut du profil AVANT le lancement (un dossier pické par un test reste vierge,
@@ -47,6 +47,7 @@ export async function lancer(
       '--no-sandbox',
       `--user-data-dir=${userDataDir}`,
       '--password-store=basic',
+      ...(opts?.fichiers ?? []),
     ],
     env: { ...launchEnv(), ...opts?.env },
   })
@@ -58,6 +59,7 @@ export async function attendreAccueil(page: Page): Promise<void> {
 }
 /** Déplie la rubrique de migration avant de choisir son assistant. */
 export async function ouvrirMigration(page: Page, fournisseur: 'local' | 'gitlab' = 'local'): Promise<void> {
+  if (fournisseur === 'local') { await page.locator('.ouvrir-dossier').click(); return }
   const rubrique = page.locator('.migration-bloc')
   if (await rubrique.getAttribute('open') === null) await rubrique.locator('summary').click()
   await rubrique.locator(fournisseur === 'gitlab' ? '.migrer-gitlab' : '.migrer-corpus').click()

@@ -11,16 +11,24 @@ import { readFileSync, writeFileSync, createReadStream, statSync, existsSync, re
 import { Readable } from 'node:stream'
 import {
   CorpusStore,
+  lireNomCorpus,
   completerIdsLocuteurs,
   normaliserCheminAudio,
   type PreparationOuvertureCorpus,
 } from './corpusStore'
 import {
   creerTransitionsLocales,
+  executerTransitionPreparee,
   oublierCompte,
   RegistreContexteCourant,
 } from './transitionContexte'
 import { executerFermetureApplication } from './fermetureApplication'
+import { OuvertureInitiale, demandeDepuisFichiers, fichiersDesArguments } from './demandesOuverture'
+import { cheminCanonique, compteDuMiroir, lireFichierCorpus } from './ouvertureFichier'
+import { MigrationV1, proposerDestinationMigration } from './migrationV1'
+import type { DemandePreparationMigration } from '../shared/migrationV1'
+import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
+import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
 import { ExemplesLocaux } from './exemples'
 import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
@@ -54,8 +62,6 @@ import {
 } from './gitlab/politiqueGestes'
 import { detecterInstanceGitLab } from './gitlab/detectionInstance'
 import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
-import { decoderCrp } from './encodage'
-import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { TablesCorrespondance } from './tablesCorrespondance'
 import { RenommagesAnon } from './renommagesAnon'
 import { DissociationsAnon } from './dissociationsAnon'
@@ -73,14 +79,11 @@ import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, e
 import { archiverCorpusLocal } from './archiveCorpus'
 import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus, ecrireQualcoderCorpus } from './exportCorpus'
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
-import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } from '../shared/format'
 import type { CommandeRecueils, SourcePassageRecueil } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
-import { lireReglagesLexicoV1 } from './migrationLexicoV1'
-import { ConservationMigrationLocale } from './conservationMigrationLocale'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import { executerCommandeCas, deduireSourcesCas } from './casOrchestration'
 import { creerHandlersOperationsThemes } from './ipcOperationsThemes'
@@ -368,7 +371,37 @@ function montrerSauver(e: IpcMainInvokeEvent, options: SaveDialogOptions): Promi
 // les tests e2e l'utilisent pour isoler chaque test,
 // et éviter qu'ils ne se gênent mutuellement.
 const userDataDir = app.commandLine.getSwitchValue('user-data-dir')
-if (userDataDir) app.setPath('userData', userDataDir)
+if (userDataDir) app.setPath('userData', cheminCanonique(userDataDir))
+
+const ouvertureInitiale = new OuvertureInitiale()
+let rendererOuverture: Electron.WebContents | null = null
+function recevoirFichiers(chemins: string[]): void {
+  const demande = demandeDepuisFichiers(chemins)
+  if (app.isReady()) {
+    let win = BrowserWindow.getAllWindows()[0]
+    if (!win) { createWindow(); win = BrowserWindow.getAllWindows()[0] }
+    if (win?.isMinimized()) win.restore()
+    win?.show()
+    win?.focus()
+  }
+  if (!demande) return
+  if (rendererOuverture && !rendererOuverture.isDestroyed()) rendererOuverture.send('ouverture:demande', demande)
+  else ouvertureInitiale.retenir(demande)
+}
+app.on('open-file', (evenement, chemin) => {
+  evenement.preventDefault()
+  recevoirFichiers([chemin])
+})
+const instancePrincipale = app.requestSingleInstanceLock()
+if (!instancePrincipale) app.exit(0)
+else {
+  ouvertureInitiale.retenir(demandeDepuisFichiers(fichiersDesArguments(process.argv, process.cwd(), !app.isPackaged)))
+  app.on('second-instance', (_evenement, argv, cwd) => recevoirFichiers(fichiersDesArguments(argv, cwd, !app.isPackaged)))
+}
+ipcMain.handle('ouverture:pret', (e) => {
+  rendererOuverture = e.sender
+  return ouvertureInitiale.prendre()
+})
 
 const attentesFermetureRenderer = new Map<
   string,
@@ -441,6 +474,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   const dossierDefaut = join(app.getPath('userData'), 'corpus')
   let store = new CorpusStore(dossierDefaut)
   let dossierCourant = dossierDefaut
+  let contexteCharge = false
+  const racineMiroirs = join(app.getPath('userData'), 'miroirs')
+  function verifierCibleLocale(dir: string): void {
+    if (compteDuMiroir(dir, racineMiroirs) !== null) throw new Error('Ce dossier est un miroir géré. Ouvrez le corpus par son compte distant.')
+  }
 
   // --- Corpus distant : connexion, création et ouverture ---
   // La connexion mesure le profil du serveur par sondes RÉELLES,
@@ -611,18 +649,19 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     preparation: PreparationOuvertureCorpus,
   ): OuvertureCorpus {
     const corpus = nouveauStore.finaliserOuverture(preparation)
+    ajouterRecent(dir)
     store.viderApercusOperationTheme()
     store = nouveauStore
     contextesDistants.remplacer(null)
     dossierCourant = dir
     if (exemplesLocaux.reconnaitre(dir)) exemplesLocaux.selectionner(dir)
-    ajouterRecent(dir)
-    return { dir, nom: corpus.nom ?? basename(dir), corpus }
+    contexteCharge = true
+    return { dir, nom: corpus.nom?.trim() || basename(dir), corpus }
   }
 
   const transitionsLocales = creerTransitionsLocales({
     exemples: exemplesLocaux,
-    preparerDocumentsMigration: (req) => conservationMigrationLocale.preparerCopie(req),
+    verifierCible: verifierCibleLocale,
     fermerContexteActuel,
     finaliser: finaliserBasculeLocale,
   })
@@ -630,6 +669,43 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** Prépare la cible sans l'écrire, puis ferme l'ancien contexte avant le commit. */
   const changerDossier = (dir: string) =>
     transitionner(() => transitionsLocales.ouvrirDossier(dir))
+
+  const preparationsFichier = new Map<string, { chemin: string; contenu: string; store: CorpusStore; preparation: PreparationOuvertureCorpus }>()
+  ipcMain.handle('ouverture:choisir', async (e) => {
+    const choix = await montrerOuvrir(e, { properties: ['openFile'], filters: [{ name: 'Corpus Sonal (.crp)', extensions: ['crp'] }] })
+    return choix.canceled ? null : choix.filePaths[0] ?? null
+  })
+  ipcMain.handle('ouverture:preparer', (_e, source: string): CibleOuvertureFichier => {
+    const lecture = lireFichierCorpus(source)
+    const idMiroir = compteDuMiroir(source, racineMiroirs)
+    if (idMiroir !== null) {
+      const gitlab = coffre.listerDestinationsGitLab().some((c) => c.id === idMiroir)
+      const connu = gitlab || coffre.lister().some((c) => c.id === idMiroir)
+      if (!connu) throw new Error('Ce fichier appartient à un miroir géré sans compte connu. Son ouverture locale est refusée.')
+      if (contextesDistants.actuel?.id === idMiroir) return { type: 'deja-ouvert' }
+      return { type: 'distant', id: idMiroir, fournisseur: gitlab ? 'gitlab' : 'webdav' }
+    }
+    if (lecture.classification.type === 'v1') return { type: 'migration', chemin: lecture.chemin }
+    if (contexteCharge && !contextesDistants.actuel && cheminCanonique(dossierCourant) === dirname(lecture.chemin)) return { type: 'deja-ouvert' }
+    verifierCibleLocale(dirname(lecture.chemin))
+    const cible = new CorpusStore(dirname(lecture.chemin), true)
+    const preparation = cible.preparerOuverture()
+    if (preparationsFichier.size >= 16) preparationsFichier.clear()
+    const jeton = `ouv-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    preparationsFichier.set(jeton, { chemin: lecture.chemin, contenu: lecture.contenu, store: cible, preparation })
+    return { type: 'local', jeton, manquants: lecture.manquants }
+  })
+  ipcMain.handle('ouverture:annuler', (_e, jeton: string) => { preparationsFichier.delete(jeton) })
+  ipcMain.handle('ouverture:finaliser', (_e, jeton: string) => transitionner(async () => {
+    const cible = preparationsFichier.get(jeton)
+    if (!cible) throw new Error('Cette ouverture a expiré. Choisissez de nouveau le fichier.')
+    preparationsFichier.delete(jeton)
+    return executerTransitionPreparee(() => {
+      verifierCibleLocale(dirname(cible.chemin))
+      if (lireFichierCorpus(cible.chemin).contenu !== cible.contenu) throw new Error('Le corpus cible a changé pendant la préparation.')
+      return cible.preparation
+    }, fermerContexteActuel, (preparation) => finaliserBasculeLocale(cible.store, dirname(cible.chemin), preparation))
+  }))
 
   ipcMain.handle('corpus:ouvrir', () => store.ouvrir())
   /** Indicateur pour l'UI : le corpus courant est-il un miroir distant ?
@@ -639,7 +715,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     const corpus = store.ouvrir()
     return {
       dir: dossierCourant,
-      nom: corpus.nom ?? basename(dossierCourant),
+      nom: corpus.nom?.trim() || basename(dossierCourant),
       distant: contextesDistants.actuel?.id ?? null,
     }
   })
@@ -657,8 +733,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  Écriture de retour pour purger les entrées mortes, `demo` préservé. */
   const listerRecents = (): EntreeRecent[] => {
     const s = lireSettings()
-    // Ne garder que les corpus dont le DOSSIER existe encore et contient toujours un corpus.json ;
-    // un corpus supprimé à la main (dossier effacé ou vidé de son corpus.json) ne doit plus apparaître dans « Récents » ;
+    // Ne garder que les corpus dont le DOSSIER existe encore et contient toujours un corpus.crp ;
+    // un corpus supprimé à la main (dossier effacé ou vidé de son corpus.crp) ne doit plus apparaître dans « Récents » ;
     // au démarrage, le 1ᵉʳ récent ne doit pas être ré-amorcé en silence.
     const exemplesRecents = new Map<string, ExempleId>()
     const vivants = s.recents.filter((dir) => {
@@ -667,7 +743,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         exemplesLocaux.rattacher(dir)
         if (reconnu.travail.usage === 'libre') exemplesRecents.set(dir, reconnu.travail.exemple)
       }
-      return existsSync(join(dir, 'corpus.json')) && !exemplesLocaux.estApprentissage(dir)
+      return existsSync(join(dir, 'corpus.crp')) && !exemplesLocaux.estApprentissage(dir)
     })
     if (vivants.length !== s.recents.length) {
       const frais = lireSettings()
@@ -675,7 +751,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       ecrireSettings(frais)
     }
     // Récents distants : fraîcheur = le compte existe toujours au coffre (équivalent du existsSync local).
-    // Le nom vient du miroir (`corpus.json`) si présent, sinon du dernier segment de l'URL.
+    // Le nom vient du miroir (`corpus.crp`) si présent, sinon du dernier segment de l'URL.
     // Le chemin miroir n'est JAMAIS exposé comme dossier local.
     const comptes = new Map(coffre.lister().map((c) => [c.id, c]))
     const comptesGitLab = new Map(coffre.listerComptesGitLab().map((c) => [c.id, c]))
@@ -703,7 +779,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
           : destinationGitLab?.nomProjet || `Projet ${destinationGitLab?.projetId}`
         try {
           const miroirCorpus = JSON.parse(
-            readFileSync(join(app.getPath('userData'), 'miroirs', id, 'corpus.json'), 'utf8'),
+            readFileSync(join(app.getPath('userData'), 'miroirs', id, 'corpus.crp'), 'utf8'),
           ) as { nom?: string }
           if (miroirCorpus.nom) nom = miroirCorpus.nom
         } catch {
@@ -718,7 +794,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         }
       }),
       ...vivants.map((dir): EntreeRecent => ({
-        type: 'local', dir, nom: basename(dir),
+        type: 'local', dir, nom: lireNomCorpus(dir),
         ...(exemplesRecents.has(dir) ? { exemple: exemplesRecents.get(dir) } : {}),
       })),
     ]
@@ -729,6 +805,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** Retire un RACCOURCI des récents (local OU distant),
    *  sans jamais toucher aux données : ni le dossier disque, ni le serveur, ni le miroir. */
+  ipcMain.handle('corpus:renommer', (_e, nom: string) =>
+    transitionner(async () => executerDefinitions('corpus.renommer', (cible) => cible.poserNom(nom))),
+  )
   ipcMain.handle('corpus:retirerRecent', (_e, entree: EntreeRecent) => {
     if (entree.type === 'distant') {
       const s = lireSettings()
@@ -743,7 +822,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** Le corpus courant a été supprimé sur disque (sentinelle CORPUS_SUPPRIME,
    *  interceptée côté preload) : bascule sur le PREMIER récent local encore
-   *  vivant et contenant un corpus.json (« le suivant devient courant », et
+   *  vivant et contenant un corpus.crp (« le suivant devient courant », et
    *  ainsi de suite). Purge au passage les récents morts. Renvoie le nouveau
    *  courant, ou null s'il n'en reste aucun — le renderer repart d'un état
    *  vide (comme un premier lancement). */
@@ -766,7 +845,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** Vérifie si un dossier est DÉJÀ un corpus (modale « Nouveau corpus… »).
    *  Sans effet de bord : on ne bascule pas le store, on ne crée rien. */
   ipcMain.handle('corpus:verifierNouveau', (_e, dir: string) => ({
-    dejaCorpus: existsSync(join(dir, 'corpus.json')),
+    dejaCorpus: existsSync(join(dir, 'corpus.crp')),
   }))
   /** Crée ou ouvre un corpus ordinaire avec le nom saisi.
    *  Pour un exemple, exige une nouvelle destination et installe le point de départ. */
@@ -1674,12 +1753,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) =>
     executerDefinitions('anon.supprimer-regle', (cible) => cible.regleAnonSupprimer(id)),
   )
-  // Paramètres de pseudonymisation (étape 4) : lecture directe, écriture sous transaction de définitions (corpus.json est un fichier partagé).
+  // Paramètres de pseudonymisation (étape 4) : lecture directe, écriture sous transaction de définitions (corpus.crp est un fichier partagé).
   ipcMain.handle('corpus:paramsAnonLire', () => store.lireParamsAnon())
   ipcMain.handle('corpus:paramsAnonEcrire', (_e, params: ParamsAnon) =>
     executerDefinitions('anon.ecrire-parametres', (cible) => cible.ecrireParamsAnon(params)),
   )
-  // Thématique d'une règle (4c) : mutation de corpus.json sous transaction.
+  // Thématique d'une règle (4c) : mutation de corpus.crp sous transaction.
   ipcMain.handle('corpus:regleAnonCategoriser', (_e, id: string, categorie: string | null) =>
     executerDefinitions('anon.renommer-theme', (cible) => cible.regleAnonCategoriser(id, categorie)),
   )
@@ -1847,7 +1926,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       try {
         nom = capture.store.ouvrir().nom ?? nom
       } catch {
-        /* dossier disparu : l'absence de corpus.json fera refuser l'archive */
+        /* dossier disparu : l'absence de corpus.crp fera refuser l'archive */
       }
     }
     const resultat = await archiverCorpusLocal(
@@ -1859,7 +1938,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     verifierCorpusCourant(capture)
     return resultat
   })
-  // Marqueur de corpus de TEST (`corpus.json: { demo }`) : identité, mode,
+  // Marqueur de corpus de TEST (`corpus.crp: { demo }`) : identité, mode,
   // sources et étapes validées. Champ additif optionnel, pas de bump de version.
   ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo, dirAttendu?: string) => {
     exigerGeste(fournisseurCourant(), 'corpus.marquer-demo')
@@ -2603,11 +2682,71 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (estContexteNextcloud(contexte)) contexte.sessions.supprimerDivergence(chemin)
   })
 
-  /** Migration SonalPi1 → SonalPi2, EXÉCUTION : crée le corpus SonalPi2 dans le dossier dédié,
-   *  l'ajoute aux récents, et BASCULE le store dessus (même mécanique que changerDossier). */
-  ipcMain.handle('migrer:executer', (_e, req: DemandeMigration) =>
-    transitionner(() => transitionsLocales.migrer(req)),
-  )
+  let migrationActive: { migration: MigrationV1; proprietaire: Electron.WebContents } | null = null
+  function obtenirMigration(e: IpcMainInvokeEvent): MigrationV1 {
+    if (!migrationActive || migrationActive.proprietaire !== e.sender) throw new Error('Aucune migration en cours dans cette fenêtre.')
+    return migrationActive.migration
+  }
+  async function abandonnerMigration(): Promise<void> {
+    const active = migrationActive
+    if (!active || active.migration.enBascule) return
+    try { await active.migration.annuler() }
+    finally { if (migrationActive === active) migrationActive = null }
+  }
+  ipcMain.handle('migrer:destination', (_e, chemin: string, nom: string, emplacement?: string) => {
+    const dossier = proposerDestinationMigration(chemin, nom, emplacement)
+    verifierCibleLocale(dossier)
+    return dossier
+  })
+  ipcMain.handle('migrer:preparer', async (e, req: DemandePreparationMigration) => {
+    if (migrationActive) throw new Error('Une migration est déjà en cours.')
+    verifierCibleLocale(req.dossier)
+    verifierCibleLocale(req.cheminCrp)
+    const migration = new MigrationV1(req)
+    migrationActive = { migration, proprietaire: e.sender }
+    try { return await migration.preparer() }
+    catch (erreur) {
+      if (migrationActive?.migration === migration) migrationActive = null
+      throw erreur
+    }
+  })
+  ipcMain.handle('migrer:lireEntretien', (e, index: number) => obtenirMigration(e).lireEntretien(index))
+  ipcMain.handle('migrer:ajouterEntretien', (e, index: number, payload: PayloadEntretien, regles: RegleAnon[]) => {
+    obtenirMigration(e).ajouterEntretien(index, payload, regles)
+  })
+  ipcMain.handle('migrer:annuler', async (e) => {
+    if (migrationActive?.proprietaire === e.sender) await abandonnerMigration()
+  })
+  ipcMain.handle('migrer:finaliser', (e) => transitionner(async () => {
+    const migration = obtenirMigration(e)
+    try {
+      migration.verifierAvantBascule()
+      verifierCibleLocale(migration.dossier)
+      migration.verrouillerBascule()
+      return await executerTransitionPreparee(
+        () => { migration.verifierAvantBascule(); return migration }, fermerContexteActuel,
+        (cible) => {
+          verifierCibleLocale(cible.dossier)
+          cible.promouvoir()
+          const nouveau = new CorpusStore(cible.dossier, true)
+          const ouverture = finaliserBasculeLocale(nouveau, cible.dossier, nouveau.preparerOuverture())
+          cible.marquerOuverte()
+          return ouverture
+        },
+      )
+    } catch (erreur) {
+      try { await migration.nettoyer() }
+      finally { if (migrationActive?.migration === migration) migrationActive = null }
+      throw erreur
+    }
+  }))
+  ipcMain.handle('migrer:terminer', (e) => transitionner(async () => {
+    const migration = obtenirMigration(e)
+    if (contextesDistants.actuel || dossierCourant !== migration.dossier) throw new Error('Le corpus préparé n’est plus le corpus courant.')
+    const avertissement = migration.terminer()
+    migrationActive = null
+    return avertissement
+  }))
 
   // Protocole `sonal-media` : ressources locales et relais WebDAV opaque.
   // Le handler capture `store` (réaffecté par changerDossier) ;
@@ -2876,6 +3015,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
 
   return async () => {
+    await fileTransitions
+    await abandonnerMigration()
     clearInterval(minuteurSessionsGitLab)
     powerMonitor.removeListener('suspend', surSuspensionSysteme)
     powerMonitor.removeListener('resume', surReveilSysteme)
@@ -2916,65 +3057,19 @@ function enregistrerIpcExemples(): void {
   })
 }
 
-// --- Migration SonalPi1 → SonalPi2 : lecture et aperçu d'un `.crp` ---
-// Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme SonalPi1 — `src/main/encodage.ts`) ;
-// puis analyse PUR côté `shared/corpus/migrationCrp.ts`. À ce stade, le main ne fait que LIRE ;
-// l'aperçu est affiché avant toute écriture.
-const conservationMigrationLocale = new ConservationMigrationLocale()
-
+// Les dialogues de migration ne modifient ni les sources ni le contexte actif.
 function enregistrerIpcMigration(): void {
-  ipcMain.handle('migrer:preparerFichiers', (_e, cheminCrp: string, dossier: string) => conservationMigrationLocale.preparer(cheminCrp, dossier))
   ipcMain.handle('migrer:choisirCrp', async (e) => {
-    const r = await montrerOuvrir(e, {
-      properties: ['openFile'],
-      filters: [{ name: 'Corpus SonalPi1', extensions: ['crp'] }],
-    })
-    if (r.canceled || r.filePaths.length === 0) return null
-    const chemin = r.filePaths[0]
-    const contenu = decoderCrp(readFileSync(chemin))
-    return {
-      chemin,
-      analyse: analyserCrp(contenu, basename(chemin)),
-      lexicoV1: lireReglagesLexicoV1(chemin),
-    }
+    const r = await montrerOuvrir(e, { properties: ['openFile'], filters: [{ name: 'Corpus SonalPi1', extensions: ['crp'] }] })
+    if (r.canceled || !r.filePaths.length) return null
+    const lecture = lireFichierCorpus(r.filePaths[0])
+    if (compteDuMiroir(lecture.chemin, join(app.getPath('userData'), 'miroirs')) !== null) throw new Error('Ce fichier appartient à un miroir géré.')
+    if (lecture.classification.type !== 'v1') throw new Error('Ce fichier n’est pas un corpus SonalPi1.')
+    return lecture.chemin
   })
-  /** Choix du dossier DÉDIÉ à la migration (openDirectory + createDirectory),
-   *  PRÉ-REMPLI `Documents/Sonal/<nom>` — le nom du corpus, modifiable. */
-  ipcMain.handle('migrer:choisirDossier', async (e, nom: string) => {
-    const defaultPath = join(app.getPath('documents'), 'Sonal', nom)
-    const r = await montrerOuvrir(e, {
-      defaultPath,
-      properties: ['openDirectory', 'createDirectory'],
-    })
-    if (r.canceled || r.filePaths.length === 0) return null
-    return r.filePaths[0]
-  })
-  /** Garde du dossier dédié (« on n'écrase jamais »). */
-  ipcMain.handle('migrer:verifierDossier', (_e, dir: string): VerificationDossierMigration => {
-    const chemin = join(dir, 'corpus.json')
-    if (existsSync(chemin)) {
-      let demo = false
-      try {
-        demo = !!JSON.parse(readFileSync(chemin, 'utf8'))?.demo
-      } catch {
-        /* corpus illisible → refus dejaCorpus quand même */
-      }
-      return { ok: false, raison: demo ? 'demo' : 'dejaCorpus' }
-    }
-    let nonVide = false
-    try {
-      nonVide = existsSync(dir) && readdirSync(dir).length > 0
-    } catch {
-      nonVide = false
-    }
-    return { ok: true, nonVide }
-  })
-  /** Lit le `.Sonal` d'un entretien SonalPi1. `null` = absent/manquant. */
-  ipcMain.handle('migrer:lireSonal', (_e, cheminCrp: string, rtrPath: string | null) => {
-    if (!rtrPath) return null
-    const abs = join(dirname(cheminCrp), rtrPath)
-    if (!existsSync(abs)) return null
-    return { nom: basename(abs), contenu: decoderCrp(readFileSync(abs)) }
+  ipcMain.handle('migrer:choisirEmplacement', async (e, emplacement?: string) => {
+    const r = await montrerOuvrir(e, { defaultPath: emplacement ?? app.getPath('documents'), properties: ['openDirectory'] })
+    return r.canceled ? null : r.filePaths[0] ?? null
   })
 }
 
@@ -2983,6 +3078,7 @@ let fermetureAutorisee = false
 let fermetureEnCours = false
 
 app.whenReady().then(() => {
+  if (!instancePrincipale) return
   nettoyerAvantQuit = enregistrerIpcCorpus()
   enregistrerIpcExemples()
   enregistrerIpcMigration()

@@ -50,7 +50,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         expect(etat.mediasConfirmes).toHaveLength(3)
         expect(etat.bilan.commitSource).toBe(f.commit)
         expect(await depot(f.source).resoudreTete('main')).toBe(f.commit)
-        const natif = await d.lireFichier('corpus.json', 'main')
+        const natif = await d.lireFichier('corpus.crp', 'main')
         const corpus = JSON.parse(natif!.contenu) as CorpusFichier
         expect(corpus.nom).toBe('Migration synthétique')
         expect(Object.keys(corpus.membership)).toHaveLength(4)
@@ -184,7 +184,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
       const page = await app.firstWindow(), modal = await preparer(page, f.source, cible, url)
       const racine = join(profil, 'migrations-gitlab'), operation = readdirSync(racine)[0]
       const docs = join(racine, operation, 'documents')
-      const corpus = JSON.parse(readFileSync(join(docs, 'corpus.json'), 'utf8')) as CorpusFichier
+      const corpus = JSON.parse(readFileSync(join(docs, 'corpus.crp'), 'utf8')) as CorpusFichier
       const entretien = JSON.parse(readFileSync(join(docs, 'entretiens', `${corpus.ordreEntretiens![0]}.json`), 'utf8')) as EntretienFichier
       const chemin = entretien.meta.audioDistant!.chemin, c = webdav(url)
       const parents = chemin.split('/').slice(0, -1)
@@ -210,7 +210,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         const page = await app.firstWindow(), modal = await preparer(page, f.source, cible, urlMedia)
         await modal.getByRole('button', { name: 'Copier les médias et créer le corpus', exact: true }).click()
         await expect.poll(() => lireSondeMigration(app), { timeout: 90_000 }).toMatchObject({ suspendue: true })
-        const avant = lireEtat(profil), corpusAvant = await depot(cible).lireFichier('corpus.json', 'main')
+        const avant = lireEtat(profil), corpusAvant = await depot(cible).lireFichier('corpus.crp', 'main')
         expect(avant.phase).toBe(externe ? 'copie' : 'ouverture')
         expect(avant.mediasConfirmes).toHaveLength(externe ? 0 : 3)
         const ids = avant.documents.filter((d) => d.chemin.startsWith('entretiens/')).map((d) => d.chemin)
@@ -232,7 +232,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         expect(apres.documents.filter((d) => d.chemin.startsWith('entretiens/')).map((d) => d.chemin)).toEqual(ids)
         const sonde = await lireSondeMigration(app)
         expect(sonde.publications).toBe(externe ? 1 : 0)
-        if (!externe) expect(await depot(cible).lireFichier('corpus.json', 'main')).toEqual(corpusAvant)
+        if (!externe) expect(await depot(cible).lireFichier('corpus.crp', 'main')).toEqual(corpusAvant)
         expect(await depot(f.source).resoudreTete('main')).toBe(f.commit)
         await joindrePreuve(info, 'preuve-arret-reprise', { signal: 'SIGKILL', source: f.source.id, cible: cible.id,
           phaseAvant: avant.phase, phaseApres: apres.phase, publicationsApresRelance: sonde.publications, identifiantsConserves: ids })
@@ -253,7 +253,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
       expect(avant.lots.length).toBeGreaterThan(1)
       expect(avant.prochainLot).toBe(0)
       expect(avant.intention).toBeDefined()
-      expect(await depot(cible).lireFichier('corpus.json', 'main')).toBeNull()
+      expect(await depot(cible).lireFichier('corpus.crp', 'main')).toBeNull()
       const premier = avant.documents[avant.lots[0].at(-1)!]
       const acquis = await depot(cible).lireFichier(premier.chemin, 'main')
       expect(acquis).not.toBeNull()
@@ -265,7 +265,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
       expect(apres.documents).toEqual(avant.documents)
       expect((await lireSondeMigration(app)).publications).toBe(avant.lots.length)
       expect(await depot(cible).lireFichier(premier.chemin, 'main')).toEqual(acquis)
-      const corpus = JSON.parse((await depot(cible).lireFichier('corpus.json', 'main'))!.contenu) as CorpusFichier
+      const corpus = JSON.parse((await depot(cible).lireFichier('corpus.crp', 'main'))!.contenu) as CorpusFichier
       expect(Object.keys(corpus.membership)).toHaveLength(251)
       expect(await depot(f.source).resoudreTete('main')).toBe(f.commit)
     } finally { await app.close(); f.nettoyer(); rmSync(profil, { recursive: true, force: true }) }
@@ -279,7 +279,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
       const page = await app.firstWindow(), modal = await preparer(page, f.source, cible)
       await modal.getByRole('button', { name: 'Copier les médias et créer le corpus', exact: true }).click()
       await expect(modal.getByRole('alert')).toContainText('envoi n’est pas confirmé', { timeout: 60_000 })
-      const avant = await depot(cible).lireFichier('corpus.json', 'main')
+      const avant = await depot(cible).lireFichier('corpus.crp', 'main')
       expect(avant).not.toBeNull()
       expect(lireEtat(profil).intention).toBeDefined()
       expect(lireEtat(profil).phase).toBe('publication')
@@ -290,7 +290,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
       expect(lireEtat(profil).phase).toBe('terminee')
       expect(lireEtat(profil).intention).toBeUndefined()
       expect((await lireSondeMigration(app)).publications).toBe(1)
-      expect(await depot(cible).lireFichier('corpus.json', 'main')).toEqual(avant)
+      expect(await depot(cible).lireFichier('corpus.crp', 'main')).toEqual(avant)
       expect(await depot(f.source).resoudreTete('main')).toBe(f.commit)
     } finally { await app.close(); f.nettoyer(); rmSync(profil, { recursive: true, force: true }) }
   })

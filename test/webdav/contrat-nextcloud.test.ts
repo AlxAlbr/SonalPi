@@ -50,11 +50,11 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     expect(profil.filesLock).toBe(true)
   })
 
-  it('PROPFIND réel : corpus.json visible avec un ETag non vide', { timeout: 30_000 }, async () => {
+  it('PROPFIND réel : corpus.crp visible avec un ETag non vide', { timeout: 30_000 }, async () => {
     const client = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
     const entrees = await client.propfind('')
-    const corpus = entrees.find((e) => e.chemin === 'corpus.json')
-    expect(corpus, `corpus.json absent — relancer npm run nc:provision`).toBeDefined()
+    const corpus = entrees.find((e) => e.chemin === 'corpus.crp')
+    expect(corpus, `corpus.crp absent — relancer npm run nc:provision`).toBeDefined()
     expect(corpus!.etag).toBeTruthy()
     expect(corpus!.etag).not.toMatch(/"/) // forme canonique sans guillemets
   })
@@ -100,8 +100,8 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
       dir,
     )
     const premier = await miroir.tirer()
-    expect(premier.telecharges).toContain('corpus.json')
-    const contenu = JSON.parse(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8'))
+    expect(premier.telecharges).toContain('corpus.crp')
+    const contenu = JSON.parse(readFileSync(miroir.cheminLocal('corpus.crp'), 'utf8'))
     // Le corpus du banc suit la version du format en cours : une constante
     // en dur ferait échouer ce test à chaque évolution du format.
     expect(contenu.formatVersion).toBe(FORMAT_VERSION)
@@ -111,10 +111,10 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
   })
 
   it('un dossier partagé apparaît au chemin propre à CHAQUE compte', { timeout: 30_000 }, async () => {
-    // olivier voit le même corpus.json via SON chemin DAV — sans connaître max.
+    // olivier voit le même corpus.crp via SON chemin DAV — sans connaître max.
     const client = new ClientWebDAV({ baseUrl: CORPUS_OLIVIER, identifiants: OLIVIER })
     const entrees = await client.propfind('')
-    expect(entrees.find((e) => e.chemin === 'corpus.json')).toBeDefined()
+    expect(entrees.find((e) => e.chemin === 'corpus.crp')).toBeDefined()
     // Et l'isolation entre comptes est réelle : les identifiants d'olivier (VALIDES) ne voient pas /max/… → 404.
     // Nextcloud ne révèle pas l'existence ; 401 serait réservé à des identifiants invalides (vérifié juste après).
     const croise = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: OLIVIER })
@@ -159,7 +159,7 @@ describe.skipIf(!serveurBPret)('Contrat Nextcloud réel — pile B SANS files_lo
       dir,
     )
     const tirage = await miroir.tirer()
-    expect(tirage.telecharges).toContain('corpus.json')
+    expect(tirage.telecharges).toContain('corpus.crp')
   })
 })
 

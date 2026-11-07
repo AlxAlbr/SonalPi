@@ -14,7 +14,7 @@ import { lancer, entrerCorpus } from './util'
 
 /** Fichiers du corpus par défaut du profil. */
 function fichierCorpus(dir: string) {
-  return join(dir, 'corpus', 'corpus.json')
+  return join(dir, 'corpus', 'corpus.crp')
 }
 function fichierEntretien(dir: string, id: string) {
   return join(dir, 'corpus', 'entretiens', `${id}.json`)

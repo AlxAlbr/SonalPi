@@ -11,7 +11,7 @@ function preparer() {
   const profil = join(racine, 'profil')
   const dossier = join(profil, 'corpus')
   ecrireSeedDemo(dossier)
-  const corpusFile = join(dossier, 'corpus.json')
+  const corpusFile = join(dossier, 'corpus.crp')
   const premierFile = join(dossier, 'entretiens/e1.json')
   const secondFile = join(dossier, 'entretiens/e2.json')
   const corpus = JSON.parse(readFileSync(corpusFile, 'utf8')) as CorpusFichier

@@ -5,7 +5,7 @@
 #   1. Attendre que Nextcloud soit prêt (le 1er démarrage installe longtemps)
 #   2. Créer les comptes max et olivier
 #   3. Activer files_lock + verrou natif avec timeout
-#   4. Créer /MonCorpus chez max, y semer un corpus.json minimal (v3)
+#   4. Créer /MonCorpus chez max, y semer un corpus.crp minimal (v3)
 #   5. Partager MonCorpus avec olivier (lecture/écriture)
 set -euo pipefail
 
@@ -71,7 +71,7 @@ MKCOL() { curl -s -o /dev/null -u "$AUTH_MAX" -X MKCOL "$CODEX/$1"; }
 curl -s -o /dev/null -u "$AUTH_MAX" -X MKCOL "$CODEX"
 MKCOL entretiens
 
-# corpus.json minimal v3 (contrat src/shared/format.ts) — membership vide.
+# corpus.crp minimal v3 (contrat src/shared/format.ts) — membership vide.
 cat > /tmp/corpus-seed.json <<'JSON'
 {
   "formatVersion": 3,
@@ -85,7 +85,7 @@ cat > /tmp/corpus-seed.json <<'JSON'
 JSON
 curl -s -o /dev/null -u "$AUTH_MAX" -X PUT \
      -H 'Content-Type: application/json' --data-binary @/tmp/corpus-seed.json \
-     "$CODEX/corpus.json"
+     "$CODEX/corpus.crp"
 
 echo "── Partage avec olivier (lecture/écriture)…"
 # Pas de commande occ `share:` : l'API OCS files_sharing est la voie officielle.

@@ -23,7 +23,7 @@ for (const port of [8080, 8081]) {
     let app: ElectronApplication | undefined
     try {
       for (const d of ['entretiens', 'verrous', 'DocsPrepaProjet', 'DocsPrepaProjet/DPO', 'DocsPrepaProjet/DPO/École 2']) await client.creerDossier(d)
-      await client.putTexte('corpus.json', corpusDistantValide([]), { ifNoneMatch: '*' })
+      await client.putTexte('corpus.crp', corpusDistantValide([]), { ifNoneMatch: '*' })
       await client.putTexte('DocsPrepaProjet/DPO/École 2/Notice é.txt', 'Texte distant exact.', { ifNoneMatch: '*' })
       app = await lancer(profil)
       await app.evaluate(({ shell }, racine) => {

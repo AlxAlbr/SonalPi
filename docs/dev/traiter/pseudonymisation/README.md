@@ -14,7 +14,7 @@ que l’utilisateur doit vérifier séparément.
 
 | Notion | Stockage | Sens |
 |---|---|---|
-| Règle corpus | `corpus.json.reglesAnon` | Définition partagée : alias, un ou deux pseudonymes et catégorie facultative. |
+| Règle corpus | `corpus.crp.reglesAnon` | Définition partagée : alias, un ou deux pseudonymes et catégorie facultative. |
 | Définition locale | `definitionsAnonLocales` dans un entretien | Mémoire complète d’une définition propre à cet entretien. |
 | Brouillon | `brouillonsAnon` et définition locale en état `brouillon` | Définition locale qui n’a pas encore de décision posée. |
 | Décision | `Annotation{type:'anon'}` | Choix effectué sur une plage : pseudonymiser ou laisser en exception. |
@@ -32,7 +32,7 @@ brouillon local  ⇄  décisions de l’entretien  ⇄  règle partagée au corp
 - **Brouillon** : la définition existe localement, sans annotation posée.
 - **Entretien** : des décisions existent, mais ne référencent aucune règle corpus.
 - **Corpus** : les décisions portent `regle: <id>` et utilisent la définition
-  partagée dans `corpus.json`.
+  partagée dans `corpus.crp`.
 
 Ces états ne sont pas un simple drapeau. Ils découlent du stockage réel :
 présence d’un brouillon, présence d’annotations et présence ou non d’un lien de

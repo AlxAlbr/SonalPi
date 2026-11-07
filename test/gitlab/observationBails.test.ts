@@ -190,7 +190,7 @@ function corpusDeTest(extra: Record<string, string> = {}): Depot {
   return {
     commit: COMMIT,
     fichiers: {
-      [`${RACINE}/corpus.json`]: corpusDistantValide(['e1', 'e2']),
+      [`${RACINE}/corpus.crp`]: corpusDistantValide(['e1', 'e2']),
       [`${RACINE}/entretiens/e1.json`]: entretienDistantValide(),
       [`${RACINE}/entretiens/e2.json`]: entretienDistantValide(),
       ...extra,
@@ -229,7 +229,7 @@ describe('observation des bails GitLab', () => {
     const depot: Depot = {
       commit: COMMIT,
       fichiers: {
-        'corpus/projet/corpus.json': corpusDistantValide(['e1']),
+        'corpus/projet/corpus.crp': corpusDistantValide(['e1']),
         'corpus/projet/entretiens/e1.json': entretienDistantValide(),
         [bail.chemin]: bail.contenu,
       },
@@ -263,7 +263,7 @@ describe('observation des bails GitLab', () => {
     const e1 = bailEntretien('e1', { expireLe: VIVANT })
     const inconnu = bailEntretien('e9', { expireLe: VIVANT })
     const bailDuCorpus = bailDeRessource(
-      cleRessourceBailGitLab(BRANCHE, `${RACINE}/corpus.json`),
+      cleRessourceBailGitLab(BRANCHE, `${RACINE}/corpus.crp`),
       { expireLe: VIVANT },
     )
     const journal: Requete[] = []
@@ -290,9 +290,9 @@ describe('observation des bails GitLab', () => {
     const preparation = await ouvrir({
       commit: COMMIT,
       fichiers: {
-        'donnees/corpus.json': corpusDistantValide(['e1']),
+        'donnees/corpus.crp': corpusDistantValide(['e1']),
         'donnees/entretiens/e1.json': entretienDistantValide(),
-        'donnees2/corpus.json': corpusDistantValide(['e1']),
+        'donnees2/corpus.crp': corpusDistantValide(['e1']),
         'donnees2/entretiens/e1.json': entretienDistantValide(),
         [bail.chemin]: bail.contenu,
       },

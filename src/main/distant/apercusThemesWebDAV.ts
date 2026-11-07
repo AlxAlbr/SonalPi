@@ -90,7 +90,7 @@ export class ApercusThemesWebDAV {
 
   private async lireInstantane(capture: number): Promise<InstantaneOperationTheme> {
     this.verifierGeneration(capture)
-    const avant = await this.lireFichier('corpus.json')
+    const avant = await this.lireFichier('corpus.crp')
     const corpus = decoderCorpusTheme(avant.contenu)
     const entretiens: InstantaneOperationTheme['entretiens'] = []
     for (const [id, membre] of Object.entries(corpus.membership)) {
@@ -111,7 +111,7 @@ export class ApercusThemesWebDAV {
       }
     }
     this.verifierGeneration(capture)
-    const apres = await this.lireFichier('corpus.json')
+    const apres = await this.lireFichier('corpus.crp')
     this.verifierGeneration(capture)
     if (avant.etag !== apres.etag || avant.contenu !== apres.contenu) {
       throw new RefusOperationTheme('Le corpus distant a changé pendant l’inventaire : recalculez l’aperçu.')

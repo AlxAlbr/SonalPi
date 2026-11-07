@@ -124,9 +124,9 @@ async function reconcilierPublication(
  *  prochain démarrage, et un corpus qui ne correspond ni à l'avant ni à l'après
  *  n'est jamais écrasé. */
 function installerSuppression(plan: PlanSuppressionEntretien, dirMiroir: string): void {
-  if (!existsSync(join(dirMiroir, 'corpus.json'))) {
+  if (!existsSync(join(dirMiroir, 'corpus.crp'))) {
     throw new Error(
-      'La suppression GitLab ne peut pas reprendre : corpus.json est absent du miroir local.',
+      'La suppression GitLab ne peut pas reprendre : corpus.crp est absent du miroir local.',
     )
   }
   new CorpusStore(dirMiroir).appliquerTransactionFichiers(plan)

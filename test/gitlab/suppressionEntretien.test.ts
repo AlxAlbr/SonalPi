@@ -62,7 +62,7 @@ const destination: ConfigDestinationGitLab = {
   racine: RACINE,
 }
 
-function ressource(corpusId = `corpus.json`, entretienId?: string): string {
+function ressource(corpusId = `corpus.crp`, entretienId?: string): string {
   return cleRessourceBailGitLab(
     destination.branche,
     entretienId ? `${RACINE}/${corpusId}` : `${RACINE}/${corpusId}`,
@@ -74,7 +74,7 @@ function hacherRessource(chemin: string): string {
 }
 
 function hacherCorpus(): string {
-  return hacherRessource(cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`))
+  return hacherRessource(cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.crp`))
 }
 
 function entretienPublie(titre: string): string {
@@ -157,7 +157,7 @@ function banc(options: OptionsBanc = {}): Banc {
   const serveur = options.serveur ?? corpusServeur()
   const local = options.local === undefined ? structuredClone(serveur) : options.local
   if (local) {
-    writeFileSync(join(dirLocal, 'corpus.json'), JSON.stringify(local, null, 2), 'utf8')
+    writeFileSync(join(dirLocal, 'corpus.crp'), JSON.stringify(local, null, 2), 'utf8')
     for (const [chemin, contenu] of [
       [`entretiens/${ID}.json`, entretienPublie('un')],
       [`entretiens/${ID}.json.bak1`, entretienPublie('un')],
@@ -174,12 +174,12 @@ function banc(options: OptionsBanc = {}): Banc {
   store.lectureSeule = true
   const dirJournal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-journal-suppression-'))
   const journal = new JournalPublicationGitLab(destination.id, dirJournal, undefined, {
-    chemin: `${RACINE}/corpus.json`,
+    chemin: `${RACINE}/corpus.crp`,
     resourceHash: hacherCorpus(),
   })
   const depot = new DepotMemoire()
   depot.charger(new Map<string, string>([
-    [`${RACINE}/corpus.json`, JSON.stringify(serveur, null, 2)],
+    [`${RACINE}/corpus.crp`, JSON.stringify(serveur, null, 2)],
     [`${RACINE}/entretiens/${ID}.json`, entretienPublie('un')],
     [`${RACINE}/entretiens/${AUTRE}.json`, entretienPublie('deux')],
   ]))
@@ -216,7 +216,7 @@ function banc(options: OptionsBanc = {}): Banc {
     transactions,
     file,
     lireLocal: () =>
-      JSON.parse(readFileSync(join(dirLocal, 'corpus.json'), 'utf8')) as CorpusFichier,
+      JSON.parse(readFileSync(join(dirLocal, 'corpus.crp'), 'utf8')) as CorpusFichier,
   }
 }
 
@@ -265,7 +265,7 @@ describe('suppression d’un entretien — parcours nominal', () => {
     expect(donnees[0]
       .filter((action) => !action.file_path.startsWith('.sonal/'))
       .map((action) => [action.action, action.file_path])).toEqual([
-      ['update', `${RACINE}/corpus.json`],
+      ['update', `${RACINE}/corpus.crp`],
       ['move', `${RACINE}/corbeille/${ID}.json`],
     ])
     // Deux actions métier, deux mutations de bail : le commit est entier.
@@ -381,7 +381,7 @@ describe('suppression d’un entretien — les deux droits', () => {
     const impact = await b.transactions.analyserSuppressionEntretien(ID)
     poserBail(
       b.depot,
-      ressource('corpus.json'),
+      ressource('corpus.crp'),
       'bob',
       new Date(Date.now() + 600_000).toISOString(),
     )
@@ -390,7 +390,7 @@ describe('suppression d’un entretien — les deux droits', () => {
       .rejects.toThrow(/Le corpus GitLab est en cours de modification par bob/)
     expect(commitsDeDonnees(b.depot)).toHaveLength(0)
     expect([...b.depot.fichiers.keys()].filter((c) => c.startsWith('.sonal/')))
-      .toEqual([cheminBailRessourceGitLab(ressource('corpus.json'))])
+      .toEqual([cheminBailRessourceGitLab(ressource('corpus.crp'))])
   })
 
   test('un marqueur historique reste bloquant même expiré', async () => {
@@ -437,7 +437,7 @@ describe('suppression d’un entretien — les deux droits', () => {
       if (!actions.some((action) => action.action === 'move')) return
       // Le corpus a bougé depuis la lecture : garde périmée, commit refusé.
       b.depot.modifierHorsProtocole(
-        `${RACINE}/corpus.json`,
+        `${RACINE}/corpus.crp`,
         JSON.stringify(corpusServeur(false), null, 2),
       )
     }
@@ -609,14 +609,14 @@ describe('suppression d’un entretien — reprise', () => {
     perdreReponse(b, true)
     await expect(b.transactions.supprimerEntretien(ID, impact)).rejects.toThrow()
     b.depot.rendreCommits()
-    unlinkSync(join(b.dirLocal, 'corpus.json'))
+    unlinkSync(join(b.dirLocal, 'corpus.crp'))
 
     await expect(reprendreOperationsGitLab({
       depot: b.depot,
       coordination: b.coordination,
       journal: b.journal,
       dirMiroir: b.dirLocal,
-    })).rejects.toThrow(/corpus\.json est absent/)
+    })).rejects.toThrow(/corpus\.crp est absent/)
 
     expect(b.journal.lister()).toHaveLength(1)
     expect(existe(b.dirLocal, 'entretiens/e1.json')).toBe(true)
@@ -805,9 +805,9 @@ describe('suppression d’un entretien — réconciliation du déplacement', () 
     return [
       {
         action: 'update',
-        file_path: `${RACINE}/corpus.json`,
+        file_path: `${RACINE}/corpus.crp`,
         content: JSON.stringify(corpusServeur(false), null, 2),
-        last_commit_id: b.depot.fichiers.get(`${RACINE}/corpus.json`)!.commitId,
+        last_commit_id: b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.commitId,
       },
       {
         action: 'move',

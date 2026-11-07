@@ -43,7 +43,7 @@ const destination: ConfigDestinationGitLab = {
 }
 
 const RACINE = 'donnees'
-const CHEMIN_CORPUS = `${RACINE}/corpus.json`
+const CHEMIN_CORPUS = `${RACINE}/corpus.crp`
 
 function entretien(texte: string, reperes: string[] = [], lastModified = '2026-01-01T10:00:00.000Z') {
   return {
@@ -98,7 +98,7 @@ function banc(serveur: Map<string, string>): Banc {
   mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
   // Le miroir ne contient aucun entretien : une validation qui le consulte
   // échouerait, au lieu de valider sur une copie périmée.
-  writeFileSync(join(dirLocal, 'corpus.json'), JSON.stringify(corpusAvec({}), null, 2), 'utf8')
+  writeFileSync(join(dirLocal, 'corpus.crp'), JSON.stringify(corpusAvec({}), null, 2), 'utf8')
   const store = new CorpusStore(dirLocal)
   store.lectureSeule = true
   const journal = new JournalPublicationGitLab(destination.id, mkdtempSync(join(tmpdir(), 'sonal-journal-')), undefined, {
@@ -129,7 +129,7 @@ function banc(serveur: Map<string, string>): Banc {
     depot,
     transactions,
     coordination,
-    lireLocal: () => JSON.parse(readFileSync(join(dirLocal, 'corpus.json'), 'utf8')) as CorpusFichier,
+    lireLocal: () => JSON.parse(readFileSync(join(dirLocal, 'corpus.crp'), 'utf8')) as CorpusFichier,
   }
 }
 

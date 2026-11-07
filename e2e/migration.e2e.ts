@@ -53,11 +53,11 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration courante sile
   const now = new Date().toISOString()
 
   // Corpus formatVersion 2 écrit AVANT le lancement — l'écriture du seed démo est idempotente
-  // (elle ne touche pas à un corpus.json existant), le profil démarre donc dessus.
+  // (elle ne touche pas à un corpus.crp existant), le profil démarre donc dessus.
   mkdirSync(join(dirCorpus, 'entretiens'), { recursive: true })
   mkdirSync(join(dirCorpus, 'audio'), { recursive: true })
   writeFileSync(
-    join(dirCorpus, 'corpus.json'),
+    join(dirCorpus, 'corpus.crp'),
     JSON.stringify(
       {
         formatVersion: 2,
@@ -109,7 +109,7 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration courante sile
   await expect(page.locator('.carte-ent .ent-titre')).toContainText('Entretien Legacy')
 
   // --- Migration vérifiée SUR DISQUE (silencieuse, une fois) ---
-  const corpusJson = JSON.parse(readFileSync(join(dirCorpus, 'corpus.json'), 'utf8'))
+  const corpusJson = JSON.parse(readFileSync(join(dirCorpus, 'corpus.crp'), 'utf8'))
   expect(corpusJson.formatVersion).toBe(FORMAT_VERSION)
   const e1 = JSON.parse(readFileSync(join(dirCorpus, 'entretiens', 'e1.json'), 'utf8'))
   expect(e1.formatVersion).toBe(FORMAT_VERSION)
@@ -139,7 +139,7 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration courante sile
   await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent .ent-titre')).toContainText('Entretien Legacy')
-  expect(JSON.parse(readFileSync(join(dirCorpus, 'corpus.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
+  expect(JSON.parse(readFileSync(join(dirCorpus, 'corpus.crp'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
 
   await app.close()
 })

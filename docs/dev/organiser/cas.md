@@ -14,9 +14,9 @@ une prise en charge de tous les CAQDAS ni une équivalence parfaite de leurs mod
 
 | Donnée | Propriétaire |
 |---|---|
-| Nom, mémo, règles et rattachements | `corpus.json.cas` |
-| Organisation en familles et recettes partagées | `corpus.json.famillesCas` |
-| Définitions des attributs | `corpus.json.attributsCas` |
+| Nom, mémo, règles et rattachements | `corpus.crp.cas` |
+| Organisation en familles et recettes partagées | `corpus.crp.famillesCas` |
+| Définitions des attributs | `corpus.crp.attributsCas` |
 | Valeurs d’attributs saisies et recettes propres | Le cas |
 | Bornes d’un passage manuel | `EntretienFichier.reperesPassages` |
 | Passages résolus, valeurs dérivées et diagnostics | Projection en mémoire, jamais enregistrée comme vérité |

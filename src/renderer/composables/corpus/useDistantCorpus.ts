@@ -42,6 +42,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
 }
 
 interface EffetsDistantCorpus {
+  annulerPreparation?: () => Promise<void>
   rafraichirCorpusSansFermer: () => Promise<void>
   nettoyerMiroirChange: () => void
   detecterDivergencesAnon: () => void
@@ -249,7 +250,7 @@ export function useDistantCorpus(deps: {
       absorberVerrous(tirage.verrous)
       absorberPresences(tirage.presences)
       deps.effets.majAudiosInaccessibles(tirage.inaccessibles ?? [])
-      if (tirage.telecharges.includes('corpus.json') && deps.entretien.ouvertId.value) {
+      if (tirage.telecharges.includes('corpus.crp') && deps.entretien.ouvertId.value) {
         deps.effets.detecterDivergencesAnon()
       }
       if (tirage.telecharges.length > 0 || tirage.corbeille.length > 0) {
@@ -360,6 +361,7 @@ export function useDistantCorpus(deps: {
   })
   const arreterPreparationFermeture = window.sonal.application.surPreparationFermeture(
     async () => {
+      await deps.effets.annulerPreparation?.()
       if (!deps.entretien.ouvertId.value) return
       if (idDistantCourant.value && statutSession.value.etat === 'degrade') {
         await deps.entretien.annulerEtAttendreSauvegarde()

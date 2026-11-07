@@ -1,7 +1,7 @@
 # Tableau de bord — repères développeur
 
 Le tableau de bord est un **suivi manuel du travail**, stocké dans
-`corpus.json.tableaubord`. Ce n’est ni un bilan calculé ni la liste des entretiens
+`corpus.crp.tableaubord`. Ce n’est ni un bilan calculé ni la liste des entretiens
 du corpus : ses lignes sont des libellés libres, sans lien avec le `membership`.
 Créer, renommer ou supprimer un entretien réel ne modifie donc pas le tableau.
 
@@ -28,7 +28,7 @@ La consultation seule ne l’enregistre pas. Les identifiants des éléments par
 défaut sont fixes ; ceux des nouveaux éléments sont générés à la création.
 
 Les dimensions de la grille sont des préférences du poste dans `localStorage`,
-pas des données partagées dans `corpus.json`.
+pas des données partagées dans `corpus.crp`.
 
 ## Circuit d’une modification
 

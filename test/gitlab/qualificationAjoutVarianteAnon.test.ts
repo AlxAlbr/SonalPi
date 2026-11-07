@@ -32,7 +32,7 @@ async function banc(suffixe: string) {
   const c = new ContexteGitLab('qualification', p.store, { tirer: async () => ({ telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }) } as never, undefined, p.transactions)
   const demande = { regleAvant: structuredClone(f.corpus.reglesAnon.personne), pseudo: 'Rebecca' }
   const ajouter = () => c.executerDefinitions('anon.ajouter-variante', (s) => s.regleAnonAjouterVariante(demande))
-  const lire = (chemin = 'corpus.json') => depot.lireFichier(`${racine}/${chemin}`, 'main')
+  const lire = (chemin = 'corpus.crp') => depot.lireFichier(`${racine}/${chemin}`, 'main')
   const avant = await Promise.all(f.sources.map((s) => lire(`entretiens/${s.id}.json`)))
   return { f, p, c, depot, racine, controle, demande, ajouter, lire, avant }
 }
@@ -45,7 +45,7 @@ decrire('ajout de variante GitLab — qualification propre', () => {
       expect(JSON.parse((await b.lire())!.contenu)).toEqual(attendu)
       expect(await Promise.all(b.f.sources.map((s) => b.lire(`entretiens/${s.id}.json`)))).toEqual(b.avant)
       const commit = JSON.parse(b.controle.envois[0]); expect(commit.actions).toHaveLength(2)
-      expect(commit.actions.map((a: { file_path: string }) => a.file_path)).toEqual([`${b.racine}/corpus.json`, cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.json`))])
+      expect(commit.actions.map((a: { file_path: string }) => a.file_path)).toEqual([`${b.racine}/corpus.crp`, cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.crp`))])
       b.demande.regleAvant = attendu.reglesAnon.personne; expect((await b.ajouter()).valeur.ajoute).toBe(false)
       expect(b.controle.envois).toHaveLength(1)
     } finally { nettoyer(b.p) }
@@ -53,7 +53,7 @@ decrire('ajout de variante GitLab — qualification propre', () => {
   it('corpus tenu par le second compte refuse ; entretien tenu conservé sans aucune acquisition supplémentaire', { timeout: 120_000 }, async () => {
     const b = await banc('tenus'), bob = pile({ racine: b.racine, jeton: configuration.token2!, userId: 'user2', sessionId: 'variante-bob' })
     try {
-      const ressource = cleRessourceBailGitLab('main', `${b.racine}/corpus.json`)
+      const ressource = cleRessourceBailGitLab('main', `${b.racine}/corpus.crp`)
       const a = await bob.coordination.acquireRessource(ressource); if (!a.ok) throw new Error('Bail fixture')
       await expect(b.ajouter()).rejects.toThrow('modification'); expect(b.controle.envois).toEqual([]); await bob.coordination.liberer(a.droit)
       const e = await bob.coordination.acquireRessource(cleRessourceBailGitLab('main', `${b.racine}/entretiens/e1.json`)); if (!e.ok) throw new Error('Bail fixture')
@@ -65,10 +65,10 @@ decrire('ajout de variante GitLab — qualification propre', () => {
     const b = await banc('concurrence'), bob = nouveauDepot(configuration.token2!)
     try {
       const concurrent = structuredClone(b.f.corpus); concurrent.reglesAnon.personne.categorie = 'Autre'
-      await bob.publierCommit('main', 'fixture : catégorie concurrente', [{ action: 'update', file_path: `${b.racine}/corpus.json`, last_commit_id: (await b.lire())!.commitId, content: JSON.stringify(concurrent) }])
+      await bob.publierCommit('main', 'fixture : catégorie concurrente', [{ action: 'update', file_path: `${b.racine}/corpus.crp`, last_commit_id: (await b.lire())!.commitId, content: JSON.stringify(concurrent) }])
       await expect(b.ajouter()).rejects.toThrow('a changé'); b.demande.regleAvant = concurrent.reglesAnon.personne
       concurrent.nom = 'Édition indépendante'
-      b.controle.course = async () => { await bob.publierCommit('main', 'fixture : course de corpus', [{ action: 'update', file_path: `${b.racine}/corpus.json`, last_commit_id: (await b.lire())!.commitId, content: JSON.stringify(concurrent) }]) }
+      b.controle.course = async () => { await bob.publierCommit('main', 'fixture : course de corpus', [{ action: 'update', file_path: `${b.racine}/corpus.crp`, last_commit_id: (await b.lire())!.commitId, content: JSON.stringify(concurrent) }]) }
       await expect(b.ajouter()).rejects.toThrow('changé pendant'); expect(JSON.parse((await b.lire())!.contenu)).toEqual(concurrent)
       expect(b.controle.envois).toEqual([])
     } finally { nettoyer(b.p) }
@@ -89,7 +89,7 @@ decrire('ajout de variante GitLab — qualification propre', () => {
       await expect(b.ajouter()).rejects.toThrow('confirmée'); await expect(b.c.actualiser()).rejects.toThrow('vérifié')
       b.controle.historique = true; await b.c.actualiser()
       expect(b.controle.envois).toHaveLength(1); expect(b.p.journal.lister()).toEqual([])
-      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.json`))
+      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.crp`))
       expect(await b.depot.lireFichier(chemin, 'main')).toBeNull()
     } finally { nettoyer(b.p) }
   })
@@ -98,7 +98,7 @@ decrire('ajout de variante GitLab — qualification propre', () => {
     let suivante: ReturnType<typeof pile> | undefined
     try {
       b.controle.perte = true; b.controle.historique = false; await expect(b.ajouter()).rejects.toThrow('confirmée')
-      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.json`)), avant = await b.depot.lireFichier(chemin, 'main')
+      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.racine}/corpus.crp`)), avant = await b.depot.lireFichier(chemin, 'main')
       suivante = pile({ racine: b.racine, jeton: configuration.token1!, userId: 'user1', sessionId: 'nouvelle-instance', destinationId: b.racine, dossier: b.p.dossier, journalRepertoire: joinJournal(b.p.dossier) })
       await reprendreOperationsGitLab({ depot: suivante.depot, coordination: suivante.coordination, journal: suivante.journal, dirMiroir: suivante.dossier })
       expect(suivante.journal.lister()).toEqual([]); expect(await b.depot.lireFichier(chemin, 'main')).toEqual(avant)

@@ -7,7 +7,7 @@ import { empreinteCorrespondance } from '../tablesCorrespondance'
 import { etagImportWebDAVFort } from './journalCorrespondancesWebDAV'
 import { candidatAjoutVarianteWebDAV, corpusAjoutVarianteWebDAV, JournalAjoutVarianteAnonWebDAV, type EnvoiAjoutVarianteWebDAV } from './journalAjoutVarianteAnonWebDAV'
 
-const CORPUS = 'corpus.json', VERROU = 'verrous/corpus.lock.json'
+const CORPUS = 'corpus.crp', VERROU = 'verrous/corpus.lock.json'
 const MARGE = 60_000
 
 /** Ajoute une variante sous le seul droit corpus ; les entretiens restent indépendants. */

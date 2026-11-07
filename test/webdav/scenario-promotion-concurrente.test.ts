@@ -78,12 +78,12 @@ async function amorcerServeur(base: string): Promise<void> {
   const client = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`, identifiants: MAX })
   // Verrou résiduel éventuel (passage interrompu) : libérer sans précondition.
   await client.supprimer('verrous/corpus.lock.json').catch(() => {})
-  await client.putTexte('corpus.json', corpusInitial())
+  await client.putTexte('corpus.crp', corpusInitial())
 }
 
 async function reglesServeur(base: string): Promise<CorpusFichier['reglesAnon']> {
   const client = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`, identifiants: MAX })
-  return (JSON.parse(await client.getTexte('corpus.json')) as CorpusFichier).reglesAnon
+  return (JSON.parse(await client.getTexte('corpus.crp')) as CorpusFichier).reglesAnon
 }
 
 /* ── LA TRAME commune — identique sur les deux piles ───────────────────────*/

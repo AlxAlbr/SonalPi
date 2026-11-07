@@ -43,7 +43,7 @@ qui regrouperait arbitrairement les écritures.
 Les transactions lisent une base serveur fraîche et préparent la mutation à
 l’écart du miroir actif. Celui-ci n’est installé qu’après confirmation.
 
-- Une définition simple protège `corpus.json`.
+- Une définition simple protège `corpus.crp`.
 - Un ajout dépendant de sources garde aussi les versions publiées qu’il utilise.
 - Une suppression de définition contrôle les usages et les futures publications
   de session. Un tri par contenu est une lecture sur corpus calme, pas une prise

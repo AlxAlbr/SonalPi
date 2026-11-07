@@ -123,7 +123,7 @@ export function ecrireProfilCharge(
     reperesPassages: [],
   }
   const cheminEntretien = join(dirEntretiens, 'charge.json')
-  writeFileSync(join(dirCorpus, 'corpus.json'), JSON.stringify(corpus), 'utf8')
+  writeFileSync(join(dirCorpus, 'corpus.crp'), JSON.stringify(corpus), 'utf8')
   writeFileSync(cheminEntretien, JSON.stringify(entretien), 'utf8')
   writeFileSync(
     join(userDataDir, 'settings.json'),

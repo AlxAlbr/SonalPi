@@ -20,6 +20,20 @@ Réécriture en cours  du cœur de **SonalPi1** pour essayer de simplifier le fo
 Les détails techniques (modèle d'objet, représentations des données, architecture, développement)
 sont dans la **[documentation développeur](docs/dev/README.md)**.
 
+## Stockage des corpus
+
+Un corpus V2 est un **dossier**, avec un fichier racine au nom fixe
+**`corpus.crp`** (JSON UTF-8), des fichiers `entretiens/<id>.json` et des médias
+référencés. Le seul CRP n'est pas un corpus complet.
+Les anciens corpus V2 en `corpus.json` doivent être sauvegardés puis renommés
+manuellement, application fermée ; il n'y a pas de migration automatique du nom.
+Le sélecteur `.crp` et les demandes système ouvrent strictement un corpus V2
+existant, ou proposent une migration V1 dans un nouveau dossier. Les médias
+internes au dossier V1 sont copiés ; les médias externes restent référencés.
+Les sources sont conservées ; seul le CRP V1 est renommé en sauvegarde après réussite.
+Les associations sont déclarées pour les paquets installables ; leur intégration
+réelle reste à valider sur chaque système (voir [développement](docs/dev/developpement.md)).
+
 ## Nouveautés
 
 - beaucoup de test unit et e2e : permet de dev en étant sur que ce qu'on fait ne casse pas d'autres fonctionnalités
@@ -30,7 +44,8 @@ sont dans la **[documentation développeur](docs/dev/README.md)**.
 - ajout d'un journal d'actions avec possibilité de revenir en arrière
 - Travail sur webdav Nextcloud avancé : à tester
 
-Les moins : beaucoup de choses restent à tester (pas encore fait de build)
+Les moins : l'application reste en développement ; les associations installées
+et les distributions Windows/macOS ne sont pas encore validées.
 
 ## Démarrer
 
@@ -39,6 +54,8 @@ npm install
 npm run dev          # app en développement (electron-vite)
 npm run build        # build main + preload + renderer
 npm run start        # prévisualiser le build
+npm run pack         # application empaquetée non installée dans release/
+npm run dist:linux   # paquets Linux DEB + AppImage
 
 npm test                # tests unitaires (vitest, headless)
 npm run test:e2e        # e2e Playwright + Electron (build puis lance ; tourne sous WSLg)

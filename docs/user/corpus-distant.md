@@ -5,6 +5,13 @@ Nextcloud** quand vous savez d'emblée que vous serez plusieurs à travailler de
 Pour le quotidien du travail en équipe (verrous, badges, divergences, crash),
 voir [multi-utilisateur.md](multi-utilisateur.md).
 
+Le fichier racine s'appelle `corpus.crp`, comme pour les corpus locaux ; son
+contenu reste du JSON. Il ne s'agit pas d'une archive autonome : les fichiers
+`entretiens/` et les médias référencés sont également nécessaires.
+Télécharger ce seul fichier depuis Nextcloud ne recrée pas une connexion au
+serveur. Les miroirs gérés par l'application doivent être ouverts via les comptes
+distants, jamais comme des dossiers locaux.
+
 ## Créer le corpus (« ☁️ Nouveau corpus distant »)
 
 Depuis l'accueil, carte « ☁️ Nouveau corpus distant » (rubrique *En équipe*) :
@@ -33,6 +40,17 @@ l'icône 🌐.
   le corpus de référence vit sur le serveur.
 - Les opérations réseau ont un délai maximal. Si le serveur cesse de répondre,
   l’application rend la main sans supprimer les modifications locales non publiées.
+
+## Renommer le corpus
+
+Dans l'écran Corpus, « Renommer le corpus » change le nom affiché dans l'application
+et les récents. Le dossier et son adresse serveur ne changent pas. Ce nom est
+partagé : les autres utilisateurs le verront après leur prochaine actualisation.
+Une connexion est nécessaire pour enregistrer le changement.
+
+Pour un corpus local, le même bouton ne déplace pas non plus les fichiers.
+Renommer le dossier dans l'explorateur ou dans Nextcloud n'est pas équivalent :
+cela peut rendre les chemins de médias ou la connexion mémorisée invalides.
 
 ## ⚠️ L'étape indispensable : partager le dossier
 
@@ -136,7 +154,7 @@ ouverte ne devient concurrente que si elle est publiée pendant la vérification
 Après votre confirmation, une bannière animée indique que la vérification est en
 cours. Il n'y a pas de faux pourcentage et le geste ne peut pas être lancé une
 seconde fois pendant l'attente. Les transcriptions sont lues pour contrôler
-l'opération, mais ne sont pas recopiées dans `corpus.json` ni dans la publication.
+l'opération, mais ne sont pas recopiées dans `corpus.crp` ni dans la publication.
 Si une publication concurrente est détectée, aucune partie de la modification
 n'est appliquée ; attendez la fin des autres publications puis réessayez.
 

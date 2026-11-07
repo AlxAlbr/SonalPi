@@ -9,9 +9,9 @@ circulation entre l’éditeur, la mémoire et les fichiers.
 
 | Nature | Exemples | Propriétaire |
 |---|---|---|
-| Définition partagée | Thème, variable et modalités, règle de pseudonymisation, catégorie de note. | `corpus.json`. |
+| Définition partagée | Thème, variable et modalités, règle de pseudonymisation, catégorie de note. | `corpus.crp`. |
 | Usage ou décision d’entretien | Codage, pseudonyme appliqué, valeur de variable, note. | `entretiens/<id>.json`. |
-| Définition éditoriale ou analytique | Recueil et ses items, cas et ses règles, réglages Lexico. | `corpus.json`. |
+| Définition éditoriale ou analytique | Recueil et ses items, cas et ses règles, réglages Lexico. | `corpus.crp`. |
 | Résultat calculé | Résumé thématique, passages résolus d’un cas, matrice, index lexical. | Mémoire ou cache de calcul ; pas une seconde définition partagée. |
 
 Enregistrer les critères d’une analyse ne signifie pas enregistrer son résultat.

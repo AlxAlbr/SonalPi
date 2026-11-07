@@ -13,7 +13,7 @@ for (const portee of ['locuteur', 'entretien'] as const) {
       let page = await app.firstWindow()
       await entrerCorpus(page)
       await app.close()
-      const fichier = join(dir, 'corpus', 'corpus.json')
+      const fichier = join(dir, 'corpus', 'corpus.crp')
       const corpus = corpusFamille(portee)
       writeFileSync(fichier, JSON.stringify(corpus))
       for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'corpus', 'entretiens', `${id}.json`), JSON.stringify(sourceFamille(id === 'e2')))

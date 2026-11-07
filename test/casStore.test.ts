@@ -53,7 +53,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
     reperesPassages: [repere],
   }
   mkdirSync(join(dir, 'entretiens'), { recursive: true })
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
   writeFileSync(join(dir, 'entretiens', 'entretien-1.json'), JSON.stringify(entretien, null, 2), 'utf8')
   return { dir, repere }
 }
@@ -61,7 +61,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
 describe('CorpusStore — migration des cas', () => {
   test('migre la v5 sans réécrire les règles individuelles, filtres, identités et rattachements', () => {
     const { dir, repere } = ecrireCorpusV4()
-    const cheminCorpus = join(dir, 'corpus.json')
+    const cheminCorpus = join(dir, 'corpus.crp')
     const cheminEntretien = join(dir, 'entretiens', 'entretien-1.json')
     const corpus = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
     corpus.formatVersion = 5
@@ -98,10 +98,10 @@ describe('CorpusStore — migration des cas', () => {
 
     expect(preparation.versionInitiale).toBe(4)
     expect(preparation.corpus).toMatchObject({ formatVersion: FORMAT_VERSION, cas: {} })
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).formatVersion).toBe(4)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).formatVersion).toBe(4)
 
     const corpus = store.finaliserOuverture(preparation)
-    const corpusDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpusDisque = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
     const entretienDisque = JSON.parse(
       readFileSync(join(dir, 'entretiens', 'entretien-1.json'), 'utf8'),
     ) as EntretienFichier
@@ -134,14 +134,14 @@ function storePret(): { dir: string; store: CorpusStore } {
   const store = new CorpusStore(dir)
   const corpus = store.ouvrir()
   corpus.personnes['personne-1'] = { id: 'personne-1', nom: 'Marie' }
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
   return { dir, store }
 }
 
 describe('CorpusStore — commandes et suppression des cas', () => {
   test('le lot entier est validé avant écriture et son rejeu conserve les sources intactes', () => {
     const { dir, store } = storePret()
-    const fichier = join(dir, 'corpus.json')
+    const fichier = join(dir, 'corpus.crp')
     const source = join(dir, 'entretiens', 'entretien-1.json')
     const avant = readFileSync(fichier, 'utf8')
     const sourceAvant = readFileSync(source, 'utf8')
@@ -198,7 +198,7 @@ describe('CorpusStore — commandes et suppression des cas', () => {
     const { dir, store } = storePret()
     const courant = store.ouvrir()
     courant.personnes['personne-2'] = { id: 'personne-2', nom: 'Paul' }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(courant), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(courant), 'utf8')
     const mixte: Cas = {
       ...casPersonne('mixte', 'Collectif'),
       regles: [
@@ -221,22 +221,22 @@ describe('CorpusStore — commandes et suppression des cas', () => {
     const { dir, store } = storePret()
     store.casCommander({ type: 'creer', cas: casPersonne('cas-1', 'Marie') })
 
-    const modifieAilleurs = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    const modifieAilleurs = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
     modifieAilleurs.nom = 'Nom modifié ailleurs'
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(modifieAilleurs, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(modifieAilleurs, null, 2), 'utf8')
 
     const corpus = store.casCommander({
       type: 'renommer', casId: 'cas-1', attendu: 'Marie', nom: 'Marie — vague 1',
     })
     expect(corpus.nom).toBe('Nom modifié ailleurs')
     expect(corpus.cas?.['cas-1'].nom).toBe('Marie — vague 1')
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).cas['cas-1'].nom)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).cas['cas-1'].nom)
       .toBe('Marie — vague 1')
   })
 
   test('refuse une personne ou un repère absent sans modifier le fichier', () => {
     const { dir, store } = storePret()
-    const fichier = join(dir, 'corpus.json')
+    const fichier = join(dir, 'corpus.crp')
     const avant = readFileSync(fichier, 'utf8')
     expect(() => store.casCommander({
       type: 'creer',
@@ -344,13 +344,13 @@ describe('CorpusStore — commandes et suppression des cas', () => {
 
   test('la lecture seule refuse les commandes de cas', () => {
     const { dir, store } = storePret()
-    const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
     store.lectureSeule = true
     expect(() => store.casCommander({ type: 'creer', cas: casPersonne('cas-1', 'Marie') }))
       .toThrow(/transaction sous droit/)
     expect(() => store.casCommander({
       type: 'creer', cas: { ...casPersonne('vide', 'Vide'), regles: [] },
     })).toThrow(/transaction sous droit/)
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
   })
 })

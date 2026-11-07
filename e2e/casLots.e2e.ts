@@ -18,7 +18,7 @@ test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et ide
     })
     await ouvrirOrganisation(page)
     let modale = page.locator('#contenu-cas-organisation')
-    const fichier = join(userDataDir, 'corpus', 'corpus.json')
+    const fichier = join(userDataDir, 'corpus', 'corpus.crp')
     const source = join(userDataDir, 'corpus', 'entretiens', 'e1.json')
     const avant = readFileSync(fichier, 'utf8')
     const sourceAvant = readFileSync(source, 'utf8')
@@ -105,7 +105,7 @@ test('entretiens entiers : individuel, collectif, source vide et futurs paragrap
     await expect(modale.locator('.passage-cas blockquote').first()).toContainText('travail passé')
     await modale.getByRole('combobox', { name: /Matériaux affichés/ }).selectOption('manuels')
     await expect(modale).toContainText('Aucun ajout manuel dans ce cas.')
-    const fichier = join(userDataDir, 'corpus', 'corpus.json')
+    const fichier = join(userDataDir, 'corpus', 'corpus.crp')
     const avant = JSON.parse(readFileSync(fichier, 'utf8')).cas
     await app.close()
     const cheminSource = join(userDataDir, 'corpus', 'entretiens', 'e1.json')

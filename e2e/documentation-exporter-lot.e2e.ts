@@ -8,7 +8,7 @@ import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 import { ecrireSeedDemo, entrerCorpus, lancer, ouvrirOrganisation } from './util'
 
 function ajouterEntretien(dossier: string, id: string, titre: string, texte: string) {
-  const chemin = join(dossier, 'corpus.json')
+  const chemin = join(dossier, 'corpus.crp')
   const corpus = JSON.parse(readFileSync(chemin, 'utf8')) as CorpusFichier
   corpus.membership[id] = { titre, date: null, lastModified: new Date().toISOString() }
   writeFileSync(chemin, JSON.stringify(corpus, null, 2), 'utf8')

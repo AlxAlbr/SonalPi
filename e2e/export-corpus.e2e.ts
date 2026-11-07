@@ -11,7 +11,7 @@ test.describe.configure({ mode: 'serial' })
 
 /** Ajoute une source valide pour vérifier la sélection et les exports partiels. */
 function ajouterEntretien(dirCorpus: string): void {
-  const chemin = join(dirCorpus, 'corpus.json')
+  const chemin = join(dirCorpus, 'corpus.crp')
   const corpus = JSON.parse(readFileSync(chemin, 'utf8')) as CorpusFichier
   corpus.membership.e2 = { titre: 'Entretien deux', date: null, lastModified: new Date().toISOString() }
   writeFileSync(chemin, JSON.stringify(corpus, null, 2))

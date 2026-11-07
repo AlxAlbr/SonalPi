@@ -16,7 +16,7 @@ function preparer(vide = false) {
   const homonyme = join(racine, 'Corpus_annote')
   const exemple = join(racine, 'Copie_entretiens_importes')
   for (const dir of [personnel, homonyme, exemple]) ecrireSeedDemo(dir)
-  const fichier = join(exemple, 'corpus.json')
+  const fichier = join(exemple, 'corpus.crp')
   const corpus = JSON.parse(readFileSync(fichier, 'utf8')) as CorpusFichier
   corpus.demo = { id: 'copie-libre-ux', exemple: 'synth', usage: 'libre', racineSources: join(racine, 'sources'), parcours: {} }
   writeFileSync(fichier, JSON.stringify(corpus))
@@ -87,14 +87,14 @@ test('accueil : deux étages, copies séparées, priorité aux récents et clavi
     await copies.locator('.oubli-recent').click()
     await expect(copies).toHaveCount(0)
     await expect(page.locator('.exemples-bloc')).toHaveCount(0)
-    expect(existsSync(join(fixture.exemple, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(fixture.exemple, 'corpus.crp'))).toBe(true)
     await expect(personnel.locator('.recent')).toHaveCount(2)
     await personnel.locator('.oubli-recent').first().click()
     await expect(personnel.locator('.recent')).toHaveCount(1)
     await personnel.locator('.oubli-recent').first().click()
     await expect(page.locator('.recents-bloc')).toHaveCount(0)
-    expect(existsSync(join(fixture.personnel, 'corpus.json'))).toBe(true)
-    expect(existsSync(join(fixture.homonyme, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(fixture.personnel, 'corpus.crp'))).toBe(true)
+    expect(existsSync(join(fixture.homonyme, 'corpus.crp'))).toBe(true)
   } finally {
     await app.close()
   }
@@ -106,9 +106,9 @@ test('accueil : de nombreuses copies et des noms longs ne repoussent pas les cor
   for (let i = 0; i < 5; i++) {
     const dir = join(fixture.racine, `Une_copie_avec_un_nom_tres_long_pour_verifier_la_place_${i}`)
     ecrireSeedDemo(dir)
-    const corpus = JSON.parse(readFileSync(join(fixture.exemple, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpus = JSON.parse(readFileSync(join(fixture.exemple, 'corpus.crp'), 'utf8')) as CorpusFichier
     corpus.demo!.id += `-${i}`
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     copies.push(dir)
   }
   writeFileSync(join(fixture.profil, 'settings.json'), JSON.stringify({ recents: [fixture.personnel, ...copies, fixture.homonyme] }))
@@ -136,7 +136,7 @@ test('accueil : guide et FAQ utilisent les mêmes pages que le menu sans changer
     const page = await app.firstWindow()
     await attendreAccueil(page)
     const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
-    const fichiers = [fixture.personnel, fixture.homonyme, fixture.exemple].map((dir) => readFileSync(join(dir, 'corpus.json'), 'utf8'))
+    const fichiers = [fixture.personnel, fixture.homonyme, fixture.exemple].map((dir) => readFileSync(join(dir, 'corpus.crp'), 'utf8'))
     await intercepterOuverturesAide(app)
     await page.locator('.carte-demo.documentation').click()
     await page.locator('.carte-demo.faq').click()
@@ -147,7 +147,7 @@ test('accueil : guide et FAQ utilisent les mêmes pages que le menu sans changer
     expect(await app.windows()).toHaveLength(1)
     await expect(page.locator('.accueil')).toBeVisible()
     expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
-    expect([fixture.personnel, fixture.homonyme, fixture.exemple].map((dir) => readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(fichiers)
+    expect([fixture.personnel, fixture.homonyme, fixture.exemple].map((dir) => readFileSync(join(dir, 'corpus.crp'), 'utf8'))).toEqual(fichiers)
     const refus = await page.evaluate(async () => {
       try { await window.sonal.application.ouvrirDocumentation('../autre' as 'guide'); return false } catch { return true }
     })

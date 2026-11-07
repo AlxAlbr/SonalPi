@@ -73,7 +73,7 @@ export class RenommagesAnonWebDAV {
   }
   private async lireInventaire(maintenir?: () => Promise<void>): Promise<InstantaneOperationTheme> {
     await maintenir?.()
-    const premier = await this.lire('corpus.json')
+    const premier = await this.lire('corpus.crp')
     const corpus = this.corpus(premier.contenu)
     exigerAbsenceDissociationWebDAV(corpus)
     const entretiens: InstantaneOperationTheme['entretiens'] = []
@@ -96,7 +96,7 @@ export class RenommagesAnonWebDAV {
       }
     }
     await maintenir?.()
-    const dernier = await this.lire('corpus.json')
+    const dernier = await this.lire('corpus.crp')
     if (premier.etag !== dernier.etag || premier.contenu !== dernier.contenu) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez le renommage.')
     return { corpus, entretiens }
   }
@@ -177,12 +177,12 @@ export class RenommagesAnonWebDAV {
         this.journal.ecrire(j)
         if (!j.definitionConfirmee) {
           await maintenir()
-          const source = await this.lire('corpus.json')
+          const source = await this.lire('corpus.crp')
           const corpus = this.corpus(source.contenu)
           if (empreinteCorrespondance(corpus) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé avant publication. Recalculez la reprise.')
           j.corpusAvant = structuredClone(corpus)
           corpus.reglesAnon[j.demande.regleId] = structuredClone(j.regleApres)
-          await this.publier(j, { chemin: 'corpus.json', avant: source.contenu, apres: this.serialiser(corpus, source.contenu), etagAvant: source.etag }, garantir)
+          await this.publier(j, { chemin: 'corpus.crp', avant: source.contenu, apres: this.serialiser(corpus, source.contenu), etagAvant: source.etag }, garantir)
         }
       })
       if (!j) return { annotations: 0, incluses: 0, entretiens: 0, definitionModifiee: false, statut: 'termine' }
@@ -190,7 +190,7 @@ export class RenommagesAnonWebDAV {
         try {
           await this.avecVerrous([c.id], async (maintenir, garantir) => {
             await maintenir()
-            const sourceCorpus = await this.lire('corpus.json')
+            const sourceCorpus = await this.lire('corpus.crp')
             const corpus = this.corpus(sourceCorpus.contenu)
             this.verifierRegle(j!, corpus)
             if (!Object.hasOwn(corpus.membership, c.id)) throw new Error('La cible ne fait plus partie du corpus.')
@@ -200,7 +200,7 @@ export class RenommagesAnonWebDAV {
             apres.lastModified = new Date(this.maintenant()).toISOString()
             c.avant = source.contenu
             c.apres = this.serialiser(apres, source.contenu)
-            const gardeCorpus = await this.lire('corpus.json')
+            const gardeCorpus = await this.lire('corpus.crp')
             if (gardeCorpus.contenu !== sourceCorpus.contenu || gardeCorpus.etag !== sourceCorpus.etag) throw new Error('Le corpus a changé avant le PUT de la cible.')
             await this.publier(j!, { chemin: `entretiens/${c.id}.json`, avant: c.avant, apres: c.apres, etagAvant: source.etag }, garantir)
           })
@@ -265,7 +265,7 @@ export class RenommagesAnonWebDAV {
   }
   private confirmer(j: LotRenommageWebDAV, etag: string) {
     const envoi = j.envoi!
-    if (envoi.chemin === 'corpus.json') j.definitionConfirmee = true
+    if (envoi.chemin === 'corpus.crp') j.definitionConfirmee = true
     else {
       const c = j.cibles.find((c) => `entretiens/${c.id}.json` === envoi.chemin)!
       c.etat = 'confirme'

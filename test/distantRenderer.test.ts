@@ -144,7 +144,7 @@ describe('orchestration distante du renderer', () => {
   })
   test('absorbe un tirage et déclenche seulement les projections concernées', async () => {
     const tirer = vi.fn(async (): Promise<ResultatTiragePublic> => ({
-      telecharges: ['corpus.json'],
+      telecharges: ['corpus.crp'],
       corbeille: [],
       verrous: [verrou],
       inaccessibles: [{ chemin: 'audio/test.mp3', raison: '403' }],

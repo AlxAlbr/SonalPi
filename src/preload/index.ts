@@ -75,8 +75,8 @@ import type {
   ProgressionTransfert,
   ResultatFermetureSession,
 } from '../shared/distant'
-import type { BilanFichiersMigrationLocale } from '../shared/corpus/conservationMigration'
-import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { DemandePreparationMigration } from '../shared/migrationV1'
+import type { DemandeOuvertureExterne, PontOuvertureFichier } from '../shared/ouvertureFichier'
 import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
 import { CORPUS_SUPPRIME } from '../shared/format'
@@ -189,6 +189,18 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Corpus distant : ouvre le dossier du corpus dans l'app Fichiers Nextcloud. */
     ouvrirDansNextcloud: (dossier: string): Promise<void> => invoquer('docsCadre:ouvrirDansNextcloud', dossier),
   },
+  ouverture: {
+    choisir: () => ipcRenderer.invoke('ouverture:choisir'),
+    preparer: (chemin) => ipcRenderer.invoke('ouverture:preparer', chemin),
+    finaliser: (jeton) => ipcRenderer.invoke('ouverture:finaliser', jeton),
+    annuler: (jeton) => ipcRenderer.invoke('ouverture:annuler', jeton),
+    pret: () => ipcRenderer.invoke('ouverture:pret'),
+    surDemande: (cb) => {
+      const ecouteur = (_e: Electron.IpcRendererEvent, demande: DemandeOuvertureExterne) => cb(demande)
+      ipcRenderer.on('ouverture:demande', ecouteur)
+      return () => ipcRenderer.removeListener('ouverture:demande', ecouteur)
+    },
+  } satisfies PontOuvertureFichier,
   corpus: {
     /** S'abonner aux bascules « corpus courant supprimé sur disque ».
      *  Le paramètre est le nouveau courant (`OuvertureCorpus`), ou null si
@@ -201,6 +213,7 @@ contextBridge.exposeInMainWorld('sonal', {
       }
     },
     ouvrir: (): Promise<CorpusFichier> => invoquer('corpus:ouvrir'),
+    renommer: (nom: string): Promise<CorpusFichier> => invoquer('corpus:renommer', nom),
     dossierCourant: (): Promise<DossierCorpus> => invoquer('corpus:dossierCourant'),
     recents: (): Promise<EntreeRecent[]> => invoquer('corpus:recents'),
     retirerRecent: (
@@ -604,26 +617,15 @@ contextBridge.exposeInMainWorld('sonal', {
         return () => ipcRenderer.removeListener('migrer:gitlab:progression', ecouteur)
       },
     } satisfies ApiMigrationGitLab,
-    /** Choix d'un `.crp` SonalPi1 : dialogue + lecture + analyse (aperçu). */
-    preparerFichiers: (cheminCrp: string, dossier: string): Promise<BilanFichiersMigrationLocale> =>
-      invoquer('migrer:preparerFichiers', cheminCrp, dossier),
-    choisirCrp: (): Promise<ChoixCrpMigration | null> =>
-      invoquer('migrer:choisirCrp'),
-    /** Choix du dossier DÉDIÉ, pré-rempli Documents/Sonal/<nom>. */
-    choisirDossier: (nom: string): Promise<string | null> =>
-      invoquer('migrer:choisirDossier', nom),
-    /** Garde « on n'écrase jamais ». */
-    verifierDossier: (dir: string): Promise<VerificationDossierMigration> =>
-      invoquer('migrer:verifierDossier', dir),
-    /** Crée le corpus SonalPi2 dans le dossier dédié et l'OUVRE. */
-    executer: (req: DemandeMigration): Promise<OuvertureCorpus> =>
-      invoquer('migrer:executer', req),
-    /** Lit le `.Sonal` d'un entretien SonalPi1. */
-    lireSonal: (
-      cheminCrp: string,
-      rtrPath: string | null,
-    ): Promise<{ nom: string; contenu: string } | null> =>
-      invoquer('migrer:lireSonal', cheminCrp, rtrPath),
+    choisirCrp: () => ipcRenderer.invoke('migrer:choisirCrp'),
+    choisirEmplacement: (emplacement?: string) => ipcRenderer.invoke('migrer:choisirEmplacement', emplacement),
+    destination: (chemin: string, nom: string, emplacement?: string) => ipcRenderer.invoke('migrer:destination', chemin, nom, emplacement),
+    preparer: (req: DemandePreparationMigration) => ipcRenderer.invoke('migrer:preparer', req),
+    lireEntretien: (index: number) => ipcRenderer.invoke('migrer:lireEntretien', index),
+    ajouterEntretien: (index: number, payload: PayloadEntretien, regles: RegleAnon[]) => ipcRenderer.invoke('migrer:ajouterEntretien', index, payload, regles),
+    finaliser: () => ipcRenderer.invoke('migrer:finaliser'),
+    terminer: () => ipcRenderer.invoke('migrer:terminer'),
+    annuler: () => ipcRenderer.invoke('migrer:annuler'),
   },
   exemples: {
     etat: (): Promise<EtatExemples> => invoquer('exemples:etat'),

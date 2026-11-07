@@ -724,7 +724,7 @@ export class ContexteGitLab {
     throw new Error(`La publication de « ${entretienId} » a échoué : ${raisons[resultat.raison]}.`)
   }
 
-  /** Mutation de définitions sous bail de `corpus.json`.
+  /** Mutation de définitions sous bail de `corpus.crp`.
    *  Le geste est nommé : le dispatch refuse ici tout ce que GitLab ne sait
    *  pas garder cohérent, avant même de construire la préparation. */
   executerDefinitions<T>(
@@ -1073,9 +1073,9 @@ export async function preparerContexteGitLabLectureSeule(
     ? { telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
     : await miroir.tirer([...(options.cheminsRecuperables ?? []), ...ciblesDissociation, ...ciblesSuppression,
       ...(journalSuppression?.nouvellesCibles.map((id) => `entretiens/${id}.json`) ?? [])], signal)
-  const cheminCorpus = join(options.dirLocal, 'corpus.json')
+  const cheminCorpus = join(options.dirLocal, 'corpus.crp')
   if (!existsSync(cheminCorpus)) {
-    throw new Error("Le dépôt GitLab ne contient pas de corpus.json.")
+    throw new Error("Le dépôt GitLab ne contient pas de corpus.crp.")
   }
   const corpusBrut = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
   if (!versionSupportee(corpusBrut.formatVersion)) {

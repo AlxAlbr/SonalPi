@@ -27,7 +27,8 @@ import {
   tableauBordParDefaut,
 } from '../../../shared/corpus/tableaubord'
 import { afficherErreurGlobale, effacerErreurGlobaleSi, infoGlobale } from '../../erreurs'
-import { preparerFermetureEntretien } from '../../couturesApplication'
+import { preparerFermetureEntretien, creerGardeOuverture, MESSAGE_OUVERTURE_EN_COURS } from '../../couturesApplication'
+import type { DemandeOuvertureExterne } from '../../../shared/ouvertureFichier'
 
 interface ProfilCycleCorpus {
   dossierCourantNom: Ref<string>
@@ -129,6 +130,70 @@ export function useCycleCorpus(deps: {
   distant: DistantCycleCorpus
   effets: EffetsCycleCorpus
 }) {
+  const ouvertureEnCours = ref(false)
+  const effectuerOuverture = creerGardeOuverture((occupee) => { ouvertureEnCours.value = occupee })
+  const migrationProposee = ref<{ chemin: string } | null>(null)
+  const renommagePropose = ref(false)
+  const authentificationProposee = ref<'webdav' | 'gitlab' | null>(null)
+  const migrationGitLabProposee = ref(false)
+  let terminerModale: (() => void) | null = null
+  async function proposerModale(ouvrir: () => void): Promise<void> {
+    await new Promise<void>((resolve) => { terminerModale = resolve; ouvrir() })
+  }
+  function fermerModales(): void {
+    migrationProposee.value = null
+    renommagePropose.value = false
+    authentificationProposee.value = null
+    migrationGitLabProposee.value = false
+    terminerModale?.()
+    terminerModale = null
+  }
+  async function ouvrirFichier(chemin: string): Promise<void> {
+    const cible = await window.sonal.ouverture.preparer(chemin)
+    if (cible.type === 'deja-ouvert') return
+    if (cible.type === 'migration') {
+      await proposerModale(() => { migrationProposee.value = cible })
+      return
+    }
+    if (cible.type === 'distant') {
+      const gitlab = cible.fournisseur === 'gitlab'
+      const disponible = gitlab
+        ? (await window.sonal.gitlab.lister()).find((c) => c.id === cible.id)?.connexionDisponible
+        : (await window.sonal.webdav.lister()).find((c) => c.id === cible.id)?.motDePasseDisponible
+      if (disponible) {
+        if (gitlab) await ouvrirDestinationGitLab(cible.id)
+        else await ouvrirCorpusWebDAV(cible.id)
+      } else await proposerModale(() => { authentificationProposee.value = gitlab ? 'gitlab' : 'webdav' })
+      return
+    }
+    try {
+      await preparerBascule()
+      const resultat = await window.sonal.ouverture.finaliser(cible.jeton)
+      deps.profil.dossierCourantNom.value = resultat.nom
+      await deps.profil.rafraichirRecents()
+      await restaurerApresOuverture(async () => {
+        deps.distant.quitter()
+        await appliquerCorpus(resultat.corpus, resultat.dir)
+        deps.vue.value = 'corpus'
+      })
+      if (cible.manquants.length) infoGlobale.value = `Corpus incomplet : ${cible.manquants.length} entretien(s) référencé(s) absent(s) (${cible.manquants.join(', ')}). Aucun contenu vide n’a été créé.`
+    } finally { await window.sonal.ouverture.annuler(cible.jeton) }
+  }
+  async function choisirFichier(): Promise<void> {
+    const chemin = await window.sonal.ouverture.choisir()
+    if (chemin) await ouvrirFichier(chemin)
+  }
+  async function traiterDemande(demande: DemandeOuvertureExterne): Promise<void> {
+    if (demande.multiple) infoGlobale.value = 'L’ouverture multiple n’est pas prise en charge. Seul le premier fichier sera traité.'
+    try { await ouvrirFichier(demande.chemin) }
+    catch (erreur) { afficherErreurGlobale(erreur, 'Ouverture du corpus refusée') }
+  }
+  const arreterOuvertures = window.sonal.ouverture?.surDemande((demande) => {
+    void effectuerOuverture(() => traiterDemande(demande)).catch((erreur) => {
+      if (erreur instanceof Error && erreur.message === MESSAGE_OUVERTURE_EN_COURS) infoGlobale.value = erreur.message
+      else afficherErreurGlobale(erreur, 'Ouverture du corpus refusée')
+    })
+  })
   const dossierCourantDir = ref<string | null>(null)
   const revisionCorpus = ref(0)
   const reprise = ref<{
@@ -183,16 +248,26 @@ export function useCycleCorpus(deps: {
   }
 
   async function chargerCorpus(): Promise<void> {
-    deps.distant.quitter()
-    await deps.profil.rafraichirRecents()
-    const premierLocal = deps.profil.recents.value.find((recent) => recent.type === 'local')
-    if (premierLocal?.type === 'local') {
-      await appliquerCorpus(
-        await deps.profil.ouvrirDossier(premierLocal.dir),
-        premierLocal.dir,
-      )
-    }
     deps.vue.value = 'accueil'
+    const initiale = await window.sonal.ouverture?.pret()
+    const demande = initiale?.demande
+    if (demande) {
+      if (initiale.demandeRefusee) infoGlobale.value = MESSAGE_OUVERTURE_EN_COURS
+      await effectuerOuverture(() => traiterDemande(demande))
+      return
+    }
+    await effectuerOuverture(async () => {
+      deps.distant.quitter()
+      await deps.profil.rafraichirRecents()
+      const premierLocal = deps.profil.recents.value.find((recent) => recent.type === 'local')
+      if (premierLocal?.type === 'local') {
+        await appliquerCorpus(
+          await deps.profil.ouvrirDossier(premierLocal.dir),
+          premierLocal.dir,
+        )
+      }
+      deps.vue.value = 'accueil'
+    })
   }
 
   async function preparerBascule(): Promise<void> {
@@ -349,6 +424,7 @@ export function useCycleCorpus(deps: {
 
   async function rafraichirCorpusSansFermer(): Promise<void> {
     const charge = await window.sonal.corpus.ouvrir()
+    await deps.profil.majDossierCourant()
     deps.corpus.membership.value = charge.membership
     deps.corpus.recueils.value = charge.recueils ?? {}
     deps.corpus.cas.value = charge.cas ?? {}
@@ -482,6 +558,7 @@ export function useCycleCorpus(deps: {
   onScopeDispose(() => {
     arreterMemoireLargeur()
     arreterSuppressionCourant()
+    arreterOuvertures?.()
   })
 
   return {
@@ -491,9 +568,28 @@ export function useCycleCorpus(deps: {
     appliquerCorpus,
     chargerCorpus,
     preparerBascule,
-    choisirDossier,
-    creerNouveauCorpus,
-    ouvrirRecent,
+    ouvertureEnCours,
+    migrationProposee,
+    renommagePropose,
+    authentificationProposee,
+    migrationGitLabProposee,
+    fermerMigration: fermerModales,
+    fermerRenommage: fermerModales,
+    fermerAuthentification: fermerModales,
+    fermerMigrationGitLab: fermerModales,
+    ouvrirAuthentification: (fournisseur: 'webdav' | 'gitlab' = 'webdav') => effectuerOuverture(() => proposerModale(() => { authentificationProposee.value = fournisseur })),
+    choisirFichier: () => effectuerOuverture(choisirFichier),
+    choisirDossier: () => effectuerOuverture(choisirDossier),
+    creerNouveauCorpus: (...args: Parameters<typeof creerNouveauCorpus>) => effectuerOuverture(() => creerNouveauCorpus(...args)),
+    ouvrirRecent: (entree: EntreeRecent) => effectuerOuverture(() => ouvrirRecent(entree)),
+    ouvrirRenommage: () => effectuerOuverture(() => proposerModale(() => { renommagePropose.value = true })),
+    ouvrirMigrationGitLab: () => effectuerOuverture(() => proposerModale(() => { migrationGitLabProposee.value = true })),
+    renommerCorpus: async (nom: string) => {
+      await window.sonal.corpus.renommer(nom)
+      await rafraichirCorpusSansFermer()
+      await deps.profil.rafraichirRecents()
+    },
+    restaurerApresOuverture,
     ouvrirCorpusWebDAV,
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,

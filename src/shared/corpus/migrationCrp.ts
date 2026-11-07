@@ -429,8 +429,8 @@ export function mapperEntretiensV1(tabEnt: unknown): EntretienV1Import[] {
 // et la demande d'exécution transitent par ces types (partagés main ⇄ renderer).
 
 /** Résultat de la garde `migrer:verifierDossier` : - `ok` — dossier libre :
- *  `nonVide` avertit que des fichiers NON LIÉS y resteront (le corpus V2 y pose corpus.json + entretiens/ + png/)
- *  ; - `ok:false` — refus : `dejaCorpus` (un corpus.json y vit déjà)
+ *  `nonVide` avertit que des fichiers NON LIÉS y resteront (le corpus V2 y pose corpus.crp + entretiens/ + png/)
+ *  ; - `ok:false` — refus : `dejaCorpus` (un corpus.crp y vit déjà)
  *  ou `demo` (c'est le corpus d'un mode démo — l'autre refus possible). */
 export type VerificationDossierMigration =
   | { ok: true; nonVide: boolean }
@@ -440,7 +440,7 @@ export type VerificationDossierMigration =
  *  fournit l'identité, la trace sourceV1 et les DÉFINITIONS déjà mappées ;
  *  le main écrit le corpus V2, l'ajoute aux récents et l'ouvre. */
 export interface DemandeMigration {
-  /** Identité du projet (corpus.json.nom). */
+  /** Identité du projet (corpus.crp.nom). */
   nom: string
   /** Chemin absolu du `.crp` migré (meta.sourceV1.cheminCrp). */
   cheminCrp: string

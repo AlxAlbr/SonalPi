@@ -38,7 +38,7 @@ test('attributs saisis et dérivés : confidentialité, suspension familiale et 
     await entrerCorpus(page)
     await app.close()
 
-    const corpusFile = join(dir, 'corpus', 'corpus.json')
+    const corpusFile = join(dir, 'corpus', 'corpus.crp')
     const entretienFile = (id: string) => join(dir, 'corpus', 'entretiens', `${id}.json`)
     const corpus = corpusFamille()
     corpus.variables.taille = variableTaille()

@@ -603,7 +603,7 @@ describe('ouverture GitLab — création du squelette distant', () => {
     expect(corps.commit_message).toBe('Sonal création racine')
     expect(corps.actions).toHaveLength(1)
     expect(corps.actions[0].action).toBe('create')
-    expect(corps.actions[0].file_path).toBe('corpus.json')
+    expect(corps.actions[0].file_path).toBe('corpus.crp')
     expect(JSON.parse(corps.actions[0].content).nom).toBe('Enquête 2026')
     expect(observé).toHaveBeenCalledTimes(1)
     expect(traces).toEqual(['fermer', 'installer'])
@@ -680,7 +680,7 @@ describe('ouverture GitLab — création du squelette distant', () => {
   })
 
   test('corpus déjà présent : aucun commit, aucune destination ni installation', async () => {
-    const depot = depotFactice({ 'corpus.json': corpusDistantValide([]) })
+    const depot = depotFactice({ 'corpus.crp': corpusDistantValide([]) })
     const { service, coffre, traces, installées } = bancOuverture({
       fetchImpl: fetchGitLabFactice(depot),
       preparer: preparerFactice(''),
@@ -745,7 +745,7 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
     const contenuPublie = entretienDistantValide()
     const depot: DepotFactice = {
       fichiers: {
-        'donnees/corpus.json': corpusDistantValide(['e1']),
+        'donnees/corpus.crp': corpusDistantValide(['e1']),
         'donnees/entretiens/e1.json': contenuPublie,
       },
       branche: destination.branche,
@@ -858,9 +858,9 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
     // L'opération indéterminée est conservée, et rien n'a été republié.
     expect(journal.lister()).toHaveLength(1)
     expect(banc.depot.requetes.every(({ init }) => init?.method !== 'POST')).toBe(true)
-    // Le premier tirage a remplacé corpus.json mais épargné la copie récupérable.
+    // Le premier tirage a remplacé corpus.crp mais épargné la copie récupérable.
     expect(readFileSync(join(dirMiroir, 'entretiens', 'e1.json'), 'utf8')).toBe(copieLocale)
-    expect(existsSync(join(dirMiroir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dirMiroir, 'corpus.crp'))).toBe(true)
     expect(installées).toHaveLength(1)
     expect(resultat.corpus.membership).toHaveProperty('e1')
   })

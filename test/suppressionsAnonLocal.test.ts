@@ -24,13 +24,13 @@ afterEach(() => { injection.destination = ''; injection.apresPremier = null; for
 function banc() {
   const f = fixtureDissociationAnon(), dir = mkdtempSync(join(tmpdir(), 'suppression-anon-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens'))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   for (const s of f.sources) writeFileSync(join(dir, `entretiens/${s.id}.json`), JSON.stringify(s.data))
   let store = new CorpusStore(dir); store.ouvrir()
   let maintenant = Date.parse('2026-10-11T00:00:00.000Z'), local = true, refus = false
   const cache = new SuppressionsAnon({ store: () => store, maintenant: () => maintenant, local: () => local, exiger: () => { if (refus) throw new Error('Politique refusée.') } })
   const lire = (id = 'e1'): EntretienFichier => JSON.parse(readFileSync(join(dir, `entretiens/${id}.json`), 'utf8'))
-  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
   const fichier = join(dir, '.transaction-fichiers.json')
   return { f, dir, fichier, get store() { return store }, cache, lire, corpus, preparer: () => cache.preparer(f.demande),
     changerStore: () => { store = new CorpusStore(dir) }, expirer: () => { maintenant += 300_001 }, distant: () => { local = false }, refuser: () => { refus = true }, autoriser: () => { refus = false } }
@@ -73,7 +73,7 @@ describe('suppression locale privée et journal version 4', () => {
       const id = cas === 'cible' ? 'e2' : 'e3'
       writeFileSync(join(b.dir, `entretiens/${id}.json`), JSON.stringify({ ...b.lire(id), lastModified: 'concurrent' }))
     } else if (cas === 'absence') rmSync(join(b.dir, 'entretiens/e3.json'))
-    else { const c = b.corpus(); c.reglesAnon.personne.categorie = 'Concurrente'; writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c)) }
+    else { const c = b.corpus(); c.reglesAnon.personne.categorie = 'Concurrente'; writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c)) }
     expect(() => b.cache.appliquer(p.token, true)).toThrow('changé'); expect(b.lire()).toEqual(avant)
     expect(existsSync(b.fichier)).toBe(false)
   })
@@ -92,7 +92,7 @@ describe('suppression locale privée et journal version 4', () => {
   })
   test.each(['entretien', 'corpus'] as const)('interruption avant %s : acquis conservé et reprise idempotente', (etape) => {
     const b = banc(), p = b.preparer()
-    injection.destination = join(b.dir, etape === 'entretien' ? 'entretiens/e2.json' : 'corpus.json')
+    injection.destination = join(b.dir, etape === 'entretien' ? 'entretiens/e2.json' : 'corpus.crp')
     expect(() => b.cache.appliquer(p.token, true)).toThrow('Interruption')
     expect(JSON.parse(readFileSync(b.fichier, 'utf8')).formatVersion).toBe(4)
     expect(statSync(b.fichier).mode & 0o777).toBe(0o600)
@@ -107,7 +107,7 @@ describe('suppression locale privée et journal version 4', () => {
   test.each(['cible', 'acquis', 'non-cible', 'nouveau-lien', 'corpus'] as const)('concurrence entre remplacements suspend sans réparer : %s', (cas) => {
     const b = banc()
     injection.apresPremier = () => {
-      if (cas === 'corpus') { const c = b.corpus(); c.nom = 'Concurrent'; writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c)); return }
+      if (cas === 'corpus') { const c = b.corpus(); c.nom = 'Concurrent'; writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c)); return }
       const id = cas === 'cible' ? 'e2' : cas === 'acquis' ? 'e1' : 'e3', d = b.lire(id)
       if (cas === 'nouveau-lien') d.annotations.push(structuredClone(b.f.sources[0].data.annotations[0]))
       else d.lastModified = 'concurrent'
@@ -132,7 +132,7 @@ describe('suppression locale privée et journal version 4', () => {
       writeFileSync(join(b.dir, 'entretiens/e3.json'), JSON.stringify(d))
       j.plan.controleSuppressionAnon.nonCibles[0].empreinte = createHash('sha256').update(JSON.stringify(d)).digest('hex')
     }
-    if (cas === 'final-premature') writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(j.plan.corpusApres))
+    if (cas === 'final-premature') writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(j.plan.corpusApres))
     writeFileSync(b.fichier, JSON.stringify(j))
     const avant = b.lire('e2'); expect(() => new CorpusStore(b.dir).ouvrir()).toThrow()
     expect(b.lire('e2')).toEqual(avant)

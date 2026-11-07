@@ -81,7 +81,7 @@ export class JournalSuppressionAnonWebDAV {
       if (!j.barriereConfirmee || !c || c.etat !== 'a-faire' || c.avant !== e.avant || c.apres !== e.apres) throw new Error('Intention cible invalide.')
       return
     }
-    if (e.chemin !== 'corpus.json') throw new Error('Destination de suppression invalide.')
+    if (e.chemin !== 'corpus.crp') throw new Error('Destination de suppression invalide.')
     const avant = JSON.parse(e.avant) as CorpusFichier, apres = JSON.parse(e.apres)
     if (avant.formatVersion !== FORMAT_VERSION || avant.dissociationAnon !== undefined
       || !egauxSuppressionWebDAV(avant.reglesAnon?.[j.demande.regleId], j.corpusAvant.reglesAnon[j.demande.regleId])

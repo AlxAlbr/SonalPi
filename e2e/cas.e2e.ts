@@ -18,7 +18,7 @@ test('cas manuel vide créé sans personne ni repère, relu après redémarrage 
   try {
     let page = await app.firstWindow()
     await entrerCorpus(page)
-    const cheminCorpus = join(userDataDir, 'corpus', 'corpus.json')
+    const cheminCorpus = join(userDataDir, 'corpus', 'corpus.crp')
     const cheminEntretien = join(userDataDir, 'corpus', 'entretiens', 'e1.json')
     const avant = readFileSync(cheminCorpus, 'utf8')
     const entretienAvant = readFileSync(cheminEntretien, 'utf8')
@@ -128,11 +128,11 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
     await modale.getByLabel('Mémo').press('Tab')
     await expect(modale.locator('.etat-enregistrement')).toHaveText('à jour')
 
-    const avantMode = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
+    const avantMode = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8'))
     const casAvantMode = Object.values(avantMode.cas)[0] as any
     await modale.getByLabel('Mode du texte des cas').selectOption('original')
     await expect(modale.getByLabel('Mode du texte des cas')).toHaveValue('original')
-    const apresMode = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
+    const apresMode = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8'))
     expect((Object.values(apresMode.cas)[0] as any).modifieLe).toBe(casAvantMode.modifieLe)
 
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
@@ -172,7 +172,7 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
 
     await modale.locator('.carte-cas').filter({ hasText: 'Karine — suivi' }).click()
     await expect(modale.locator('.mode-cas')).toContainText('Avec règle')
-    const avantFiltres = readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8')
+    const avantFiltres = readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8')
     await modale.getByRole('combobox', { name: /Matériaux affichés/ }).selectOption('manuels')
     await expect(modale.locator('.passage-cas')).toHaveCount(1)
     await expect(modale.locator('.passage-cas .provenance')).toContainText('Ajout manuel')
@@ -182,7 +182,7 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
     await expect(modale.locator('.passage-cas blockquote').first()).toContainText('travail passé')
     const nbPassagesRegle = await modale.locator('.passage-cas').count()
     await expect(modale.locator('.metriques')).toContainText('0 rattachement(s)')
-    expect(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8')).toBe(avantFiltres)
+    expect(readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8')).toBe(avantFiltres)
     await modale.getByRole('combobox', { name: /Matériaux affichés/ }).selectOption('tous')
     await expect(modale.locator('.passage-cas')).toHaveCount(nbPassagesRegle + 1)
     await expect(modale.locator('.chevauchements')).toBeVisible()
@@ -198,7 +198,7 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
     await expect(modale).toContainText('Ce cas ne contient actuellement aucun passage.')
 
     await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
-    const corpusFinal = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
+    const corpusFinal = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8'))
     expect(Object.values(corpusFinal.cas)).toHaveLength(2)
     expect(Object.values(corpusFinal.cas).map((courant: any) => courant.rattachements.length)).toEqual([0, 0])
     const entretienFinal = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'entretiens', 'e1.json'), 'utf8'))

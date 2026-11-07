@@ -182,7 +182,7 @@ describe('ClientWebDAV — transport sécurisé et borné', () => {
       { requeteMs: 10 },
     )
 
-    await expect(client.getTexte('corpus.json')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
+    await expect(client.getTexte('corpus.crp')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
   })
 
   it('conserve le délai jusqu’à la consommation complète du corps', async () => {
@@ -200,7 +200,7 @@ describe('ClientWebDAV — transport sécurisé et borné', () => {
       { requeteMs: 10 },
     )
 
-    await expect(client.getTexte('corpus.json')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
+    await expect(client.getTexte('corpus.crp')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
   })
 
   it('refuse les redirections afin de ne pas transmettre Basic à une autre origine', async () => {
@@ -214,7 +214,7 @@ describe('ClientWebDAV — transport sécurisé et borné', () => {
         return new Response(null, { status: 200 })
       },
     )
-    await expect(client.getTexte('corpus.json')).resolves.toBe('')
+    await expect(client.getTexte('corpus.crp')).resolves.toBe('')
   })
 })
 
@@ -265,11 +265,11 @@ describe('ClientWebDAV — contrat de préconditions', () => {
 
   it('PROPFIND Depth:1 : entrées enfants relativisées, dossiers marqués', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.crp', '{}')
     serveur.poser('entretiens/e1.json', '{}')
     const client = clientSur(serveur)
     const racine = await client.propfind('')
-    expect(racine.map((e) => e.chemin)).toContain('corpus.json')
+    expect(racine.map((e) => e.chemin)).toContain('corpus.crp')
     expect(racine.find((e) => e.chemin === 'entretiens')?.dossier).toBe(true)
     const entretiens = await client.propfind('entretiens')
     expect(entretiens).toHaveLength(1)
@@ -283,7 +283,7 @@ describe('ClientWebDAV — contrat de préconditions', () => {
       { baseUrl: serveur.baseUrl, identifiants: { utilisateur: 'max', motDePasse: 'FAUX' } },
       serveur.fetch,
     )
-    await expect(client.getTexte('corpus.json')).rejects.toMatchObject({ statut: 401 })
+    await expect(client.getTexte('corpus.crp')).rejects.toMatchObject({ statut: 401 })
   })
 })
 
@@ -359,7 +359,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
   it('premier tirage : télécharge le contenu JSON, pas les dossiers de protocole', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const corpus = corpusDistantValide([])
-    serveur.poser('corpus.json', corpus)
+    serveur.poser('corpus.crp', corpus)
     serveur.poser('entretiens/e1.json', entretienDistantValide({ lastModified: '2026-08-01' }))
     serveur.creerDossierRelatif('verrous')
     serveur.creerDossierRelatif('presence')
@@ -369,8 +369,8 @@ describe('MiroirWebDAV — pull incrémental', () => {
     const { miroir, dir } = miroirSur(serveur)
 
     const tirage = await miroir.tirer()
-    expect(tirage.telecharges.sort()).toEqual(['corpus.json', 'entretiens/e1.json'])
-    expect(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8')).toBe(corpus)
+    expect(tirage.telecharges.sort()).toEqual(['corpus.crp', 'entretiens/e1.json'])
+    expect(readFileSync(miroir.cheminLocal('corpus.crp'), 'utf8')).toBe(corpus)
     // Les dossiers de protocole ne sont ni téléchargés ni interprétés par le miroir.
     expect(existsSync(miroir.cheminLocal('verrous/e2.lock.json'))).toBe(false)
     expect(existsSync(miroir.cheminLocal('presence/max.json'))).toBe(false)
@@ -379,7 +379,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
   it('deuxième tirage sans changement : rien ne re-télécharge (diff par ETags)', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('corpus.crp', corpusDistantValide())
 
     let gets = 0
     const clientCompteur = new ClientWebDAV(
@@ -400,7 +400,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
   it('changement côté serveur : seul le fichier changé est re-téléchargé', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('corpus.crp', corpusDistantValide())
     serveur.poser('entretiens/e1.json', entretienDistantValide({ texte: 'a' }))
     serveur.poser('entretiens/e2.json', entretienDistantValide({ texte: 'b' }))
     const { miroir } = miroirSur(serveur)
@@ -415,7 +415,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
   it('fichier disparu côté serveur : déplacé en corbeille du miroir, jamais effacé', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('corpus.crp', corpusDistantValide())
     const entretienInitial = entretienDistantValide({ texte: 'x' })
     serveur.poser('entretiens/e1.json', entretienInitial)
     const { miroir, dir } = miroirSur(serveur)
@@ -423,7 +423,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
     // Le serveur « supprime » e1.json : on reconstruit le banc sans lui.
     const serveurVide = new ServeurWebDAVMemoire()
-    serveurVide.poser('corpus.json', corpusDistantValide())
+    serveurVide.poser('corpus.crp', corpusDistantValide())
     const miroir2 = new MiroirWebDAV(
       new ClientWebDAV({ baseUrl: serveurVide.baseUrl, identifiants: serveurVide.identifiants }, serveurVide.fetch),
       dir,
@@ -443,7 +443,7 @@ describe('MiroirWebDAV — audios désignés', () => {
 
   /** Amorce un corpus dont l'entretien e1 désigne `audios/e1.mp3`. */
   function amorcerAvecDesignation(serveur: ServeurWebDAVMemoire): void {
-    serveur.poser('corpus.json', corpusDistantValide(['e1']))
+    serveur.poser('corpus.crp', corpusDistantValide(['e1']))
     serveur.poser('entretiens/e1.json', entretienDistantValide({
       meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin: 'audios/e1.mp3' } },
     }))
@@ -519,7 +519,7 @@ describe('MiroirWebDAV — audios désignés', () => {
   it('désigné mais inaccessible (404) : tirage non bloqué, puis rattrapage quand le fichier apparaît', async () => {
     const serveur = new ServeurWebDAVMemoire()
     // Le JSON désigne, mais le fichier audio n'est pas encore là/accessible.
-    serveur.poser('corpus.json', corpusDistantValide(['e1']))
+    serveur.poser('corpus.crp', corpusDistantValide(['e1']))
     serveur.poser('entretiens/e1.json', entretienDistantValide({
       meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin: 'audios/e1.mp3' } },
     }))
@@ -542,7 +542,7 @@ describe('MiroirWebDAV — audios désignés', () => {
 
   it('garde anti-traversal : une désignation qui remonte hors du corpus est ignorée', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide(['e1']))
+    serveur.poser('corpus.crp', corpusDistantValide(['e1']))
     serveur.poser(
       'entretiens/e1.json',
       entretienDistantValide({
@@ -591,7 +591,7 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
 
   it('téléverse dans un dossier MANQUANT (parents créés par MKCOL)', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.crp', '{}')
     const { miroir } = miroirSur(serveur)
 
     const r = await miroir.televerserFichier(
@@ -604,7 +604,7 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
 
   it('collision : refus SANS écraser, suggestion suffixée, puis envoi sous le suffixe', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.crp', '{}')
     serveur.creerDossierRelatif('audios')
     serveur.poser('audios/e1.mp3', 'DU-COLLEGUE')
     const { miroir } = miroirSur(serveur)
@@ -621,7 +621,7 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
 
   it('chemin invalide (remontée hors corpus) : refus sans requête', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.crp', '{}')
     const { miroir } = miroirSur(serveur)
 
     const r = await miroir.televerserFichier('../dehors.mp3', new Uint8Array([1]))
@@ -630,7 +630,7 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
 
   it('téléversement STREAMÉ depuis un chemin disque : octets identiques au serveur', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.crp', '{}')
     serveur.creerDossierRelatif('audios')
     const { miroir } = miroirSur(serveur)
 
@@ -846,7 +846,7 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     const motDePasseChiffre = chiffreurFactice.chiffre('secret-app')
     const ancienMiroir = join(dir, 'miroirs', ancienId)
     mkdirSync(ancienMiroir, { recursive: true })
-    writeFileSync(join(ancienMiroir, 'corpus.json'), '{"ancien":true}', 'utf8')
+    writeFileSync(join(ancienMiroir, 'corpus.crp'), '{"ancien":true}', 'utf8')
     writeFileSync(
       fichier,
       JSON.stringify({

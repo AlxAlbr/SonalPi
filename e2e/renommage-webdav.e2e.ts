@@ -19,7 +19,7 @@ async function instrumenter(app: ElectronApplication, racine: string, perte = fa
     g.fetch = async (url, init) => {
       const adresse = url instanceof Request ? url.url : String(url)
       const methode = init?.method ?? (url instanceof Request ? url.method : 'GET')
-      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.json` ? adresse.split('/').at(-1)! : ''
+      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.crp` ? adresse.split('/').at(-1)! : ''
       const s = g.sondeRenommage
       if (s.perte && s.accepte && id === args.ciblePerdue && methode === 'GET') throw new Error('Relecture synthétique indisponible')
       const r = await original(url, init)
@@ -71,7 +71,7 @@ async function banc(port: number) {
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureRenommageAnon(['e1', 'e2', 'e3']); f.sources[2].data.annotations = []
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
-  await client.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+  await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-renommage-'))
   const tiers = new ClientWebDAV({ baseUrl: `http://localhost:${port}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: { utilisateur: 'olivier', motDePasse: 'olivier-olivier-5678' } })
@@ -121,7 +121,7 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
       await expect(modal).toContainText('Lot WebDAV à reprendre', { timeout: 90_000 })
       await expect(modal).toContainText('3 annotation(s) publiée(s) dans 1 entretien(s)')
       await page.screenshot({ path: info.outputPath('renommage-webdav-partiel.png') })
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)).toEqual(['corpus.json', 'e1.json'])
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)).toEqual(['corpus.crp', 'e1.json'])
       const premier = await b.client.getTexte('entretiens/e1.json')
       await rendre(); rendre = undefined
       const actuel = await b.client.getTexteAvecEtag('entretiens/e2.json')
@@ -140,7 +140,7 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
         expect(apres.annotations.find((a: { id: string }) => a.id === 'a2').pseudo).toBe('Claire')
         expect(apres.annotations.find((a: { id: string }) => a.id === 'a3').pseudo).toBe('Claire')
       }
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)).toEqual(['corpus.json', 'e1.json', 'e2.json'])
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)).toEqual(['corpus.crp', 'e1.json', 'e2.json'])
       expect(await page.evaluate(async () => {
         const lecture = await window.sonal.corpus.ouvrirEntretienPourEdition('e3')
         if (!lecture.ok) return false
@@ -198,7 +198,7 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
       expect(final.annotations.find((a: { id: string }) => a.id === ann.id).pseudo).toBe('Nouvelle')
       expect(final.locuteurs[0].pseudo).toBe('Révision locale plus récente')
       const publies = await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)
-      expect(publies).toEqual(['e3.json', 'corpus.json', 'e1.json', 'e2.json', 'e3.json', 'e3.json'])
+      expect(publies).toEqual(['e3.json', 'corpus.crp', 'e1.json', 'e2.json', 'e3.json', 'e3.json'])
     } finally { await app?.close(); await b.nettoyer() }
   })
   test('réponse et relecture perdues : suivi IPC, relance refuse les verrous persistants puis reprend sans rejeu', async ({}, info) => {

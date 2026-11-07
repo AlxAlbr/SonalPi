@@ -36,7 +36,7 @@ function banc() {
     data.locuteurs[0].valeursLoc = { v: 'm' }
     writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))
   }
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
   const cache = new TablesCorrespondance({ store: () => store, lecture: () => 'local' })
   const lire = (id = 'e1'): EntretienFichier => JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8'))
   const preparer = (lignes: unknown[]) => cache.preparerImport(documents(lignes))

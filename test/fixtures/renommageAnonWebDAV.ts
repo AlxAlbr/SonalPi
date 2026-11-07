@@ -13,7 +13,7 @@ import type { InstantaneOperationTheme } from '../../src/main/operationsThemes'
 import type { PreparationRenommageDistant } from '../../src/main/renommagesAnon'
 
 export function serviceRenommageWebDAV(client: ClientWebDAV, dir: string, natif: boolean, sessions: string[] = [], miroir = (_chemin: string, _contenu: string, _etag: string) => {}) {
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(squeletteCorpus('Miroir synthétique vide')))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(squeletteCorpus('Miroir synthétique vide')))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const creer = () => {
     const identite = { userId: 'max', machineId: 'renommage-synthetique', sessionId: `rename-${randomUUID()}` }

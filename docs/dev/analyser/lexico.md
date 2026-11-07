@@ -2,7 +2,7 @@
 
 Lexico construit un index de formes et leurs concordances à partir des
 transcriptions. **Les occurrences et tableaux restent en mémoire** ; seuls les
-traitements lexicaux choisis sont enregistrés dans `corpus.json.lexico`.
+traitements lexicaux choisis sont enregistrés dans `corpus.crp.lexico`.
 Un regroupement lexical ne réécrit jamais les paroles de l’entretien.
 
 ## Indexer sans révéler le texte remplacé

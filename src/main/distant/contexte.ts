@@ -649,9 +649,9 @@ export async function preparerContexteNextcloud(
   const tirage = retraitEnAttente || garderMiroirSuppression || !!ajoutVariante
     ? { telecharges: [], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
     : await miroir.tirer([...idsExclus].map((id) => `entretiens/${id}.json`))
-  if (!existsSync(join(options.dirLocal, 'corpus.json'))) {
+  if (!existsSync(join(options.dirLocal, 'corpus.crp'))) {
     throw new Error(
-      "Le dossier distant ne contient pas de corpus.json — ce n'est pas (encore) un corpus Sonal.",
+      "Le dossier distant ne contient pas de corpus.crp — ce n'est pas (encore) un corpus Sonal.",
     )
   }
 

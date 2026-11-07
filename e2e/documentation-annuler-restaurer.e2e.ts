@@ -147,7 +147,7 @@ test('manuel : créer une sauvegarde ZIP puis ouvrir sa restauration dans un nou
     await expect.poll(() => existsSync(archive)).toBe(true)
     await expect(page.locator('.banniere.info')).toContainText('Copie de sauvegarde créée')
     const zip = await JSZip.loadAsync(readFileSync(archive))
-    const corpusArchive = JSON.parse(await zip.file('corpus.json')!.async('string')) as CorpusFichier
+    const corpusArchive = JSON.parse(await zip.file('corpus.crp')!.async('string')) as CorpusFichier
     expect(corpusArchive.membership.e1.titre).toBe('Version sauvegardée')
 
     await page.locator('.titre-meta').fill('Version modifiée après sauvegarde')
@@ -159,15 +159,15 @@ test('manuel : créer une sauvegarde ZIP puis ouvrir sa restauration dans un nou
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
     }, restauration)
-    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await page.locator('.ouvrir-dossier').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await expect(page.locator('.carte-ent')).toContainText('Version sauvegardée')
     await expect(page.locator('.carte-ent')).not.toContainText('Version modifiée après sauvegarde')
 
-    const courant = JSON.parse(readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8')) as CorpusFichier
+    const courant = JSON.parse(readFileSync(join(profil, 'corpus', 'corpus.crp'), 'utf8')) as CorpusFichier
     expect(courant.membership.e1.titre).toBe('Version modifiée après sauvegarde')
-    expect(readFileSync(join(restauration, 'corpus.json'), 'utf8')).not.toBe(readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8'))
+    expect(readFileSync(join(restauration, 'corpus.crp'), 'utf8')).not.toBe(readFileSync(join(profil, 'corpus', 'corpus.crp'), 'utf8'))
   } finally {
     await app.close()
   }

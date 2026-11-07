@@ -160,7 +160,7 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
   it('pose une valeur sous bail court, garde le corpus et mesure le coût', { timeout: 120_000 }, async () => {
     const { alice, racine } = await preparer('valeur')
     try {
-      const corpusAvant = await lireFichier(`${racine}/corpus.json`, JETON1)
+      const corpusAvant = await lireFichier(`${racine}/corpus.crp`, JETON1)
       alice.requetes.length = 0
       const debut = performance.now()
       await alice.transactions.poserValeursEntretien('e1', [valeur()])
@@ -172,7 +172,7 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
       // La garde de corpus est une action du commit, pas un bail : le corpus
       // garde son contenu et sa version, et le dépôt ne reçoit qu'un commit
       // de données.
-      const corpusApres = await lireFichier(`${racine}/corpus.json`, JETON1)
+      const corpusApres = await lireFichier(`${racine}/corpus.crp`, JETON1)
       expect(corpusApres.corps.last_commit_id).toBe(corpusAvant.corps.last_commit_id)
       expect(corpusApres.corps.content).toBe(corpusAvant.corps.content)
       expect(commitsDeDonnees(alice)).toBe(3)
@@ -322,12 +322,12 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
     try {
       alice.avantCommitDeDonnees(async (p) => {
         const lu = JSON.parse(contenuDe(
-          await lireFichier(`${p.racine}/corpus.json`, JETON1),
+          await lireFichier(`${p.racine}/corpus.crp`, JETON1),
         )) as CorpusFichier
         lu.variables.v1!.modalites = []
         await p.depot.publierCommit('main', 'qualification F: modalité retirée', [{
           action: 'update',
-          file_path: `${p.racine}/corpus.json`,
+          file_path: `${p.racine}/corpus.crp`,
           content: JSON.stringify(lu, null, 2),
         }])
       })
@@ -340,7 +340,7 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
       expect((await lireEntretienDistant(racine, 'e1')).meta.valeursGen).toEqual({})
       expect(existsSync(join(alice.dossier, 'entretiens/e1.json'))).toBe(false)
       const corpusApres = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, JETON1),
+        await lireFichier(`${racine}/corpus.crp`, JETON1),
       )) as CorpusFichier
       expect(corpusApres.variables.v1!.modalites).toEqual([])
     } finally {
@@ -363,7 +363,7 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
 
       expect((await lireEntretienDistant(racine, 'e1')).meta.valeursGen).toEqual({ v1: 'm1' })
       const corpusApres = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, JETON1),
+        await lireFichier(`${racine}/corpus.crp`, JETON1),
       )) as CorpusFichier
       expect(Object.values(corpusApres.codebook).map((theme) => theme.nom))
         .toContain('Thème concurrent')

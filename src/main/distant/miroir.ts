@@ -164,7 +164,7 @@ export class MiroirDistant {
       [...racine, ...entretiens]
         .filter((e) =>
           !e.dossier &&
-          (e.chemin === 'corpus.json' || /^entretiens\/[^/]+\.json$/.test(e.chemin)),
+          (e.chemin === 'corpus.crp' || /^entretiens\/[^/]+\.json$/.test(e.chemin)),
         )
         .map((entree) => [entree.chemin, entree]),
     ).values()]
@@ -328,7 +328,7 @@ export class MiroirDistant {
    *  Relatif pur, segments normaux. */
   private cheminSurEstSain(chemin: string): boolean {
     if (!chemin || chemin.startsWith('/') || chemin.includes('\\')) return false
-    if (chemin.endsWith('.json')) return false // double emploi avec le pull texte
+    if (/\.(json|crp)$/i.test(chemin)) return false // Les métadonnées passent par la lecture texte.
     return !chemin.split('/').some((s) => s === '' || s === '.' || s === '..')
   }
 

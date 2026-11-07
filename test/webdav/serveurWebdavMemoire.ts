@@ -59,7 +59,7 @@ interface VerrouNatif {
 }
 
 export class ServeurWebDAVMemoire {
-  /** Chemins ABSOLUS serveur (`/remote.php/dav/files/max/MonCorpus/corpus.json`). */
+  /** Chemins ABSOLUS serveur (`/remote.php/dav/files/max/MonCorpus/corpus.crp`). */
   private readonly entrees = new Map<string, Entree>()
   private readonly verrousNatifs = new Map<string, VerrouNatif>()
   private compteurEtag = 0

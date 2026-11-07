@@ -78,7 +78,7 @@ test('un changement de corpus efface la recherche et le formulaire Cas', async (
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
     }, autre)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await page.locator('.ouvrir-dossier').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await attendreCorpus(page)
     await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')

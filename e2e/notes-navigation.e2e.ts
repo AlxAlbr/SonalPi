@@ -9,7 +9,7 @@ function preparerNotes(sansResume = false): string {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-notes-navigation-'))
   const corpusDir = join(dir, 'corpus')
   ecrireSeedDemo(corpusDir)
-  const corpus: CorpusFichier = JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8'))
+  const corpus: CorpusFichier = JSON.parse(readFileSync(join(corpusDir, 'corpus.crp'), 'utf8'))
   const entretien: EntretienFichier = JSON.parse(readFileSync(join(corpusDir, 'entretiens/e1.json'), 'utf8'))
   const note = (id: string, annee: number, date: string, resume: boolean, rang: number): Note => ({
     id, titre: id, categorieId: resume ? 'ncat_resume' : 'ncat_generale', date,
@@ -23,7 +23,7 @@ function preparerNotes(sansResume = false): string {
   const autre: EntretienFichier = { ...entretien, notes: [note('Intermédiaire', 2025, '2028-01-01', true, 0)] }
   corpus.membership.e2 = { ...corpus.membership.e1!, titre: 'Autre entretien' }
   if (sansResume) corpus.categoriesNote = [{ id: 'ncat_generale', nom: 'générale', couleur: '#81c784' }]
-  writeFileSync(join(corpusDir, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(corpusDir, 'corpus.crp'), JSON.stringify(corpus))
   writeFileSync(join(corpusDir, 'entretiens/e1.json'), JSON.stringify(entretien))
   writeFileSync(join(corpusDir, 'entretiens/e2.json'), JSON.stringify(autre))
   return dir

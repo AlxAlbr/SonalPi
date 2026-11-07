@@ -1194,7 +1194,7 @@ decrire('Contrat GitLab réel', () => {
     const token1 = configuration.token1 as string
     const token2 = configuration.token2 as string
     const source = `qualification/${idExecution}-session-source.json`
-    const corpus = `qualification/${idExecution}-session-corpus.json`
+    const corpus = `qualification/${idExecution}-session-corpus.crp`
     const contenuSource = JSON.stringify({ formatVersion: 8, cycle: 'source' })
     const contenuSourceModifie = JSON.stringify({ formatVersion: 8, cycle: 'source modifie' })
     const contenuCorpus = JSON.stringify({ membership: {} })
@@ -1240,7 +1240,7 @@ decrire('Contrat GitLab réel', () => {
       const sourceAvant = await lireFichier(projet, source, token1)
       const corpusAvant = await lireFichier(projet, corpus, token1)
 
-      // Un second compte modifie corpus.json et garde la source sans la changer.
+      // Un second compte modifie corpus.crp et garde la source sans la changer.
       const publication = await publierCommit(
         projet,
         token2,

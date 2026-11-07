@@ -162,7 +162,7 @@ describe('journal de publication GitLab', () => {
     const actions: ActionCommitGitLab[] = [
       {
         action: 'create',
-        file_path: 'corpus.json',
+        file_path: 'corpus.crp',
         content: '{"formatVersion":8}',
       },
       {
@@ -231,7 +231,7 @@ describe('journal de publication GitLab', () => {
       const actions: ActionCommitGitLab[] = [
         {
           action: 'update',
-          file_path: 'donnees/corpus.json',
+          file_path: 'donnees/corpus.crp',
           content: '{}',
           last_commit_id: 'a'.repeat(40),
         },
@@ -317,7 +317,7 @@ describe('journal de publication GitLab', () => {
       semerVersion3('operation-v3-lisible', [
         {
           action: 'update',
-          file_path: 'donnees/corpus.json',
+          file_path: 'donnees/corpus.crp',
           content: '{}',
           last_commit_id: 'a'.repeat(40),
         },
@@ -339,7 +339,7 @@ describe('journal de publication GitLab', () => {
       // n'y est pas lisible, alors que la même écriture passe en version 4.
       const corpus = {
         action: 'update',
-        file_path: 'donnees/corpus.json',
+        file_path: 'donnees/corpus.crp',
         content: '{}',
         last_commit_id: 'a'.repeat(40),
       } as const
@@ -477,7 +477,7 @@ describe('journal de publication GitLab', () => {
 })
 
 describe('nature des entrées de publication', () => {
-  const CORPUS = 'donnees/corpus.json'
+  const CORPUS = 'donnees/corpus.crp'
   const HACHAGE_CORPUS = '9'.repeat(64)
   const HACHAGE_BAIL = '8'.repeat(64)
 

@@ -74,7 +74,7 @@ export class JournalDissociationAnonGitLab {
     const p = j.publication
     if (!p) return
     if (j.regleRetiree || !operationSaine(p.operationId) || !['barriere', 'entretien', 'retrait'].includes(p.phase) || typeof p.contenu !== 'string') throw new Error()
-    const relatif = p.phase === 'entretien' ? `entretiens/${p.id}.json` : 'corpus.json'
+    const relatif = p.phase === 'entretien' ? `entretiens/${p.id}.json` : 'corpus.crp'
     if (p.chemin !== (this.racine ? `${this.racine}/${relatif}` : relatif)) throw new Error()
     const data = JSON.parse(p.contenu)
     if (p.phase === 'entretien') {

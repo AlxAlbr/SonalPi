@@ -29,6 +29,8 @@ import icoJournal from '../../../assets/icones/journal.png'
 
 const {
   vue,
+  ouvrirRenommage,
+  ouvertureEnCours,
   ongletCorpus,
   enregistrerNavigationCorpus,
   revisionCorpus,
@@ -330,6 +332,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
 <template>
     <section class="ecran corpus-ecran">
+      <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
       <!-- Corpus distant : horodatage du dernier pull + « Actualiser ».
            Le pull rafraîchit aussi les badges de verrou. -->
       <div v-if="idDistantCourant" class="corpus-barre">

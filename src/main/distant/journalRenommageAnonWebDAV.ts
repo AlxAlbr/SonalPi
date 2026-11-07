@@ -84,7 +84,7 @@ export class JournalRenommageAnonWebDAV {
     const e = j.envoi
     if (!e) return
     if (j.termine || !etagImportWebDAVFort(e.etagAvant) || typeof e.avant !== 'string' || typeof e.apres !== 'string' || e.avant === e.apres) throw new Error('Envoi du renommage invalide.')
-    if (e.chemin === 'corpus.json') {
+    if (e.chemin === 'corpus.crp') {
       if (j.definitionConfirmee) throw new Error('Définition déjà confirmée.')
       const avant = JSON.parse(e.avant) as CorpusFichier
       const apres = JSON.parse(e.apres)

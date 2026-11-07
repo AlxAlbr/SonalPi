@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { EntreeRecent } from '../../../shared/format'
 
-defineProps<{ recents: EntreeRecent[]; libelle: string }>()
+defineProps<{ recents: EntreeRecent[]; libelle: string; occupe?: boolean }>()
 defineEmits<{
   (e: 'ouvrir', entree: EntreeRecent): void
   (e: 'retirer', entree: EntreeRecent): void
@@ -11,7 +11,7 @@ defineEmits<{
 <template>
   <ul class="recents" :aria-label="libelle">
     <li v-for="r in recents" :key="r.type === 'distant' ? `d-${r.id}` : r.dir">
-      <button class="recent" @click="$emit('ouvrir', r)" :title="r.nom" :aria-label="r.nom">
+      <button class="recent" :disabled="occupe" @click="$emit('ouvrir', r)" :title="r.nom" :aria-label="r.nom">
         <span class="recent-tete">
           <span class="recent-nom">{{ r.nom }}</span>
           <span v-if="r.type === 'distant'" class="recent-type">{{ r.fournisseur === 'gitlab' ? 'GitLab' : 'Nextcloud' }}</span>

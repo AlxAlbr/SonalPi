@@ -15,7 +15,7 @@ afterEach(() => { for (const d of dossiers.splice(0)) rmSync(d, { recursive: tru
 async function banc() {
   const f = fixtureRenommageAnon(); f.corpus.reglesAnon.personne.pseudos = ['Claire']
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }); serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-ajout-variante-webdav-')); dossiers.push(dirLocal)
   const requetes: { chemin: string; methode: string; headers: Headers }[] = []
@@ -33,8 +33,8 @@ async function banc() {
   })
   const moteur = service(), demande = { regleAvant: structuredClone(f.corpus.reglesAnon.personne), pseudo: 'Rebecca' }
   const journal = new JournalAjoutVarianteAnonWebDAV(dirLocal, empreinteCorrespondance(client.config.baseUrl.replace(/\/+$/, '')))
-  const lire = () => JSON.parse(serveur.contenuDe('corpus.json')!)
-  const publies = () => requetes.filter((r) => r.chemin === 'corpus.json' && r.methode === 'PUT')
+  const lire = () => JSON.parse(serveur.contenuDe('corpus.crp')!)
+  const publies = () => requetes.filter((r) => r.chemin === 'corpus.crp' && r.methode === 'PUT')
   const autre = new ProviderPutConditionnel(serveur.client({ utilisateur: 'olivier', motDePasse: 'pass-oli' }),
     () => ({ userId: 'olivier', machineId: 'autre-poste', sessionId: 'autre-session' }))
   return { f, serveur, client, dirLocal, requetes, pieges, miroir, maintenant, erreurs, moteur, demande, journal, lire, publies, autre, service }
@@ -52,15 +52,15 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
     expect(b.miroir.map((c) => JSON.parse(c))).toEqual([attendu]); expect(b.journal.lire()).toBeNull(); expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
   })
   test.each(['Claire', ' claire ', 'CLAIRE'])('doublon %s : aucune intention ni publication', async (pseudo) => {
-    const b = await banc(); const avant = b.serveur.contenuDe('corpus.json')
+    const b = await banc(); const avant = b.serveur.contenuDe('corpus.crp')
     expect(await b.moteur.appliquer({ ...b.demande, pseudo })).toMatchObject({ ajoute: false })
-    expect(b.serveur.contenuDe('corpus.json')).toBe(avant); expect(b.publies()).toHaveLength(0); expect(b.journal.lire()).toBeNull()
+    expect(b.serveur.contenuDe('corpus.crp')).toBe(avant); expect(b.publies()).toHaveLength(0); expect(b.journal.lire()).toBeNull()
   })
   test.each(['categorie', 'entite', 'pseudos', 'absence'])('définition fraîche divergente : %s', async (champ) => {
     const b = await banc(), c = b.lire()
     if (champ === 'absence') delete c.reglesAnon.personne
     else c.reglesAnon.personne[champ] = champ === 'categorie' ? 'Autre' : champ === 'entite' ? ['Autre identité'] : ['Autre pseudo']
-    b.serveur.poser('corpus.json', JSON.stringify(c))
+    b.serveur.poser('corpus.crp', JSON.stringify(c))
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow(/changé|existe plus/)
     expect(b.lire()).toEqual(c); expect(b.publies()).toHaveLength(0); expect(b.journal.lire()).toBeNull()
   })
@@ -75,19 +75,19 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
   })
   test('modification après lecture, puis refus If-Match : aucun écrasement', async () => {
     const b = await banc(), concurrent = b.lire(); concurrent.nom = 'Modification extérieure'
-    b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') b.serveur.poser(p, JSON.stringify(concurrent)) }
+    b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') b.serveur.poser(p, JSON.stringify(concurrent)) }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow()
     expect(b.lire()).toEqual(concurrent); expect(b.journal.lire()).toBeNull(); expect(b.miroir).toHaveLength(0)
   })
   test('modification avant le transport : pas de PUT', async () => {
     const b = await banc(); let lectures = 0
-    b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && (init?.method ?? 'GET') === 'GET' && ++lectures === 2) { const c = b.lire(); c.nom = 'Concurrent'; b.serveur.poser(p, JSON.stringify(c)) } }
+    b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && (init?.method ?? 'GET') === 'GET' && ++lectures === 2) { const c = b.lire(); c.nom = 'Concurrent'; b.serveur.poser(p, JSON.stringify(c)) } }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('changé avant')
     expect(b.publies()).toHaveLength(0); expect(b.journal.lire()).toBeNull()
   })
   test('sans ETag fort, refus avant publication', async () => {
     const b = await banc()
-    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && (init?.method ?? 'GET') === 'GET') { const headers = new Headers(r.headers); headers.set('etag', 'W/"faible"'); return new Response(await r.text(), { status: r.status, headers }) } return r }
+    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && (init?.method ?? 'GET') === 'GET') { const headers = new Headers(r.headers); headers.set('etag', 'W/"faible"'); return new Response(await r.text(), { status: r.status, headers }) } return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('ETag fort'); expect(b.publies()).toHaveLength(0)
   })
   test.each(['ancien-format', 'membership', 'regles', 'suppression', 'dissociation'])('source incompatible : %s', async (cause) => {
@@ -97,7 +97,7 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
     if (cause === 'regles') c.reglesAnon = []
     if (cause === 'suppression') c.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: 'personne' }
     if (cause === 'dissociation') c.dissociationAnon = { operationId: 'dissociation-fixture', regleId: 'personne' }
-    b.serveur.poser('corpus.json', JSON.stringify(c))
+    b.serveur.poser('corpus.crp', JSON.stringify(c))
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow(); expect(b.publies()).toHaveLength(0)
   })
   test('droit expirant après sauvegarde de l’intention : aucun PUT', async () => {
@@ -112,7 +112,7 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
   })
   test('marge épuisée par la dernière lecture : aucun PUT', async () => {
     const b = await banc(); let lectures = 0
-    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && (init?.method ?? 'GET') === 'GET' && ++lectures === 2) b.maintenant.valeur += 361_000; return r }
+    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && (init?.method ?? 'GET') === 'GET' && ++lectures === 2) b.maintenant.valeur += 361_000; return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('expirer')
     expect(b.publies()).toHaveLength(0); expect(b.journal.lire()).toBeNull()
   })
@@ -129,7 +129,7 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
 describe('ajout de variante WebDAV : issue durable sans répétition', () => {
   test('réponse perdue après acceptation : garder le droit, puis reconnaître sans second PUT', async () => {
     const b = await banc()
-    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
+    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('perdue')
     expect(b.journal.lire()?.etat).toBe('envoi'); expect(statSync(b.journal.chemin).mode & 0o777).toBe(0o600)
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeTruthy()
@@ -139,7 +139,7 @@ describe('ajout de variante WebDAV : issue durable sans répétition', () => {
   })
   test('original seul et autres changements : aucune preuve, aucun rejeu ni libération', async () => {
     const b = await banc()
-    b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') throw new Error('Issue inconnue') }
+    b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') throw new Error('Issue inconnue') }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('inconnue')
     const droit = b.serveur.contenuDe('verrous/corpus.lock.json')
     await expect(b.moteur.reconcilier()).rejects.toThrow('original')
@@ -148,12 +148,12 @@ describe('ajout de variante WebDAV : issue durable sans répétition', () => {
   })
   test('nouvelle instance : preuve acceptée, aucun héritage ni DELETE du droit persistant', async () => {
     const b = await banc()
-    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
+    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('perdue')
     const droit = b.serveur.contenuDe('verrous/corpus.lock.json'), nouveau = b.service(); b.requetes.length = 0
-    await nouveau.reconcilier(); expect(b.requetes.every((r) => r.methode === 'GET' && r.chemin === 'corpus.json')).toBe(true)
+    await nouveau.reconcilier(); expect(b.requetes.every((r) => r.methode === 'GET' && r.chemin === 'corpus.crp')).toBe(true)
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBe(droit)
-    const c = b.lire(); c.reglesAnon.autre = { id: 'autre', entite: ['Autre identité'], pseudos: ['Paul'] }; b.serveur.poser('corpus.json', JSON.stringify(c))
+    const c = b.lire(); c.reglesAnon.autre = { id: 'autre', entite: ['Autre identité'], pseudos: ['Paul'] }; b.serveur.poser('corpus.crp', JSON.stringify(c))
     await expect(nouveau.appliquer({ regleAvant: c.reglesAnon.autre, pseudo: 'Jacques' })).rejects.toThrow('ailleurs')
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBe(droit)
   })
@@ -161,14 +161,14 @@ describe('ajout de variante WebDAV : issue durable sans répétition', () => {
     const b = await banc(); b.erreurs.miroir = true
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('Miroir')
     expect(b.journal.lire()?.etat).toBe('confirme'); expect(b.publies()).toHaveLength(1)
-    const courant = b.lire(); courant.nom = 'Édition ultérieure'; b.serveur.poser('corpus.json', JSON.stringify(courant))
+    const courant = b.lire(); courant.nom = 'Édition ultérieure'; b.serveur.poser('corpus.crp', JSON.stringify(courant))
     b.erreurs.miroir = false; await b.service().reconcilier()
     expect(JSON.parse(b.miroir[0])).toEqual(courant); expect(b.publies()).toHaveLength(1)
   })
   test('refus de lecture après PUT accepté : confirmation durable, copie à actualiser', async () => {
     const b = await banc(); let lectures = 0
     b.pieges.apres = async (p, init, r) => {
-      if (p === 'corpus.json' && (init?.method ?? 'GET') === 'GET' && ++lectures === 3) { await r.body?.cancel(); return new Response('Refus', { status: 403 }) }
+      if (p === 'corpus.crp' && (init?.method ?? 'GET') === 'GET' && ++lectures === 3) { await r.body?.cancel(); return new Response('Refus', { status: 403 }) }
       return r
     }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow()
@@ -187,9 +187,9 @@ describe('ajout de variante WebDAV : issue durable sans répétition', () => {
   })
   test('publication inconnue puis édition extérieure : aucun remplacement historique', async () => {
     const b = await banc()
-    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
+    b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('perdue')
-    const courant = b.lire(); courant.nom = 'Édition extérieure'; b.serveur.poser('corpus.json', JSON.stringify(courant))
+    const courant = b.lire(); courant.nom = 'Édition extérieure'; b.serveur.poser('corpus.crp', JSON.stringify(courant))
     await expect(b.moteur.reconcilier()).rejects.toThrow('indéterminé'); expect(b.miroir).toHaveLength(0); expect(b.lire()).toEqual(courant)
   })
   test.each(['destination', 'apres', 'etat', 'etagAvant', 'demande'])('journal altéré : %s', async (champ) => {

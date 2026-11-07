@@ -18,14 +18,14 @@ async function banc(natif: boolean) {
   const f = fixtureRenommageAnon(); f.corpus.reglesAnon.personne.pseudos = ['Claire']
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire(); serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-ajout-variante-contexte-')); dossiers.push(dirLocal)
   const puts: string[] = [], requetes: string[] = [], pieges = { avant: async (_p: string, _init?: RequestInit) => {}, apres: async (_p: string, _init?: RequestInit) => {} }
   const transport: ImplementationFetch = async (url, init) => {
     const p = new URL(String(url)).pathname.replace(`${serveur.racineDav}/`, '')
     requetes.push(p); await pieges.avant(p, init); const r = await serveur.fetch(url, init)
-    if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) puts.push(p)
+    if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) puts.push(p)
     await pieges.apres(p, init); return r
   }
   const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, transport)
@@ -51,13 +51,13 @@ for (const natif of [false, true]) describe(`ajout de variante : contexte ${nati
     expect(await b.contexte.ajouterVarianteAnon(b.demande)).toMatchObject({ ajoute: true })
     expect(b.contexte.sessions.idsTenus()).toContain('e1'); expect(b.contexte.sessions.etat('e1')).toMatchObject({ etat: 'a-nous', sale: true })
     expect(b.serveur.contenuDe('entretiens/e1.json')).toBe(distant); expect(readFileSync(join(b.dirLocal, 'entretiens/e1.json'), 'utf8')).toBe(contenu)
-    expect(b.requetes.some((p) => p.startsWith('entretiens/'))).toBe(false); expect(b.puts).toEqual(['corpus.json'])
+    expect(b.requetes.some((p) => p.startsWith('entretiens/'))).toBe(false); expect(b.puts).toEqual(['corpus.crp'])
     const attendu = structuredClone(b.f.corpus); attendu.reglesAnon.personne.pseudos.push('Rebecca')
-    expect(JSON.parse(readFileSync(join(b.dirLocal, 'corpus.json'), 'utf8'))).toEqual(attendu)
+    expect(JSON.parse(readFileSync(join(b.dirLocal, 'corpus.crp'), 'utf8'))).toEqual(attendu)
   })
   test('activité réservée avant await : deuxième ajout, mutation, actualisation et fermeture refusés', async () => {
     const b = await banc(natif), arrive = attente(), suite = attente()
-    b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') { arrive.terminer(); await suite.promise } }
+    b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') { arrive.terminer(); await suite.promise } }
     const publication = b.contexte.ajouterVarianteAnon(b.demande); await arrive.promise
     try {
       await expect(b.contexte.ajouterVarianteAnon(b.demande)).rejects.toThrow('autres modifications')
@@ -70,7 +70,7 @@ for (const natif of [false, true]) describe(`ajout de variante : contexte ${nati
   })
   test('réponse perdue : aucune seconde publication ; Actualiser reconnaît et préserve la session', async () => {
     const b = await banc(natif); await b.contexte.ouvrirEntretienPourEdition('e1')
-    b.pieges.apres = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') throw new Error('Réponse perdue') }
+    b.pieges.apres = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') throw new Error('Réponse perdue') }
     await expect(b.contexte.ajouterVarianteAnon(b.demande)).rejects.toThrow('perdue')
     await expect(b.contexte.ajouterVarianteAnon(b.demande)).rejects.toThrow('vérifier')
     await b.contexte.actualiser(); expect(b.puts).toHaveLength(1); expect(b.contexte.transactions.lireAjoutVariante()).toBeNull()
@@ -79,7 +79,7 @@ for (const natif of [false, true]) describe(`ajout de variante : contexte ${nati
   })
   test('relance : installation prouvée, bail ancien intact et autre ajout refusé', async () => {
     const b = await banc(natif)
-    b.pieges.apres = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') throw new Error('Réponse perdue') }
+    b.pieges.apres = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') throw new Error('Réponse perdue') }
     await expect(b.contexte.ajouterVarianteAnon(b.demande)).rejects.toThrow('perdue')
     const droit = b.serveur.contenuDe('verrous/corpus.lock.json'), nouveau = await b.ouvrir()
     expect(nouveau.store.ouvrir().reglesAnon.personne.pseudos).toEqual(['Claire', 'Rebecca'])
@@ -89,11 +89,11 @@ for (const natif of [false, true]) describe(`ajout de variante : contexte ${nati
   })
   test('original seul : relance refusée sans tirage, migration ni replay', async () => {
     const b = await banc(natif)
-    b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') throw new Error('Issue inconnue') }
+    b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') throw new Error('Issue inconnue') }
     await expect(b.contexte.ajouterVarianteAnon(b.demande)).rejects.toThrow('inconnue')
     b.requetes.length = 0
     await expect(b.ouvrir()).rejects.toThrow('original'); expect(b.puts).toHaveLength(0)
-    expect(b.requetes).toEqual(['corpus.json'])
+    expect(b.requetes).toEqual(['corpus.crp'])
   })
   test('journal invalide refusé avant le réseau ; contexte fermé sans publication', async () => {
     const b = await banc(natif); await b.contexte.fermer()

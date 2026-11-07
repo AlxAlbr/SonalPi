@@ -100,7 +100,7 @@ export class ApercusThemesGitLab {
 
   private async preparer(demande: DemandeOperationTheme, precedent: string | undefined,
     lecteur: LecteurGitLab, capture: number, destinationsPersistantes?: Array<{ token: string; id: string }>) {
-    const lecture = await this.depot.lireFichier(this.chemin('corpus.json'), lecteur.commit)
+    const lecture = await this.depot.lireFichier(this.chemin('corpus.crp'), lecteur.commit)
     this.verifierGeneration(capture)
     if (!lecture) throw new RefusOperationTheme('Le corpus publié est absent de GitLab.')
     const corpus = decoderCorpusTheme(lecture.contenu)

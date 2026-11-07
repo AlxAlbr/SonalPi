@@ -139,7 +139,7 @@ describe('raccordements de migration avec API GitLab simulée', () => {
     })
     expect((await f.service.executer(f.bilan.bilanId, true)).etat).toBe('interrompue')
     expect(f.service.listerSuivis()[0].autresConfirmes).toBe(1)
-    expect(f.cible.fichiers.has('corpus.json')).toBe(false)
+    expect(f.cible.fichiers.has('corpus.crp')).toBe(false)
     f.source.clear()
     expect((await f.nouveauService('reprise').reprendre(`migration-${f.bilan.bilanId}`, true)).etat).toBe('terminee')
     expect(f.service.listerSuivis()[0].autresConfirmes).toBe(2)
@@ -269,7 +269,7 @@ describe('raccordements de migration avec API GitLab simulée', () => {
   it('une nouvelle session ne reprend pas une opération dont le droit précédent est encore actif', async () => {
     const f = await bancSimule()
     f.cible.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path === 'corpus.json')) {
+      if (actions.some((a) => a.file_path === 'corpus.crp')) {
         f.cible.echouerApresAccepter(new Error('réponse perdue'))
         f.cible.rendreCommitsIllisibles()
       }

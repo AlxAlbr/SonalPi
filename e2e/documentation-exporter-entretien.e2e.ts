@@ -10,7 +10,7 @@ import { ecrireSeedDemo, entrerCorpus, entrerEntretien, lancer } from './util'
 function preparerCorpus(dossier: string) {
   mkdirSync(dossier, { recursive: true })
   ecrireSeedDemo(dossier)
-  const cheminCorpus = join(dossier, 'corpus.json')
+  const cheminCorpus = join(dossier, 'corpus.crp')
   const cheminEntretien = join(dossier, 'entretiens', 'e1.json')
   const corpus = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
   const entretien = JSON.parse(readFileSync(cheminEntretien, 'utf8')) as EntretienFichier

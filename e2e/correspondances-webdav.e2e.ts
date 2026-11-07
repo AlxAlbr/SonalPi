@@ -74,7 +74,7 @@ async function banc(port: number) {
   await parent.creerDossier('sonde'); await parent.creerDossier(dossier)
   const client = new ClientWebDAV({ ...parent.config, baseUrl: `${parent.config.baseUrl}/${dossier}` })
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
-  await client.putTexte('corpus.json', corpusImportWebDAV(), { ifNoneMatch: '*' })
+  await client.putTexte('corpus.crp', corpusImportWebDAV(), { ifNoneMatch: '*' })
   for (const id of ['e1', 'e2']) await client.putTexte(`entretiens/${id}.json`, entretienImportWebDAV(), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-correspondances-'))
   return { client, profil, nettoyer: async () => { await parent.supprimer(dossier); rmSync(profil, { recursive: true, force: true }) } }

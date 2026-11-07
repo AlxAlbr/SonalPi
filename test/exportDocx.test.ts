@@ -88,7 +88,7 @@ describe('résolution audio vérifiée par le main', () => {
       // Membership du corpus : la whitelist du store ne résout QUE les
       // audioRef réellement enregistrées.
       writeFileSync(
-        join(dir, 'corpus.json'),
+        join(dir, 'corpus.crp'),
         JSON.stringify({ formatVersion: FORMAT_VERSION, membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } } }),
         'utf8',
       )
@@ -125,7 +125,7 @@ describe('résolution audio vérifiée par le main', () => {
     try {
       mkdirSync(join(dir, 'entretiens'), { recursive: true })
       writeFileSync(
-        join(dir, 'corpus.json'),
+        join(dir, 'corpus.crp'),
         JSON.stringify({ formatVersion: FORMAT_VERSION, membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } } }),
         'utf8',
       )

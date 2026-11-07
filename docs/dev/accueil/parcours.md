@@ -10,7 +10,7 @@ L’installation du corpus est décrite dans [corpus exemples](exemples.md).
 | État | Rôle et durée |
 |---|---|
 | Catalogue ouvert | Choix d’un parcours et consultation de sa progression ; ne change pas le corpus courant. |
-| Acquis du parcours | Étapes validées et contexte minimal, persistés dans `corpus.json.demo.parcours`. |
+| Acquis du parcours | Étapes validées et contexte minimal, persistés dans `corpus.crp.demo.parcours`. |
 | Étape active | Accompagnement en cours, en mémoire ; activé par une demande explicite, pas par une simple ouverture. |
 
 `dernierParcoursId` mémorise un parcours, pas une étape active. Ouvrir le corpus

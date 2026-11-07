@@ -16,7 +16,7 @@ test('accueil Préparation : introduction, kit externe et tableau réservé à s
     await fenetre.evaluate((w) => w.setContentSize(1280, 800))
     await entrerCorpus(page)
     await entrerEntretien(page)
-    const fichiers = [join(profil, 'corpus/corpus.json'), join(profil, 'corpus/entretiens/e1.json')]
+    const fichiers = [join(profil, 'corpus/corpus.crp'), join(profil, 'corpus/entretiens/e1.json')]
     const avant = fichiers.map((f) => readFileSync(f, 'utf8'))
     const urlApplication = page.url()
     await page.locator('[data-tour="ouvrir-preparer"]').click()

@@ -77,7 +77,7 @@ export class JournalRenommageAnonGitLab {
     if (p) {
       if (j.termine || !operationSaine(p.operationId) || !['definition', 'entretien'].includes(p.phase)
         || typeof p.contenu !== 'string') throw new Error()
-      const relatif = p.phase === 'definition' ? 'corpus.json' : `entretiens/${p.id}.json`
+      const relatif = p.phase === 'definition' ? 'corpus.crp' : `entretiens/${p.id}.json`
       if (p.chemin !== (this.racine ? `${this.racine}/${relatif}` : relatif)) throw new Error()
       const data = JSON.parse(p.contenu)
       if (p.phase === 'definition') {

@@ -25,13 +25,13 @@ function banc() {
   const f = fixtureDissociationAnon()
   const dir = mkdtempSync(join(tmpdir(), 'dissociation-anon-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens'))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify(s.data))
   let store = new CorpusStore(dir); store.ouvrir()
   let maintenant = Date.parse('2026-10-10T00:00:00.000Z'), local = true
   const cache = new DissociationsAnon({ store: () => store, maintenant: () => maintenant, local: () => local })
   const lire = (id = 'e1'): EntretienFichier => JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8'))
-  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
   return { f, dir, get store() { return store }, cache, lire, corpus, preparer: () => cache.preparer(f.demande),
     changerStore: () => { store = new CorpusStore(dir) }, expirer: () => { maintenant += 300_001 }, distant: () => { local = false } }
 }
@@ -68,7 +68,7 @@ describe('dissociation locale scellée et journalée', () => {
       const c = b.corpus()
       if (cas === 'regle') c.reglesAnon.personne.categorie = 'Autre catégorie'
       else c.membership.e4 = { titre: 'Nouveau', date: null, lastModified: 'concurrent' }
-      writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c))
+      writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c))
     }
     expect(() => b.cache.appliquer(a.token, true)).toThrow('changé')
     expect(b.lire()).toEqual(avant); expect(b.corpus().reglesAnon.personne).toBeDefined()
@@ -120,7 +120,7 @@ describe('dissociation locale scellée et journalée', () => {
   })
   test.each(['entretien', 'corpus'] as const)('interruption avant %s : journal privé, définition gardée puis reprise sans rejeu', (etape) => {
     const b = banc(), a = b.preparer()
-    injection.destination = etape === 'entretien' ? join(b.dir, 'entretiens/e2.json') : join(b.dir, 'corpus.json')
+    injection.destination = etape === 'entretien' ? join(b.dir, 'entretiens/e2.json') : join(b.dir, 'corpus.crp')
     expect(() => b.cache.appliquer(a.token, true)).toThrow('Interruption')
     const acquis = b.lire(), journal = join(b.dir, '.transaction-fichiers.json')
     expect(acquis.definitionsAnonLocales!.at(-1)!.entite).toEqual(['Karine'])
@@ -140,7 +140,7 @@ describe('dissociation locale scellée et journalée', () => {
     injection.apresPremier = () => {
       if (cas === 'corpus') {
         const c = b.corpus(); c.reglesAnon.personne.categorie = 'Nouvelle catégorie'; concurrent = c
-        writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c)); return
+        writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c)); return
       }
       const id = cas === 'acquis' ? 'e1' : cas === 'cible-suivante' ? 'e2' : 'e3'
       const d = b.lire(id)
@@ -177,7 +177,7 @@ describe('dissociation locale scellée et journalée', () => {
     if (cas === 'garde') j.plan.controleDissociation.nonCibles[0].id = '../autre'
     if (cas === 'version') j.formatVersion = 1
     if (cas === 'garde-supprimee') { j.formatVersion = 1; delete j.plan.controleDissociation }
-    if (cas === 'corpus-final-premature') writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(j.plan.corpusApres))
+    if (cas === 'corpus-final-premature') writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(j.plan.corpusApres))
     writeFileSync(chemin, JSON.stringify(j))
     expect(() => new CorpusStore(b.dir).ouvrir()).toThrow()
     expect(b.lire()).toEqual(acquis)

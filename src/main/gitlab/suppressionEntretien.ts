@@ -2,7 +2,7 @@
  *  Suppression d'un entretien sur un dépôt GitLab.
  *
  *  Le retrait est publié sous deux droits — celui du corpus et celui de
- *  l'entretien — dans un seul commit : le `corpus.json` qui ne référence plus
+ *  l'entretien — dans un seul commit : le `corpus.crp` qui ne référence plus
  *  l'entretien, le déplacement de son JSON vers une archive, et le
  *  renouvellement des deux baux. Ou rien de tout cela n'existe.
  *

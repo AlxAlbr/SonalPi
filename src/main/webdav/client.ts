@@ -63,7 +63,7 @@ export interface Identifiants {
 export interface ConfigWebDAV {
   /** URL de base, SANS barre finale ;
    *  tous les chemins passés aux méthodes sont RELATIFS à cette racine
-   *  (« corpus.json », « entretiens/e1.json »…). */
+   *  (« corpus.crp », « entretiens/e1.json »…). */
   baseUrl: string
   identifiants: Identifiants
 }

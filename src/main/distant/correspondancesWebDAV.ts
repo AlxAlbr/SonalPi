@@ -63,7 +63,7 @@ export class CorrespondancesWebDAV {
 
   async instantane(): Promise<InstantaneOperationTheme> {
     this.exigerNouveau()
-    const avant = await this.lire('corpus.json')
+    const avant = await this.lire('corpus.crp')
     const corpus = this.decoderCorpus(avant.contenu)
     const entretiens: InstantaneOperationTheme['entretiens'] = []
     let octets = Buffer.byteLength(avant.contenu)
@@ -82,7 +82,7 @@ export class CorrespondancesWebDAV {
         entretiens.push({ id, titre, ok: false, motif: 'Entretien publié indisponible ou non pris en charge.' })
       }
     }
-    const apres = await this.lire('corpus.json')
+    const apres = await this.lire('corpus.crp')
     if (avant.etag !== apres.etag || avant.contenu !== apres.contenu) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez l’aperçu.')
     return { corpus, entretiens }
   }
@@ -100,7 +100,7 @@ export class CorrespondancesWebDAV {
     this.enCours = true
     try {
       return await this.avecVerrous(ids, async (renouveler, garantir) => {
-        const sourceCorpus = await this.lire('corpus.json')
+        const sourceCorpus = await this.lire('corpus.crp')
         const corpus = this.decoderCorpus(sourceCorpus.contenu)
         exigerAbsenceDissociationWebDAV(corpus)
         if (empreinteCorrespondance(corpus) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé depuis l’aperçu. Recalculez avant d’importer.')
@@ -119,7 +119,7 @@ export class CorrespondancesWebDAV {
         const definitionsModifiees = global.bilan.ajouts + global.bilan.variantes + global.bilan.remplacements > 0
         if (definitionsModifiees) apres.reglesAnon = global.regles
         const local = appliquerCorrespondancesEntretiens({ lignes: preparation.lignes }, { ...apres, reglesAnon: global.regles }, entretiens, preparation.cibles, preparation.choixCibles)
-        const fichiers: FichierImportWebDAV[] = [{ chemin: 'corpus.json', avant: sourceCorpus.contenu,
+        const fichiers: FichierImportWebDAV[] = [{ chemin: 'corpus.crp', avant: sourceCorpus.contenu,
           apres: definitionsModifiees ? this.serialiser(apres, sourceCorpus.contenu) : sourceCorpus.contenu,
           etagAvant: sourceCorpus.etag, etat: definitionsModifiees ? 'a-faire' : 'garde' }]
         for (const id of ids) {

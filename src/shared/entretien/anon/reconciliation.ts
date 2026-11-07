@@ -6,7 +6,7 @@
  *  des occurrences standalone (« portée entretien »). En multi-user, une règle
  *  corpus partageant l'entité d'une ligne locale peut APPARAÎTRE PENDANT notre
  *  session (un collègue l'a poussée entre deux pulls) : au prochain pull qui
- *  ramène un `corpus.json` modifié, on détecte ces divergences de pseudo et on
+ *  ramène un `corpus.crp` modifié, on détecte ces divergences de pseudo et on
  *  ouvre LE MÊME dialogue qu'à la promotion (« Aligner / Garder les deux ») —
  *  jamais de divergence silencieuse.
  *

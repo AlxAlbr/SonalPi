@@ -1,12 +1,12 @@
 /**
  *  TRANSACTIONS DE DÉFINITIONS corpus.
  *
- *  Le « point chaud » `corpus.json` (codebook, variables, règles anon de portée
+ *  Le « point chaud » `corpus.crp` (codebook, variables, règles anon de portée
  *  corpus, membership, création/suppression/renommage d'entretien) est écrit par
  *  des transactions COURTES : verrou corpus → GET frais → transform local pur →
  *  PUT If-Match → déverrouillage (~2 allers-retours serveur par commande).
  *
- *  Politique hors ligne : toute écriture dans `corpus.json` est REFUSÉE — pas
+ *  Politique hors ligne : toute écriture dans `corpus.crp` est REFUSÉE — pas
  *  de file d'attente ni de différé : la transaction échoue avec un message net
  *  et le corpus local reste intact.
  *
@@ -78,7 +78,7 @@ import type { PreparationRenommageDistant } from '../renommagesAnon'
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
 const CHEMIN_VERROU_CORPUS = 'verrous/corpus.lock.json'
-const CHEMIN_CORPUS = 'corpus.json'
+const CHEMIN_CORPUS = 'corpus.crp'
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
 
 /** Erreur porteur d'un MESSAGE UTILISATEUR (français,
@@ -1147,7 +1147,7 @@ export class TransactionsCorpus {
   /* ── Lot de valeurs — un verrou court PAR ENTRETIEN ───────────────────*/
 
   /** Modification en lot des valeurs EAV (table de données, colonne) :
-   *  le lot ne touche PAS `corpus.json` (pas de verrou corpus) — UN cycle par ENTRETIEN :
+   *  le lot ne touche PAS `corpus.crp` (pas de verrou corpus) — UN cycle par ENTRETIEN :
    *  verrou court → GET frais → PUT If-Match → libérer (le même motif que les définitions,
    *  appliqué au fichier entretien). Exécution séquentielle ;
    *  tout échec ponctuel (entretien ouvert entre-temps par autrui, divergence 412, réseau)
@@ -1514,7 +1514,7 @@ export class TransactionsCorpus {
     }
   }
 
-  /** PUT If-Match de `corpus.json`, avec mise à jour optionnelle du manifeste. */
+  /** PUT If-Match de `corpus.crp`, avec mise à jour optionnelle du manifeste. */
   private async publierCorpus(
     etagAttendu: string | null,
     contenuFourni?: string,

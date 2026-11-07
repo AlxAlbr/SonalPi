@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { CorpusStore } from '../src/main/corpusStore'
 import { entrerEntretien, fermerAiguillage, ouvrirAnalyse, ouvrirPreparation, ouvrirSurCorpus } from './util'
 
 /** Les changements d'espace conservent le travail ; ceux de corpus le réinitialisent. */
@@ -120,11 +121,12 @@ test('un autre corpus ne reprend ni brouillon du tableau ni sélection ou éditi
     await expect(panneau.locator('.barre-selection')).toContainText('1 forme(s) sélectionnée(s)')
 
     const autreCorpus = mkdtempSync(join(tmpdir(), 'sonal-espaces-autre-'))
+    new CorpusStore(autreCorpus).ouvrir()
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
     }, autreCorpus)
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await page.locator('.ouvrir-dossier').click()
     await fermerAiguillage(page)
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()

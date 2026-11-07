@@ -147,14 +147,14 @@ describe('opération de migration sur transports simulés', () => {
     expect(f.suivi.lire()!.documents.map((d) => [d.chemin, d.sha256])).toEqual(ids)
   })
 
-  it('fractionne selon les limites existantes, conserve la première publication et publie corpus.json en dernier', async () => {
+  it('fractionne selon les limites existantes, conserve la première publication et publie corpus.crp en dernier', async () => {
     const f = await scenario({ nombre: MAX_ACTIONS_PUBLICATION + 2, sansMedias: true })
     expect(f.suivi.lire()?.lots).toHaveLength(2)
     const annulation = new AbortController()
     f.depot.avantCommit = (actions) => { if (actions.some((a) => a.file_path.startsWith('entretiens/'))) annulation.abort() }
     expect((await f.run(false, annulation.signal)).etat).toBe('interrompue')
     expect(f.suivi.lire()?.prochainLot).toBe(1)
-    expect(f.depot.fichiers.has('corpus.json')).toBe(false)
+    expect(f.depot.fichiers.has('corpus.crp')).toBe(false)
     const ids = f.suivi.lire()!.documents.map((d) => d.chemin)
     f.depot.avantCommit = () => {}
     expect((await f.run(true)).etat).toBe('terminee')
@@ -168,7 +168,7 @@ describe('opération de migration sur transports simulés', () => {
   it('reconnaît une publication acceptée dont la réponse s’est perdue, sans renvoi ni ouverture prématurée', async () => {
     const f = await scenario()
     f.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path === 'corpus.json')) { f.depot.echouerApresAccepter(new Error('réponse perdue')); f.depot.rendreCommitsIllisibles() }
+      if (actions.some((a) => a.file_path === 'corpus.crp')) { f.depot.echouerApresAccepter(new Error('réponse perdue')); f.depot.rendreCommitsIllisibles() }
     }
     expect((await f.run()).etat).toBe('indeterminee')
     expect(f.suivi.lire()?.intention).toBeTruthy()
@@ -204,7 +204,7 @@ describe('opération de migration sur transports simulés', () => {
 
   it('refuse un fichier extérieur ajouté pendant la publication et ne le supprime pas', async () => {
     const f = await scenario()
-    f.depot.avantCommit = (actions) => { if (actions.some((a) => a.file_path === 'corpus.json')) f.depot.deposerHorsProtocole('autre.txt', 'À conserver') }
+    f.depot.avantCommit = (actions) => { if (actions.some((a) => a.file_path === 'corpus.crp')) f.depot.deposerHorsProtocole('autre.txt', 'À conserver') }
     expect((await f.run()).etat).toBe('interrompue')
     expect(f.ouvrir).not.toHaveBeenCalled()
     expect(f.depot.fichiers.get('autre.txt')?.contenu).toBe('À conserver')

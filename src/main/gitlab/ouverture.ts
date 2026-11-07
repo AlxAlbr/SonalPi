@@ -124,7 +124,7 @@ export class ServiceOuvertureGitLab {
     const compte = this.compte(demande.compteId)
     const client = await this.options.authentification.client(compte.id, demande.projetId)
     const depot = new DepotCommitsGitLabClient(client)
-    if (await depot.lireFichier('corpus.json', demande.branche)) {
+    if (await depot.lireFichier('corpus.crp', demande.branche)) {
       throw new Error('Un corpus existe déjà à la racine du projet GitLab.')
     }
 
@@ -144,7 +144,7 @@ export class ServiceOuvertureGitLab {
       'Sonal création racine',
       [{
         action: 'create',
-        file_path: 'corpus.json',
+        file_path: 'corpus.crp',
         content: JSON.stringify(squelette, null, 2),
       }],
     )
@@ -311,7 +311,7 @@ async function preparerOuvertureDestination(options: {
     options.destination.id,
   )
   const racine = normaliserRacineGitLab(options.destination.racine)
-  const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
+  const cheminCorpus = racine ? `${racine}/corpus.crp` : 'corpus.crp'
   const journal = new JournalPublicationGitLab(
     options.destination.id,
     journalRepertoire,

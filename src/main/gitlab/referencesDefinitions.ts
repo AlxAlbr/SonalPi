@@ -120,7 +120,7 @@ export function verifierContenusReferencesDefinitions(
   try {
     corpus = JSON.parse(contenuCorpus) as CorpusFichier
   } catch {
-    throw new Error('Le fichier corpus.json de GitLab est illisible.')
+    throw new Error('Le fichier corpus.crp de GitLab est illisible.')
   }
   if (!versionSupportee(corpus.formatVersion)) {
     throw new Error('La version du corpus GitLab n’est pas prise en charge.')

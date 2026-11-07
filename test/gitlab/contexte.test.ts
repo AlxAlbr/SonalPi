@@ -96,9 +96,9 @@ describe('contexte GitLab en lecture seule', () => {
           return reponseJson([
             {
               id: `corpus-${suffixe}`,
-              name: 'corpus.json',
+              name: 'corpus.crp',
               type: 'blob',
-              path: 'donnees/corpus.json',
+              path: 'donnees/corpus.crp',
               mode: '100644',
             },
             {
@@ -120,7 +120,7 @@ describe('contexte GitLab en lecture seule', () => {
       }
       if (url.pathname.includes('/repository/files/')) {
         const chemin = decodeURIComponent(url.pathname)
-        if (chemin.includes('/donnees/corpus.json/raw')) {
+        if (chemin.includes('/donnees/corpus.crp/raw')) {
           return new Response(corpusDistantValide(['e1']))
         }
         const texte = url.searchParams.get('ref') === SHA_1 ? 'première version' : 'seconde version'
@@ -154,7 +154,7 @@ describe('contexte GitLab en lecture seule', () => {
 
     tete = SHA_2
     await expect(preparation.contexte.actualiser()).resolves.toMatchObject({
-      telecharges: ['corpus.json', 'entretiens/e1.json'],
+      telecharges: ['corpus.crp', 'entretiens/e1.json'],
       verrous: [],
     })
     expect(preparation.contexte.store.lireEntretien('e1')).toMatchObject({
@@ -219,7 +219,7 @@ describe('contexte GitLab en lecture seule', () => {
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: null },
     }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2))
     writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(entretien, null, 2))
     const store = new CorpusStore(dir)
     store.lectureSeule = true
@@ -328,7 +328,7 @@ describe('contexte GitLab en lecture seule', () => {
 function storeAvecE1(): string {
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-banc-'))
   mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
-  writeFileSync(join(dirLocal, 'corpus.json'), corpusDistantValide(['e1']))
+  writeFileSync(join(dirLocal, 'corpus.crp'), corpusDistantValide(['e1']))
   writeFileSync(join(dirLocal, 'entretiens', 'e1.json'), entretienDistantValide())
   return dirLocal
 }
@@ -486,7 +486,7 @@ describe('façade des définitions du contexte GitLab', () => {
   function contexteAvecTransactions() {
     const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-facade-'))
     mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
-    writeFileSync(join(dirLocal, 'corpus.json'), JSON.stringify(squeletteCorpus('Miroir')))
+    writeFileSync(join(dirLocal, 'corpus.crp'), JSON.stringify(squeletteCorpus('Miroir')))
     const store = new CorpusStore(dirLocal)
     store.lectureSeule = true
     // Le callback reçoit un store de préparation jetable, jamais le miroir.
@@ -560,7 +560,7 @@ describe('tri de contenu et sources gardées', () => {
   ) {
     const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-tri-'))
     mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
-    writeFileSync(join(dirLocal, 'corpus.json'), corpusDistantValide(['e1']))
+    writeFileSync(join(dirLocal, 'corpus.crp'), corpusDistantValide(['e1']))
     const store = new CorpusStore(dirLocal)
     store.lectureSeule = true
     const session = sessionFactice()

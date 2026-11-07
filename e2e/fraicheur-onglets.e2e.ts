@@ -8,8 +8,8 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
   const dir = mkdtempSync(join(tmpdir(), 'sonal-fraicheur-'))
   const dirCorpus = join(dir, 'corpus')
   ecrireSeedDemo(dirCorpus)
-  const cheminCorpus = join(dirCorpus, 'corpus.json')
-  const cheminSecours = join(dirCorpus, 'corpus.json.test')
+  const cheminCorpus = join(dirCorpus, 'corpus.crp')
+  const cheminSecours = join(dirCorpus, 'corpus.crp.test')
   const cheminEntretien = join(dirCorpus, 'entretiens', 'e1.json')
   const entretien = JSON.parse(readFileSync(cheminEntretien, 'utf8'))
   entretien.notes = [{

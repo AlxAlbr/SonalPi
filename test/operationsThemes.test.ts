@@ -97,7 +97,7 @@ function bancDisque() {
   mkdirSync(join(dir, 'entretiens'))
   const ecrire = (nom: string, valeur: unknown) => writeFileSync(join(dir, nom), JSON.stringify(valeur, null, 2))
   const lire = (nom: string) => JSON.parse(readFileSync(join(dir, nom), 'utf8'))
-  ecrire('corpus.json', corpus())
+  ecrire('corpus.crp', corpus())
   ecrire('entretiens/e1.json', entretien())
   ecrire('entretiens/e2.json', entretien())
   return { dir, ecrire, lire, store: new CorpusStore(dir) }
@@ -264,23 +264,23 @@ describe('parcours local du store', () => {
     if (etat === 'illisible') writeFileSync(fichier, '{invalide')
     if (etat === 'version') banc.ecrire('entretiens/e2.json', { ...entretien(), formatVersion: 999 })
     if (etat === 'incomplet') banc.ecrire('entretiens/e2.json', { formatVersion: FORMAT_VERSION })
-    const avant = readFileSync(join(banc.dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(banc.dir, 'corpus.crp'), 'utf8')
     const apercu = banc.store.analyserOperationTheme(transfert)
     expect(apercu.faisable).toBe(false)
     expect(apercu.obstacles).toContainEqual({ phase: 'entretiens', entretienId: 'e2', motif: expect.any(String) })
     expect(apercu.parEntretien.map((e) => e.id)).toEqual(['e1'])
     expect(() => banc.store.detailsOperationTheme(apercu.operationId, 'e2')).toThrow(/indisponible/)
     expect(banc.store.executerOperationTheme(apercu.operationId, transfert, options).statut).toBe('non-appliquee')
-    expect(readFileSync(join(banc.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(banc.dir, 'corpus.crp'), 'utf8')).toBe(avant)
   })
 
   test('refuse les versions de corpus inconnues et la traversée de chemins du membership', () => {
     const banc = bancDisque()
-    banc.ecrire('corpus.json', { ...corpus(), formatVersion: 999 })
+    banc.ecrire('corpus.crp', { ...corpus(), formatVersion: 999 })
     expect(() => banc.store.analyserOperationTheme(transfert)).toThrow(/Version de corpus/)
     const c = corpus()
     c.membership['../secret'] = { titre: 'secret', date: null, lastModified: '' }
-    banc.ecrire('corpus.json', c)
+    banc.ecrire('corpus.crp', c)
     expect(banc.store.analyserOperationTheme(transfert).obstacles).toContainEqual({ phase: 'entretiens', entretienId: '../secret', motif: expect.stringMatching(/Identifiant/) })
   })
 
@@ -295,11 +295,11 @@ describe('parcours local du store', () => {
 
   test('le transfert conserve la source, le codebook, les autres annotations et rafraîchit les usages', () => {
     const banc = bancDisque()
-    const corpusAvant = readFileSync(join(banc.dir, 'corpus.json'), 'utf8')
+    const corpusAvant = readFileSync(join(banc.dir, 'corpus.crp'), 'utf8')
     const apercu = banc.store.analyserOperationTheme(transfert)
     const resultat = banc.store.executerOperationTheme(apercu.operationId, transfert, options)
     expect(resultat).toMatchObject({ statut: 'appliquee', reaffectes: 2, doublonsSupprimes: 2 })
-    expect(readFileSync(join(banc.dir, 'corpus.json'), 'utf8')).toBe(corpusAvant)
+    expect(readFileSync(join(banc.dir, 'corpus.crp'), 'utf8')).toBe(corpusAvant)
     expect(banc.lire('entretiens/e1.json').annotations.filter((a: { type: string }) => a.type !== 'codage')).toEqual(entretien().annotations.filter((a) => a.type !== 'codage'))
     expect(banc.store.usagesParCategorie()).toMatchObject({ cible: 4 })
     expect(banc.store.usagesParCategorie().source ?? 0).toBe(0)
@@ -313,8 +313,8 @@ describe('parcours local du store', () => {
     const apercu = banc.store.analyserOperationTheme(demande)
     const resultat = banc.store.executerOperationTheme(apercu.operationId, demande, options)
     expect(resultat.statut).toBe('appliquee')
-    expect(banc.lire('corpus.json').codebook.source).toBeUndefined()
-    expect(banc.lire('corpus.json').codebook.enfant.parent).toBeNull()
+    expect(banc.lire('corpus.crp').codebook.source).toBeUndefined()
+    expect(banc.lire('corpus.crp').codebook.enfant.parent).toBeNull()
     expect(banc.lire('entretiens/e1.json').annotations.filter((a: { code?: string }) => a.code === 'source')).toEqual([])
   })
 
@@ -323,8 +323,8 @@ describe('parcours local du store', () => {
     const apercu = banc.store.analyserOperationTheme(fusion)
     const resultat = banc.store.executerOperationTheme(apercu.operationId, fusion, options)
     expect(resultat.statut).toBe('appliquee')
-    expect(banc.lire('corpus.json').codebook.source).toBeUndefined()
-    expect(banc.lire('corpus.json').codebook.enfant.parent).toBe('cible')
+    expect(banc.lire('corpus.crp').codebook.source).toBeUndefined()
+    expect(banc.lire('corpus.crp').codebook.enfant.parent).toBe('cible')
     expect(banc.lire('entretiens/e1.json').annotations.filter((a: { code?: string }) => a.code === 'source')).toEqual([])
   })
 
@@ -338,7 +338,7 @@ describe('parcours local du store', () => {
     const apercu = banc.store.analyserOperationTheme(demande)
     const resultat = banc.store.executerOperationTheme(apercu.operationId, demande, options)
     expect(resultat.statut).toBe('appliquee')
-    const c = banc.lire('corpus.json') as CorpusFichier
+    const c = banc.lire('corpus.crp') as CorpusFichier
     expect(c.codebook.cible.parent).toBeNull()
     expect(c.codebook.resultat.parent).toBeNull()
     expect(Boolean(c.codebook.source)).toBe(!effacer)
@@ -350,13 +350,13 @@ describe('parcours local du store', () => {
   test('un entretien ajouté après l’aperçu interdit la suppression entière', () => {
     const banc = bancDisque()
     const apercu = banc.store.analyserOperationTheme(fusion)
-    const c = banc.lire('corpus.json') as CorpusFichier
+    const c = banc.lire('corpus.crp') as CorpusFichier
     c.membership.e3 = { titre: 'Nouveau', date: null, lastModified: '' }
-    banc.ecrire('corpus.json', c)
+    banc.ecrire('corpus.crp', c)
     banc.ecrire('entretiens/e3.json', entretien())
     expect(banc.store.executerOperationTheme(apercu.operationId, fusion, options).statut).toBe('non-appliquee')
     expect(banc.lire('entretiens/e1.json')).toEqual(entretien())
-    expect(banc.lire('corpus.json').codebook.source).toBeDefined()
+    expect(banc.lire('corpus.crp').codebook.source).toBeDefined()
   })
 
   test('un ancien entretien supporté est adapté en mémoire, sans écriture d’aperçu', () => {
@@ -379,7 +379,7 @@ describe('parcours local du store', () => {
       if (etat.termines === 0) banc.ecrire('entretiens/e2.json', entretien())
     })
     expect(resultat.statut).toBe('indeterminee')
-    expect(banc.lire('corpus.json').codebook.source).toBeDefined()
+    expect(banc.lire('corpus.crp').codebook.source).toBeDefined()
     expect(banc.lire('entretiens/e1.json')).toEqual(entretien())
     expect(() => new CorpusStore(banc.dir).ouvrir()).toThrow(/e2.*a changé/)
   })

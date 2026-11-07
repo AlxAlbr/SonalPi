@@ -71,7 +71,7 @@ export class OperationMigrationGitLab {
     private readonly environnement: EnvironnementOperationMigration,
   ) {
     this.journal = new JournalPublicationGitLab(etat.destinationId, join(suivi.dossier, 'publication'))
-    this.ressource = cleRessourceBailGitLab(etat.branche, 'corpus.json')
+    this.ressource = cleRessourceBailGitLab(etat.branche, 'corpus.crp')
     this.coordination = new BailGitLab({
       branche: etat.branche, depot: environnement.depot, identite: () => etat.identite,
       nouvelleGeneration: () => this.etat.generationBail!, maintenant: environnement.maintenant,

@@ -52,7 +52,7 @@ const decrire = configurationPresente ? describe : describe.skip
 decrire('définitions du corpus GitLab — qualification à deux comptes', () => {
   it('mesure le coût d’une mutation et n’écrit le miroir qu’après confirmation', { timeout: 60_000 }, async () => {
     const racine = await creerRacine('c1', { nom: 'Qualification lot C' })
-    const cheminCorpus = `${racine}/corpus.json`
+    const cheminCorpus = `${racine}/corpus.crp`
     const cheminBail = cheminBailCorpus(racine)
     const avant = await commitsTouchant(cheminCorpus)
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c1' })
@@ -85,14 +85,14 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   it('une commande sans changement ne publie pas de données et remet le miroir à niveau', { timeout: 60_000 }, async () => {
     const racine = await creerRacine('c2', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c2' })
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
 
     // Le miroir local est en retard et le serveur ne change pas.
     const resultat = await p.transactions.executerDefinitions(
       (store) => store.modifierCategorie('cat_001', { nom: 'Pondérations' }),
     )
 
-    expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
+    expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant)
     expect(resultat.corpus.nom).toBe('Qualification lot C')
     expect(p.lireLocal().nom).toBe('Qualification lot C')
     expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(2)
@@ -106,7 +106,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
 
     // Le bail tenu refuse le second gesture par son nom.
     const bail = await alice.coordination.acquireRessource(
-      cleRessourceBailGitLab('main', `${racine}/corpus.json`),
+      cleRessourceBailGitLab('main', `${racine}/corpus.crp`),
     )
     expect(bail.ok).toBe(true)
     await expect(bob.transactions.executerDefinitions(
@@ -119,7 +119,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     await alice.transactions.executerDefinitions((store) => store.ajouterCategorie('Thème A', null))
     await bob.transactions.executerDefinitions((store) => store.ajouterCategorie('Thème B', null))
     const apres = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     const noms = Object.values(apres.codebook).map((theme) => theme.nom)
     expect(noms).toContain('Thème A')
@@ -128,7 +128,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     // Acquises en même temps, elles ne produisent qu'un gagnant et un refus.
     const carol = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c3c' })
     const dave = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'c3d' })
-    const avantChevauchement = await commitsTouchant(`${racine}/corpus.json`)
+    const avantChevauchement = await commitsTouchant(`${racine}/corpus.crp`)
     const resultats = await Promise.allSettled([
       carol.transactions.executerDefinitions((store) => store.ajouterCategorie('Thème C', null)),
       dave.transactions.executerDefinitions((store) => store.ajouterCategorie('Thème D', null)),
@@ -142,9 +142,9 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     expect(refus).toHaveLength(1)
     expect(String((refus[0] as PromiseRejectedResult).reason))
       .toMatch(/en cours de modification par/)
-    expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avantChevauchement + 1)
+    expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avantChevauchement + 1)
     const final = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     const themesFinaux = Object.values(final.codebook).map((theme) => theme.nom)
     expect(themesFinaux.filter((nom) => nom.startsWith('Thème C') || nom.startsWith('Thème D')))
@@ -156,11 +156,11 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     const racine = await creerRacine('c4', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c4' })
     const localAvant = JSON.stringify(p.lireLocal())
-    const cheminCorpus = `${racine}/corpus.json`
+    const cheminCorpus = `${racine}/corpus.crp`
     const gardeLue = (await lireFichier(cheminCorpus, configuration.token1 as string)).corps.last_commit_id
 
     // Le tiers écrit entre notre lecture et l'envoi de notre commit : la garde
-    // de `corpus.json` devient périmée et GitLab refuse tout le commit.
+    // de `corpus.crp` devient périmée et GitLab refuse tout le commit.
     const publier = p.depot.publierCommit.bind(p.depot)
     let intervenu = false
     p.depot.publierCommit = async (branche, message, actions) => {
@@ -286,7 +286,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
       expect(Object.values(resultat.corpus.codebook).map((t) => t.nom)).toContain('Thème coupé')
       expect(p.journal.transactionsCorpusJournalisees()).toHaveLength(0)
       const publie = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+        await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
       )) as CorpusFichier
       expect(Object.values(publie.codebook).map((t) => t.nom)).toContain('Thème coupé')
       // La commande suivante repart normalement : le bail a été rendu.
@@ -324,7 +324,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     ])
     // Les deux écritures aboutissent : la file de la destination les sépare.
     const corpusApres = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     expect(Object.values(corpusApres.codebook).map((t) => t.nom)).toContain('Thème pendant la session')
     expect(publication.statut).toBe('confirme')
@@ -558,7 +558,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     )
     expect(final).toContain('écrit par Bob')
     const corpusFinal = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     expect(Object.values(corpusFinal.codebook).map((theme) => theme.nom))
       .toContain('Thème après le relai')
