@@ -1,8 +1,16 @@
 node_modules/
 out/
 dist/
+release/
 test-results/
 playwright-report/
 TestVideo/
 *.log
 .DS_Store
+Thumbs.db
+coverage/
+.nyc_output/
+.env
+.env.*
+!.env.example
+playwright/.auth/
