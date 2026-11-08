@@ -124,9 +124,9 @@ test('un autre corpus ne reprend ni brouillon du tableau ni sélection ou éditi
     new CorpusStore(autreCorpus).ouvrir()
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
-    }, autreCorpus)
+    }, join(autreCorpus, 'corpus.crp'))
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-    await page.locator('.ouvrir-dossier').click()
+    await page.locator('.ouvrir-corpus').click()
     await fermerAiguillage(page)
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()

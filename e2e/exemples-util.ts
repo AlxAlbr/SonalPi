@@ -12,7 +12,11 @@ export async function configurerSourcesExemples(app: ElectronApplication, source
 }
 export async function choisirDossierExemple(app: ElectronApplication, dir: string): Promise<void> {
   await app.evaluate(({ dialog }, dir) => {
-    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
+    dialog.showOpenDialog = async (...args: unknown[]) => {
+      const options = args.at(-1) as { filters?: { extensions: string[] }[] }
+      const fichier = options.filters?.some((f) => f.extensions.includes('crp'))
+      return { canceled: false, filePaths: [fichier ? `${dir}/corpus.crp` : dir] }
+    }
   }, dir)
 }
 export async function preparerApprentissage(app: ElectronApplication, page: Page, sources: string, dir: string, parcours: 'preparation' | 'traitement' | 'analyse' | 'organisation', etape?: string): Promise<void> {

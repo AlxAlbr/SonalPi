@@ -6,9 +6,6 @@ import type { EntreeRecent } from '../src/shared/format'
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
-vi.mock('../src/renderer/components/accueil/CorpusDistant.vue', () => ({
-  default: { props: ['fournisseurInitiale'], template: '<div class="connexion-test">{{ fournisseurInitiale }}</div>' },
-}))
 const apps: App[] = []
 afterEach(() => { apps.splice(0).forEach((app) => app.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
@@ -23,18 +20,18 @@ async function monter() {
     { type: 'local', dir: '/exemple', nom: '<img src=x>', exemple: 'synth' },
     { type: 'distant', id: 'g1', nom: 'Terrain partagé', fournisseur: 'gitlab', url: 'https://gitlab.example' },
   ])
-  const ouvrirRecent = vi.fn(), retirerRecent = vi.fn(), ouvrirDocumentation = vi.fn()
+  const ouvrirRecent = vi.fn(), retirerRecent = vi.fn(), ouvrirDocumentation = vi.fn(), ouvrirAuthentification = vi.fn()
   const gitlab = vi.fn(async () => [{ id: 'g1', connexionDisponible: false }])
   vi.stubGlobal('sonal', {})
   ;(window as any).sonal = { application: { ouvrirDocumentation }, gitlab: { lister: gitlab } }
   injection.contexte = {
     recents, ouvrirRecent, retirerRecent, ouvrirCatalogueParcours: vi.fn(), ouvrirExemples: vi.fn(),
-    choisirDossier: vi.fn(), modaleNouveauCorpus: ref(false), modaleCorpusDistant: ref(false),
+    choisirFichier: vi.fn(), ouvertureEnCours: ref(false), ouvrirAuthentification, modaleNouveauCorpus: ref(false),
   }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp(Accueil)
   apps.push(app); app.mount(host); await nextTick()
-  return { host, recents, ouvrirRecent, retirerRecent, ouvrirDocumentation, ecoutes, app }
+  return { host, recents, ouvrirRecent, retirerRecent, ouvrirDocumentation, ouvrirAuthentification, ecoutes, app }
 }
 
 test('les exemples reconnus sont séparés sans classer les corpus par leur nom', async () => {
@@ -47,7 +44,7 @@ test('les exemples reconnus sont séparés sans classer les corpus par leur nom'
   expect(b.host.querySelectorAll('.recents-bloc .recent')).toHaveLength(2)
   expect(b.host.querySelectorAll('.exemples-bloc .recent')).toHaveLength(1)
   expect(b.host.querySelector('.exemples-bloc img')).toBeNull()
-  expect(b.host.querySelector<HTMLDetailsElement>('.migration-bloc')!.open).toBe(false)
+  expect(b.host.querySelector('.migration-bloc')).toBeNull()
 })
 
 test.each([
@@ -99,6 +96,6 @@ test('un récent GitLab sans connexion demande ses accès au lieu de contourner 
   const b = await monter()
   b.host.querySelector<HTMLButtonElement>('.recents-bloc .recent[title="Terrain partagé"]')!.click()
   await nextTick(); await nextTick()
-  expect(b.host.querySelector('.connexion-test')?.textContent).toBe('gitlab')
+  expect(b.ouvrirAuthentification).toHaveBeenCalledWith('gitlab')
   expect(b.ouvrirRecent).not.toHaveBeenCalled()
 })

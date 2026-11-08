@@ -675,7 +675,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     const choix = await montrerOuvrir(e, { properties: ['openFile'], filters: [{ name: 'Corpus Sonal (.crp)', extensions: ['crp'] }] })
     return choix.canceled ? null : choix.filePaths[0] ?? null
   })
-  ipcMain.handle('ouverture:preparer', (_e, source: string): CibleOuvertureFichier => {
+  ipcMain.handle('ouverture:preparer', (e, source: string): CibleOuvertureFichier => {
     const lecture = lireFichierCorpus(source)
     const idMiroir = compteDuMiroir(source, racineMiroirs)
     if (idMiroir !== null) {
@@ -686,6 +686,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       return { type: 'distant', id: idMiroir, fournisseur: gitlab ? 'gitlab' : 'webdav' }
     }
     if (lecture.classification.type === 'v1') return { type: 'migration', chemin: lecture.chemin }
+    if (exemplesLocaux.estApprentissage(dirname(lecture.chemin))) {
+      e.sender.send('exemples:rattache', dirname(lecture.chemin))
+      majMenu()
+      return { type: 'apprentissage' }
+    }
     if (contexteCharge && !contextesDistants.actuel && cheminCanonique(dossierCourant) === dirname(lecture.chemin)) return { type: 'deja-ouvert' }
     verifierCibleLocale(dirname(lecture.chemin))
     const cible = new CorpusStore(dirname(lecture.chemin), true)
@@ -2351,11 +2356,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // Ouverture GitLab : la séquence (préparation, coffre, fermeture,
   // installation) vit dans le service ; les handlers ne gardent que la file
   // de transitions, propriétaire unique de la sérialisation des bascules.
-  const ouvertureGitLab = new ServiceOuvertureGitLab({
+  const ouvertureGitLab: ServiceOuvertureGitLab = new ServiceOuvertureGitLab({
     coffre,
     authentification: authentificationGitLab,
     dirProfil: app.getPath('userData'),
     identiteSession: { machineId, sessionId: SESSION_ID },
+    identifier: (destination) => migrationGitLab.preparation.identifier(destination),
     fermerContexte: fermerContexteActuel,
     installer: (destination, preparation) => {
       store.viderApercusOperationTheme()
@@ -2366,7 +2372,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     },
   })
 
-  const migrationGitLab = new ServiceMigrationGitLab({
+  const migrationGitLab: ServiceMigrationGitLab = new ServiceMigrationGitLab({
     authentification: authentificationGitLab, coffre, dirProfil: app.getPath('userData'),
     identite: { machineId, sessionId: SESSION_ID },
     ouvrir: (demande, signal) => ouvertureGitLab.ouvrirMigration(demande, signal),

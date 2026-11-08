@@ -76,9 +76,9 @@ test('un changement de corpus efface la recherche et le formulaire Cas', async (
     await cas.getByLabel('Nom du cas *').fill('Ancien brouillon')
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
-    }, autre)
+    }, join(autre, 'corpus.crp'))
     await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-    await page.locator('.ouvrir-dossier').click()
+    await page.locator('.ouvrir-corpus').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await attendreCorpus(page)
     await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')

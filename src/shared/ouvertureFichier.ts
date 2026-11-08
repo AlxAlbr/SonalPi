@@ -96,6 +96,7 @@ export type CibleOuvertureFichier =
   | { type: 'migration'; chemin: string }
   | { type: 'distant'; id: string; fournisseur: 'webdav' | 'gitlab' }
   | { type: 'deja-ouvert' }
+  | { type: 'apprentissage' }
 
 export interface DemandeOuvertureExterne {
   chemin: string

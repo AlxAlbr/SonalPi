@@ -57,14 +57,6 @@ export async function lancer(
 export async function attendreAccueil(page: Page): Promise<void> {
   await expect(page.locator('.ecran.accueil')).toBeVisible({ timeout: 20_000 })
 }
-/** Déplie la rubrique de migration avant de choisir son assistant. */
-export async function ouvrirMigration(page: Page, fournisseur: 'local' | 'gitlab' = 'local'): Promise<void> {
-  if (fournisseur === 'local') { await page.locator('.ouvrir-dossier').click(); return }
-  const rubrique = page.locator('.migration-bloc')
-  if (await rubrique.getAttribute('open') === null) await rubrique.locator('summary').click()
-  await rubrique.locator(fournisseur === 'gitlab' ? '.migrer-gitlab' : '.migrer-corpus').click()
-}
-
 /** Attend que l'écran Corpus soit affiché (pur wait, sans navigation). */
 export async function attendreCorpus(page: Page): Promise<void> {
   await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 20_000 })

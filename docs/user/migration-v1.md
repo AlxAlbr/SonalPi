@@ -72,13 +72,15 @@ ouvrable à son emplacement d'origine. Aucune sauvegarde existante n'est écras�
 
 ## GitLab : migrer vers un nouveau dépôt
 
-Depuis la rubrique **« Migration SonalPi1 vers SonalPi2 »**, la carte **GitLab**
-conserve son parcours dédié. Ouvrir un CRP local ne récupère pas un dépôt GitLab.
-La migration GitLab ne renomme ni ne modifie le CRP du dépôt source.
+Depuis **« Ouvrir un corpus distant »**, choisissez **GitLab**.
+Un V2 s'ouvre normalement ; un V1 propose automatiquement son passage à SonalPi2.
+Il n'y a plus de carte de migration séparée sur l'Accueil. La migration GitLab ne
+renomme ni ne modifie le CRP du dépôt source.
 
 1. Choisissez un projet enregistré ou indiquez l'adresse d'un projet SonalPi1.
    Les accès utilisables sont réemployés ; une connexion n'est demandée que si
-   nécessaire. Un corpus déjà V2 n'est pas reconverti sur place.
+   nécessaire. La source et le compte sont repris dans la fenêtre « Passer à SonalPi2 »
+   sans nouvelle saisie. Un corpus déjà V2 n'est pas reconverti sur place.
 2. S'il existe plusieurs CRP, choisissez celui à reprendre.
 3. Indiquez un autre projet de la même instance, accessible au même compte.
    Il doit être vide ou limité aux fichiers techniques admis, comme un README
@@ -95,8 +97,10 @@ médias vont sur WebDAV. Les liens ou sous-modules non pris en charge peuvent ê
 refusés. Aucun fichier existant différent n'est remplacé.
 
 Avant confirmation, rien n'est copié ou publié vers les destinations. Après une
-interruption, rouvrez cette carte et choisissez **« Vérifier et reprendre »** sur
-le même poste et le même profil. Les copies déjà acquises sont conservées ; une
+interruption, revenez dans **« Ouvrir un corpus distant → GitLab »** et choisissez
+**« Reprendre un passage à SonalPi2… »**, puis **« Vérifier et reprendre »** sur
+le même poste et le même profil. Si la publication est déjà terminée, utilisez
+**« Ouvrir le corpus »**. La reprise ne redemande pas la source V1. Les copies déjà acquises sont conservées ; une
 reprise ne supprime pas les originaux. Si un délai est demandé après un arrêt
 brutal, patientez plutôt que de recommencer vers une nouvelle destination.
 

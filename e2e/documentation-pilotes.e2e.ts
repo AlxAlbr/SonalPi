@@ -68,7 +68,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await page.locator('.oubli-recent').click()
     await expect(page.locator('.recents .recent')).toHaveCount(0)
     expect(existsSync(join(dossier, 'corpus.crp'))).toBe(true)
-    await page.locator('.ouvrir-dossier').click()
+    await page.locator('.ouvrir-corpus').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     expect(lireCorpus().nom).toBe('Enquête dans les associations')

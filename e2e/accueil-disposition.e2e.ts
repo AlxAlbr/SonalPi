@@ -67,7 +67,7 @@ test('accueil : deux étages, copies séparées, priorité aux récents et clavi
     expect(cadres[2].y).toBe(cadres[3].y)
     const premierRecent = (await personnel.locator('.recent').first().boundingBox())!
     expect(premierRecent.y + premierRecent.height).toBeLessThan(await page.evaluate(() => innerHeight))
-    await expect(page.locator('.migration-bloc')).not.toHaveAttribute('open')
+    await expect(page.locator('.migration-bloc')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/accueil-deux-colonnes.png' })
 
     await fenetre.evaluate((w) => w.setContentSize(700, 800))
@@ -193,7 +193,7 @@ for (const groupe of ['exemples', 'personnels'] as const) {
   })
 }
 
-test('accueil : sans récent, les actions restent disponibles et la migration se déplie au clavier', async () => {
+test('accueil : sans récent, les actions restent disponibles sans rubrique de migration', async () => {
   const fixture = preparer(true)
   const app = await lancer(fixture.profil, { preserverSettings: true, executablePath: process.env.ACCUEIL_E2E_EXECUTABLE })
   try {
@@ -204,21 +204,11 @@ test('accueil : sans récent, les actions restent disponibles et la migration se
     await expect(page.locator('.ouvrir-corpus')).toBeEnabled()
     await expect(page.locator('.decouverte-bloc .exemples')).toBeEnabled()
     await page.screenshot({ path: 'test-results/accueil-sans-recents.png' })
-    const rubrique = page.locator('.migration-bloc')
-    await rubrique.locator('summary').focus()
+    await expect(page.locator('.migration-bloc, .migrer-corpus, .migrer-gitlab')).toHaveCount(0)
+    await expect(page.locator('.distant-corpus')).toBeEnabled()
+    await page.locator('.distant-corpus').focus()
     await page.keyboard.press('Enter')
-    await expect(rubrique).toHaveAttribute('open')
-    const cadreCorpus = (await page.locator('.corpus-bloc').boundingBox())!
-    const cadreMigration = (await rubrique.boundingBox())!
-    expect(cadreMigration.x).toBe(cadreCorpus.x)
-    expect(cadreMigration.width).toBe(cadreCorpus.width)
-    expect(cadreMigration.y).toBeGreaterThanOrEqual(cadreCorpus.y + cadreCorpus.height)
-    const locale = (await rubrique.locator('.migrer-corpus').boundingBox())!
-    const gitlab = (await rubrique.locator('.migrer-gitlab').boundingBox())!
-    expect(gitlab.x).toBe(locale.x)
-    expect(gitlab.y).toBeGreaterThanOrEqual(locale.y + locale.height)
-    await rubrique.locator('.migrer-corpus').click()
-    await expect(page.locator('.modale-migration')).toBeVisible()
+    await expect(page.locator('.modale-distant')).toBeVisible()
   } finally {
     await app.close()
   }

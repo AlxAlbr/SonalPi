@@ -284,7 +284,7 @@ test('ouvrir manuellement un corpus d’apprentissage le rattache sans bascule n
     await attendreAccueil(page)
     const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
     await choisirDossierExemple(app, dir)
-    await page.locator('.ouvrir-dossier').click()
+    await page.locator('.ouvrir-corpus').click()
     await expect(catalogue(page)).toBeVisible()
     expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
     await expect(page.locator('.spotlight-bulle')).toHaveCount(0)

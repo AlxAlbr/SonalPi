@@ -2,6 +2,7 @@ import { test, expect, type ElectronApplication, type Page } from '@playwright/t
 import type {} from '../src/renderer/env'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
+import { CorpusStore } from '../src/main/corpusStore'
 import { tmpdir } from 'node:os'
 import { attendreCorpus, fermerAiguillage, fermerEditionThemes, ouvrirEditionThemes, ouvrirSurCorpus, retourCorpus } from './util'
 
@@ -119,10 +120,11 @@ test('changer de corpus vide un ancien atelier conservé pendant la consultation
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   const dir = mkdtempSync(join(tmpdir(), 'sonal-themes-autre-'))
+  new CorpusStore(dir).ouvrir()
   await app.evaluate(({ dialog }, chemin) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chemin] })
-  }, dir)
-  await page.locator('.ouvrir-dossier').click()
+  }, join(dir, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
   await fermerAiguillage(page)
   await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
   await attendreCorpus(page)

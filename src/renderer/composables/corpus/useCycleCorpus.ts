@@ -5,7 +5,8 @@ import type {
   EtatSessionPublic,
   OuvertureDistante,
 } from '../../../shared/distant'
-import type { ResultatMigrationGitLab } from '../../../shared/corpus/migrationGitLab'
+import type { ResultatMigrationGitLab, SourceMigrationGitLab } from '../../../shared/corpus/migrationGitLab'
+import type { ResultatOuvertureGitLab } from '../../../shared/gitlab'
 import type { DemandeConfigurationBaseMedia, DemandeCreationGitLab, DemandeOuvertureGitLab } from '../../../shared/gitlab'
 import type { DemandeCreationWebDAV } from '../../../shared/webdav'
 import type {
@@ -135,7 +136,7 @@ export function useCycleCorpus(deps: {
   const migrationProposee = ref<{ chemin: string } | null>(null)
   const renommagePropose = ref(false)
   const authentificationProposee = ref<'webdav' | 'gitlab' | null>(null)
-  const migrationGitLabProposee = ref(false)
+  const migrationGitLabProposee = ref<{ source?: SourceMigrationGitLab } | null>(null)
   let terminerModale: (() => void) | null = null
   async function proposerModale(ouvrir: () => void): Promise<void> {
     await new Promise<void>((resolve) => { terminerModale = resolve; ouvrir() })
@@ -144,13 +145,13 @@ export function useCycleCorpus(deps: {
     migrationProposee.value = null
     renommagePropose.value = false
     authentificationProposee.value = null
-    migrationGitLabProposee.value = false
+    migrationGitLabProposee.value = null
     terminerModale?.()
     terminerModale = null
   }
   async function ouvrirFichier(chemin: string): Promise<void> {
     const cible = await window.sonal.ouverture.preparer(chemin)
-    if (cible.type === 'deja-ouvert') return
+    if (cible.type === 'deja-ouvert' || cible.type === 'apprentissage') return
     if (cible.type === 'migration') {
       await proposerModale(() => { migrationProposee.value = cible })
       return
@@ -371,20 +372,32 @@ export function useCycleCorpus(deps: {
     )
   }
 
-  async function ouvrirDestinationGitLab(id: string): Promise<void> {
-    await preparerBascule()
-    await appliquerOuvertureDistante(
-      await window.sonal.gitlab.ouvrir(id),
-    )
+  async function proposerPassageGitLab(source?: SourceMigrationGitLab): Promise<void> {
+    const ouvrir = () => {
+      authentificationProposee.value = null
+      migrationGitLabProposee.value = { source }
+    }
+    if (terminerModale) ouvrir()
+    else await proposerModale(ouvrir)
   }
 
-  async function enregistrerEtOuvrirGitLab(
-    demande: DemandeOuvertureGitLab,
-  ): Promise<void> {
+  async function appliquerResultatGitLab(resultat: ResultatOuvertureGitLab): Promise<boolean> {
+    if ('distant' in resultat) {
+      await appliquerOuvertureDistante(resultat)
+      return true
+    }
+    await proposerPassageGitLab(resultat.source)
+    return false
+  }
+
+  async function ouvrirDestinationGitLab(id: string): Promise<boolean> {
     await preparerBascule()
-    await appliquerOuvertureDistante(
-      await window.sonal.gitlab.enregistrerEtOuvrir(demande),
-    )
+    return appliquerResultatGitLab(await window.sonal.gitlab.ouvrir(id))
+  }
+
+  async function enregistrerEtOuvrirGitLab(demande: DemandeOuvertureGitLab): Promise<boolean> {
+    await preparerBascule()
+    return appliquerResultatGitLab(await window.sonal.gitlab.enregistrerEtOuvrir(demande))
   }
 
   async function creerEtOuvrirGitLab(
@@ -583,7 +596,7 @@ export function useCycleCorpus(deps: {
     creerNouveauCorpus: (...args: Parameters<typeof creerNouveauCorpus>) => effectuerOuverture(() => creerNouveauCorpus(...args)),
     ouvrirRecent: (entree: EntreeRecent) => effectuerOuverture(() => ouvrirRecent(entree)),
     ouvrirRenommage: () => effectuerOuverture(() => proposerModale(() => { renommagePropose.value = true })),
-    ouvrirMigrationGitLab: () => effectuerOuverture(() => proposerModale(() => { migrationGitLabProposee.value = true })),
+    ouvrirRepriseMigrationGitLab: () => proposerPassageGitLab(),
     renommerCorpus: async (nom: string) => {
       await window.sonal.corpus.renommer(nom)
       await rafraichirCorpusSansFermer()

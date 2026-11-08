@@ -72,8 +72,7 @@ export class ServiceMigrationGitLab {
   }
 
   abandonner(preparationId: string): void {
-    this.preparation.abandonner(preparationId)
-    this.documents = null
+    if (this.preparation.abandonner(preparationId)) this.documents = null
   }
 
   listerSuivis(): SuiviMigrationGitLab[] {

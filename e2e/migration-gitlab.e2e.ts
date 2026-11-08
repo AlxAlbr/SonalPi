@@ -10,7 +10,7 @@ import { parserAliases } from '../src/shared/entretien/anon/alias'
 import { verifierReferencesDefinitions } from '../src/main/gitlab/referencesDefinitions'
 import { ClientLfsGitLab } from '../src/main/gitlab/lfs'
 import { accesMedia, adresse, api, config, depot, fixture, lancerQualification, lireMedias, ouvrirProfilNeuf,
-  connecterSource, preparer, presente, projet, racineMedia, sha, webdav } from './qualification/migration'
+  connecterSource, ouvrirReprise, preparer, presente, projet, racineMedia, sha, webdav } from './qualification/migration'
 
 test.describe('Migration GitLab réelle, données synthétiques isolées', () => {
   test.skip(!presente, 'Configuration du banc GitLab absente.')
@@ -218,14 +218,13 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         app = await lancerQualification(profil, true)
         await instrumenterMigration(app, cible.id, 'normal')
         const reprise = await app.firstWindow()
-        await connecterSource(reprise, f.source)
-        const formulaire = reprise.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
+        const formulaire = await ouvrirReprise(reprise)
         if (externe) {
           await formulaire.getByLabel('Dossier média', { exact: true }).fill(urlMedia!)
           await formulaire.getByLabel('Login média', { exact: true }).fill(accesMedia.utilisateur)
           await formulaire.getByLabel('Mot de passe d’application', { exact: true }).fill(accesMedia.motDePasse)
         }
-        await formulaire.getByRole('button', { name: 'Vérifier et reprendre', exact: true }).click()
+        await formulaire.getByRole('button', { name: /^(Vérifier et reprendre|Ouvrir le corpus)$/ }).click()
         await expect(formulaire).toBeHidden({ timeout: 90_000 })
         const apres = lireEtat(profil)
         expect(apres.phase).toBe('terminee')

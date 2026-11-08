@@ -1,4 +1,11 @@
 import type { OuvertureDistante } from './distant'
+import type { SourceMigrationGitLab } from './corpus/migrationGitLab'
+
+export type IdentificationProjetGitLab =
+  | { type: 'v2' }
+  | { type: 'migration'; source: SourceMigrationGitLab }
+
+export type ResultatOuvertureGitLab = OuvertureDistante | { type: 'migration'; source: SourceMigrationGitLab }
 
 export type AuthentificationGitLab = 'oauth' | 'jeton-personnel'
 
@@ -93,9 +100,9 @@ export interface ApiGitLab {
   deconnecter(urlInstance: string, utilisateur: string): Promise<ConnexionGitLabPublique>
   oublierCompte(urlInstance: string, utilisateur: string): Promise<DestinationGitLabPublic[]>
   preparerProjet(demande: DemandePreparationProjetGitLab): Promise<ProjetGitLabPrepare>
-  enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<OuvertureDistante>
+  enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<ResultatOuvertureGitLab>
   creerEtOuvrir(demande: DemandeCreationGitLab): Promise<OuvertureDistante>
-  ouvrir(id: string): Promise<OuvertureDistante>
+  ouvrir(id: string): Promise<ResultatOuvertureGitLab>
   configurerBaseMedia(
     destinationId: string,
     demande: DemandeConfigurationBaseMedia,

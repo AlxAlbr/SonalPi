@@ -145,6 +145,7 @@ function bancOuverture(
   const service = new ServiceOuvertureGitLab({
     coffre,
     authentification: authentificationFactice(coffre, options.fetchImpl),
+    identifier: async () => ({ type: 'v2' }),
     dirProfil,
     identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
     fermerContexte: async () => {
@@ -249,6 +250,8 @@ function fetchGitLabFactice(depot: DepotFactice): typeof fetch {
           headers: {
             'x-gitlab-last-commit-id': depot.commit,
             'x-gitlab-execute-filemode': 'false',
+            'x-gitlab-size': String(Buffer.byteLength(contenu)),
+            'x-gitlab-content-sha256': createHash('sha256').update(contenu).digest('hex'),
           },
         })
       }
@@ -302,6 +305,22 @@ describe('ouverture GitLab — orchestration du service', () => {
     expect(installées).toHaveLength(0)
     expect(traces).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+  })
+
+  test.each(['nouvelle', 'enregistree'])('une source V1 %s ne ferme rien et n’installe aucun miroir', async (mode) => {
+    const source = { preparationId: 'source-figee', projet: demande, commit: 'a'.repeat(40), corpus: ['terrain.crp'] }
+    const preparer = vi.fn(async () => { throw new Error('Aucun miroir V1 ne doit être préparé') })
+    const b = bancOuverture({ identifier: async () => ({ type: 'migration', source }), preparer })
+    const destination = mode === 'enregistree' ? enregistrerDestination(b.coffre) : null
+    if (!destination) connecterCompte(b.coffre)
+    const avant = b.coffre.listerDestinationsGitLab()
+    const resultat = destination ? await b.service.ouvrir(destination.id) : await b.service.enregistrerEtOuvrir(demande)
+    expect(resultat).toEqual({ type: 'migration', source })
+    expect(preparer).not.toHaveBeenCalled()
+    expect(b.traces).toEqual([])
+    expect(b.installées).toEqual([])
+    expect(b.coffre.listerDestinationsGitLab()).toEqual(avant)
+    expect(existsSync(join(b.dirProfil, 'miroirs'))).toBe(false)
   })
 
   test('nouvelle destination : préparation avant coffre, fermeture avant installation', async () => {
@@ -446,6 +465,7 @@ describe('ouverture GitLab — orchestration du service', () => {
         throw new Error('l’installation ne doit pas être appelée')
       },
       preparer: refus,
+      identifier: async () => ({ type: 'v2' }),
     })
     await expect(serviceSansConnexion.ouvrir(destinationSansConnexion.id))
       .rejects.toThrow('expiré ou a été révoquée')
@@ -489,6 +509,7 @@ describe('ouverture GitLab — orchestration du service', () => {
         throw new Error('l’installation ne doit pas être appelée')
       },
       preparer: preparerFactice(dirProfil),
+      identifier: async () => ({ type: 'v2' }),
     })
 
     await expect(service.enregistrerEtOuvrir(demande)).rejects.toThrow('coffre indisponible')
@@ -514,6 +535,7 @@ describe('ouverture GitLab — orchestration du service', () => {
         installées.push({ destination, preparation })
       },
       preparer: preparerFactice(dirProfil),
+      identifier: async () => ({ type: 'v2' }),
     })
 
     await expect(service.enregistrerEtOuvrir(demande)).rejects.toThrow('publication impossible')
@@ -541,6 +563,7 @@ describe('ouverture GitLab — orchestration du service', () => {
       installer: () => {
         enCours -= 1
       },
+      identifier: async () => ({ type: 'v2' }),
       preparer: async (_compte, destination) => {
         // Laisse une vraie fenêtre de concurrence apparaître si elle existait.
         await new Promise((resolve) => setTimeout(resolve, 5))

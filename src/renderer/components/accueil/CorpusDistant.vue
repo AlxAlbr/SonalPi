@@ -19,6 +19,7 @@ const {
   ouvrirDestinationGitLab,
   enregistrerEtOuvrirGitLab,
   oublierDestinationWebDAV,
+  ouvrirRepriseMigrationGitLab,
 } = utiliserSonal()
 
 const fournisseur = ref<'nextcloud' | 'gitlab'>(props.fournisseurInitiale ?? 'nextcloud')
@@ -33,6 +34,8 @@ const motDePasse = ref('')
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
 const aideGitLabOuverte = ref(false)
+const reprisesGitLab = ref(false)
+const erreurReprisesGitLab = ref<string | null>(null)
 const profilConnecte = ref<ProfilCapacitesWebDAV | null>(null)
 const baseMediaEdition = ref<string | null>(null)
 const baseMediaUrl = ref('')
@@ -71,6 +74,8 @@ async function initialiser() {
   comptes.value = liste
   destinationsGitLab.value = gitlab
   stockageSecuriseDisponible.value = stockageSecurise
+  try { reprisesGitLab.value = (await window.sonal.migrer.gitlab.listerSuivis()).length > 0 }
+  catch (e) { erreurReprisesGitLab.value = e instanceof Error ? e.message : 'Les passages en cours ne peuvent pas être vérifiés.' }
 }
 onMounted(initialiser)
 
@@ -139,8 +144,7 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
         throw new Error('La reconnexion GitLab n’a pas abouti.')
       }
     }
-    await ouvrirDestinationGitLab(destination.id)
-    emit('fermer')
+    if (await ouvrirDestinationGitLab(destination.id)) emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Ouverture GitLab impossible.'
     enCours.value = false
@@ -154,8 +158,7 @@ async function connecterGitLab() {
   if (!projetPret || !demandeGitLab.value) return
   enCours.value = true
   try {
-    await enregistrerEtOuvrirGitLab(demandeGitLab.value)
-    emit('fermer')
+    if (await enregistrerEtOuvrirGitLab(demandeGitLab.value)) emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Connexion GitLab impossible.'
     enCours.value = false
@@ -344,6 +347,9 @@ async function oublierBaseMedia(destinationId: string) {
             Guide de préparation GitLab
           </button>
         </div>
+
+        <button v-if="reprisesGitLab" type="button" class="reprendre-migration-gitlab" :disabled="enCours" @click="ouvrirRepriseMigrationGitLab">Reprendre un passage à SonalPi2…</button>
+        <p v-if="erreurReprisesGitLab" role="alert">{{ erreurReprisesGitLab }}</p>
 
         <div v-if="destinationsDuCompte.length > 0" class="bloc-comptes">
           <ul class="comptes">

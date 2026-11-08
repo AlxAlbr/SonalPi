@@ -6,6 +6,7 @@ import { ClientGitLab, autorisationJetonPersonnel } from '../../src/main/gitlab/
 import { LectureV1GitLab, resoudreCheminV1GitLab } from '../../src/main/gitlab/lectureV1'
 import { PreparateurMigrationGitLab } from '../../src/main/gitlab/preparationMigration'
 import { preparerCibleMigrationGitLab, preparerProjetGitLab } from '../../src/main/gitlab/preparationProjet'
+import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 
 const INSTANCE = 'https://gitlab.example.org'
 const COMMIT_SOURCE = 'a'.repeat(40)
@@ -97,6 +98,59 @@ function banc(options: {
   } as unknown as ServiceAuthentificationGitLab
   return { auth, fetchImpl, fichiers, preparateur: new PreparateurMigrationGitLab(auth) }
 }
+
+describe('identification avant ouverture GitLab', () => {
+  const destination = { fournisseur: 'gitlab' as const, id: 'connue', compteId: 'compte', projetId: 1,
+    nomProjet: 'Source', branche: 'main', racine: '' }
+  it('ouvre le natif V2 valide en priorité, sans lire un autre CRP et sans envoi', async () => {
+    const { preparateur, fetchImpl } = banc({ fichiers: {
+      'corpus.crp': { octets: b(JSON.stringify(squeletteCorpus('V2'))) },
+      'ancien.crp': { octets: b('invalide') },
+    } })
+    expect(await preparateur.identifier(destination)).toEqual({ type: 'v2' })
+    expect(fetchImpl.mock.calls.every(([, init]) => ['GET', 'HEAD'].includes(init?.method ?? 'GET'))).toBe(true)
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('ancien.crp'))).toBe(false)
+  })
+  it.each(['corpus.crp', 'terrain/Enquête.crp'])('reconnaît un V1 nommé %s et conserve le même état source', async (chemin) => {
+    const { preparateur, fetchImpl } = banc({ fichiers: { [chemin]: { octets: b('{"tabEnt":[]}') } } })
+    const resultat = await preparateur.identifier(destination)
+    expect(resultat.type).toBe('migration')
+    if (resultat.type !== 'migration') throw new Error('migration attendue')
+    expect(resultat.source).toMatchObject({ commit: COMMIT_SOURCE, corpus: [chemin], projet: { compteId: 'compte', branche: 'main' } })
+    const bilan = await preparateur.preparer({ preparationId: resultat.source.preparationId, cheminCrp: chemin, cible })
+    expect(bilan.commitSource).toBe(COMMIT_SOURCE)
+    expect(fetchImpl.mock.calls.every(([, init]) => ['GET', 'HEAD'].includes(init?.method ?? 'GET'))).toBe(true)
+  })
+  it('reconnaît aussi un CRP V1 natif stocké dans LFS', async () => {
+    const contenu = b('{"tabEnt":[]}')
+    const { preparateur } = banc({ fichiers: { 'corpus.crp': { octets: pointeur(contenu), lfs: contenu } } })
+    const resultat = await preparateur.identifier(destination)
+    expect(resultat.type === 'migration' && resultat.source.corpus).toEqual(['corpus.crp'])
+  })
+  it('limite les candidats à la racine configurée et laisse le choix de plusieurs V1', async () => {
+    const { preparateur } = banc()
+    const resultat = await preparateur.identifier({ ...destination, racine: 'terrain' })
+    expect(resultat.type === 'migration' && resultat.source.corpus).toEqual(['terrain/corpus.crp'])
+    const tous = await preparateur.identifier(destination)
+    expect(tous.type === 'migration' && tous.source.corpus).toEqual(['autre.crp', 'terrain/corpus.crp'])
+  })
+  it.each([
+    ['dépôt vide', {}, /Aucun corpus/],
+    ['natif inconnu', { 'corpus.crp': { octets: b('{"formatVersion":99}') }, 'ancien.crp': { octets: b('{"tabEnt":[]}') } }, /Version/],
+    ['JSON invalide', { 'corpus.crp': { octets: b('{cassé') } }, /JSON invalide/],
+    ['V2 mal nommé', { 'autre.crp': { octets: b(JSON.stringify(squeletteCorpus())) } }, /doit s’appeler corpus.crp/],
+    ['ancien nom V2', { 'corpus.json': { octets: b(JSON.stringify(squeletteCorpus())) } }, /ancien fichier corpus.json/],
+  ] as const)('refuse %s sans proposer une conversion ni envoyer de données', async (_nom, fichiers, erreur) => {
+    const { preparateur, fetchImpl } = banc({ fichiers })
+    await expect(preparateur.identifier(destination)).rejects.toThrow(erreur)
+    expect(fetchImpl.mock.calls.every(([, init]) => ['GET', 'HEAD'].includes(init?.method ?? 'GET'))).toBe(true)
+  })
+  it('ne transforme pas un refus d’accès en proposition V1', async () => {
+    const { preparateur, auth } = banc()
+    vi.mocked(auth.client).mockRejectedValueOnce(new Error('Accès GitLab refusé'))
+    await expect(preparateur.identifier(destination)).rejects.toThrow('Accès GitLab refusé')
+  })
+})
 
 function pointeur(octets: Uint8Array): Uint8Array {
   return b(`version https://git-lfs.github.com/spec/v1\noid sha256:${empreinte(octets)}\nsize ${octets.byteLength}\n`)

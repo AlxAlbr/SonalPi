@@ -11,7 +11,6 @@ l’interface doit réutiliser ce cycle, pas affecter directement le dossier cou
 |---|---|---|
 | Démarrage | `useCycleCorpus.chargerCorpus()` | Demande système prioritaire ; sinon premier récent local admissible. Aucun secours automatique si la demande échoue. |
 | Ouvrir un CRP | `useCycleCorpus.choisirFichier()` ou demande système | `ouverture:preparer`, puis finalisation locale ou proposition V1. |
-| Ouvrir un dossier | `useCycleCorpus.choisirDossier()`, puis `useProfil` | Choix natif et `changerDossier()`, sauf corpus d’apprentissage reconnu. |
 | Créer un corpus local | `NouveauCorpus.vue`, puis `creerNouveauCorpus()` | `corpus:creerNouveau` et transition locale. |
 | Cliquer sur un récent | `useCycleCorpus.ouvrirRecent()` | Ouverture locale ou commande du fournisseur distant. |
 | Créer ou reprendre un exemple | `useExemples` | Installation explicite ou ouverture ordinaire ; voir [corpus exemples](exemples.md). |
@@ -110,6 +109,11 @@ secret est disponible. L’accueil peut demander de repasser par l’assistant d
 connexion. Le fournisseur et l’identifiant servent à rouvrir le corpus, jamais
 le chemin de son miroir.
 
+L'Accueil propose un seul sélecteur local, celui du fichier `.crp`. Sélectionner le
+CRP d'un apprentissage reconnu rattache ce parcours sans remplacer le corpus actif.
+Les opérations internes par dossier restent disponibles pour les récents et les
+exemples, mais n'ont pas de bouton distinct sur l'Accueil.
+
 Le démarrage et le choix de secours après suppression ne sélectionnent que le
 premier récent **local** admissible. Ils n’ouvrent pas automatiquement un serveur.
 Les listes locales et distantes sont chacune limitées à huit entrées ; elles ne
@@ -145,6 +149,18 @@ rejouée sur le corpus de secours.** La garde de bascule du renderer absorbe les
 notifications simultanées.
 
 ## Entrées distantes
+
+L'ouverture GitLab, par adresse ou destination enregistrée, commence par
+`PreparateurMigrationGitLab.identifier()`. Cette lecture au même commit reconnaît
+le contenu V2 de `corpus.crp` en priorité, ou conserve une préparation V1 et ses
+candidats. Le pont rend alors une ouverture distante ordinaire ou une proposition
+`{ type: 'migration', source }`. Une erreur d'accès ou un natif V2 invalide n'est pas
+un signal V1. Aucun miroir ni reprise d'écriture n'est installé pour identifier une V1.
+
+`useCycleCorpus` remplace la fenêtre de connexion par la fenêtre de passage en
+conservant la même garde et la préparation source. Les accès ne sont pas redemandés.
+La reprise reste disponible dans le volet GitLab d'ouverture distante, sans la carte
+sur l'Accueil et sans nouvelle lecture de la V1. Voir [la migration](../migration/README.md).
 
 La création distante publie le corpus sur le serveur avant de l’ouvrir par son
 fournisseur ; elle ne crée pas un corpus local à synchroniser ensuite.

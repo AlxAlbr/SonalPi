@@ -6,6 +6,8 @@ import type {
   DemandeCreationGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
+  IdentificationProjetGitLab,
+  ResultatOuvertureGitLab,
 } from '../../shared/gitlab'
 import {
   idDeDestinationGitLab,
@@ -34,6 +36,7 @@ import { assemblerSessionGitLab } from './assemblageSession'
 import type { ServiceAuthentificationGitLab } from './authentification'
 import { matriceCapacites } from './politiqueGestes'
 import { PublieurGitLab } from './publication'
+import { PreparateurMigrationGitLab } from './preparationMigration'
 import { TransactionsGitLab } from './transactions'
 import {
   baseMediaLocale,
@@ -105,6 +108,8 @@ export interface OptionsServiceOuvertureGitLab {
     destination: ConfigDestinationGitLab,
     client: ClientGitLab,
   ) => Promise<PreparationOuvertureGitLab>
+  /** Identification commune, avec la préparation V1 conservée pour la conversion. */
+  identifier?: (destination: ConfigDestinationGitLab) => Promise<IdentificationProjetGitLab>
   /** Transport injectable pour les tests ; le fetch global sinon. */
   fetchImpl?: typeof fetch
   /** Couture de test pour la validation du dossier média facultatif. */
@@ -115,7 +120,14 @@ export interface OptionsServiceOuvertureGitLab {
 
 /** Création, enregistrement et ouverture des destinations GitLab. */
 export class ServiceOuvertureGitLab {
-  constructor(private readonly options: OptionsServiceOuvertureGitLab) {}
+  private readonly preparateurMigration: PreparateurMigrationGitLab
+  constructor(private readonly options: OptionsServiceOuvertureGitLab) {
+    this.preparateurMigration = new PreparateurMigrationGitLab(options.authentification, undefined, options.coffre)
+  }
+
+  private identifier(destination: ConfigDestinationGitLab): Promise<IdentificationProjetGitLab> {
+    return this.options.identifier?.(destination) ?? this.preparateurMigration.identifier(destination)
+  }
 
   /** Publie le squelette du corpus, puis rejoint le chemin commun
    *  d'ouverture d'une destination nouvelle. */
@@ -152,7 +164,10 @@ export class ServiceOuvertureGitLab {
   }
 
   /** Enregistre une destination inconnue à la racine du projet, puis l'ouvre. */
-  async enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> {
+  async enregistrerEtOuvrir(demande: DemandeOuvertureGitLab): Promise<ResultatOuvertureGitLab> {
+    const compte = this.compte(demande.compteId)
+    const identification = await this.identifier(this.candidatDestination(demande, compte.id))
+    if (identification.type === 'migration') return identification
     return this.ouvrirNouvelleDestination(demande)
   }
 
@@ -162,11 +177,13 @@ export class ServiceOuvertureGitLab {
   }
 
   /** Ouvre une destination enregistrée avec le credential du compte connecté. */
-  async ouvrir(id: string): Promise<OuvertureDistante> {
+  async ouvrir(id: string): Promise<ResultatOuvertureGitLab> {
     const destination = this.options.coffre.listerDestinationsGitLab()
       .find((candidate) => candidate.id === id)
     if (!destination) throw new Error('Destination GitLab inconnue.')
     const compte = this.compte(destination.compteId)
+    const identification = await this.identifier(destination)
+    if (identification.type === 'migration') return identification
     const client = await this.options.authentification.client(compte.id, destination.projetId)
     const preparation = await this.preparer(compte, destination, client)
     return this.installer(destination, preparation)

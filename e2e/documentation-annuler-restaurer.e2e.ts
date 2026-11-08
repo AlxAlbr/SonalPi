@@ -158,8 +158,8 @@ test('manuel : créer une sauvegarde ZIP puis ouvrir sa restauration dans un nou
     await page.locator('.fil').getByRole('button', { name: 'Accueil', exact: true }).click()
     await app.evaluate(({ dialog }, dossier) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
-    }, restauration)
-    await page.locator('.ouvrir-dossier').click()
+    }, join(restauration, 'corpus.crp'))
+    await page.locator('.ouvrir-corpus').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await expect(page.locator('.carte-ent')).toContainText('Version sauvegardée')

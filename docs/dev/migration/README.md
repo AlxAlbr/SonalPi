@@ -2,15 +2,18 @@
 
 La migration transforme un corpus SonalPi1 en **un nouveau corpus SonalPi2**,
 dans une destination distincte. Le sélecteur de CRP reconnaît la V1 locale ;
-la carte GitLab conserve son parcours dédié. Après succès local, seul le CRP V1
+l'ouverture d'un projet GitLab identifie aussi sa version et propose le passage V1
+avec la source déjà préparée. Après succès local, seul le CRP V1
 est renommé en `.crp.sauvegarde-v1` ; la source GitLab n'est pas modifiée. Ce n’est ni une ouverture ordinaire, ni une migration de `formatVersion`
 d’un corpus déjà natif. Guide fonctionnel : [migrer un corpus](../../user/migration-v1.md).
 
 ## Le parcours GitLab à comprendre
 
 ```text
-Choisir le .crp et une destination distincte
-  → lire les sources et préparer le bilan
+Ouvrir un projet GitLab
+  → identifier le contenu V2 ou préparer les CRP V1 au même commit
+  → ouvrir normalement le V2, ou demander une destination distincte pour la V1
+  → préparer le bilan sans redemander la source et les accès
   → confirmer ce qui sera repris
   → convertir et installer les données, conserver les autres documents
   → vérifier le résultat, puis ouvrir le nouveau corpus
@@ -115,6 +118,11 @@ Pour les anciens encodages, conserver le chemin de lecture binaire :
 les pointeurs LFS. Les métadonnées texte de l’API peuvent altérer la représentation
 d’un fichier non UTF-8 ; elles ne remplacent pas ce contrôle.
 
+La reprise est accessible depuis « Ouvrir un corpus distant → GitLab », par
+« Reprendre un passage à SonalPi2… » lorsqu'un suivi existe. La même fenêtre
+permet d'ouvrir un corpus déjà publié dont l'ouverture n'a pas abouti, sans relire
+la V1. L'Accueil n'a plus de rubrique de migration.
+
 Le profil garde `migrations-gitlab/migration-<bilanId>/` : contenus préparés,
 empreintes, copies confirmées et lots acquis. Le suivi appartient au poste et à
 la destination. Une réponse perdue doit être reconnue avant tout nouvel envoi ;
@@ -153,7 +161,8 @@ Pour GitLab : `test/gitlab/migrationV1.test.ts`, `test/gitlab/documentsMigration
 `test/gitlab/copieMediasMigration.test.ts`, `test/gitlab/operationMigration.test.ts`,
 `test/gitlab/serviceMigration.test.ts` et `test/migrationGitLabRenderer.test.ts`.
 `e2e/migration-v1.e2e.ts` couvre le local ; `e2e/migration-gitlab-interface.e2e.ts`
-conserve les contrôles d'interface et d'accès GitLab simulés.
+couvre l'ouverture V1 préremplie, la garde partagée et la reprise sans source,
+avec OAuth ou jeton simulés.
 
 ## Rejouer la recette réelle
 
