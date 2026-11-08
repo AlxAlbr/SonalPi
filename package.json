@@ -7,7 +7,7 @@
     "name": "Max Beligné",
     "email": "sonalteam@gmail.com"
   },
-  "homepage": "https://github.com/PUD-GA/SonalPiTestV2",
+  "homepage": "https://github.com/AlxAlbr/SonalPi",
   "scripts": {
     "dev": "electron-vite dev",
     "postinstall": "node node_modules/electron/install.js",
