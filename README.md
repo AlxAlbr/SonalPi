@@ -1,7 +1,32 @@
 # SonalPi2
 
-Réécriture en cours  du cœur de **SonalPi1** pour essayer de simplifier le fonctionnement et le code.
+Réécriture en cours du cœur de **SonalPi1** pour essayer de simplifier le fonctionnement et le code.
 
+## Dépôt et branches de travail
+
+Le dépôt de référence est désormais [AlxAlbr/SonalPi](https://github.com/AlxAlbr/SonalPi),
+accessible par le remote `origin`. Il héberge les deux versions :
+
+| Branche | Rôle |
+|---|---|
+| `main` | V1, toujours branche par défaut du dépôt. |
+| `ImportFlora` | Travail complémentaire sur la V1. |
+| `baseV2` | Base du développement V2, anciennement `multiongletcorpus`. |
+| `test-new-design` | Évolutions de l'interface V2. |
+| `max-suite-aide2` | Compléments de documentation V2. |
+| `essai-crp-multionglet` | Évolution du stockage et de l'ouverture des corpus V2. |
+
+Les trois dernières branches partent de `baseV2` et sont parallèles : aucune ne
+contient automatiquement les évolutions des deux autres. La V1 et la V2 ont des
+historiques Git indépendants ; leur présence dans le même dépôt ne les fusionne pas.
+
+Les anciens dépôts V2 sont conservés comme archives, sans synchronisation automatique.
+Le dossier local d'origine a été renommé `SonalPiTestV2_ARCHIVE` ; poursuivre le travail
+V2 dans `SonalPi`, sur la branche choisie. Voir les
+[consignes Git](docs/dev/outillage/git-remotes.md).
+
+La livraison stable V2 vise `2.0.0`. L'import des branches ne change ni la version
+applicative actuelle ni les mises à jour reçues par les utilisateurs de la V1.
 
 ## En bref
 
@@ -49,8 +74,20 @@ et les distributions Windows/macOS ne sont pas encore validées.
 
 ## Démarrer
 
+Vérifier la branche avant de lancer l'application. Dans un clone du dépôt, pour
+partir de la base V2, avec un répertoire de travail propre :
+
 ```bash
-npm install
+git fetch origin
+git switch baseV2
+npm ci
+```
+
+Après un changement entre V1 et V2, relancer `npm ci` : les dépendances diffèrent
+entre les deux versions. Pour travailler sur une évolution déjà commencée,
+sélectionner sa branche dérivée plutôt que `baseV2`.
+
+```bash
 npm run dev          # app en développement (electron-vite)
 npm run build        # build main + preload + renderer
 npm run start        # prévisualiser le build
