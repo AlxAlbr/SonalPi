@@ -1,15 +1,20 @@
-name: Build SonalPi — toutes les plateformes
+name: Build SonalPi V2 — toutes les plateformes
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
     branches:
-      - main
+      - baseV2
+      - test-new-design
+      - max-suite-aide2
+      - essai-crp-multionglet
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
