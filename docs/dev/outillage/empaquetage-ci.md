@@ -44,12 +44,15 @@ branches V2, pas le workflow V1 de la branche par défaut.
    puis déposer leurs artefacts.
 
 Le workflow **Build SonalPi V2 — toutes les plateformes**, défini dans
-`.github/workflows/build.yml`, se déclenche à chaque push sur les quatre branches :
+`.github/workflows/build.yml`, se déclenche à chaque push sur les trois branches :
 
 - `baseV2` ;
-- `test-new-design` ;
 - `max-suite-aide2` ;
 - `essai-crp-multionglet`.
+
+`test-new-design` est exclue des déclenchements automatiques, quel que soit
+l'auteur du push. Un déclenchement manuel reste possible lorsque le workflow
+est disponible. Cette exclusion n'annule pas une exécution déjà lancée.
 
 Chaque exécution fabrique Windows (`.exe`), Linux (`.AppImage`, `.deb`) et macOS
 (`.dmg`, `.zip`) après le typage et les tests. Si un nouveau push arrive sur la
