@@ -1,10 +1,10 @@
-name: Build SonalPi — Linux
+name: Build SonalPi V2 — Linux
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
