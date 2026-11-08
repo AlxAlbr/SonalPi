@@ -1,10 +1,10 @@
-name: Build SonalPi — Windows
+name: Build SonalPi V2 — Windows
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
