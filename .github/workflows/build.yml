@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - baseV2
-      - test-new-design
       - max-suite-aide2
       - essai-crp-multionglet
   workflow_dispatch:
