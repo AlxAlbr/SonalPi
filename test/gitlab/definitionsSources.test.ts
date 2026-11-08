@@ -66,7 +66,7 @@ function corpusAvec(membres: Record<string, string>): CorpusFichier {
   corpus.membership = {}
   corpus.ordreEntretiens = []
   for (const [id, titre] of Object.entries(membres)) {
-    corpus.membership[id] = { titre, date: null, lastModified: null, rangAjout: 0 }
+    corpus.membership[id] = { titre, date: null, lastModified: '2026-01-01T10:00:00.000Z', rangAjout: 0 }
     corpus.ordreEntretiens!.push(id)
   }
   corpus.cas = {

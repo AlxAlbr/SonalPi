@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import { CorpusStore } from '../src/main/corpusStore'
-import { FORMAT_VERSION } from '../src/shared/format'
+import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import type { DemandeExportDocx } from '../src/shared/format'
 import type { BlocDocumentExport } from '../src/shared/export/documentExport'
 
@@ -89,7 +89,10 @@ describe('résolution audio vérifiée par le main', () => {
       // audioRef réellement enregistrées.
       writeFileSync(
         join(dir, 'corpus.crp'),
-        JSON.stringify({ formatVersion: FORMAT_VERSION, membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } } }),
+        JSON.stringify({
+          ...squeletteCorpus('Corpus audio'),
+          membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } },
+        }),
         'utf8',
       )
       const wav = join(dir, 'entretien.wav')
@@ -126,7 +129,10 @@ describe('résolution audio vérifiée par le main', () => {
       mkdirSync(join(dir, 'entretiens'), { recursive: true })
       writeFileSync(
         join(dir, 'corpus.crp'),
-        JSON.stringify({ formatVersion: FORMAT_VERSION, membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } } }),
+        JSON.stringify({
+          ...squeletteCorpus('Corpus audio'),
+          membership: { e1: { titre: 'T', date: null, lastModified: new Date().toISOString() } },
+        }),
         'utf8',
       )
       writeFileSync(

@@ -1244,7 +1244,7 @@ describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () 
     expect(relu.meta?.sourceV1?.cheminCrp).toBe('/home/user/MonCorpus.crp')
     // Structure sur disque : corpus.crp + entretiens/ (png/ créés plus tard).
     expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
-    expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
     expect(existsSync(join(dir, 'entretiens'))).toBe(true)
   })
 

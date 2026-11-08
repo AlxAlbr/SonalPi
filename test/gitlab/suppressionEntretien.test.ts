@@ -101,8 +101,8 @@ function entretienPublie(titre: string): string {
 function corpusServeur(avecRecueil = true): CorpusFichier {
   const corpus = squeletteCorpus('Corpus partagé')
   corpus.membership = {
-    [ID]: { titre: 'Entretien un', date: null, lastModified: null, rangAjout: 0 },
-    [AUTRE]: { titre: 'Entretien deux', date: null, lastModified: null, rangAjout: 1 },
+    [ID]: { titre: 'Entretien un', date: null, lastModified: '2026-01-01T10:00:00.000Z', rangAjout: 0 },
+    [AUTRE]: { titre: 'Entretien deux', date: null, lastModified: '2026-01-01T10:00:00.000Z', rangAjout: 1 },
   }
   corpus.ordreEntretiens = [ID, AUTRE]
   if (avecRecueil) {

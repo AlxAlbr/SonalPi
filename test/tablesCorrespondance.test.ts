@@ -135,9 +135,12 @@ describe('cache et persistance du main', () => {
     const avant = readFileSync(fichier, 'utf8')
     const apercu = service.preparerExport(OPTIONS_TABLE_DEFAUT)
     expect(readFileSync(fichier, 'utf8')).toBe(avant)
-    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'corpus.crp'))).toThrow('hors du corpus')
+    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'corpus.crp'))).toThrow('destination JSON')
+    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'export.json'))).toThrow('hors du corpus')
     symlinkSync(store.repertoire, join(dir, 'lien'), 'dir')
     expect(() => service.verifierDestination(apercu.token, join(dir, 'lien', 'export.json'))).toThrow('hors du corpus')
+    symlinkSync(join(store.repertoire, 'corpus.crp'), join(dir, 'corpus-lie.json'))
+    expect(() => service.verifierDestination(apercu.token, join(dir, 'corpus-lie.json'))).toThrow('hors du corpus')
     expect(() => service.verifierDestination(apercu.token, join(dir, 'export.json'))).not.toThrow()
   })
   test('les membres absents ne sont pas des usages nuls silencieux', () => {
