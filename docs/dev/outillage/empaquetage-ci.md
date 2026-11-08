@@ -40,22 +40,39 @@ branches V2, pas le workflow V1 de la branche par défaut.
 
 1. installer les dépendances avec `npm ci` sous Node.js 22 ;
 2. exécuter le typage et les tests Vitest sur Linux ;
-3. fabriquer les plateformes demandées, puis déposer leurs artefacts ;
-4. sur un tag de livraison, publier les paquets dans une release GitHub.
+3. si ces vérifications réussissent, fabriquer les plateformes demandées,
+   puis déposer leurs artefacts.
 
-Le fichier V2 `.github/workflows/build.yml` conserve pour l'instant le filtre
-historique de push sur `main`, les tags `v*.*.*` et un déclenchement manuel.
-**Un push sur `baseV2` ne déclenche donc pas de build V2 automatique.** L'adaptation
-à `baseV2` reste à faire ; il ne faut pas modifier le workflow V1 de `main` par
-confusion entre les deux versions.
+Le workflow **Build SonalPi V2 — toutes les plateformes**, défini dans
+`.github/workflows/build.yml`, se déclenche à chaque push sur les quatre branches :
+
+- `baseV2` ;
+- `test-new-design` ;
+- `max-suite-aide2` ;
+- `essai-crp-multionglet`.
+
+Chaque exécution fabrique Windows (`.exe`), Linux (`.AppImage`, `.deb`) et macOS
+(`.dmg`, `.zip`) après le typage et les tests. Si un nouveau push arrive sur la
+même branche, son exécution remplace celle encore en cours ; les builds des
+branches différentes restent indépendants. Cela peut consommer davantage de
+minutes GitHub Actions, particulièrement pour Windows et macOS.
+
+Les workflows V2 ne se déclenchent pas sur les tags et ne publient aucune release.
+Le workflow réutilisable ne contient plus d'étape de publication et tous ses
+appelants n'accordent que la permission `contents: read`. La commande
+`npm run pack` utilise `--publish never`. Le workflow V1 sur `main` reste inchangé.
 
 Des fichiers de workflow manuel existent aussi pour cibler une seule plateforme.
 GitHub exige qu'un workflow avec `workflow_dispatch` soit présent sur la branche
 par défaut pour proposer son déclenchement ; les nouveaux workflows V2 ne sont
 donc pas tous disponibles dans l'interface après leur seul import sur `baseV2`.
-Les artefacts des workflows V2 sont configurés pour être conservés sept jours.
+Les artefacts des workflows V2 sont conservés sept jours. Pour les télécharger,
+ouvrir l'onglet **Actions** du dépôt, sélectionner l'exécution correspondant à la
+branche et au commit voulus, puis récupérer `sonalpi-windows`, `sonalpi-linux`
+ou `sonalpi-macos` dans la section **Artifacts**. Ces archives servent à tester
+les applications ; elles ne sont pas envoyées à l'updater des utilisateurs V1.
 
-Un build de validation doit produire des artefacts sans créer de release stable.
+Un build de validation produit donc des artefacts sans créer de release stable.
 La future livraison V2 vise `2.0.0`, mais ni la version applicative ni les tags
 n'ont été modifiés pendant l'import. Ne pas créer de tag V2 dans le circuit stable
 V1 avant d'avoir validé la politique de publication et le passage des utilisateurs
