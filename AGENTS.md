@@ -54,13 +54,20 @@ réels. Il vérifie d'abord si le service répond et ne démarre que les bancs n
 N'écrivez pas de boucle sur `/-/readiness` pour GitLab : ce banc y répond `404` même
 lorsqu'il fonctionne. N'arrêtez pas un banc qui peut resservir pendant la session.
 
-## Git : deux remotes (GitLab origine + GitHub miroir CI)
+## Git : dépôt commun V1 et V2
 
-- L'upstream des branches est **GitHub** (`github` → `PUD-GA/SonalPiTestV2`, miroir privé
-  pour la CI d'empaquetage) ; `origin` reste GitLab huma-num (en panne par intermittence).
-- `git push` sans argument part **vers GitHub uniquement**. Le push vers GitLab est
-  toujours **explicite** (`git push origin <branche>`) ; ne jamais configurer de push
-  multi-URL vers les deux tant que huma-num n'est pas fiable.
-- Pour comparer avec GitLab : `git fetch origin` puis `git log --oneline --left-right
+- Le dépôt de référence est **GitHub** : `origin` → `https://github.com/AlxAlbr/SonalPi.git`.
+  Les anciens dépôts V2 ne sont plus des destinations de travail ou de publication.
+- `main` reste la V1, avec `ImportFlora`. Le développement V2 part de `baseV2`,
+  anciennement `multiongletcorpus`. Les deux versions ont des historiques indépendants ;
+  ne pas les fusionner ni remplacer `main` sans décision explicite.
+- `test-new-design`, `max-suite-aide2` et `essai-crp-multionglet` sont des branches
+  parallèles issues de `baseV2`, pas une succession d'étapes déjà intégrées.
+- Avant de modifier ou publier : vérifier `git status -sb`, `git branch -vv`
+  et `git remote -v`. Utiliser un push explicite : `git push origin <branche>`.
+- Pour comparer avec GitHub : `git fetch origin`, puis `git log --oneline --left-right
   <branche>...origin/<branche>`. Détails : `docs/dev/outillage/git-remotes.md`.
-- `out/`, `dist/`, `node_modules/`, `test-results/` sont ignorés : aucun artefact poussé.
+- Le dépôt est public. Ne pas pousser de secrets, données privées ou artefacts :
+  `out/`, `dist/`, `release/`, `node_modules/` et les résultats de tests restent locaux.
+- La livraison stable V2 vise `2.0.0`, mais la version actuelle reste inchangée.
+  Ne créer aucun tag ni release V2 dans le circuit stable V1 sans validation explicite.

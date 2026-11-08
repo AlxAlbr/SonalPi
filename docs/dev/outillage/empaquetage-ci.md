@@ -32,16 +32,35 @@ La configuration actuelle ne signe pas les paquets : Windows peut afficher
 
 ## CI GitHub
 
-`.github/workflows/_package.yml` porte la fabrication commune :
+Le dépôt de référence est maintenant `AlxAlbr/SonalPi` (`origin`). `main` porte
+encore la V1 ; cette page décrit les fichiers de workflow présents sur les
+branches V2, pas le workflow V1 de la branche par défaut.
+
+`.github/workflows/_package.yml` porte la fabrication commune V2 :
 
 1. installer les dépendances avec `npm ci` sous Node.js 22 ;
 2. exécuter le typage et les tests Vitest sur Linux ;
 3. fabriquer les plateformes demandées, puis déposer leurs artefacts ;
 4. sur un tag de livraison, publier les paquets dans une release GitHub.
 
-`.github/workflows/build.yml` lance les trois plateformes sur `main`, sur les
-tags `v*.*.*` et manuellement. Des workflows manuels permettent aussi de cibler
-une seule plateforme. Les artefacts du workflow sont conservés sept jours.
+Le fichier V2 `.github/workflows/build.yml` conserve pour l'instant le filtre
+historique de push sur `main`, les tags `v*.*.*` et un déclenchement manuel.
+**Un push sur `baseV2` ne déclenche donc pas de build V2 automatique.** L'adaptation
+à `baseV2` reste à faire ; il ne faut pas modifier le workflow V1 de `main` par
+confusion entre les deux versions.
+
+Des fichiers de workflow manuel existent aussi pour cibler une seule plateforme.
+GitHub exige qu'un workflow avec `workflow_dispatch` soit présent sur la branche
+par défaut pour proposer son déclenchement ; les nouveaux workflows V2 ne sont
+donc pas tous disponibles dans l'interface après leur seul import sur `baseV2`.
+Les artefacts des workflows V2 sont configurés pour être conservés sept jours.
+
+Un build de validation doit produire des artefacts sans créer de release stable.
+La future livraison V2 vise `2.0.0`, mais ni la version applicative ni les tags
+n'ont été modifiés pendant l'import. Ne pas créer de tag V2 dans le circuit stable
+V1 avant d'avoir validé la politique de publication et le passage des utilisateurs
+vers la V2. La continuité des mises à jour et la migration des corpus sont des
+chantiers distincts du déplacement du code source.
 
 La CI n’exécute pas les recettes Electron ni ne démarre les bancs Docker.
 Un paquet fabriqué et des tests serveur sautés ne qualifient donc pas le parcours
