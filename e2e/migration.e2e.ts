@@ -131,7 +131,7 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration courante sile
   await expect
     .poll(() => page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).duration))
     .toBeGreaterThan(0.5)
-  await expect(page.locator('.lecteur-audio img.onde')).toBeVisible()
+  await expect(page.locator('.bande-entretien img.onde')).toBeVisible()
 
   // --- Idempotence : ré-ouvrir le corpus (Accueil → récent) ne recasse rien. ---
   await page.locator('.lien-nav', { hasText: 'Accueil' }).click()

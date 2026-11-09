@@ -3,17 +3,19 @@ import { utiliserSonal } from '../../../composables/sonal'
 import type { SegmentThematique } from '../../../../shared/format'
 
 /**
- *  Lecteur audio — en HAUT de l'écran entretien : play/pause, position, vitesse,
- *  ±5 s, puis la bande (forme d'onde PNG + curseur de position + clic = seek
- *  TEMPOREL). Composant « bête » : tout l'état vit dans le scope audio partagé
- *  (useAudio) — c'est la réactivité qui le coordonne avec le surlignage du bloc
- *  lu, pas une logique de composant. La bande porte aussi le CALQUE du résumé
- *  thématique de l'entretien ouvert (live — il suit le codage) ; il est calé sur
- *  l'axe TEMPS via les ancres. `empile` (mode vidéo) : la bande passe SOUS les
- *  commandes au lieu d'être sur la même ligne — la place libérée à droite
- *  accueille le panneau vidéo.
+ *  Lecteur audio de l'écran entretien : play/pause, position, vitesse, ±5 s,
+ *  puis la bande (forme d'onde, curseur de position, clic pour se déplacer).
+ *  Tout l'état vit dans le scope audio partagé (useAudio) ;
+ *  le lecteur peut donc être affiché en plusieurs morceaux.
+ *  La bande porte aussi le résumé thématique de l'entretien, calé sur le temps.
+ *  `partie` : en audio, les commandes vont dans la barre du haut et la bande au-dessus du texte.
+ *  `empile` (mode vidéo) : la bande passe sous les commandes,
+ *  pour laisser la place au panneau vidéo.
  */
-const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
+const props = withDefaults(
+  defineProps<{ empile?: boolean; partie?: 'tout' | 'commandes' | 'bande' }>(),
+  { empile: false, partie: 'tout' },
+)
 const {
   audio,
   resumeOuvert,
@@ -85,8 +87,8 @@ function clicBande(e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="url && !erreur" class="lecteur-audio" :class="{ empile: props.empile }">
-    <div class="commandes">
+  <div v-if="url && !erreur" :class="props.partie === 'bande' ? undefined : ['lecteur-audio', { empile: props.empile }]">
+    <div v-if="props.partie !== 'bande'" class="commandes">
       <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
         {{ enLecture ? '⏸' : '▶' }}
       </button>
@@ -116,7 +118,7 @@ function clicBande(e: MouseEvent) {
         Lire le fichier local
       </button>
     </div>
-    <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
+    <div v-if="props.partie !== 'commandes'" class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
       <div v-else class="onde onde-vide"></div>
       <!-- Calque du résumé thématique : décoratif (pointer-events none —

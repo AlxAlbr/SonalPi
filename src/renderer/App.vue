@@ -208,7 +208,8 @@ h1 {
   box-sizing: border-box;
   width: 100%;
   max-width: 1250px;
-  min-height: var(--entete-h);
+  /* Le filet de l'en-tête compte dans la hauteur sur laquelle s'alignent les éléments épinglés. */
+  min-height: calc(var(--entete-h) - 1px);
   margin: 0 auto;
   padding: 0 1rem;
 }

@@ -99,6 +99,7 @@ const compteRecherche = computed(() => {
 })
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
+const bandeAudioVisible = computed(() => !estVideo.value && !!audio.url.value && !audio.erreur.value)
 const CLE_AJOUT_SELECTION = 'sonal:pseudonymisation:ajout-selection'
 const ajoutSelectionActif = ref(localStorage.getItem(CLE_AJOUT_SELECTION) !== 'false')
 watch(ajoutSelectionActif, (actif) => {
@@ -293,7 +294,7 @@ function cliquerNotes() {
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
           <div v-if="!estVideo" class="lecteur-barre">
-            <LecteurAudio />
+            <LecteurAudio partie="commandes" />
           </div>
           <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
@@ -364,10 +365,14 @@ function cliquerNotes() {
           />
         </div>
 
-        <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
+        <!-- Colonne DROITE : en audio, forme d'onde épinglée puis éditeur ;
+             en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
         <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletDroite === 'anon' && ajoutSelectionActif }">
+          <div v-if="bandeAudioVisible" class="bande-entretien">
+            <LecteurAudio partie="bande" />
+          </div>
           <div v-if="estVideo" class="zone-media">
             <div class="tele">
               <LecteurAudio :empile="true" />
@@ -708,7 +713,7 @@ function cliquerNotes() {
   z-index: 1;
 }
 .lecteur-barre {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   height: 100%;
   min-width: min-content;
 }
@@ -716,6 +721,24 @@ function cliquerNotes() {
   height: 100%;
   box-sizing: border-box;
   margin-bottom: 0;
+}
+/* Forme d'onde du mode audio : ne bouge pas pendant le défilement du texte. */
+.bande-entretien {
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  z-index: 20;
+  background: #fff;
+  padding-bottom: 0.6rem;
+}
+/* Masque le texte qui défilerait dans l'espace entre la barre et la forme d'onde. */
+.bande-entretien::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: var(--panneaux-decalage);
+  background: #fff;
 }
 /* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
    Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :
