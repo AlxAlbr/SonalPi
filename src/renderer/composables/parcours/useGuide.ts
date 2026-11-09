@@ -347,7 +347,7 @@ export function useGuide(deps: DepsGuide) {
       },
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Ouvrez l'onglet Locuteurs, puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
+          ? "Ouvrez l'onglet Locuteurs, cliquez sur « Modifier les locuteurs », puis renommez Speaker 0 en « Fatima » et Speaker 1 en « Enquêteur·rice ». Validez avec Entrée ou en quittant le champ."
           : "Ouvrez l'entretien 1Coordinatrice avec le crayon de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
       fini: () =>

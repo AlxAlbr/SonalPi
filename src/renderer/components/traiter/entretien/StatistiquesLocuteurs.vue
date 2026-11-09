@@ -33,8 +33,7 @@ function suivant(ligne: StatistiqueLocuteur) {
 </script>
 
 <template>
-  <section id="stats-locuteurs" class="stats-locuteurs" aria-labelledby="titre-stats-locuteurs">
-    <h4 id="titre-stats-locuteurs">Statistiques des locuteurs</h4>
+  <section id="stats-locuteurs" class="stats-locuteurs" aria-label="Statistiques des locuteurs">
     <p v-if="!bilan.lignes.length">Aucune prise de parole à compter.</p>
     <template v-else>
       <p class="total-mots"><strong>Total : {{ bilan.totalMots }} mots</strong>, passages sans locuteur compris.</p>
@@ -65,8 +64,7 @@ function suivant(ligne: StatistiqueLocuteur) {
 </template>
 
 <style scoped>
-.stats-locuteurs { border-top: 1px solid #dce2ea; margin-top: 1rem; padding-top: .65rem; }
-h4 { margin: 0 0 .5rem; font-size: .9rem; }
+.stats-locuteurs { margin-top: .5rem; }
 p { font-size: .76rem; line-height: 1.45; margin: .35rem 0; }
 .aide-stats, .limite-durees { color: #5c6673; }
 .liste-stats-loc { list-style: none; padding: 0; margin: .65rem 0; display: grid; gap: .6rem; }

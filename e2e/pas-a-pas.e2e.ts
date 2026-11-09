@@ -238,6 +238,8 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
 
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
   await expect(page.locator('.guide-pp')).toBeVisible()
+  await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
+  await expect(page.getByRole('dialog', { name: 'Gestion des locuteurs' })).toBeVisible()
   await expect(page.locator('.liste-loc')).toBeVisible()
   await expect.poll(async () =>
     page.locator('[data-tour="ancre-guide-pp"]').evaluate((ancre) => {
@@ -252,6 +254,8 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await champs.nth(0).fill('Enquêteur·rice')
   await champs.nth(0).blur() // blur → @change → renommerLoc
   await expect(page.locator('.tableau-loc p[role="status"]')).toContainText('Enquêteur·rice')
+  await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
+  await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
   await champs.nth(1).fill('Fatima')
   await champs.nth(1).blur()
   // Plus aucun « Speaker N » → étape 4 cochée (guidage de nouveau arrêté).

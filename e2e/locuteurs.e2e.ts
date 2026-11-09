@@ -22,8 +22,23 @@ async function ongletLocuteurs(page: import('@playwright/test').Page) {
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
 }
 
+async function ouvrirGestionLocuteurs(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
+  await expect(page.getByRole('dialog', { name: 'Gestion des locuteurs' })).toBeVisible()
+}
+
 test('la gouttière affiche le nom du locuteur devant chaque tour', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
+  await ongletLocuteurs(page)
+  expect(await page.locator('.attribuer, .statistiques-locuteurs').evaluateAll(
+    (sections) => sections.map((section) => section.classList[0]),
+  )).toEqual(['attribuer', 'statistiques-locuteurs'])
+  await expect(page.locator('.liste-loc')).toHaveCount(0)
+  await ouvrirGestionLocuteurs(page)
+  await expect(page.locator('.liste-loc li')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Gestion des locuteurs' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Modifier les locuteurs' })).toBeFocused()
   await expect(page.locator(gouttiere('Enquêteur'))).toHaveCount(1)
   await expect(page.locator(gouttiere('Karine'))).toHaveCount(1)
   await app.close()
@@ -32,6 +47,7 @@ test('la gouttière affiche le nom du locuteur devant chaque tour', async () => 
 test('interrupteur « ? » : un interviewer a ses tours en italique et son label « Nom ? »', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
   await ongletLocuteurs(page)
+  await ouvrirGestionLocuteurs(page)
 
   // Déclarer « Enquêteur » (index 1) interviewer → son tour passe en italique
   // (classe bloc-interviewer) et la gouttière reprend la convention « Nom ? ».
@@ -50,11 +66,12 @@ test('interrupteur « ? » : un interviewer a ses tours en italique et son label
 test('croix ✕ : supprimer un locuteur (confirmation) → ses tours passent à « aucun »', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
   await ongletLocuteurs(page)
+  await ouvrirGestionLocuteurs(page)
 
   // ✕ sur « Karine » (2e ligne) → bannière de confirmation avec le compte.
   await page.locator('.liste-loc .x-loc').nth(1).click()
-  await expect(page.locator('.panneau .confirm-suppr')).toContainText('Karine')
-  await expect(page.locator('.panneau .confirm-suppr')).toContainText('1 bloc(s)')
+  await expect(page.locator('.modale-locuteurs .confirm-suppr')).toContainText('Karine')
+  await expect(page.locator('.modale-locuteurs .confirm-suppr')).toContainText('1 bloc(s)')
   await page.locator('.confirm-actions .danger').click()
 
   // La liste n'a plus qu'une entrée ; son tour est désattribué (gouttière vide),
@@ -89,6 +106,7 @@ test('attribuer un locuteur au bloc courant met à jour la gouttière (tour grou
 test('renommer un locuteur se répercute dans la gouttière, texte intact', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
   await ongletLocuteurs(page)
+  await ouvrirGestionLocuteurs(page)
 
   await page.locator('.nom-loc').first().fill('Chercheur') // locuteur index 1
   await page.keyboard.press('Tab') // blur → @change

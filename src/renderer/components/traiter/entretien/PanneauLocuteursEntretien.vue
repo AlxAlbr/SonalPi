@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
@@ -28,20 +28,67 @@ const {
 } = utiliserSonal()
 
 const statistiquesOuvertes = ref(false)
+const gestionOuverte = ref(false)
+const boutonGestion = ref<HTMLButtonElement | null>(null)
+const boutonFermerGestion = ref<HTMLButtonElement | null>(null)
 watch(ouvertId, () => { statistiquesOuvertes.value = false })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
 const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
 let lectureLiensPersonnes = 0
 
+async function ouvrirGestion() {
+  gestionOuverte.value = true
+  await nextTick()
+  boutonFermerGestion.value?.focus()
+}
+
+async function fermerGestion() {
+  gestionOuverte.value = false
+  await nextTick()
+  boutonGestion.value?.focus()
+}
+
+function garderFocusDansGestion(event: KeyboardEvent) {
+  if (event.key !== 'Tab') return
+  const boutonsEtChamps = document.querySelectorAll<HTMLElement>(
+    '.modale-locuteurs button:not([disabled]), .modale-locuteurs input:not([disabled])',
+  )
+  const premier = boutonsEtChamps.item(0)
+  const dernier = boutonsEtChamps.item(boutonsEtChamps.length - 1)
+  if (event.shiftKey && document.activeElement === premier) {
+    event.preventDefault()
+    dernier?.focus()
+  } else if (!event.shiftKey && document.activeElement === dernier) {
+    event.preventDefault()
+    premier?.focus()
+  }
+}
+
+// Quand l'élément actif disparaît de la liste, le focus revient dans la fenêtre,
+// sinon Échap et Tab cesseraient d'y fonctionner.
 watch(
-  () => [props.actif, locuteurs.value, ...locuteurs.value.map((locuteur) => locuteur.personneRef)],
+  () => [locuteurs.value.length, locuteurASupprimer.value],
+  async () => {
+    if (!gestionOuverte.value) return
+    await nextTick()
+    if (document.activeElement === document.body) boutonFermerGestion.value?.focus()
+  },
+)
+
+// Ne relit les personnes que si les liens changent, pas à chaque ajout de locuteur.
+watch(
+  () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.personneRef).filter(Boolean)]),
   async () => {
     const lecture = ++lectureLiensPersonnes
-    nomsPersonnesLiees.value = {}
-    liensPersonnesCharges.value = false
+    const references = locuteurs.value.flatMap((locuteur) => locuteur.personneRef ?? [])
     erreurLiensPersonnes.value = ''
-    if (!props.actif || !locuteurs.value.some((locuteur) => locuteur.personneRef)) return
+    // Les noms déjà connus restent affichés pendant la relecture, pour éviter un clignotement.
+    if (!references.every((reference) => nomsPersonnesLiees.value[reference])) {
+      nomsPersonnesLiees.value = {}
+      liensPersonnesCharges.value = false
+    }
+    if (!props.actif || !references.length) return
     try {
       const inventaire = await lirePersonnes()
       if (lecture !== lectureLiensPersonnes) return
@@ -61,100 +108,30 @@ watch(
 </script>
 
 <template>
-  <aside class="panneau">
+  <aside class="panneau locuteurs-coder">
     <div class="corpus-tete">
       <h3>Locuteurs</h3>
-      <button class="mini" :aria-expanded="statistiquesOuvertes" aria-controls="stats-locuteurs" @click="statistiquesOuvertes = !statistiquesOuvertes">📊 Statistiques</button>
-      <button v-if="!lectureSeule" class="mini" @click="nouveauLocuteur">+ Locuteur</button>
-    </div>
-
-    <div v-if="locuteurASupprimer" class="confirm-suppr">
-      Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
-      <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
-      <div class="confirm-actions">
-        <button class="danger" @click="confirmerSuppressionLocuteur">Supprimer</button>
-        <button @click="locuteurASupprimer = null">Annuler</button>
+      <div class="actions-locuteurs">
+        <button
+          class="crayon"
+          :title="statistiquesOuvertes ? 'Masquer les statistiques des locuteurs' : 'Afficher les statistiques des locuteurs'"
+          :aria-label="statistiquesOuvertes ? 'Masquer les statistiques des locuteurs' : 'Afficher les statistiques des locuteurs'"
+          :aria-expanded="statistiquesOuvertes"
+          @click="statistiquesOuvertes = !statistiquesOuvertes"
+        >📊</button>
+        <button
+          ref="boutonGestion"
+          v-if="!lectureSeule"
+          class="crayon"
+          title="Modifier les locuteurs"
+          aria-label="Modifier les locuteurs"
+          @click="ouvrirGestion"
+        >✏️</button>
       </div>
     </div>
 
-    <div class="tableau-loc">
-      <div class="tableau-loc-tetes">
-        <span title="Couleur du nom — cliquer pour choisir"></span>
-        <span>Nom</span>
-        <span>Pseudo (optionnel)</span>
-        <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
-      </div>
-      <RapprochementNommage
-        v-if="rapprochementNommage"
-        :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
-        :cible="rapprochementNommage.cible"
-        :sources="rapprochementNommage.sources"
-        :nom="rapprochementNommage.nom"
-        :lien-actuel="rapprochementNommage.lienActuel"
-        :candidats="rapprochementNommage.candidats"
-        :occupe="rapprochementOccupe"
-        :message="messagePersonnes"
-        @reporter="reporterRapprochement"
-        @decider="deciderRapprochement"
-      />
-      <p
-        v-if="messagePersonnes"
-        :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
-        role="status"
-      >{{ messagePersonnes }}</p>
-      <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
-      <ul class="liste-loc">
-        <li v-for="(l, i) in locuteurs" :key="l.index">
-          <input
-            type="color"
-            class="carre-couleur"
-            :value="l.couleur ?? couleurPourLocuteur(l.index)"
-            :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
-            :disabled="lectureSeule"
-            @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
-          />
-          <input
-            class="nom-loc"
-            :data-tour="i === 0 ? 'nom-locuteur' : undefined"
-            :value="l.nom"
-            :disabled="lectureSeule"
-            @change="renommerLoc(l.index, $event)"
-          />
-          <div class="pseudo-cell">
-            <input
-              class="pseudo-loc"
-              :value="l.pseudo ?? ''"
-              placeholder="pseudo…"
-              title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
-              :disabled="lectureSeule"
-              @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-          <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
-            <input
-              type="checkbox"
-              :checked="l.interviewer ?? false"
-              :disabled="lectureSeule"
-              @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="glisseur"></span>
-            <span class="q">?</span>
-          </label>
-          <button
-            v-if="!lectureSeule"
-            class="x-loc"
-            title="Supprimer ce locuteur"
-            @click="demanderSuppressionLocuteur(l.index)"
-          >✕</button>
-          <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
-            Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
-          </span>
-          <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
-            Association à « {{ l.personneRef }} » en cours de vérification.
-          </span>
-        </li>
-      </ul>
-    </div>
+    <p class="aide-locuteurs">Choisissez un locuteur pour l’attribuer au bloc courant ou à la sélection.</p>
+
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
       <div class="boutons-loc">
@@ -165,12 +142,135 @@ watch(
           :disabled="lectureSeule"
           @click="attribuerLoc(l.index)"
         >
+          <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
           <span :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }">{{ l.nom }}</span>
         </button>
         <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
-    <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
+
+    <Teleport to="body">
+      <div
+        v-if="gestionOuverte"
+        class="voile voile-locuteurs"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titre-gestion-locuteurs"
+        @click.self="fermerGestion"
+        @keydown.esc.stop.prevent="fermerGestion"
+        @keydown="garderFocusDansGestion"
+      >
+        <section class="modale-locuteurs">
+          <div class="corpus-tete">
+            <h3 id="titre-gestion-locuteurs">Gestion des locuteurs</h3>
+            <button class="mini" @click="nouveauLocuteur">+ Locuteur</button>
+            <button
+              ref="boutonFermerGestion"
+              class="fermer"
+              title="Fermer la gestion des locuteurs"
+              aria-label="Fermer la gestion des locuteurs"
+              @click="fermerGestion"
+            >✕</button>
+          </div>
+          <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
+          <div v-if="locuteurASupprimer" class="confirm-suppr">
+            Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
+            <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
+            <div class="confirm-actions">
+              <button class="danger" @click="confirmerSuppressionLocuteur">Supprimer</button>
+              <button @click="locuteurASupprimer = null">Annuler</button>
+            </div>
+          </div>
+
+          <div class="tableau-loc">
+            <div class="tableau-loc-tetes">
+              <span title="Couleur du nom — cliquer pour choisir"></span>
+              <span>Nom</span>
+              <span>Pseudo (optionnel)</span>
+              <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
+            </div>
+            <RapprochementNommage
+              v-if="rapprochementNommage"
+              :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
+              :cible="rapprochementNommage.cible"
+              :sources="rapprochementNommage.sources"
+              :nom="rapprochementNommage.nom"
+              :lien-actuel="rapprochementNommage.lienActuel"
+              :candidats="rapprochementNommage.candidats"
+              :occupe="rapprochementOccupe"
+              :message="messagePersonnes"
+              @reporter="reporterRapprochement"
+              @decider="deciderRapprochement"
+            />
+            <p
+              v-if="messagePersonnes"
+              :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
+              role="status"
+            >{{ messagePersonnes }}</p>
+            <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
+            <ul class="liste-loc">
+              <li v-for="(l, i) in locuteurs" :key="l.index">
+                <input
+                  type="color"
+                  class="carre-couleur"
+                  :value="l.couleur ?? couleurPourLocuteur(l.index)"
+                  :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
+                  :disabled="lectureSeule"
+                  @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
+                />
+                <input
+                  class="nom-loc"
+                  :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                  :value="l.nom"
+                  :disabled="lectureSeule"
+                  @change="renommerLoc(l.index, $event)"
+                />
+                <div class="pseudo-cell">
+                  <input
+                    class="pseudo-loc"
+                    :value="l.pseudo ?? ''"
+                    placeholder="pseudo…"
+                    title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
+                    :disabled="lectureSeule"
+                    @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
+                <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
+                  <input
+                    type="checkbox"
+                    :checked="l.interviewer ?? false"
+                    :disabled="lectureSeule"
+                    @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="glisseur"></span>
+                  <span class="q">?</span>
+                </label>
+                <button
+                  v-if="!lectureSeule"
+                  class="x-loc"
+                  title="Supprimer ce locuteur"
+                  @click="demanderSuppressionLocuteur(l.index)"
+                >✕</button>
+                <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
+                  Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
+                </span>
+                <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
+                  Association à « {{ l.personneRef }} » en cours de vérification.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+    <details
+      class="statistiques-locuteurs"
+      :open="statistiquesOuvertes"
+      @toggle="statistiquesOuvertes = ($event.target as HTMLDetailsElement).open"
+    >
+      <summary>Statistiques des locuteurs</summary>
+      <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
+    </details>
   </aside>
 </template>
 
@@ -334,38 +434,135 @@ watch(
   opacity: 1;
 }
 .attribuer {
+  margin-top: 0.6rem;
+  border-top: 1px solid #eee;
+  padding-top: 0.7rem;
+}
+.actions-locuteurs {
+  display: flex;
+  gap: 0.3rem;
+}
+.aide-locuteurs {
+  margin: 0.2rem 0 0;
+  color: #666;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.gestion-locuteurs {
   margin-top: 0.9rem;
   border-top: 1px solid #eee;
   padding-top: 0.7rem;
 }
+.gestion-locuteurs-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  color: #444;
+  font-size: 0.8rem;
+}
+.statistiques-locuteurs {
+  margin-top: 0.9rem;
+  border-top: 1px solid #eee;
+  padding-top: 0.7rem;
+}
+.statistiques-locuteurs > summary {
+  color: #444;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.voile-locuteurs {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 6vh 0;
+  background: rgba(30, 30, 40, 0.45);
+}
+.modale-locuteurs {
+  box-sizing: border-box;
+  width: min(760px, 94vw);
+  padding: 0.8rem 1rem 1rem;
+  border: 1px solid #d6dce8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+.modale-locuteurs .corpus-tete {
+  gap: 0.5rem;
+}
+.modale-locuteurs .corpus-tete h3 {
+  flex: 1;
+}
+.modale-locuteurs .fermer {
+  border: none;
+  background: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.aide-gestion-locuteurs {
+  margin: 0 0 0.7rem;
+  color: #666;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
 .attribuer .lbl {
+  display: block;
+  margin-bottom: 0.35rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: #444;
-  text-decoration: underline;
-  padding-bottom: 0.35rem;
 }
 .boutons-loc {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.6rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 .attr {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
   font-size: 0.75rem;
-  font-weight: 700;
-  border: 2px solid #000;
-  border-radius: 5px;
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid #e5e5ef;
+  border-radius: 6px;
   background: #fff;
   color: #333;
-  padding: 0.15rem 0.5rem;
+  padding: 0.3rem 0.5rem;
   cursor: pointer;
 }
 .attr:hover {
-  background: #f5f5f5;
+  border-color: #2e73d8;
+  background: #f0f6ff;
+}
+.attr:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 1px;
+}
+.pastille-locuteur {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
 }
 .attr.aucun {
-  border-color: #999;
-  color: #999;
+  color: #777;
+}
+.attr.aucun::before {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #c5c5ce;
+  border-radius: 50%;
+  content: '';
 }
 </style>

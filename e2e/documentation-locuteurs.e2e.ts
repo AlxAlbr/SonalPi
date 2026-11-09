@@ -33,6 +33,8 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     const carte = page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' })
     await carte.locator('.crayon').click()
     await page.locator('[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
+    await expect(page.getByRole('dialog', { name: 'Gestion des locuteurs' })).toBeVisible()
     const liste = page.locator('.liste-loc li')
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.nom-loc').nth(0)).toHaveValue('Speaker 1')
@@ -72,10 +74,11 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     expect(await texteTranscription(page)).toBe(texteInitial)
     if (process.env.SONAL_DOC_CAPTURES === '1') {
-      await page.locator('.entretien-ecran .panneau:visible').screenshot({ path: 'docs/user/medias/locuteurs-entretien.png' })
+      await page.locator('.modale-locuteurs').screenshot({ path: 'docs/user/medias/locuteurs-entretien.png' })
     }
 
-    const statistiques = page.getByRole('button', { name: '📊 Statistiques', exact: true })
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
+    const statistiques = page.locator('.statistiques-locuteurs > summary')
     await statistiques.click()
     await expect(page.locator('.stats-locuteurs .liste-stats-loc li')).toHaveCount(2)
     await expect(page.locator('.stats-locuteurs')).toContainText('Fatima')
@@ -85,6 +88,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await statistiques.click()
     await expect(page.locator('.stats-locuteurs')).toHaveCount(0)
 
+    await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
     await page.getByRole('button', { name: '+ Locuteur', exact: true }).click()
     await expect(liste).toHaveCount(3)
     await liste.nth(2).locator('.x-loc').click()
@@ -94,6 +98,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await liste.nth(2).locator('.nom-loc').fill('Autre bénévole')
     await liste.nth(2).locator('.nom-loc').press('Tab')
     await expect(page.getByRole('status').filter({ hasText: 'Personne « Autre bénévole » créée' })).toBeVisible()
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     const personneAvant = await page.evaluate(async () =>
       (await window.sonal.corpus.personnesInventaire()).personnes.find((p) => p.nom === 'Autre bénévole')?.id)
     expect(personneAvant).toBeTruthy()
