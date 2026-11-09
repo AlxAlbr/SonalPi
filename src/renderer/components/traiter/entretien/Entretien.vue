@@ -22,6 +22,7 @@ import icoJournal from '../../../assets/icones/journal.png'
 import icoNotes from '../../../assets/icones/notes.png'
 import icoMaison from '../../../assets/icones/maison.png'
 import icoAnon from '../../../assets/icones/anon.png'
+import icoRecherche from '../../../assets/icones/recherche.png'
 
 const {
   ongletDroite,
@@ -30,6 +31,7 @@ const {
   remplacementTexte,
   occurrencesRecherche,
   indexRecherche,
+  ouvrirRecherche,
   fermerRecherche,
   naviguerRecherche,
   remplacerOccurrenceCourante,
@@ -297,6 +299,14 @@ function cliquerNotes() {
           <div v-if="!estVideo" class="lecteur-barre">
             <LecteurAudio partie="commandes" />
           </div>
+          <button
+            class="ouvrir-recherche"
+            :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
+            :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
+            @click="ouvrirRecherche"
+          >
+            <img :src="icoRecherche" alt="" draggable="false" />
+          </button>
           <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
@@ -542,7 +552,28 @@ function cliquerNotes() {
   height: var(--barre-h);
   box-sizing: border-box;
 }
-.mode-audio .retour {
+.ouvrir-recherche {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #bbb;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+.ouvrir-recherche:hover {
+  border-color: #2e73d8;
+}
+.ouvrir-recherche img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.mode-audio .retour,
+.mode-audio .ouvrir-recherche {
   align-self: stretch;
   box-sizing: border-box;
 }
