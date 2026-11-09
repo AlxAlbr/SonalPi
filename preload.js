@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // wrapper invoke générique + helpers set/get pour fich/doss ---
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  // Écouter un message du main process (générique, pour les signaux de menu)
+  on: (channel, callback) => ipcRenderer.on(channel, (event, ...args) => callback(...args)),
 
   // Mettre à jour et récupérer le corpus
   setCorpus: (corpus) => ipcRenderer.invoke('set-corpus', corpus),
