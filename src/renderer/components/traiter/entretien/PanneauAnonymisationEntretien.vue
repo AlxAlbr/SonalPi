@@ -303,6 +303,15 @@ function alimenterDepuisSelection() {
   focusPseudo(ligne.id)
 }
 
+/** Reporte la sélection dans une ligne de saisie, puis place le curseur sur son pseudo. */
+function pseudonymiserSelection() {
+  const texte = selectionAnon.value?.texte.trim().toLowerCase()
+  const ligne = lignesSaisie.value.find((l) => l.entite.trim().toLowerCase() === texte)
+  if (ligne) focusPseudo(ligne.id)
+  else alimenterDepuisSelection()
+}
+defineExpose({ pseudonymiserSelection })
+
 // Le tableau Anon se remplit au RELÂCHEMENT du clic (`mouseup`), jamais pendant le drag :
 // une entité multi-mots (« New York ») n'arrive qu'une fois la souris relâchée.
 // ProseMirror propage la sélection DOM de façon ASYNCHRONE (`selectionchange`) :
