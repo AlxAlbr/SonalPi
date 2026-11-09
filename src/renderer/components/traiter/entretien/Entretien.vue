@@ -486,7 +486,9 @@ function cliquerNotes() {
   --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
   --volet-notes-colonne: min(var(--volet-notes-largeur-ajustee), var(--volet-notes-largeur));
   --panneaux-decalage: 1rem;
-  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-largeur-fermee);
+  /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés. */
+  --largeur-outils: 23.25rem;
+  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
   gap: 1rem;
   align-items: start;
   grid-template-areas:
@@ -501,7 +503,7 @@ function cliquerNotes() {
 }
 .grille-ent.notes-ouvert {
   --volet-notes-decalage: calc(var(--volet-notes-colonne) - var(--volet-notes-largeur-ajustee));
-  grid-template-columns: 400px minmax(0, 1fr) var(--volet-notes-colonne);
+  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-colonne);
 }
 .grille-ent.redimensionnement-notes {
   transition: none;
@@ -749,6 +751,12 @@ function cliquerNotes() {
   height: 100%;
   box-sizing: border-box;
   margin-bottom: 0;
+  gap: 0.5rem;
+}
+/* Le filet des commandes tombe sur le bord droit des onglets (bordure et marge du lecteur déduites). */
+.lecteur-barre :deep(.commandes) {
+  box-sizing: border-box;
+  min-width: calc(var(--largeur-outils) - 0.6rem - 1px);
 }
 /* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
    Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :

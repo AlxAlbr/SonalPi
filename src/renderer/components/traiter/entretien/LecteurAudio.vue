@@ -316,7 +316,8 @@ dès que les droits seront ouverts.
   font-family: monospace;
   font-size: 0.78rem;
   color: #555;
-  min-width: 6.5rem;
+  /* Place réservée pour « 0:00:00 / 0:00:00 » : les commandes gardent leur largeur après une heure. */
+  min-width: 17ch;
   text-align: center;
 }
 .groupe-vitesse {

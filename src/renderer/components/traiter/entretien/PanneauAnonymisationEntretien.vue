@@ -389,9 +389,9 @@ onBeforeUnmount(() => {
     Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
     Plusieurs graphies d'un même nom : sépare-les par « / » (ex. Lyon/Lyons). Multi-pseudo : « Claire / Rebecca » dans Pseudo, puis clic droit sur une occurrence pour basculer.
   </p>
-  <label class="selection-option">
+  <label class="selection-option" title="Ajouter automatiquement le texte sélectionné">
     <span class="selection-option-texte">
-      <span class="selection-option-titre">Ajouter automatiquement le texte sélectionné</span>
+      <span class="selection-option-titre">Ajouter le texte sélectionné</span>
     </span>
     <span class="selection-option-commande">
       <input v-model="ajoutSelectionActif" type="checkbox" role="switch" aria-label="Ajouter automatiquement le texte sélectionné" />
@@ -423,6 +423,7 @@ onBeforeUnmount(() => {
           <textarea
             class="pseudo-anon"
             rows="1"
+            :title="l.pseudo"
             :value="l.pseudo"
             :placeholder="l.etat === 'brouillon' ? 'pseudo…' : ''"
             :disabled="lectureSeuleContenu"
@@ -641,6 +642,10 @@ onBeforeUnmount(() => {
   background: #f5f8fc;
   cursor: pointer;
 }
+.selection-option-texte {
+  display: flex;
+  align-items: center;
+}
 .selection-option-titre {
   color: #26384d;
   font-size: 0.8rem;
@@ -715,7 +720,7 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #e5e5ef;
 }
 .tableau-anon td {
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem 0.2rem;
   vertical-align: middle;
 }
 .ligne-anon td {
@@ -788,25 +793,20 @@ td.col-pseudo {
   background: transparent;
   padding: 0.1rem 0.3rem;
 }
-/* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : textarea qui
- * enveloppe le texte, s'étire au contenu (field-sizing) et plafonne à 5 lignes —
- * au-delà, défilement INTERNE (on ne tronque jamais la valeur d'un champ
- * éditable). Encadrés comme les champs du tableau Locuteurs (contour #ccc,
- * radius 4) ; le fond de la ligne continue de distinguer les états. */
+/* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : toujours sur une ligne,
+ * un texte plus long défile dans le champ.
+ * Encadrés comme les champs du tableau Locuteurs ;
+ * le fond de la ligne continue de distinguer les états. */
 .nom-saisie,
 .pseudo-anon {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  field-sizing: content;
   resize: none;
-  overflow-y: auto;
-  overflow-x: hidden;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: pre;
   line-height: 1.25;
-  min-height: calc(1.25em + 0.2rem * 2); /* une ligne au minimum (champ vide) */
-  max-height: calc(1.25em * 5 + 0.2rem * 2); /* 5 lignes max */
+  height: calc(1.25em + 0.2rem * 2 + 2px);
   font-size: 0.82rem;
   color: #333;
   text-align: center;
