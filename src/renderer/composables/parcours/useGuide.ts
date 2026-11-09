@@ -37,7 +37,7 @@ export interface DepsGuide {
   /** Onglet actif de l'entretien (useEntretien) :
    *  les étapes qui vivent DANS un panneau guident d'abord vers l'onglet à ouvrir ;
    *  puis vers l'action (le spotlight suit l'état). */
-  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
+  ongletDroite: Ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
   variables: Ref<Variable[]> // définitions EAV du corpus (useCorpus)
   /** Notes de l'entretien OUVERT (useEntretien) : l'étape « Prendre des notes à chaud »
    *  se coche dès qu'une note existe. */

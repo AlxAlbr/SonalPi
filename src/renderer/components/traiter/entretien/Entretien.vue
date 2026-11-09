@@ -5,7 +5,7 @@ import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
-import PanneauAccueilEntretien from './PanneauAccueilEntretien.vue'
+import BulleRaccourcisEntretien from './BulleRaccourcisEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
 import PanneauJournalEntretien from './PanneauJournalEntretien.vue'
@@ -20,7 +20,6 @@ import icoLocuteurs from '../../../assets/icones/locuteurs.png'
 import icoDonnees from '../../../assets/icones/donnees.png'
 import icoJournal from '../../../assets/icones/journal.png'
 import icoNotes from '../../../assets/icones/notes.png'
-import icoMaison from '../../../assets/icones/maison.png'
 import icoAnon from '../../../assets/icones/anon.png'
 import icoRecherche from '../../../assets/icones/recherche.png'
 
@@ -49,7 +48,6 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
-  retourCorpus,
   audio,
   verrouAutrui,
   statutSession,
@@ -102,7 +100,6 @@ const compteRecherche = computed(() => {
 })
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
-const bandeAudioVisible = computed(() => !estVideo.value && !!audio.url.value && !audio.erreur.value)
 const CLE_AJOUT_SELECTION = 'sonal:pseudonymisation:ajout-selection'
 const ajoutSelectionActif = ref(localStorage.getItem(CLE_AJOUT_SELECTION) !== 'false')
 watch(ajoutSelectionActif, (actif) => {
@@ -121,10 +118,6 @@ function ouvrirCasDepuisSelection() {
 function ouvrirRecueilsDepuisSelection() {
   fermerMenu()
   void afficherRecueilsPourAssociation()
-}
-
-function ouvrirVoletNotes() {
-  voletNotesOuvert.value = true
 }
 
 function basculerNotes() {
@@ -297,31 +290,18 @@ function cliquerNotes() {
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
           <div v-if="!estVideo" class="lecteur-barre">
-            <LecteurAudio partie="commandes" />
+            <LecteurAudio />
           </div>
-          <button
-            class="ouvrir-recherche"
-            :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
-            :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
-            @click="ouvrirRecherche"
-          >
-            <img :src="icoRecherche" alt="" draggable="false" />
-          </button>
-          <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
         </div>
 
         <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
              collante, à défilement interne au-delà d'un écran,
              pour rester visible pendant la lecture. -->
         <div class="colonne-gauche">
+          <BulleRaccourcisEntretien />
+
           <nav class="onglets">
-              <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
-                et sur le panneau d'accueil (vue d'ensemble).
-                L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
-                conseils et liste des autres onglets (icone + titre). -->
-            <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
-              <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
-            </button>
+              <!-- Onglets réduits à l'icône : le titre apparaît au survol. -->
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
             </button>
@@ -343,11 +323,6 @@ function cliquerNotes() {
           <DefilementSuperpose>
             <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
             <div data-tour="ancre-guide-pp"></div>
-
-            <PanneauAccueilEntretien
-              v-show="ongletDroite === 'maison'"
-              @ouvrir-notes="ouvrirVoletNotes"
-            />
 
             <PanneauThemesEntretien
               v-show="ongletDroite === 'themes'"
@@ -379,14 +354,10 @@ function cliquerNotes() {
           </DefilementSuperpose>
         </div>
 
-        <!-- Colonne DROITE : en audio, forme d'onde épinglée puis éditeur ;
-             en vidéo, zone média épinglée
+        <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
         <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletDroite === 'anon' && ajoutSelectionActif }">
-          <div v-if="bandeAudioVisible" class="bande-entretien">
-            <LecteurAudio partie="bande" />
-          </div>
           <div v-if="estVideo" class="zone-media">
             <div class="tele">
               <LecteurAudio :empile="true" />
@@ -396,6 +367,16 @@ function cliquerNotes() {
               </button>
             </div>
             <VideoPanel v-show="videoVisible" />
+          </div>
+          <div class="outils-editeur">
+            <button
+              class="ouvrir-recherche"
+              :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
+              :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
+              @click="ouvrirRecherche"
+            >
+              <img :src="icoRecherche" alt="" draggable="false" />
+            </button>
           </div>
           <EditorContent :editor="editor" class="cadre" />
         </div>
@@ -529,20 +510,18 @@ function cliquerNotes() {
 .grille-ent.redimensionnement-notes .notes-languette {
   transition: none;
 }
-.retour {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid #bbb;
-  background: #fff;
-  border-radius: 5px;
-  cursor: pointer;
+/* Sans lecteur ni statut à afficher, la barre ne réserve aucune place. */
+.grille-ent:not(:has(.barre .lecteur-audio, .barre .statut-session)) {
+  --barre-h: 0px;
+}
+.grille-ent:not(:has(.barre .lecteur-audio, .barre .statut-session)) .barre {
+  display: none;
 }
 .barre {
   grid-area: barre;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* Le retour au corpus reste à droite des statuts. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
@@ -552,30 +531,36 @@ function cliquerNotes() {
   height: var(--barre-h);
   box-sizing: border-box;
 }
+/* La loupe est à cheval sur le contour haut de l'éditeur et y reste pendant le défilement du texte. */
+.outils-editeur {
+  position: relative;
+  z-index: 6;
+  height: 0;
+}
+.mode-audio .outils-editeur {
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+}
 .ouvrir-recherche {
+  position: absolute;
+  top: 0;
+  right: 0.9rem;
   display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid #bbb;
+  padding: 0.25rem;
+  border: none;
   border-radius: 5px;
   background: #fff;
   cursor: pointer;
+  transform: translateY(-50%);
 }
 .ouvrir-recherche:hover {
-  border-color: #2e73d8;
+  background: #e8f0fb;
 }
 .ouvrir-recherche img {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
-}
-.mode-audio .retour,
-.mode-audio .ouvrir-recherche {
-  align-self: stretch;
-  box-sizing: border-box;
 }
 .mode-audio .barre {
   padding-top: var(--panneaux-decalage);
@@ -642,6 +627,11 @@ function cliquerNotes() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Le transcript s'étend sous les gouttières de la grille et le décalage du volet Notes,
+     pour ne laisser que cet écart avec les panneaux voisins. */
+  --ecart-panneaux: 0.5rem;
+  margin-left: calc(var(--ecart-panneaux) - var(--panneaux-decalage));
+  margin-right: calc(2px + var(--ecart-panneaux) - 2 * var(--panneaux-decalage));
 }
 .volet-notes {
   grid-area: volet;
@@ -751,7 +741,7 @@ function cliquerNotes() {
   z-index: 1;
 }
 .lecteur-barre {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   height: 100%;
   min-width: min-content;
 }
@@ -759,24 +749,6 @@ function cliquerNotes() {
   height: 100%;
   box-sizing: border-box;
   margin-bottom: 0;
-}
-/* Forme d'onde du mode audio : ne bouge pas pendant le défilement du texte. */
-.bande-entretien {
-  position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
-  z-index: 20;
-  background: #fff;
-  padding-bottom: 0.6rem;
-}
-/* Masque le texte qui défilerait dans l'espace entre la barre et la forme d'onde. */
-.bande-entretien::before {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  left: 0;
-  height: var(--panneaux-decalage);
-  background: #fff;
 }
 /* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
    Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :
@@ -841,7 +813,7 @@ function cliquerNotes() {
   color: #1565c0;
 }
 /* Icônes des onglets (glyphes noirs), adoucies sur l'onglet inactif.
-   Plus grandes dans la barre gauche (20px) ; la liste d'accueil garde sa taille propre (20px, cf. .liste-tours).
+   Plus grandes dans la barre gauche (20px).
    L'onglet Anonymisation est un cran plus grand (23px). */
 .ico-onglet {
   object-fit: contain;

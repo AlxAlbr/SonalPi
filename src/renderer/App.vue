@@ -71,6 +71,12 @@ const {
             <span class="lien-nav courant">
               Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
             </span>
+            <button class="retour" title="Retour au niveau Corpus" aria-label="Retour au niveau Corpus" @click="retourCorpus">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 14 4 9l5-5" />
+                <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+              </svg>
+            </button>
           </template>
         </nav>
       </div>
@@ -324,6 +330,20 @@ h1 small {
 }
 .fil .sep {
   color: #bbb;
+}
+.fil .retour {
+  display: inline-flex;
+  flex: none;
+  margin-left: 0.2rem;
+  padding: 0.15rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #2e73d8;
+  cursor: pointer;
+}
+.fil .retour:hover {
+  background: #e8f0fb;
 }
 @media (max-width: 1080px) {
   .fil { margin-left: 0.7rem; }

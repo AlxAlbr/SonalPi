@@ -5,17 +5,12 @@ import type { SegmentThematique } from '../../../../shared/format'
 /**
  *  Lecteur audio de l'écran entretien : play/pause, position, vitesse, ±5 s,
  *  puis la bande (forme d'onde, curseur de position, clic pour se déplacer).
- *  Tout l'état vit dans le scope audio partagé (useAudio) ;
- *  le lecteur peut donc être affiché en plusieurs morceaux.
+ *  Tout l'état vit dans le scope audio partagé (useAudio).
  *  La bande porte aussi le résumé thématique de l'entretien, calé sur le temps.
- *  `partie` : en audio, les commandes vont dans la barre du haut et la bande au-dessus du texte.
  *  `empile` (mode vidéo) : la bande passe sous les commandes,
  *  pour laisser la place au panneau vidéo.
  */
-const props = withDefaults(
-  defineProps<{ empile?: boolean; partie?: 'tout' | 'commandes' | 'bande' }>(),
-  { empile: false, partie: 'tout' },
-)
+const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
 const {
   audio,
   resumeOuvert,
@@ -87,8 +82,8 @@ function clicBande(e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="url && !erreur" :class="props.partie === 'bande' ? undefined : ['lecteur-audio', { empile: props.empile }]">
-    <div v-if="props.partie !== 'bande'" class="commandes">
+  <div v-if="url && !erreur" class="lecteur-audio" :class="{ empile: props.empile }">
+    <div class="commandes">
       <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
         {{ enLecture ? '⏸' : '▶' }}
       </button>
@@ -118,7 +113,7 @@ function clicBande(e: MouseEvent) {
         Lire le fichier local
       </button>
     </div>
-    <div v-if="props.partie !== 'commandes'" class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
+    <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
       <div v-else class="onde onde-vide"></div>
       <!-- Calque du résumé thématique : décoratif (pointer-events none —
@@ -300,6 +295,11 @@ dès que les droits seront ouverts.
 .commandes > *,
 .groupe-vitesse > * {
   flex-shrink: 0;
+}
+/* Sur une seule ligne, un filet sépare les commandes de la forme d'onde. */
+.lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .commandes {
+  border-right: 1px solid #dce4ef;
+  padding-right: 0.8rem;
 }
 .play {
   width: 2rem;

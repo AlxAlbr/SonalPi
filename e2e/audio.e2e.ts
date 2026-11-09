@@ -92,7 +92,7 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   // est dans `png/`.
   await expect.poll(() => fichiersAudioDansCorpus(dir), { timeout: 10_000 }).toBe('')
   await expect.poll(() => fichiersPngDuCorpus(dir), { timeout: 10_000 }).toContain('.png')
-  await expect(page.locator('.bande-entretien img.onde')).toBeVisible()
+  await expect(page.locator('.lecteur-audio img.onde')).toBeVisible()
 
   // L'audio est chargé (métadonnées lues → durée connue).
   await expect
@@ -139,7 +139,7 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
     .toBeLessThan(0.1)
 
   // --- Clic sur la BANDE : seek TEMPOREL proportionnel (au milieu ≈ durée/2).
-  const bande = page.locator('.bande-entretien .bande')
+  const bande = page.locator('.lecteur-audio .bande')
   const box = (await bande.boundingBox())!
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
   const t = await page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).currentTime)

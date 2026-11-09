@@ -224,7 +224,6 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
 
   // Le suivi global reste disponible dans l'entretien sans rappel en double.
-  await page.locator('.onglets button[data-onglet="maison"]').click()
   await expect(page.locator('.rappel-parcours')).toHaveCount(0)
   const suiviParcours = page.getByTestId('resume-parcours-global')
   await expect(suiviParcours).toContainText('Renommer les locuteurs')

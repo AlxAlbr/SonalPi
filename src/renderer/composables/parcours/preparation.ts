@@ -13,7 +13,7 @@ import type { VueApplication } from '../espaces'
 
 export interface DepsParcoursPreparation {
   vue: Ref<VueApplication>
-  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
+  ongletDroite: Ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
   ouvertId: Ref<string | null>
   membership: Ref<Record<string, EntretienRef>>
   notes: Ref<Note[]>

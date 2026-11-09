@@ -109,6 +109,11 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(bordReplie.languetteVisible).toBe('visible')
   expect(bordReplie.debordementVolet).toBe('clip')
   expect(bordReplie.debordementHorizontal).toBe(false)
+  expect(Math.abs(bordReplie.espaceEditeur - 8)).toBeLessThan(2)
+  const espaceOnglets = await page.evaluate(() =>
+    document.querySelector('.colonne-droite')!.getBoundingClientRect().left
+      - document.querySelector('.colonne-gauche')!.getBoundingClientRect().right)
+  expect(Math.abs(espaceOnglets - 8)).toBeLessThan(2)
   const alignementOuverture = await page.evaluate(async () => {
     const bouton = document.querySelector<HTMLElement>('.notes-languette button')!
     const panneau = document.querySelector<HTMLElement>('.panneau.notes')!
@@ -150,8 +155,8 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
     const panneau = document.querySelector('.panneau.notes')!.getBoundingClientRect()
     const editeur = document.querySelector('.colonne-droite')!.getBoundingClientRect()
     return Math.abs(panneau.left - editeur.right - espaceAttendu)
-  }, bordReplie.espaceEditeur + 16)).toBeLessThan(2)
-  await expect(page.locator('.onglets button[data-onglet="maison"]')).toHaveClass(/actif/)
+  }, bordReplie.espaceEditeur)).toBeLessThan(2)
+  await expect(page.locator('.onglets button[data-onglet="locuteurs"]')).toHaveClass(/actif/)
   await expect(panneauNotes).toBeVisible()
   await verifierPositionLanguette()
   const geometrie = await page.evaluate(() => {
@@ -172,7 +177,7 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(geometrie.bouton.x + geometrie.bouton.width).toBeGreaterThan(geometrie.panneau.x)
   expect(Math.abs(geometrie.panneau.height - geometrie.volet.height)).toBeLessThan(2)
   expect(geometrie.panneau.rayonHautGauche).toBe('8px')
-  expect(Math.abs(geometrie.espaceEditeur - bordReplie.espaceEditeur - 16)).toBeLessThan(2)
+  expect(Math.abs(geometrie.espaceEditeur - bordReplie.espaceEditeur)).toBeLessThan(2)
   const largeurStandard = (await panneauNotes.boundingBox())!.width
   const largeurEditeurAvantGlissement = (await transcription.boundingBox())!.width
   const largeurTitreAvantGlissement = (await page.locator('.champ-titre-note input').boundingBox())!.width
@@ -373,8 +378,7 @@ test('feuille — lier un passage de note à un commentaire', async () => {
   const languette = page.locator('.onglets button[data-onglet="notes"]')
   await languette.click()
   await expect(page.locator('.panneau.notes .notes-outils')).toBeHidden()
-  await page.locator('.onglets button[data-onglet="maison"]').click()
-  await page.locator('.liste-tours button').first().click()
+  await languette.click()
   await expect(page.locator('.panneau.notes .notes-outils')).toBeVisible()
 
   await app.close()

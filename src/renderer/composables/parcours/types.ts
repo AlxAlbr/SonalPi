@@ -11,7 +11,7 @@ export type DestinationGuide =
   | {
       surface: 'entretien'
       entretienId: string
-      onglet?: 'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'
+      onglet?: 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'
     }
   | { surface: 'tableau-bord' }
   | { surface: 'docs-cadre' }
