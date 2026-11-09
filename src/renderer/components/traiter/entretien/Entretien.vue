@@ -12,6 +12,7 @@ import PanneauJournalEntretien from './PanneauJournalEntretien.vue'
 import PanneauLocuteursEntretien from './PanneauLocuteursEntretien.vue'
 import PanneauNotesEntretien from './PanneauNotesEntretien.vue'
 import PanneauThemesEntretien from './PanneauThemesEntretien.vue'
+import DefilementSuperpose from './DefilementSuperpose.vue'
 import { utiliserSonal } from '../../../composables/sonal'
 // Icônes des onglets (glyphe noir à plat).
 import icoThemes from '../../../assets/icones/themes.png'
@@ -328,41 +329,44 @@ function cliquerNotes() {
             </button>
           </nav>
 
-          <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
-          <div data-tour="ancre-guide-pp"></div>
+          <!-- Seul le contenu défile : les onglets restent en place au-dessus. -->
+          <DefilementSuperpose>
+            <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
+            <div data-tour="ancre-guide-pp"></div>
 
-          <PanneauAccueilEntretien
-            v-show="ongletDroite === 'maison'"
-            @ouvrir-notes="ouvrirVoletNotes"
-          />
+            <PanneauAccueilEntretien
+              v-show="ongletDroite === 'maison'"
+              @ouvrir-notes="ouvrirVoletNotes"
+            />
 
-          <PanneauThemesEntretien
-            v-show="ongletDroite === 'themes'"
-            :lecture-seule-contenu="roContenu"
-          />
+            <PanneauThemesEntretien
+              v-show="ongletDroite === 'themes'"
+              :lecture-seule-contenu="roContenu"
+            />
 
-          <PanneauLocuteursEntretien
-            v-show="ongletDroite === 'locuteurs'"
-            :actif="ongletDroite === 'locuteurs'"
-            :lecture-seule="roContenu"
-          />
+            <PanneauLocuteursEntretien
+              v-show="ongletDroite === 'locuteurs'"
+              :actif="ongletDroite === 'locuteurs'"
+              :lecture-seule="roContenu"
+            />
 
-          <PanneauDonneesEntretien
-            v-show="ongletDroite === 'donnees'"
-            :lecture-seule="roContenu"
-          />
+            <PanneauDonneesEntretien
+              v-show="ongletDroite === 'donnees'"
+              :lecture-seule="roContenu"
+            />
 
-          <PanneauJournalEntretien
-            v-show="ongletDroite === 'journal'"
-            :lecture-seule="roContenu"
-          />
+            <PanneauJournalEntretien
+              v-show="ongletDroite === 'journal'"
+              :lecture-seule="roContenu"
+            />
 
-          <PanneauAnonymisationEntretien
-            v-show="ongletDroite === 'anon'"
-            :actif="ongletDroite === 'anon'"
-            :lecture-seule-contenu="roContenu"
-            v-model:ajout-selection-actif="ajoutSelectionActif"
-          />
+            <PanneauAnonymisationEntretien
+              v-show="ongletDroite === 'anon'"
+              :actif="ongletDroite === 'anon'"
+              :lecture-seule-contenu="roContenu"
+              v-model:ajout-selection-actif="ajoutSelectionActif"
+            />
+          </DefilementSuperpose>
         </div>
 
         <!-- Colonne DROITE : en audio, forme d'onde épinglée puis éditeur ;
@@ -596,7 +600,10 @@ function cliquerNotes() {
   /* Le panneau reste entièrement visible entre la barre fixe et le bas de la fenêtre,
      avec une marge inférieure d'un rem. */
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
-  overflow-y: auto;
+}
+/* Sans consigne de parcours, son emplacement n'ajoute pas d'espace au-dessus du panneau. */
+[data-tour="ancre-guide-pp"]:empty {
+  display: none;
 }
 /* Colonne de droite : l'éditeur de transcription et, en vidéo, la zone média. */
 .colonne-droite {
@@ -780,6 +787,7 @@ function cliquerNotes() {
 }
 .onglets {
   display: flex;
+  flex: none;
   gap: 0.25rem;
 }
 .onglets button {

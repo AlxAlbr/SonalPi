@@ -25,6 +25,7 @@ const {
   locuteurASupprimer,
   demanderSuppressionLocuteur,
   confirmerSuppressionLocuteur,
+  vue,
 } = utiliserSonal()
 
 const statistiquesOuvertes = ref(false)
@@ -64,6 +65,11 @@ function garderFocusDansGestion(event: KeyboardEvent) {
     premier?.focus()
   }
 }
+
+// L'écran entretien reste monté quand on le quitte : la fenêtre doit se fermer avec lui.
+watch(vue, (ecran) => {
+  if (ecran !== 'entretien') gestionOuverte.value = false
+})
 
 // Quand l'élément actif disparaît de la liste, le focus revient dans la fenêtre,
 // sinon Échap et Tab cesseraient d'y fonctionner.

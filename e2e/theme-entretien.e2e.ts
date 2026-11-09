@@ -49,7 +49,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
 
   // Un défilement INTERNE du panneau le rend visible, sans toucher au texte :
   // on reste au début de l'entretien.
-  await page.locator('.colonne-gauche').evaluate((el) => {
+  await page.locator('.colonne-gauche .zone-defilement').evaluate((el) => {
     el.scrollTop = el.scrollHeight
   })
   const poche = await dernier.boundingBox()
