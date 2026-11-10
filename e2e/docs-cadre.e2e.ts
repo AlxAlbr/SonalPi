@@ -107,7 +107,7 @@ test('onglets séparés, état vide et aperçu d’un exemple', async () => {
   await expect(fenetre.locator('.fiche-zone')).toContainText('Enregistrer une copie')
 
   // Un autre espace reprend la main : on quitte « Préparer et suivre ».
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter' }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter' }).click()
   await expect(fenetre).toBeHidden()
   await app.close()
 })
@@ -257,7 +257,7 @@ test('ajout, lecture seule et persistance d’un document du corpus', async () =
 
   // Sortie de l'espace puis retour : le document est toujours là
   // (aucune suppression implicite), et la liste est relue.
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter' }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter' }).click()
   await expect(fenetre).toBeHidden()
   await ouvrirPreparation(page, 'docs-cadre')
   await expect(fenetre.locator('.cote-preparation .document', { hasText: 'Consignes internes.txt' })).toBeVisible()

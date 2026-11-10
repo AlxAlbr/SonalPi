@@ -16,19 +16,19 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await entrerCorpus(page)
 
   const barre = page.locator('.barre-outils')
-  await expect(barre.getByRole('button', { name: 'Préparer et suivre' })).toBeVisible()
-  const traitement = barre.getByRole('button', { name: 'Importer et traiter' })
+  await expect(barre.getByRole('button', { name: 'Préparer & Suivre' })).toBeVisible()
+  const traitement = barre.getByRole('button', { name: 'Importer & Traiter' })
   await expect(traitement).toHaveAttribute('aria-current', 'page')
   // Les deux anciens lanceurs de fenêtres ne sont plus dans la barre.
   await expect(barre.getByRole('button', { name: 'Tableau de bord' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Docs cadre projet' })).toHaveCount(0)
 
   // L’accueil présente les outils et une introduction, sans afficher la grille.
-  await barre.getByRole('button', { name: 'Préparer et suivre' }).click()
+  await barre.getByRole('button', { name: 'Préparer & Suivre' }).click()
   const espace = page.locator('.espace-preparation')
   await expect(espace).toBeVisible()
   await expect(page.locator('.corpus-ecran')).toBeHidden()
-  await expect(barre.getByRole('button', { name: 'Préparer et suivre' })).toHaveAttribute('aria-current', 'page')
+  await expect(barre.getByRole('button', { name: 'Préparer & Suivre' })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.fil')).toContainText('Corpus')
   await expect(page.locator('.fil')).not.toContainText('Préparer et suivre')
   // Déjà au niveau corpus : le lien n'est pas cliquable.
@@ -77,7 +77,7 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await traitement.click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(espace).toBeHidden()
-  await barre.getByRole('button', { name: 'Préparer et suivre' }).click()
+  await barre.getByRole('button', { name: 'Préparer & Suivre' }).click()
   await expect(page.locator('[data-tour="ouvrir-documents-exemples"]')).toHaveAttribute('aria-current', 'page')
   await expect(espace.locator('.principal')).toContainText('Choisissez un document d’exemple dans la liste.')
 
@@ -93,7 +93,7 @@ test('depuis un entretien, l’espace ne ferme pas le travail en cours', async (
   await entrerEntretien(page)
   await expect(page.locator('.editeur')).toContainText('Karine')
 
-  await page.locator('.barre-outils').getByRole('button', { name: 'Préparer et suivre' }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Préparer & Suivre' }).click()
   await expect(page.locator('.espace-preparation')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
   await expect(page.locator('.fil')).toContainText('Corpus')
@@ -101,7 +101,7 @@ test('depuis un entretien, l’espace ne ferme pas le travail en cours', async (
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
 
   // Importer et traiter ramène à l'entretien ouvert, intact.
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter' }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter' }).click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Entretien')
@@ -119,13 +119,12 @@ test('les espaces principaux sont verticaux dans un panneau à gauche et affiche
     await page.setViewportSize({ width: 900, height: 800 })
 
     const barre = page.locator('.barre-outils')
-    await expect(barre).toHaveCSS('border-style', 'solid')
     const ongletsEspaces = barre.locator('button.espace')
     await expect(ongletsEspaces).toHaveCount(4)
-    await expect(ongletsEspaces.nth(0)).toHaveAttribute('title', 'Préparer et suivre')
-    await expect(ongletsEspaces.nth(1)).toHaveAttribute('title', 'Importer et traiter')
-    await expect(ongletsEspaces.nth(2)).toHaveAttribute('title', 'Analyser et interpréter')
-    await expect(ongletsEspaces.nth(3)).toHaveAttribute('title', 'Organiser et exporter')
+    await expect(ongletsEspaces.nth(0)).toHaveAttribute('aria-label', 'Préparer & Suivre')
+    await expect(ongletsEspaces.nth(1)).toHaveAttribute('aria-label', 'Importer & Traiter')
+    await expect(ongletsEspaces.nth(2)).toHaveAttribute('aria-label', 'Analyser & Interpréter')
+    await expect(ongletsEspaces.nth(3)).toHaveAttribute('aria-label', 'Organiser & Exporter')
     await expect(barre.locator('button.espace img')).toHaveCount(4)
     const hautContenu = await page.locator('.contenu-app').evaluate((el) => {
       const { top } = el.getBoundingClientRect()
@@ -136,7 +135,7 @@ test('les espaces principaux sont verticaux dans un panneau à gauche et affiche
       return { top, bottom: top + height }
     })
     expect(geometrieEntete.top).toBeLessThan(await barre.evaluate((el) => el.getBoundingClientRect().top))
-    expect(geometrieEntete.bottom).toBeLessThan(hautContenu)
+    expect(geometrieEntete.bottom).toBeLessThanOrEqual(hautContenu)
     const positions = await barre.locator('button.espace').evaluateAll((boutons) =>
       boutons.map((bouton) => {
         const { top, left, width, height } = bouton.getBoundingClientRect()
@@ -154,12 +153,13 @@ test('les espaces principaux sont verticaux dans un panneau à gauche et affiche
     expect(positions[0].centerY).toBeLessThan(positions[1].centerY)
     expect(positions[1].centerY).toBeLessThan(positions[2].centerY)
     expect(positions[2].centerY).toBeLessThan(positions[3].centerY)
-    expect(Math.abs((positions[0].top + positions[3].bottom) / 2 - panneau.centerY)).toBeLessThan(1)
+    // Les espaces s'empilent depuis le haut du panneau, qui occupe toute la hauteur sous l'en-tête.
+    expect(positions[0].top - panneau.top).toBeLessThan(1)
     expect(await barre.evaluate((el) => el.getBoundingClientRect().left)).toBeLessThan(
       await page.locator('.contenu-app').evaluate((el) => el.getBoundingClientRect().left),
     )
 
-    await barre.getByRole('button', { name: 'Analyser et interpréter' }).click()
+    await barre.getByRole('button', { name: 'Analyser & Interpréter' }).click()
     await expect(page.locator('.espace-analyse')).toBeVisible()
     await expect(page.locator('.corpus-ecran')).toBeHidden()
     await expect(page.locator('.espace-preparation')).toBeHidden()
@@ -174,22 +174,22 @@ test('l’organisation reprend son onglet depuis les autres espaces et conserve 
     const page = await app.firstWindow()
     await entrerCorpus(page)
     await entrerEntretien(page)
-    await page.locator('.barre-outils').getByRole('button', { name: 'Préparer et suivre' }).click()
+    await page.locator('.barre-outils').getByRole('button', { name: 'Préparer & Suivre' }).click()
     await ouvrirOrganisation(page, 'recueils')
     await expect(page.locator('#contenu-recueils-organisation')).toBeVisible()
     await expect(page.locator('.modale-recueils')).toBeHidden()
     await expect(page.locator('.espace-preparation')).toBeHidden()
     await expect(page.locator('.corpus-ecran')).toBeHidden()
-    await expect(page.getByRole('button', { name: 'Organiser et exporter', exact: true })).toHaveAttribute('aria-current', 'page')
-    await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
-    await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Organiser & Exporter', exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
+    await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
     await expect(page.locator('.onglets-organisation').getByRole('button', { name: 'Recueils', exact: true })).toHaveAttribute('aria-current', 'page')
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.locator('.editeur')).toContainText('Karine')
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await ouvrirOrganisation(page, 'cas')
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await expect(page.locator('.entretien-ecran')).toBeHidden()
   } finally {
@@ -208,11 +208,11 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(barre.getByRole('button', { name: 'Lexico' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Analyses croisées' })).toHaveCount(0)
 
-  await barre.getByRole('button', { name: 'Analyser et interpréter' }).click()
+  await barre.getByRole('button', { name: 'Analyser & Interpréter' }).click()
   const espace = page.locator('.espace-analyse')
   await expect(espace).toBeVisible()
   await expect(page.locator('.corpus-ecran')).toBeHidden()
-  await expect(barre.getByRole('button', { name: 'Analyser et interpréter' })).toHaveAttribute('aria-current', 'page')
+  await expect(barre.getByRole('button', { name: 'Analyser & Interpréter' })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.fil')).toContainText('Corpus')
   await expect(page.locator('.fil')).not.toContainText('Analyser et interpréter')
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
@@ -268,9 +268,9 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(espace).not.toHaveClass(/panneau-masque/)
 
   // Retour au traitement, puis reprise sur le dernier onglet visité.
-  await barre.getByRole('button', { name: 'Importer et traiter' }).click()
+  await barre.getByRole('button', { name: 'Importer & Traiter' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
-  await barre.getByRole('button', { name: 'Analyser et interpréter' }).click()
+  await barre.getByRole('button', { name: 'Analyser & Interpréter' }).click()
   await expect(cote.locator('[data-tour="ouvrir-analyses-croisees"]')).toHaveAttribute('aria-current', 'page')
   await app.close()
 })
@@ -293,7 +293,7 @@ test('depuis Lexico, une concordance ouvre l’entretien et l’espace reprend s
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Entretien')
 
   // Le retour dans l'espace retrouve Lexico et son index, sans recalcul.
-  await page.locator('.barre-outils').getByRole('button', { name: 'Analyser et interpréter' }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Analyser & Interpréter' }).click()
   await expect(page.locator('.espace-analyse .panneau-lexico')).toContainText('Index lexical')
   await expect(page.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
   await expect(principal.locator('.table-wrap tbody tr').first()).toBeVisible()

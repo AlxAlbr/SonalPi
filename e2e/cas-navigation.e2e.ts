@@ -31,7 +31,7 @@ test('Cas occupe l’organisation, conserve ses filtres et relit une source modi
 
     await ouvrirOrganisation(page, 'recueils')
     await ouvrirOrganisation(page, 'cas')
-    await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
+    await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
     await ouvrirOrganisation(page)
     await expect(cas.getByLabel('Rechercher un cas')).toHaveValue(nom)
     await expect(cas.getByLabel('Mode du texte des cas')).toHaveValue('original')
@@ -48,7 +48,7 @@ test('Cas occupe l’organisation, conserve ses filtres et relit une source modi
     await expect(cas.getByLabel('Nom du cas', { exact: true })).toHaveValue(nom)
     await expect(cas.getByLabel('Rechercher un cas')).toHaveValue(nom)
     await expect(cas.locator('.passage-cas blockquote')).toContainText('passage ajouté pour les cas')
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.editeur')).toBeVisible()
     expect(await page.locator('.editeur').evaluate((el, ancien) => el === ancien, editeur)).toBe(true)
     await expect(page.locator('.editeur')).toContainText('passage ajouté pour les cas')
@@ -56,7 +56,7 @@ test('Cas occupe l’organisation, conserve ses filtres et relit une source modi
 
     await page.setViewportSize({ width: 760, height: 700 })
     await expect(cas.getByLabel('Rechercher un cas')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Organiser et exporter', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Organiser & Exporter', exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
   } finally {
     await app.close()

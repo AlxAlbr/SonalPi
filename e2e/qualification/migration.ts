@@ -190,7 +190,7 @@ export async function ouvrirProfilNeuf(page: Page, cible: Projet, urlMedia?: str
   await page.locator('.modale-distant input[type=password]').fill(config.token!)
   await page.locator('.action-gitlab').click()
   await expect(page.locator('.modale-distant')).toBeHidden({ timeout: 30_000 })
-  await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await attendreCorpus(page)
   if (!urlMedia) return
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
@@ -207,6 +207,6 @@ export async function ouvrirProfilNeuf(page: Page, cible: Projet, urlMedia?: str
   await expect(destination.locator('.base-media-etat')).toContainText('max')
   await destination.getByRole('button', { name: 'Ouvrir', exact: true }).click()
   await expect(page.locator('.modale-distant')).toBeHidden({ timeout: 30_000 })
-  await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await attendreCorpus(page)
 }

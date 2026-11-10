@@ -48,7 +48,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8'))
     expect(lireCorpus().nom).toBe('Enquête dans les associations')
     await illustrer(page, 'espaces-de-travail', 580)
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.carte-ent')).toHaveCount(0)
 
     await accueil(page)
@@ -122,9 +122,9 @@ test('manuel : créer un thème et coder un passage sur sa copie du corpus exemp
     await expect(codage).toHaveCount(1)
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
-    await page.getByRole('button', { name: 'Préparer et suivre', exact: true }).click()
+    await page.getByRole('button', { name: 'Préparer & Suivre', exact: true }).click()
     await expect(page.locator('.espace-preparation')).toBeVisible()
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(codage).toHaveCount(1)
     await page.locator('.fil').getByRole('button', { name: /^Corpus/ }).click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()

@@ -128,7 +128,7 @@ test('chaque parcours reprend sa propre démo', async ({ page }) => {
   await expect(page.locator('#guide')).toContainText('Étape choisie : Prendre des notes à chaud')
   await page.getByRole('button', { name: 'Mettre le guide en pause', exact: true }).click()
   const corpusAvant = await page.locator('#courant').textContent()
-  await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
+  await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
   await expect(page.locator('#courant')).toHaveText(corpusAvant!)
   await page.getByRole('button', { name: 'Accueil', exact: true }).click()
   await expect(page.locator('#recents')).not.toContainText('Apprentissage')

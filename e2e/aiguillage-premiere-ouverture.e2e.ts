@@ -37,7 +37,7 @@ test('première ouverture : aiguillage affiché, puis « gestion de projet »', 
   await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
 
   // La question ne revient pas ; l'espace quitté est repris.
-  await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
+  await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
   await page.locator('[data-tour="ouvrir-lexico"]').click()
   await app.close()
 

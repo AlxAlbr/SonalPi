@@ -42,7 +42,7 @@ test('le retour par la barre relit les documents et conserve la sélection entre
     const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
     const dossier = join(userDataDir, 'corpus', 'DocsPrepaProjet')
     mkdirSync(dossier, { recursive: true })
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     writeFileSync(join(dossier, 'Suivi.txt'), 'Document de suivi')
 
     // L'entrée principale seule doit découvrir le fichier ajouté pendant l'absence.
@@ -59,13 +59,13 @@ test('le retour par la barre relit les documents et conserve la sélection entre
       await expect(page.locator('.panneau-docs .texte-echappe')).toContainText('Document de suivi')
     }
 
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     writeFileSync(join(dossier, 'Suivi.txt'), 'Document actualisé')
     await page.locator('[data-tour="ouvrir-preparer"]').click()
     await expect(document).toHaveClass(/choisi/)
     await expect(page.locator('.panneau-docs .texte-echappe')).toContainText('Document actualisé')
 
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     rmSync(join(dossier, 'Suivi.txt'))
     await page.locator('[data-tour="ouvrir-preparer"]').click()
     await expect(document).toHaveCount(0)
@@ -86,7 +86,7 @@ test('reprendre Lexico par la barre actualise l’index devenu périmé', async 
     await panneau.getByLabel('Rechercher une forme').fill('motnavigationtest')
     await expect(panneau.locator('.table-wrap tbody tr')).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await page.locator('.editeur').press('Control+End')
     await page.keyboard.insertText(' motnavigationtest ')
     await expect(page.locator('.editeur')).toContainText('motnavigationtest')
@@ -127,9 +127,9 @@ test('un autre corpus ne reprend ni brouillon du tableau ni sélection ou éditi
     await page.locator('.carte-demo.ouvrir-corpus').click()
     await fermerAiguillage(page)
     await expect(page.locator('.espace-preparation')).toBeVisible()
-    await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()
-    await expect(page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }))
+    await expect(page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }))
       .toHaveAttribute('aria-current', 'page')
 
     await page.locator('[data-tour="ouvrir-analyser"]').click()

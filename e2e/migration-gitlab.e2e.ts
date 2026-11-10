@@ -42,7 +42,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
         await modal.getByRole('button', { name: 'Copier les médias et créer le corpus', exact: true }).click()
         await expect(modal).toBeHidden({ timeout: 90_000 })
         await fermerAiguillage(page, 'entretiens', 120_000)
-        await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+        await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
         await attendreCorpus(page)
         const etat = lireEtat(profil)
         expect(etat.phase).toBe('terminee')

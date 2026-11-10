@@ -11,7 +11,7 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
     await entrerCorpus(page)
     await page.evaluate(() => window.sonal.corpus.regleAnonCreer('Karine', ['Claire']))
 
-    await page.getByRole('button', { name: 'Préparer et suivre', exact: true }).click()
+    await page.getByRole('button', { name: 'Préparer & Suivre', exact: true }).click()
     const reference = page.locator('.accueil-preparation')
     await expect(reference).toBeVisible()
     const panneau = await reference.evaluate((el) => {
@@ -27,7 +27,7 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
       const style = getComputedStyle(el)
       return { taille: style.fontSize, police: style.fontFamily, graisse: style.fontWeight }
     })
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
 
     const onglets = [
       { nom: 'Accueil', panneau: '.accueil-corpus', titre: '.corpus-tete h3' },

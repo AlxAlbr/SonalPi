@@ -124,7 +124,7 @@ test('changer de corpus vide un ancien atelier conservé pendant la consultation
   }, dir)
   await page.locator('.carte-demo.ouvrir-corpus').click()
   await fermerAiguillage(page)
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await attendreCorpus(page)
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes', exact: true }).click()
   await expect(page.locator('.liste-thm-lecture li')).toHaveCount(4)

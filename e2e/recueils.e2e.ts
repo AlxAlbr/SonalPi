@@ -20,7 +20,7 @@ test('recueil vivant dans l’organisation, ajout contextuel et retour à l’en
     await expect(panneau.locator('.nom-recueil')).toHaveValue('Synthèse terrain')
     await panneau.getByPlaceholder('Libellé du titre').fill('Contexte')
     await panneau.getByRole('button', { name: '＋ Ajouter le titre', exact: true }).click()
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
 
     await entrerEntretien(page)
     await expect(page.locator('.onglets button[data-onglet="recueils"]')).toHaveCount(0)
@@ -59,7 +59,7 @@ test('recueil vivant dans l’organisation, ajout contextuel et retour à l’en
     await page.getByRole('button', { name: /Revenir au recueil « Synthèse terrain »/ }).click()
     await expect(panneau.locator('.nom-recueil')).toHaveValue('Synthèse terrain')
     await expect(panneau.getByLabel('Numérotation des titres')).toHaveValue('plan')
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.editeur')).toContainText('Karine réside Lyon')
 
     const corpus = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))

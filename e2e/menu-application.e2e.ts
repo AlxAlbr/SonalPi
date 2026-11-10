@@ -49,7 +49,7 @@ test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le
     })
     await entrerEntretien(page)
     await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: true })
-    for (const nom of ['Préparer et suivre', 'Analyser et interpréter', 'Organiser et exporter', 'Importer et traiter']) {
+    for (const nom of ['Préparer & Suivre', 'Analyser & Interpréter', 'Organiser & Exporter', 'Importer & Traiter']) {
       await page.getByRole('button', { name: nom, exact: true }).click()
       await expect.poll(() => lireMenu(app)).toMatchObject({ entretiens: true, enregistrer: true })
     }

@@ -6,7 +6,7 @@ import { lancer, attendreAccueil, attendreCorpus, ecrireSeedDemo, entrerCorpus, 
 
 /** Renomme le 1er entretien via le panneau MÉTA (sélectionne sa carte, édite le nom). */
 async function renommerPremier(page: import('@playwright/test').Page, nom: string) {
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await page.locator('.carte-ent').first().click() // sélectionne → colonne gauche = méta
   const input = page.locator('.meta-ent .titre-meta')
   await input.fill(nom)
@@ -61,7 +61,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await page.locator('.carte-demo.ouvrir-corpus').click()
   await fermerAiguillage(page)
   await expect(page.locator('.espace-preparation')).toBeVisible()
-  await page.locator('.barre-outils').getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent')).toHaveCount(0)
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes' }).click()

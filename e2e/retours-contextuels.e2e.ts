@@ -57,7 +57,7 @@ test('Lexico → source → cas → source se dépile avec les sélections, filt
     await lexico.getByRole('button', { name: 'Actualiser', exact: true }).click()
     await lexico.locator('.concordance').first().click()
     await expect(page.locator('.retour-contexte')).toBeVisible()
-    await page.getByRole('button', { name: 'Organiser et exporter', exact: true }).click()
+    await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
     await expect(page.locator('.retour-contexte')).toHaveCount(0)
   } finally {
     await app.close()

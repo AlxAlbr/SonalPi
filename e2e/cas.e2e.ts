@@ -59,7 +59,7 @@ test('cas manuel vide créé sans personne ni repère, relu après redémarrage 
     await expect(modale.getByLabel('Mémo')).toHaveValue('Dossier à documenter.')
     await expect(modale.getByRole('combobox', { name: /Matériaux affichés/ })).toHaveValue('tous')
     expect(JSON.parse(readFileSync(cheminCorpus, 'utf8')).cas).toEqual(cree.cas)
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
     await entrerEntretien(page)
     await selectionner(page, 'travail passé')
@@ -135,7 +135,7 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
     const apresMode = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
     expect((Object.values(apresMode.cas)[0] as any).modifieLe).toBe(casAvantMode.modifieLe)
 
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await ouvrirOrganisation(page)
     await expect(modale.getByLabel('Nom du cas')).toHaveValue('Karine — suivi')
     await expect(modale.getByLabel('Mémo')).toHaveValue('Mémo mis à jour.')
@@ -197,7 +197,7 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
     await modale.getByRole('button', { name: 'Retirer du cas' }).click()
     await expect(modale).toContainText('Ce cas ne contient actuellement aucun passage.')
 
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+    await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     const corpusFinal = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
     expect(Object.values(corpusFinal.cas)).toHaveLength(2)
     expect(Object.values(corpusFinal.cas).map((courant: any) => courant.rattachements.length)).toEqual([0, 0])
