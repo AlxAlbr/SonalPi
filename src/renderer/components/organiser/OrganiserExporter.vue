@@ -5,6 +5,7 @@ import type { SousEspaceOrganisation } from '../../composables/espaces'
 import CasCorpus from './cas/CasCorpus.vue'
 import RecueilsCorpus from './recueils/RecueilsCorpus.vue'
 import ExportCorpus from './export/ExportCorpus.vue'
+import OngletsEspace from '../app/OngletsEspace.vue'
 import icoMaison from '../../assets/icones/maison.png'
 import icoCas from '../../assets/icones/cas.svg'
 import icoRecueils from '../../assets/icones/recueils.svg'
@@ -16,6 +17,10 @@ const outils = [
   { id: 'recueils', nom: 'Recueils', icone: icoRecueils, aide: 'Composer un document avec des passages, des titres et vos commentaires.' },
   { id: 'export', nom: 'Exporter le corpus', icone: icoExporter, aide: 'Choisir les entretiens et les formats, vérifier puis enregistrer l’export.' },
 ] satisfies { id: SousEspaceOrganisation; nom: string; icone: string; aide: string }[]
+const ONGLETS: { id: SousEspaceOrganisation; libelle: string; icone: string; tour?: string }[] = [
+  { id: 'accueil', libelle: 'Accueil', icone: icoMaison },
+  ...outils.map((outil) => ({ id: outil.id, libelle: outil.nom, icone: outil.icone, tour: `ouvrir-organisation-${outil.id}` })),
+]
 const casInitialises = ref(false)
 const recueilsInitialises = ref(false)
 const exportInitialise = ref(false)
@@ -31,24 +36,14 @@ watch(revisionCorpus, () => {
 
 <template>
   <section class="ecran organisation-ecran" aria-label="Organiser et exporter">
-    <nav class="onglets-organisation" aria-label="Organisation et export" :inert="exportCorpusEnCours">
-      <button
-        class="onglet"
-        :class="{ actif: sousEspaceOrganisation === 'accueil' }"
-        :aria-current="sousEspaceOrganisation === 'accueil' ? 'page' : undefined"
-        title="Accueil" aria-label="Accueil"
-        @click="entrerOrganisation('accueil')"
-      ><img class="ico-onglet" :src="icoMaison" alt="" /></button>
-      <button
-        v-for="outil in outils" :key="outil.id"
-        :data-tour="`ouvrir-organisation-${outil.id}`"
-        class="onglet"
-        :class="{ actif: sousEspaceOrganisation === outil.id }"
-        :aria-current="sousEspaceOrganisation === outil.id ? 'page' : undefined"
-        :title="outil.nom" :aria-label="outil.nom"
-        @click="entrerOrganisation(outil.id)"
-      ><img class="ico-onglet" :src="outil.icone" alt="" /></button>
-    </nav>
+    <OngletsEspace
+      class="onglets-organisation"
+      aria-label="Organisation et export"
+      :inert="exportCorpusEnCours"
+      :onglets="ONGLETS"
+      :actif="sousEspaceOrganisation"
+      @choisir="entrerOrganisation"
+    />
 
     <div data-tour="ancre-guide-organisation"></div>
     <div v-show="sousEspaceOrganisation === 'accueil'" class="accueil-organisation organisation-contenu">
@@ -95,11 +90,6 @@ watch(revisionCorpus, () => {
   box-sizing: border-box;
   min-width: 0;
 }
-.onglets-organisation { display: flex; gap: .25rem; flex: none; }
-.onglet { width: 38px; height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; border-bottom: none; border-radius: 6px 6px 0 0; background: #f0f0f5; padding: .35rem; cursor: pointer; }
-.onglet.actif, .onglet:hover { background: #fff; }
-.ico-onglet { width: 20px; height: 20px; object-fit: contain; opacity: .6; flex: none; }
-.onglet.actif .ico-onglet { opacity: 1; }
 .organisation-contenu { flex: 1; min-height: 0; min-width: 0; }
 .accueil-organisation { display: grid; grid-template-columns: var(--largeur-organisation) minmax(0, 1fr); gap: 1rem; }
 .accueil-organisation > * { overflow-y: auto; min-width: 0; }

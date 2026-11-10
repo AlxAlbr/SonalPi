@@ -9,6 +9,7 @@ import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import OngletsEspace from '../../app/OngletsEspace.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
@@ -381,16 +382,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </span>
       </div>
 
-      <nav class="onglets-corpus" aria-label="Navigation du corpus">
-        <button
-          v-for="onglet in ONGLETS"
-          :key="onglet.id"
-          :class="{ actif: ongletCorpus === onglet.id }"
-          :aria-current="ongletCorpus === onglet.id ? 'page' : undefined"
-          :title="onglet.libelle"
-          @click="choisirOnglet(onglet.id)"
-        ><img class="ico-onglet-corpus" :src="onglet.icone" alt="" /><span class="libelle-onglet">{{ onglet.libelle }}</span></button>
-      </nav>
+      <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
 
@@ -854,71 +846,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
 .onglets-corpus {
-  display: flex;
-  gap: 0.25rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid #e2e4ec;
 }
-/* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les icônes d'onglets
+/* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les onglets
    ne collent pas à sa bordure basse. */
 .corpus-ecran {
   padding-top: 0.7rem;
-}
-.onglets-corpus button {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  /* Le trait de l'onglet actif recouvre la ligne de séparation. */
-  margin-bottom: -1px;
-  border: none;
-  border-bottom: 3px solid transparent;
-  border-radius: 0;
-  background: none;
-  padding: 0.35rem 0.75rem;
-  color: #6a6e80;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.onglets-corpus button:hover {
-  color: #23253a;
-}
-.onglets-corpus button:focus-visible {
-  outline: 2px solid #2e73d8;
-  outline-offset: -2px;
-}
-/* En fenêtre étroite, les onglets reviennent aux icônes seules :
-   le libellé reste lu par les lecteurs d'écran et affiché au survol. */
-@media (max-width: 900px) {
-  .onglets-corpus button {
-    padding: 0.35rem;
-    width: 38px;
-  }
-  .libelle-onglet {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-.onglets-corpus button.actif {
-  border-bottom-color: #2e73d8;
-  font-weight: 600;
-  color: #1565c0;
-}
-.ico-onglet-corpus {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  opacity: 0.6;
-  flex: none;
-}
-.onglets-corpus button.actif .ico-onglet-corpus {
-  opacity: 1;
 }
 /* --- Onglet Recherche : recherche plein texte du corpus --- */
 .barre-recherche {

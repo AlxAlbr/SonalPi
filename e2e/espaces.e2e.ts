@@ -220,25 +220,26 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   // Ouverture par défaut : l'Accueil présente les trois outils.
   const cote = espace.locator('.cote-analyse')
   const accueil = cote.locator('.accueil-analyse')
-  await expect(cote.locator('[data-tour="ouvrir-accueil-analyse"]')).toHaveAttribute('aria-current', 'page')
+  await expect(espace.locator('[data-tour="ouvrir-accueil-analyse"]')).toHaveAttribute('aria-current', 'page')
   await expect(accueil).toContainText('Analyse et interprétation')
   await expect(accueil).toContainText('Tri et synthèse')
   await expect(accueil).toContainText('Lexico')
   await expect(accueil).toContainText('Analyses croisées')
   await expect(espace.locator('.accueil-principal')).toContainText('Choisissez un outil')
 
-  // Les onglets reprennent les dimensions et les icônes des autres espaces.
-  const ongletAccueil = cote.locator('[data-tour="ouvrir-accueil-analyse"]')
-  await expect(ongletAccueil).toHaveCSS('width', '38px')
-  await expect(ongletAccueil).toHaveCSS('height', '34px')
+  // Les onglets sont en haut de l'espace, soulignés, avec icône et libellé comme dans les autres espaces.
+  const ongletAccueil = espace.locator('[data-tour="ouvrir-accueil-analyse"]')
+  await expect(ongletAccueil).toHaveText('Accueil')
+  await expect(ongletAccueil).toHaveCSS('border-bottom-width', '3px')
   await expect(ongletAccueil.locator('img')).toBeVisible()
+  await expect(cote.locator('.onglet')).toHaveCount(0)
   const fondPanneau = await accueil.evaluate((el) => getComputedStyle(el).backgroundColor)
 
   // Tri et synthèse : critères à gauche, calcul à droite, sur le fond partagé des panneaux.
   await accueil.getByRole('button', { name: /^Tri et synthèse/ }).click()
   const synthese = espace.locator('.cote-synthese')
   const panneauSynthese = espace.locator('.panneau-synthese')
-  await expect(cote.locator('[data-tour="ouvrir-synthese"]')).toHaveAttribute('aria-current', 'page')
+  await expect(espace.locator('[data-tour="ouvrir-synthese"]')).toHaveAttribute('aria-current', 'page')
   await expect(synthese).toBeVisible()
   await expect(synthese).toHaveCSS('background-color', fondPanneau)
   await expect(synthese).toContainText('Comment les choix se combinent')
@@ -246,8 +247,8 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(panneauSynthese).toContainText('Calculer la synthèse')
 
   // Lexico : mêmes onglets à gauche, ses filtres dessous, l'index à droite.
-  await cote.locator('[data-tour="ouvrir-lexico"]').click()
-  await expect(cote.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
+  await espace.locator('[data-tour="ouvrir-lexico"]').click()
+  await expect(espace.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
   await expect(synthese).toBeHidden()
   await expect(espace.locator('.cote-lexico')).toBeVisible()
   await expect(espace.locator('.cote-lexico')).toContainText('Retirer ce filtre')
@@ -256,14 +257,14 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(page.getByRole('dialog', { name: 'Lexico' })).toHaveCount(0)
 
   // Analyses croisées : sélection à gauche, matrice à droite.
-  await cote.locator('[data-tour="ouvrir-analyses-croisees"]').click()
+  await espace.locator('[data-tour="ouvrir-analyses-croisees"]').click()
   await expect(espace.locator('.cote-analyses')).toContainText('Tout sélectionner')
   await expect(espace.locator('.panneau-analyses')).toContainText('Calculer l’analyse')
 
-  // Masquer la sélection réduit la colonne à ses onglets, sans les perdre.
+  // Masquer la sélection libère toute la largeur ; les onglets restent en haut.
   await espace.locator('.panneau-analyses').getByRole('button', { name: 'Masquer la sélection' }).click()
   await expect(espace).toHaveClass(/panneau-masque/)
-  await expect(cote.locator('[data-tour="ouvrir-synthese"]')).toBeVisible()
+  await expect(espace.locator('[data-tour="ouvrir-synthese"]')).toBeVisible()
   await espace.locator('.panneau-analyses').getByRole('button', { name: 'Afficher la sélection' }).click()
   await expect(espace).not.toHaveClass(/panneau-masque/)
 
@@ -271,7 +272,7 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await barre.getByRole('button', { name: 'Importer & Traiter' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await barre.getByRole('button', { name: 'Analyser & Interpréter' }).click()
-  await expect(cote.locator('[data-tour="ouvrir-analyses-croisees"]')).toHaveAttribute('aria-current', 'page')
+  await expect(espace.locator('[data-tour="ouvrir-analyses-croisees"]')).toHaveAttribute('aria-current', 'page')
   await app.close()
 })
 
