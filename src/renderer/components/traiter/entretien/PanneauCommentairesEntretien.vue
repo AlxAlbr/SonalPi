@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, nextTick, ref } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 
 defineProps<{ lectureSeule: boolean }>()
@@ -10,28 +11,71 @@ const {
   allerAuCommentaire,
 } = utiliserSonal()
 
+// Sans sélection, le clic se contente d'afficher un hint (l'aide permanente
+// d'origine est retirée) ; avec une sélection, la modale s'ouvre.
+const hintCommentaire = ref<string | null>(null)
 function commenterSelection() {
   const selection = selectionPassage.value
-  if (selection) void commenterPlage(selection.from, selection.to)
+  if (!selection) {
+    hintCommentaire.value = 'Sélectionnez du texte, puis cliquez sur « Commentaire ».'
+    return
+  }
+  hintCommentaire.value = null
+  void commenterPlage(selection.from, selection.to)
+}
+
+// Recherche dans les commentaires (auteur ou texte) : le bouton déplie un champ,
+// le filtre s'applique à la volée sur la liste.
+const rechercheOuverte = ref(false)
+const recherche = ref('')
+const champRecherche = ref<HTMLInputElement | null>(null)
+const commentairesFiltres = computed(() => {
+  const requete = recherche.value.trim().toLowerCase()
+  if (!requete) return commentairesPourLiaison.value
+  return commentairesPourLiaison.value.filter((c) =>
+    c.texte.toLowerCase().includes(requete) || (c.auteur ?? '').toLowerCase().includes(requete))
+})
+function basculerRecherche() {
+  rechercheOuverte.value = !rechercheOuverte.value
+  recherche.value = ''
+  if (rechercheOuverte.value) nextTick(() => champRecherche.value?.focus())
 }
 </script>
 
 <template>
-  <aside class="panneau commentaires">
+  <aside class="panneau commentaires" aria-label="Commentaires">
     <div class="corpus-tete">
-      <h3>Commentaires</h3>
+      <button
+        type="button"
+        class="bouton-recherche"
+        :class="{ actif: rechercheOuverte }"
+        :aria-expanded="rechercheOuverte"
+        @click="basculerRecherche"
+      >🔍 Rechercher</button>
     </div>
-    <p class="aide-commentaires">Sélectionnez du texte, puis cliquez sur « Commentaire ».</p>
+    <div v-if="rechercheOuverte" class="recherche-commentaires">
+      <input
+        ref="champRecherche"
+        v-model="recherche"
+        type="search"
+        placeholder="Auteur ou texte…"
+        aria-label="Rechercher dans les commentaires"
+        @keydown.esc.prevent="basculerRecherche"
+      />
+    </div>
+    <p v-if="hintCommentaire" class="hint-commentaire">{{ hintCommentaire }}</p>
     <button
       type="button"
       class="ajouter-commentaire"
-      :disabled="lectureSeule || !selectionPassage"
+      :disabled="lectureSeule"
       @mousedown.prevent
       @click="commenterSelection"
     >Commentaire</button>
-    <p v-if="commentairesPourLiaison.length === 0" class="vide">Aucun commentaire pour le moment.</p>
+    <p v-if="commentairesFiltres.length === 0" class="vide">
+      {{ rechercheOuverte && recherche.trim() ? 'Aucun commentaire ne correspond à la recherche.' : 'Aucun commentaire pour le moment.' }}
+    </p>
     <ul v-else class="liste-commentaires">
-      <li v-for="commentaire in commentairesPourLiaison" :key="commentaire.id">
+      <li v-for="commentaire in commentairesFiltres" :key="commentaire.id">
         <button
           type="button"
           class="aller-commentaire"
@@ -47,9 +91,39 @@ function commenterSelection() {
 </template>
 
 <style scoped>
-.aide-commentaires {
+.bouton-recherche {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 0.3rem 0.6rem;
+  background: #fff;
+  font: inherit;
   font-size: 0.8rem;
-  color: #666;
+  cursor: pointer;
+}
+.bouton-recherche.actif {
+  background: #e8f0fb;
+  border-color: #1565c0;
+}
+.recherche-commentaires {
+  margin-bottom: 0.5rem;
+}
+.recherche-commentaires input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+.hint-commentaire {
+  background: #fff3e0;
+  color: #b06e0f;
+  border: 1px solid #e0a03a;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  margin: 0.3rem 0;
 }
 .ajouter-commentaire {
   border: 1px solid #1565c0;

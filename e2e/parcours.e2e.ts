@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale } from './util'
+import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale, selectionner } from './util'
 
 /**
  *  LE JUGE DE PAIX : le parcours complet à travers les trois écrans
@@ -32,7 +32,7 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
 
   // 2) CODER un passage supplémentaire (le modèle gagne une annotation).
   const avant = await compterAnnotations(page)
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Famille')
   await expect.poll(() => compterAnnotations(page)).toBe(avant + 1)
 

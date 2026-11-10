@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, entrerEntretien, coderTheme } from './util'
+import { lancer, entrerCorpus, entrerEntretien, coderTheme, selectionner } from './util'
 
 /**
  *  ÉTAPE 2 + S2 — persistance en dossier de corpus, à travers la navigation
@@ -17,9 +17,10 @@ function fichierEntretien(dir: string, id: string) {
   return join(dir, 'corpus', 'entretiens', `${id}.json`)
 }
 
-/** Pose un caret au début (snap → « Karine ») et code via l'onglet Thématique (S3). */
+/** Sélectionne « Karine » puis code via l'onglet Thématique (S3) : le codage
+ *  exige une sélection (le curseur posé ne suffit plus). */
 async function coderKarine(page: Page, nomTheme: string) {
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, nomTheme)
 }
 

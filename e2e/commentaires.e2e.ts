@@ -39,8 +39,12 @@ test('Comments permet de commenter une sélection et de retrouver les commentair
     const panneau = page.locator('.panneau.commentaires')
     const ajouter = panneau.getByRole('button', { name: 'Commentaire', exact: true })
     await onglet.click()
-    await expect(ajouter).toBeDisabled()
     await expect(panneau).toContainText('Aucun commentaire pour le moment.')
+
+    // Sans sélection, le clic se contente d'afficher le hint (l'aide permanente
+    // d'origine est retirée, à l'image du panneau Thématiques).
+    await ajouter.click()
+    await expect(panneau).toContainText('Sélectionnez du texte, puis cliquez sur « Commentaire ».')
 
     await selectionner(page, 'retraite')
     await ajouter.click()
@@ -112,8 +116,9 @@ test('retirer un codage par clic droit, sans resélectionner', async () => {
   const { app, page } = await ouvrirEntretien('sonal-com-')
   const ed = page.locator('.editeur')
 
-  // Code « Karine » avec le thème Lieu, puis clic droit SUR le codage.
-  await ed.click({ position: { x: 6, y: 14 } })
+  // Code « Karine » avec le thème Lieu (sélection obligatoire : le curseur
+  // posé sans sélection ne code plus), puis clic droit SUR le codage.
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(ed.locator('.annot')).toHaveText('Karine')
   await clicDroitAnnot(page)

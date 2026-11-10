@@ -30,7 +30,8 @@ orpheline. Les opérations de division la présentent séparément, car elle doi
 
 Dans l’onglet Thématiques de l’entretien :
 
-1. l’utilisateur sélectionne du texte ;
+1. l’utilisateur sélectionne du texte (au moins un caractère ; le curseur
+   posé sans sélection ne suffit pas, un hint le lui rappelle) ;
 2. il clique sur un thème actif ;
 3. le même geste retire le thème lorsqu’il couvre déjà la sélection.
 
