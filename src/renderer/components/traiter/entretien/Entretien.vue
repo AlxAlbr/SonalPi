@@ -58,6 +58,7 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
   rafraichirCompteursAAAnonymiser,
+  pseudonymisationUtilisee,
 } = utiliserSonal()
 type OngletLateral = 'notes' | 'donnees'
 const journalOuvert = ref(false)
@@ -637,31 +638,34 @@ function cliquerVolet(onglet: OngletLateral) {
                 <span>Journal</span>
               </button>
               <!-- Les trois lectures du texte : brut, vérification (nom barré + pseudo),
-                   rendu final pseudonymisé. -->
-              <span v-if="affichageNoms === 'pseudonymise'" class="mention-pseudos">pseudos affichés</span>
-              <div class="groupe-affichage-noms" role="group" aria-label="Affichage des noms">
-                <button
-                  type="button"
-                  :class="{ actif: affichageNoms === 'original' }"
-                  :aria-pressed="affichageNoms === 'original'"
-                  title="Texte original, sans pseudonymes"
-                  @click="affichageNoms = 'original'"
-                >Original</button>
-                <button
-                  type="button"
-                  :class="{ actif: affichageNoms === 'comparer' }"
-                  :aria-pressed="affichageNoms === 'comparer'"
-                  title="Noms réels barrés et pseudos affichés côte à côte"
-                  @click="affichageNoms = 'comparer'"
-                >Comparer</button>
-                <button
-                  type="button"
-                  :class="{ actif: affichageNoms === 'pseudonymise' }"
-                  :aria-pressed="affichageNoms === 'pseudonymise'"
-                  title="Seuls les pseudos sont affichés, comme dans l’export"
-                  @click="affichageNoms = 'pseudonymise'"
-                >Pseudonymisé</button>
-              </div>
+                   rendu final pseudonymisé. Masquées tant qu'aucune occurrence n'est
+                   pseudonymisée dans l'entretien : la bascule n'a alors rien à montrer. -->
+              <template v-if="pseudonymisationUtilisee">
+                <span v-if="affichageNoms === 'pseudonymise'" class="mention-pseudos">pseudos affichés</span>
+                <div class="groupe-affichage-noms" role="group" aria-label="Affichage des noms">
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'original' }"
+                    :aria-pressed="affichageNoms === 'original'"
+                    title="Texte original, sans pseudonymes"
+                    @click="affichageNoms = 'original'"
+                  >Original</button>
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'comparer' }"
+                    :aria-pressed="affichageNoms === 'comparer'"
+                    title="Noms réels barrés et pseudos affichés côte à côte"
+                    @click="affichageNoms = 'comparer'"
+                  >Comparer</button>
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'pseudonymise' }"
+                    :aria-pressed="affichageNoms === 'pseudonymise'"
+                    title="Seuls les pseudos sont affichés, comme dans l’export"
+                    @click="affichageNoms = 'pseudonymise'"
+                  >Pseudonymisé</button>
+                </div>
+              </template>
             </div>
           </div>
           <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />

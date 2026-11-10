@@ -51,6 +51,12 @@ export function useAnonymisationEntretien(deps: {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
   const entretien = deps.entretien
+  /** La pseudonymisation a déjà été utilisée dans cet entretien : au moins une
+   *  occurrence « anon » existe au modèle (validations entretien ou corpus ; une
+   *  orpheline compte encore, l'utilisateur a bien utilisé l'outil). Sert à
+   *  masquer la bascule Original/Comparer/Pseudonymisé tant qu'elle est inutile. */
+  const pseudonymisationUtilisee = computed(() =>
+    entretien.annotations.some((a) => a.type === 'anon'))
   const selectionAnon = ref<{ texte: string; from: number; to: number } | null>(null)
   const hintAnon = ref<string | null>(null)
   const lignesAnon = ref<LigneAnon[]>([])
@@ -976,6 +982,7 @@ export function useAnonymisationEntretien(deps: {
   }
 
   return {
+    pseudonymisationUtilisee,
     selectionAnon,
     hintAnon,
     lignesAnon,

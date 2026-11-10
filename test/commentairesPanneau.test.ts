@@ -29,22 +29,35 @@ async function monter() {
   return { host, selectionPassage, commentaires, commenterPlage, allerAuCommentaire, lectureSeule }
 }
 
-test('le bouton Commentaire nécessite une sélection et respecte la lecture seule', async () => {
+test('le bouton Commentaire exige une sélection (hint sinon) et respecte la lecture seule', async () => {
   const outils = await monter()
   const bouton = outils.host.querySelector<HTMLButtonElement>('.ajouter-commentaire')!
-  expect(bouton.disabled).toBe(true)
+  // Sans sélection : le clic n'ouvre rien, il affiche le hint (l'aide permanente
+  // d'origine est retirée).
   bouton.click()
+  await nextTick()
   expect(outils.commenterPlage).not.toHaveBeenCalled()
+  expect(outils.host.textContent).toContain('Sélectionnez du texte, puis cliquez sur « Commentaire ».')
   outils.selectionPassage.value = { entretienId: 'e1', from: 2, to: 12, texte: 'Un passage' }
   await nextTick()
-  expect(bouton.disabled).toBe(false)
   bouton.click()
   expect(outils.commenterPlage).toHaveBeenCalledExactlyOnceWith(2, 12)
+  // Le hint s'efface dès que la modale s'ouvre.
+  await nextTick()
+  expect(outils.host.textContent).not.toContain('Sélectionnez du texte')
   outils.lectureSeule.value = true
   await nextTick()
   expect(bouton.disabled).toBe(true)
   bouton.click()
   expect(outils.commenterPlage).toHaveBeenCalledTimes(1)
+  // Le hint de la sélection reste affiché jusqu'au prochain clic fructueux
+  // (même sillage que le panneau Thématiques) — on le vérifie au retour
+  // en édition : le clic suivant sur une sélection l'efface.
+  outils.lectureSeule.value = false
+  await nextTick()
+  bouton.click()
+  await nextTick()
+  expect(outils.commenterPlage).toHaveBeenCalledTimes(2)
 })
 
 test('la liste reste consultable en lecture seule et le texte est affiché sans interpréter de HTML', async () => {

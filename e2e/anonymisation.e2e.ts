@@ -434,6 +434,29 @@ test('la sélection alimente une ligne et le brouillon survit au changement d’
   await app.close()
 })
 
+test('la bascule Original / Comparer / Pseudonymisé n’apparaît qu’après une validation', async () => {
+  const { app, page } = await ouvrir('sonal-anon-bascule-')
+  const bascule = page.locator('.groupe-affichage-noms')
+
+  // Avant toute validation, la pseudonymisation n'a rien à montrer : la bascule
+  // des vues du texte reste masquée dans la barre d'outils.
+  await expect(bascule).toHaveCount(0)
+
+  // Valider une ligne (« Lyon » → « Ville témoin ») : les occurrences sont posées
+  // au modèle, la bascule apparaît (vue « Comparer » par défaut).
+  await page.locator('[data-onglet="anon"]').click()
+  await selectionner(page, 'Lyon')
+  await page.locator('.editeur').dispatchEvent('mouseup')
+  const saisie = page.locator('.ligne-anon.saisie-anon').first()
+  await expect(saisie.locator('.nom-saisie')).toHaveValue('Lyon')
+  await saisie.locator('.pseudo-anon').fill('Ville témoin')
+  await saisie.locator('.pseudo-anon').press('Enter')
+  await expect(bascule).toBeVisible()
+  await expect(bascule.locator('button', { hasText: 'Comparer' })).toHaveClass(/actif/)
+
+  await app.close()
+})
+
 test('la sélection ne remplit une ligne que si l’option est activée', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-selection-option-'))
   let app = await lancer(dir)

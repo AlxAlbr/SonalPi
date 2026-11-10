@@ -254,6 +254,7 @@ export function useEntretien(deps: {
     accepterSuggestionLiaison,
     refuserSuggestionLiaison,
     detecterDivergencesPostTirage,
+    pseudonymisationUtilisee,
   } = anonymisationEntretien
 
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
@@ -819,6 +820,7 @@ export function useEntretien(deps: {
   return {
     // état / modèle
     entretien,
+    pseudonymisationUtilisee,
     locuteurs,
     blocsParole,
     meta,
