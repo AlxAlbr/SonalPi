@@ -150,6 +150,89 @@ watch(ongletDroite, (onglet) => {
 }, { immediate: true })
 watch(ongletGauche, (onglet) => { ongletDroite.value = onglet })
 const largeurNotesPersonnalisee = ref<number | null>(null)
+// Largeur du panneau d'outils de gauche : réglable via la poignée à son bord droit,
+// mémorisée localement comme la largeur du volet de notes.
+const RACCOURCI_LARGEUR_OUTILS = 'sonalpi.entretien.largeurOutils'
+const largeurMinimaleOutils = 280
+const largeurOutilsPersonnalisee = ref<number | null>(null)
+try {
+  const memorisee = Number(localStorage.getItem(RACCOURCI_LARGEUR_OUTILS))
+  if (Number.isFinite(memorisee) && memorisee > 0) largeurOutilsPersonnalisee.value = memorisee
+} catch { /* Stockage facultatif. */ }
+const redimensionnementOutils = ref(false)
+
+/** Largeur bornée : au moins le minimum, au plus la moitié de la fenêtre. */
+function bornerLargeurOutils(valeur: number): number {
+  const max = Math.max(largeurMinimaleOutils, window.innerWidth * 0.5)
+  return Math.max(largeurMinimaleOutils, Math.min(valeur, max))
+}
+
+function memoriserLargeurOutils(): void {
+  if (largeurOutilsPersonnalisee.value === null) return
+  try { localStorage.setItem(RACCOURCI_LARGEUR_OUTILS, String(largeurOutilsPersonnalisee.value)) } catch { /* Stockage facultatif. */ }
+}
+
+function commencerRedimensionnementOutils(event: PointerEvent): void {
+  redimensionnementOutils.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function redimensionnerOutils(event: PointerEvent): void {
+  if (!redimensionnementOutils.value) return
+  const colonne = document.querySelector<HTMLElement>('.grille-ent .colonne-gauche')
+  if (!colonne) return
+  largeurOutilsPersonnalisee.value = bornerLargeurOutils(event.clientX - colonne.getBoundingClientRect().left)
+}
+
+function finirRedimensionnementOutils(event: PointerEvent): void {
+  if (!redimensionnementOutils.value) return
+  redimensionnementOutils.value = false
+  const element = event.currentTarget as HTMLElement
+  if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId)
+  memoriserLargeurOutils()
+}
+
+function ajusterLargeurOutilsAuClavier(event: KeyboardEvent): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  largeurOutilsPersonnalisee.value = bornerLargeurOutils(event.key === 'Home'
+    ? largeurMinimaleOutils
+    : event.key === 'End'
+      ? Infinity
+      : (largeurOutilsPersonnalisee.value ?? largeurMinimaleOutils) + (event.key === 'ArrowLeft' ? -20 : 20))
+  memoriserLargeurOutils()
+}
+
+/** Variables CSS des largeurs personnalisées (notes à droite, outils à gauche). */
+const styleGrille = computed(() => {
+  const style: Record<string, string> = {}
+  if (largeurNotesPersonnalisee.value !== null) style['--volet-notes-largeur-personnalisee'] = `${largeurNotesPersonnalisee.value}px`
+  if (largeurOutilsPersonnalisee.value !== null) style['--largeur-outils-personnalisee'] = `${largeurOutilsPersonnalisee.value}px`
+  return Object.keys(style).length ? style : undefined
+})
+
+// Affichage des noms dans le texte : original, comparaison (nom barré + [pseudo],
+// par défaut) ou pseudonymisé (pseudo seul, comme dans l'export). Choix mémorisé.
+type AffichageNoms = 'original' | 'comparer' | 'pseudonymise'
+const RACCOURCI_AFFICHAGE_NOMS = 'sonalpi.entretien.affichageNoms'
+const affichageNoms = ref<AffichageNoms>('comparer')
+try {
+  const memorise = localStorage.getItem(RACCOURCI_AFFICHAGE_NOMS)
+  if (memorise === 'original' || memorise === 'comparer' || memorise === 'pseudonymise') {
+    affichageNoms.value = memorise
+  }
+} catch { /* Stockage facultatif. */ }
+watch(affichageNoms, (valeur) => {
+  try { localStorage.setItem(RACCOURCI_AFFICHAGE_NOMS, valeur) } catch { /* Stockage facultatif. */ }
+})
+
+/** Classes de la colonne de l'éditeur : sélection anon en cours + vue des noms
+ *  (les règles CSS globales de editeur.css s'y accrochent). */
+const classesColonneDroite = computed(() => ({
+  'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif.value,
+  'noms-original': affichageNoms.value === 'original',
+  'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
+}))
 const ignorerClicNotes = ref(false)
 const redimensionnementNotesActif = ref(false)
 const largeurMinimaleNotes = 240
@@ -370,10 +453,9 @@ function cliquerVolet(onglet: OngletLateral) {
           'notes-ouvert': voletNotesOuvert,
           'mode-audio': !estVideo,
           'redimensionnement-notes': redimensionnementNotesActif,
+          'redimensionnement-outils': redimensionnementOutils,
         }"
-        :style="largeurNotesPersonnalisee !== null
-          ? { '--volet-notes-largeur-personnalisee': `${largeurNotesPersonnalisee}px` }
-          : undefined"
+        :style="styleGrille"
       >
         <!-- Le retour au corpus reste accessible au-dessus des panneaux de travail. -->
         <div class="barre">
@@ -495,12 +577,29 @@ function cliquerVolet(onglet: OngletLateral) {
               v-model:ajout-selection-actif="ajoutSelectionActif"
             />
           </Teleport>
+
+          <!-- Réglage de la largeur du panneau, comme le séparateur de l'onglet Pseudonymisation. -->
+          <div
+            class="poignee-largeur"
+            role="separator"
+            aria-label="Largeur des panneaux de gauche"
+            aria-orientation="vertical"
+            tabindex="0"
+            :aria-valuenow="largeurOutilsPersonnalisee ?? undefined"
+            :aria-valuemin="largeurMinimaleOutils"
+            @pointerdown="commencerRedimensionnementOutils"
+            @pointermove="redimensionnerOutils"
+            @pointerup="finirRedimensionnementOutils"
+            @pointercancel="finirRedimensionnementOutils"
+            @lostpointercapture="finirRedimensionnementOutils"
+            @keydown="ajusterLargeurOutilsAuClavier"
+          ></div>
         </div>
 
         <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
-        <div class="colonne-droite" :class="{ 'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif }">
+        <div class="colonne-droite" :class="classesColonneDroite">
           <div ref="enteteEditeur" class="entete-editeur">
             <div v-if="estVideo" class="zone-media">
               <div class="tele">
@@ -524,6 +623,7 @@ function cliquerVolet(onglet: OngletLateral) {
               </button>
               <button
                 ref="boutonJournal"
+                class="bouton-journal"
                 data-onglet="journal"
                 :class="{ actif: journalOuvert }"
                 :aria-expanded="journalOuvert"
@@ -534,6 +634,32 @@ function cliquerVolet(onglet: OngletLateral) {
                 <img :src="icoJournal" alt="" draggable="false" />
                 <span>Journal</span>
               </button>
+              <!-- Les trois lectures du texte : brut, vérification (nom barré + pseudo),
+                   rendu final pseudonymisé. -->
+              <span v-if="affichageNoms === 'pseudonymise'" class="mention-pseudos">pseudos affichés</span>
+              <div class="groupe-affichage-noms" role="group" aria-label="Affichage des noms">
+                <button
+                  type="button"
+                  :class="{ actif: affichageNoms === 'original' }"
+                  :aria-pressed="affichageNoms === 'original'"
+                  title="Texte original, sans pseudonymes"
+                  @click="affichageNoms = 'original'"
+                >Original</button>
+                <button
+                  type="button"
+                  :class="{ actif: affichageNoms === 'comparer' }"
+                  :aria-pressed="affichageNoms === 'comparer'"
+                  title="Noms réels barrés et pseudos affichés côte à côte"
+                  @click="affichageNoms = 'comparer'"
+                >Comparer</button>
+                <button
+                  type="button"
+                  :class="{ actif: affichageNoms === 'pseudonymise' }"
+                  :aria-pressed="affichageNoms === 'pseudonymise'"
+                  title="Seuls les pseudos sont affichés, comme dans l’export"
+                  @click="affichageNoms = 'pseudonymise'"
+                >Pseudonymisé</button>
+              </div>
             </div>
           </div>
           <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />
@@ -682,8 +808,9 @@ function cliquerVolet(onglet: OngletLateral) {
   --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
   --volet-notes-colonne: min(var(--volet-notes-largeur-ajustee), var(--volet-notes-largeur));
   --panneaux-decalage: 1rem;
-  /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés. */
-  --largeur-outils: 23.25rem;
+  /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés.
+     Réglable via la poignée à droite du panneau (valeur personnalisée en pixels). */
+  --largeur-outils: min(var(--largeur-outils-personnalisee, 23.25rem), 50vw);
   grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
   gap: 1rem;
   align-items: start;
@@ -702,6 +829,9 @@ function cliquerVolet(onglet: OngletLateral) {
   grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-colonne);
 }
 .grille-ent.redimensionnement-notes {
+  transition: none;
+}
+.grille-ent.redimensionnement-outils {
   transition: none;
 }
 .grille-ent.redimensionnement-notes .cadre-notes,
@@ -761,6 +891,34 @@ function cliquerVolet(onglet: OngletLateral) {
 .outils-editeur button:hover,
 .outils-editeur button.actif {
   background: #e8f0fb;
+}
+/* La loupe est décalée du journal du même espace que journal ↔ réglage d'affichage. */
+.outils-editeur .bouton-journal {
+  margin-left: 1.1rem;
+}
+/* Groupe segmenté « Affichage des noms » : boutons jointifs, nettement décalés
+ * des actions qui s'ouvrent (recherche, journal) pour marquer la distinction
+ * entre actions et réglage d'affichage. */
+.groupe-affichage-noms {
+  display: inline-flex;
+  margin-left: 1.1rem;
+}
+.groupe-affichage-noms button {
+  margin-left: -1px;
+  border-radius: 0;
+}
+.groupe-affichage-noms button:first-child {
+  border-radius: 5px 0 0 5px;
+}
+.groupe-affichage-noms button:last-child {
+  border-radius: 0 5px 5px 0;
+}
+.mention-pseudos {
+  font-size: 0.75rem;
+  color: #1565c0;
+  align-self: center;
+  white-space: nowrap;
+  margin-left: 1.1rem;
 }
 .outils-editeur img {
   display: block;
@@ -920,6 +1078,27 @@ function cliquerVolet(onglet: OngletLateral) {
   display: none;
 }
 /* Colonne de droite : l'éditeur de transcription et, en vidéo, la zone média. */
+/* Poignée de réglage de la largeur du panneau de gauche, posée dans la gouttière
+   entre les colonnes ; invisible au repos, visible au survol et au clavier. */
+.poignee-largeur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -0.55rem;
+  width: 0.7rem;
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: 5px;
+  z-index: 40;
+}
+.poignee-largeur:hover,
+.poignee-largeur:focus-visible {
+  background: #e8edf5;
+}
+.poignee-largeur:focus {
+  outline: 2px solid #1565c0;
+  outline-offset: -2px;
+}
 .colonne-droite {
   grid-area: droite;
   display: flex;
@@ -1252,6 +1431,10 @@ function cliquerVolet(onglet: OngletLateral) {
   }
   .grille-ent:not(.notes-ouvert) {
     --volet-notes-largeur: min(320px, 34vw);
+  }
+  /* En colonnes étroites, la largeur redevient fluide : la poignée disparaît. */
+  .poignee-largeur {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
