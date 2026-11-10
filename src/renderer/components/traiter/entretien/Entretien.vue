@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { usePanneauxEntretien, type OngletEntretien } from '../../../composables/entretien/usePanneauxEntretien'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -56,6 +57,7 @@ const {
   publierMaintenant,
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
+  rafraichirCompteursAAAnonymiser,
 } = utiliserSonal()
 type OngletLateral = 'notes' | 'donnees'
 const journalOuvert = ref(false)
@@ -101,12 +103,36 @@ function fermerJournal() {
 watch(rechercheOuverte, (ouverte) => {
   if (ouverte) journalOuvert.value = false
 })
-const ongletGauche = ref<'themes' | 'locuteurs' | 'anon' | 'commentaires'>('locuteurs')
+const ongletGauche = ref<OngletEntretien>('locuteurs')
+const {
+  ongletsHaut, ongletsBas, actifHaut, actifBas, partage, proportionHaut,
+  colonne, cibleHaut, cibleBas, ongletGlisse, destination, position,
+  visible: outilVisible, cliquer: cliquerOnglet, deplacerAuClavier: deplacerOnglet, regrouper,
+  commencerGlissement, glisser, terminerGlissement,
+  commencerRedimensionnement, redimensionner, terminerRedimensionnement, redimensionnerAuClavier,
+} = usePanneauxEntretien(ongletGauche)
+const idPanneaux = `panneaux-${useId()}`
+const outilsGauche = {
+  locuteurs: { libelle: 'Locuteurs', titre: 'Locuteurs', icone: icoLocuteurs, tour: 'onglet-locuteurs' },
+  anon: { libelle: 'Pseudos', titre: 'Pseudonymisation du texte', icone: icoAnon, tour: undefined },
+  themes: { libelle: 'Thèmes', titre: 'Thématiques', icone: icoThemes, tour: 'onglet-themes' },
+  commentaires: { libelle: 'Comments', titre: 'Commentaires', icone: icoCommentaires, tour: undefined },
+}
+const zonesGauche = computed(() => [
+  { id: 'haut', onglets: ongletsHaut.value, actif: actifHaut.value },
+  ...(partage.value ? [{ id: 'bas', onglets: ongletsBas.value, actif: actifBas.value }] : []),
+])
+function cibleOutil(id: OngletEntretien) {
+  return `#${idPanneaux}-${ongletsBas.value.includes(id) ? 'bas' : 'haut'}`
+}
 const ongletLateral = ref<OngletLateral>('notes')
 const voletNotesOuvert = ref(false)
 const statistiquesOuvertes = ref(false)
 const interventionStatistique = ref<{ loc: number | null; pos: number } | null>(null)
-const afficherStatistiquesAudio = computed(() => ongletGauche.value === 'locuteurs' && statistiquesOuvertes.value)
+watch(() => outilVisible('anon'), (visible) => {
+  if (visible && ongletDroite.value !== 'anon') rafraichirCompteursAAAnonymiser()
+})
+const afficherStatistiquesAudio = computed(() => outilVisible('locuteurs') && statistiquesOuvertes.value)
 watch(afficherStatistiquesAudio, (afficher) => {
   if (!afficher) interventionStatistique.value = null
 })
@@ -122,6 +148,7 @@ watch(ongletDroite, (onglet) => {
     ongletGauche.value = onglet
   }
 }, { immediate: true })
+watch(ongletGauche, (onglet) => { ongletDroite.value = onglet })
 const largeurNotesPersonnalisee = ref<number | null>(null)
 const ignorerClicNotes = ref(false)
 const redimensionnementNotesActif = ref(false)
@@ -369,65 +396,111 @@ function cliquerVolet(onglet: OngletLateral) {
           </div>
         </div>
 
-        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
-             collante, à défilement interne au-delà d'un écran,
-             pour rester visible pendant la lecture. -->
-        <div class="colonne-gauche">
-          <nav class="onglets">
-            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletGauche === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
-              <img class="ico-onglet" :src="icoLocuteurs" alt="" />
-              <span>Locuteurs</span>
-            </button>
-            <button data-onglet="anon" :class="{ actif: ongletGauche === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
-              <img class="ico-onglet" :src="icoAnon" alt="" />
-              <span>Pseudos</span>
-            </button>
-            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletGauche === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
-              <img class="ico-onglet" :src="icoThemes" alt="" />
-              <span>Thèmes</span>
-            </button>
-            <button data-onglet="commentaires" :class="{ actif: ongletGauche === 'commentaires' }" title="Commentaires" @mousedown.prevent @click="ongletDroite = 'commentaires'">
-              <img class="ico-onglet" :src="icoCommentaires" alt="" />
-              <span>Comments</span>
-            </button>
-          </nav>
+        <!-- Chaque zone garde ses onglets visibles et son propre défilement. -->
+        <div
+          ref="colonne"
+          class="colonne-gauche"
+          :class="{ partagee: partage, 'glissement-onglet': ongletGlisse }"
+        >
+          <template v-for="zone in zonesGauche" :key="zone.id">
+            <div
+              v-if="zone.id === 'bas'"
+              class="separation-outils"
+              role="separator"
+              tabindex="0"
+              aria-label="Hauteur des panneaux de gauche"
+              aria-orientation="horizontal"
+              :aria-controls="`${idPanneaux}-haut ${idPanneaux}-bas`"
+              :aria-valuenow="proportionHaut"
+              :aria-valuemin="20"
+              :aria-valuemax="80"
+              @pointerdown="commencerRedimensionnement"
+              @pointermove="redimensionner"
+              @pointerup="terminerRedimensionnement"
+              @pointercancel="terminerRedimensionnement"
+              @lostpointercapture="terminerRedimensionnement"
+              @keydown="redimensionnerAuClavier"
+            ></div>
+            <div
+              :ref="(el) => { if (zone.id === 'haut') cibleHaut = el as HTMLElement; else cibleBas = el as HTMLElement }"
+              class="groupe-outils"
+              :class="{ 'depot-actif': destination === zone.id }"
+              :data-zone="zone.id"
+              :style="partage ? { flex: `${zone.id === 'haut' ? proportionHaut : 100 - proportionHaut} 1 0` } : undefined"
+            >
+              <nav class="onglets" :aria-label="zone.id === 'haut' ? 'Outils du haut' : 'Outils du bas'">
+                <button
+                  v-for="id in zone.onglets"
+                  :key="id"
+                  type="button"
+                  :data-onglet="id"
+                  :data-tour="outilsGauche[id].tour"
+                  :class="{ actif: zone.actif === id }"
+                  :aria-pressed="zone.actif === id"
+                  :title="`${outilsGauche[id].titre} — glisser vers le ${zone.id === 'haut' ? 'bas' : 'haut'} (Alt + ${zone.id === 'haut' ? '↓' : '↑'})`"
+                  @mousedown.prevent
+                  @click="cliquerOnglet(id); ongletDroite = ongletGauche"
+                  @pointerdown="commencerGlissement($event, id)"
+                  @pointermove="glisser"
+                  @pointerup="terminerGlissement"
+                  @pointercancel="terminerGlissement"
+                  @lostpointercapture="terminerGlissement"
+                  @keydown.alt.down.prevent="deplacerOnglet(id, 'bas')"
+                  @keydown.alt.up.prevent="deplacerOnglet(id, 'haut')"
+                >
+                  <img class="ico-onglet" :src="outilsGauche[id].icone" alt="" draggable="false" />
+                  <span>{{ outilsGauche[id].libelle }}</span>
+                </button>
+              </nav>
+              <DefilementSuperpose>
+                <div v-if="zone.id === 'haut'" data-tour="ancre-guide-pp"></div>
+                <div :id="`${idPanneaux}-${zone.id}`" class="contenus-outils"></div>
+              </DefilementSuperpose>
+              <button v-if="zone.id === 'bas'" class="regrouper-outils" type="button" @click="regrouper">
+                Regrouper les onglets en haut
+              </button>
+            </div>
+          </template>
+          <div v-if="ongletGlisse && !partage" ref="cibleBas" class="zone-depot-bas" :class="{ 'depot-actif': destination === 'bas' }">
+            Déposer ici pour afficher en dessous
+          </div>
+          <div
+            v-if="ongletGlisse"
+            class="apercu-onglet"
+            aria-hidden="true"
+            :style="{ left: `${position.x + 12}px`, top: `${position.y + 12}px` }"
+          >{{ outilsGauche[ongletGlisse].libelle }}</div>
 
-          <!-- Seul le contenu défile : les onglets restent en place au-dessus. -->
-          <DefilementSuperpose>
-            <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
-            <div data-tour="ancre-guide-pp"></div>
-
-            <PanneauThemesEntretien
-              v-show="ongletGauche === 'themes'"
-              :lecture-seule-contenu="roContenu"
-            />
-
+          <!-- Déplacer le contenu existant conserve les saisies et les outils ouverts. -->
+          <Teleport defer :to="cibleOutil('themes')">
+            <PanneauThemesEntretien v-show="outilVisible('themes')" :lecture-seule-contenu="roContenu" />
+          </Teleport>
+          <Teleport defer :to="cibleOutil('locuteurs')">
             <PanneauLocuteursEntretien
-              v-show="ongletGauche === 'locuteurs'"
-              :actif="ongletGauche === 'locuteurs'"
+              v-show="outilVisible('locuteurs')"
+              :actif="outilVisible('locuteurs')"
               :lecture-seule="roContenu"
               v-model:statistiques-ouvertes="statistiquesOuvertes"
               @naviguer-statistique="interventionStatistique = $event"
             />
-
-            <PanneauCommentairesEntretien
-              v-show="ongletGauche === 'commentaires'"
-              :lecture-seule="roContenu"
-            />
-
+          </Teleport>
+          <Teleport defer :to="cibleOutil('commentaires')">
+            <PanneauCommentairesEntretien v-show="outilVisible('commentaires')" :lecture-seule="roContenu" />
+          </Teleport>
+          <Teleport defer :to="cibleOutil('anon')">
             <PanneauAnonymisationEntretien
-              v-show="ongletGauche === 'anon'"
-              :actif="ongletGauche === 'anon'"
+              v-show="outilVisible('anon')"
+              :actif="outilVisible('anon')"
               :lecture-seule-contenu="roContenu"
               v-model:ajout-selection-actif="ajoutSelectionActif"
             />
-          </DefilementSuperpose>
+          </Teleport>
         </div>
 
         <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
-        <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletGauche === 'anon' && ajoutSelectionActif }">
+        <div class="colonne-droite" :class="{ 'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif }">
           <div ref="enteteEditeur" class="entete-editeur">
             <div v-if="estVideo" class="zone-media">
               <div class="tele">
@@ -750,6 +823,97 @@ function cliquerVolet(onglet: OngletLateral) {
   /* Le panneau reste entièrement visible entre la barre fixe et le bas de la fenêtre,
      avec une marge inférieure d'un rem. */
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+}
+.colonne-gauche.partagee {
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+}
+.groupe-outils {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  gap: 0.5rem;
+  min-height: 0;
+  border-radius: 6px;
+}
+.contenus-outils {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.partagee .groupe-outils > .defilement-superpose {
+  flex: 1;
+}
+.partagee .groupe-outils :deep(.zone-defilement) {
+  flex: 1;
+}
+.colonne-gauche .onglets button {
+  touch-action: none;
+  user-select: none;
+}
+.glissement-onglet {
+  user-select: none;
+}
+.separation-outils {
+  flex: 0 0 8px;
+  border-radius: 4px;
+  background: #dddde7;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.separation-outils:hover,
+.separation-outils:focus-visible {
+  background: #7aa4df;
+  outline: 2px solid #1565c0;
+}
+.zone-depot-bas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  min-height: 80px;
+  height: 35%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 2px dashed #7aa4df;
+  border-radius: 6px;
+  background: #edf4ffed;
+  color: #15559e;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.depot-actif {
+  outline: 2px solid #1565c0;
+  background-color: #edf4ff;
+}
+.apercu-onglet {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid #7aa4df;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 3px 12px #0002;
+  color: #1565c0;
+  font-size: 0.8rem;
+}
+.regrouper-outils {
+  flex: none;
+  align-self: flex-end;
+  border: none;
+  background: none;
+  padding: 0.2rem;
+  color: #666;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.regrouper-outils:hover {
+  color: #1565c0;
+  text-decoration: underline;
 }
 /* Sans consigne de parcours, son emplacement n'ajoute pas d'espace au-dessus du panneau. */
 [data-tour="ancre-guide-pp"]:empty {
