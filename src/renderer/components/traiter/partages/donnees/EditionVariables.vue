@@ -16,6 +16,13 @@ import { operationGlobaleEnCours } from '../../../../operationGlobaleCorpus'
  */
 defineEmits<{ fermer: [] }>()
 
+/** Portée ciblée (crayon du panneau Données d’un entretien) : la fenêtre ne
+ *  montre QUE les variables de cette portée, ne propose que le bouton « + var. »
+ *  correspondant et pose d’emblée une variable neuve, son nom focalisé — comme
+ *  via le bouton « + var. » de la fenêtre. Sans portée (table de données), tout
+ *  est visible. */
+const props = defineProps<{ portee?: 'entretien' | 'locuteur' }>()
+
 const {
   variables,
   messageVar,
@@ -127,6 +134,9 @@ const modelesPerso = computed(() => modelesTous.value.filter((m) => m.perso))
 // UX de création : la variable neuve est AUTO-FOCUSÉE et son texte
 // présélectionné, pour nommer directement sans effacer « Nouvelle variable ».
 const nouveauId = ref<string | null>(null)
+const variablesListees = computed(() =>
+  props.portee ? variables.value.filter((v) => v.portee === props.portee) : variables.value,
+)
 // Registre des champs nom RENDUS (rempli à chaque rendu, vidé au démontage) :
 // la liste se rafraîchit avant que creerVariable pose nouveauId, donc le focus
 // se pose APRÈS nextTick, sur l'élément déjà présent — jamais au montage.
@@ -183,6 +193,7 @@ onMounted(() => {
   // Repartir propre (pas de message de refus d'un passage précédent).
   messageVar.value = null
   void lireModelesUtilisateur()
+  if (props.portee) void creerVariable(props.portee)
 })
 </script>
 
@@ -191,10 +202,20 @@ onMounted(() => {
     <div class="modale-vars">
       <div class="corpus-tete">
         <h3>Édition des variables</h3>
-        <button class="mini" title="Créer une variable d'entretien (une valeur par entretien)" @click="creerVariable('entretien')">
+        <button
+          v-if="!portee || portee === 'entretien'"
+          class="mini"
+          title="Créer une variable d'entretien (une valeur par entretien)"
+          @click="creerVariable('entretien')"
+        >
           + var. d'entretien
         </button>
-        <button class="mini" title="Créer une variable de locuteur (une valeur par locuteur)" @click="creerVariable('locuteur')">
+        <button
+          v-if="!portee || portee === 'locuteur'"
+          class="mini"
+          title="Créer une variable de locuteur (une valeur par locuteur)"
+          @click="creerVariable('locuteur')"
+        >
           + var. de locuteur
         </button>
         <button class="mini" title="Importer un modèle de modalités (JSON) dans « Mes modèles »" @click="importerModele()">
@@ -205,16 +226,17 @@ onMounted(() => {
       <p class="aide-thm">
         Nom, statut (publique = visible dans les exports), modalités · « modèles… » pré-remplit les
         modalités (intégrés ou importés) · sans modalité, la variable se saisit en texte libre dans la table
+        <template v-if="portee">· seules les variables de portée {{ portee }} sont listées</template>
       </p>
 
       <p v-if="messageVar" class="msg-thm">{{ messageVar }}</p>
 
-      <p v-if="variables.length === 0" class="vide">
+      <p v-if="variablesListees.length === 0" class="vide">
         Aucune variable — « + var. d'entretien » ou « + var. de locuteur ».
       </p>
 
       <ul class="liste-var">
-        <li v-for="v in variables" :key="v.id">
+        <li v-for="v in variablesListees" :key="v.id">
           <div class="var-tete">
             <span
               class="portee"

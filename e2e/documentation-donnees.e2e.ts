@@ -12,6 +12,11 @@ import { choisirDossierExemple, configurerSourcesExemples } from './exemples-uti
 const variable = (page: Page, nom: string) => page.locator('.liste-var > li')
   .filter({ has: page.getByTitle(nom, { exact: true }) })
 
+/** Bascule le panneau Données de l’entretien sur le sous-onglet demandé. */
+async function sousOngletDonnees(page: Page, portee: 'entretien' | 'locuteur') {
+  await page.locator('.panneau.donnees .sous-onglet-bouton', { hasText: portee === 'entretien' ? 'Entretien' : 'Locuteur' }).click()
+}
+
 async function creerVariable(page: Page, nom: string, portee: 'entretien' | 'locuteur', modalites: string[] = []) {
   await page.locator('.modale-vars').getByRole('button', {
     name: portee === 'entretien' ? "+ var. d'entretien" : '+ var. de locuteur', exact: true,
@@ -27,11 +32,6 @@ async function creerVariable(page: Page, nom: string, portee: 'entretien' | 'loc
     await modalite.fill(libelle)
     await modalite.press('Enter')
   }
-}
-
-async function ouvrirEditionDansEntretien(page: Page) {
-  await page.locator('.panneau.donnees .crayon').click()
-  await expect(page.locator('.modale-vars')).toBeVisible()
 }
 
 test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protéger les définitions utilisées', async () => {
@@ -72,8 +72,10 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     const carte = page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' })
     await carte.locator('.crayon').click()
     await page.locator('[data-onglet="donnees"]').click()
+    await sousOngletDonnees(page, 'entretien')
     const site = page.locator('.panneau.donnees > .saisie-eav').filter({ hasText: 'Lieu de rencontre' })
     await site.locator('select').selectOption({ label: 'En association' })
+    await sousOngletDonnees(page, 'locuteur')
     const fatima = page.locator('.fiche-loc').filter({ has: page.locator('.fiche-loc-nom', { hasText: 'Speaker 0' }) })
     await fatima.locator('.saisie-eav-libre').fill('Depuis 2012')
     await fatima.locator('.saisie-eav-libre').press('Enter')
@@ -130,9 +132,14 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     await expect(ligneEnt('2RetraiteAnticipee').locator('select option:checked')).toHaveText('À domicile')
     await retourCorpus(page)
     await carte.locator('.crayon').click()
-    await page.locator('[data-onglet="donnees"]').click()
+    // L’écran entretien (et son volet Données) reste monté : ne pas recliquer la
+    // languette si elle est déjà ouverte, cela la refermerait.
+    const languetteDonnees = page.locator('[data-onglet="donnees"]')
+    if ((await languetteDonnees.getAttribute('aria-expanded')) !== 'true') await languetteDonnees.click()
+    await sousOngletDonnees(page, 'entretien')
     await expect(page.locator('.panneau.donnees > .saisie-eav').filter({ hasText: 'Lieu' }).locator('select option:checked'))
       .toHaveText('Dans l’association')
+    await sousOngletDonnees(page, 'locuteur')
     await expect(fatima.locator('select option:checked')).toHaveText('Depuis 2012')
     const apres = lireEntretien()
     expect(apres.corpsTexte).toEqual(avant.corpsTexte)

@@ -160,3 +160,34 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await expect(page.locator('.modale-vars .liste-var > li').first().locator('.lig-mod')).toHaveCount(1)
   await app.close()
 })
+
+test('sous-onglets « Locuteur » / « Entretien » : le crayon crée une variable de la portée affichée', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-eav-onglets-')
+  await entrerEntretien(page)
+  await ongletDonnees(page)
+  const panneau = page.locator('.volet-notes .panneau.donnees')
+
+  // Corpus sans variables : « Locuteur » est actif par défaut.
+  await expect(panneau.locator('.sous-onglet-bouton.actif')).toHaveText('Locuteur')
+  await expect(panneau.locator('.vide')).toHaveText('Aucune variable de locuteur — ✏️ pour en créer.')
+
+  // Le crayon ouvre l’édition bornée à la portée affichée : une variable
+  // locuteur neuve, son nom focalisé, et pas de bouton « + var. d’entretien ».
+  await panneau.locator('.crayon').click()
+  await expect(page.locator('.modale-vars')).toBeVisible()
+  await expect(page.locator('.modale-vars .liste-var > li')).toHaveCount(1)
+  await expect(page.locator('.modale-vars .portee.locuteur')).toHaveCount(1)
+  await expect(page.locator('.modale-vars .nom-var')).toBeFocused()
+  await expect(page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" })).toHaveCount(0)
+  await fermerEditionVariables(page)
+
+  // La variable créée est de portée locuteur : fiche du premier locuteur.
+  await expect(panneau.locator('.fiche-loc').first()).toBeVisible()
+
+  // La bascule manuelle vers « Entretien » vide ce sous-onglet.
+  await panneau.locator('.sous-onglet-bouton', { hasText: 'Entretien' }).click()
+  await expect(panneau.locator('.sous-onglet-bouton.actif')).toHaveText('Entretien')
+  await expect(panneau.locator('.fiche-loc')).toHaveCount(0)
+  await expect(panneau.locator('.vide')).toHaveText('Aucune variable d’entretien — ✏️ pour en créer.')
+  await app.close()
+})
