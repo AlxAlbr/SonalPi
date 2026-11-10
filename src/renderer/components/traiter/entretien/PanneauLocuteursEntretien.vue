@@ -5,7 +5,11 @@ import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
 import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
 
-const props = defineProps<{ actif: boolean; lectureSeule: boolean }>()
+const props = defineProps<{ actif: boolean; lectureSeule: boolean; statistiquesOuvertes: boolean }>()
+const emit = defineEmits<{
+  'update:statistiquesOuvertes': [ouvertes: boolean]
+  naviguerStatistique: [selection: { loc: number | null; pos: number }]
+}>()
 
 const {
   lirePersonnes,
@@ -28,11 +32,10 @@ const {
   vue,
 } = utiliserSonal()
 
-const statistiquesOuvertes = ref(false)
 const gestionOuverte = ref(false)
 const boutonGestion = ref<HTMLButtonElement | null>(null)
 const boutonFermerGestion = ref<HTMLButtonElement | null>(null)
-watch(ouvertId, () => { statistiquesOuvertes.value = false })
+watch(ouvertId, () => { emit('update:statistiquesOuvertes', false) })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
 const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
@@ -116,15 +119,7 @@ watch(
 <template>
   <aside class="panneau locuteurs-coder">
     <div class="corpus-tete">
-      <h3>Locuteurs</h3>
       <div class="actions-locuteurs">
-        <button
-          class="crayon"
-          :title="statistiquesOuvertes ? 'Masquer les statistiques des locuteurs' : 'Afficher les statistiques des locuteurs'"
-          :aria-label="statistiquesOuvertes ? 'Masquer les statistiques des locuteurs' : 'Afficher les statistiques des locuteurs'"
-          :aria-expanded="statistiquesOuvertes"
-          @click="statistiquesOuvertes = !statistiquesOuvertes"
-        >📊</button>
         <button
           ref="boutonGestion"
           v-if="!lectureSeule"
@@ -135,8 +130,6 @@ watch(
         >✏️</button>
       </div>
     </div>
-
-    <p class="aide-locuteurs">Choisissez un locuteur pour l’attribuer au bloc courant ou à la sélection.</p>
 
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
@@ -272,10 +265,10 @@ watch(
     <details
       class="statistiques-locuteurs"
       :open="statistiquesOuvertes"
-      @toggle="statistiquesOuvertes = ($event.target as HTMLDetailsElement).open"
+      @toggle="emit('update:statistiquesOuvertes', ($event.target as HTMLDetailsElement).open)"
     >
       <summary>Statistiques des locuteurs</summary>
-      <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" />
+      <StatistiquesLocuteurs v-if="statistiquesOuvertes && actif" @naviguer="emit('naviguerStatistique', $event)" />
     </details>
   </aside>
 </template>
@@ -446,13 +439,7 @@ watch(
 }
 .actions-locuteurs {
   display: flex;
-  gap: 0.3rem;
-}
-.aide-locuteurs {
-  margin: 0.2rem 0 0;
-  color: #666;
-  font-size: 0.78rem;
-  line-height: 1.35;
+  margin-left: auto;
 }
 .gestion-locuteurs {
   margin-top: 0.9rem;

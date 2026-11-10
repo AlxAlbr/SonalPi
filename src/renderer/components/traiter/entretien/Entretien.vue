@@ -61,6 +61,12 @@ type OngletLateral = 'notes' | 'donnees' | 'journal'
 const ongletGauche = ref<'themes' | 'locuteurs' | 'anon' | 'commentaires'>('locuteurs')
 const ongletLateral = ref<OngletLateral>('notes')
 const voletNotesOuvert = ref(false)
+const statistiquesOuvertes = ref(false)
+const interventionStatistique = ref<{ loc: number | null; pos: number } | null>(null)
+const afficherStatistiquesAudio = computed(() => ongletGauche.value === 'locuteurs' && statistiquesOuvertes.value)
+watch(afficherStatistiquesAudio, (afficher) => {
+  if (!afficher) interventionStatistique.value = null
+})
 
 // Les raccourcis du corpus peuvent aussi ouvrir les outils de droite.
 watch(ongletDroite, (onglet) => {
@@ -313,7 +319,7 @@ function cliquerVolet(onglet: OngletLateral) {
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
           <div v-if="!estVideo" class="lecteur-barre">
-            <LecteurAudio />
+            <LecteurAudio :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
           </div>
         </div>
 
@@ -354,6 +360,8 @@ function cliquerVolet(onglet: OngletLateral) {
               v-show="ongletGauche === 'locuteurs'"
               :actif="ongletGauche === 'locuteurs'"
               :lecture-seule="roContenu"
+              v-model:statistiques-ouvertes="statistiquesOuvertes"
+              @naviguer-statistique="interventionStatistique = $event"
             />
 
             <PanneauCommentairesEntretien
@@ -376,7 +384,7 @@ function cliquerVolet(onglet: OngletLateral) {
         <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletGauche === 'anon' && ajoutSelectionActif }">
           <div v-if="estVideo" class="zone-media">
             <div class="tele">
-              <LecteurAudio :empile="true" />
+              <LecteurAudio :empile="true" :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
               <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
               <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
                 {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
