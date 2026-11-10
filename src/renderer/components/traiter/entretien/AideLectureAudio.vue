@@ -12,7 +12,7 @@ const dialogue = ref<HTMLDialogElement | null>(null)
     aria-label="Aide sur les raccourcis clavier du lecteur"
     aria-haspopup="dialog"
     @click="dialogue?.showModal()"
-  >Raccourci</button>
+  >Raccourcis</button>
   <Teleport to="body">
     <dialog ref="dialogue" class="dialogue-aide-lecture" aria-label="Raccourcis clavier du lecteur">
       <h2>Contrôler la lecture au clavier</h2>

@@ -57,7 +57,50 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
 } = utiliserSonal()
-type OngletLateral = 'notes' | 'donnees' | 'journal'
+type OngletLateral = 'notes' | 'donnees'
+const journalOuvert = ref(false)
+const enteteEditeur = ref<HTMLElement | null>(null)
+let animationNavigationTexte: number | null = null
+
+// Le défilement natif au clavier ne tient pas compte des barres fixes.
+function garderCurseurVisible(event: KeyboardEvent) {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) return
+  if (animationNavigationTexte !== null) cancelAnimationFrame(animationNavigationTexte)
+  animationNavigationTexte = requestAnimationFrame(() => {
+    animationNavigationTexte = null
+    const ed = editor.value
+    const entete = enteteEditeur.value
+    if (!ed || !entete || !ed.view.hasFocus()) return
+    const { head } = ed.state.selection
+    if (head === 1) {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      return
+    }
+    const hautVisible = entete.getBoundingClientRect().bottom + 8
+    const curseur = ed.view.coordsAtPos(head)
+    if (curseur.top < hautVisible) {
+      window.scrollBy({ top: Math.floor(curseur.top - hautVisible), behavior: 'instant' })
+    }
+  })
+}
+const boutonJournal = ref<HTMLButtonElement | null>(null)
+const fenetreJournal = ref<HTMLElement | null>(null)
+
+async function ouvrirJournal() {
+  fermerRecherche()
+  journalOuvert.value = true
+  await nextTick()
+  fenetreJournal.value?.focus()
+}
+
+function fermerJournal() {
+  journalOuvert.value = false
+  boutonJournal.value?.focus()
+}
+
+watch(rechercheOuverte, (ouverte) => {
+  if (ouverte) journalOuvert.value = false
+})
 const ongletGauche = ref<'themes' | 'locuteurs' | 'anon' | 'commentaires'>('locuteurs')
 const ongletLateral = ref<OngletLateral>('notes')
 const voletNotesOuvert = ref(false)
@@ -70,7 +113,9 @@ watch(afficherStatistiquesAudio, (afficher) => {
 
 // Les raccourcis du corpus peuvent aussi ouvrir les outils de droite.
 watch(ongletDroite, (onglet) => {
-  if (onglet === 'notes' || onglet === 'donnees' || onglet === 'journal') {
+  if (onglet === 'journal') {
+    void ouvrirJournal()
+  } else if (onglet === 'notes' || onglet === 'donnees') {
     ongletLateral.value = onglet
     voletNotesOuvert.value = true
   } else {
@@ -129,6 +174,7 @@ watch(ajoutSelectionActif, (actif) => {
 
 onBeforeUnmount(() => {
   if (animationInertieNotes !== null) cancelAnimationFrame(animationInertieNotes)
+  if (animationNavigationTexte !== null) cancelAnimationFrame(animationNavigationTexte)
 })
 
 function ouvrirCasDepuisSelection() {
@@ -382,37 +428,46 @@ function cliquerVolet(onglet: OngletLateral) {
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
         <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletGauche === 'anon' && ajoutSelectionActif }">
-          <div v-if="estVideo" class="zone-media">
-            <div class="tele">
-              <LecteurAudio :empile="true" :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
-              <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
-              <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
-                {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
+          <div ref="enteteEditeur" class="entete-editeur">
+            <div v-if="estVideo" class="zone-media">
+              <div class="tele">
+                <LecteurAudio :empile="true" :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
+                <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
+                <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
+                  {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
+                </button>
+              </div>
+              <VideoPanel v-show="videoVisible" />
+            </div>
+            <div class="outils-editeur" role="group" aria-label="Outils de l’entretien">
+              <button
+                class="ouvrir-recherche"
+                :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
+                :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
+                @mousedown.prevent
+                @click="ouvrirRecherche"
+              >
+                <img :src="icoRecherche" alt="" draggable="false" />
+              </button>
+              <button
+                ref="boutonJournal"
+                data-onglet="journal"
+                :class="{ actif: journalOuvert }"
+                :aria-expanded="journalOuvert"
+                aria-controls="panneau-journal-entretien"
+                title="Journal des actions"
+                @click="journalOuvert ? fermerJournal() : ouvrirJournal()"
+              >
+                <img :src="icoJournal" alt="" draggable="false" />
+                <span>Journal</span>
               </button>
             </div>
-            <VideoPanel v-show="videoVisible" />
           </div>
-          <div class="outils-editeur">
-            <button
-              class="ouvrir-recherche"
-              :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
-              :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
-              @click="ouvrirRecherche"
-            >
-              <img :src="icoRecherche" alt="" draggable="false" />
-            </button>
-          </div>
-          <EditorContent :editor="editor" class="cadre" />
+          <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />
         </div>
 
         <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
           <div class="cadre-notes">
-            <PanneauJournalEntretien
-              id="panneau-journal-entretien"
-              v-show="ongletLateral === 'journal'"
-              :lecture-seule="roContenu"
-              :inert="!voletNotesOuvert"
-            />
             <PanneauDonneesEntretien
               id="panneau-donnees-entretien"
               v-show="ongletLateral === 'donnees'"
@@ -460,24 +515,23 @@ function cliquerVolet(onglet: OngletLateral) {
               <img class="ico-onglet" :src="icoDonnees" alt="" draggable="false" />
               <span>Données</span>
             </button>
-            <button
-              data-onglet="journal"
-              :class="{ actif: voletNotesOuvert && ongletLateral === 'journal' }"
-              :aria-expanded="voletNotesOuvert && ongletLateral === 'journal'"
-              aria-controls="panneau-journal-entretien"
-              title="Journal — faites glisser pour redimensionner"
-              @pointerdown="commencerGlissementNotes($event, 'journal')"
-              @pointermove="glisserNotes"
-              @pointerup="terminerGlissementNotes"
-              @pointercancel="terminerGlissementNotes"
-              @click="cliquerVolet('journal')"
-            >
-              <img class="ico-onglet" :src="icoJournal" alt="" draggable="false" />
-              <span>Journal</span>
-            </button>
           </div>
         </aside>
       </div>
+
+      <section
+        v-if="journalOuvert"
+        id="panneau-journal-entretien"
+        ref="fenetreJournal"
+        class="fenetre-journal"
+        role="dialog"
+        aria-label="Journal des actions de l’entretien"
+        tabindex="-1"
+        @keydown.escape.stop.prevent="fermerJournal"
+      >
+        <button class="fermer-journal" aria-label="Fermer le journal" title="Fermer (Échap)" @click="fermerJournal">✕</button>
+        <PanneauJournalEntretien :lecture-seule="roContenu" />
+      </section>
 
       <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
            visible quel que soit le défilement du texte. Entrée = occurrence suivante,
@@ -581,7 +635,7 @@ function cliquerVolet(onglet: OngletLateral) {
 .grille-ent.redimensionnement-notes .notes-languette {
   transition: none;
 }
-/* Sans lecteur ni statut à afficher, la barre ne réserve aucune place. */
+/* Sans lecteur ni statut, aucune barre supplémentaire n'est nécessaire. */
 .grille-ent:not(:has(.barre .lecteur-audio, .barre .statut-session)) {
   --barre-h: 0px;
 }
@@ -602,32 +656,40 @@ function cliquerVolet(onglet: OngletLateral) {
   height: var(--barre-h);
   box-sizing: border-box;
 }
-/* La loupe est à cheval sur le contour haut de l'éditeur et y reste pendant le défilement du texte. */
-.outils-editeur {
-  position: relative;
-  z-index: 6;
-  height: 0;
-}
-.mode-audio .outils-editeur {
+/* L'en-tête reste joint au lecteur pendant le défilement, sans espace où le texte pourrait réapparaître. */
+.entete-editeur {
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  top: calc(var(--entete-h) + var(--barre-h));
+  z-index: 20;
+  background: #fff;
 }
-.ouvrir-recherche {
-  position: absolute;
-  top: 0;
-  right: 0.9rem;
+.outils-editeur {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 1.2rem 0.6rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+.outils-editeur button {
   display: inline-flex;
-  padding: 0.25rem;
-  border: none;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #ddd;
   border-radius: 5px;
   background: #fff;
   cursor: pointer;
-  transform: translateY(-50%);
+  font-size: 0.8rem;
 }
-.ouvrir-recherche:hover {
+.outils-editeur button:hover,
+.outils-editeur button.actif {
   background: #e8f0fb;
 }
-.ouvrir-recherche img {
+.outils-editeur img {
   display: block;
   width: 18px;
   height: 18px;
@@ -668,7 +730,8 @@ function cliquerVolet(onglet: OngletLateral) {
 /* Hôte <EditorContent> (le contenteditable ProseMirror est stylé dans editeur.css). */
 .cadre {
   border: 1px solid #ddd;
-  border-radius: 8px;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
   padding: 0.8rem 1rem;
   background: #fff;
 }
@@ -837,10 +900,6 @@ function cliquerVolet(onglet: OngletLateral) {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
-  position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  z-index: 20;
-  background: #fff;
   /* Respire au-dessus de l'éditeur (le bouton vidéo n'est pas collé au cadre). */
   padding-bottom: 0.75rem;
 }
@@ -954,6 +1013,32 @@ function cliquerVolet(onglet: OngletLateral) {
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   padding: 0.5rem;
+}
+.fenetre-journal {
+  position: fixed;
+  bottom: 0.8rem;
+  right: 0.8rem;
+  z-index: 60;
+  width: min(30rem, calc(100vw - 1.6rem));
+  max-height: min(32rem, calc(100vh - var(--entete-h) - 2rem));
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.fenetre-journal :deep(.corpus-tete) {
+  padding-right: 2rem;
+}
+.fermer-journal {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.15rem 0.45rem;
 }
 .ligne-recherche,
 .ligne-remplacement {
