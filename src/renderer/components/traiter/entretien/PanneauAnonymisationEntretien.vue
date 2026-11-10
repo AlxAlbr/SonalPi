@@ -377,7 +377,6 @@ onBeforeUnmount(() => {
      Entrée sur le Pseudo pose les occurrences (barré + [pseudo], cf. editeur.css). -->
 <aside class="panneau anon">
   <div class="corpus-tete">
-    <h3>Pseudonymisation du texte</h3>
     <div class="tete-actions">
       <button
         type="button"
@@ -394,10 +393,6 @@ onBeforeUnmount(() => {
       >+ Ligne</button>
     </div>
   </div>
-  <p class="aide-thm">
-    Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
-    Plusieurs graphies d'un même nom : sépare-les par « / » (ex. Lyon/Lyons). Multi-pseudo : « Claire / Rebecca » dans Pseudo, puis clic droit sur une occurrence pour basculer.
-  </p>
   <label class="selection-option" title="Ajouter automatiquement le texte sélectionné">
     <span class="selection-option-texte">
       <span class="selection-option-titre">Ajouter le texte sélectionné</span>
@@ -842,6 +837,7 @@ td.col-pseudo {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  margin-left: auto;
 }
 /* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés — vert
  * #15c095 = anonymisé, gris #555 = exception, orange #ff9800 = à anonymiser.
