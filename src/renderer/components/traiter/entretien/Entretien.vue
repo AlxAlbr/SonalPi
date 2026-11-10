@@ -5,7 +5,6 @@ import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
-import BarreSelectionEntretien from './BarreSelectionEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
 import PanneauCommentairesEntretien from './PanneauCommentairesEntretien.vue'
@@ -134,14 +133,6 @@ function ouvrirCasDepuisSelection() {
 function ouvrirRecueilsDepuisSelection() {
   fermerMenu()
   void afficherRecueilsPourAssociation()
-}
-
-const panneauAnonymisation = ref<InstanceType<typeof PanneauAnonymisationEntretien> | null>(null)
-
-async function pseudonymiserSelection() {
-  ongletDroite.value = 'anon'
-  await nextTick()
-  panneauAnonymisation.value?.pseudonymiserSelection()
 }
 
 function ouvrirVolet(onglet: OngletLateral) {
@@ -371,7 +362,6 @@ function cliquerVolet(onglet: OngletLateral) {
             />
 
             <PanneauAnonymisationEntretien
-              ref="panneauAnonymisation"
               v-show="ongletGauche === 'anon'"
               :actif="ongletGauche === 'anon'"
               :lecture-seule-contenu="roContenu"
@@ -510,12 +500,6 @@ function cliquerVolet(onglet: OngletLateral) {
           <button :disabled="!occurrencesRecherche.length" title="Remplacer toutes les occurrences (une seule annulation Ctrl+Z)" @click="remplacerTout">Tout</button>
         </div>
       </div>
-
-      <BarreSelectionEntretien
-        @pseudonymiser="pseudonymiserSelection"
-        @ajouter-cas="ouvrirCasDepuisSelection"
-        @ajouter-recueil="ouvrirRecueilsDepuisSelection"
-      />
 
       <!-- Menu contextuel de l'éditeur (clic droit) : sections anon,
            codages couvrants (retrait sans resélectionner) et commentaires
