@@ -46,7 +46,7 @@ const {
 
 
 <template>
-  <main class="app" :class="{ 'avec-navigation': vue !== 'accueil' }">
+  <main class="app" :class="{ 'avec-navigation': vue !== 'accueil', 'sans-espaces': vue === 'entretien' }">
     <header :inert="exportCorpusEnCours">
       <div class="tete">
         <h1>
@@ -181,6 +181,15 @@ const {
 .app.avec-navigation > header {
   grid-column: 1 / -1;
   width: 100%;
+}
+/* Vue Entretien : le rail des espaces de travail disparaît pour donner toute la
+ * place au travail sur l'entretien ; le fil d'Ariane (au-dessus) reste le chemin
+ * de retour vers le corpus et les autres espaces. */
+.app.sans-espaces {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app.sans-espaces > .barre-outils {
+  display: none;
 }
 .contenu-app {
   min-width: 0;

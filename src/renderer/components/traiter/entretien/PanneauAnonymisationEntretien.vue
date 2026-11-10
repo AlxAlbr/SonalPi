@@ -6,7 +6,10 @@ import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 const props = defineProps<{
   actif: boolean
   lectureSeuleContenu: boolean
+  /** Vue d'affichage des noms côté éditeur (« original » masque les marqueurs). */
+  affichageNoms?: 'original' | 'comparer' | 'pseudonymise'
 }>()
+const emit = defineEmits<{ basculerAffichage: [vue: 'comparer' | 'pseudonymise'] }>()
 const ajoutSelectionActif = defineModel<boolean>('ajoutSelectionActif', { required: true })
 
 const {
@@ -44,6 +47,31 @@ const {
   lectureSeule,
   gesteDisponible,
 } = utiliserSonal()
+
+// --- ANON : avis « vue Original » ---
+// Quand une validation pose des occurrences alors que la vue « Original » masque
+// tout marqueur, on prévient l'utilisateur (UNE fois par session) qu'il ne verra
+// pas l'effet sans changer de vue. L'événement demande la bascule au parent.
+const avisAffichageOriginal = ref(false)
+let avisAffichageDejaAffiche = false
+
+/** Pose les occurrences (validerAnon) et déclenche l'avis si la vue les masque. */
+function poserOccurrences(entite: string, pseudo: string) {
+  validerAnon(entite, pseudo)
+  declencherAvisAffichage()
+}
+/** Les chemins via brouillon + priorité (Entrée, Maj+Entrée) posent les
+ *  occurrences dans le composable : l'avis se déclenche au même moment. */
+function declencherAvisAffichage() {
+  if (props.affichageNoms === 'original' && !avisAffichageDejaAffiche) {
+    avisAffichageDejaAffiche = true
+    avisAffichageOriginal.value = true
+  }
+}
+function passerEnComparer() {
+  avisAffichageOriginal.value = false
+  emit('basculerAffichage', 'comparer')
+}
 
 // --- ANON : lignes de saisie (en bas du tableau) ---
 // Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM),
@@ -198,7 +226,7 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscu
   hintAnon.value = null
   if (majuscule === undefined) {
     // Bouton ✓ : valide directement au niveau entretien.
-    validerAnon(e, p)
+    poserOccurrences(e, p)
     l.entite = ''
     l.pseudo = ''
     return
@@ -208,6 +236,7 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscu
   l.entite = ''
   l.pseudo = ''
   void validerAvecPriorite(e, majuscule)
+  declencherAvisAffichage()
 }
 /** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte en attendant un pseudo),
  *  puis passage à la ligne suivante (créée au besoin). */
@@ -249,7 +278,7 @@ function onBlurLigne(id: number, evt: FocusEvent) {
  *  sans effet (la bascule se fait par occurrence via le menu contextuel). */
 function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpus', value: string) {
   if (etat === 'brouillon') majBrouillonLigne(entite, value)
-  else if (etat === 'entretien') validerAnon(entite, value)
+  else if (etat === 'entretien') poserOccurrences(entite, value)
 }
 /** Entrée sur le Pseudo d'une ligne existante : brouillon → valider selon la priorité ;
  *  Entrée choisit la portée prioritaire et Maj+Entrée choisit l'autre.
@@ -265,6 +294,7 @@ function surEntreePseudoLigne(
     const v = value.trim()
     if (v) majBrouillonLigne(entite, v)
     void validerAvecPriorite(entite, majuscule)
+    declencherAvisAffichage()
   } else (document.activeElement as HTMLElement | null)?.blur()
 }
 function scrollerVersLigne(entite: string) {
@@ -393,6 +423,10 @@ onBeforeUnmount(() => {
       >+ Ligne</button>
     </div>
   </div>
+  <p class="aide-portee-anon">
+    Ici, on pseudonymise le <b>contenu des tours de parole</b> (le texte).
+    Pour les noms des locuteurs, consultez l’onglet <b>Locuteurs</b>.
+  </p>
   <label class="selection-option" title="Ajouter automatiquement le texte sélectionné">
     <span class="selection-option-texte">
       <span class="selection-option-titre">Ajouter le texte sélectionné</span>
@@ -525,7 +559,7 @@ onBeforeUnmount(() => {
                   class="cpt-btn cpt-aanon"
                   :title="`Repérer les ${nbAAAnonymiser(l.cle)} occurrence(s) à anonymiser`"
                   @click="demarrerReperage(l.cle, 'a-anonymiser')"
-                >À {{ nbAAAnonymiser(l.cle) }}</button>
+                >{{ nbAAAnonymiser(l.cle) }}</button>
               </template>
               <!-- Incluses : exposant non cliquable, et absorbées par une entité plus large ;
                    le clic retombe sur la règle large. -->
@@ -620,11 +654,29 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    <div v-if="avisAffichageOriginal" class="portee-dialogue-overlay" role="dialog" aria-modal="true" aria-labelledby="avis-affichage-original-titre">
+      <div class="portee-dialogue">
+        <h4 id="avis-affichage-original-titre">Pseudonymisation posée</h4>
+        <p>Le pseudo a bien été appliqué. Mais vous êtes en vue « Original » : le texte continue d’afficher les noms d’origine, sans aucun marqueur.</p>
+        <p>Pour voir le résultat, passez en vue « Comparer » (noms barrés + pseudos) ou « Pseudonymisé » (pseudos seuls).</p>
+        <div class="portee-dialogue-actions">
+          <button @click="passerEnComparer">Passer en « Comparer »</button>
+          <button @click="avisAffichageOriginal = false">Rester en « Original »</button>
+        </div>
+      </div>
+    </div>
   </Teleport>
 </aside>
 </template>
 
 <style scoped>
+/* Phrase de portée : ce panneau concerne le TEXTE des tours, pas les locuteurs. */
+.aide-portee-anon {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0.2rem 0.3rem 0.4rem;
+  line-height: 1.35;
+}
 .hint-codage {
   background: #fff3e0;
   color: #b06e0f;
@@ -639,7 +691,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
-  margin: 0.3rem 0;
+  /* Plus d'air sous la ligne « Ajouter le texte sélectionné »
+     avant l'en-tête du tableau. */
+  margin: 0.3rem 0 1.4rem;
   padding: 0.55rem 0.65rem;
   border: 1px solid #d5e0ee;
   border-radius: 6px;
@@ -700,9 +754,10 @@ onBeforeUnmount(() => {
 /* --- Panneau Anon --- */
 /* Tableau Anon : layout FIXE — le nom d'entité est borné (ellipsis au survol) et
  * les colonnes Pseudo porte / Actions restent TOUJOURS visibles. Les largeurs
- * viennent de la 1ʳᵉ ligne (thead) : Nom = reste (auto), Pseudo fixe (large,
- * le Nom se réduit d'autant), Actions fixe. Les inputs de saisie sont calés à
- * 100 % de leur colonne (box-sizing) pour ne jamais déborder de leur cellule. */
+ * viennent de la 1ʳᵉ ligne (thead) : Nom = reste (auto), Pseudo proportionnelle
+ * (avec plancher) → les deux colonnes de saisie profitent de l'élargissement du
+ * panneau, Actions fixe. Les inputs de saisie sont calés à 100 % de leur colonne
+ * (box-sizing) pour ne jamais déborder de leur cellule. */
 .tableau-anon {
   width: 100%;
   table-layout: fixed;
@@ -714,11 +769,11 @@ onBeforeUnmount(() => {
  * séparateur fin sous l'en-tête (comme pour le tableau des locuteurs). */
 .tableau-anon th {
   text-align: center;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 600;
-  color: #999;
+  color: #1a1a1a;
   padding: 0.15rem 0.3rem;
   background: transparent;
   border-bottom: 1px solid #e5e5ef;
@@ -763,11 +818,14 @@ onBeforeUnmount(() => {
   min-width: 0;
   overflow: hidden;
 }
+/* Pseudo grandit AUSSI avec le panneau : largeur proportionnelle au tableau,
+ * avec un plancher en rem pour ne jamais rogner la saisie du pseudo quand le
+ * panneau est étroit. Actions, elle, reste à largeur fixe (juste le slider). */
 .col-pseudo {
-  width: 7.25rem; /* pseudo porte : un cran plus large → la colonne Nom (reste) se réduit d'autant */
+  width: max(7.25rem, 30%); /* pseudo porte : au moins la largeur du slider de saisie */
 }
 .col-actions {
-  width: 5rem; /* juste la largeur du slider de portée (3 crans + padding) */
+  width: 5.75rem; /* au moins la largeur du slider de portée (3 crans + padding) */
   text-align: center;
 }
 /* Contenu centré dans les colonnes Nom et Pseudo (pour l'essai UX). */
@@ -789,7 +847,7 @@ td.col-pseudo {
   white-space: normal;
   line-height: 1.25;
   min-width: 0;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: #333;
   text-align: center;
   border: 1px solid #ccc; /* encadré façon tableau Locuteurs (harmonisation) */
@@ -811,7 +869,7 @@ td.col-pseudo {
   white-space: pre;
   line-height: 1.25;
   height: calc(1.25em + 0.2rem * 2 + 2px);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: #333;
   text-align: center;
   border: 1px solid #ccc;
@@ -839,6 +897,11 @@ td.col-pseudo {
   gap: 0.3rem;
   margin-left: auto;
 }
+/* Même cadence d'agrandissement que le tableau (classe .mini globale non touchée). */
+.tete-actions .mini {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.55rem;
+}
 /* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés — vert
  * #15c095 = anonymisé, gris #555 = exception, orange #ff9800 = à anonymiser.
  * Chiffre blanc sur la couleur. */
@@ -847,12 +910,12 @@ td.col-pseudo {
   background: transparent;
   padding: 0;
   color: #fff;
-  font-size: 0.66rem;
+  font-size: 0.78rem;
   font-weight: bold;
   font-family: inherit;
   flex: none;
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.3rem;
+  height: 1.3rem;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -869,14 +932,14 @@ td.col-pseudo {
   background: #ff9800;
 }
 .cpt-variante .cpt-btn {
-  font-size: 0.62rem;
-  width: 1rem;
-  height: 1rem;
+  font-size: 0.72rem;
+  width: 1.2rem;
+  height: 1.2rem;
 }
 /* Exposant d'incluses : « +N » discret après les badges — absorbées par une
  * entité plus large, non comptées, non navigables (tooltip pour le détail). */
 .cpt-incl {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   color: #999;
   font-style: italic;
   cursor: help;
@@ -959,8 +1022,8 @@ td.col-pseudo {
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 0.02rem 0.26rem;
-  font-size: 0.72rem;
+  padding: 0.06rem 0.34rem;
+  font-size: 0.82rem;
   line-height: 1.3;
   opacity: 0.45;
 }

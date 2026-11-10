@@ -574,7 +574,9 @@ function cliquerVolet(onglet: OngletLateral) {
               v-show="outilVisible('anon')"
               :actif="outilVisible('anon')"
               :lecture-seule-contenu="roContenu"
+              :affichage-noms="affichageNoms"
               v-model:ajout-selection-actif="ajoutSelectionActif"
+              @basculer-affichage="affichageNoms = $event"
             />
           </Teleport>
 
