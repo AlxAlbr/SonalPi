@@ -19,7 +19,7 @@ const {
 const editerVariables = ref(false)
 
 // Le panneau sépare les deux portées en sous-onglets ; le crayon, sous les
-// onglets, crée une variable de la portée AFFICHÉE.
+// onglets, ouvre l'édition des variables bornée à la portée AFFICHÉE.
 const sousOnglet = ref<'entretien' | 'locuteur'>('locuteur')
 
 // Si un seul niveau porte des variables, s'y installer d'office (le panneau

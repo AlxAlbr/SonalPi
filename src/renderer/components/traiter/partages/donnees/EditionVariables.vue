@@ -17,9 +17,9 @@ import { operationGlobaleEnCours } from '../../../../operationGlobaleCorpus'
 defineEmits<{ fermer: [] }>()
 
 /** Portée ciblée (crayon du panneau Données d’un entretien) : la fenêtre ne
- *  montre QUE les variables de cette portée, ne propose que le bouton « + var. »
- *  correspondant et pose d’emblée une variable neuve, son nom focalisé — comme
- *  via le bouton « + var. » de la fenêtre. Sans portée (table de données), tout
+ *  montre QUE les variables de cette portée et ne propose que le bouton
+ *  « + var. » correspondant — comme les autres crayons de l’app, elle ouvre
+ *  l’édition SANS créer quoi que ce soit. Sans portée (table de données), tout
  *  est visible. */
 const props = defineProps<{ portee?: 'entretien' | 'locuteur' }>()
 
@@ -193,7 +193,6 @@ onMounted(() => {
   // Repartir propre (pas de message de refus d'un passage précédent).
   messageVar.value = null
   void lireModelesUtilisateur()
-  if (props.portee) void creerVariable(props.portee)
 })
 </script>
 
@@ -232,7 +231,8 @@ onMounted(() => {
       <p v-if="messageVar" class="msg-thm">{{ messageVar }}</p>
 
       <p v-if="variablesListees.length === 0" class="vide">
-        Aucune variable — « + var. d'entretien » ou « + var. de locuteur ».
+        <template v-if="portee">Aucune variable de portée {{ portee }} — « + var. de {{ portee }} ».</template>
+        <template v-else>Aucune variable — « + var. d'entretien » ou « + var. de locuteur ».</template>
       </p>
 
       <ul class="liste-var">

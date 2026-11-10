@@ -161,7 +161,7 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await app.close()
 })
 
-test('sous-onglets « Locuteur » / « Entretien » : le crayon crée une variable de la portée affichée', async () => {
+test('sous-onglets « Locuteur » / « Entretien » : le crayon ouvre l’édition bornée à la portée affichée', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-eav-onglets-')
   await entrerEntretien(page)
   await ongletDonnees(page)
@@ -171,14 +171,19 @@ test('sous-onglets « Locuteur » / « Entretien » : le crayon crée une variab
   await expect(panneau.locator('.sous-onglet-bouton.actif')).toHaveText('Locuteur')
   await expect(panneau.locator('.vide')).toHaveText('Aucune variable de locuteur — ✏️ pour en créer.')
 
-  // Le crayon ouvre l’édition bornée à la portée affichée : une variable
-  // locuteur neuve, son nom focalisé, et pas de bouton « + var. d’entretien ».
+  // Le crayon ouvre l’édition SANS créer rien d’emblée, bornée à la portée
+  // affichée : seul « + var. de locuteur » est proposé.
   await panneau.locator('.crayon').click()
   await expect(page.locator('.modale-vars')).toBeVisible()
+  await expect(page.locator('.modale-vars .liste-var > li')).toHaveCount(0)
+  await expect(page.locator('.modale-vars .corpus-tete .mini', { hasText: '+ var. de locuteur' })).toHaveCount(1)
+  await expect(page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" })).toHaveCount(0)
+
+  // La création reste possible DEPUIS la fenêtre, et reste de portée locuteur.
+  await page.locator('.modale-vars .corpus-tete .mini', { hasText: '+ var. de locuteur' }).click()
   await expect(page.locator('.modale-vars .liste-var > li')).toHaveCount(1)
   await expect(page.locator('.modale-vars .portee.locuteur')).toHaveCount(1)
   await expect(page.locator('.modale-vars .nom-var')).toBeFocused()
-  await expect(page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" })).toHaveCount(0)
   await fermerEditionVariables(page)
 
   // La variable créée est de portée locuteur : fiche du premier locuteur.
