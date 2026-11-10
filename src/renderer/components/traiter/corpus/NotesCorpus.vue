@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
 import { useNotesCorpus } from '../../../composables/corpus/useNotesCorpus'
 import ModaleNoteCorpus from './ModaleNoteCorpus.vue'
+import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import type { ChampsNote, LienCommentaireNoteCorpus, VueNoteCorpus } from '../../../../shared/corpus/notes'
 
 const props = defineProps<{ actif: boolean }>()
@@ -182,12 +184,11 @@ onBeforeUnmount(() => observateur?.disconnect())
 
 <template>
   <section class="notes-corpus" aria-label="Notes du corpus" :aria-busy="chargement">
-    <header class="entete-notes" :class="{ panneau: replie }">
-      <div v-if="replie">
-        <h2 class="titre-panneau">Notes</h2>
-        <span>{{ notesFiltrees.length }} affichée{{ notesFiltrees.length === 1 ? '' : 's' }} sur {{ inventaire.notes.length }}</span>
-      </div>
-      <div class="actions-entete-notes">
+    <BarreOngletCorpus titre="Notes">
+      <template #aide>
+        Les notes de tous les entretiens, à filtrer, trier et exporter.
+        {{ notesFiltrees.length }} affichée{{ notesFiltrees.length === 1 ? '' : 's' }} sur {{ inventaire.notes.length }}.
+      </template>
         <div class="modes-notes" role="group" aria-label="Mode d’affichage des notes">
           <button
             type="button"
@@ -209,8 +210,7 @@ onBeforeUnmount(() => observateur?.disconnect())
         <button type="button" :aria-expanded="!replie" @click="replie = !replie">
           {{ replie ? 'Afficher les filtres' : 'Masquer les filtres' }}
         </button>
-      </div>
-    </header>
+    </BarreOngletCorpus>
 
     <p v-if="erreur && charge" class="erreur alerte-projection" role="alert">
       {{ erreur }}<template v-if="erreurLecture"> Les notes affichées sont le dernier résultat lisible et peuvent ne plus être à jour.</template>
@@ -230,9 +230,8 @@ onBeforeUnmount(() => observateur?.disconnect())
       :class="{ verticale, replie }"
       :style="{ '--largeur-notes': largeur + 'px' }"
     >
-      <aside v-if="!replie" class="panneau filtres-notes" aria-label="Filtres et tri des notes">
-        <div class="corpus-tete"><h2 class="titre-panneau">Notes</h2></div>
-        <p class="accueil-intro">{{ notesFiltrees.length }} affichée{{ notesFiltrees.length === 1 ? '' : 's' }} sur {{ inventaire.notes.length }}</p>
+      <aside v-if="!replie" v-hauteur-disponible class="panneau filtres-notes" aria-label="Filtres et tri des notes">
+        <div class="corpus-tete"><h2 class="titre-panneau">Filtres</h2></div>
         <section class="section-notes" aria-labelledby="titre-acces-notes">
           <h3 id="titre-acces-notes">Accès rapides</h3>
           <div class="raccourcis" role="group" aria-label="Accès rapides aux notes">
@@ -476,12 +475,6 @@ onBeforeUnmount(() => observateur?.disconnect())
 
 <style scoped>
 .notes-corpus { min-width: 0; }
-.entete-notes { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-.entete-notes.panneau { justify-content: space-between; }
-.entete-notes > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.entete-notes h2 { margin: 0; }
-.entete-notes span { color: #52606d; font-size: 0.85rem; }
-.actions-entete-notes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .modes-notes { display: flex; }
 .modes-notes button { border: 1px solid #b8c3cf; background: #fff; }
 .modes-notes button + button { margin-left: -1px; }
@@ -493,7 +486,9 @@ button:disabled { cursor: default; }
 .deux-colonnes-notes { display: grid; grid-template-columns: var(--largeur-notes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
 .deux-colonnes-notes.verticale, .deux-colonnes-notes.replie { grid-template-columns: minmax(0, 1fr); }
 .filtres-notes, .liste-notes { min-width: 0; }
-.filtres-notes { max-height: 74vh; overflow: auto; }
+/* Le panneau des filtres reste en vue, s'arrête au bas de la fenêtre et défile à l'intérieur. */
+.filtres-notes { position: sticky; top: calc(var(--entete-h) + 0.5rem); align-self: start; box-sizing: border-box; max-height: var(--hauteur-disponible, 74vh); overflow: auto; }
+.deux-colonnes-notes.verticale .filtres-notes { position: static; max-height: none; }
 .section-notes { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e5ef; }
 .filtres-notes .section-notes > :not(h3):not(summary) { margin-inline-start: .75rem; }
 .filtres-notes h3, .filtres-detailles > summary { margin: 0 0 8px; font-size: 0.82rem; font-weight: 600; color: #44506a; }
@@ -566,9 +561,7 @@ legend { font-size: 0.82rem; }
 .inventaire-incomplet ul { margin-bottom: 0; padding-left: 22px; }
 @media (max-width: 700px) {
   .notes-corpus { padding: 10px; }
-  .entete-notes { align-items: flex-start; flex-direction: column; }
-  .actions-entete-notes { justify-content: flex-start; }
-  .filtres-notes { max-height: none; }
+  .filtres-notes { position: static; max-height: none; }
   .bloc-feuille-note { padding: 14px; }
 }
 </style>

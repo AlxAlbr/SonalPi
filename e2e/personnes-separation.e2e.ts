@@ -65,8 +65,8 @@ test('séparer une personne laisse au moins un locuteur sur la fiche d’origine
     const inventaire = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(inventaire.locuteurs.map((locuteur: any) => locuteur.nom)).toEqual(expect.arrayContaining(['Karine', 'Mme Dupont', 'K. Dupont']))
 
-    await panneau.getByRole('button', { name: 'Annuler une modification…' }).click()
-    await expect(page.locator('.journal-corpus')).toContainText('Aucune action enregistrée.')
+    // Le niveau corpus ne propose plus d'annulation des modifications de Personnes.
+    await expect(panneau.getByRole('button', { name: 'Annuler une modification…' })).toHaveCount(0)
   } finally {
     await app.close()
     rmSync(dir, { recursive: true, force: true })

@@ -28,7 +28,6 @@
         <li><a href="#choisir">Choisir la bonne manière de revenir en arrière</a></li>
         <li><a href="#texte">Annuler une correction de la transcription</a></li>
         <li><a href="#journal-entretien">Utiliser le Journal de l’entretien</a></li>
-        <li><a href="#journal-corpus">Annuler une action récente du corpus</a></li>
         <li><a href="#limites">Comprendre les limites des Journaux</a></li>
         <li><a href="#sauvegarder">Créer une copie de sauvegarde ZIP</a></li>
         <li><a href="#restaurer">Ouvrir une restauration dans un nouveau dossier</a></li>
@@ -42,7 +41,7 @@
           <tr><td>Une fenêtre est encore ouverte et vous n’avez pas validé.</td><td><strong>Annuler</strong>, <strong>Fermer</strong> ou <strong>Échap</strong>, selon la fenêtre.</td></tr>
           <tr><td>Vous venez de corriger les mots de la transcription.</td><td><strong>Ctrl+Z</strong> ou <strong>Cmd+Z</strong> dans l’éditeur ; <strong>Ctrl+Maj+Z</strong> ou <strong>Cmd+Maj+Z</strong> pour rétablir.</td></tr>
           <tr><td>Vous avez codé, commenté, renommé ou attribué un locuteur, ou modifié une valeur dans l’entretien.</td><td>L’onglet <strong>Journal</strong> de l’entretien, si l’action y figure encore.</td></tr>
-          <tr><td>Vous avez modifié une note depuis la vue corpus ou certaines informations de Personnes.</td><td><strong>Actions récentes</strong> dans le corpus, si l’action est prise en charge.</td></tr>
+          <tr><td>Vous avez modifié une note depuis la vue corpus ou certaines informations de Personnes.</td><td>Aucune annulation n’est proposée au niveau du corpus : vérifiez avant de valider, ou repartez d’une <strong>copie de sauvegarde ZIP</strong>.</td></tr>
           <tr><td>Vous voulez retrouver un état datant d’une session précédente.</td><td>Une <strong>copie de sauvegarde ZIP</strong> créée avant les modifications.</td></tr>
         </tbody>
       </table>
@@ -73,20 +72,10 @@
       <li>la modification d’une valeur de variable pour l’entretien ou un locuteur.</li>
     </ul>
     <p>L’action annulée disparaît du Journal. Le Journal ne propose pas de commande pour la rétablir ensuite ; vérifiez donc la ligne choisie avant de cliquer.</p>
-    <h2 id="journal-corpus">Annuler une action récente du corpus</h2>
-    <p>Depuis l’écran du corpus, cliquez sur l’icône <strong>Actions récentes</strong>, également proposée dans la présentation de l’onglet Accueil. Une fenêtre <strong>Historique des actions</strong> affiche les dix dernières opérations de corpus prises en charge pendant l’ouverture en cours.</p>
-    <figure>
-      <img src="../medias/actions-recentes-corpus.png" alt="La fenêtre Historique des actions montre une note modifiée et une flèche permettant d’annuler cette modification.">
-      <figcaption>Une modification de note réalisée depuis la vue corpus peut être annulée tant que son état attendu n’a pas été remplacé.</figcaption>
-    </figure>
-    <p>Ce Journal concerne actuellement certaines modifications des <strong>notes</strong> et des <strong>Personnes</strong>, par exemple modifier ou supprimer une note, renommer une personne ou changer certaines associations avec des locuteurs. L’onglet Personnes propose aussi le bouton <strong>Annuler une modification…</strong>, limité à ses propres actions.</p>
-    <p>Cliquez sur <strong>↩</strong> en face de l’action à annuler. Si une action plus récente doit être annulée d’abord, ou si l’élément a changé entre-temps, la flèche est désactivée et la raison est indiquée. SonalPi n’écrase pas silencieusement le nouvel état.</p>
-    <p class="notice">L’annulation des actions de corpus distant n’est pas encore disponible dans ce Journal. Utilisez les confirmations, les aperçus et les procédures de reprise propres à l’opération.</p>
     <h2 id="limites">Comprendre les limites des Journaux</h2>
     <ul>
       <li>Chaque Journal garde au maximum <strong>dix actions</strong>.</li>
       <li>Le Journal de l’entretien est vidé lorsque vous fermez cet entretien ou en ouvrez un autre.</li>
-      <li>Le Journal du corpus est vidé lorsque vous fermez ou changez de corpus.</li>
       <li>Une ligne grisée signifie que sa cible a disparu ou a changé : aucune annulation partielle n’est tentée.</li>
       <li>Une action absente du Journal n’est pas annulable par ce moyen.</li>
     </ul>

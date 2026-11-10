@@ -22,7 +22,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     const panneau = page.locator('.personnes-corpus')
     await expect(panneau).toBeVisible()
     await expect(page.locator('.grille-corpus')).toBeHidden()
-    await expect(panneau.locator('.entete').getByRole('button', { name: 'Aide sur l’onglet Personnes' })).toBeVisible()
+    await expect(panneau.locator('.barre-onglet').getByRole('button', { name: 'Aide sur l’onglet Personnes' })).toBeVisible()
     await expect(panneau.locator('.repertoire > .carte-repertoire')).toHaveCount(4)
     const carteRepertoire = panneau.locator('details.carte-personnes')
     await expect(carteRepertoire).toHaveAttribute('open', '')

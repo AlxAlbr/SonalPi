@@ -100,11 +100,11 @@ test('tableau corpus : quatre colonnes, filtres, variantes et garde des changeme
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Changements non validés' })).toBeVisible()
     await page.getByRole('button', { name: 'Rester', exact: true }).click()
-    await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Pseudonymisation')
+    await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Pseudonymisation')
     await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
     await expect(page.locator('.accueil-organisation')).toBeVisible()
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
-    await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Pseudonymisation')
+    await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Pseudonymisation')
     await expect(page.locator('.occ input[type="checkbox"]').first()).toBeChecked()
     await page.getByRole('button', { name: 'Actualiser', exact: false }).click()
     await page.locator('.garde-dialogue').getByRole('button', { name: 'Abandonner', exact: true }).click()
@@ -604,7 +604,7 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
   await expect(page.locator('.pseudo-panneau')).toBeVisible()
   const nbAvant = await page.locator('.pseudo-table tbody tr').count()
   expect(nbAvant).toBeGreaterThanOrEqual(1)
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens' }).click()
 
   // --- RÉ-IMPORT du .sonal exporté (2ᵉ entretien, même corpus) ---
   await app.evaluate(({ dialog }, args) => {

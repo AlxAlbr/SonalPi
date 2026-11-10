@@ -66,16 +66,16 @@ test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le ro
   await creerVarEntretien(page, 'Lyon')
 
   // Ouvrir l'entretien puis en SORTIR : il est fermé,
-  // le point de reprise est proposé dès l'écran Corpus.
+  // le point de reprise est proposé dans l'en-tête, sur tous les onglets.
   await entrerEntretien(page)
   await retourCorpus(page)
-  await expect(page.locator('.grille-corpus .btn-reprise')).toBeVisible()
-  await expect(page.locator('.grille-corpus .btn-reprise')).toContainText('Reprendre')
+  await expect(page.locator('.tete .btn-reprise')).toBeVisible()
+  await expect(page.locator('.tete .btn-reprise')).toContainText('Reprendre')
 
-  // Dans la table : aucune ligne verrouillée, et la reprise est là aussi.
+  // Dans la table : aucune ligne verrouillée, et la reprise reste au même endroit.
   await entrerDonnees(page)
   await expect(page.locator('.matrice.editable select').first()).toBeEnabled()
-  const reprise = page.locator('.donnees-ecran .btn-reprise')
+  const reprise = page.locator('.tete .btn-reprise')
   await expect(reprise).toBeVisible()
 
   // Reprendre rouvre l'entretien dans l'éditeur.

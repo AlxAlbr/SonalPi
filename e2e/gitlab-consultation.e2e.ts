@@ -509,7 +509,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await modal.getByRole('button', { name: 'Préparer la dissociation globale', exact: true }).click(); await expect(modal.getByRole('checkbox')).toBeEnabled({ timeout: 30_000 })
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click(); expect((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu).toBe(avant)
       const frais = await ouvrirDissociation(page); await frais.getByRole('checkbox').check(); await frais.getByRole('button', { name: 'Confirmer la dissociation globale' }).click(); await expect(frais).toHaveCount(0, { timeout: 30_000 })
-      await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click(); await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click(); await page.locator('[data-onglet="anon"]').click()
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click(); await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click(); await page.locator('[data-onglet="anon"]').click()
       await expect(page.locator('.ligne-anon.etat-entretien', { hasText: 'Karine' }).first().locator('.pseudo-anon')).toHaveValue('Claire / Rebecca')
       const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu); expect(actuel).toMatchObject({ corpsTexte: JSON.parse(avant).corpsTexte, locuteurs: b.f.sources[0].data.locuteurs })
     } finally { await app.close(); await session.fermer(); shim.nettoyer(); rmSync(profil, { recursive: true, force: true }) }

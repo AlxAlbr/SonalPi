@@ -206,8 +206,9 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
   await expect(page.locator('.fini-pp')).toBeVisible()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
-  await expect(page.locator('.panneau.meta-ent')).toHaveCount(0)
-  await expect(page.locator('.onglets-corpus button[aria-label="Accueil"]')).toHaveAttribute('aria-current', 'page')
+  // Un entretien reste toujours sélectionné : sa fiche demeure affichée.
+  await expect(page.locator('.panneau.meta-ent')).toBeVisible()
+  await expect(page.locator('.onglets-corpus button', { hasText: 'Entretiens' })).toHaveAttribute('aria-current', 'page')
 
   // --- Étape 4 : Renommer les locuteurs (lancée AU CLIC) ---
   // L'entretien s'ouvre sur l'ACCUEIL (vue d'ensemble + conseils).

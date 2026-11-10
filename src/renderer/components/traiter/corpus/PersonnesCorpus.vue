@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RapprochementCorpus from './RapprochementCorpus.vue'
-import ModaleJournalCorpus from './ModaleJournalCorpus.vue'
+import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import { utiliserSonal } from '../../../composables/sonal'
 import { analyserRapprochementPersonne, natureNomPersonne, suggestionsPersonnes } from '../../../../shared/corpus/rapprochementsPersonnes'
 import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
@@ -11,8 +12,6 @@ const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables
   nomCategorieNote, idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue,
   revisionPersonnesCorpus } = utiliserSonal()
 const inventaire = ref<InventairePersonnes>({ personnes: [], locuteurs: [], notes: [], indisponibles: [] })
-const annulationsOuvertes = ref(false)
-watch([() => props.actif, dossierCourantDir, vue], () => { annulationsOuvertes.value = false })
 const selection = ref('')
 const titreFiche = ref<HTMLHeadingElement | null>(null)
 const recherche = ref('')
@@ -407,14 +406,15 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 
 <template>
   <section class="personnes-corpus" aria-label="Personnes du corpus" :aria-busy="occupe">
-    <header class="entete">
-      <button :disabled="occupe" @click="annulationsOuvertes = true">Annuler une modification…</button>
+    <BarreOngletCorpus
+      titre="Personnes"
+      aide="Retrouvez une même personne d’un entretien à l’autre. Choisissez un nom pour consulter sa fiche."
+    >
       <button class="actualiser" :disabled="occupe" @click="actualiser">Actualiser</button>
       <button class="bouton-aide" type="button" aria-label="Aide sur l’onglet Personnes" title="Aide sur l’onglet Personnes" @click="ouvrirAide">
         <span aria-hidden="true">?</span>
       </button>
-    </header>
-    <ModaleJournalCorpus v-if="annulationsOuvertes" personnes @fermer="annulationsOuvertes = false" />
+    </BarreOngletCorpus>
     <p v-if="lectureUniquement" class="information">Consultation seule : reconnectez le corpus distant pour appliquer une correction.</p>
     <p v-else-if="corpusDistant" class="information">Les corrections sont publiées sous verrou. Une opération touchant plusieurs entretiens peut réussir partiellement ; actualisez alors le répertoire pour reprendre les éléments restants.</p>
     <p v-if="erreur && charge" role="alert" class="erreur alerte-projection">
@@ -438,14 +438,13 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
       </ul>
     </details>
     <div v-show="charge" ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
-      <aside class="panneau repertoire" aria-label="Répertoire des personnes">
+      <aside v-hauteur-disponible class="panneau repertoire" aria-label="Répertoire des personnes">
         <header>
-          <div class="corpus-tete"><h2 class="titre-panneau">Personnes</h2></div>
+          <div class="corpus-tete"><h2 class="titre-panneau">Répertoire</h2></div>
           <p class="accueil-intro">
             {{ inventaire.personnes.length }} personne{{ inventaire.personnes.length > 1 ? 's' : '' }} ·
             {{ nonLies.length }} locuteur{{ nonLies.length > 1 ? 's' : '' }} à associer
           </p>
-          <p class="aide-repertoire">Retrouvez une même personne d’un entretien à l’autre. Choisissez un nom pour consulter sa fiche.</p>
         </header>
         <section class="carte-repertoire carte-recherche" aria-labelledby="titre-recherche-personnes">
           <h3 id="titre-recherche-personnes">Rechercher</h3>
@@ -692,8 +691,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 
 <style scoped>
 .personnes-corpus { min-width: 0; }
-.entete, .actions, .filtres { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.entete { justify-content: flex-end; }
+.actions, .filtres { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .bouton-aide {
   display: inline-grid;
   place-items: center;
@@ -714,7 +712,9 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
 .fiche h3 { font-size: 0.9rem; }
 .fiche h4 { font-size: 0.82rem; font-weight: 600; }
 .fiche h5 { font-size: 0.78rem; font-weight: 600; }
-.repertoire { display: grid; align-content: start; gap: 12px; max-height: 72vh; overflow: auto; font-size: 0.82rem; }
+/* Le répertoire reste en vue, s'arrête au bas de la fenêtre et défile à l'intérieur. */
+.repertoire { position: sticky; top: calc(var(--entete-h) + 0.5rem); align-self: start; box-sizing: border-box; display: grid; align-content: start; gap: 12px; max-height: var(--hauteur-disponible, 72vh); overflow: auto; font-size: 0.82rem; }
+.deux-colonnes.verticale .repertoire { position: static; max-height: none; }
 .aide-repertoire { margin: 6px 0 10px; color: #626b7d; font-size: 0.78rem; line-height: 1.4; }
 .repertoire header .aide-repertoire { margin-bottom: 0; }
 .carte-repertoire + .carte-repertoire { padding-top: 12px; border-top: 1px solid #e5e5ef; }

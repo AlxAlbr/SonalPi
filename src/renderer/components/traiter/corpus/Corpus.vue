@@ -8,7 +8,8 @@ import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
-import ModaleJournalCorpus from './ModaleJournalCorpus.vue'
+import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../../composables/sonal'
@@ -19,13 +20,12 @@ import type { OccurenceRecherche, ResultatRecherche } from '../../../editor/rech
 import type { SegmentThematique } from '../../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
 import icoThemes from '../../../assets/icones/themes.png'
-import icoDonnees from '../../../assets/icones/donnees.png'
+import icoDonnees from '../../../assets/icones/tableau.svg'
 import icoAnon from '../../../assets/icones/anon.png'
-import icoMaison from '../../../assets/icones/maison.png'
 // Icônes des onglets, spécifiques au Corpus.
+import icoEntretiens from '../../../assets/icones/entretiens.svg'
 import icoPersonnes from '../../../assets/icones/personnes.png'
 import icoNotes from '../../../assets/icones/notes.png'
-import icoJournal from '../../../assets/icones/journal.png'
 
 const {
   vue,
@@ -47,8 +47,6 @@ const {
   ouvrirAuSegment,
   // entretiens (membership) + sélection Corpus.
   membership,
-  reprise,
-  reprendre,
   corpusSelId,
   corpusSelMeta,
   selectionnerCorpus,
@@ -91,8 +89,7 @@ const {
   renommagePossible,
   suppressionPossible,
   presencesSur,
-  afficherCas,
-  afficherRecueils,
+  entrerOrganisation,
 } = utiliserSonal()
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
@@ -115,7 +112,7 @@ function titreChampMeta(id: string): string {
  *  conséquence) ; sinon le geste normal. */
 const titreCrayon = (id: string): string => {
   const v = badgeVerrou(id)
-  return v ? detentionDe(v) : 'Éditer l’entretien'
+  return v ? detentionDe(v) : 'Ouvrir l’entretien pour le transcrire et le coder'
 }
 /** « Actualiser » : tire le miroir à la demande ;
  *  les erreurs crient, ce n'est pas la minuterie silencieuse. */
@@ -130,7 +127,6 @@ async function actualiser() {
 
 // La fenêtre d'édition des thèmes (crayon) — locale à la vue.
 const editerThemes = ref(false)
-const journalCorpusOuvert = ref(false)
 // Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition),
 // sur la consultation du Corpus comme sur le panneau Entretien.
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
@@ -182,11 +178,47 @@ async function choisirOnglet(onglet: OngletCorpus): Promise<boolean> {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return false
   if (revision !== revisionCorpus.value) return false
   if (ongletCorpus.value === onglet) return true
-  deselectionnerCorpus()
   extraitAffiche.value = null
   ongletCorpus.value = onglet
   if (onglet === 'donnees') await rafraichirMatrice()
   return true
+}
+// Dès que le corpus contient un entretien, l'un d'eux est sélectionné et sa fiche affichée :
+// le premier à l'ouverture, puis celui choisi, jusqu'à sa suppression.
+watch(
+  () => [vue.value, ongletCorpus.value, corpusSelId.value, listeEntretiens().map((e) => e.id).join('\n')],
+  () => {
+    if (vue.value !== 'corpus' || (ongletCorpus.value !== 'accueil' && ongletCorpus.value !== 'recherche')) return
+    const ids = listeEntretiens().map((e) => e.id)
+    if (!ids.length) {
+      if (corpusSelId.value) deselectionnerCorpus()
+    } else if (!corpusSelId.value || !ids.includes(corpusSelId.value)) {
+      void selectionnerCorpus(ids[0])
+    }
+  },
+  { immediate: true },
+)
+/** Clavier sur la liste : les flèches, Début et Fin changent d'entretien ; Entrée ouvre celui sélectionné. */
+async function naviguerListe(event: KeyboardEvent, id: string) {
+  // Les boutons de la carte gardent leur propre comportement.
+  if (event.target !== event.currentTarget) return
+  const ids = listeEntretiens().map((e) => e.id)
+  const position = ids.indexOf(id)
+  let cible: string | undefined
+  if (event.key === 'ArrowDown') cible = ids[Math.min(position + 1, ids.length - 1)]
+  else if (event.key === 'ArrowUp') cible = ids[Math.max(position - 1, 0)]
+  else if (event.key === 'Home') cible = ids[0]
+  else if (event.key === 'End') cible = ids[ids.length - 1]
+  else if (event.key === 'Enter') {
+    event.preventDefault()
+    ouvrirEntretien(id)
+    return
+  } else return
+  event.preventDefault()
+  if (!cible || cible === id) return
+  void selectionnerCorpus(cible)
+  await nextTick()
+  document.querySelector<HTMLElement>(`.carte-ent[data-entretien-id="${CSS.escape(cible)}"]`)?.focus()
 }
 // Le passage au pas à pas revient à l'Accueil du corpus.
 watch(pasAPas, (actif) => {
@@ -199,7 +231,6 @@ async function afficherParcours(
   if (parcoursId) selectionnerParcours(parcoursId)
   await choisirOnglet('accueil')
   if (ongletCorpus.value !== 'accueil') return false
-  deselectionnerCorpus()
   extraitAffiche.value = null
   await nextTick()
   const resumeParcours = document.querySelector<HTMLElement>('[data-testid="resume-parcours-global"]')
@@ -216,7 +247,6 @@ async function ouvrirRecherche() {
   await choisirOnglet('recherche')
   if (ongletCorpus.value !== 'recherche') return
   if (precedent !== 'recherche') ongletAvantRecherche = precedent
-  deselectionnerCorpus()
   await nextTick()
   champRecherche.value?.focus()
   champRecherche.value?.select()
@@ -303,15 +333,15 @@ function effacerRecherche() {
 function allerOccurrence(id: string, pos: number) {
   ouvrirAuSegment(id, pos)
 }
-/** Libellé de l'onglet actif, pour le bouton retour « ← … » du panneau métadonnées,
- *  affiché quel que soit l'onglet dès qu'un entretien est sélectionné. */
-const libelleOnglet = computed(() =>
-  ongletCorpus.value === 'accueil'
-    ? 'Accueil'
-    : ongletCorpus.value === 'recherche'
-    ? 'Recherche'
-    : 'Thèmes',
-)
+/** Onglets du corpus, dans l'ordre d'affichage ; « accueil » est l'onglet Entretiens. */
+const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
+  { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
+  { id: 'notes', libelle: 'Notes', icone: icoNotes },
+  { id: 'personnes', libelle: 'Personnes', icone: icoPersonnes },
+  { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
+  { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
+  { id: 'donnees', libelle: 'Données', icone: icoDonnees },
+]
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE,
  *  peinture partagée `peintureSegment` (useCorpus). */
@@ -352,20 +382,40 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </div>
 
       <nav class="onglets-corpus" aria-label="Navigation du corpus">
-        <button :class="{ actif: ongletCorpus === 'accueil' }" title="Accueil" aria-label="Accueil" :aria-current="ongletCorpus === 'accueil' ? 'page' : undefined" @click="choisirOnglet('accueil')"><img class="ico-onglet-corpus" :src="icoMaison" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'notes' }" title="Notes" aria-label="Notes" :aria-current="ongletCorpus === 'notes' ? 'page' : undefined" @click="choisirOnglet('notes')"><img class="ico-onglet-corpus" :src="icoNotes" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'personnes' }" title="Personnes" aria-label="Personnes" :aria-current="ongletCorpus === 'personnes' ? 'page' : undefined" @click="choisirOnglet('personnes')"><img class="ico-onglet-corpus" :src="icoPersonnes" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'anon' }" title="Pseudonymisation" aria-label="Pseudonymisation" :aria-current="ongletCorpus === 'anon' ? 'page' : undefined" @click="choisirOnglet('anon')"><img class="ico-onglet-corpus" :src="icoAnon" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
-        <button title="Actions récentes" aria-label="Actions récentes" aria-haspopup="dialog" @click="journalCorpusOuvert = true"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
+        <button
+          v-for="onglet in ONGLETS"
+          :key="onglet.id"
+          :class="{ actif: ongletCorpus === onglet.id }"
+          :aria-current="ongletCorpus === onglet.id ? 'page' : undefined"
+          :title="onglet.libelle"
+          @click="choisirOnglet(onglet.id)"
+        ><img class="ico-onglet-corpus" :src="onglet.icone" alt="" /><span class="libelle-onglet">{{ onglet.libelle }}</span></button>
       </nav>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes' }">
-        <!-- Colonne gauche : accueil, outils ou métadonnées de l'entretien sélectionné. -->
-        <aside class="colonne-g-corpus">
+      <BarreOngletCorpus
+        v-if="ongletCorpus === 'themes'"
+        titre="Thèmes"
+        aide="Le codebook du corpus. Le codage se fait dans les entretiens ; ici, on réorganise les codages."
+      >
+        <button v-if="!lectureSeule" class="crayon editer-themes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️ Éditer les thèmes</button>
+      </BarreOngletCorpus>
+
+      <BarreOngletCorpus
+        v-if="ongletCorpus === 'accueil' || ongletCorpus === 'recherche'"
+        titre="Entretiens"
+        aide="Choisissez un entretien pour afficher sa fiche à gauche, puis ouvrez-le pour le transcrire et le coder : bouton « Ouvrir », double-clic ou Entrée. Les flèches passent d’un entretien à l’autre ; Ctrl+F cherche dans le texte de tous les entretiens."
+      >
+        <!-- Un seul point d'entrée : la modale à deux zones,
+             couvrant import texte, texte+audio et audio seul.
+             Masqué quand le fournisseur ne permet pas l'ajout. -->
+        <AjoutEntretien v-if="ajoutEntretienPossible" />
+      </BarreOngletCorpus>
+
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
+        <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
+        <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
           <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
                reste en vue Corpus, affiche le contexte de l'occurrence ;
                bouton pour ouvrir l'entretien si besoin.
@@ -386,13 +436,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </button>
           </div>
 
-          <!-- Entretien sélectionné → ses métadonnées (nom éditable + infos).
-               Le bouton retour referme la sélection et rend son panneau à
-               l'onglet en cours. -->
-          <div v-if="corpusSelId" class="panneau meta-ent">
+          <!-- Fiche de l'entretien sélectionné : il y en a toujours un dès que le corpus en contient.
+               Réglages en haut, gestes qui retirent quelque chose en bas. -->
+          <aside v-if="corpusSelId && (ongletCorpus === 'accueil' || ongletCorpus === 'recherche')" v-hauteur-disponible class="panneau meta-ent" aria-label="Fiche de l’entretien">
             <div class="corpus-tete">
-              <h3>Entretien</h3>
-              <button class="mini" @click="deselectionnerCorpus">← {{ libelleOnglet }}</button>
+              <h3>Fiche de l’entretien</h3>
             </div>
             <label class="champ-nom">
               <span class="champ-lbl">Nom</span>
@@ -411,24 +459,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
             </ul>
             <p v-else class="vide">Lecture…</p>
-            <!-- Actions de l'entretien sélectionné, en fin de panneau ;
-                 la confirmation réutilise le bandeau commun. -->
-            <button
-              class="mini suppr-meta"
-              :disabled="!suppressionPossible(corpusSelId)"
-              :title="titreChampMeta(corpusSelId)"
-              @click="demanderSuppressionEntretien(corpusSelId)"
-            >❌ Supprimer cet entretien du corpus</button>
-            <!-- Audio : sans audio un seul geste (assigner) ;
-                 avec audio, deux gestes côte à côte — effacer (rouge, détache le média)
-                 et remplacer. Le texte reste dans les deux cas. -->
             <div v-if="corpusSelMeta?.audio" class="audio-actions">
-              <button
-                class="mini audio-effacer"
-                :disabled="!metaEditables(corpusSelId)"
-                :title="titreChampMeta(corpusSelId)"
-                @click="effacerAudioSelection"
-              >Effacer l'audio</button>
               <button class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
                 Remplacer l'audio…
               </button>
@@ -436,9 +467,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <button v-else class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
               Assigner un audio…
             </button>
-            <!-- Transcription : tant qu'aucun SRT n'est assigné,
-                 on peut en importer un — le contenu d'éditeur est remplacé
-                 (bannière de confirmation si l'éditeur en porte déjà). -->
+            <!-- Tant qu'aucun SRT n'est assigné, on peut en importer un ;
+                 une confirmation précède le remplacement d'un texte existant. -->
             <button
               v-if="corpusSelMeta && !corpusSelMeta.srt"
               class="mini assigner-srt"
@@ -465,9 +495,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               {{ corpusSelMeta?.audio ? 'Redésigner' : 'Désigner' }}
               {{ fournisseurCourant === 'gitlab' ? 'dans la base WebDAV…' : 'dans le Nextcloud…' }}
             </button>
-            <!-- Variables du corpus pour CET entretien, en LECTURE SEULE ;
-                 l'édition des valeurs passe par la table de données / l'onglet
-                 Données de l'entretien. -->
+            <!-- Variables du corpus pour cet entretien, en lecture seule ;
+                 la saisie passe par l'onglet Données. -->
             <div v-if="corpusSelMeta" class="meta-vars">
               <template v-if="corpusSelMeta.generales.length">
                 <h4>Variables générales</h4>
@@ -484,36 +513,55 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- Sinon : thèmes en CONSULTATION compacte ;
-               le crayon ouvre la fenêtre d'édition partagée (nom/couleur/taille/arbre). -->
-          <div v-else-if="ongletCorpus === 'accueil'" class="panneau accueil-corpus">
-            <div class="corpus-tete">
-              <h3>Importer et traiter</h3>
+            <!-- Zone sensible : les gestes qui retirent quelque chose, séparés du reste. -->
+            <div class="zone-sensible">
+              <h4>Zone sensible</h4>
+              <button
+                v-if="corpusSelMeta?.audio"
+                class="mini audio-effacer"
+                :disabled="!metaEditables(corpusSelId)"
+                :title="titreChampMeta(corpusSelId)"
+                @click="effacerAudioSelection"
+              >Effacer l'audio</button>
+              <button
+                class="mini suppr-meta"
+                :disabled="!suppressionPossible(corpusSelId)"
+                :title="titreChampMeta(corpusSelId)"
+                @click="demanderSuppressionEntretien(corpusSelId)"
+              >Supprimer cet entretien du corpus</button>
+            <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
+                 même idiome de bannière que thèmes et locuteurs). -->
+            <div v-if="entretienASupprimer" class="confirm-suppr">
+              <p>
+                Supprimer « {{ entretienASupprimer.titre }} » ? Ses fichiers internes sont archivés
+                dans <b>corbeille/</b> et l'entretien disparaît de l'application. Le fichier audio
+                externe éventuellement référencé n'est pas supprimé.
+              </p>
+              <p v-if="entretienASupprimer.impact.rattachementsCas">
+                {{ entretienASupprimer.impact.rattachementsCas }} rattachement(s) manuel(s), dans
+                {{ entretienASupprimer.impact.casAffectes }} cas, seront retirés. Les cas et leurs
+                règles dynamiques seront conservés.
+              </p>
+              <p v-if="entretienASupprimer.impact.casReglesEntretien">
+                {{ entretienASupprimer.impact.casReglesEntretien }} cas référencent cet entretien entier.
+                Leurs règles seront conservées et signaleront cette source comme retirée du corpus.
+              </p>
+              <p v-if="entretienASupprimer.impact.passagesRecueils">
+                {{ entretienASupprimer.impact.passagesRecueils }} passage(s), dans
+                {{ entretienASupprimer.impact.recueilsAffectes }} recueil(s), resteront présents et
+                seront signalés comme indisponibles.
+              </p>
+              <div class="confirm-actions">
+                <button class="danger" @click="confirmerSuppressionEntretien">Supprimer</button>
+                <button @click="entretienASupprimer = null">Annuler</button>
+              </div>
             </div>
-            <p class="accueil-intro">Niveau Corpus</p>
-            <p class="raccourci">
-              🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
-            </p>
-            <ul class="accueil-outils">
-              <li><button type="button" @click="choisirOnglet('notes')"><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></button></li>
-              <li><button type="button" @click="choisirOnglet('personnes')"><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></button></li>
-              <li><button type="button" @click="choisirOnglet('anon')"><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></button></li>
-              <li><button type="button" @click="choisirOnglet('themes')"><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook, transférer, fusionner ou diviser les thématiques.</span></button></li>
-              <li><button type="button" @click="choisirOnglet('donnees')"><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></button></li>
-              <li><button type="button" @click="journalCorpusOuvert = true"><img :src="icoJournal" alt="" /><span><b>Actions récentes</b> — annuler les modifications prises en charge pendant l’ouverture du corpus.</span></button></li>
-            </ul>
-            <p class="renvoi-organisation">Retrouvez les fonctionnalités Cas et Recueils dans l’espace Organiser et exporter.</p>
-            <div class="liens-organisation">
-              <button @click="afficherCas()">Ouvrir les cas</button>
-              <button @click="afficherRecueils()">Ouvrir les recueils</button>
             </div>
-          </div>
+          </aside>
 
-          <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
+          <aside v-if="ongletCorpus === 'themes'" v-hauteur-disponible class="panneau themes-corpus">
             <div class="corpus-tete">
-              <h3>Thèmes</h3>
+              <h3>Codebook</h3>
               <button
                 v-if="idsDescriptionsThemes.length"
                 class="toutes-descriptions"
@@ -522,10 +570,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 :title="toutesDescriptionsThemesOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
                 @click="basculerToutesDescriptionsThemes"
               >ⓘ tout</button>
-              <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️</button>
             </div>
-            <p class="aide-thm">Le codage se fait au niveau des entretiens</p>
-            <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
+            <p v-if="codebook.length === 0" class="vide">Aucun thème — « Éditer les thèmes » pour en créer.</p>
             <ul class="liste-thm-lecture">
               <li
                 v-for="n in arbreVisible"
@@ -609,138 +655,104 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
         <ThemesOpsCorpus v-show="ongletCorpus === 'themes'" :actif="ongletCorpus === 'themes'" />
 
-        <!-- Les autres onglets conservent les cartes d'entretiens. -->
+        <!-- Liste des entretiens ; la fiche de l'entretien sélectionné est dans le panneau gauche. -->
         <section v-show="ongletCorpus !== 'themes'" class="colonne-d-corpus">
-          <div class="corpus-tete">
-            <h3>Entretiens</h3>
-            <span class="actions-ent">
-              <!-- Point de reprise : rouvre le dernier entretien fermé,
-                   là où on en était (texte + audio). -->
-              <button v-if="reprise" class="btn-reprise" @click="reprendre">
-                ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
-              </button>
-              <!-- UN seul point d'entrée : la modale à deux zones,
-                   couvrant import texte, texte+audio et audio seul.
-                   Masqué quand le fournisseur ne permet pas l'ajout. -->
-              <AjoutEntretien v-if="ajoutEntretienPossible" />
-            </span>
-          </div>
-          <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
-               même idiome de bannière que thèmes et locuteurs). -->
-          <div v-if="entretienASupprimer" class="confirm-suppr">
-            <p>
-              Supprimer « {{ entretienASupprimer.titre }} » ? Ses fichiers internes sont archivés
-              dans <b>corbeille/</b> et l'entretien disparaît de l'application. Le fichier audio
-              externe éventuellement référencé n'est pas supprimé.
-            </p>
-            <p v-if="entretienASupprimer.impact.rattachementsCas">
-              {{ entretienASupprimer.impact.rattachementsCas }} rattachement(s) manuel(s), dans
-              {{ entretienASupprimer.impact.casAffectes }} cas, seront retirés. Les cas et leurs
-              règles dynamiques seront conservés.
-            </p>
-            <p v-if="entretienASupprimer.impact.casReglesEntretien">
-              {{ entretienASupprimer.impact.casReglesEntretien }} cas référencent cet entretien entier.
-              Leurs règles seront conservées et signaleront cette source comme retirée du corpus.
-            </p>
-            <p v-if="entretienASupprimer.impact.passagesRecueils">
-              {{ entretienASupprimer.impact.passagesRecueils }} passage(s), dans
-              {{ entretienASupprimer.impact.recueilsAffectes }} recueil(s), resteront présents et
-              seront signalés comme indisponibles.
-            </p>
-            <div class="confirm-actions">
-              <button class="danger" @click="confirmerSuppressionEntretien">Supprimer</button>
-              <button @click="entretienASupprimer = null">Annuler</button>
+          <div class="liste-entretiens">
+            <!-- Bandeau d'intégrité : des audios référencés sont introuvables,
+                 fichier déplacé/supprimé. Calculé à l'ouverture du corpus ;
+                 clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
+            <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
+              <span class="bandeau-audio-titre">
+                ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) média introuvable(s) — déplacé(s) ou supprimé(s) ?
+              </span>
+              <ul class="bandeau-audio-liste">
+                <li v-for="id in Object.keys(audiosManquants)" :key="id">
+                  <button class="bandeau-audio-ent" @click="ouvrirEntretien(id)">
+                    {{ membership[id]?.titre ?? id }}
+                  </button>
+                </li>
+              </ul>
             </div>
-          </div>
 
-          <!-- Bandeau d'intégrité : des audios référencés sont introuvables,
-               fichier déplacé/supprimé. Calculé à l'ouverture du corpus ;
-               clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
-          <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
-            <span class="bandeau-audio-titre">
-              ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) média introuvable(s) — déplacé(s) ou supprimé(s) ?
-            </span>
-            <ul class="bandeau-audio-liste">
-              <li v-for="id in Object.keys(audiosManquants)" :key="id">
-                <button class="bandeau-audio-ent" @click="ouvrirEntretien(id)">
-                  {{ membership[id]?.titre ?? id }}
-                </button>
+            <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
+            <ul class="cartes-ent" aria-label="Entretiens du corpus">
+              <li
+                v-for="e in listeEntretiens()"
+                :key="e.id"
+                class="carte-ent"
+                :data-tour="'carte-' + e.titre"
+                :data-entretien-id="e.id"
+                :class="{ selection: corpusSelId === e.id }"
+                :tabindex="corpusSelId === e.id ? 0 : -1"
+                :aria-current="corpusSelId === e.id ? 'true' : undefined"
+                @click="selectionnerCorpus(e.id)"
+                @dblclick="ouvrirEntretien(e.id)"
+                @keydown="naviguerListe($event, e.id)"
+              >
+                <div class="ent-titre" :title="e.titre">{{ e.titre }}
+                  <!-- Badge de verrou fiable : « tenu par X » vient du SERVEUR,
+                       scan verrous/ au pull, jamais d'une déduction.
+                       Notre propre session n'est pas badgée (filtrée côté main). -->
+                  <span v-if="badgeVerrou(e.id)" class="badge-verrou"
+                        :title="detentionDe(badgeVerrou(e.id)!)">
+                    🔒 {{ badgeVerrou(e.id)!.userId }}
+                  </span>
+                  <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,
+                       la décision, c'est le verrou ci-dessus. -->
+                  <span v-for="p in presencesSur(e.id)" :key="p.machineId"
+                        class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
+                    👁 {{ p.userId }}
+                  </span>
+                </div>
+                  <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
+                       Dans les deux cas, le CALQUE du résumé thématique se
+                       superpose : un span par segment codé, positionné en % du
+                       TEXTE ; clic = ouvrir l'entretien à cet endroit.
+                       Layout : nom À GAUCHE, onde À DROITE (les lignes empilées
+                       forment le « mur » d'ondes). -->
+                  <div class="spectro-cadre">
+                    <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
+                    <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
+                    <span
+                      v-for="(s, i) in resumes[e.id] ?? []"
+                      :key="i"
+                      class="xtr-graph"
+                      :style="styleSegment(s)"
+                      :title="s.codes.map(nomTheme).join(' + ')"
+                      @click.stop="ouvrirAuSegment(e.id, s.pos)"
+                    ></span>
+                    <!-- Marqueurs de RECHERCHE : une pastille par occurrence,
+                         à son emplacement % (axe caractères, aligné sur le résumé).
+                         Clic = RESTE en vue Corpus et affiche l'extrait dans le panneau de gauche,
+                         mais n'ouvre pas l'entretien. -->
+                    <span
+                      v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
+                      :key="'m' + mi"
+                      class="occ-marqueur"
+                      :style="{ left: m.pourcent + '%' }"
+                      :title="'Afficher l’extrait — « ' + requete + ' »'"
+                      @click.stop="afficherExtrait(e.id, m)"
+                    ></span>
+                  </div>
+                <div class="carte-actions">
+                  <!-- Si l'entretien est verrouillé par autrui, le CRAYON devient VERROU,
+                       visible même sur un écran étroit où le badge du titre est tronqué.
+                       Le détail (qui ? depuis quand ?) passe en tooltip au survol ;
+                       le clic ouvre toujours, en lecture seule.
+                       La suppression vit dans la zone sensible de la fiche. -->
+                  <button
+                    class="crayon ouvrir-ent"
+                    data-tour="crayon-entretien"
+                    :title="titreCrayon(e.id)"
+                    @click.stop="ouvrirEntretien(e.id)"
+                  >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
+                </div>
               </li>
             </ul>
+            <p v-if="ongletCorpus === 'accueil'" class="renvoi-organisation">
+              <button type="button" class="lien-organisation" @click="entrerOrganisation()">Cas et Recueils sont dans Organiser & Exporter →</button>
+            </p>
           </div>
-
-          <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
-          <ul class="cartes-ent">
-            <li
-              v-for="e in listeEntretiens()"
-              :key="e.id"
-              class="carte-ent"
-              :data-tour="'carte-' + e.titre"
-              :data-entretien-id="e.id"
-              :class="{ selection: corpusSelId === e.id }"
-              @click="selectionnerCorpus(e.id)"
-            >
-              <div class="ent-titre" :title="e.titre">{{ e.titre }}
-                <!-- Badge de verrou fiable : « tenu par X » vient du SERVEUR,
-                     scan verrous/ au pull, jamais d'une déduction.
-                     Notre propre session n'est pas badgée (filtrée côté main). -->
-                <span v-if="badgeVerrou(e.id)" class="badge-verrou"
-                      :title="detentionDe(badgeVerrou(e.id)!)">
-                  🔒 {{ badgeVerrou(e.id)!.userId }}
-                </span>
-                <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,
-                     la décision, c'est le verrou ci-dessus. -->
-                <span v-for="p in presencesSur(e.id)" :key="p.machineId"
-                      class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
-                  👁 {{ p.userId }}
-                </span>
-              </div>
-                <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
-                     Dans les deux cas, le CALQUE du résumé thématique se
-                     superpose : un span par segment codé, positionné en % du
-                     TEXTE ; clic = ouvrir l'entretien à cet endroit.
-                     Layout : nom À GAUCHE, onde À DROITE (les lignes empilées
-                     forment le « mur » d'ondes). -->
-                <div class="spectro-cadre">
-                  <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
-                  <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
-                  <span
-                    v-for="(s, i) in resumes[e.id] ?? []"
-                    :key="i"
-                    class="xtr-graph"
-                    :style="styleSegment(s)"
-                    :title="s.codes.map(nomTheme).join(' + ')"
-                    @click.stop="ouvrirAuSegment(e.id, s.pos)"
-                  ></span>
-                  <!-- Marqueurs de RECHERCHE : une pastille par occurrence,
-                       à son emplacement % (axe caractères, aligné sur le résumé).
-                       Clic = RESTE en vue Corpus et affiche l'extrait dans le panneau de gauche,
-                       mais n'ouvre pas l'entretien. -->
-                  <span
-                    v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
-                    :key="'m' + mi"
-                    class="occ-marqueur"
-                    :style="{ left: m.pourcent + '%' }"
-                    :title="'Afficher l’extrait — « ' + requete + ' »'"
-                    @click.stop="afficherExtrait(e.id, m)"
-                  ></span>
-                </div>
-              <div class="carte-actions">
-                <!-- Si l'entretien est verrouillé par autrui, le CRAYON devient VERROU,
-                     visible même sur un écran étroit où le badge du titre est tronqué.
-                     Le détail (qui ? depuis quand ?) passe en tooltip au survol ;
-                     le clic ouvre toujours, en lecture seule.
-                     La SUPPRESSION ne vit pas sur la carte :
-                     elle vit dans le panneau métadonnées. -->
-                <button
-                  class="crayon"
-                  data-tour="crayon-entretien"
-                  :title="titreCrayon(e.id)"
-                  @click.stop="ouvrirEntretien(e.id)"
-                >{{ badgeVerrou(e.id) ? '🔒' : '✏️' }}</button>
-              </div>
-            </li>
-          </ul>
         </section>
       </div>
 
@@ -758,7 +770,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         />
       </div>
 
-      <ModaleJournalCorpus v-if="journalCorpusOuvert" @fermer="journalCorpusOuvert = false" />
       <EditionThemes v-if="editerThemes" contexte="corpus" @fermer="editerThemes = false" />
       <MenuTheme
         v-if="menuTheme"
@@ -773,9 +784,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 </template>
 
 <style scoped>
-.renvoi-organisation { margin-top: 1rem; font-size: .85rem; }
-.liens-organisation { display: flex; flex-wrap: wrap; gap: .5rem; }
-.liens-organisation button { cursor: pointer; }
+.renvoi-organisation { margin: 1.2rem 0 0; font-size: .85rem; }
+/* Lien vers un autre espace : texte bleu, souligné au survol. */
+.lien-organisation { border: none; background: none; padding: 0; color: #2e73d8; font: inherit; cursor: pointer; }
+.lien-organisation:hover { text-decoration: underline; }
+.lien-organisation:focus-visible { outline: 2px solid #2e73d8; outline-offset: 2px; border-radius: 2px; }
 .actions-ent {
   display: flex;
   align-items: center;
@@ -834,6 +847,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   align-items: start;
 }
 .grille-corpus.atelier-actif { grid-template-columns: 300px minmax(0, 1fr); }
+.grille-corpus.sans-panneau { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 780px) {
   .grille-corpus,
   .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
@@ -842,7 +856,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .onglets-corpus {
   display: flex;
   gap: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e4ec;
 }
 /* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les icônes d'onglets
    ne collent pas à sa bordure basse. */
@@ -850,20 +865,48 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding-top: 0.7rem;
 }
 .onglets-corpus button {
-  width: 38px;
-  height: 34px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ddd;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  background: #f0f0f5;
-  padding: 0.35rem;
+  gap: 0.4rem;
+  /* Le trait de l'onglet actif recouvre la ligne de séparation. */
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 0.35rem 0.75rem;
+  color: #6a6e80;
+  font-size: 0.85rem;
+  white-space: nowrap;
   cursor: pointer;
 }
+.onglets-corpus button:hover {
+  color: #23253a;
+}
+.onglets-corpus button:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: -2px;
+}
+/* En fenêtre étroite, les onglets reviennent aux icônes seules :
+   le libellé reste lu par les lecteurs d'écran et affiché au survol. */
+@media (max-width: 900px) {
+  .onglets-corpus button {
+    padding: 0.35rem;
+    width: 38px;
+  }
+  .libelle-onglet {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .onglets-corpus button.actif {
-  background: #fff;
+  border-bottom-color: #2e73d8;
   font-weight: 600;
   color: #1565c0;
 }
@@ -1179,6 +1222,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-color: #2e73d8;
   background: #f0f6ff;
 }
+.carte-ent:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 1px;
+}
 .ent-titre {
   /* Nom À GAUCHE, largeur fixe (27 %) — les ondes
      empilées forment une colonne régulière (« mur » visuel). */
@@ -1440,24 +1487,62 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   white-space: pre-wrap;
 }
 
-/* Accueil explicatif du corpus. */
-.accueil-corpus :deep(.pas-a-pas) {
-  border-color: #a9c5e8;
-  background: #f8fbff;
-  margin-top: 0.7rem;
+/* --- Onglet Entretiens : liste et fiche --- */
+/* Comme sur les autres onglets, le panneau gauche reste en vue pendant le défilement,
+   s'arrête au bas de la fenêtre et défile à l'intérieur. */
+.colonne-g-corpus {
+  position: sticky;
+  top: calc(var(--entete-h) + 0.5rem);
+  align-self: start;
 }
-.raccourci {
-  background: #fff8e1;
-  border: 1px solid #e0b93a;
-  border-left: 4px solid #e0a03a;
-  color: #5c4a00;
+.colonne-g-corpus .meta-ent,
+.colonne-g-corpus .themes-corpus {
+  box-sizing: border-box;
+  max-height: var(--hauteur-disponible, 70vh);
+  overflow-y: auto;
+}
+.liste-entretiens {
+  min-width: 0;
+}
+.zone-sensible {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding: 0.6rem;
+  border: 1px solid #f3c3bd;
   border-radius: 6px;
-  padding: 0.55rem 0.6rem;
-  font-size: 0.82rem;
-  margin: 0.7rem 0 0;
-  line-height: 1.35;
+  background: #fdf3f2;
 }
-.raccourci b {
-  color: #a37000;
+.zone-sensible h4 {
+  margin: 0;
+  color: #b3261e;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.zone-sensible .mini {
+  width: 100%;
+  margin-top: 0;
+  background: #fff;
+}
+.zone-sensible .confirm-suppr {
+  margin: 0.2rem 0 0;
+}
+.carte-actions .ouvrir-ent {
+  border: 1px solid #1565c0;
+  background: #2e73d8;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.75rem;
+}
+.carte-actions .ouvrir-ent:hover {
+  background: #1f63c6;
+}
+@media (max-width: 780px) {
+  .colonne-g-corpus { position: static; }
+  .colonne-g-corpus .meta-ent,
+  .colonne-g-corpus .themes-corpus { max-height: none; }
 }
 </style>

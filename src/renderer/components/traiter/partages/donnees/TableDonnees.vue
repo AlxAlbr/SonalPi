@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../../composables/sonal'
 import { celluleVoisine, grilleCellules, type SensNav } from '../../../../tableNavigation'
 import EditionVariables from './EditionVariables.vue'
+import BarreOngletCorpus from '../../corpus/BarreOngletCorpus.vue'
+import { vHauteurDisponible } from '../../../../directives/hauteurDisponible'
 import LotVariable from './LotVariable.vue'
 import ExportDonnees from './ExportDonnees.vue'
 import { nettoyerMessage } from '../../../../erreurs'
@@ -19,8 +21,6 @@ const {
   poserGenLibelle,
   poserLocLibelle,
   membership,
-  reprise,
-  reprendre,
   lectureSeule,
   tableLigneEditable,
   badgeVerrou,
@@ -273,8 +273,22 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 </script>
 
 <template>
+  <div class="donnees-onglet">
+  <BarreOngletCorpus
+    titre="Données"
+    aide="Les variables de chaque entretien et de chaque locuteur, à saisir directement dans la table."
+  >
+    <button
+      v-if="!lectureSeule"
+      class="crayon editer-variables"
+      title="Éditer les variables (nom, statut, modalités)"
+      @click="editerVariables = true"
+    >✏️ Éditer les variables</button>
+    <button class="mini export-csv" :disabled="!matriceChargee || matriceEnCours || !variablesVisibles.length" @click="ouvrirExport">Exporter CSV…</button>
+  </BarreOngletCorpus>
   <section
     ref="panneau"
+    v-hauteur-disponible
     class="donnees-ecran"
     :class="{ vertical: dispositionVerticale, replie: panneauReplie }"
     :style="{ '--donnees-gauche-w': largeurGauche + 'px' }"
@@ -283,12 +297,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
     <aside v-if="!panneauReplie" class="panneau donnees-gauche">
       <div class="variables-tete">
         <h2 class="titre-panneau">Variables</h2>
-        <button
-          v-if="!lectureSeule"
-          class="crayon"
-          title="Éditer les variables (nom, statut, modalités)"
-          @click="editerVariables = true"
-        >✏️</button>
         <button class="replier-variables" title="Replier le panneau des variables" aria-label="Replier le panneau des variables" @click="panneauReplie = true">‹</button>
       </div>
 
@@ -309,7 +317,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
       </div>
 
       <div v-if="variables.length === 0" class="variables-vide">
-        Aucune variable. Utilisez le crayon pour en créer.
+        Aucune variable. Utilisez « Éditer les variables » pour en créer.
       </div>
       <div v-else-if="variablesListe.length === 0" class="variables-vide">
         Aucune variable ne correspond à la recherche.
@@ -370,10 +378,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         >›</button>
         <h2>Table de données</h2>
         <span class="compteur-colonnes">{{ variablesVisibles.length }} colonne(s)</span>
-        <button class="mini export-csv" :disabled="!matriceChargee || matriceEnCours || !variablesVisibles.length" @click="ouvrirExport">Exporter CSV…</button>
-        <button v-if="reprise" class="btn-reprise" @click="reprendre">
-          ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
-        </button>
       </div>
 
       <p v-if="messageExport" class="message-export" role="status">{{ messageExport }}</p>
@@ -390,7 +394,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         <button class="mini" type="button" :disabled="matriceEnCours" @click="rafraichirMatrice">Réessayer</button>
       </div>
       <div v-else-if="variables.length === 0" class="vide table-vide">
-        Aucune variable. Utilisez le crayon du panneau Variables pour en créer.
+        Aucune variable. Utilisez « Éditer les variables » pour en créer.
       </div>
       <div v-else-if="variablesVisibles.length === 0" class="vide table-vide">
         <p>Aucune colonne n’est affichée.</p>
@@ -538,6 +542,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
       />
     </Teleport>
   </section>
+  </div>
 </template>
 
 <style scoped>
@@ -547,8 +552,9 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   display: grid;
   grid-template-columns: var(--donnees-gauche-w) 8px minmax(0, 1fr);
   width: 100%;
-  height: calc(100vh - 9rem);
-  min-height: 420px;
+  /* Le cadre s'arrête au bas de la fenêtre ; la liste des variables et la table défilent à l'intérieur. */
+  height: var(--hauteur-disponible, calc(100vh - 12.5rem));
+  min-height: 360px;
   border: 1px solid #e0e0ea;
   border-radius: 8px;
   background: #fff;
@@ -718,9 +724,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .compteur-colonnes {
   color: #888;
   font-size: 0.72rem;
-}
-.table-tete .btn-reprise {
-  margin-left: auto;
 }
 .table-vide {
   margin: auto;

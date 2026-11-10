@@ -11,10 +11,10 @@ test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note local
   await entrerCorpus(page)
 
   const ordre = await page.locator('.onglets-corpus > button').evaluateAll((boutons) =>
-    boutons.map((bouton) => bouton.getAttribute('title')),
+    boutons.map((bouton) => bouton.textContent?.trim()),
   )
   expect(ordre).toEqual([
-    'Accueil', 'Notes', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Données',
+    'Entretiens', 'Notes', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Données',
   ])
 
   await entrerEntretien(page)

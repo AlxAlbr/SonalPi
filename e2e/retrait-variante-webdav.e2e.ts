@@ -125,7 +125,7 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
     try {
       app = await b.lancement(); await instrumenter(app, b.client.config.baseUrl)
       const page = await app.firstWindow(); await connecter(page, b.client.config.baseUrl)
-      await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
       await page.locator('.carte-ent .crayon').first().click()
       await expect(page.locator('.editeur')).toContainText('Karine', { timeout: 30_000 })
       await page.locator('.editeur').press('Control+End'); await page.keyboard.insertText(' Modification indépendante conservée.')
@@ -141,7 +141,7 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
       const actualiserCorpus = page.locator('button.btn-table').filter({ hasText: '⟳ Actualiser' })
       await actualiserCorpus.click()
       await expect(actualiserCorpus).toBeEnabled({ timeout: 90_000 })
-      await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
       await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
       modal = await preparer(page); await confirmer(modal); await expect(modal).toBeHidden({ timeout: 90_000 })
       const actuel = JSON.parse(await b.client.getTexte('entretiens/e1.json')), attendu = JSON.parse(source)

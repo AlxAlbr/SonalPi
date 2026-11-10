@@ -171,7 +171,7 @@ test('dissociation depuis l’entretien : édition sauvée, session fermée, ape
     await modal.getByRole('checkbox').check()
     await modal.getByRole('button', { name: 'Confirmer la dissociation globale', exact: true }).click()
     await expect(modal).toHaveCount(0)
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click()
     await page.locator('[data-onglet="anon"]').click()
     const locale = page.locator('.ligne-anon.etat-entretien', { hasText: 'Karine' }).first()

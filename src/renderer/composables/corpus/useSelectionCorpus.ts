@@ -39,10 +39,7 @@ export function useSelectionCorpus(deps: {
   }
 
   async function selectionnerCorpus(id: string): Promise<void> {
-    if (corpusSelId.value === id) {
-      deselectionnerCorpus()
-      return
-    }
+    if (corpusSelId.value === id) return
     corpusSelId.value = id
     corpusSelMeta.value = null
     const resultat = await deps.lireEntretien(id)

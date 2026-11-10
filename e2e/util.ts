@@ -180,7 +180,7 @@ export async function retourCorpus(page: Page): Promise<void> {
   if (await page.locator('.entretien-ecran').isVisible()) {
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   } else {
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens' }).click()
   }
   await attendreCorpus(page)
 }
@@ -266,12 +266,12 @@ export async function coderTheme(page: Page, nomTheme: string): Promise<void> {
 /** S8 : ouvre la fenêtre d'ÉDITION des thèmes (crayon du panneau thèmes — écran Corpus ou onglet Thématique de l'Entretien,
  *  selon l'écran affiché). */
 export async function ouvrirEditionThemes(page: Page): Promise<void> {
-  const crayonVisible = page.locator('.panneau .crayon:visible').first()
+  const crayonVisible = page.locator('.panneau .crayon:visible, .barre-onglet .editer-themes:visible').first()
   if ((await crayonVisible.count()) === 0) {
     const ongletThemes = page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes' })
     if (await ongletThemes.isVisible()) await ongletThemes.click()
   }
-  await page.locator('.panneau .crayon:visible').first().click()
+  await page.locator('.panneau .crayon:visible, .barre-onglet .editer-themes:visible').first().click()
   await expect(page.locator('.modale-themes')).toBeVisible()
 }
 
@@ -283,7 +283,7 @@ export async function fermerEditionThemes(page: Page): Promise<void> {
 
 /** Ouvre la fenêtre d'édition des variables depuis le panneau de l'onglet Données. */
 export async function ouvrirEditionVariables(page: Page): Promise<void> {
-  await page.locator('.variables-tete .crayon').click()
+  await page.locator('.barre-onglet .editer-variables').click()
   await expect(page.locator('.modale-vars')).toBeVisible()
 }
 

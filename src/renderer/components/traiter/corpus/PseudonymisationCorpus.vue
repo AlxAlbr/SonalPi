@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import TableReglesAnon from './TableReglesAnon.vue'
+import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import BadgesAnon from './BadgesAnon.vue'
 import FormulaireRegleAnon from './FormulaireRegleAnon.vue'
 import EditionPseudosAnon from './EditionPseudosAnon.vue'
@@ -778,20 +780,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-      <section ref="panneau" class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }" :aria-busy="scanAnonEnCours">
+      <BarreOngletCorpus
+        class="pseudo-tete"
+        titre="Pseudonymisation"
+        aide="Les règles partagées par tous les entretiens du corpus."
+      >
+          <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="actualiserPanneau">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
+          <div class="pseudo-outils-regles">
+            <button class="ajouter-regle" aria-label="Import règles" title="Importer des règles ou des pseudonymes depuis un fichier" @click="ouvrirEchanges('import')">Import règles <span aria-hidden="true">📥</span></button>
+            <button class="ajouter-regle" aria-label="Export règles" title="Exporter une table de règles et de pseudonymes" @click="ouvrirEchanges('export')">Export règles <span aria-hidden="true">📤</span></button>
+            <button class="ajouter-regle" aria-label="Paramètres de pseudonymisation" :aria-expanded="parametresOuverts" aria-controls="parametres-pseudonymisation" title="Paramètres de pseudonymisation" @click="parametresOuverts = !parametresOuverts">Paramètres <span aria-hidden="true">⚙</span></button>
+          </div>
+      </BarreOngletCorpus>
+      <section ref="panneau" v-hauteur-disponible class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }" :aria-busy="scanAnonEnCours">
         <div class="pseudo-haut">
           <p v-if="messagePseudo && !scanPourRegle" class="pseudo-message" role="status">{{ messagePseudo }}</p>
-          <header class="pseudo-tete" :class="{ panneau: !reglesAnon.length }">
-            <h3 v-if="!reglesAnon.length" class="titre-panneau">Pseudonymisation</h3>
-            <div class="pseudo-tete-actions">
-              <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="actualiserPanneau">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
-              <div class="pseudo-outils-regles">
-                <button class="ajouter-regle" aria-label="Import règles" title="Importer des règles ou des pseudonymes depuis un fichier" @click="ouvrirEchanges('import')">Import règles <span aria-hidden="true">📥</span></button>
-                <button class="ajouter-regle" aria-label="Export règles" title="Exporter une table de règles et de pseudonymes" @click="ouvrirEchanges('export')">Export règles <span aria-hidden="true">📤</span></button>
-                <button class="ajouter-regle" aria-label="Paramètres de pseudonymisation" :aria-expanded="parametresOuverts" aria-controls="parametres-pseudonymisation" title="Paramètres de pseudonymisation" @click="parametresOuverts = !parametresOuverts">Paramètres <span aria-hidden="true">⚙</span></button>
-              </div>
-            </div>
-          </header>
 
           <!-- Paramètres partagés par la pseudonymisation des entretiens. -->
           <div v-if="parametresOuverts" id="parametres-pseudonymisation" class="pseudo-params">
@@ -1052,10 +1055,11 @@ onUnmounted(() => {
   background: #fff;
   border-radius: 8px;
   padding: 1rem 1.2rem;
-  /* Les deux colonnes défilent indépendamment ; les actions restent accessibles. */
+  /* Le cadre s'arrête au bas de la fenêtre ; ses deux colonnes défilent indépendamment. */
+  box-sizing: border-box;
   width: 100%;
-  height: calc(100dvh - 220px);
-  min-height: 620px;
+  height: var(--hauteur-disponible, calc(100dvh - 270px));
+  min-height: 22rem;
   border: 1px solid #e0e0ea;
 }
 /* Grille 2×2 : ligne 1 = en-tête sur toute la largeur ; ligne 2 = les deux
@@ -1355,7 +1359,6 @@ onUnmounted(() => {
   grid-column: 1 / -1;
   grid-row: 1;
 }
-.pseudo-tete-actions { display: flex; width: 100%; align-items: center; gap: .4rem; }
 .pseudo-outils-regles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .4rem; margin-left: auto; }
 .pseudo-params {
   grid-column: 1 / -1;
@@ -1427,7 +1430,6 @@ onUnmounted(() => {
 .vertical .pseudo-gauche { height: 380px; flex: none; }
 .vertical .pseudo-droite { max-height: 480px; }
 .pseudo-tete { flex-wrap: wrap; gap: .5rem; }
-.pseudo-tete-actions { flex-wrap: wrap; }
 .ajouter-regle { border: 1px solid #1565c0; border-radius: 5px; background: white; padding: .3rem .55rem; cursor: pointer; }
 .ajouter-regle:disabled { border-color: #bbb; color: #888; cursor: not-allowed; }
 .actualiser-pseudo { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .3rem .55rem; cursor: pointer; }

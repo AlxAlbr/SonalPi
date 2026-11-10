@@ -46,7 +46,7 @@ async function extraireZip(archive: string, destination: string) {
   }
 }
 
-test('manuel : distinguer Ctrl+Z, Journal de l’entretien et Actions récentes du corpus', async () => {
+test('manuel : distinguer Ctrl+Z et le Journal de l’entretien', async () => {
   const racine = mkdtempSync(join(tmpdir(), 'sonal-doc-annulation-'))
   const app = await lancer(racine, { executablePath: process.env.JOURNAL_E2E_EXECUTABLE })
   try {
@@ -102,19 +102,10 @@ test('manuel : distinguer Ctrl+Z, Journal de l’entretien et Actions récentes 
     await edition.getByRole('button', { name: 'Valider', exact: true }).click()
     await expect(notes).toContainText('Note corrigée')
 
-    await page.getByRole('button', { name: 'Actions récentes', exact: true }).click()
-    const journalCorpus = page.getByRole('dialog', { name: 'Historique des actions' })
-    await expect(journalCorpus).toContainText('Note modifiée')
-    if (process.env.SONAL_DOC_CAPTURES === '1') {
-      await journalCorpus.screenshot({ path: 'docs/user/medias/actions-recentes-corpus.png' })
-    }
-    await journalCorpus.getByRole('button', { name: /Annuler : Note modifiée/ }).click()
-    await expect(journalCorpus).toContainText('Aucune action enregistrée.')
-    await journalCorpus.getByRole('button', { name: 'Fermer', exact: true }).click()
-    await expect(notes).toContainText('Note avant correction')
-    await expect(notes).not.toContainText('Note corrigée')
+    // Le niveau corpus ne propose plus d'historique des actions.
+    await expect(page.getByRole('button', { name: 'Actions récentes', exact: true })).toHaveCount(0)
 
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await entrerEntretien(page)
     await page.locator('[data-onglet="journal"]').click()
     await expect(page.locator('.panneau.journal')).toContainText('Aucune action enregistrée.')

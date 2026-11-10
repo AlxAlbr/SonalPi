@@ -148,7 +148,7 @@ for (const port of [8080, 8081]) test.describe(`dissociation WebDAV :${port}`, (
     try {
       app = await b.lancement(); await instrumenter(app, b.client.config.baseUrl)
       const page = await app.firstWindow(); await connecter(page, b.client.config.baseUrl)
-      await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
       await page.locator('.carte-ent .crayon').first().click()
       await expect(page.locator('.editeur')).toContainText('Rue Karine. Local.', { timeout: 30_000 })
       await page.locator('.editeur').click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText(' Note indépendante.')

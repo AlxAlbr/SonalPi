@@ -271,7 +271,7 @@ async function retourAuCorpus(page: Page): Promise<void> {
   if (await page.locator('.entretien-ecran').isVisible().catch(() => false)) {
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   } else {
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens' }).click()
   }
   await attendreCorpus(page)
   await page.waitForTimeout(PAUSE)

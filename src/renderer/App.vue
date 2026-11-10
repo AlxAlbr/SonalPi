@@ -31,6 +31,8 @@ const {
   retourCorpus,
   ouvertId,
   membership,
+  reprise,
+  reprendre,
   refusFormat,
   dossierCourantNom,
   revisionCorpus,
@@ -79,6 +81,10 @@ const {
             </button>
           </template>
         </nav>
+        <!-- Point de reprise : rouvre le dernier entretien quitté, là où on en était (texte et audio). -->
+        <button v-if="reprise && vue !== 'accueil' && vue !== 'entretien'" class="btn-reprise reprise-entete" @click="reprendre">
+          ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
+        </button>
       </div>
     </header>
     <BarreOutils />
@@ -194,7 +200,9 @@ const {
 .contenu-app {
   min-width: 0;
   max-width: 1250px;
+  /* La marge de droite ne dépend pas de la présence d'une barre de défilement. */
   padding-left: 0.75rem;
+  padding-right: 1rem;
 }
 /* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
    fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
@@ -223,7 +231,7 @@ h1 {
   box-sizing: border-box;
   width: 100%;
   max-width: 1250px;
-  /* Le filet de l'en-tête compte dans la hauteur sur laquelle s'alignent les éléments épinglés. */
+  /* Le filet de l'en-tête compte dans la hauteur sur laquelle s'alignent la barre des espaces et les éléments épinglés. */
   min-height: calc(var(--entete-h) - 1px);
   margin: 0 auto;
   padding: 0 1rem;
@@ -336,6 +344,11 @@ h1 small {
   color: #1a1a1a;
   font-weight: 600;
   cursor: default;
+}
+/* Le retour au dernier entretien se place à droite du fil d'Ariane. */
+.reprise-entete {
+  margin-left: auto;
+  flex: none;
 }
 .fil .sep {
   color: #bbb;

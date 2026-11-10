@@ -87,7 +87,7 @@ test('Notes : accès rapides visibles, filtres et ordre indépendants', async ()
     await toutes.click()
     await expect(titres).toHaveCount(3)
     await notes.getByRole('button', { name: 'Masquer les filtres', exact: true }).click()
-    await expect(notes.locator('.entete-notes.panneau h2')).toHaveText('Notes')
+    await expect(notes.locator('.barre-onglet h2')).toHaveText('Notes')
     await notes.getByRole('button', { name: 'Afficher les filtres', exact: true }).click()
     await expect(toutes).toHaveAttribute('aria-pressed', 'true')
   } finally {

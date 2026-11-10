@@ -137,7 +137,7 @@ test('manuel : décrire, organiser et désactiver les thèmes sans modifier les 
     await expect(ligne(page, 'Raisons').locator('.usage')).toHaveText('1')
     await expect(ligne(page, 'Raisons')).toHaveAttribute('style', /padding-left:\s*1\.1rem/)
     await fermerEditionThemes(page)
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await page.locator('.carte-ent').filter({ hasText: '2RetraiteAnticipee' }).locator('.crayon').click()
     await page.locator('[data-onglet="themes"]').click()
     await page.getByRole('button', { name: 'Afficher la description de Raisons', exact: true }).click()

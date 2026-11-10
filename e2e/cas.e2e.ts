@@ -60,7 +60,7 @@ test('cas manuel vide créé sans personne ni repère, relu après redémarrage 
     await expect(modale.getByRole('combobox', { name: /Matériaux affichés/ })).toHaveValue('tous')
     expect(JSON.parse(readFileSync(cheminCorpus, 'utf8')).cas).toEqual(cree.cas)
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await entrerEntretien(page)
     await selectionner(page, 'travail passé')
     await clicDroitSelection(page)
