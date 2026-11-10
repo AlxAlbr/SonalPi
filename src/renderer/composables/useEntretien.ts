@@ -130,6 +130,7 @@ export function useEntretien(deps: {
     nomCategorieNote: deps.nomCategorieNote,
     categorieNoteDefaut: deps.categorieNoteDefaut,
     planifierSauvegarde,
+    enregistrerAction: (libelle, inverse) => enregistrerAction(libelle, inverse),
   })
   const {
     notes,
@@ -167,7 +168,7 @@ export function useEntretien(deps: {
     audioRef: null,
   })
   // L'entretien s'ouvre sur le premier onglet de travail.
-  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('locuteurs')
+  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes' | 'commentaires'>('locuteurs')
   // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
   // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
   // stockée — recalculée au moindre déplacement du curseur.
@@ -256,6 +257,7 @@ export function useEntretien(deps: {
   const journalEntretien = useJournalEntretien({
     entretien,
     locuteurs,
+    notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
     effetsAnnulation: {

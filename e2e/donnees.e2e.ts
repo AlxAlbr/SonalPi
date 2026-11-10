@@ -46,6 +46,52 @@ async function ongletDonnees(page: Page) {
   await page.locator('.onglets button[data-onglet="donnees"]').click()
 }
 
+test('Notes et Données partagent le volet droit et se replient au second clic', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-volet-donnees-'))
+  const app = await lancer(dir)
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    await creerVariable(page, "+ var. d'entretien", 'Lyon')
+    await entrerEntretien(page)
+
+    const volet = page.locator('.volet-notes')
+    const notes = volet.locator('[data-onglet="notes"]')
+    const donnees = volet.locator('[data-onglet="donnees"]')
+    const panneauNotes = volet.locator('.panneau.notes')
+    const panneauDonnees = volet.locator('.panneau.donnees')
+    const titreNote = panneauNotes.locator('.champ-titre-note input')
+    await expect(page.locator('.colonne-gauche [data-onglet="donnees"]')).toHaveCount(0)
+
+    await notes.click()
+    await titreNote.fill('Brouillon conservé')
+    await donnees.click()
+    await expect(donnees).toHaveAttribute('aria-expanded', 'true')
+    await expect(notes).toHaveAttribute('aria-expanded', 'false')
+    await expect(panneauNotes).toBeHidden()
+    await panneauDonnees.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
+    await expect(page.locator('.colonne-gauche .panneau.locuteurs-coder')).toBeVisible()
+
+    await notes.click()
+    await expect(panneauDonnees).toBeHidden()
+    await expect(titreNote).toHaveValue('Brouillon conservé')
+    await notes.click()
+    await expect(volet).not.toHaveClass(/ouvert/)
+    await expect(notes).toHaveAttribute('aria-expanded', 'false')
+
+    await donnees.click()
+    await expect(panneauDonnees.locator('.saisie-eav-sel option:checked').first()).toHaveText('Lyon')
+    await donnees.click()
+    await expect(volet).not.toHaveClass(/ouvert/)
+    await expect(donnees).toHaveAttribute('aria-expanded', 'false')
+    await donnees.focus()
+    await page.keyboard.press('Enter')
+    await expect(donnees).toHaveAttribute('aria-expanded', 'true')
+  } finally {
+    await app.close()
+  }
+})
+
 test('saisir une valeur (entretien) → persistée et reflétée par la matrice après réouverture', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-eav-'))
 

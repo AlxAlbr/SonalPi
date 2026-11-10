@@ -1,7 +1,8 @@
 import { estOrpheline, type Annotation } from './annotation'
 import { retirerAnnotation, type Entretien } from './entretien'
 import { renommerLocuteur } from './locuteurs'
-import type { Locuteur } from '../format'
+import { notesParRang, renumeroterRangs } from './notes'
+import type { Locuteur, Note } from '../format'
 
 /**
  *  Journal d'actions annulables. Seules les actions de MODÈLE y entrent
@@ -44,6 +45,10 @@ export type Inverse =
   | { type: 'poserValeurGen'; idVar: string; idMod: string | null }
   /** Inverse de « saisir une valeur » (portée locuteur). */
   | { type: 'poserValeurLoc'; index: number; idVar: string; idMod: string | null }
+  /** Retire la note créée seulement si son contenu n'a pas changé. */
+  | { type: 'retirerNote'; note: Note }
+  /** Restaure une note supprimée si les autres notes sont toujours dans le même ordre. */
+  | { type: 'restaurerNote'; note: Note; position: number; ordreApres: string[] }
 
 export interface EntreeJournal {
   id: string
@@ -70,6 +75,7 @@ export interface CtxInverse {
   entretien: Entretien
   locuteurs: Locuteur[]
   valeursGen: Record<string, string>
+  notes?: Note[]
   blocs?: {
     locDe: (pos: number) => number | null | undefined
     poserLoc: (pos: number, loc: number | null) => void
@@ -88,6 +94,17 @@ export function enregistrer(
   journal.entrees.unshift(entree)
   if (journal.entrees.length > CAP_JOURNAL) journal.entrees.length = CAP_JOURNAL
   return entree
+}
+
+function noteInchangee(note: Note, initiale: Note): boolean {
+  return note.id === initiale.id &&
+    note.categorieId === initiale.categorieId &&
+    note.titre === initiale.titre &&
+    note.date === initiale.date &&
+    note.statut === initiale.statut &&
+    note.corps === initiale.corps &&
+    note.creeLe === initiale.creeLe &&
+    JSON.stringify(note.locuteurIds ?? []) === JSON.stringify(initiale.locuteurIds ?? [])
 }
 
 /** L'inverse est-il encore applicable (sa cible existe toujours) ?
@@ -112,6 +129,15 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
       return ctx.locuteurs.some((l) => l.index === inverse.index)
     case 'poserValeurGen':
       return true
+    case 'retirerNote':
+      return !!ctx.notes?.some((note) => noteInchangee(note, inverse.note))
+    case 'restaurerNote': {
+      if (!ctx.notes || ctx.notes.some((note) => note.id === inverse.note.id)) return false
+      const ordre = notesParRang(ctx.notes).map((note) => note.id)
+      return ordre.length === inverse.ordreApres.length &&
+        ordre.every((id, index) => id === inverse.ordreApres[index]) &&
+        (inverse.note.locuteurIds ?? []).every((id) => ctx.locuteurs.some((loc) => loc.id === id))
+    }
   }
 }
 
@@ -147,6 +173,18 @@ export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
       const l = ctx.locuteurs.find((x) => x.index === inverse.index)!
       if (inverse.idMod) l.valeursLoc[inverse.idVar] = inverse.idMod
       else delete l.valeursLoc[inverse.idVar]
+      return true
+    }
+    case 'retirerNote': {
+      const notes = notesParRang(ctx.notes!).filter((note) => note.id !== inverse.note.id)
+      ctx.notes!.splice(0, ctx.notes!.length, ...renumeroterRangs(notes))
+      return true
+    }
+    case 'restaurerNote': {
+      const notes = notesParRang(ctx.notes!)
+      const note = { ...inverse.note, locuteurIds: [...(inverse.note.locuteurIds ?? [])] }
+      notes.splice(inverse.position, 0, note)
+      ctx.notes!.splice(0, ctx.notes!.length, ...renumeroterRangs(notes))
       return true
     }
   }

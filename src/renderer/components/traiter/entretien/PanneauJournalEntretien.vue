@@ -12,7 +12,7 @@ const { entreesJournal, annulerEntree } = utiliserSonal()
       <h3>Journal</h3>
     </div>
     <p class="aide-thm">
-      Actions de modèle de la session (10 dernières). La frappe de texte s'annule avec Ctrl+Z.
+      Les 10 dernières actions de cet entretien, pendant cette session. La saisie du texte s'annule avec Ctrl+Z.
     </p>
     <p v-if="entreesJournal.length === 0" class="vide">Aucune action enregistrée.</p>
     <ul class="liste-journal">
@@ -23,7 +23,7 @@ const { entreesJournal, annulerEntree } = utiliserSonal()
           v-if="!lectureSeule"
           class="annuler-entree"
           :disabled="!e.annulable"
-          :title="e.annulable ? 'Annuler cette action' : 'Non annulable — la cible a disparu'"
+          :title="e.annulable ? 'Annuler cette action' : 'Cette action ne peut plus être annulée : les données ont changé.'"
           @click="annulerEntree(e.id)"
         >↩</button>
       </li>

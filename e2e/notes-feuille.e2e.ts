@@ -58,7 +58,7 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   const verifierPositionLanguette = async () => {
     const position = await page.evaluate(() => {
       const volet = document.querySelector('.volet-notes')!.getBoundingClientRect()
-      const languette = document.querySelector('.notes-languette button')!.getBoundingClientRect()
+      const languette = document.querySelector('.notes-languette')!.getBoundingClientRect()
       return {
         centreVolet: volet.y + volet.height / 2,
         centreLanguette: languette.y + languette.height / 2,

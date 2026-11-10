@@ -2,7 +2,8 @@ import type { Editor } from '@tiptap/core'
 import { computed, reactive, ref, type Ref } from 'vue'
 import { estOrpheline } from '../../../shared/entretien/annotation'
 import type { Entretien } from '../../../shared/entretien/entretien'
-import { genIdNote, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
+import type { Inverse } from '../../../shared/entretien/journal'
+import { genIdNote, notesParRang, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
 import type { Locuteur, Note } from '../../../shared/format'
 import { reperagePluginKey } from '../../editor/reperage'
 import {
@@ -33,6 +34,7 @@ export function useNotesEntretien(deps: {
   nomCategorieNote: (id: string) => string
   categorieNoteDefaut: () => string
   planifierSauvegarde: () => void
+  enregistrerAction: (libelle: string, inverse: Inverse) => unknown
 }) {
   const notes = ref<Note[]>([])
   const brouillonNote = ref<BrouillonNote | null>(null)
@@ -130,7 +132,7 @@ export function useNotesEntretien(deps: {
         cible.modifieLe = new Date().toISOString()
       }
     } else {
-      notes.value.push({
+      const note: Note = {
         id: genIdNote(),
         categorieId: brouillon.categorieId,
         titre,
@@ -141,6 +143,11 @@ export function useNotesEntretien(deps: {
         rang: brouillon.rang,
         creeLe: new Date().toISOString(),
         modifieLe: null,
+      }
+      notes.value.push(note)
+      deps.enregistrerAction(`Note créée : ${titre || '(sans titre)'}`, {
+        type: 'retirerNote',
+        note: { ...note, locuteurIds: [...locuteurIds] },
       })
     }
     if (brouillon.id) brouillonEditionNote.value = null
@@ -181,10 +188,18 @@ export function useNotesEntretien(deps: {
   }
 
   function supprimerNote(id: string) {
-    const index = notes.value.findIndex((note) => note.id === id)
-    if (index < 0) return
-    notes.value.splice(index, 1)
-    notes.value = renumeroterRangs(notes.value)
+    const ordonnees = notesParRang(notes.value)
+    const position = ordonnees.findIndex((note) => note.id === id)
+    if (position < 0) return
+    const [note] = ordonnees.splice(position, 1)
+    notes.value = renumeroterRangs(ordonnees)
+    deps.enregistrerAction(`Note supprimée : ${note.titre || '(sans titre)'}`, {
+      type: 'restaurerNote',
+      note: { ...note, locuteurIds: [...(note.locuteurIds ?? [])] },
+      position,
+      ordreApres: notes.value.map((candidate) => candidate.id),
+    })
+    if (brouillonEditionNote.value?.id === id) brouillonEditionNote.value = null
     deps.planifierSauvegarde()
   }
 
@@ -240,6 +255,7 @@ export function useNotesEntretien(deps: {
   const commentairesPourLiaison = computed(() =>
     deps.entretien.annotations
       .filter((annotation) => annotation.type === 'commentaire' && !estOrpheline(annotation))
+      .sort((a, b) => a.from - b.from || a.to - b.to)
       .map((annotation) => ({
         id: annotation.id,
         auteur: annotation.auteur,

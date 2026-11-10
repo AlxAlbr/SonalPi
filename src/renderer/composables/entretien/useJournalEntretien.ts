@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import { reactive, ref, type Ref } from 'vue'
+import { reactive, ref, watch, type Ref } from 'vue'
 import type { Entretien } from '../../../shared/entretien/entretien'
 import {
   annuler,
@@ -9,7 +9,7 @@ import {
   type Inverse,
   type Journal,
 } from '../../../shared/entretien/journal'
-import type { Locuteur } from '../../../shared/format'
+import type { Locuteur, Note } from '../../../shared/format'
 
 interface EffetsAnnulation {
   rafraichirProjections: () => void
@@ -24,6 +24,7 @@ interface EffetsAnnulation {
 export function useJournalEntretien(deps: {
   entretien: Entretien
   locuteurs: Ref<Locuteur[]>
+  notes: Ref<Note[]>
   lireValeursGen: () => Record<string, string>
   lireEditeur: () => Editor | null
   effetsAnnulation: EffetsAnnulation
@@ -42,6 +43,7 @@ export function useJournalEntretien(deps: {
     return {
       entretien: deps.entretien,
       locuteurs: deps.locuteurs.value,
+      notes: deps.notes.value,
       valeursGen: deps.lireValeursGen(),
       blocs: ed
         ? {
@@ -72,6 +74,8 @@ export function useJournalEntretien(deps: {
       annulable: estApplicable(entree.inverse, ctx),
     }))
   }
+
+  watch(deps.notes, rafraichirJournal, { deep: true })
 
   function enregistrerAction(libelle: string, inverse: Inverse) {
     return enregistrer(journal, libelle, inverse, genId)

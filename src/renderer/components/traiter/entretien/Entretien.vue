@@ -9,6 +9,7 @@ import BarreSelectionEntretien from './BarreSelectionEntretien.vue'
 import BulleRaccourcisEntretien from './BulleRaccourcisEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
+import PanneauCommentairesEntretien from './PanneauCommentairesEntretien.vue'
 import PanneauJournalEntretien from './PanneauJournalEntretien.vue'
 import PanneauLocuteursEntretien from './PanneauLocuteursEntretien.vue'
 import PanneauNotesEntretien from './PanneauNotesEntretien.vue'
@@ -17,6 +18,7 @@ import DefilementSuperpose from './DefilementSuperpose.vue'
 import { utiliserSonal } from '../../../composables/sonal'
 // Icônes des onglets (glyphe noir à plat).
 import icoThemes from '../../../assets/icones/themes.png'
+import icoCommentaires from '../../../assets/icones/commentaires.svg'
 import icoLocuteurs from '../../../assets/icones/locuteurs.png'
 import icoDonnees from '../../../assets/icones/donnees.png'
 import icoJournal from '../../../assets/icones/journal.png'
@@ -57,7 +59,20 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
 } = utiliserSonal()
+type OngletLateral = 'notes' | 'donnees' | 'journal'
+const ongletGauche = ref<'themes' | 'locuteurs' | 'anon' | 'commentaires'>('locuteurs')
+const ongletLateral = ref<OngletLateral>('notes')
 const voletNotesOuvert = ref(false)
+
+// Les raccourcis du corpus peuvent aussi ouvrir les outils de droite.
+watch(ongletDroite, (onglet) => {
+  if (onglet === 'notes' || onglet === 'donnees' || onglet === 'journal') {
+    ongletLateral.value = onglet
+    voletNotesOuvert.value = true
+  } else {
+    ongletGauche.value = onglet
+  }
+}, { immediate: true })
 const largeurNotesPersonnalisee = ref<number | null>(null)
 const ignorerClicNotes = ref(false)
 const redimensionnementNotesActif = ref(false)
@@ -66,6 +81,7 @@ let xDebutGlissementNotes: number | null = null
 let largeurDebutGlissementNotes = 0
 let idPointeurNotes: number | null = null
 let glissementNotesActif = false
+let ongletGlissement: OngletLateral = 'notes'
 let glissementDepuisReplie = false
 let positionsPointeurNotes: Array<{ x: number; temps: number }> = []
 let animationInertieNotes: number | null = null
@@ -129,8 +145,10 @@ async function pseudonymiserSelection() {
   panneauAnonymisation.value?.pseudonymiserSelection()
 }
 
-function basculerNotes() {
-  voletNotesOuvert.value = !voletNotesOuvert.value
+function ouvrirVolet(onglet: OngletLateral) {
+  ongletLateral.value = onglet
+  voletNotesOuvert.value = true
+  ongletDroite.value = onglet
 }
 
 function largeurNotesFermee(): number {
@@ -141,7 +159,7 @@ function largeurNotesFermee(): number {
   return Number.parseFloat(largeur) * racine
 }
 
-async function commencerGlissementNotes(event: PointerEvent) {
+async function commencerGlissementNotes(event: PointerEvent, onglet: OngletLateral) {
   if (event.button !== 0) return
   if (animationInertieNotes !== null) {
     cancelAnimationFrame(animationInertieNotes)
@@ -149,8 +167,9 @@ async function commencerGlissementNotes(event: PointerEvent) {
     redimensionnementNotesActif.value = false
   }
   const volet = document.querySelector<HTMLElement>('.volet-notes')
-  const panneau = document.querySelector<HTMLElement>('#panneau-notes-entretien')
+  const panneau = document.querySelector<HTMLElement>(`#panneau-${ongletLateral.value}-entretien`)
   if (!volet || !panneau) return
+  ongletGlissement = onglet
   xDebutGlissementNotes = event.clientX
   glissementDepuisReplie = !voletNotesOuvert.value
   largeurDebutGlissementNotes = glissementDepuisReplie
@@ -180,7 +199,7 @@ function glisserNotes(event: PointerEvent) {
     largeurNotesFermee(),
     Math.min(largeurMax, largeurDebutGlissementNotes + deplacement),
   )
-  voletNotesOuvert.value = true
+  ouvrirVolet(ongletGlissement)
   const temps = performance.now()
   positionsPointeurNotes.push({ x: event.clientX, temps })
   positionsPointeurNotes = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
@@ -253,12 +272,17 @@ function terminerGlissementNotes(event: PointerEvent) {
   glissementDepuisReplie = false
 }
 
-function cliquerNotes() {
+function cliquerVolet(onglet: OngletLateral) {
   if (ignorerClicNotes.value) {
     ignorerClicNotes.value = false
     return
   }
-  basculerNotes()
+  if (voletNotesOuvert.value && ongletLateral.value === onglet) {
+    voletNotesOuvert.value = false
+    ongletDroite.value = ongletGauche.value
+  } else {
+    ouvrirVolet(onglet)
+  }
 }
 
 </script>
@@ -310,21 +334,21 @@ function cliquerNotes() {
           <BulleRaccourcisEntretien />
 
           <nav class="onglets">
-              <!-- Onglets réduits à l'icône : le titre apparaît au survol. -->
-            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
-              <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
+            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletGauche === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
+              <img class="ico-onglet" :src="icoLocuteurs" alt="" />
+              <span>Locuteurs</span>
             </button>
-            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
-              <img class="ico-onglet" :src="icoAnon" alt="Pseudonymisation du texte" />
+            <button data-onglet="anon" :class="{ actif: ongletGauche === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
+              <img class="ico-onglet" :src="icoAnon" alt="" />
+              <span>Pseudos</span>
             </button>
-            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
-              <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
+            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletGauche === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
+              <img class="ico-onglet" :src="icoThemes" alt="" />
+              <span>Thèmes</span>
             </button>
-            <button data-onglet="donnees" data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" title="Données" @click="ongletDroite = 'donnees'">
-              <img class="ico-onglet" :src="icoDonnees" alt="Données" />
-            </button>
-            <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
-              <img class="ico-onglet" :src="icoJournal" alt="Journal" />
+            <button data-onglet="commentaires" :class="{ actif: ongletGauche === 'commentaires' }" title="Commentaires" @mousedown.prevent @click="ongletDroite = 'commentaires'">
+              <img class="ico-onglet" :src="icoCommentaires" alt="" />
+              <span>Comments</span>
             </button>
           </nav>
 
@@ -334,30 +358,25 @@ function cliquerNotes() {
             <div data-tour="ancre-guide-pp"></div>
 
             <PanneauThemesEntretien
-              v-show="ongletDroite === 'themes'"
+              v-show="ongletGauche === 'themes'"
               :lecture-seule-contenu="roContenu"
             />
 
             <PanneauLocuteursEntretien
-              v-show="ongletDroite === 'locuteurs'"
-              :actif="ongletDroite === 'locuteurs'"
+              v-show="ongletGauche === 'locuteurs'"
+              :actif="ongletGauche === 'locuteurs'"
               :lecture-seule="roContenu"
             />
 
-            <PanneauDonneesEntretien
-              v-show="ongletDroite === 'donnees'"
-              :lecture-seule="roContenu"
-            />
-
-            <PanneauJournalEntretien
-              v-show="ongletDroite === 'journal'"
+            <PanneauCommentairesEntretien
+              v-show="ongletGauche === 'commentaires'"
               :lecture-seule="roContenu"
             />
 
             <PanneauAnonymisationEntretien
               ref="panneauAnonymisation"
-              v-show="ongletDroite === 'anon'"
-              :actif="ongletDroite === 'anon'"
+              v-show="ongletGauche === 'anon'"
+              :actif="ongletGauche === 'anon'"
               :lecture-seule-contenu="roContenu"
               v-model:ajout-selection-actif="ajoutSelectionActif"
             />
@@ -367,7 +386,7 @@ function cliquerNotes() {
         <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
              (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
              puis éditeur pleine largeur dessous. -->
-        <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletDroite === 'anon' && ajoutSelectionActif }">
+        <div class="colonne-droite" :class="{ 'selection-pseudo-active': ongletGauche === 'anon' && ajoutSelectionActif }">
           <div v-if="estVideo" class="zone-media">
             <div class="tele">
               <LecteurAudio :empile="true" />
@@ -393,8 +412,22 @@ function cliquerNotes() {
 
         <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
           <div class="cadre-notes">
+            <PanneauJournalEntretien
+              id="panneau-journal-entretien"
+              v-show="ongletLateral === 'journal'"
+              :lecture-seule="roContenu"
+              :inert="!voletNotesOuvert"
+            />
+            <PanneauDonneesEntretien
+              id="panneau-donnees-entretien"
+              v-show="ongletLateral === 'donnees'"
+              :lecture-seule="roContenu"
+              :inert="!voletNotesOuvert"
+            />
             <PanneauNotesEntretien
               id="panneau-notes-entretien"
+              v-show="ongletLateral === 'notes'"
+              :inert="!voletNotesOuvert"
               :class="{ replie: !voletNotesOuvert }"
               :lecture-seule="roContenu"
             />
@@ -403,18 +436,49 @@ function cliquerNotes() {
             <button
               data-onglet="notes"
               data-tour="onglet-notes"
-              :class="{ actif: voletNotesOuvert }"
-              :aria-expanded="voletNotesOuvert"
+              :class="{ actif: voletNotesOuvert && ongletLateral === 'notes' }"
+              :aria-expanded="voletNotesOuvert && ongletLateral === 'notes'"
               aria-controls="panneau-notes-entretien"
               title="Notes — faites glisser pour redimensionner"
-              @pointerdown="commencerGlissementNotes"
+              @pointerdown="commencerGlissementNotes($event, 'notes')"
               @pointermove="glisserNotes"
               @pointerup="terminerGlissementNotes"
               @pointercancel="terminerGlissementNotes"
-              @click="cliquerNotes"
+              @click="cliquerVolet('notes')"
             >
               <img class="ico-onglet" :src="icoNotes" alt="" draggable="false" />
               <span>Notes</span>
+            </button>
+            <button
+              data-onglet="donnees"
+              data-tour="onglet-donnees"
+              :class="{ actif: voletNotesOuvert && ongletLateral === 'donnees' }"
+              :aria-expanded="voletNotesOuvert && ongletLateral === 'donnees'"
+              aria-controls="panneau-donnees-entretien"
+              title="Données — faites glisser pour redimensionner"
+              @pointerdown="commencerGlissementNotes($event, 'donnees')"
+              @pointermove="glisserNotes"
+              @pointerup="terminerGlissementNotes"
+              @pointercancel="terminerGlissementNotes"
+              @click="cliquerVolet('donnees')"
+            >
+              <img class="ico-onglet" :src="icoDonnees" alt="" draggable="false" />
+              <span>Données</span>
+            </button>
+            <button
+              data-onglet="journal"
+              :class="{ actif: voletNotesOuvert && ongletLateral === 'journal' }"
+              :aria-expanded="voletNotesOuvert && ongletLateral === 'journal'"
+              aria-controls="panneau-journal-entretien"
+              title="Journal — faites glisser pour redimensionner"
+              @pointerdown="commencerGlissementNotes($event, 'journal')"
+              @pointermove="glisserNotes"
+              @pointerup="terminerGlissementNotes"
+              @pointercancel="terminerGlissementNotes"
+              @click="cliquerVolet('journal')"
+            >
+              <img class="ico-onglet" :src="icoJournal" alt="" draggable="false" />
+              <span>Journal</span>
             </button>
           </div>
         </aside>
@@ -706,6 +770,10 @@ function cliquerNotes() {
 .volet-notes:not(.ouvert) .cadre-notes > .panneau > * {
   visibility: hidden;
 }
+.onglets.notes-languette {
+  flex-direction: column;
+  gap: 2rem;
+}
 .notes-languette {
   position: absolute;
   z-index: 25;
@@ -746,8 +814,6 @@ function cliquerNotes() {
 .notes-languette button span {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 0.75rem;
-  font-weight: 600;
 }
 .notes-languette .ico-onglet {
   width: 20px;
@@ -830,6 +896,15 @@ function cliquerNotes() {
   padding: 0.3rem 0.1rem;
   font-size: 0.78rem;
   cursor: pointer;
+}
+.colonne-gauche .onglets button {
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.1rem;
+}
+.onglets button span {
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .onglets button.actif {
   background: #fff;
