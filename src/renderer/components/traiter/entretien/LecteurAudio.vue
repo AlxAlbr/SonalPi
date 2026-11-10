@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { utiliserSonal } from '../../../composables/sonal'
+import AideLectureAudio from './AideLectureAudio.vue'
 import type { SegmentThematique } from '../../../../shared/format'
 
 /**
@@ -83,35 +84,38 @@ function clicBande(e: MouseEvent) {
 
 <template>
   <div v-if="url && !erreur" class="lecteur-audio" :class="{ empile: props.empile }">
-    <div class="commandes">
-      <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
-        {{ enLecture ? '⏸' : '▶' }}
-      </button>
-      <span class="temps">{{ fmt(position) }} / {{ fmt(duree) }}</span>
-      <span class="groupe-vitesse">
-        <button class="mini-lect" title="Ralentir" @click="changerVitesse('-')">−</button>
-        <button class="mini-lect lbl-vitesse" title="Vitesse normale" @click="changerVitesse('=')">
-          x {{ vitesse.toFixed(2).replace(/\.?0+$/, '') || '1' }}
+    <div class="bloc-commandes">
+      <div class="commandes">
+        <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
+          {{ enLecture ? '⏸' : '▶' }}
         </button>
-        <button class="mini-lect" title="Accélérer" @click="changerVitesse('+')">+</button>
-      </span>
-      <button class="mini-lect" title="Reculer de 5 secondes" @click="decaler(-5)">−5s</button>
-      <button class="mini-lect" title="Avancer de 5 secondes" @click="decaler(5)">+5s</button>
-      <button
-        v-if="mediaDistantDesigne && !lectureDistanteActive"
-        class="mini-lect"
-        :disabled="preparationLectureDistante"
-        @click="lireAudioDistant"
-      >
-        Lire depuis le serveur
-      </button>
-      <button
-        v-else-if="lectureDistanteActive && audioLocalDisponible"
-        class="mini-lect"
-        @click="lireAudioLocal"
-      >
-        Lire le fichier local
-      </button>
+        <span class="temps">{{ fmt(position) }} / {{ fmt(duree) }}</span>
+        <span class="groupe-vitesse">
+          <button class="mini-lect" title="Ralentir" @click="changerVitesse('-')">−</button>
+          <button class="mini-lect lbl-vitesse" title="Vitesse normale" @click="changerVitesse('=')">
+            x {{ vitesse.toFixed(2).replace(/\.?0+$/, '') || '1' }}
+          </button>
+          <button class="mini-lect" title="Accélérer" @click="changerVitesse('+')">+</button>
+        </span>
+        <button class="mini-lect" title="Reculer de 5 secondes" @click="decaler(-5)">−5s</button>
+        <button class="mini-lect" title="Avancer de 5 secondes" @click="decaler(5)">+5s</button>
+        <button
+          v-if="mediaDistantDesigne && !lectureDistanteActive"
+          class="mini-lect"
+          :disabled="preparationLectureDistante"
+          @click="lireAudioDistant"
+        >
+          Lire depuis le serveur
+        </button>
+        <button
+          v-else-if="lectureDistanteActive && audioLocalDisponible"
+          class="mini-lect"
+          @click="lireAudioLocal"
+        >
+          Lire le fichier local
+        </button>
+      </div>
+      <AideLectureAudio />
     </div>
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
@@ -285,6 +289,12 @@ dès que les droits seront ouverts.
 .lecteur-audio.empile .bande {
   width: 100%;
 }
+.bloc-commandes {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 0.2rem;
+}
 .commandes {
   display: flex;
   align-items: center;
@@ -297,13 +307,18 @@ dès que les droits seront ouverts.
   flex-shrink: 0;
 }
 /* Sur une seule ligne, un filet sépare les commandes de la forme d'onde. */
-.lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .commandes {
+.lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .bloc-commandes {
   border-right: 1px solid #dce4ef;
   padding-right: 0.8rem;
 }
 .play {
-  width: 2rem;
-  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   border: 1px solid #1565c0;
   background: #2e73d8;
   color: #fff;

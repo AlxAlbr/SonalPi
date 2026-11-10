@@ -6,7 +6,6 @@ import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import BarreSelectionEntretien from './BarreSelectionEntretien.vue'
-import BulleRaccourcisEntretien from './BulleRaccourcisEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
 import PanneauCommentairesEntretien from './PanneauCommentairesEntretien.vue'
@@ -331,8 +330,6 @@ function cliquerVolet(onglet: OngletLateral) {
              collante, à défilement interne au-delà d'un écran,
              pour rester visible pendant la lecture. -->
         <div class="colonne-gauche">
-          <BulleRaccourcisEntretien />
-
           <nav class="onglets">
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletGauche === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="" />

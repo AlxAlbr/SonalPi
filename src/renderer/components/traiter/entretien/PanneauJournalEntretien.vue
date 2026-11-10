@@ -12,7 +12,8 @@ const { entreesJournal, annulerEntree } = utiliserSonal()
       <h3>Journal</h3>
     </div>
     <p class="aide-thm">
-      Les 10 dernières actions de cet entretien, pendant cette session. La saisie du texte s'annule avec Ctrl+Z.
+      Les 10 dernières actions de cet entretien, pendant cette session. Utilisez ↩ pour annuler une action de cette liste.
+      Dans le texte, Ctrl+Z annule les modifications du texte et les attributions à un locuteur, mais pas les attributions de thèmes.
     </p>
     <p v-if="entreesJournal.length === 0" class="vide">Aucune action enregistrée.</p>
     <ul class="liste-journal">
