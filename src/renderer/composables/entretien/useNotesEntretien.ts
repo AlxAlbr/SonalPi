@@ -150,8 +150,8 @@ export function useNotesEntretien(deps: {
         note: { ...note, locuteurIds: [...locuteurIds] },
       })
     }
-    if (brouillon.id) brouillonEditionNote.value = null
-    else brouillonNote.value = null
+    if (brouillonNote.value === brouillon) brouillonNote.value = null
+    if (brouillonEditionNote.value === brouillon) brouillonEditionNote.value = null
     deps.planifierSauvegarde()
   }
 
@@ -164,7 +164,19 @@ export function useNotesEntretien(deps: {
   }
 
   function annulerNote() {
+    // Une note NEUVE venue du formulaire en ligne (agrandie) y revient :
+    // annuler la fenêtre ne perd pas la saisie en cours.
+    const brouillon = brouillonEditionNote.value
+    if (brouillon && !brouillon.id) brouillonNote.value = brouillon
     brouillonEditionNote.value = null
+  }
+
+  /** Fait passer la note en cours de rédaction du formulaire en ligne à la
+   *  fenêtre d'édition (plus grande) : le brouillon est déplacé tel quel. */
+  function agrandirNote() {
+    if (!brouillonNote.value) return
+    brouillonEditionNote.value = brouillonNote.value
+    brouillonNote.value = null
   }
 
   function ecrireCorpsNote(id: string, htmlBrut: string) {
@@ -387,6 +399,7 @@ export function useNotesEntretien(deps: {
     validerNote,
     validerEditionNote,
     annulerNote,
+    agrandirNote,
     ecrireCorpsNote,
     ecrireTitreNote,
     enregistrerSyncZoneHorsModale,

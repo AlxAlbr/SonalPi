@@ -11,6 +11,7 @@ import {
 } from '../../../notes/sanitiser'
 import { utiliserSonal } from '../../../composables/sonal'
 import MenuLiensNote from './MenuLiensNote.vue'
+import LierPersonnesNote from './LierPersonnesNote.vue'
 
 const props = defineProps<{ lectureSeule: boolean }>()
 
@@ -20,6 +21,7 @@ const {
   brouillonNote,
   brouillonEditionNote,
   ajouterNote,
+  agrandirNote,
   editerNote,
   validerNote,
   validerEditionNote,
@@ -56,30 +58,32 @@ watch(
     avertissementNote.value = ''
   },
 )
+// Le formulaire en ligne vit tant qu'aucune fenêtre d'édition n'est ouverte :
+// une note agrandie (fenêtre) ne doit pas rouvrir un formulaire vide dessous.
 watch(
-  [brouillonNote, () => props.lectureSeule],
-  ([brouillon, lectureSeule]) => {
-    if (!lectureSeule && !brouillon) ajouterNote()
+  [brouillonNote, brouillonEditionNote, () => props.lectureSeule],
+  ([brouillon, edition, lectureSeule]) => {
+    if (!lectureSeule && !brouillon && !edition) ajouterNote()
   },
   { immediate: true, flush: 'sync' },
 )
 watch(
-  () => brouillonNote.value?.id ?? 'new',
-  () => {
+  brouillonNote,
+  (brouillon) => {
     nextTick(() => {
-      if (zoneCorpsNote.value && brouillonNote.value) {
-        zoneCorpsNote.value.innerHTML = brouillonNote.value.corps || ''
+      if (zoneCorpsNote.value && brouillon) {
+        zoneCorpsNote.value.innerHTML = brouillon.corps || ''
         decoreRefsCommentaires(zoneCorpsNote.value, document, resolverCommentaires)
       }
     })
   },
 )
 watch(
-  () => brouillonEditionNote.value?.id,
-  () => {
+  brouillonEditionNote,
+  (brouillon) => {
     nextTick(() => {
-      if (zoneCorpsEditionNote.value && brouillonEditionNote.value) {
-        zoneCorpsEditionNote.value.innerHTML = brouillonEditionNote.value.corps || ''
+      if (zoneCorpsEditionNote.value && brouillon) {
+        zoneCorpsEditionNote.value.innerHTML = brouillon.corps || ''
         decoreRefsCommentaires(zoneCorpsEditionNote.value, document, resolverCommentaires)
       }
     })
@@ -305,9 +309,33 @@ function onDropNote(cibleId: string) {
 <template>
   <aside class="panneau notes">
     <section v-if="!lectureSeule && brouillonNote && !brouillonNote.id" class="nouvelle-note-inline">
+      <div class="tete-note-inline">
+        <button
+          type="button"
+          class="mini agrandir-note"
+          title="Agrandir la rédaction dans une fenêtre — la saisie en cours est conservée"
+          @click="agrandirNote"
+        >⤢</button>
+      </div>
       <label class="champ-note champ-titre-note">
         <span>Titre (optionnel)</span>
-        <input data-tour="note-titre" type="text" v-model="brouillonNote.titre" placeholder="ex. hypothèse centrale" />
+        <input data-tour="note-titre" type="text" v-model="brouillonNote.titre" />
+      </label>
+      <label class="champ-note">
+        <span>Catégorie</span>
+        <select v-model="brouillonNote.categorieId">
+          <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
+          <option value=" autre">autre…</option>
+        </select>
+        <input v-if="brouillonNote.categorieId !== ' autre'" type="color"
+          class="carre-couleur"
+          :value="couleurCategorieNote(brouillonNote.categorieId)"
+          :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonNote.categorieId)} »`"
+          @change="majCouleurCategorieNote(brouillonNote.categorieId, ($event.target as HTMLInputElement).value)"
+        />
+        <button v-else type="button" class="carre-couleur carre-creation"
+          title="Nouvelle catégorie (nom + couleur)"
+          @click="ouvrirCreationCategorie()">＋</button>
       </label>
       <div
         ref="zoneCorpsNote"
@@ -323,37 +351,11 @@ function onDropNote(cibleId: string) {
           @click="marquerDansCorpsNote">✏ Marquer comme important</button>
         <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
           @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
+        <LierPersonnesNote v-model="brouillonNote.locuteurIds" :locuteurs="locuteurs" />
       </div>
       <details class="options-avancees-note">
         <summary>Options avancées</summary>
-        <fieldset class="cibles-note-form">
-          <legend>Concerne (optionnel)</legend>
-          <p>Associez cette note aux locuteurs concernés pour la retrouver dans Personnes.</p>
-          <div v-if="locuteurs.some((locuteur) => locuteur.id)" class="choix-cibles-note">
-            <label v-for="locuteur in locuteurs.filter((item) => item.id)" :key="locuteur.id">
-              <input v-model="brouillonNote.locuteurIds" type="checkbox" :value="locuteur.id" />
-              <span>{{ locuteur.nom || 'Locuteur sans nom' }}</span>
-            </label>
-          </div>
-          <p v-else>Aucun locuteur n’est disponible dans cet entretien.</p>
-        </fieldset>
         <div class="modale-note-meta">
-          <label class="champ-note">
-            <span>Catégorie</span>
-            <select v-model="brouillonNote.categorieId">
-              <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
-              <option value=" autre">autre…</option>
-            </select>
-            <input v-if="brouillonNote.categorieId !== ' autre'" type="color"
-              class="carre-couleur"
-              :value="couleurCategorieNote(brouillonNote.categorieId)"
-              :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonNote.categorieId)} »`"
-              @change="majCouleurCategorieNote(brouillonNote.categorieId, ($event.target as HTMLInputElement).value)"
-            />
-            <button v-else type="button" class="carre-couleur carre-creation"
-              title="Nouvelle catégorie (nom + couleur)"
-              @click="ouvrirCreationCategorie()">＋</button>
-          </label>
           <label class="champ-note">
             <span>Date</span>
             <input type="date" v-model="brouillonNote.date" />
@@ -478,17 +480,23 @@ function onDropNote(cibleId: string) {
     </div>
 
     <Teleport to="body">
-      <div v-if="brouillonEditionNote?.id" class="modale-note">
+      <div v-if="brouillonEditionNote" class="modale-note">
         <div class="modale-note-fond" @click="annulerNote"></div>
         <div class="modale-note-fenetre">
           <div class="corpus-tete">
-            <h3>Éditer la note</h3>
-            <button class="mini" title="Fermer" @click="annulerNote">✕</button>
+            <h3>{{ brouillonEditionNote.id ? 'Éditer la note' : 'Nouvelle note' }}</h3>
+            <button
+              class="mini"
+              :title="brouillonEditionNote.id
+                ? 'Fermer sans enregistrer les modifications'
+                : 'Réduire — revenir au formulaire du panneau, la saisie est conservée'"
+              @click="annulerNote"
+            >{{ brouillonEditionNote.id ? '✕' : '⤡' }}</button>
           </div>
           <div class="modale-note-corps">
             <label class="champ-note champ-titre-note">
               <span>Titre (optionnel)</span>
-              <input type="text" v-model="brouillonEditionNote.titre" placeholder="ex. hypothèse centrale" />
+              <input type="text" v-model="brouillonEditionNote.titre" />
             </label>
             <div
               ref="zoneCorpsEditionNote"
@@ -504,19 +512,9 @@ function onDropNote(cibleId: string) {
                 @click="marquerDansCorpsEditionNote">✏ Marquer comme important</button>
               <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
                 @click="zoneCorpsEditionNote && lierPassage($event, zoneCorpsEditionNote)">🔗 Lier à un commentaire</button>
+              <LierPersonnesNote v-model="brouillonEditionNote.locuteurIds" :locuteurs="locuteurs" />
             </div>
             <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
-            <fieldset class="cibles-note-form">
-              <legend>Concerne (optionnel)</legend>
-              <p>Associez cette note aux locuteurs concernés pour la retrouver dans Personnes.</p>
-              <div v-if="locuteurs.some((locuteur) => locuteur.id)" class="choix-cibles-note">
-                <label v-for="locuteur in locuteurs.filter((item) => item.id)" :key="locuteur.id">
-                  <input v-model="brouillonEditionNote.locuteurIds" type="checkbox" :value="locuteur.id" />
-                  <span>{{ locuteur.nom || 'Locuteur sans nom' }}</span>
-                </label>
-              </div>
-              <p v-else>Aucun locuteur n’est disponible dans cet entretien.</p>
-            </fieldset>
             <div class="modale-note-meta">
               <label class="champ-note">
                 <span>Catégorie</span>
@@ -550,7 +548,8 @@ function onDropNote(cibleId: string) {
           </div>
           <div class="modale-note-pied">
             <button class="principal" @click="validerEditionNote">Valider</button>
-            <button @click="annulerNote">Annuler</button>
+            <!-- Une note NEUVE se RÉDUIT vers le formulaire ; une édition s'annule. -->
+            <button @click="annulerNote">{{ brouillonEditionNote.id ? 'Annuler' : 'Réduire' }}</button>
           </div>
         </div>
 
@@ -827,6 +826,12 @@ function onDropNote(cibleId: string) {
   padding-bottom: 0.75rem;
   border-bottom: 1px solid #e2e2e2;
 }
+/* Le bouton d'agrandissement vit seul sur sa ligne, au-dessus du formulaire,
+   à droite : il ne perturbe pas la saisie du titre. */
+.tete-note-inline {
+  display: flex;
+  justify-content: flex-end;
+}
 .nouvelle-note-inline .champ-titre-note {
   align-items: center;
   flex-direction: row;
@@ -851,9 +856,6 @@ function onDropNote(cibleId: string) {
   color: #555;
   cursor: pointer;
   font-weight: 600;
-}
-.options-avancees-note .cibles-note-form {
-  padding: 0.5rem;
 }
 .creer-note-inline {
   align-self: flex-end;
@@ -889,7 +891,7 @@ function onDropNote(cibleId: string) {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-  width: min(560px, 92vw);
+  width: min(760px, 92vw);
   max-height: 86vh;
   display: flex;
   flex-direction: column;
@@ -908,12 +910,18 @@ function onDropNote(cibleId: string) {
   outline: none;
 }
 .zone-corps-note:focus { border-color: #6485d6; }
+/* Dans la fenêtre d'édition, la zone de rédaction est plus haute : c'est là
+   qu'on écrit long (le formulaire en ligne reste compact). */
+.modale-note .zone-corps-note {
+  min-height: 14rem;
+}
 .zone-corps-note:empty::before {
   content: attr(data-placeholder);
   color: #aaa;
 }
 .barre-outils-note {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.3rem;
   margin: 0.4rem 0;
 }
@@ -932,15 +940,6 @@ function onDropNote(cibleId: string) {
   gap: 0.7rem;
   margin-top: 0.3rem;
 }
-.cibles-note-form {
-  margin-top: 0.75rem;
-  padding: 0.65rem 0.8rem;
-  border: 1px solid #c8d0da;
-  border-radius: 5px;
-}
-.cibles-note-form p { margin: 0.25rem 0 0.5rem; color: #52606d; }
-.choix-cibles-note { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; }
-.choix-cibles-note label { display: inline-flex; align-items: center; gap: 0.3rem; }
 .msg-avert {
   margin: 0.4rem 0 0;
   font-size: 0.78rem;
