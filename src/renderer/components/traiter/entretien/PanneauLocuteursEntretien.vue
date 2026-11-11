@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import type { Locuteur } from '../../../../shared/format'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
@@ -31,6 +32,12 @@ const {
   confirmerSuppressionLocuteur,
   vue,
 } = utiliserSonal()
+
+function detailsLocuteur(locuteur: Locuteur): string {
+  const pseudo = locuteur.pseudo?.trim()
+  const role = locuteur.interviewer ? 'Pose les questions' : 'Répond aux questions'
+  return pseudo && pseudo !== locuteur.nom.trim() ? `${pseudo} · ${role}` : role
+}
 
 const gestionOuverte = ref(false)
 const boutonGestion = ref<HTMLButtonElement | null>(null)
@@ -134,16 +141,24 @@ watch(
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant<br />ou la sélection :</span>
       <div class="boutons-loc">
-        <button
-          v-for="l in locuteurs"
-          :key="l.index"
-          class="attr"
-          :disabled="lectureSeule"
-          @click="attribuerLoc(l.index)"
-        >
-          <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
-          <span :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }">{{ l.nom }}</span>
-        </button>
+        <div v-for="l in locuteurs" :key="l.index" class="choix-loc">
+          <button
+            class="attr"
+            :aria-label="l.nom"
+            :aria-describedby="`details-locuteur-${l.index}`"
+            :disabled="lectureSeule"
+            @click="attribuerLoc(l.index)"
+          >
+            <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
+            <span class="libelle-loc">
+              <span class="nom-attribution" :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }">{{ l.nom }}</span>
+              <span class="details-attribution">{{ detailsLocuteur(l) }}</span>
+            </span>
+          </button>
+          <span :id="`details-locuteur-${l.index}`" class="infobulle-loc" role="tooltip">
+            {{ l.nom }} — {{ detailsLocuteur(l) }}
+          </span>
+        </div>
         <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
@@ -526,6 +541,47 @@ watch(
   flex-direction: column;
   gap: 0.5rem;
 }
+.choix-loc {
+  position: relative;
+  min-width: 0;
+}
+.libelle-loc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.nom-attribution,
+.details-attribution {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.details-attribution {
+  font-size: 12px;
+  font-weight: 400;
+  color: #595969;
+}
+.infobulle-loc {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 0.5rem;
+  border: 1px solid #c5c5ce;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 6px #0002;
+}
+.choix-loc:hover .infobulle-loc,
+.choix-loc:focus-within .infobulle-loc {
+  display: block;
+}
 .attr {
   display: flex;
   align-items: center;
@@ -534,7 +590,7 @@ watch(
   min-width: 0;
   font-size: 14px;
   line-height: 1.4;
-  min-height: 2.75rem;
+  min-height: 3.5rem;
   overflow-wrap: anywhere;
   font-weight: 600;
   text-align: left;
@@ -554,6 +610,8 @@ watch(
   outline-offset: 1px;
 }
 .pastille-locuteur {
+  align-self: flex-start;
+  margin-top: 0.1em;
   width: 16px;
   height: 16px;
   flex: none;

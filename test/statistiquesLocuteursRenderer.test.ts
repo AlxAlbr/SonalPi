@@ -94,6 +94,30 @@ test('les noms, couleurs, rôles et attributions suivent les données réactives
   expect(b.host.querySelector('.stats-locuteurs')).toBeNull()
 })
 
+test('les boutons présentent le nom, le pseudo distinct et un rôle sans accord de genre', async () => {
+  const b = await monter()
+  const choix = b.host.querySelectorAll('.choix-loc')
+  expect(choix[0].querySelector('.nom-attribution')?.textContent).toBe('Enquêteur')
+  expect(choix[0].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Répond aux questions')
+
+  b.locuteurs.value[1].pseudo = '  Fati  '
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Fati · Répond aux questions')
+  const bouton = choix[1].querySelector('button')!
+  expect(bouton.getAttribute('aria-label')).toBe('Fatima')
+  const description = document.getElementById(bouton.getAttribute('aria-describedby')!)!
+  expect(description.textContent).toContain('Fatima — Fati · Répond aux questions')
+
+  b.locuteurs.value[1].pseudo = ' Fatima '
+  b.locuteurs.value[1].interviewer = true
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+  b.locuteurs.value[1].pseudo = '   '
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+})
+
 test('une modification du découpage remet le compteur de navigation à zéro', async () => {
   const b = await monter()
   b.host.querySelector<HTMLButtonElement>('[aria-label="Prise de parole précédente de Enquêteur"]')!.click()
