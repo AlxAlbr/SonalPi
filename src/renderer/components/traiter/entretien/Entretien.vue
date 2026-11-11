@@ -902,6 +902,12 @@ function cliquerVolet(onglet: OngletLateral) {
 .outils-editeur .bouton-journal {
   margin-left: 1.1rem;
 }
+.outils-editeur .bouton-journal,
+.outils-editeur .groupe-affichage-noms button {
+  font-size: 14px;
+  min-height: 36px;
+  padding: 0.4rem 0.6rem;
+}
 /* Groupe segmenté « Affichage des noms » : boutons jointifs, nettement décalés
  * des actions qui s'ouvrent (recherche, journal) pour marquer la distinction
  * entre actions et réglage d'affichage. */
@@ -1212,7 +1218,8 @@ function cliquerVolet(onglet: OngletLateral) {
   border-bottom: 1px solid #ddd;
   border-radius: 6px;
 }
-.notes-languette button span {
+.onglets.notes-languette button span {
+  font-size: 14px;
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }

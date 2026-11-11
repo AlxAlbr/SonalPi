@@ -132,7 +132,7 @@ watch(
     </div>
 
     <div class="attribuer">
-      <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
+      <span class="lbl">Attribuer le bloc courant<br />ou la sélection :</span>
       <div class="boutons-loc">
         <button
           v-for="l in locuteurs"
@@ -286,21 +286,21 @@ watch(
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.6rem;
 }
 .tableau-loc-tetes,
 .liste-loc li {
   display: grid;
-  grid-template-columns: 1.2rem minmax(0, 1fr) 7rem 2.4rem 1.2rem;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 2.25rem;
   align-items: center;
   gap: 0.4rem;
 }
 .tableau-loc-tetes {
-  font-size: 0.66rem;
+  font-size: 14px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #999;
+  color: #666;
   padding: 0.15rem 0.3rem;
   border-bottom: 1px solid #e5e5ef;
   margin-bottom: 0.25rem;
@@ -310,12 +310,12 @@ watch(
   min-width: 0;
 }
 .message-personne-creation {
-  font-size: 0.75rem;
+  font-size: 14px;
 }
 .lien-personne-loc {
   grid-column: 2 / -1;
   color: #595969;
-  font-size: 0.72rem;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .reference-personne-absente {
@@ -328,12 +328,12 @@ watch(
   min-width: 0;
   border: 1px solid #ccc;
   border-radius: 4px;
-  padding: 0.15rem 0.35rem;
-  font-size: 0.82rem;
+  padding: 0.45rem 0.5rem;
+  font-size: 14px;
 }
 .carre-couleur {
-  width: 1rem;
-  height: 1rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.18);
   padding: 0;
@@ -363,12 +363,13 @@ watch(
   box-sizing: border-box;
   border: 1px solid #e2e2ea;
   border-radius: 4px;
-  padding: 0.08rem 0.3rem;
-  font-size: 0.7rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  font-size: 14px;
   color: #333;
 }
 .pseudo-loc::placeholder {
-  color: #bbb;
+  color: #777;
   font-style: italic;
 }
 .interv,
@@ -386,9 +387,9 @@ watch(
   display: none;
 }
 .glisseur {
-  width: 26px;
-  height: 14px;
-  border-radius: 7px;
+  width: 32px;
+  height: 20px;
+  border-radius: 10px;
   background: #d5d5dd;
   position: relative;
   transition: background 0.15s;
@@ -398,8 +399,8 @@ watch(
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
@@ -412,9 +413,9 @@ watch(
   left: 14px;
 }
 .interv .q {
-  font-size: 0.8rem;
+  font-size: 14px;
   font-weight: 600;
-  color: #aaa;
+  color: #777;
   font-style: italic;
 }
 .interv input:checked ~ .q {
@@ -425,9 +426,11 @@ watch(
   background: none;
   color: #c33;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 14px;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
   flex: none;
-  opacity: 0.5;
+  opacity: 0.8;
 }
 .liste-loc li:hover .x-loc {
   opacity: 1;
@@ -453,7 +456,7 @@ watch(
   gap: 0.5rem;
   margin-bottom: 0.4rem;
   color: #444;
-  font-size: 0.8rem;
+  font-size: 14px;
 }
 .statistiques-locuteurs {
   margin-top: 0.9rem;
@@ -463,8 +466,9 @@ watch(
 .statistiques-locuteurs > summary {
   color: #444;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 14px;
   font-weight: 600;
+  padding: 0.35rem 0;
 }
 .voile-locuteurs {
   position: fixed;
@@ -479,8 +483,10 @@ watch(
 }
 .modale-locuteurs {
   box-sizing: border-box;
-  width: min(760px, 94vw);
-  padding: 0.8rem 1rem 1rem;
+  width: min(900px, 94vw);
+  padding: 1rem 1.25rem 1.25rem;
+  font-size: 14px;
+  line-height: 1.5;
   border: 1px solid #d6dce8;
   border-radius: 10px;
   background: #fff;
@@ -497,25 +503,28 @@ watch(
   background: none;
   color: #888;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 1.15rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
 }
 .aide-gestion-locuteurs {
   margin: 0 0 0.7rem;
   color: #666;
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.5;
 }
 .attribuer .lbl {
   display: block;
   margin-bottom: 0.35rem;
-  font-size: 0.75rem;
+  font-size: 14px;
+  line-height: 1.5;
   font-weight: 600;
   color: #444;
 }
 .boutons-loc {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 .attr {
   display: flex;
@@ -523,14 +532,17 @@ watch(
   gap: 0.4rem;
   width: 100%;
   min-width: 0;
-  font-size: 0.75rem;
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 2.75rem;
+  overflow-wrap: anywhere;
   font-weight: 600;
   text-align: left;
   border: 1px solid #e5e5ef;
   border-radius: 6px;
   background: #fff;
   color: #333;
-  padding: 0.3rem 0.5rem;
+  padding: 0.6rem 0.75rem;
   cursor: pointer;
 }
 .attr:hover {
@@ -542,8 +554,8 @@ watch(
   outline-offset: 1px;
 }
 .pastille-locuteur {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   flex: none;
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 50%;
@@ -552,10 +564,31 @@ watch(
   color: #777;
 }
 .attr.aucun::before {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
+  flex: none;
   border: 1px solid #c5c5ce;
   border-radius: 50%;
   content: '';
+}
+.actions-locuteurs .crayon {
+  font-size: 1.2rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+.modale-locuteurs :deep(button:not(.x-loc):not(.fermer)) {
+  font-size: 14px;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+}
+@media (max-width: 600px) {
+  .tableau-loc-tetes,
+  .liste-loc li {
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 2.25rem;
+    gap: 0.25rem;
+  }
+  .modale-locuteurs {
+    padding: 0.75rem;
+  }
 }
 </style>

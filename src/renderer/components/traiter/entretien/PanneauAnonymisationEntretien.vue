@@ -387,6 +387,9 @@ onBeforeUnmount(() => {
     domEditeur.removeEventListener('keyup', surRelache)
   }
 })
+function ouvrirDocumentationPseudo() {
+  return window.sonal.application.ouvrirDocumentation('pseudonymisation')
+}
 </script>
 
 <template>
@@ -411,10 +414,16 @@ onBeforeUnmount(() => {
       >+ Ligne</button>
     </div>
   </div>
-  <p class="aide-portee-anon">
-    Ici, on pseudonymise le <b>contenu des tours de parole</b> (le texte).
-    Pour les noms des locuteurs, consultez l’onglet <b>Locuteurs</b>.
-  </p>
+  <details class="aide-portee-anon">
+    <summary>Quelques informations</summary>
+    <p>
+      Ici, on pseudonymise le <b>contenu des tours de parole</b> (le texte).
+      Pour les noms des locuteurs, consultez l’onglet <b>Locuteurs</b>.
+      <br />
+      Si c’est la première fois que vous réalisez cette opération, nous vous conseillons de lire la
+      <a href="#documentation-pseudonymisation" @click.prevent="ouvrirDocumentationPseudo">documentation dédiée</a>.
+    </p>
+  </details>
   <label class="selection-option" title="Ajouter automatiquement le texte sélectionné">
     <span class="selection-option-texte">
       <span class="selection-option-titre">Ajouter le texte sélectionné</span>
@@ -660,10 +669,23 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Phrase de portée : ce panneau concerne le TEXTE des tours, pas les locuteurs. */
 .aide-portee-anon {
-  font-size: 0.75rem;
+  font-size: 14px;
   color: #666;
   margin: 0.2rem 0.3rem 0.4rem;
-  line-height: 1.35;
+  line-height: 1.5;
+}
+.aide-portee-anon summary {
+  cursor: pointer;
+  color: #425d7a;
+  font-weight: 600;
+  padding: 0.3rem 0;
+}
+.aide-portee-anon p {
+  margin: 0.25rem 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid #a9c4df;
+  border-radius: 4px;
+  background: #f2f6fb;
 }
 .hint-codage {
   background: #fff3e0;
@@ -878,17 +900,18 @@ td.col-pseudo {
 /* Compteurs scindés d'une ligne anon : occurrences ANONYMISÉES (barrées) et
  * EXCEPTIONS (laissées en clair). Les badges ronds colorés (.cpt-btn ci-dessous)
  * portent la couleur de chaque état. */
-/* Groupe de boutons d'en-tête du panneau anon (⟳ + « + Ligne »). */
+/* Boutons d'actualisation et d'ajout de ligne du panneau Pseudo. */
 .tete-actions {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.5rem;
   margin-left: auto;
 }
-/* Même cadence d'agrandissement que le tableau (classe .mini globale non touchée). */
 .tete-actions .mini {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.55rem;
+  font-size: 16px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0.5rem 0.8rem;
 }
 /* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés — vert
  * #15c095 = anonymisé, gris #555 = exception, orange #ff9800 = à anonymiser.

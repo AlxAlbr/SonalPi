@@ -61,11 +61,12 @@ function naviguer(ligne: StatistiqueLocuteur, sens: -1 | 1) {
 
 <style scoped>
 .stats-locuteurs { margin-top: 1rem; }
-p { font-size: .76rem; line-height: 1.45; margin: .35rem 0; }
+p { font-size: 14px; line-height: 1.45; margin: .35rem 0; }
 .limite-durees { color: #5c6673; }
 .liste-stats-loc { list-style: none; padding: 0; margin: .5rem 0; display: grid; gap: .45rem; }
-.liste-stats-loc li { font-size: .76rem; }
-.ligne-stat { display: flex; align-items: center; gap: .35rem; }
+.liste-stats-loc li { font-size: 14px; line-height: 1.5; }
+.ligne-stat { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.ligne-stat .mini { font-size: 14px; min-width: 2.5rem; min-height: 2.5rem; padding: .4rem; }
 .info-stat { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
 .info-stat strong { overflow-wrap: anywhere; }
 .info-stat > span { color: #5c6673; }

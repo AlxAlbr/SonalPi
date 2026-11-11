@@ -104,7 +104,7 @@ contextBridge.exposeInMainWorld('sonal', {
   platform: process.platform,
   application: {
     ouvrirKitPedagogique: (): Promise<void> => invoquer('application:ouvrirKitPedagogique'),
-    ouvrirDocumentation: (entree: 'guide' | 'faq'): Promise<void> => invoquer('application:ouvrirDocumentation', entree),
+    ouvrirDocumentation: (entree: 'guide' | 'faq' | 'pseudonymisation'): Promise<void> => invoquer('application:ouvrirDocumentation', entree),
     /** Demande du main avant fermeture : attendre le callback, puis acquitter. */
     surPreparationFermeture: (cb: () => Promise<void>): (() => void) => {
       const ecouteur = async (_e: Electron.IpcRendererEvent, jeton: string): Promise<void> => {

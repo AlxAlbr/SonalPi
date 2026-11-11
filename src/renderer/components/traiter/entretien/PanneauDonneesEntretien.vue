@@ -258,7 +258,7 @@ function focaliserLibre(el: unknown, cle: string) {
   border-radius: 6px 6px 0 0;
   padding: 0.25rem 0.4rem;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 14px;
   color: #555;
   white-space: nowrap;
   overflow: hidden;

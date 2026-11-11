@@ -144,6 +144,9 @@ function basculerToutesDescriptions() {
 }
 .corpus-tete .crayon {
   margin-left: auto;
+  font-size: 1.2rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 .hint-codage {
   background: #fff3e0;
