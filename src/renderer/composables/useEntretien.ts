@@ -203,6 +203,7 @@ export function useEntretien(deps: {
   } = recherche
   const anonymisationEntretien = useAnonymisationEntretien({
     entretien,
+    locuteurs,
     ouvertId,
     ongletDroite,
     lireEditeur: () => editor.value ?? null,
@@ -256,6 +257,7 @@ export function useEntretien(deps: {
     refuserSuggestionLiaison,
     detecterDivergencesPostTirage,
     pseudonymisationUtilisee,
+    applicationsAnon,
   } = anonymisationEntretien
 
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
@@ -822,6 +824,7 @@ export function useEntretien(deps: {
     // état / modèle
     entretien,
     pseudonymisationUtilisee,
+    applicationsAnon,
     locuteurs,
     blocsParole,
     meta,

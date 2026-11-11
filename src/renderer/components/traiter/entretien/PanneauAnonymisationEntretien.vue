@@ -14,6 +14,7 @@ const ajoutSelectionActif = defineModel<boolean>('ajoutSelectionActif', { requir
 
 const {
   selectionAnon,
+  applicationsAnon,
   hintAnon,
   lignesAnon,
   hitsAAnonymiserParCle,
@@ -48,26 +49,15 @@ const {
   gesteDisponible,
 } = utiliserSonal()
 
-// --- ANON : avis « vue Original » ---
-// Quand une validation pose des occurrences alors que la vue « Original » masque
-// tout marqueur, on prévient l'utilisateur (UNE fois par session) qu'il ne verra
-// pas l'effet sans changer de vue. L'événement demande la bascule au parent.
+// Prévenir une seule fois quand la vue Original masque une application réussie.
 const avisAffichageOriginal = ref(false)
 let avisAffichageDejaAffiche = false
-
-/** Pose les occurrences (validerAnon) et déclenche l'avis si la vue les masque. */
-function poserOccurrences(entite: string, pseudo: string) {
-  validerAnon(entite, pseudo)
-  declencherAvisAffichage()
-}
-/** Les chemins via brouillon + priorité (Entrée, Maj+Entrée) posent les
- *  occurrences dans le composable : l'avis se déclenche au même moment. */
-function declencherAvisAffichage() {
+watch(applicationsAnon, () => {
   if (props.affichageNoms === 'original' && !avisAffichageDejaAffiche) {
     avisAffichageDejaAffiche = true
     avisAffichageOriginal.value = true
   }
-}
+})
 function passerEnComparer() {
   avisAffichageOriginal.value = false
   emit('basculerAffichage', 'comparer')
@@ -226,7 +216,7 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscu
   hintAnon.value = null
   if (majuscule === undefined) {
     // Bouton ✓ : valide directement au niveau entretien.
-    poserOccurrences(e, p)
+    validerAnon(e, p)
     l.entite = ''
     l.pseudo = ''
     return
@@ -236,7 +226,6 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscu
   l.entite = ''
   l.pseudo = ''
   void validerAvecPriorite(e, majuscule)
-  declencherAvisAffichage()
 }
 /** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte en attendant un pseudo),
  *  puis passage à la ligne suivante (créée au besoin). */
@@ -278,7 +267,7 @@ function onBlurLigne(id: number, evt: FocusEvent) {
  *  sans effet (la bascule se fait par occurrence via le menu contextuel). */
 function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpus', value: string) {
   if (etat === 'brouillon') majBrouillonLigne(entite, value)
-  else if (etat === 'entretien') poserOccurrences(entite, value)
+  else if (etat === 'entretien') validerAnon(entite, value)
 }
 /** Entrée sur le Pseudo d'une ligne existante : brouillon → valider selon la priorité ;
  *  Entrée choisit la portée prioritaire et Maj+Entrée choisit l'autre.
@@ -294,7 +283,6 @@ function surEntreePseudoLigne(
     const v = value.trim()
     if (v) majBrouillonLigne(entite, v)
     void validerAvecPriorite(entite, majuscule)
-    declencherAvisAffichage()
   } else (document.activeElement as HTMLElement | null)?.blur()
 }
 function scrollerVersLigne(entite: string) {
