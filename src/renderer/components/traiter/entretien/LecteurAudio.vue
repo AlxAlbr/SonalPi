@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { projeterAncres, tempsAuPoint } from '../../../../shared/entretien/audio'
+import { statistiquesLocuteurs } from '../../../../shared/entretien/statistiquesLocuteurs'
+import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
+import AideLectureAudio from './AideLectureAudio.vue'
 import type { SegmentThematique } from '../../../../shared/format'
 
 /**
@@ -10,9 +15,16 @@ import type { SegmentThematique } from '../../../../shared/format'
  *  `empile` (mode vidéo) : la bande passe sous les commandes,
  *  pour laisser la place au panneau vidéo.
  */
-const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
+const props = withDefaults(defineProps<{
+  empile?: boolean
+  afficherLocuteurs?: boolean
+  interventionActive?: { loc: number | null; pos: number } | null
+}>(), { empile: false, afficherLocuteurs: false, interventionActive: null })
 const {
   audio,
+  blocsParole,
+  locuteurs,
+  entretien,
   resumeOuvert,
   tempsAuTexte,
   peintureSegment,
@@ -38,6 +50,32 @@ const {
 } = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
+
+const interventionsBande = computed(() => {
+  if (!props.afficherLocuteurs) return []
+  const bilan = statistiquesLocuteurs(blocsParole.value, locuteurs.value, entretien.ancres)
+  const longueur = blocsParole.value.reduce((total, bloc) => total + bloc.longueur, 0)
+  if (!longueur) return []
+  const ancres = bilan.reperesIncoherents ? [] : projeterAncres(entretien.ancres, blocsParole.value.map((bloc) => bloc.longueur))
+  const tempsUtilisable = duree.value > 0 && ancres.length >= 2 && ancres[0].x < ancres.at(-1)!.x
+  return bilan.tours.flatMap((tour) => {
+    let gauche = tour.debut / longueur * 100
+    let droite = tour.fin / longueur * 100
+    if (tempsUtilisable && tour.fin > ancres[0].x && tour.debut < ancres.at(-1)!.x) {
+      const debut = tempsAuPoint(ancres, Math.max(tour.debut, ancres[0].x))
+      const fin = tempsAuPoint(ancres, Math.min(tour.fin, ancres.at(-1)!.x))
+      if (debut !== null && fin !== null && fin > debut) {
+        gauche = debut / duree.value * 100
+        droite = fin / duree.value * 100
+      }
+    }
+    gauche = Math.max(0, Math.min(100, gauche))
+    droite = Math.max(0, Math.min(100, droite))
+    if (droite <= gauche) return []
+    const couleur = tour.loc === null ? '#8b949e' : locuteurs.value.find((loc) => loc.index === tour.loc)?.couleur ?? couleurPourLocuteur(tour.loc)
+    return [{ loc: tour.loc, pos: tour.pos, gauche, largeur: droite - gauche, couleur }]
+  })
+})
 
 /** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur
  *  y vit) → les bornes texte du segment sont re-projetées en temps via les
@@ -83,35 +121,38 @@ function clicBande(e: MouseEvent) {
 
 <template>
   <div v-if="url && !erreur" class="lecteur-audio" :class="{ empile: props.empile }">
-    <div class="commandes">
-      <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
-        {{ enLecture ? '⏸' : '▶' }}
-      </button>
-      <span class="temps">{{ fmt(position) }} / {{ fmt(duree) }}</span>
-      <span class="groupe-vitesse">
-        <button class="mini-lect" title="Ralentir" @click="changerVitesse('-')">−</button>
-        <button class="mini-lect lbl-vitesse" title="Vitesse normale" @click="changerVitesse('=')">
-          x {{ vitesse.toFixed(2).replace(/\.?0+$/, '') || '1' }}
+    <div class="bloc-commandes">
+      <div class="commandes">
+        <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
+          {{ enLecture ? '⏸' : '▶' }}
         </button>
-        <button class="mini-lect" title="Accélérer" @click="changerVitesse('+')">+</button>
-      </span>
-      <button class="mini-lect" title="Reculer de 5 secondes" @click="decaler(-5)">−5s</button>
-      <button class="mini-lect" title="Avancer de 5 secondes" @click="decaler(5)">+5s</button>
-      <button
-        v-if="mediaDistantDesigne && !lectureDistanteActive"
-        class="mini-lect"
-        :disabled="preparationLectureDistante"
-        @click="lireAudioDistant"
-      >
-        Lire depuis le serveur
-      </button>
-      <button
-        v-else-if="lectureDistanteActive && audioLocalDisponible"
-        class="mini-lect"
-        @click="lireAudioLocal"
-      >
-        Lire le fichier local
-      </button>
+        <span class="temps">{{ fmt(position) }} / {{ fmt(duree) }}</span>
+        <span class="groupe-vitesse">
+          <button class="mini-lect" title="Ralentir" @click="changerVitesse('-')">−</button>
+          <button class="mini-lect lbl-vitesse" title="Vitesse normale" @click="changerVitesse('=')">
+            x {{ vitesse.toFixed(2).replace(/\.?0+$/, '') || '1' }}
+          </button>
+          <button class="mini-lect" title="Accélérer" @click="changerVitesse('+')">+</button>
+        </span>
+        <button class="mini-lect" title="Reculer de 5 secondes" @click="decaler(-5)">−5s</button>
+        <button class="mini-lect" title="Avancer de 5 secondes" @click="decaler(5)">+5s</button>
+        <button
+          v-if="mediaDistantDesigne && !lectureDistanteActive"
+          class="mini-lect"
+          :disabled="preparationLectureDistante"
+          @click="lireAudioDistant"
+        >
+          Lire depuis le serveur
+        </button>
+        <button
+          v-else-if="lectureDistanteActive && audioLocalDisponible"
+          class="mini-lect"
+          @click="lireAudioLocal"
+        >
+          Lire le fichier local
+        </button>
+      </div>
+      <AideLectureAudio />
     </div>
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
@@ -120,9 +161,17 @@ function clicBande(e: MouseEvent) {
            le clic sur la bande reste un seek), sous le curseur. -->
       <span
         v-for="(s, i) in resumeOuvert"
+        v-show="!afficherLocuteurs"
         :key="i"
         class="xtr-bande"
         :style="styleSegmentBande(s)"
+      ></span>
+      <span
+        v-for="tour in interventionsBande"
+        :key="tour.pos"
+        class="locuteur-bande"
+        :class="{ estompe: interventionActive && tour.loc !== interventionActive.loc, actif: interventionActive?.pos === tour.pos }"
+        :style="{ left: tour.gauche + '%', width: tour.largeur + '%', backgroundColor: tour.couleur }"
       ></span>
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
     </div>
@@ -285,6 +334,12 @@ dès que les droits seront ouverts.
 .lecteur-audio.empile .bande {
   width: 100%;
 }
+.bloc-commandes {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 0.2rem;
+}
 .commandes {
   display: flex;
   align-items: center;
@@ -297,13 +352,18 @@ dès que les droits seront ouverts.
   flex-shrink: 0;
 }
 /* Sur une seule ligne, un filet sépare les commandes de la forme d'onde. */
-.lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .commandes {
+.lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .bloc-commandes {
   border-right: 1px solid #dce4ef;
   padding-right: 0.8rem;
 }
 .play {
-  width: 2rem;
-  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   border: 1px solid #1565c0;
   background: #2e73d8;
   color: #fff;
@@ -385,12 +445,26 @@ dès que les droits seront ouverts.
 .onde-vide {
   background: transparent; /* le dégradé du conteneur suffit (comme les cartes) */
 }
+.locuteur-bande {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  opacity: 0.65;
+  pointer-events: none;
+}
+.locuteur-bande.estompe { opacity: 0.08; }
+.locuteur-bande.actif {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px #222;
+  z-index: 1;
+}
 .curseur {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 2px;
   background: #d84315;
+  z-index: 2;
   pointer-events: none;
 }
 /* Segment du résumé thématique sur la bande — opacité 0.55 : la teinte du

@@ -471,6 +471,9 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await ouvrirEntretien(pMax)
     await pause(pMax, "Dans l'onglet Donnée, il ouvre l'édition des variables (✏️)…")
     await pMax.locator('.onglets button[data-onglet="donnees"]').click()
+    // Le crayon suit le sous-onglet affiché : « Entretien » borne l’édition
+    // aux variables d’entretien ; la création passe par « + var. d’entretien ».
+    await pMax.locator('.panneau.donnees .sous-onglet-bouton', { hasText: 'Entretien' }).click()
     await pMax.locator('.panneau.donnees .crayon').click()
     await expect(pMax.locator('.modale-vars')).toBeVisible({ timeout: 20_000 })
     await narrer(pMax, "Il crée la variable d'entretien « Ville » avec la modalité « Lyon »…")
@@ -561,6 +564,9 @@ await attendreDefinitionServeur('"Lyon"')
  *  scénario 2 — les transactions de définitions se disputent sinon le verrou). */
 async function creerVariableVille(page: Page): Promise<void> {
   await page.locator('.onglets button[data-onglet="donnees"]').click()
+  // Le crayon suit le sous-onglet affiché : « Entretien » borne l’édition aux
+  // variables d’entretien ; la création passe par « + var. d’entretien ».
+  await page.locator('.panneau.donnees .sous-onglet-bouton', { hasText: 'Entretien' }).click()
   await page.locator('.panneau.donnees .crayon').click()
   await expect(page.locator('.modale-vars')).toBeVisible({ timeout: 20_000 })
   await page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" }).click()

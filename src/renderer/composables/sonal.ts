@@ -135,6 +135,11 @@ export function creerSonal() {
       audio.basculer()
       return true
     },
+    decalerLecture: (secondes) => {
+      if (!audio.url.value) return false
+      audio.decaler(secondes)
+      return true
+    },
   })
   sauverEntretien = ent.viderSauvegarde
 

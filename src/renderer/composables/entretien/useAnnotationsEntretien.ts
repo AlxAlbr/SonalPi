@@ -50,15 +50,17 @@ export function useAnnotationsEntretien(deps: {
     texte: string
   } | null>(null)
   // --- Gestes de codage (clic sur un thème = coder la sélection) ---
-  /** Code la sélection courante (snap au mot) avec `code`. Sans sélection → hint,
-   *  rien codé (pas de codage accidentel). Re-clic même thème / même plage = retirer. */
+  /** Code la sélection courante (snap au mot) avec `code`. Il faut au moins un
+   *  caractère sélectionné : sans sélection, on se contente d'afficher le hint,
+   *  pour ne jamais coder un mot que l'utilisateur n'a pas désigné lui-même.
+   *  Re-clic même thème / même plage = retirer. */
   function coderAvec(code: string) {
     const ed = deps.lireEditeur()
     if (!ed) return
     const { from, to } = ed.state.selection
     const snapped = snapToWord(ed.state, from, to)
-    if (snapped.from >= snapped.to) {
-      hintCodage.value = 'Sélectionne d’abord du texte, puis clique un thème.'
+    if (from >= to || snapped.from >= snapped.to) {
+      hintCodage.value = 'Sélectionne d’abord du texte, puis clique un thème (re-clic = retirer).'
       return
     }
     hintCodage.value = null

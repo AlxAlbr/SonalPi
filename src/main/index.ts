@@ -645,7 +645,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle('application:ouvrirKitPedagogique', () => ouvrirKitPedagogique())
   ipcMain.handle('application:ouvrirDocumentation', (_e, entree: unknown) => {
-    if (entree !== 'guide' && entree !== 'faq') throw new Error('Entrée d’aide inconnue.')
+    if (entree !== 'guide' && entree !== 'faq' && entree !== 'pseudonymisation') throw new Error('Entrée d’aide inconnue.')
     return ouvrirDocumentation(entree)
   })
   ipcMain.handle('corpus:recents', (): EntreeRecent[] => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, coderTheme, compterAnnotations } from './util'
+import { ouvrir, coderTheme, compterAnnotations, selectionner } from './util'
 
 /**
  *  SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
@@ -79,9 +79,9 @@ test('le plugin de remap tourne dans la vraie app : une édition ne casse pas l�
   const { app, page } = await ouvrir()
   const ed = page.locator('.editeur')
 
-  // Pose un caret collapsé au tout début (clic en haut-gauche) : le snap-to-mot
-  // étend la sélection vide au 1er mot → on code précisément « Karine ».
-  await ed.click({ position: { x: 6, y: 14 } })
+  // Sélectionne le 1er mot puis code (sans sélection, le clic sur un thème
+  // ne fait qu'afficher le hint — jamais de codage implicite du mot sous le curseur).
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Famille')
   await expect(ed.locator('.annot')).toHaveText('Karine')
 

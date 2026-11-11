@@ -160,12 +160,12 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   await app.close()
 })
 
-test('S6+ : double-espace dans le texte = play/pause (parité SonalPi1), sans insérer d’espaces', async () => {
+test('raccourcis audio : double-espace play/pause, double Alt et Alt Gr ±5 secondes sans modifier le texte', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-audio-'))
   const srt = join(dir, 'entretien-audio.srt')
   const wav = join(dir, 'entretien-audio.wav')
   writeFileSync(srt, SRT)
-  ecrireWav(wav)
+  ecrireWav(wav, 30)
 
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -205,6 +205,45 @@ test('S6+ : double-espace dans le texte = play/pause (parité SonalPi1), sans in
   await page.keyboard.type('  ', { delay: 0 })
   await expect.poll(estEnPause).toBe(true)
   expect(await page.locator('.editeur').innerText()).toBe(avant)
+
+  await page.evaluate(() => {
+    ;(document.querySelector('audio') as HTMLAudioElement).currentTime = 12
+  })
+  const position = () => page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).currentTime)
+  await page.keyboard.press('AltLeft')
+  await expect.poll(position).toBeCloseTo(12, 1)
+  await page.keyboard.press('AltLeft')
+  await expect.poll(position).toBeCloseTo(7, 1)
+  await page.keyboard.press('AltRight')
+  await page.keyboard.press('AltRight')
+  await expect.poll(position).toBeCloseTo(12, 1)
+  expect(await estEnPause()).toBe(true)
+  expect(await page.locator('.editeur').innerText()).toBe(avant)
+
+  // Le recul reste borné au début du média.
+  await page.evaluate(() => {
+    ;(document.querySelector('audio') as HTMLAudioElement).currentTime = 2
+  })
+  await page.keyboard.press('AltLeft')
+  await page.keyboard.press('AltLeft')
+  await expect.poll(position).toBe(0)
+
+  // Les déplacements fonctionnent aussi pendant la lecture, sans la suspendre.
+  await page.keyboard.type('  ', { delay: 0 })
+  await expect.poll(estEnPause).toBe(false)
+  await page.keyboard.press('AltRight')
+  await page.keyboard.press('AltRight')
+  await expect.poll(position).toBeGreaterThanOrEqual(5)
+  expect(await estEnPause()).toBe(false)
+  await page.keyboard.type('  ', { delay: 0 })
+  await expect.poll(estEnPause).toBe(true)
+
+  await page.getByRole('button', { name: 'Aide sur les raccourcis clavier du lecteur' }).click()
+  const aide = page.getByRole('dialog', { name: 'Raccourcis clavier du lecteur' })
+  await expect(aide).toContainText('Alt gauche')
+  await expect(aide).toContainText('Alt Gr')
+  await aide.getByRole('button', { name: 'Fermer' }).click()
+  await expect(aide).not.toBeVisible()
 
   await app.close()
 })

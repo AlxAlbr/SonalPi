@@ -58,7 +58,7 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   const verifierPositionLanguette = async () => {
     const position = await page.evaluate(() => {
       const volet = document.querySelector('.volet-notes')!.getBoundingClientRect()
-      const languette = document.querySelector('.notes-languette button')!.getBoundingClientRect()
+      const languette = document.querySelector('.notes-languette')!.getBoundingClientRect()
       return {
         centreVolet: volet.y + volet.height / 2,
         centreLanguette: languette.y + languette.height / 2,
@@ -381,5 +381,44 @@ test('feuille — lier un passage de note à un commentaire', async () => {
   await languette.click()
   await expect(page.locator('.panneau.notes .notes-outils')).toBeVisible()
 
+  await app.close()
+})
+
+test('⤢ agrandit la saisie en cours dans la fenêtre d’édition (Annuler restitue, Valider crée)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-agrandir-note-'))
+  const app = await lancer(dir)
+  const page = await app.firstWindow()
+  await entrerCorpus(page)
+  await entrerEntretien(page)
+  await page.locator('.onglets button[data-onglet="notes"]').click()
+
+  // Une saisie EN COURS dans le formulaire en ligne.
+  const formulaire = page.locator('.nouvelle-note-inline')
+  await formulaire.locator('.champ-titre-note input').fill('Titre en transfert')
+  await formulaire.locator('.zone-corps-note').fill('Contenu en transfert')
+
+  // ⤢ : la fenêtre reprend la saisie telle quelle, le formulaire disparaît.
+  await formulaire.locator('.agrandir-note').click()
+  const modale = page.locator('.modale-note')
+  await expect(modale).toBeVisible()
+  await expect(modale.locator('h3')).toHaveText('Nouvelle note')
+  await expect(modale.locator('.champ-titre-note input')).toHaveValue('Titre en transfert')
+  await expect(modale.locator('.zone-corps-note')).toHaveText('Contenu en transfert')
+  await expect(formulaire).toHaveCount(0)
+
+  // Réduire : la saisie REVIENT dans le formulaire en ligne, rien n’est perdu.
+  await modale.getByRole('button', { name: 'Réduire', exact: true }).click()
+  await expect(modale).toHaveCount(0)
+  await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('Titre en transfert')
+  await expect(formulaire.locator('.zone-corps-note')).toHaveText('Contenu en transfert')
+
+  // À nouveau agrandie puis validée : la note est créée, formulaire vierge.
+  await formulaire.locator('.agrandir-note').click()
+  await expect(modale).toBeVisible()
+  await modale.getByRole('button', { name: 'Valider', exact: true }).click()
+  await expect(modale).toHaveCount(0)
+  await expect(page.locator('.carte-note')).toContainText('Titre en transfert')
+  await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('')
+  await expect(formulaire.locator('.zone-corps-note')).toHaveText('')
   await app.close()
 })

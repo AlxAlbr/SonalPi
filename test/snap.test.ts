@@ -11,7 +11,10 @@ afterEach(() => {
   editor = null
 })
 function ed(text: string): Editor {
-  editor = new Editor({ content: `<p>${text}</p>`, extensions: [StarterKit, BlocAttributs] })
+  editor = new Editor({
+    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+    extensions: [StarterKit, BlocAttributs],
+  })
   return editor
 }
 function texteDe(from: number, to: number, editor: Editor): string {
@@ -38,6 +41,24 @@ describe('snapToWord — la sélection « mot + espace » ne doit pas avaler le 
     const e = ed('Thomas Bonjour tout.')
     const sel = snapToWord(e.state, 1, 15)
     expect(texteDe(sel.from, sel.to, e)).toBe('Thomas Bonjour')
+  })
+  test.each([
+    ['Thomas Bonjour suite', ' Bonjour', 'Bonjour'],
+    ['Thomas Bonjour suite', ' Bonjour ', 'Bonjour'],
+    ['Thomas   Bonjour suite', '   Bonjour ', 'Bonjour'],
+    ['Thomas, Bonjour suite', ', Bonjour ', 'Bonjour'],
+    ['Thomas Bonjour suite', ' Bon', 'Bonjour'],
+    ['Thomas Bonjour suite', ' Bonjour sui', 'Bonjour suite'],
+  ])('dans « %s », sélectionner « %s » donne « %s »', (texte, selection, attendu) => {
+    const e = ed(texte)
+    const from = 1 + texte.indexOf(selection)
+    const sel = snapToWord(e.state, from, from + selection.length)
+    expect(texteDe(sel.from, sel.to, e)).toBe(attendu)
+  })
+  test.each([' ', '   ', ', '])('sélection de séparateurs seuls « %s » → aucun mot', (selection) => {
+    const e = ed(`Thomas${selection}Bonjour`)
+    const sel = snapToWord(e.state, 7, 7 + selection.length)
+    expect(sel.from).toBe(sel.to)
   })
   test('curseur vide dans un mot → le mot entier', () => {
     const e = ed('Thomas Bonjour.')

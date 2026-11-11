@@ -61,9 +61,8 @@ function basculerToutesDescriptions() {
 </script>
 
 <template>
-  <aside class="panneau themes-coder">
+  <aside class="panneau themes-coder" aria-label="Thématiques">
     <div class="corpus-tete">
-      <h3>Thématiques</h3>
       <button
         v-if="idsDescriptions.length"
         class="toutes-descriptions"
@@ -79,7 +78,6 @@ function basculerToutesDescriptions() {
         @click="editerThemes = true"
       >✏️</button>
     </div>
-    <p class="aide-thm">Sélectionne du texte, puis clique un thème pour le coder (re-clic = retirer).</p>
     <p v-if="hintCodage" class="hint-codage">{{ hintCodage }}</p>
 
     <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
@@ -138,6 +136,18 @@ function basculerToutesDescriptions() {
 </template>
 
 <style scoped>
+/* Sans titre dans l'en-tête : « ⓘ tout » reste à gauche, le crayon est
+ * poussé au bord droit (le .corpus-tete global étale en space-between). */
+.corpus-tete {
+  justify-content: flex-start;
+  gap: 0.4rem;
+}
+.corpus-tete .crayon {
+  margin-left: auto;
+  font-size: 1.2rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
 .hint-codage {
   background: #fff3e0;
   color: #b06e0f;

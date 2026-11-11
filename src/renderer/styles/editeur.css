@@ -140,6 +140,51 @@
   background-color: rgba(135, 206, 235, 0.35);
 }
 
+/* Vue « ORIGINAL » (colonne-droite.noms-original, cf. Entretien.vue) : le texte
+ * se lit sans aucun marqueur de pseudonymisation — ni barré, ni [pseudo], ni
+ * fond bleu, ni ⊘. Les règles de décorations ci-dessus restent en place, ce
+ * bloc les neutralise seulement à l'affichage. */
+.colonne-droite.noms-original .editeur .anon,
+.colonne-droite.noms-original .editeur .anon-exception {
+  text-decoration: none;
+  color: inherit;
+  background-color: transparent;
+}
+.colonne-droite.noms-original .editeur .anon::after {
+  content: none;
+}
+.colonne-droite.noms-original .editeur .gouttiere-loc.loc-anon .loc-nom {
+  text-decoration: none;
+}
+.colonne-droite.noms-original .editeur .gouttiere-loc .loc-pseudo,
+.colonne-droite.noms-original .editeur .gouttiere-loc .loc-refus {
+  display: none;
+}
+
+/* Vue « PSEUDONYMISÉ » : seuls les pseudos restent visibles, comme dans
+ * l'export. Le texte d'origine est masqué par font-size 0 (l'occurrence se
+ * replie sur sa longueur réelle) ; le pseudo du ::after repasse à la taille
+ * du texte. !IMPORTANT obligatoire : un chevauchement avec un codage de thème
+ * pose une font-size EN STYLE INLINE (decorations.ts), qui battrait la règle.
+ * Les soulignés de codage (image de fond, ombre) restent visibles. */
+.colonne-droite.noms-pseudonymise .editeur .anon {
+  text-decoration: none;
+  background-color: transparent;
+  font-size: 0 !important;
+}
+.colonne-droite.noms-pseudonymise .editeur .anon::after {
+  content: attr(data-pseudo);
+  font-size: 1rem;
+}
+/* Segment de continuation : toujours muet, le pseudo ne s'affiche qu'en fin
+ * d'occurrence (ce bloc doit rester plus spécifique que le ::after ci-dessus). */
+.colonne-droite.noms-pseudonymise .editeur .anon.anon-suite::after {
+  content: none;
+}
+.colonne-droite.noms-pseudonymise .editeur .gouttiere-loc.loc-anon .loc-nom {
+  display: none;
+}
+
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du
  * plugin lecture (le texte entre les 2 ancres encadrant l'instant courant ;
  * un cue SRT entier aujourd'hui, un mot en word-level demain). Un voile ROUGE

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import EditionVariables from '../partages/donnees/EditionVariables.vue'
 
@@ -17,6 +17,26 @@ const {
 } = utiliserSonal()
 
 const editerVariables = ref(false)
+
+// Le panneau sépare les deux portées en sous-onglets ; le crayon, sous les
+// onglets, ouvre l'édition des variables bornée à la portée AFFICHÉE.
+const sousOnglet = ref<'entretien' | 'locuteur'>('locuteur')
+
+// Si un seul niveau porte des variables, s'y installer d'office (le panneau
+// reste monté quand on change d'onglet ou d'entretien).
+watch(
+  () => [varsGen().length, varsLoc().length] as const,
+  ([nbGen, nbLoc]) => {
+    if (sousOnglet.value === 'entretien' && !nbGen && nbLoc) sousOnglet.value = 'locuteur'
+    else if (sousOnglet.value === 'locuteur' && !nbLoc && nbGen) sousOnglet.value = 'entretien'
+  },
+  { immediate: true },
+)
+
+/** Ouvre l'édition des variables, bornée à la portée affichée. */
+function ouvrirEdition() {
+  editerVariables.value = true
+}
 const AUTRE = ' autre'
 const celluleLibre = ref<string | null>(null)
 const cleGen = (idVar: string) => `gen|${idVar}`
@@ -63,16 +83,41 @@ function focaliserLibre(el: unknown, cle: string) {
   <aside class="panneau donnees">
     <div class="corpus-tete">
       <h3>Données</h3>
-      <button
-        v-if="!lectureSeule"
-        class="crayon"
-        title="Éditer les variables (nom, statut, modalités)"
-        @click="editerVariables = true"
-      >✏️</button>
     </div>
 
-    <template v-if="varsGen().length">
-      <h4 class="h4-ent">Valeurs · cet entretien</h4>
+    <nav class="sous-onglets" role="tablist" aria-label="Portée des valeurs">
+      <div class="sous-onglet" role="presentation">
+        <button
+          class="sous-onglet-bouton"
+          data-portee="locuteur"
+          :class="{ actif: sousOnglet === 'locuteur' }"
+          role="tab"
+          :aria-selected="sousOnglet === 'locuteur'"
+          @click="sousOnglet = 'locuteur'"
+        >Locuteur</button>
+      </div>
+      <div class="sous-onglet" role="presentation">
+        <button
+          class="sous-onglet-bouton"
+          data-portee="entretien"
+          :class="{ actif: sousOnglet === 'entretien' }"
+          role="tab"
+          :aria-selected="sousOnglet === 'entretien'"
+          @click="sousOnglet = 'entretien'"
+        >Entretien</button>
+      </div>
+    </nav>
+
+    <button
+      v-if="!lectureSeule"
+      class="crayon nouvelle-var"
+      :title="sousOnglet === 'locuteur'
+        ? 'Créer une variable de locuteur (une valeur par locuteur)'
+        : 'Créer une variable d’entretien (une valeur par entretien)'"
+      @click="ouvrirEdition"
+    >✏️</button>
+
+    <template v-if="sousOnglet === 'entretien'">
       <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
         <span class="saisie-eav-lib">{{ v.lib }}</span>
         <input
@@ -99,47 +144,47 @@ function focaliserLibre(el: unknown, cle: string) {
           <option :value="AUTRE">autre…</option>
         </select>
       </div>
+      <p v-if="!varsGen().length" class="vide">Aucune variable d’entretien — ✏️ pour en créer.</p>
     </template>
 
-    <template v-if="varsLoc().length && locuteurs.length">
-      <h4 class="h4-loc">Valeurs · par locuteur</h4>
-      <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
-        <div class="fiche-loc-nom">{{ l.nom }}</div>
-        <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
-          <span class="saisie-eav-lib">{{ v.lib }}</span>
-          <input
-            v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
-            class="saisie-eav-libre"
-            placeholder="texte libre"
-            :disabled="lectureSeule"
-            :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
-            :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
-            @keyup.enter="($event.target as HTMLInputElement).blur()"
-            @keyup.esc="celluleLibre = null"
-            @change="surLibreLoc(l.index, v.id, $event)"
-            @blur="celluleLibre = null"
-          />
-          <select
-            v-else
-            class="saisie-eav-sel"
-            :disabled="lectureSeule"
-            :value="l.valeursLoc[v.id] ?? ''"
-            @change="surSelectLoc(l.index, v.id, $event)"
-          >
-            <option value="">—</option>
-            <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>
-            <option :value="AUTRE">autre…</option>
-          </select>
+    <template v-else>
+      <template v-if="varsLoc().length && locuteurs.length">
+        <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
+          <div class="fiche-loc-nom">{{ l.nom }}</div>
+          <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
+            <span class="saisie-eav-lib">{{ v.lib }}</span>
+            <input
+              v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
+              class="saisie-eav-libre"
+              placeholder="texte libre"
+              :disabled="lectureSeule"
+              :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
+              :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
+              @keyup.enter="($event.target as HTMLInputElement).blur()"
+              @keyup.esc="celluleLibre = null"
+              @change="surLibreLoc(l.index, v.id, $event)"
+              @blur="celluleLibre = null"
+            />
+            <select
+              v-else
+              class="saisie-eav-sel"
+              :disabled="lectureSeule"
+              :value="l.valeursLoc[v.id] ?? ''"
+              @change="surSelectLoc(l.index, v.id, $event)"
+            >
+              <option value="">—</option>
+              <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>
+              <option :value="AUTRE">autre…</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </template>
+      <p v-else-if="varsLoc().length" class="vide">Aucun locuteur dans cet entretien.</p>
+      <p v-else class="vide">Aucune variable de locuteur — ✏️ pour en créer.</p>
     </template>
-
-    <p v-if="!varsGen().length && !varsLoc().length" class="vide">
-      Aucune variable — ✏️ pour en créer.
-    </p>
 
     <Teleport to="body">
-      <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
+      <EditionVariables v-if="editerVariables" :portee="sousOnglet" @fermer="editerVariables = false" />
     </Teleport>
   </aside>
 </template>
@@ -186,10 +231,54 @@ function focaliserLibre(el: unknown, cle: string) {
   font-weight: 600;
   color: #000;
 }
-.h4-ent {
-  color: #5c6bc0;
+
+/* Sous-onglets « Locuteur » / « Entretien » : chaque pastille porte la couleur
+   de sa portée (les mêmes que les badges « ent » / « loc » de la fenêtre
+   d'édition des variables) ; le crayon, sous les onglets, suit la portée
+   affichée. */
+.sous-onglets {
+  display: flex;
+  gap: 0.3rem;
+  border-bottom: 1px solid #e5e5ef;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.3rem;
 }
-.h4-loc {
+.sous-onglet {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+.sous-onglet-bouton {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sous-onglet-bouton.actif[data-portee='entretien'] {
+  border-color: #e5e5ef;
+  background: #f5f6ff;
+  color: #5c6bc0;
+  font-weight: 600;
+}
+.sous-onglet-bouton.actif[data-portee='locuteur'] {
+  border-color: #e5e5ef;
+  background: #faf5ec;
   color: #8a6d3b;
+  font-weight: 600;
+}
+.nouvelle-var {
+  display: block;
+  margin-left: auto; /* colle le crayon au bord droit, sous les onglets */
+  margin-bottom: 0.4rem;
 }
 </style>

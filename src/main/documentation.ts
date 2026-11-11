@@ -17,11 +17,16 @@ export async function ouvrirKitPedagogique(): Promise<void> {
 }
 
 /** Ouvre les pages locales avec l’application habituelle du poste pour le HTML. */
-export async function ouvrirDocumentation(entree: 'guide' | 'faq'): Promise<void> {
+export async function ouvrirDocumentation(entree: 'guide' | 'faq' | 'pseudonymisation'): Promise<void> {
   const racine = app.isPackaged
     ? join(process.resourcesPath, 'documentation')
     : join(app.getAppPath(), 'docs/user')
-  const page = entree === 'faq' ? 'faq/premiers-pas.html' : 'index.html'
+  const pages = {
+    guide: 'index.html',
+    faq: 'faq/premiers-pas.html',
+    pseudonymisation: 'traiter/pseudonymiser.html',
+  }
+  const page = pages[entree]
   try {
     const chemin = join(racine, page)
     if (estSousWsl()) await ouvrirPageLocaleWindows(chemin)

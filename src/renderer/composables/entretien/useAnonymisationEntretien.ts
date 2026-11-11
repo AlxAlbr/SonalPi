@@ -22,13 +22,14 @@ import { estOrpheline, type Annotation } from '../../../shared/entretien/annotat
 import { retirerAnnotation, type Entretien } from '../../../shared/entretien/entretien'
 import { detecterDivergencesPortee } from '../../../shared/entretien/anon/reconciliation'
 import { suggestionCoeur } from '../../../shared/entretien/anon/motsLiaison'
-import type { BrouillonAnon, RegleAnon, MotsLiaisonParams } from '../../../shared/format'
+import type { BrouillonAnon, RegleAnon, MotsLiaisonParams, Locuteur } from '../../../shared/format'
 import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 type LireEditeur = () => Editor | null
 
 export function useAnonymisationEntretien(deps: {
   entretien: Entretien
+  locuteurs: Ref<Locuteur[]>
   ouvertId: Ref<string | null>
   ongletDroite: Ref<string>
   lireEditeur: LireEditeur
@@ -51,6 +52,12 @@ export function useAnonymisationEntretien(deps: {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
   const entretien = deps.entretien
+  /** La bascule des vues concerne le texte et les noms des locuteurs. */
+  const pseudonymisationUtilisee = computed(() =>
+    entretien.annotations.some((a) => a.type === 'anon')
+    || deps.locuteurs.value.some((locuteur) => !!locuteur.pseudo?.trim()))
+  /** Signale les applications effectives, y compris après une confirmation. */
+  const applicationsAnon = ref(0)
   const selectionAnon = ref<{ texte: string; from: number; to: number } | null>(null)
   const hintAnon = ref<string | null>(null)
   const lignesAnon = ref<LigneAnon[]>([])
@@ -506,6 +513,7 @@ export function useAnonymisationEntretien(deps: {
     rafraichirCompteursAAAnonymiser()
     rafraichirReperage()
     deps.planifierSauvegarde()
+    if (instr.poser.length || instr.relabel.length) applicationsAnon.value++
     // Validation réussie → suggérer l'entité-cœur éventuelle (mots de liaison).
     proposerCoeur(e, p, 'entretien')
   }
@@ -758,14 +766,16 @@ export function useAnonymisationEntretien(deps: {
       hintAnon.value = 'La ligne a changé pendant la préparation. Recommencez la promotion.'
       return false
     }
+    let nbAppliquees = 0
     if (cas === 'brouillon') {
       if (!autoriserCouvertureCorpus(ligne, couvertureConfirmee, (empreinte) => appliquerCorpus(ligne, regleId, cas, pseudoAppli, empreinte))) return false
-      poserCorpusDepuisBrouillon(ligne, regleId, pseudoAppli ?? ligne.pseudo.split(' / ')[0], !!couvertureConfirmee)
+      nbAppliquees = poserCorpusDepuisBrouillon(ligne, regleId, pseudoAppli ?? ligne.pseudo.split(' / ')[0], !!couvertureConfirmee)
     } else {
       for (const a of entretien.annotations) {
         if (a.type === 'anon' && annotationDeLigne(a, ligne)) {
           a.regle = regleId
           if (pseudoAppli && a.etat !== 'exception') a.pseudo = pseudoAppli
+          if (a.etat !== 'exception' && a.pseudo) nbAppliquees++
         }
       }
       delete pseudosDeclares.value[ligne.cle]
@@ -776,6 +786,7 @@ export function useAnonymisationEntretien(deps: {
     rafraichirCompteursAAAnonymiser()
     rafraichirReperage()
     deps.planifierSauvegarde()
+    if (nbAppliquees) applicationsAnon.value++
     return true
   }
 
@@ -866,6 +877,7 @@ export function useAnonymisationEntretien(deps: {
     retirerBrouillon(brouillonsAnon.value, ligne.entite)
     delete pseudosDeclares.value[ligne.cle]
     retirerDefinitionLocale(definitionsAnonLocales.value, ligne.entite)
+    return instr.poser.length + instr.relabel.length
   }
 
   /** Une sortie du corpus inventorie d’abord tous les usages de la règle.
@@ -976,6 +988,8 @@ export function useAnonymisationEntretien(deps: {
   }
 
   return {
+    pseudonymisationUtilisee,
+    applicationsAnon,
     selectionAnon,
     hintAnon,
     lignesAnon,

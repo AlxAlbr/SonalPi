@@ -434,6 +434,89 @@ test('la sélection alimente une ligne et le brouillon survit au changement d’
   await app.close()
 })
 
+test('la bascule Original / Comparer / Pseudonymisé n’apparaît qu’après une validation', async () => {
+  const { app, page } = await ouvrir('sonal-anon-bascule-')
+  const bascule = page.locator('.groupe-affichage-noms')
+
+  // Avant toute validation, la pseudonymisation n'a rien à montrer : la bascule
+  // des vues du texte reste masquée dans la barre d'outils.
+  await expect(bascule).toHaveCount(0)
+
+  // Valider une ligne (« Lyon » → « Ville témoin ») : les occurrences sont posées
+  // au modèle, la bascule apparaît (vue « Comparer » par défaut).
+  await page.locator('[data-onglet="anon"]').click()
+  await selectionner(page, 'Lyon')
+  await page.locator('.editeur').dispatchEvent('mouseup')
+  const saisie = page.locator('.ligne-anon.saisie-anon').first()
+  await expect(saisie.locator('.nom-saisie')).toHaveValue('Lyon')
+  await saisie.locator('.pseudo-anon').fill('Ville témoin')
+  await saisie.locator('.pseudo-anon').press('Enter')
+  await expect(bascule).toBeVisible()
+  await expect(bascule.locator('button', { hasText: 'Comparer' })).toHaveClass(/actif/)
+
+  await app.close()
+})
+
+test('les pseudos des locuteurs rendent la bascule disponible même sans annotation du texte', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-bascule-locuteurs-')
+  try {
+    await page.evaluate(() => localStorage.setItem('sonalpi.entretien.affichageNoms', 'original'))
+    await page.reload()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    const bascule = page.locator('.groupe-affichage-noms')
+    await expect(bascule).toHaveCount(0)
+    await page.locator('[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+    const pseudo = page.locator('.liste-loc .pseudo-loc').nth(1)
+    await pseudo.fill('Nadia')
+    await pseudo.press('Tab')
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
+    await expect(bascule).toBeVisible()
+    const pseudoAffiche = page.locator('.editeur .loc-pseudo').first()
+    await expect(pseudoAffiche).toBeHidden()
+    await bascule.getByRole('button', { name: 'Comparer', exact: true }).click()
+    await expect(pseudoAffiche).toBeVisible()
+    await expect(pseudoAffiche).toHaveText('[Nadia]')
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+    await pseudo.fill('')
+    await pseudo.press('Tab')
+    await expect(bascule).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
+test('l’avis Original attend une application effective du pseudo', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-anon-avis-original-')
+  try {
+    await page.evaluate(() => localStorage.setItem('sonalpi.entretien.affichageNoms', 'original'))
+    await page.reload()
+    await entrerCorpus(page)
+    await entrerEntretien(page)
+    await expect(page.locator('.colonne-droite')).toHaveClass(/noms-original/)
+    await page.locator('[data-onglet="anon"]').click()
+    const saisie = page.locator('.ligne-anon.saisie-anon').first()
+    const avis = page.getByRole('dialog', { name: 'Pseudonymisation posée', exact: true })
+    await saisie.locator('.nom-saisie').fill('Entité absente de cet entretien')
+    await saisie.locator('.pseudo-anon').fill('Pseudo absent')
+    await saisie.locator('.pseudo-anon').press('Enter')
+    await expect.poll(() => page.evaluate(async () =>
+      (await window.sonal.corpus.reglesAnon()).some((regle) => regle.entite.includes('Entité absente de cet entretien')),
+    )).toBe(true)
+    await expect(avis).toHaveCount(0)
+    await saisie.locator('.nom-saisie').fill('Lyon')
+    await saisie.locator('.pseudo-anon').fill('Ville témoin')
+    await saisie.locator('.pseudo-anon').press('Enter')
+    await expect(avis).toBeVisible()
+    await avis.getByRole('button', { name: 'Passer en « Comparer »', exact: true }).click()
+    await expect(page.locator('.groupe-affichage-noms button.actif')).toHaveText('Comparer')
+    await expect(avis).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
 test('la sélection ne remplit une ligne que si l’option est activée', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-selection-option-'))
   let app = await lancer(dir)

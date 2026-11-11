@@ -10,6 +10,7 @@ import {
   ajouterParModale,
   ouvrirEditionThemes,
   fermerEditionThemes,
+  selectionner,
 } from './util'
 
 /**
@@ -57,7 +58,7 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
   expect(await page.evaluate(() => window.scrollY)).toBe(0)
 
   // On annote le DÉBUT de l'entretien avec ce dernier thème (clic = coder).
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await dernier.click()
   await expect(page.locator('.editeur .annot')).toHaveCount(1)
   await app.close()
@@ -79,7 +80,7 @@ test('supprimer un thème depuis l’entretien : confirmation + retrait des coda
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // Coder « Lieu » sur « Karine ».
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.editeur .annot')).toHaveCount(1)
 
@@ -101,7 +102,7 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // e1 (seed) : coder « Lieu », enregistrer.
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
@@ -138,7 +139,7 @@ test('thème inactif : marquage masqué dans l\'éditeur et codage refusé', asy
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // Coder « Lieu » sur « Karine » → souligné affiché.
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.editeur .annot')).toHaveCount(1)
 
@@ -165,7 +166,7 @@ test('clic droit sur un thème : bascule actif ↔ passif sans ouvrir l\'éditio
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // Coder « Lieu » → souligné affiché.
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.editeur .annot')).toHaveCount(1)
 
