@@ -65,7 +65,7 @@ interface CorpusOperations {
 
 interface EntretienOperations {
   ouvertId: Ref<string | null>
-  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
+  ongletDroite: Ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes' | 'commentaires'>
   editeurDisponible: () => boolean
   sauver: () => Promise<void>
   donneesExport: () => Omit<EntreeExport, 'codebook' | 'variables' | 'reglesAnon'> & {

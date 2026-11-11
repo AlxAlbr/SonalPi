@@ -26,7 +26,9 @@ export function useCategoriesNotesCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   function categorieNoteDefaut(): string {
-    return categoriesNote.value[0]?.id ?? 'ncat_generale'
+    return categoriesNote.value.find((categorie) => categorie.id === 'ncat_generale')?.id
+      ?? categoriesNote.value[0]?.id
+      ?? 'ncat_generale'
   }
 
   async function ajouterCategorieNote(nom: string, couleur: string): Promise<string> {

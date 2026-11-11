@@ -32,6 +32,58 @@ async function remplirModale(page: Page, auteur: string, texte: string) {
   await page.locator('[data-test="commentaire-valider"]').click()
 }
 
+test('Comments permet de commenter une sélection et de retrouver les commentaires dans l’ordre du texte', async () => {
+  const { app, page } = await ouvrirEntretien('sonal-comments-panneau-')
+  try {
+    const onglet = page.locator('.colonne-gauche [data-onglet="commentaires"]')
+    const panneau = page.locator('.panneau.commentaires')
+    const ajouter = panneau.getByRole('button', { name: 'Commentaire', exact: true })
+    await onglet.click()
+    await expect(panneau).toContainText('Aucun commentaire pour le moment.')
+
+    // Sans sélection, le clic se contente d'afficher le hint (l'aide permanente
+    // d'origine est retirée, à l'image du panneau Thématiques).
+    await ajouter.click()
+    await expect(panneau).toContainText('Sélectionnez du texte, puis cliquez sur « Commentaire ».')
+
+    await selectionner(page, 'retraite')
+    await ajouter.click()
+    await remplirModale(page, 'Enquêtrice', 'Question sur la retraite')
+
+    await page.locator('[data-onglet="themes"]').click()
+    await selectionner(page, 'Karine')
+    await onglet.click()
+    await ajouter.click()
+    await remplirModale(page, 'Enquêtrice', 'Vérifier le prénom')
+
+    const commentaires = panneau.locator('.aller-commentaire')
+    await expect(commentaires.locator('.texte-commentaire')).toHaveText(['Vérifier le prénom', 'Question sur la retraite'])
+    await commentaires.first().click()
+    await expect(page.locator('.editeur .reperage-hit')).toHaveText('Karine')
+    await expect(page.locator('[data-test="modale-commentaire"]')).toBeHidden()
+    await commentaires.last().focus()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.editeur .reperage-hit')).toHaveText('retraite')
+
+    await page.locator('.carte-commentaire', { hasText: 'Vérifier le prénom' }).click()
+    await page.locator('[data-test="commentaire-texte"]').fill('Prénom vérifié')
+    await page.locator('[data-test="commentaire-valider"]').click()
+    await expect(commentaires.first()).toContainText('Prénom vérifié')
+    await page.locator('.carte-commentaire', { hasText: 'Prénom vérifié' }).click()
+    await page.locator('[data-test="commentaire-supprimer"]').click()
+    await expect(commentaires).toHaveCount(1)
+
+    await page.locator('[data-onglet="journal"]').click()
+    await page.locator('.liste-journal li', { hasText: 'Commentaire supprimé' }).locator('.annuler-entree').click()
+    await expect(commentaires).toHaveCount(2)
+    await commentaires.first().click()
+    await expect(page.locator('.editeur .reperage-hit')).toHaveText('Karine')
+    await expect(page.locator('.tete .etat')).toHaveText('à jour')
+  } finally {
+    await app.close()
+  }
+})
+
 test('commenter une sélection : carte en marge + teinte de la plage', async () => {
   const { app, page } = await ouvrirEntretien('sonal-com-')
   const ed = page.locator('.editeur')
@@ -64,8 +116,9 @@ test('retirer un codage par clic droit, sans resélectionner', async () => {
   const { app, page } = await ouvrirEntretien('sonal-com-')
   const ed = page.locator('.editeur')
 
-  // Code « Karine » avec le thème Lieu, puis clic droit SUR le codage.
-  await ed.click({ position: { x: 6, y: 14 } })
+  // Code « Karine » avec le thème Lieu (sélection obligatoire : le curseur
+  // posé sans sélection ne code plus), puis clic droit SUR le codage.
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Lieu')
   await expect(ed.locator('.annot')).toHaveText('Karine')
   await clicDroitAnnot(page)
@@ -127,6 +180,11 @@ test('le commentaire survit à fermer → rouvrir (persisté avec les annotation
   await expect(page2.locator('.carte-commentaire')).toContainText('Commentaire persistant')
   await expect(page2.locator('.editeur .annot', { hasText: 'Karine' })).toBeVisible()
   await expect.poll(() => compterAnnotations(page2)).toBe(1)
+  await page2.locator('[data-onglet="commentaires"]').click()
+  const commentaire = page2.locator('.panneau.commentaires .aller-commentaire')
+  await expect(commentaire).toContainText('Commentaire persistant')
+  await commentaire.click()
+  await expect(page2.locator('.editeur .reperage-hit')).toHaveText('Karine')
   await app2.close()
 })
 

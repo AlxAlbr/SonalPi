@@ -7,6 +7,7 @@ import {
   compterAnnotations,
   ouvrirEditionThemes,
   fermerEditionThemes,
+  selectionner,
 } from './util'
 
 /**
@@ -18,9 +19,10 @@ import {
  *  supprimer un thème utilisé = refus + compteur.
  */
 
-/** Code le 1er mot (curseur au début → snap « Karine ») avec « Famille » (cat_001). */
+/** Sélectionne le 1er mot (« Karine ») puis code avec « Famille » (cat_001) :
+ *  le codage exige une sélection (le curseur posé ne suffit plus). */
 async function coderPremierMot(page: Page) {
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Famille')
 }
 
@@ -50,8 +52,8 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
 test('cliquer un thème dans l’onglet Thématique code la sélection (clic = coder)', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
 
-  // Sélection (caret au début → snap « Karine »), puis clic sur « Travail » (cat_002).
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  // Sélection de « Karine », puis clic sur « Travail » (cat_002).
+  await selectionner(page, 'Karine')
   await coderTheme(page, 'Travail')
   // Le titre de l'annotation porte le NOM du thème (résolu au codebook).
   await expect(page.locator('.editeur .annot').first()).toHaveAttribute('title', 'Travail')

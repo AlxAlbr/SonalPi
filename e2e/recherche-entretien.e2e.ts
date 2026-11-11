@@ -1,6 +1,19 @@
 import { test, expect } from '@playwright/test'
 import { ouvrir, selectionner } from './util'
 
+test('le bouton de la barre ouvre la recherche sur le texte sélectionné', async () => {
+  const { app, page } = await ouvrir('sonal-recherche-bouton-')
+
+  await selectionner(page, 'Lyon')
+  await page.getByRole('button', { name: 'Rechercher et remplacer dans le texte' }).click()
+
+  await expect(page.locator('.barre-recherche')).toBeVisible()
+  await expect(page.locator('#champ-recherche')).toBeFocused()
+  await expect(page.locator('#champ-recherche')).toHaveValue('Lyon')
+  await expect(page.locator('.barre-recherche').getByPlaceholder('Remplacer par…')).toBeVisible()
+  await app.close()
+})
+
 test('rechercher, naviguer, remplacer et fermer la boîte', async () => {
   const { app, page } = await ouvrir('sonal-recherche-')
 

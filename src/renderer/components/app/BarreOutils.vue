@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import icoPlanning from '../../assets/icones/espace-planning.svg'
+import icoEdition from '../../assets/icones/espace-edition.svg'
+import icoAnalyse from '../../assets/icones/espace-analyse.svg'
+import icoExport from '../../assets/icones/espace-export.svg'
 
 // La barre déclenche les mêmes ouvertures que les onglets et le guidage.
 const {
@@ -19,97 +23,122 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
 </script>
 
 <template>
-  <div v-if="vue !== 'accueil'" class="barre-outils">
+  <nav v-if="vue !== 'accueil'" class="barre-outils" aria-label="Espaces de travail">
     <div class="ligne espaces">
       <button
         class="outil espace"
         data-tour="ouvrir-preparer"
         :class="{ actif: preparationActive }"
-        title="Accueil, tableau de bord et documents du projet"
+        aria-label="Préparer & Suivre"
         :aria-current="preparationActive ? 'page' : undefined"
         @click="entrerPreparation()"
-      >Préparer et suivre</button>
+      >
+        <img :src="icoPlanning" alt="" />
+        <span class="libelle-espace">Préparer &amp; Suivre</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-traiter"
         :class="{ actif: traitementActif }"
-        title="Corpus et entretiens"
+        aria-label="Importer &amp; Traiter"
         :aria-current="traitementActif ? 'page' : undefined"
         @click="revenirTraitement()"
-      >Importer et traiter</button>
+      >
+        <img :src="icoEdition" alt="" />
+        <span class="libelle-espace">Importer &amp; Traiter</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-analyser"
         :class="{ actif: analyseActive }"
-        title="Tri et synthèse, Lexico et analyses croisées"
+        aria-label="Analyser &amp; Interpréter"
         :aria-current="analyseActive ? 'page' : undefined"
         @click="entrerAnalyse()"
-      >Analyser et interpréter</button>
+      >
+        <img :src="icoAnalyse" alt="" />
+        <span class="libelle-espace">Analyser &amp; Interpréter</span>
+      </button>
       <button
         class="outil espace"
         data-tour="ouvrir-organiser"
         :class="{ actif: organisationActive }"
-        title="Cas, recueils et export du corpus"
+        aria-label="Organiser &amp; Exporter"
         :aria-current="organisationActive ? 'page' : undefined"
         @click="entrerOrganisation()"
-      >Organiser et exporter</button>
+      >
+        <img :src="icoExport" alt="" />
+        <span class="libelle-espace">Organiser &amp; Exporter</span>
+      </button>
     </div>
-  </div>
+  </nav>
 </template>
 
 <style scoped>
 .barre-outils {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.7rem;
+  position: sticky;
+  top: var(--entete-h);
+  align-self: start;
+  box-sizing: border-box;
+  height: calc(100vh - var(--entete-h));
+  min-height: min(24rem, calc(100vh - var(--entete-h)));
   min-width: 0;
+  overflow: hidden;
+  background: #19204d;
 }
 .ligne {
   display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-/* Sur une fenêtre étroite, les espaces se répartissent sur plusieurs lignes. */
-@media (max-width: 1080px) {
-  .barre-outils { flex-direction: column; align-items: flex-start; gap: 0.18rem; margin-top: 0.2rem; }
-  .outil { padding-left: 1.25rem; padding-right: 0.35rem; font-size: 0.72rem; }
-  .outil.espace { padding-left: 0.5rem; padding-right: 0.5rem; font-size: 0.78rem; }
-  .ligne { gap: 0.2rem; }
-}
-/* Sur une fenêtre très étroite, les boutons occupent moins de place. */
-@media (max-width: 720px) {
-  .outil { padding-left: 1.1rem; padding-right: 0.3rem; font-size: 0.7rem; }
-  .outil.espace { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.72rem; }
-  .ligne { gap: 0.15rem; }
+  flex-direction: column;
+  width: 100%;
 }
 .outil {
   border: 1px solid #bbb;
   border-radius: 5px;
   background: #fff;
-  padding: 0.08rem 0.55rem 0.08rem 1.5rem;
+  padding: 0.55rem 0.4rem;
   font-size: 0.74rem;
   cursor: pointer;
-  position: relative;
-  white-space: nowrap;
-}
-.outil::before {
-  position: absolute;
-  left: 0.4rem;
-  font-size: 0.68rem;
+  text-align: center;
+  line-height: 1.3;
 }
 /* Entrées principales : plus larges et lisibles, avec leur état actif. */
 .outil.espace {
-  font-size: 0.8rem;
-  padding: 0.22rem 0.7rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0;
+  background: transparent;
   font-weight: 600;
-  color: #2c3a5e;
+  color: #fff;
 }
-.outil.espace.actif {
+.outil.espace:hover {
+  background: rgb(255 255 255 / 10%);
+}
+.outil.espace img {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+.libelle-espace {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.outil.espace.actif,
+.outil.espace.actif:hover {
   background: #e3ebf9;
-  border-color: #4a6fa5;
   color: #1a3a6b;
-  box-shadow: inset 0 -2px 0 #2f5aa8;
 }
-.outil.espace:hover { background: #f4f7fd; }
+.outil.espace.actif img { filter: none; }
+@media (max-width: 780px) {
+  .libelle-espace { font-size: 0.62rem; }
+}
 </style>

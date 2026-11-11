@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ouvrir, coderTheme, compterAnnotations } from './util'
+import { ouvrir, coderTheme, compterAnnotations, selectionner } from './util'
 
 /**
  * Le marquage devient visible (décorations projetées depuis le modèle).
@@ -8,10 +8,10 @@ import { ouvrir, coderTheme, compterAnnotations } from './util'
  * plus de surlignage ; + le toggle « re-coder = retirer ».
  */
 
-/** Pose un caret au tout début (snap → 1er mot « Karine »), puis code en cliquant
- *  le thème dans l'onglet Thématique . Thèmes seed : Famille/Travail/Lieu. */
+/** Sélectionne le 1er mot (« Karine »), puis code en cliquant le thème dans
+ *  l'onglet Thématique . Thèmes seed : Famille/Travail/Lieu. */
 async function coderPremierMot(page: Page, nomTheme: string) {
-  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await selectionner(page, 'Karine')
   await coderTheme(page, nomTheme)
 }
 
@@ -39,7 +39,7 @@ test('deux thèmes sur la même plage se composent (annotations superposées)', 
   const { app, page } = await ouvrir('sonal-mq-')
   const ed = page.locator('.editeur')
 
-  // Même sélection (caret au début → snap « Karine »), deux thèmes différents.
+  // Même sélection (« Karine »), deux thèmes différents.
   await coderPremierMot(page, 'Famille')
   await coderPremierMot(page, 'Travail')
 
@@ -70,7 +70,7 @@ test('re-coder la même sélection retire le codage (toggle)', async () => {
   await expect(ed.locator('.annot')).toHaveCount(1)
   await expect.poll(() => compterAnnotations(page)).toBe(1)
 
-  // Re-coder à l'identique (le caret n'a pas bougé) → retire (toggle D-S6).
+  // Re-coder à l'identique (la sélection n'a pas bougé) → retire (toggle D-S6).
   await coderTheme(page, 'Famille')
   await expect(ed.locator('.annot')).toHaveCount(0)
   await expect.poll(() => compterAnnotations(page)).toBe(0)

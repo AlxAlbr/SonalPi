@@ -17,7 +17,7 @@ function banc(texte = 'Karine.') {
   const ed = new Editor({ extensions: [StarterKit], content: `<p>${texte}</p>` }); editeurs.push(ed)
   const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
   let anon!: ReturnType<typeof useAnonymisationEntretien>
-  anon = useAnonymisationEntretien({ entretien, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => ed,
+  anon = useAnonymisationEntretien({ entretien, locuteurs: ref([]), ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => ed,
     reglesAnon: () => [], prioriteAnon: () => 'entretien', rafraichirDecorations: vi.fn(), planifierSauvegarde: vi.fn(),
     rafraichirProjections: () => anon.rafraichirLignesAnon(), thematiques: () => ({ actif: true, liste: ['LOC', 'PER'] }),
   })

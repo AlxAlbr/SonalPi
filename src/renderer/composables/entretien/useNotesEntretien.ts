@@ -2,7 +2,8 @@ import type { Editor } from '@tiptap/core'
 import { computed, reactive, ref, type Ref } from 'vue'
 import { estOrpheline } from '../../../shared/entretien/annotation'
 import type { Entretien } from '../../../shared/entretien/entretien'
-import { genIdNote, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
+import type { Inverse } from '../../../shared/entretien/journal'
+import { genIdNote, notesParRang, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
 import type { Locuteur, Note } from '../../../shared/format'
 import { reperagePluginKey } from '../../editor/reperage'
 import {
@@ -33,9 +34,11 @@ export function useNotesEntretien(deps: {
   nomCategorieNote: (id: string) => string
   categorieNoteDefaut: () => string
   planifierSauvegarde: () => void
+  enregistrerAction: (libelle: string, inverse: Inverse) => unknown
 }) {
   const notes = ref<Note[]>([])
   const brouillonNote = ref<BrouillonNote | null>(null)
+  const brouillonEditionNote = ref<BrouillonNote | null>(null)
   const avertissementNote = ref('')
   const menuLiensNote = ref<{ x: number; y: number; liens: string[] } | null>(null)
   let passageLie: HTMLElement | null = null
@@ -50,6 +53,7 @@ export function useNotesEntretien(deps: {
 
   function reinitialiserEtatVolatil() {
     brouillonNote.value = null
+    brouillonEditionNote.value = null
     avertissementNote.value = ''
     fermerMenuLiensNote()
   }
@@ -88,7 +92,7 @@ export function useNotesEntretien(deps: {
     const note = notes.value.find((candidate) => candidate.id === id)
     if (!note) return
     avertissementNote.value = ''
-    brouillonNote.value = reactive<BrouillonNote>({
+    brouillonEditionNote.value = reactive<BrouillonNote>({
       id: note.id,
       categorieId: note.categorieId,
       titre: note.titre,
@@ -100,8 +104,7 @@ export function useNotesEntretien(deps: {
     })
   }
 
-  function validerNote() {
-    const brouillon = brouillonNote.value
+  function validerBrouillonNote(brouillon: BrouillonNote | null) {
     if (!brouillon) return
     if (brouillon.categorieId === ' autre') {
       avertissementNote.value =
@@ -129,7 +132,7 @@ export function useNotesEntretien(deps: {
         cible.modifieLe = new Date().toISOString()
       }
     } else {
-      notes.value.push({
+      const note: Note = {
         id: genIdNote(),
         categorieId: brouillon.categorieId,
         titre,
@@ -140,13 +143,39 @@ export function useNotesEntretien(deps: {
         rang: brouillon.rang,
         creeLe: new Date().toISOString(),
         modifieLe: null,
+      }
+      notes.value.push(note)
+      deps.enregistrerAction(`Note créée : ${titre || '(sans titre)'}`, {
+        type: 'retirerNote',
+        note: { ...note, locuteurIds: [...locuteurIds] },
       })
     }
-    brouillonNote.value = null
+    if (brouillonNote.value === brouillon) brouillonNote.value = null
+    if (brouillonEditionNote.value === brouillon) brouillonEditionNote.value = null
     deps.planifierSauvegarde()
   }
 
+  function validerNote() {
+    validerBrouillonNote(brouillonNote.value)
+  }
+
+  function validerEditionNote() {
+    validerBrouillonNote(brouillonEditionNote.value)
+  }
+
   function annulerNote() {
+    // Une note NEUVE venue du formulaire en ligne (agrandie) y revient :
+    // annuler la fenêtre ne perd pas la saisie en cours.
+    const brouillon = brouillonEditionNote.value
+    if (brouillon && !brouillon.id) brouillonNote.value = brouillon
+    brouillonEditionNote.value = null
+  }
+
+  /** Fait passer la note en cours de rédaction du formulaire en ligne à la
+   *  fenêtre d'édition (plus grande) : le brouillon est déplacé tel quel. */
+  function agrandirNote() {
+    if (!brouillonNote.value) return
+    brouillonEditionNote.value = brouillonNote.value
     brouillonNote.value = null
   }
 
@@ -171,10 +200,18 @@ export function useNotesEntretien(deps: {
   }
 
   function supprimerNote(id: string) {
-    const index = notes.value.findIndex((note) => note.id === id)
-    if (index < 0) return
-    notes.value.splice(index, 1)
-    notes.value = renumeroterRangs(notes.value)
+    const ordonnees = notesParRang(notes.value)
+    const position = ordonnees.findIndex((note) => note.id === id)
+    if (position < 0) return
+    const [note] = ordonnees.splice(position, 1)
+    notes.value = renumeroterRangs(ordonnees)
+    deps.enregistrerAction(`Note supprimée : ${note.titre || '(sans titre)'}`, {
+      type: 'restaurerNote',
+      note: { ...note, locuteurIds: [...(note.locuteurIds ?? [])] },
+      position,
+      ordreApres: notes.value.map((candidate) => candidate.id),
+    })
+    if (brouillonEditionNote.value?.id === id) brouillonEditionNote.value = null
     deps.planifierSauvegarde()
   }
 
@@ -230,6 +267,7 @@ export function useNotesEntretien(deps: {
   const commentairesPourLiaison = computed(() =>
     deps.entretien.annotations
       .filter((annotation) => annotation.type === 'commentaire' && !estOrpheline(annotation))
+      .sort((a, b) => a.from - b.from || a.to - b.to)
       .map((annotation) => ({
         id: annotation.id,
         auteur: annotation.auteur,
@@ -247,6 +285,14 @@ export function useNotesEntretien(deps: {
     }
   }
 
+  function sauvegarderCorpsZone(zone: HTMLElement) {
+    if (brouillonNote.value && !zone.hasAttribute('data-note-id')) {
+      brouillonNote.value.corps = zone.innerHTML
+    } else {
+      syncZoneHorsModale?.(zone)
+    }
+  }
+
   function lierPassage(event: MouseEvent, zone: HTMLElement) {
     const selection = document.getSelection()
     const existant = selection
@@ -258,8 +304,7 @@ export function useNotesEntretien(deps: {
     }
     const passage = envelopperSelection(zone, 'em')
     if (!passage) return
-    if (brouillonNote.value) brouillonNote.value.corps = zone.innerHTML
-    else syncZoneHorsModale?.(zone)
+    sauvegarderCorpsZone(zone)
     ouvrirMenuSur(passage, zone, event)
   }
 
@@ -289,8 +334,7 @@ export function useNotesEntretien(deps: {
       if (passageLie.tagName.toLowerCase() === 'em') deballer(passageLie)
     }
     decoreRefsCommentaires(zoneLiee, document, resolverCommentaires)
-    if (brouillonNote.value) brouillonNote.value.corps = zoneLiee.innerHTML
-    else syncZoneHorsModale?.(zoneLiee)
+    sauvegarderCorpsZone(zoneLiee)
   }
 
   function enregistrerSyncZoneHorsModale(
@@ -343,6 +387,7 @@ export function useNotesEntretien(deps: {
   return {
     notes,
     brouillonNote,
+    brouillonEditionNote,
     avertissementNote,
     commentairesPourLiaison,
     menuLiensNote,
@@ -352,7 +397,9 @@ export function useNotesEntretien(deps: {
     ajouterNote,
     editerNote,
     validerNote,
+    validerEditionNote,
     annulerNote,
+    agrandirNote,
     ecrireCorpsNote,
     ecrireTitreNote,
     enregistrerSyncZoneHorsModale,

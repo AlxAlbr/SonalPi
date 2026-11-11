@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
-import { createApp, nextTick, reactive, ref, type App } from 'vue'
+import { createApp, h, nextTick, reactive, ref, type App } from 'vue'
 import PanneauLocuteursEntretien from '../src/renderer/components/traiter/entretien/PanneauLocuteursEntretien.vue'
 import type { BlocParole } from '../src/shared/entretien/statistiquesLocuteurs'
 import type { Locuteur } from '../src/shared/format'
@@ -24,22 +24,31 @@ async function monter() {
   const allerAuTexte = vi.fn(), seek = vi.fn()
   const ouvertId = ref('e1')
   const url = ref<string | null>('audio-test')
-  injection.contexte = { blocsParole, locuteurs, entretien, allerAuTexte, tempsAuTexte: () => 4, audio: { url, seek }, ouvertId }
+  injection.contexte = {
+    blocsParole, locuteurs, entretien, allerAuTexte, tempsAuTexte: () => 4, audio: { url, seek }, ouvertId,
+    vue: ref('entretien'), locuteurASupprimer: ref(null), messagePersonnes: ref(''),
+    rapprochementNommage: ref(null), rapprochementOccupe: ref(false), lirePersonnes: async () => ({ personnes: [] }),
+  }
   const host = document.body.appendChild(document.createElement('div'))
-  const app = createApp(PanneauLocuteursEntretien, { actif: true, lectureSeule: true })
+  const ouvert = ref(false)
+  const app = createApp({ render: () => h(PanneauLocuteursEntretien, {
+    actif: true, lectureSeule: true, statistiquesOuvertes: ouvert.value,
+    'onUpdate:statistiquesOuvertes': (valeur: boolean) => { ouvert.value = valeur },
+  }) })
   apps.push(app)
   app.mount(host)
   await nextTick()
-  const toggle = host.querySelector<HTMLButtonElement>('button[aria-controls="stats-locuteurs"]')!
-  toggle.click()
+  const toggle = host.querySelector<HTMLDetailsElement>('.statistiques-locuteurs')!
+  toggle.open = true
+  toggle.dispatchEvent(new Event('toggle'))
   await nextTick()
-  return { host, toggle, blocsParole, locuteurs, entretien, allerAuTexte, seek, url, ouvertId }
+  return { host, toggle, blocsParole, locuteurs, entretien, allerAuTexte, seek, url, ouvertId, ouvert }
 }
 
 test('les statistiques et la navigation restent utilisables en lecture seule, sans commande de mutation', async () => {
   const b = await monter()
   expect(b.host.querySelector('.stats-locuteurs')).not.toBeNull()
-  expect(b.host.querySelector('.nom-loc')?.hasAttribute('disabled')).toBe(true)
+  expect(b.host.querySelector('.attribuer .attr')?.hasAttribute('disabled')).toBe(true)
   const avant = JSON.stringify([b.blocsParole.value, b.locuteurs.value, b.entretien])
   const bouton = b.host.querySelector<HTMLButtonElement>('[aria-label="Prise de parole suivante de Enquêteur"]')!
   for (const pos of [1, 17, 1]) {
@@ -48,20 +57,25 @@ test('les statistiques et la navigation restent utilisables en lecture seule, sa
     expect(b.allerAuTexte).toHaveBeenLastCalledWith(pos)
     expect(b.seek).toHaveBeenLastCalledWith(4)
   }
+  const precedent = b.host.querySelector<HTMLButtonElement>('[aria-label="Prise de parole précédente de Enquêteur"]')!
+  precedent.click()
+  await nextTick()
+  expect(b.allerAuTexte).toHaveBeenLastCalledWith(17)
   expect(JSON.stringify([b.blocsParole.value, b.locuteurs.value, b.entretien])).toBe(avant)
   b.url.value = null
   b.seek.mockClear()
   bouton.click()
   await nextTick()
   expect(b.seek).not.toHaveBeenCalled()
-  b.toggle.click()
+  b.toggle.open = false
+  b.toggle.dispatchEvent(new Event('toggle'))
   await nextTick()
   expect(b.host.querySelector('.stats-locuteurs')).toBeNull()
 })
 
 test('les noms, couleurs, rôles et attributions suivent les données réactives', async () => {
   const b = await monter()
-  expect(b.host.querySelector('.part-enqueteurs')?.textContent).toContain('2 mots')
+  expect(b.host.querySelector('.bilan-stat')?.textContent).toContain('Questions : 66,7 %')
   b.locuteurs.value[0].nom = '<img src=x onerror=alert(1)>'
   b.locuteurs.value[0].couleur = '#21805a'
   b.locuteurs.value[0].interviewer = false
@@ -69,23 +83,50 @@ test('les noms, couleurs, rôles et attributions suivent les données réactives
   const nom = b.host.querySelector<HTMLElement>('.liste-stats-loc li[data-loc="1"] strong')!
   expect(nom.textContent).toBe('<img src=x onerror=alert(1)>')
   expect(b.host.querySelector('.stats-locuteurs img')).toBeNull()
-  expect(nom.style.color).toBe('#21805a')
-  expect(b.host.querySelector('.part-enqueteurs')?.textContent).toContain('0 mots')
+  expect(b.host.querySelector('.bilan-stat')?.textContent).not.toContain('Questions')
   b.blocsParole.value = b.blocsParole.value.map((bloc) => ({ ...bloc, loc: 2 }))
   await nextTick()
   expect(b.host.querySelectorAll('.liste-stats-loc li')).toHaveLength(1)
-  expect(b.host.querySelector('.chiffres-stat')?.textContent).toContain('1 tour(s) · 3 mots')
+  expect(b.host.querySelector('.info-stat')?.textContent).toContain('1 interv. · 3 mots')
   b.ouvertId.value = 'e2'
   await nextTick()
+  expect(b.ouvert.value).toBe(false)
   expect(b.host.querySelector('.stats-locuteurs')).toBeNull()
+})
+
+test('les boutons présentent le nom, le pseudo distinct et un rôle sans accord de genre', async () => {
+  const b = await monter()
+  const choix = b.host.querySelectorAll('.choix-loc')
+  expect(choix[0].querySelector('.nom-attribution')?.textContent).toBe('Enquêteur')
+  expect(choix[0].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Répond aux questions')
+
+  b.locuteurs.value[1].pseudo = '  Fati  '
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Fati · Répond aux questions')
+  const bouton = choix[1].querySelector('button')!
+  expect(bouton.getAttribute('aria-label')).toBe('Fatima')
+  const description = document.getElementById(bouton.getAttribute('aria-describedby')!)!
+  expect(description.textContent).toContain('Fatima — Fati · Répond aux questions')
+
+  b.locuteurs.value[1].pseudo = ' Fatima '
+  b.locuteurs.value[1].interviewer = true
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+  b.locuteurs.value[1].pseudo = '   '
+  await nextTick()
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
 })
 
 test('une modification du découpage remet le compteur de navigation à zéro', async () => {
   const b = await monter()
+  b.host.querySelector<HTMLButtonElement>('[aria-label="Prise de parole précédente de Enquêteur"]')!.click()
+  await nextTick()
+  expect(b.allerAuTexte).toHaveBeenLastCalledWith(17)
   b.host.querySelector<HTMLButtonElement>('[aria-label="Prise de parole suivante de Enquêteur"]')!.click()
   await nextTick()
-  expect(b.host.querySelector('.liste-stats-loc li[data-loc="1"] .compteur-tour')?.textContent).toBe('1 / 2')
+  expect(b.host.querySelector('.liste-stats-loc li[data-loc="1"] .compteur-tour')?.textContent).toBe('1/2')
   b.blocsParole.value = [b.blocsParole.value[2]]
   await nextTick()
-  expect(b.host.querySelector('.compteur-tour')?.textContent).toBe('— / 1')
+  expect(b.host.querySelector('.compteur-tour')).toBeNull()
 })

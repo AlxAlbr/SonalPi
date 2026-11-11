@@ -2,10 +2,10 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useAnonymisationEntretien } from '../src/renderer/composables/entretien/useAnonymisationEntretien'
 import type { Entretien } from '../src/shared/entretien/entretien'
-import type { RegleAnon } from '../src/shared/format'
+import type { Locuteur, RegleAnon } from '../src/shared/format'
 
 const editeurs: Editor[] = []
 afterEach(() => {
@@ -38,15 +38,80 @@ function banc(
   } } })
   let anon!: ReturnType<typeof useAnonymisationEntretien>
   const sauvegarder = vi.fn()
+  const locuteurs = ref<Locuteur[]>([])
   anon = useAnonymisationEntretien({
-    entretien, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => ed,
+    entretien, locuteurs, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => ed,
     reglesAnon: () => regles, prioriteAnon: () => 'corpus', demanderDissociationCorpus,
     rafraichirReglesCorpus: vi.fn(async () => {}),
     rafraichirProjections: () => anon.rafraichirLignesAnon(),
     rafraichirDecorations: vi.fn(), planifierSauvegarde: sauvegarder,
   })
-  return { ed, entretien, anon, creer, ajouterPseudo, sauvegarder }
+  return { ed, entretien, locuteurs, anon, creer, ajouterPseudo, sauvegarder }
 }
+
+describe('affichage et applications réussies', () => {
+  test('la bascule tient compte des pseudos des locuteurs et des annotations', () => {
+    const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
+    const locuteurs = ref<Locuteur[]>([{ index: 0, nom: 'Karine' }])
+    const anon = useAnonymisationEntretien({
+      entretien, locuteurs, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => null,
+      reglesAnon: () => [], prioriteAnon: () => 'entretien',
+      rafraichirProjections: vi.fn(), rafraichirDecorations: vi.fn(), planifierSauvegarde: vi.fn(),
+    })
+    expect(anon.pseudonymisationUtilisee.value).toBe(false)
+    locuteurs.value[0].pseudo = 'Claire'
+    expect(anon.pseudonymisationUtilisee.value).toBe(true)
+    locuteurs.value[0].pseudo = '  '
+    expect(anon.pseudonymisationUtilisee.value).toBe(false)
+    entretien.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, pseudo: 'Claire', auteur: 'test' })
+    expect(anon.pseudonymisationUtilisee.value).toBe(true)
+    entretien.annotations.splice(0)
+    expect(anon.pseudonymisationUtilisee.value).toBe(false)
+  })
+
+  test('une validation locale ne signale que les occurrences effectivement appliquées', () => {
+    const b = banc('Karine.')
+    b.anon.validerAnon('Karine', '')
+    b.anon.validerAnon('Absente', 'Claire')
+    expect(b.anon.applicationsAnon.value).toBe(0)
+    b.anon.validerAnon('Karine', 'Claire')
+    expect(b.anon.applicationsAnon.value).toBe(1)
+  })
+
+  test('attend la réponse corpus avant de signaler une application', async () => {
+    const b = banc('Karine.')
+    let repondre!: (regle: RegleAnon | undefined) => void
+    vi.mocked(window.sonal.corpus.regleAnonParEntite).mockImplementationOnce(
+      () => new Promise((resolve) => { repondre = resolve }),
+    )
+    b.anon.creerBrouillon('Karine', 'Claire')
+    const validation = b.anon.validerAvecPriorite('Karine', false)
+    expect(b.anon.applicationsAnon.value).toBe(0)
+    expect(b.entretien.annotations).toHaveLength(0)
+    repondre(undefined)
+    await validation
+    expect(b.anon.applicationsAnon.value).toBe(1)
+    expect(b.entretien.annotations).toHaveLength(1)
+  })
+
+  test('un échec corpus ne signale pas de réussite', async () => {
+    const b = banc('Karine.')
+    b.creer.mockRejectedValueOnce(new Error('Indisponible'))
+    b.anon.creerBrouillon('Karine', 'Claire')
+    await b.anon.validerAvecPriorite('Karine', false)
+    expect(b.anon.hintAnon.value).toBe('Indisponible')
+    expect(b.anon.applicationsAnon.value).toBe(0)
+    expect(b.entretien.annotations).toHaveLength(0)
+  })
+
+  test('une définition corpus sans occurrence ne signale pas de pseudo appliqué', async () => {
+    const b = banc('Karine.')
+    b.anon.creerBrouillon('Absente', 'Claire')
+    await b.anon.validerAvecPriorite('Absente', false)
+    expect(b.creer).toHaveBeenCalledTimes(1)
+    expect(b.anon.applicationsAnon.value).toBe(0)
+  })
+})
 
 describe('portée corpus : aucune mutation limitée à l’entretien ouvert', () => {
   test.each([true, false, undefined])('corpus vers entretien délègue sans retirer de lien ni sauver : %s', async (accord) => {
@@ -102,7 +167,9 @@ describe('couverture des exceptions pendant la promotion', () => {
     await b.anon.changerPorteeAnon('Rue de la Gare', 'corpus')
     expect(b.anon.confirmationCouverture.value?.nb).toBe(1)
     expect(b.creer).not.toHaveBeenCalled()
+    expect(b.anon.applicationsAnon.value).toBe(0)
     b.anon.refuserCouverture()
+    expect(b.anon.applicationsAnon.value).toBe(0)
     expect(b.entretien).toEqual(avant)
     expect(b.anon.brouillonsAnon.value).toHaveLength(1)
     expect(b.sauvegarder).not.toHaveBeenCalled()
@@ -111,7 +178,9 @@ describe('couverture des exceptions pendant la promotion', () => {
   test('confirmer pose l’englobante et conserve l’exception interne', async () => {
     const b = preparerException()
     await b.anon.changerPorteeAnon('Rue de la Gare', 'corpus')
+    expect(b.anon.applicationsAnon.value).toBe(0)
     await b.anon.accepterCouverture()
+    expect(b.anon.applicationsAnon.value).toBe(1)
     expect(b.creer).toHaveBeenCalledTimes(1)
     expect(b.entretien.annotations).toHaveLength(2)
     expect(b.entretien.annotations[0]).toMatchObject({ id: 'exception-interne', etat: 'exception' })
@@ -129,13 +198,16 @@ describe('couverture des exceptions pendant la promotion', () => {
     expect(b.creer).not.toHaveBeenCalled()
     expect(b.entretien.annotations).toHaveLength(1)
     expect(b.anon.hintAnon.value).toContain('changé')
+    expect(b.anon.applicationsAnon.value).toBe(0)
   })
 
   test('la validation locale a la même garde de confirmation', async () => {
     const b = preparerException()
     b.anon.validerAnon('Rue de la Gare', 'Quartier')
     expect(b.entretien.annotations).toHaveLength(1)
+    expect(b.anon.applicationsAnon.value).toBe(0)
     await b.anon.accepterCouverture()
+    expect(b.anon.applicationsAnon.value).toBe(1)
     expect(b.entretien.annotations).toHaveLength(2)
     expect(b.creer).not.toHaveBeenCalled()
   })
@@ -170,7 +242,9 @@ describe('couverture des exceptions pendant la promotion', () => {
     b.anon.rafraichirLignesAnon()
     await b.anon.changerPorteeAnon('Karine', 'corpus')
     expect(b.anon.dialoguePorteeCorpus.value).not.toBeNull()
+    expect(b.anon.applicationsAnon.value).toBe(0)
     await b.anon.garderLesDeuxCorpus()
+    expect(b.anon.applicationsAnon.value).toBe(1)
     expect(b.entretien.annotations.map((a) => a.pseudo)).toEqual(['Claire', 'Rebecca'])
     expect(b.entretien.annotations.every((a) => a.regle === 'r1')).toBe(true)
   })

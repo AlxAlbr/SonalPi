@@ -26,7 +26,7 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
   await expect(page.locator('.espace-preparation')).toBeVisible()
   await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
 
-  await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
+  await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
   await page.locator('[data-tour="ouvrir-lexico"]').click()
   await expect(page.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
 
@@ -43,7 +43,7 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
   await expect(page.locator('.espace-analyse')).toBeVisible()
   await expect(page.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
 
-  await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
+  await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await entrerEntretien(page)
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await page.locator('.recents .recent', { hasText: basename(autreCorpus) }).click()
@@ -109,16 +109,24 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
 
-  // Les cartes de l'accueil ouvrent aussi les onglets de l'entretien.
-  await page.locator('.maison .liste-tours').getByRole('button', { name: /^Notes/ }).click()
-  await expect(page.locator('[data-onglet="notes"]')).toHaveClass(/actif/)
-  await expect(page.locator('aside.panneau.notes')).toBeVisible()
+  // L'entretien s'ouvre sur les locuteurs, avec les raccourcis au-dessus des onglets.
+  await expect(page.locator('[data-onglet="maison"]')).toHaveCount(0)
+  await expect(page.locator('[data-onglet="locuteurs"]')).toHaveClass(/actif/)
+  const bulleRaccourcis = page.locator('.bulle-raccourcis')
+  await expect(bulleRaccourcis).toContainText('Espace')
+  await expect(bulleRaccourcis).toContainText('Ctrl+F')
+  await page.getByRole('button', { name: 'Masquer les raccourcis' }).click()
+  await expect(bulleRaccourcis).toHaveCount(0)
 
   // Le bouton ferme l’entretien et revient au corpus.
   await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Retour au niveau Corpus', exact: true }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
+
+  // Une bulle fermée le reste aux ouvertures suivantes.
+  await entrerEntretien(page)
+  await expect(bulleRaccourcis).toHaveCount(0)
 
   await app.close()
 })

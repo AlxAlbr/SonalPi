@@ -1,27 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { usePanneauxEntretien, type OngletEntretien } from '../../../composables/entretien/usePanneauxEntretien'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
-import ResumeAssociationsPassage from './ResumeAssociationsPassage.vue'
-import PanneauAccueilEntretien from './PanneauAccueilEntretien.vue'
 import PanneauAnonymisationEntretien from './PanneauAnonymisationEntretien.vue'
 import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
+import PanneauCommentairesEntretien from './PanneauCommentairesEntretien.vue'
 import PanneauJournalEntretien from './PanneauJournalEntretien.vue'
 import PanneauLocuteursEntretien from './PanneauLocuteursEntretien.vue'
 import PanneauNotesEntretien from './PanneauNotesEntretien.vue'
 import PanneauThemesEntretien from './PanneauThemesEntretien.vue'
+import DefilementSuperpose from './DefilementSuperpose.vue'
 import { utiliserSonal } from '../../../composables/sonal'
 // Icônes des onglets (glyphe noir à plat).
 import icoThemes from '../../../assets/icones/themes.png'
+import icoCommentaires from '../../../assets/icones/commentaires.svg'
 import icoLocuteurs from '../../../assets/icones/locuteurs.png'
 import icoDonnees from '../../../assets/icones/donnees.png'
 import icoJournal from '../../../assets/icones/journal.png'
 import icoNotes from '../../../assets/icones/notes.png'
-import icoMaison from '../../../assets/icones/maison.png'
 import icoAnon from '../../../assets/icones/anon.png'
+import icoRecherche from '../../../assets/icones/recherche.png'
 
 const {
   ongletDroite,
@@ -30,6 +32,7 @@ const {
   remplacementTexte,
   occurrencesRecherche,
   indexRecherche,
+  ouvrirRecherche,
   fermerRecherche,
   naviguerRecherche,
   remplacerOccurrenceCourante,
@@ -47,7 +50,6 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
-  retourCorpus,
   audio,
   verrouAutrui,
   statutSession,
@@ -55,7 +57,194 @@ const {
   publierMaintenant,
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
+  rafraichirCompteursAAAnonymiser,
+  pseudonymisationUtilisee,
 } = utiliserSonal()
+type OngletLateral = 'notes' | 'donnees'
+const journalOuvert = ref(false)
+const enteteEditeur = ref<HTMLElement | null>(null)
+let animationNavigationTexte: number | null = null
+
+// Le défilement natif au clavier ne tient pas compte des barres fixes.
+function garderCurseurVisible(event: KeyboardEvent) {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) return
+  if (animationNavigationTexte !== null) cancelAnimationFrame(animationNavigationTexte)
+  animationNavigationTexte = requestAnimationFrame(() => {
+    animationNavigationTexte = null
+    const ed = editor.value
+    const entete = enteteEditeur.value
+    if (!ed || !entete || !ed.view.hasFocus()) return
+    const { head } = ed.state.selection
+    if (head === 1) {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      return
+    }
+    const hautVisible = entete.getBoundingClientRect().bottom + 8
+    const curseur = ed.view.coordsAtPos(head)
+    if (curseur.top < hautVisible) {
+      window.scrollBy({ top: Math.floor(curseur.top - hautVisible), behavior: 'instant' })
+    }
+  })
+}
+const boutonJournal = ref<HTMLButtonElement | null>(null)
+const fenetreJournal = ref<HTMLElement | null>(null)
+
+async function ouvrirJournal() {
+  fermerRecherche()
+  journalOuvert.value = true
+  await nextTick()
+  fenetreJournal.value?.focus()
+}
+
+function fermerJournal() {
+  journalOuvert.value = false
+  boutonJournal.value?.focus()
+}
+
+watch(rechercheOuverte, (ouverte) => {
+  if (ouverte) journalOuvert.value = false
+})
+const ongletGauche = ref<OngletEntretien>('locuteurs')
+const {
+  ongletsHaut, ongletsBas, actifHaut, actifBas, partage, proportionHaut,
+  colonne, cibleHaut, cibleBas, ongletGlisse, destination, position,
+  visible: outilVisible, cliquer: cliquerOnglet, deplacerAuClavier: deplacerOnglet, regrouper,
+  commencerGlissement, glisser, terminerGlissement,
+  commencerRedimensionnement, redimensionner, terminerRedimensionnement, redimensionnerAuClavier,
+} = usePanneauxEntretien(ongletGauche)
+const idPanneaux = `panneaux-${useId()}`
+const outilsGauche = {
+  locuteurs: { libelle: 'Locuteurs', titre: 'Locuteurs', icone: icoLocuteurs, tour: 'onglet-locuteurs' },
+  anon: { libelle: 'Pseudos', titre: 'Pseudonymisation du texte', icone: icoAnon, tour: undefined },
+  themes: { libelle: 'Thèmes', titre: 'Thématiques', icone: icoThemes, tour: 'onglet-themes' },
+  commentaires: { libelle: 'Comments', titre: 'Commentaires', icone: icoCommentaires, tour: undefined },
+}
+const zonesGauche = computed(() => [
+  { id: 'haut', onglets: ongletsHaut.value, actif: actifHaut.value },
+  ...(partage.value ? [{ id: 'bas', onglets: ongletsBas.value, actif: actifBas.value }] : []),
+])
+function cibleOutil(id: OngletEntretien) {
+  return `#${idPanneaux}-${ongletsBas.value.includes(id) ? 'bas' : 'haut'}`
+}
+const ongletLateral = ref<OngletLateral>('notes')
+const voletNotesOuvert = ref(false)
+const statistiquesOuvertes = ref(false)
+const interventionStatistique = ref<{ loc: number | null; pos: number } | null>(null)
+watch(() => outilVisible('anon'), (visible) => {
+  if (visible && ongletDroite.value !== 'anon') rafraichirCompteursAAAnonymiser()
+})
+const afficherStatistiquesAudio = computed(() => outilVisible('locuteurs') && statistiquesOuvertes.value)
+watch(afficherStatistiquesAudio, (afficher) => {
+  if (!afficher) interventionStatistique.value = null
+})
+
+// Les raccourcis du corpus peuvent aussi ouvrir les outils de droite.
+watch(ongletDroite, (onglet) => {
+  if (onglet === 'journal') {
+    void ouvrirJournal()
+  } else if (onglet === 'notes' || onglet === 'donnees') {
+    ongletLateral.value = onglet
+    voletNotesOuvert.value = true
+  } else {
+    ongletGauche.value = onglet
+  }
+}, { immediate: true })
+watch(ongletGauche, (onglet) => { ongletDroite.value = onglet })
+const largeurNotesPersonnalisee = ref<number | null>(null)
+// Largeur du panneau d'outils de gauche : réglable via la poignée à son bord droit,
+// mémorisée localement comme la largeur du volet de notes.
+const RACCOURCI_LARGEUR_OUTILS = 'sonalpi.entretien.largeurOutils'
+const largeurMinimaleOutils = 280
+const largeurOutilsPersonnalisee = ref<number | null>(null)
+try {
+  const memorisee = Number(localStorage.getItem(RACCOURCI_LARGEUR_OUTILS))
+  if (Number.isFinite(memorisee) && memorisee > 0) largeurOutilsPersonnalisee.value = memorisee
+} catch { /* Stockage facultatif. */ }
+const redimensionnementOutils = ref(false)
+
+/** Largeur bornée : au moins le minimum, au plus la moitié de la fenêtre. */
+function bornerLargeurOutils(valeur: number): number {
+  const max = Math.max(largeurMinimaleOutils, window.innerWidth * 0.5)
+  return Math.max(largeurMinimaleOutils, Math.min(valeur, max))
+}
+
+function memoriserLargeurOutils(): void {
+  if (largeurOutilsPersonnalisee.value === null) return
+  try { localStorage.setItem(RACCOURCI_LARGEUR_OUTILS, String(largeurOutilsPersonnalisee.value)) } catch { /* Stockage facultatif. */ }
+}
+
+function commencerRedimensionnementOutils(event: PointerEvent): void {
+  redimensionnementOutils.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function redimensionnerOutils(event: PointerEvent): void {
+  if (!redimensionnementOutils.value) return
+  const colonne = document.querySelector<HTMLElement>('.grille-ent .colonne-gauche')
+  if (!colonne) return
+  largeurOutilsPersonnalisee.value = bornerLargeurOutils(event.clientX - colonne.getBoundingClientRect().left)
+}
+
+function finirRedimensionnementOutils(event: PointerEvent): void {
+  if (!redimensionnementOutils.value) return
+  redimensionnementOutils.value = false
+  const element = event.currentTarget as HTMLElement
+  if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId)
+  memoriserLargeurOutils()
+}
+
+function ajusterLargeurOutilsAuClavier(event: KeyboardEvent): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  largeurOutilsPersonnalisee.value = bornerLargeurOutils(event.key === 'Home'
+    ? largeurMinimaleOutils
+    : event.key === 'End'
+      ? Infinity
+      : (largeurOutilsPersonnalisee.value ?? largeurMinimaleOutils) + (event.key === 'ArrowLeft' ? -20 : 20))
+  memoriserLargeurOutils()
+}
+
+/** Variables CSS des largeurs personnalisées (notes à droite, outils à gauche). */
+const styleGrille = computed(() => {
+  const style: Record<string, string> = {}
+  if (largeurNotesPersonnalisee.value !== null) style['--volet-notes-largeur-personnalisee'] = `${largeurNotesPersonnalisee.value}px`
+  if (largeurOutilsPersonnalisee.value !== null) style['--largeur-outils-personnalisee'] = `${largeurOutilsPersonnalisee.value}px`
+  return Object.keys(style).length ? style : undefined
+})
+
+// Affichage des noms dans le texte : original, comparaison (nom barré + [pseudo],
+// par défaut) ou pseudonymisé (pseudo seul, comme dans l'export). Choix mémorisé.
+type AffichageNoms = 'original' | 'comparer' | 'pseudonymise'
+const RACCOURCI_AFFICHAGE_NOMS = 'sonalpi.entretien.affichageNoms'
+const affichageNoms = ref<AffichageNoms>('comparer')
+try {
+  const memorise = localStorage.getItem(RACCOURCI_AFFICHAGE_NOMS)
+  if (memorise === 'original' || memorise === 'comparer' || memorise === 'pseudonymise') {
+    affichageNoms.value = memorise
+  }
+} catch { /* Stockage facultatif. */ }
+watch(affichageNoms, (valeur) => {
+  try { localStorage.setItem(RACCOURCI_AFFICHAGE_NOMS, valeur) } catch { /* Stockage facultatif. */ }
+})
+
+/** Classes de la colonne de l'éditeur : sélection anon en cours + vue des noms
+ *  (les règles CSS globales de editeur.css s'y accrochent). */
+const classesColonneDroite = computed(() => ({
+  'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif.value,
+  'noms-original': affichageNoms.value === 'original',
+  'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
+}))
+const ignorerClicNotes = ref(false)
+const redimensionnementNotesActif = ref(false)
+const largeurMinimaleNotes = 240
+let xDebutGlissementNotes: number | null = null
+let largeurDebutGlissementNotes = 0
+let idPointeurNotes: number | null = null
+let glissementNotesActif = false
+let ongletGlissement: OngletLateral = 'notes'
+let glissementDepuisReplie = false
+let positionsPointeurNotes: Array<{ x: number; temps: number }> = []
+let animationInertieNotes: number | null = null
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -88,6 +277,16 @@ const compteRecherche = computed(() => {
 })
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
+const CLE_AJOUT_SELECTION = 'sonal:pseudonymisation:ajout-selection'
+const ajoutSelectionActif = ref(localStorage.getItem(CLE_AJOUT_SELECTION) !== 'false')
+watch(ajoutSelectionActif, (actif) => {
+  localStorage.setItem(CLE_AJOUT_SELECTION, String(actif))
+}, { flush: 'sync' })
+
+onBeforeUnmount(() => {
+  if (animationInertieNotes !== null) cancelAnimationFrame(animationInertieNotes)
+  if (animationNavigationTexte !== null) cancelAnimationFrame(animationNavigationTexte)
+})
 
 function ouvrirCasDepuisSelection() {
   fermerMenu()
@@ -97,6 +296,146 @@ function ouvrirCasDepuisSelection() {
 function ouvrirRecueilsDepuisSelection() {
   fermerMenu()
   void afficherRecueilsPourAssociation()
+}
+
+function ouvrirVolet(onglet: OngletLateral) {
+  ongletLateral.value = onglet
+  voletNotesOuvert.value = true
+  ongletDroite.value = onglet
+}
+
+function largeurNotesFermee(): number {
+  const grille = document.querySelector<HTMLElement>('.grille-ent')
+  if (!grille) return 52
+  const largeur = getComputedStyle(grille).getPropertyValue('--volet-notes-largeur-fermee')
+  const racine = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+  return Number.parseFloat(largeur) * racine
+}
+
+async function commencerGlissementNotes(event: PointerEvent, onglet: OngletLateral) {
+  if (event.button !== 0) return
+  if (animationInertieNotes !== null) {
+    cancelAnimationFrame(animationInertieNotes)
+    animationInertieNotes = null
+    redimensionnementNotesActif.value = false
+  }
+  const volet = document.querySelector<HTMLElement>('.volet-notes')
+  const panneau = document.querySelector<HTMLElement>(`#panneau-${ongletLateral.value}-entretien`)
+  if (!volet || !panneau) return
+  ongletGlissement = onglet
+  xDebutGlissementNotes = event.clientX
+  glissementDepuisReplie = !voletNotesOuvert.value
+  largeurDebutGlissementNotes = glissementDepuisReplie
+    ? volet.getBoundingClientRect().width
+    : panneau.getBoundingClientRect().width
+  idPointeurNotes = event.pointerId
+  glissementNotesActif = false
+  positionsPointeurNotes = [{ x: event.clientX, temps: performance.now() }]
+  redimensionnementNotesActif.value = true
+  const bouton = event.currentTarget as HTMLButtonElement
+  bouton.setPointerCapture(event.pointerId)
+  await nextTick()
+  if (idPointeurNotes !== event.pointerId) return
+  largeurDebutGlissementNotes = glissementDepuisReplie
+    ? volet.getBoundingClientRect().width
+    : panneau.getBoundingClientRect().width
+}
+
+function glisserNotes(event: PointerEvent) {
+  if (event.pointerId !== idPointeurNotes || xDebutGlissementNotes === null) return
+  const deplacement = xDebutGlissementNotes - event.clientX
+  if (!glissementNotesActif && Math.abs(deplacement) < 4) return
+  glissementNotesActif = true
+  redimensionnementNotesActif.value = true
+  const largeurMax = Math.max(240, window.innerWidth * 0.85)
+  largeurNotesPersonnalisee.value = Math.max(
+    largeurNotesFermee(),
+    Math.min(largeurMax, largeurDebutGlissementNotes + deplacement),
+  )
+  ouvrirVolet(ongletGlissement)
+  const temps = performance.now()
+  positionsPointeurNotes.push({ x: event.clientX, temps })
+  positionsPointeurNotes = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
+}
+
+function terminerGlissementNotesAuRepos() {
+  if (largeurNotesPersonnalisee.value !== null && largeurNotesPersonnalisee.value < largeurMinimaleNotes) {
+    voletNotesOuvert.value = false
+    largeurNotesPersonnalisee.value = null
+  }
+  redimensionnementNotesActif.value = false
+}
+
+function lancerInertieNotes(vitesse: number) {
+  const largeurFermee = largeurNotesFermee()
+  const limiteLargeur = Math.max(240, window.innerWidth * 0.85)
+  let derniereImage = performance.now()
+  const dureeFreinage = 140
+  const animer = (temps: number) => {
+    const ecoule = Math.min(temps - derniereImage, 32)
+    derniereImage = temps
+    const facteur = Math.exp(-ecoule / dureeFreinage)
+    const deplacement = vitesse * dureeFreinage * (1 - facteur)
+    const largeur = largeurNotesPersonnalisee.value ?? 0
+    const largeurMin = vitesse < 0 ? largeurFermee : 0
+    const nouvelleLargeur = Math.max(largeurMin, Math.min(limiteLargeur, largeur + deplacement))
+    largeurNotesPersonnalisee.value = nouvelleLargeur
+    vitesse *= facteur
+
+    if (Math.abs(vitesse) < 0.04 || nouvelleLargeur === largeur) {
+      animationInertieNotes = null
+      terminerGlissementNotesAuRepos()
+      return
+    }
+    animationInertieNotes = requestAnimationFrame(animer)
+  }
+  animationInertieNotes = requestAnimationFrame(animer)
+}
+
+function terminerGlissementNotes(event: PointerEvent) {
+  if (event.pointerId !== idPointeurNotes) return
+  if (glissementNotesActif) {
+    ignorerClicNotes.value = true
+    window.setTimeout(() => {
+      ignorerClicNotes.value = false
+    }, 0)
+  }
+  const temps = performance.now()
+  const derniersMouvements = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
+  const premierMouvement = derniersMouvements[0]
+  const dernierMouvement = derniersMouvements[derniersMouvements.length - 1]
+  const duree = dernierMouvement && premierMouvement
+    ? dernierMouvement.temps - premierMouvement.temps
+    : 0
+  const vitesse = dernierMouvement && premierMouvement && duree > 0
+    ? Math.max(-1.8, Math.min(1.8, (premierMouvement.x - dernierMouvement.x) / duree))
+    : 0
+  xDebutGlissementNotes = null
+  idPointeurNotes = null
+  positionsPointeurNotes = []
+  const vitesseInertie = event.type === 'pointercancel' ? 0 : vitesse
+  if (glissementNotesActif && Math.abs(vitesseInertie) >= 0.12) {
+    lancerInertieNotes(vitesseInertie)
+    glissementNotesActif = false
+    glissementDepuisReplie = false
+    return
+  }
+  if (glissementNotesActif) terminerGlissementNotesAuRepos()
+  glissementNotesActif = false
+  glissementDepuisReplie = false
+}
+
+function cliquerVolet(onglet: OngletLateral) {
+  if (ignorerClicNotes.value) {
+    ignorerClicNotes.value = false
+    return
+  }
+  if (voletNotesOuvert.value && ongletLateral.value === onglet) {
+    voletNotesOuvert.value = false
+    ongletDroite.value = ongletGauche.value
+  } else {
+    ouvrirVolet(onglet)
+  }
 }
 
 </script>
@@ -109,8 +448,17 @@ function ouvrirRecueilsDepuisSelection() {
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
-      <div class="grille-ent">
-        <!-- Le retour au corpus reste accessible au-dessus des deux colonnes. -->
+      <div
+        class="grille-ent"
+        :class="{
+          'notes-ouvert': voletNotesOuvert,
+          'mode-audio': !estVideo,
+          'redimensionnement-notes': redimensionnementNotesActif,
+          'redimensionnement-outils': redimensionnementOutils,
+        }"
+        :style="styleGrille"
+      >
+        <!-- Le retour au corpus reste accessible au-dessus des panneaux de travail. -->
         <div class="barre">
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
@@ -126,102 +474,269 @@ function ouvrirRecueilsDepuisSelection() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
-          <button class="retour" @click="retourCorpus">Retour au niveau Corpus</button>
-        </div>
-
-        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
-             collante, à défilement interne au-delà d'un écran,
-             pour rester visible pendant la lecture. -->
-        <div class="colonne-gauche">
-          <nav class="onglets">
-            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
-                 et sur le panneau d'accueil (vue d'ensemble).
-                 L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
-                 conseils et liste des autres onglets (icone + titre).
-                 Les NOTES suivent en DEUXIÈME. -->
-            <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
-              <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
-            </button>
-            <button data-onglet="notes" data-tour="onglet-notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
-              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
-            </button>
-            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
-              <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
-            </button>
-            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
-              <img class="ico-onglet" :src="icoAnon" alt="Pseudonymisation du texte" />
-            </button>
-            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
-              <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
-            </button>
-            <button data-onglet="donnees" data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" title="Données" @click="ongletDroite = 'donnees'">
-              <img class="ico-onglet" :src="icoDonnees" alt="Données" />
-            </button>
-            <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
-              <img class="ico-onglet" :src="icoJournal" alt="Journal" />
-            </button>
-          </nav>
-
-          <!-- La consigne reste au même endroit quand l'utilisateur change d'outil. -->
-          <div data-tour="ancre-guide-pp"></div>
-
-          <PanneauAccueilEntretien v-show="ongletDroite === 'maison'" />
-
-          <PanneauThemesEntretien
-            v-show="ongletDroite === 'themes'"
-            :lecture-seule-contenu="roContenu"
-          />
-
-          <PanneauLocuteursEntretien
-            v-show="ongletDroite === 'locuteurs'"
-            :actif="ongletDroite === 'locuteurs'"
-            :lecture-seule="roContenu"
-          />
-
-          <PanneauDonneesEntretien
-            v-show="ongletDroite === 'donnees'"
-            :lecture-seule="roContenu"
-          />
-
-          <PanneauJournalEntretien
-            v-show="ongletDroite === 'journal'"
-            :lecture-seule="roContenu"
-          />
-
-          <PanneauNotesEntretien
-            v-show="ongletDroite === 'notes'"
-            :lecture-seule="roContenu"
-          />
-
-          <PanneauAnonymisationEntretien
-            v-show="ongletDroite === 'anon'"
-            :actif="ongletDroite === 'anon'"
-            :lecture-seule-contenu="roContenu"
-          />
-        </div>
-
-        <!-- Colonne DROITE : en audio, lecteur (barre d'écoute + waveform)
-             collant puis éditeur ; en vidéo, zone média épinglée (lecteur +
-             waveform EMPILÉS à gauche ‖ panneau vidéo à droite) puis éditeur
-             pleine largeur dessous. -->
-        <div class="colonne-droite">
-          <div v-if="!estVideo" class="lecteur-ancre">
-            <LecteurAudio />
+          <div v-if="!estVideo" class="lecteur-barre">
+            <LecteurAudio :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
           </div>
-          <div v-else class="zone-media">
-            <div class="tele">
-              <LecteurAudio :empile="true" />
-              <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
-              <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
-                {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
+        </div>
+
+        <!-- Chaque zone garde ses onglets visibles et son propre défilement. -->
+        <div
+          ref="colonne"
+          class="colonne-gauche"
+          :class="{ partagee: partage, 'glissement-onglet': ongletGlisse }"
+        >
+          <template v-for="zone in zonesGauche" :key="zone.id">
+            <div
+              v-if="zone.id === 'bas'"
+              class="separation-outils"
+              role="separator"
+              tabindex="0"
+              aria-label="Hauteur des panneaux de gauche"
+              aria-orientation="horizontal"
+              :aria-controls="`${idPanneaux}-haut ${idPanneaux}-bas`"
+              :aria-valuenow="proportionHaut"
+              :aria-valuemin="20"
+              :aria-valuemax="80"
+              @pointerdown="commencerRedimensionnement"
+              @pointermove="redimensionner"
+              @pointerup="terminerRedimensionnement"
+              @pointercancel="terminerRedimensionnement"
+              @lostpointercapture="terminerRedimensionnement"
+              @keydown="redimensionnerAuClavier"
+            ></div>
+            <div
+              :ref="(el) => { if (zone.id === 'haut') cibleHaut = el as HTMLElement; else cibleBas = el as HTMLElement }"
+              class="groupe-outils"
+              :class="{ 'depot-actif': destination === zone.id }"
+              :data-zone="zone.id"
+              :style="partage ? { flex: `${zone.id === 'haut' ? proportionHaut : 100 - proportionHaut} 1 0` } : undefined"
+            >
+              <nav class="onglets" :aria-label="zone.id === 'haut' ? 'Outils du haut' : 'Outils du bas'">
+                <button
+                  v-for="id in zone.onglets"
+                  :key="id"
+                  type="button"
+                  :data-onglet="id"
+                  :data-tour="outilsGauche[id].tour"
+                  :class="{ actif: zone.actif === id }"
+                  :aria-pressed="zone.actif === id"
+                  :title="`${outilsGauche[id].titre} — glisser vers le ${zone.id === 'haut' ? 'bas' : 'haut'} (Alt + ${zone.id === 'haut' ? '↓' : '↑'})`"
+                  @mousedown.prevent
+                  @click="cliquerOnglet(id); ongletDroite = ongletGauche"
+                  @pointerdown="commencerGlissement($event, id)"
+                  @pointermove="glisser"
+                  @pointerup="terminerGlissement"
+                  @pointercancel="terminerGlissement"
+                  @lostpointercapture="terminerGlissement"
+                  @keydown.alt.down.prevent="deplacerOnglet(id, 'bas')"
+                  @keydown.alt.up.prevent="deplacerOnglet(id, 'haut')"
+                >
+                  <img class="ico-onglet" :src="outilsGauche[id].icone" alt="" draggable="false" />
+                  <span>{{ outilsGauche[id].libelle }}</span>
+                </button>
+              </nav>
+              <DefilementSuperpose>
+                <div v-if="zone.id === 'haut'" data-tour="ancre-guide-pp"></div>
+                <div :id="`${idPanneaux}-${zone.id}`" class="contenus-outils"></div>
+              </DefilementSuperpose>
+              <button v-if="zone.id === 'bas'" class="regrouper-outils" type="button" @click="regrouper">
+                Regrouper les onglets en haut
               </button>
             </div>
-            <VideoPanel v-show="videoVisible" />
+          </template>
+          <div v-if="ongletGlisse && !partage" ref="cibleBas" class="zone-depot-bas" :class="{ 'depot-actif': destination === 'bas' }">
+            Déposer ici pour afficher en dessous
           </div>
-          <ResumeAssociationsPassage />
-          <EditorContent :editor="editor" class="cadre" />
+          <div
+            v-if="ongletGlisse"
+            class="apercu-onglet"
+            aria-hidden="true"
+            :style="{ left: `${position.x + 12}px`, top: `${position.y + 12}px` }"
+          >{{ outilsGauche[ongletGlisse].libelle }}</div>
+
+          <!-- Déplacer le contenu existant conserve les saisies et les outils ouverts. -->
+          <Teleport defer :to="cibleOutil('themes')">
+            <PanneauThemesEntretien v-show="outilVisible('themes')" :lecture-seule-contenu="roContenu" />
+          </Teleport>
+          <Teleport defer :to="cibleOutil('locuteurs')">
+            <PanneauLocuteursEntretien
+              v-show="outilVisible('locuteurs')"
+              :actif="outilVisible('locuteurs')"
+              :lecture-seule="roContenu"
+              v-model:statistiques-ouvertes="statistiquesOuvertes"
+              @naviguer-statistique="interventionStatistique = $event"
+            />
+          </Teleport>
+          <Teleport defer :to="cibleOutil('commentaires')">
+            <PanneauCommentairesEntretien v-show="outilVisible('commentaires')" :lecture-seule="roContenu" />
+          </Teleport>
+          <Teleport defer :to="cibleOutil('anon')">
+            <PanneauAnonymisationEntretien
+              v-show="outilVisible('anon')"
+              :actif="outilVisible('anon')"
+              :lecture-seule-contenu="roContenu"
+              :affichage-noms="affichageNoms"
+              v-model:ajout-selection-actif="ajoutSelectionActif"
+              @basculer-affichage="affichageNoms = $event"
+            />
+          </Teleport>
+
+          <!-- Réglage de la largeur du panneau, comme le séparateur de l'onglet Pseudonymisation. -->
+          <div
+            class="poignee-largeur"
+            role="separator"
+            aria-label="Largeur des panneaux de gauche"
+            aria-orientation="vertical"
+            tabindex="0"
+            :aria-valuenow="largeurOutilsPersonnalisee ?? undefined"
+            :aria-valuemin="largeurMinimaleOutils"
+            @pointerdown="commencerRedimensionnementOutils"
+            @pointermove="redimensionnerOutils"
+            @pointerup="finirRedimensionnementOutils"
+            @pointercancel="finirRedimensionnementOutils"
+            @lostpointercapture="finirRedimensionnementOutils"
+            @keydown="ajusterLargeurOutilsAuClavier"
+          ></div>
         </div>
+
+        <!-- Colonne DROITE : éditeur en audio ; en vidéo, zone média épinglée
+             (lecteur + waveform EMPILÉS à gauche ‖ panneau vidéo à droite)
+             puis éditeur pleine largeur dessous. -->
+        <div class="colonne-droite" :class="classesColonneDroite">
+          <div ref="enteteEditeur" class="entete-editeur">
+            <div v-if="estVideo" class="zone-media">
+              <div class="tele">
+                <LecteurAudio :empile="true" :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />
+                <!-- Ouvrir ou fermer la vidéo laisse toute la place disponible au lecteur. -->
+                <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
+                  {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
+                </button>
+              </div>
+              <VideoPanel v-show="videoVisible" />
+            </div>
+            <div class="outils-editeur" role="group" aria-label="Outils de l’entretien">
+              <button
+                class="ouvrir-recherche"
+                :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
+                :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
+                @mousedown.prevent
+                @click="ouvrirRecherche"
+              >
+                <img :src="icoRecherche" alt="" draggable="false" />
+              </button>
+              <button
+                ref="boutonJournal"
+                class="bouton-journal"
+                data-onglet="journal"
+                :class="{ actif: journalOuvert }"
+                :aria-expanded="journalOuvert"
+                aria-controls="panneau-journal-entretien"
+                title="Journal des actions"
+                @click="journalOuvert ? fermerJournal() : ouvrirJournal()"
+              >
+                <img :src="icoJournal" alt="" draggable="false" />
+                <span>Journal</span>
+              </button>
+              <!-- Les trois lectures du texte : brut, vérification (nom barré + pseudo),
+                   rendu final pseudonymisé. Masquées tant qu'aucune occurrence n'est
+                   pseudonymisée dans l'entretien : la bascule n'a alors rien à montrer. -->
+              <template v-if="pseudonymisationUtilisee">
+                <span v-if="affichageNoms === 'pseudonymise'" class="mention-pseudos">pseudos affichés</span>
+                <div class="groupe-affichage-noms" role="group" aria-label="Affichage des noms">
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'original' }"
+                    :aria-pressed="affichageNoms === 'original'"
+                    title="Texte original, sans pseudonymes"
+                    @click="affichageNoms = 'original'"
+                  >Original</button>
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'comparer' }"
+                    :aria-pressed="affichageNoms === 'comparer'"
+                    title="Noms réels barrés et pseudos affichés côte à côte"
+                    @click="affichageNoms = 'comparer'"
+                  >Comparer</button>
+                  <button
+                    type="button"
+                    :class="{ actif: affichageNoms === 'pseudonymise' }"
+                    :aria-pressed="affichageNoms === 'pseudonymise'"
+                    title="Seuls les pseudos sont affichés, comme dans l’export"
+                    @click="affichageNoms = 'pseudonymise'"
+                  >Pseudonymisé</button>
+                </div>
+              </template>
+            </div>
+          </div>
+          <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />
+        </div>
+
+        <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
+          <div class="cadre-notes">
+            <PanneauDonneesEntretien
+              id="panneau-donnees-entretien"
+              v-show="ongletLateral === 'donnees'"
+              :lecture-seule="roContenu"
+              :inert="!voletNotesOuvert"
+            />
+            <PanneauNotesEntretien
+              id="panneau-notes-entretien"
+              v-show="ongletLateral === 'notes'"
+              :inert="!voletNotesOuvert"
+              :class="{ replie: !voletNotesOuvert }"
+              :lecture-seule="roContenu"
+            />
+          </div>
+          <div class="onglets notes-languette">
+            <button
+              data-onglet="notes"
+              data-tour="onglet-notes"
+              :class="{ actif: voletNotesOuvert && ongletLateral === 'notes' }"
+              :aria-expanded="voletNotesOuvert && ongletLateral === 'notes'"
+              aria-controls="panneau-notes-entretien"
+              title="Notes — faites glisser pour redimensionner"
+              @pointerdown="commencerGlissementNotes($event, 'notes')"
+              @pointermove="glisserNotes"
+              @pointerup="terminerGlissementNotes"
+              @pointercancel="terminerGlissementNotes"
+              @click="cliquerVolet('notes')"
+            >
+              <img class="ico-onglet" :src="icoNotes" alt="" draggable="false" />
+              <span>Notes</span>
+            </button>
+            <button
+              data-onglet="donnees"
+              data-tour="onglet-donnees"
+              :class="{ actif: voletNotesOuvert && ongletLateral === 'donnees' }"
+              :aria-expanded="voletNotesOuvert && ongletLateral === 'donnees'"
+              aria-controls="panneau-donnees-entretien"
+              title="Données — faites glisser pour redimensionner"
+              @pointerdown="commencerGlissementNotes($event, 'donnees')"
+              @pointermove="glisserNotes"
+              @pointerup="terminerGlissementNotes"
+              @pointercancel="terminerGlissementNotes"
+              @click="cliquerVolet('donnees')"
+            >
+              <img class="ico-onglet" :src="icoDonnees" alt="" draggable="false" />
+              <span>Données</span>
+            </button>
+          </div>
+        </aside>
       </div>
+
+      <section
+        v-if="journalOuvert"
+        id="panneau-journal-entretien"
+        ref="fenetreJournal"
+        class="fenetre-journal"
+        role="dialog"
+        aria-label="Journal des actions de l’entretien"
+        tabindex="-1"
+        @keydown.escape.stop.prevent="fermerJournal"
+      >
+        <button class="fermer-journal" aria-label="Fermer le journal" title="Fermer (Échap)" @click="fermerJournal">✕</button>
+        <PanneauJournalEntretien :lecture-seule="roContenu" />
+      </section>
 
       <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
            visible quel que soit le défilement du texte. Entrée = occurrence suivante,
@@ -294,29 +809,53 @@ function ouvrirRecueilsDepuisSelection() {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: 400px 1fr;
+  --volet-notes-largeur: min(360px, 34vw);
+  --volet-notes-largeur-fermee: 3.25rem;
+  --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
+  --volet-notes-colonne: min(var(--volet-notes-largeur-ajustee), var(--volet-notes-largeur));
+  --panneaux-decalage: 1rem;
+  /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés.
+     Réglable via la poignée à droite du panneau (valeur personnalisée en pixels). */
+  --largeur-outils: min(var(--largeur-outils-personnalisee, 23.25rem), 50vw);
+  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
   gap: 1rem;
   align-items: start;
   grid-template-areas:
-    'barre barre'
-    'gauche droite';
+    'barre barre barre'
+    'gauche droite volet';
+  transition: grid-template-columns 220ms ease;
   /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
   --barre-h: 2.4rem;
 }
-.retour {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid #bbb;
-  background: #fff;
-  border-radius: 5px;
-  cursor: pointer;
+.grille-ent.mode-audio {
+  --barre-h: calc(3rem + var(--panneaux-decalage));
+}
+.grille-ent.notes-ouvert {
+  --volet-notes-decalage: calc(var(--volet-notes-colonne) - var(--volet-notes-largeur-ajustee));
+  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-colonne);
+}
+.grille-ent.redimensionnement-notes {
+  transition: none;
+}
+.grille-ent.redimensionnement-outils {
+  transition: none;
+}
+.grille-ent.redimensionnement-notes .cadre-notes,
+.grille-ent.redimensionnement-notes .notes-languette {
+  transition: none;
+}
+/* Sans lecteur ni statut, aucune barre supplémentaire n'est nécessaire. */
+.grille-ent:not(:has(.barre .lecteur-audio, .barre .statut-session)) {
+  --barre-h: 0px;
+}
+.grille-ent:not(:has(.barre .lecteur-audio, .barre .statut-session)) .barre {
+  display: none;
 }
 .barre {
   grid-area: barre;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* Le retour au corpus reste à droite des statuts. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
@@ -325,6 +864,82 @@ function ouvrirRecueilsDepuisSelection() {
   background: #fff;
   height: var(--barre-h);
   box-sizing: border-box;
+}
+/* L'en-tête reste joint au lecteur pendant le défilement, sans espace où le texte pourrait réapparaître. */
+.entete-editeur {
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h));
+  z-index: 20;
+  background: #fff;
+}
+.outils-editeur {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 1.2rem 0.6rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+.outils-editeur button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.outils-editeur button:hover,
+.outils-editeur button.actif {
+  background: #e8f0fb;
+}
+/* La loupe est décalée du journal du même espace que journal ↔ réglage d'affichage. */
+.outils-editeur .bouton-journal {
+  margin-left: 1.1rem;
+}
+.outils-editeur .bouton-journal,
+.outils-editeur .groupe-affichage-noms button {
+  font-size: 14px;
+  min-height: 36px;
+  padding: 0.4rem 0.6rem;
+}
+/* Groupe segmenté « Affichage des noms » : boutons jointifs, nettement décalés
+ * des actions qui s'ouvrent (recherche, journal) pour marquer la distinction
+ * entre actions et réglage d'affichage. */
+.groupe-affichage-noms {
+  display: inline-flex;
+  margin-left: 1.1rem;
+}
+.groupe-affichage-noms button {
+  margin-left: -1px;
+  border-radius: 0;
+}
+.groupe-affichage-noms button:first-child {
+  border-radius: 5px 0 0 5px;
+}
+.groupe-affichage-noms button:last-child {
+  border-radius: 0 5px 5px 0;
+}
+.mention-pseudos {
+  font-size: 0.75rem;
+  color: #1565c0;
+  align-self: center;
+  white-space: nowrap;
+  margin-left: 1.1rem;
+}
+.outils-editeur img {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.mode-audio .barre {
+  padding-top: var(--panneaux-decalage);
 }
 /* Statut de session (publication) dans la barre d'actions */
 .statut-session {
@@ -358,7 +973,8 @@ function ouvrirRecueilsDepuisSelection() {
 /* Hôte <EditorContent> (le contenteditable ProseMirror est stylé dans editeur.css). */
 .cadre {
   border: 1px solid #ddd;
-  border-radius: 8px;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
   padding: 0.8rem 1rem;
   background: #fff;
 }
@@ -373,27 +989,264 @@ function ouvrirRecueilsDepuisSelection() {
   flex-direction: column;
   gap: 0.5rem;
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre d'actions et le bord bas de la fenêtre,
-     sinon son défilement interne garde les derniers éléments visibles SANS toucher au texte.
-     Le −1rem compense l'écart de la grille ; à la position naturelle (page en haut),
-     le panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
-  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
-  overflow-y: auto;
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  /* Le panneau reste entièrement visible entre la barre fixe et le bas de la fenêtre,
+     avec une marge inférieure d'un rem. */
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
 }
-/* Colonne de droite : lecteur audio puis éditeur.
-   Le lecteur est collant en haut (fond opaque), pour rester visible pendant la lecture ;
-   l'éditeur défile dessous. */
+.colonne-gauche.partagee {
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+}
+.groupe-outils {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  gap: 0.5rem;
+  min-height: 0;
+  border-radius: 6px;
+}
+.contenus-outils {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.partagee .groupe-outils > .defilement-superpose {
+  flex: 1;
+}
+.partagee .groupe-outils :deep(.zone-defilement) {
+  flex: 1;
+}
+.colonne-gauche .onglets button {
+  touch-action: none;
+  user-select: none;
+}
+.glissement-onglet {
+  user-select: none;
+}
+.separation-outils {
+  flex: 0 0 8px;
+  border-radius: 4px;
+  background: #dddde7;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.separation-outils:hover,
+.separation-outils:focus-visible {
+  background: #7aa4df;
+  outline: 2px solid #1565c0;
+}
+.zone-depot-bas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  min-height: 80px;
+  height: 35%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 2px dashed #7aa4df;
+  border-radius: 6px;
+  background: #edf4ffed;
+  color: #15559e;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.depot-actif {
+  outline: 2px solid #1565c0;
+  background-color: #edf4ff;
+}
+.apercu-onglet {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid #7aa4df;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 3px 12px #0002;
+  color: #1565c0;
+  font-size: 0.8rem;
+}
+.regrouper-outils {
+  flex: none;
+  align-self: flex-end;
+  border: none;
+  background: none;
+  padding: 0.2rem;
+  color: #666;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.regrouper-outils:hover {
+  color: #1565c0;
+  text-decoration: underline;
+}
+/* Sans consigne de parcours, son emplacement n'ajoute pas d'espace au-dessus du panneau. */
+[data-tour="ancre-guide-pp"]:empty {
+  display: none;
+}
+/* Colonne de droite : l'éditeur de transcription et, en vidéo, la zone média. */
+/* Poignée de réglage de la largeur du panneau de gauche, posée dans la gouttière
+   entre les colonnes ; invisible au repos, visible au survol et au clavier. */
+.poignee-largeur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -0.55rem;
+  width: 0.7rem;
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: 5px;
+  z-index: 40;
+}
+.poignee-largeur:hover,
+.poignee-largeur:focus-visible {
+  background: #e8edf5;
+}
+.poignee-largeur:focus {
+  outline: 2px solid #1565c0;
+  outline-offset: -2px;
+}
 .colonne-droite {
   grid-area: droite;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  /* Le transcript s'étend sous les gouttières de la grille et le décalage du volet Notes,
+     pour ne laisser que cet écart avec les panneaux voisins. */
+  --ecart-panneaux: 0.5rem;
+  margin-left: calc(var(--ecart-panneaux) - var(--panneaux-decalage));
+  margin-right: calc(2px + var(--ecart-panneaux) - 2 * var(--panneaux-decalage));
 }
-.lecteur-ancre {
+.volet-notes {
+  grid-area: volet;
+  display: flex;
+  align-items: stretch;
+  align-self: start;
+  min-width: 0;
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  z-index: 20;
-  background: #fff;
+  transform: translateX(calc(var(--panneaux-decalage) - 2px));
+  z-index: 22;
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  box-sizing: border-box;
+}
+.cadre-notes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--volet-notes-largeur-ajustee);
+  min-width: 0;
+  height: 100%;
+  overflow: clip;
+  transition: transform 220ms ease;
+}
+.cadre-notes > .panneau {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max(240px, var(--volet-notes-largeur-ajustee));
+  height: 100%;
+  box-sizing: border-box;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  padding-right: 1rem;
+  overflow-y: auto;
+}
+.volet-notes:not(.ouvert) > .cadre-notes {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  overflow: clip;
+  pointer-events: none;
+}
+.volet-notes:not(.ouvert) .cadre-notes > .panneau {
+  left: 0;
+  right: auto;
+  width: var(--volet-notes-largeur-ajustee);
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.volet-notes:not(.ouvert) .cadre-notes > .panneau > * {
+  visibility: hidden;
+}
+.onglets.notes-languette {
+  flex-direction: column;
+  gap: 2rem;
+}
+.notes-languette {
+  position: absolute;
+  z-index: 25;
+  top: 50%;
+  left: -1.375rem;
+  width: 2.75rem;
+  transform: translateY(-50%);
+  transition: translate 220ms ease;
+}
+.volet-notes:not(.ouvert) .notes-languette {
+  left: -1.375rem;
+}
+.volet-notes.ouvert > .cadre-notes > .panneau {
+  order: 1;
+  padding-left: 2.25rem;
+}
+.volet-notes.ouvert > .cadre-notes {
+  transform: translateX(var(--volet-notes-decalage));
+}
+.volet-notes.ouvert .notes-languette {
+  left: -1.375rem;
+  translate: var(--volet-notes-decalage) 0;
+}
+.notes-languette button {
+  border: 1px solid #ddd;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 6rem;
+  box-sizing: border-box;
+  padding: 0.4rem 0.2rem;
+  border-radius: 6px;
+}
+.volet-notes .notes-languette button {
+  border-bottom: 1px solid #ddd;
+  border-radius: 6px;
+}
+.onglets.notes-languette button span {
+  font-size: 14px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.notes-languette .ico-onglet {
+  width: 20px;
+  height: 20px;
+}
+.notes-languette button:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+  z-index: 1;
+}
+.lecteur-barre {
+  flex: 1 1 0;
+  height: 100%;
+  min-width: min-content;
+}
+.lecteur-barre :deep(.lecteur-audio) {
+  height: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  gap: 0.5rem;
+}
+/* Le filet des commandes tombe sur le bord droit des onglets (bordure et marge du lecteur déduites). */
+.lecteur-barre :deep(.commandes) {
+  box-sizing: border-box;
+  min-width: calc(var(--largeur-outils) - 0.6rem - 1px);
 }
 /* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
    Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :
@@ -403,10 +1256,6 @@ function ouvrirRecueilsDepuisSelection() {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
-  position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
-  z-index: 20;
-  background: #fff;
   /* Respire au-dessus de l'éditeur (le bouton vidéo n'est pas collé au cadre). */
   padding-bottom: 0.75rem;
 }
@@ -423,7 +1272,9 @@ function ouvrirRecueilsDepuisSelection() {
   color: #555;
   font-size: 0.75rem;
   font-weight: 600;
-  cursor: pointer;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
   padding: 0.2rem 0.6rem;
   margin-top: 0.1rem;
 }
@@ -433,6 +1284,7 @@ function ouvrirRecueilsDepuisSelection() {
 }
 .onglets {
   display: flex;
+  flex: none;
   gap: 0.25rem;
 }
 .onglets button {
@@ -449,13 +1301,22 @@ function ouvrirRecueilsDepuisSelection() {
   font-size: 0.78rem;
   cursor: pointer;
 }
+.colonne-gauche .onglets button {
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.1rem;
+}
+.onglets button span {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 .onglets button.actif {
   background: #fff;
   font-weight: 600;
   color: #1565c0;
 }
 /* Icônes des onglets (glyphes noirs), adoucies sur l'onglet inactif.
-   Plus grandes dans la barre gauche (20px) ; la liste d'accueil garde sa taille propre (20px, cf. .liste-tours).
+   Plus grandes dans la barre gauche (20px).
    L'onglet Anonymisation est un cran plus grand (23px). */
 .ico-onglet {
   object-fit: contain;
@@ -509,6 +1370,32 @@ function ouvrirRecueilsDepuisSelection() {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   padding: 0.5rem;
 }
+.fenetre-journal {
+  position: fixed;
+  bottom: 0.8rem;
+  right: 0.8rem;
+  z-index: 60;
+  width: min(30rem, calc(100vw - 1.6rem));
+  max-height: min(32rem, calc(100vh - var(--entete-h) - 2rem));
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.fenetre-journal :deep(.corpus-tete) {
+  padding-right: 2rem;
+}
+.fermer-journal {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.15rem 0.45rem;
+}
 .ligne-recherche,
 .ligne-remplacement {
   display: flex;
@@ -546,5 +1433,30 @@ function ouvrirRecueilsDepuisSelection() {
 }
 .barre-recherche .fermer {
   color: #888;
+}
+@media (max-width: 1000px) {
+  .grille-ent {
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
+  }
+  .grille-ent.notes-ouvert {
+    --volet-notes-largeur: min(320px, 34vw);
+    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-colonne);
+  }
+  .grille-ent:not(.notes-ouvert) {
+    --volet-notes-largeur: min(320px, 34vw);
+  }
+  /* En colonnes étroites, la largeur redevient fluide : la poignée disparaît. */
+  .poignee-largeur {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grille-ent {
+    transition: none;
+  }
+  .cadre-notes,
+  .notes-languette {
+    transition: none;
+  }
 }
 </style>

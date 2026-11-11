@@ -12,6 +12,7 @@ import { pluginCommentairesMarge } from '../editor/commentairesMarge'
 import { pluginReperage } from '../editor/reperage'
 import { pluginRecherche } from '../editor/recherche'
 import { pluginRemapJournal } from '../editor/journalRemap'
+import { creerDetectionDoubleAlt, estToucheAlt, SEUIL_DOUBLE_APPUI } from '../editor/raccourcisLecture'
 import { nomDeLocuteur } from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
@@ -80,6 +81,8 @@ export function useEntretien(deps: {
    *  si un audio était chargé et a donc été (dé)clenché ; `false` sinon (aucun
    *  audio → l'éditeur laisse la 2ᵉ espace se taper normalement). */
   basculerLecture?: () => boolean
+  /** Déplace la lecture en secondes ; renvoie false si aucun média n'est chargé. */
+  decalerLecture?: (secondes: number) => boolean
   /** Règles corpus (`corpus.json.reglesAnon`) — injectées par l'orchestrateur
    *  (useCorpus) : le menu contexte et les promotions résolvent les règles
    *  multi-pseudo et créent ou relient les règles à la portée corpus. */
@@ -130,17 +133,21 @@ export function useEntretien(deps: {
     nomCategorieNote: deps.nomCategorieNote,
     categorieNoteDefaut: deps.categorieNoteDefaut,
     planifierSauvegarde,
+    enregistrerAction: (libelle, inverse) => enregistrerAction(libelle, inverse),
   })
   const {
     notes,
     brouillonNote,
+    brouillonEditionNote,
     avertissementNote,
     commentairesPourLiaison,
     menuLiensNote,
     ajouterNote,
     editerNote,
     validerNote,
+    validerEditionNote,
     annulerNote,
+    agrandirNote,
     ecrireCorpsNote,
     ecrireTitreNote,
     enregistrerSyncZoneHorsModale,
@@ -164,9 +171,8 @@ export function useEntretien(deps: {
     valeursGen: {},
     audioRef: null,
   })
-  // L'entretien s'ouvre sur l'ACCUEIL par défaut : il présente les conseils et
-  // la vue d'ensemble des autres onglets (icone + titre) avant de commencer.
-  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('maison')
+  // L'entretien s'ouvre sur le premier onglet de travail.
+  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes' | 'commentaires'>('locuteurs')
   // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
   // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
   // stockée — recalculée au moindre déplacement du curseur.
@@ -189,6 +195,7 @@ export function useEntretien(deps: {
     remplacementTexte,
     occurrencesRecherche,
     indexRecherche,
+    ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
     remplacerOccurrenceCourante,
@@ -196,6 +203,7 @@ export function useEntretien(deps: {
   } = recherche
   const anonymisationEntretien = useAnonymisationEntretien({
     entretien,
+    locuteurs,
     ouvertId,
     ongletDroite,
     lireEditeur: () => editor.value ?? null,
@@ -248,12 +256,15 @@ export function useEntretien(deps: {
     accepterSuggestionLiaison,
     refuserSuggestionLiaison,
     detecterDivergencesPostTirage,
+    pseudonymisationUtilisee,
+    applicationsAnon,
   } = anonymisationEntretien
 
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journalEntretien = useJournalEntretien({
     entretien,
     locuteurs,
+    notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
     effetsAnnulation: {
@@ -370,10 +381,9 @@ export function useEntretien(deps: {
       ]
     },
   })
-  // Double-espace = play/pause (parité SonalPi1) : dans le texte, une espace tape
-  // un caractère — c'est la 2ᵉ espace rapprochée qui sert de commande de lecture.
-  const SEUIL_DOUBLE_ESPACE = 300 // ms
+  // Le double appui sur Espace contrôle la lecture sans ajouter de texte.
   let derniereEspace = 0
+  const doubleAlt = creerDetectionDoubleAlt()
   /** Verrou tenu par autrui sur l'entretien OUVERT (null sinon) — alimente le
    *  bandeau « tenu par X depuis HH:MM ». */
   const verrouAutrui = ref<{ userId: string; machineId: string; acquiredAt: string } | null>(null)
@@ -389,10 +399,23 @@ export function useEntretien(deps: {
         deps.clicTexte?.(pos)
         return false
       },
-      // Deux espaces à moins de SEUIL_DOUBLE_ESPACE = play/pause : on retire la
-      // 1ʳᵉ espace (déjà insérée) et on consomme la 2ᵉ. Ne se déclenche QUE si un
-      // audio est chargé (sinon `basculerLecture` renvoie false → frappe normale).
+      handleDOMEvents: {
+        blur: () => {
+          derniereEspace = 0
+          doubleAlt.reinitialiser()
+          return false
+        },
+      },
+      // Les raccourcis de lecture ne s'appliquent que dans le texte.
+      // Pour le double Espace, la première espace insérée est retirée.
       handleKeyDown: (view, event) => {
+        const decalage = doubleAlt.appui(event)
+        if (estToucheAlt(event)) {
+          derniereEspace = 0
+          if (decalage !== null) deps.decalerLecture?.(decalage)
+          // Empêche Alt d'activer le menu et de sortir le clavier du texte.
+          return true
+        }
         // Toute autre touche « coupe » la séquence : seules DEUX espaces
         // consécutives (rien entre elles) comptent, jamais deux espaces
         // rapprochées dans le temps mais séparées par de la frappe.
@@ -401,7 +424,7 @@ export function useEntretien(deps: {
           return false
         }
         const now = Date.now()
-        const rapprochee = now - derniereEspace < SEUIL_DOUBLE_ESPACE
+        const rapprochee = now - derniereEspace < SEUIL_DOUBLE_APPUI
         derniereEspace = now
         if (!rapprochee) return false // 1ʳᵉ espace : frappe normale
         if (!deps.basculerLecture?.()) return false // pas d'audio : ne rien manger
@@ -800,6 +823,8 @@ export function useEntretien(deps: {
   return {
     // état / modèle
     entretien,
+    pseudonymisationUtilisee,
+    applicationsAnon,
     locuteurs,
     blocsParole,
     meta,
@@ -821,6 +846,7 @@ export function useEntretien(deps: {
     remplacementTexte,
     occurrencesRecherche,
     indexRecherche,
+    ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
     remplacerOccurrenceCourante,
@@ -828,6 +854,7 @@ export function useEntretien(deps: {
     brouillonsAnon,
     notes,
     brouillonNote,
+    brouillonEditionNote,
     selectionVide,
     ouvertId,
     refusFormat,
@@ -859,7 +886,9 @@ export function useEntretien(deps: {
     ajouterNote,
     editerNote,
     validerNote,
+    validerEditionNote,
     annulerNote,
+    agrandirNote,
     avertissementNote,
     ecrireCorpsNote,
     ecrireTitreNote,

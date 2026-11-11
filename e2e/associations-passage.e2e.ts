@@ -10,7 +10,7 @@ async function ouvrirMenuSelection(page: Page, phrase: string) {
   await page.mouse.click(centre.x, centre.y, { button: 'right' })
 }
 
-test('le passage résume ses cas et les occurrences multiples de ses recueils', async () => {
+test('les associations du passage ne sont plus affichées dans l’entretien', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-associations-passage-')
   try {
     await entrerEntretien(page)
@@ -39,27 +39,8 @@ test('le passage résume ses cas et les occurrences multiples de ses recueils', 
     await page.getByRole('button', { name: 'Fermer la confirmation' }).click()
 
     await selectionner(page, 'Karine habite Lyon')
-    const resume = page.locator('.resume-associations')
-    await expect(resume.locator('summary').first()).toContainText('1 cas · 1 recueil')
-    await resume.locator('summary').first().click()
-    await expect(resume).toContainText('Portrait de Karine')
-    await expect(resume).toContainText('Ajout manuel')
-    await expect(resume).toContainText('Citations terrain · 2 occurrences')
+    await expect(page.locator('.resume-associations')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
-    await resume.locator('.choix-occurrences > summary').click()
-    await resume.getByRole('button', { name: /Ouvrir l’occurrence 2/ }).click()
-
-    const recueil = page.locator('.recueils-corpus')
-    await expect(recueil.getByLabel('Nom du recueil')).toHaveValue('Citations terrain')
-    await expect(recueil.locator('[data-recueil-item]:focus blockquote')).toHaveText('Karine habite Lyon')
-    await page.getByRole('button', { name: /Revenir au passage/ }).click()
-    await expect(page.locator('.editeur')).toBeFocused()
-    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Karine habite Lyon')
-
-    await page.getByRole('button', { name: 'Analyser et interpréter', exact: true }).click()
-    await page.keyboard.press('Control+f')
-    await page.getByRole('button', { name: 'Importer et traiter', exact: true }).click()
-    await expect(page.locator('.barre-recherche')).toHaveCount(0)
   } finally {
     await app.close()
   }

@@ -29,11 +29,10 @@ async function creerCommentaire(page: Page) {
 
 async function creerNote(page: Page) {
   await page.locator('[data-onglet="notes"]').click()
-  await page.getByRole('button', { name: '+ Note', exact: true }).click()
-  const modale = page.locator('.modale-note-fenetre')
-  await modale.locator('.champ-titre-note input').fill('Note avant correction')
-  await modale.locator('.zone-corps-note').fill('Cette note sert à vérifier le Journal du corpus.')
-  await modale.getByRole('button', { name: 'Valider', exact: true }).click()
+  const formulaire = page.locator('.nouvelle-note-inline')
+  await formulaire.locator('.champ-titre-note input').fill('Note avant correction')
+  await formulaire.locator('.zone-corps-note').fill('Cette note sert à vérifier le Journal du corpus.')
+  await formulaire.getByRole('button', { name: 'Créer une note', exact: true }).click()
   await expect(page.locator('.carte-note')).toContainText('Note avant correction')
 }
 
