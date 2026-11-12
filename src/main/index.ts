@@ -1155,7 +1155,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:migrerCategorie', (_e, id: string, nouveauParent: string | null) =>
     executerDefinitions('theme.migrer', (cible) => cible.migrerCategorie(id, nouveauParent)),
   )
-  ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) => {
+  ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string, avecCodages?: boolean) => {
+    // Retirer des codages dans plusieurs entretiens n'est possible que sur un corpus local.
+    if (avecCodages && contextesDistants.actuel) {
+      throw new Error('Un thème utilisé dans d’autres entretiens ne peut pas être supprimé depuis un corpus partagé.')
+    }
     if (contextesDistants.actuel instanceof ContexteGitLab) {
       return executerGitLab((contexte) =>
         contexte.executerDefinitions(
@@ -1165,7 +1169,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
     return executerDefinitions(
       'theme.supprimer',
-      (cible) => cible.supprimerCategorie(id, exceptId),
+      (cible) => cible.supprimerCategorie(id, exceptId, avecCodages),
     )
   })
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())

@@ -16,7 +16,7 @@ import {
  *  Corpus OU l'onglet Thématique ; le CODAGE se fait à l'écran Entretien (clic = coder).
  *  Invariants : (1) recolorer/retailler se reflète en direct SANS
  *  écrire dans l'entretien ; (2) cliquer un thème code la sélection ; (3)
- *  supprimer un thème utilisé = refus + compteur.
+ *  supprimer un thème demande une confirmation, qui signale son usage.
  */
 
 /** Sélectionne le 1er mot (« Karine ») puis code avec « Famille » (cat_001) :
@@ -183,21 +183,30 @@ test('créer un sous-thème → apparaît indenté sous son parent (hiérarchie)
   await app.close()
 })
 
-test('supprimer un thème utilisé est refusé avec un compteur ; un thème inutilisé part', async () => {
+test('supprimer un thème : confirmation toujours, usage signalé ; un thème utilisé peut être supprimé quand même', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
   await coderPremierMot(page) // cat_001 utilisé 1×
   await expect(page.locator('.tete .etat')).toHaveText('à jour') // sur disque → compte fiable
 
   await retourCorpus(page)
   await ouvrirEditionThemes(page)
-  // Supprimer cat_001 (utilisé) → refus + compteur, toujours 7 thèmes (3 démo
-  // + le bloc Pondérations : parent + 3 enfants).
+  // Supprimer cat_001 (utilisé) → confirmation avec l'usage signalé, annulée : toujours 7 thèmes
+  // (3 démo + le bloc Pondérations : parent + 3 enfants).
   await page.locator('.liste-thm li[data-nom="Famille"] .x').click()
-  await expect(page.locator('.modale-themes .msg-thm')).toContainText('utilisé 1')
+  await expect(page.locator('.confirm-suppr .alerte-usage')).toContainText('1 passage(s) codé(s)')
+  await page.locator('.confirm-actions').getByRole('button', { name: 'Annuler', exact: true }).click()
   await expect(page.locator('.liste-thm li')).toHaveCount(7)
 
-  // Supprimer « Lieu » (inutilisé) → retiré.
+  // Supprimer « Lieu » (inutilisé) → confirmation sans alerte, puis retiré.
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
+  await expect(page.locator('.confirm-suppr')).toContainText('n’est utilisé nulle part')
+  await expect(page.locator('.confirm-suppr .alerte-usage')).toHaveCount(0)
+  await page.locator('.confirm-actions').getByRole('button', { name: 'Supprimer', exact: true }).click()
   await expect(page.locator('.liste-thm li')).toHaveCount(6)
+
+  // Le thème utilisé se supprime aussi, avec ses codages.
+  await page.locator('.liste-thm li[data-nom="Famille"] .x').click()
+  await page.locator('.confirm-actions').getByRole('button', { name: 'Supprimer quand même', exact: true }).click()
+  await expect(page.locator('.liste-thm li')).toHaveCount(5)
   await app.close()
 })

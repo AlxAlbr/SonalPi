@@ -277,8 +277,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:deplacerCategorie', id, sens),
     migrerCategorie: (id: string, nouveauParent: string | null): Promise<CorpusFichier> =>
       invoquer('corpus:migrerCategorie', id, nouveauParent),
-    supprimerCategorie: (id: string, exceptId?: string): Promise<ResultatSuppressionCategorie> =>
-      invoquer('corpus:supprimerCategorie', id, exceptId),
+    supprimerCategorie: (id: string, exceptId?: string, avecCodages?: boolean): Promise<ResultatSuppressionCategorie> =>
+      invoquer('corpus:supprimerCategorie', id, exceptId, avecCodages),
     analyserOperationTheme: (demande: DemandeOperationTheme, operationPrecedente?: string): Promise<ApercuOperationTheme> =>
       invoquer('corpus:analyserOperationTheme', demande, operationPrecedente),
     detailsOperationTheme: (operationId: string, entretienId: string): Promise<DetailsOperationTheme> =>

@@ -87,7 +87,7 @@ test('supprimer un thème depuis l’entretien : confirmation + retrait des coda
   // ✕ sur « Lieu » (fenêtre d'édition) → confirmation annonçant 1 codage retiré.
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
-  await expect(page.locator('.confirm-suppr')).toContainText('1 codage')
+  await expect(page.locator('.confirm-suppr .alerte-usage')).toContainText('1 passage(s) codé(s)')
   await page.locator('.confirm-suppr .danger').click()
   await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(0)
   await fermerEditionThemes(page)
@@ -98,7 +98,7 @@ test('supprimer un thème depuis l’entretien : confirmation + retrait des coda
   await app.close()
 })
 
-test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien → refusé', async () => {
+test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien : signalé, puis retiré partout', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // e1 (seed) : coder « Lieu », enregistrer.
@@ -120,18 +120,28 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
-  // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » :
-  // refus affiché DANS la fenêtre d'édition.
+  // Retour, rouvrir e1 (1er de la liste), supprimer « Lieu » :
+  // la confirmation signale en évidence les deux usages, sans bloquer.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
   await page.locator('.onglets button[data-onglet="themes"]').click()
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
-  await expect(page.locator('.modale-themes .msg-thm')).toContainText('1 autre')
-  // Pas de confirmation ouverte, le thème est toujours là.
-  await expect(page.locator('.confirm-suppr')).toHaveCount(0)
+  const alerte = page.locator('.confirm-suppr .alerte-usage')
+  await expect(alerte).toContainText('2 passage(s) codé(s)')
+  await expect(alerte).toContainText('1 dans cet entretien, 1 dans d’autres entretiens')
+  // Annuler ne change rien.
+  await page.locator('.confirm-actions').getByRole('button', { name: 'Annuler', exact: true }).click()
   await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(1)
+  const usages = () => page.evaluate(async () =>
+    Object.values(await (window as any).sonal.corpus.usagesParCategorie() as Record<string, number>).reduce((a, b) => a + b, 0))
+  expect(await usages()).toBe(2)
+  // « Supprimer quand même » retire le thème et ses codages dans les DEUX entretiens.
+  await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
+  await page.locator('.confirm-actions').getByRole('button', { name: 'Supprimer quand même', exact: true }).click()
+  await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(0)
+  await expect.poll(usages).toBe(0)
   await app.close()
 })
 

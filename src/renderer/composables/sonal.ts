@@ -306,8 +306,10 @@ export function creerSonal() {
     deselectionnerCorpus,
     reinitialiser: reinitialiserSelectionCorpus,
   } = selectionCorpus
-  // Confirmation de suppression d'un thème DEPUIS l'entretien (orchestration).
-  const themeASupprimer = ref<{ id: string; nom: string; n: number } | null>(null)
+  // Confirmation de suppression d'un thème, depuis l'écran Corpus comme depuis l'entretien (orchestration).
+  //  `n` : codages dans l'entretien ouvert ; `autres` : codages dans les autres entretiens ;
+  //  `partage` : corpus distant, où l'on ne peut pas retirer des codages d'autres entretiens.
+  const themeASupprimer = ref<{ id: string; nom: string; n: number; autres: number; partage: boolean } | null>(null)
 
   const mediasCorpus = useMediasCorpus({
     membership: corpus.membership,
@@ -1020,27 +1022,35 @@ export function creerSonal() {
     if (casCorpus.casActifs.value) void casCorpus.actualiserMateriauxCas()
   })
 
-  // --- Suppression d'un thème DEPUIS l'entretien (croise corpus ↔ entretien) ---
+  // --- Suppression d'un thème (croise corpus ↔ entretien) ---
+  /** Compte les usages puis ouvre la confirmation : la suppression n'est jamais bloquée, l'usage est seulement signalé. */
   async function demanderSuppressionTheme(id: string) {
     ent.hintCodage.value = null
-    const autres = await window.sonal.corpus.compterUsagesCategorie(id, ent.ouvertId.value ?? undefined)
-    if (autres > 0) {
-      ent.hintCodage.value = `« ${corpus.nomTheme(id)} » est utilisé dans ${autres} autre(s) entretien — suppression impossible ici.`
-      return
-    }
-    const n = ent.entretien.annotations.filter((a) => a.type === 'codage' && a.code === id).length
-    themeASupprimer.value = { id, nom: corpus.nomTheme(id), n }
+    corpus.messageTheme.value = null
+    const ouvert = ent.ouvertId.value
+    const autres = await window.sonal.corpus.compterUsagesCategorie(id, ouvert ?? undefined)
+    const n = ouvert ? ent.entretien.annotations.filter((a) => a.type === 'codage' && a.code === id).length : 0
+    themeASupprimer.value = { id, nom: corpus.nomTheme(id), n, autres, partage: idDistantCourant.value !== null }
   }
-  /** Confirme : retire les codages de CET entretien (modèle=vérité), supprime la
-   *  DÉFINITION au corpus (exceptId → ne recompte pas cet entretien), autosave. */
+  /** Confirme : retire les codages de l'entretien ouvert (modèle=vérité) puis, si besoin, ceux des autres
+   *  entretiens, et supprime la DÉFINITION au corpus (l'entretien ouvert n'est pas recompté). */
   async function confirmerSuppressionTheme() {
     const cible = themeASupprimer.value
-    if (!cible) return
+    if (!cible || (cible.autres > 0 && cible.partage)) return
     await lancerOperationGlobale(async () => {
-      ent.retirerCodagesDuCode(cible.id)
-      if (!await publierAvantSuppressionDefinition()) return
-      const r = await window.sonal.corpus.supprimerCategorie(cible.id, ent.ouvertId.value ?? undefined)
-      if (r.ok) corpus.majCodebook(r.corpus.codebook)
+      const ouvert = ent.ouvertId.value
+      if (ouvert) {
+        ent.retirerCodagesDuCode(cible.id)
+        if (!await publierAvantSuppressionDefinition()) return
+      }
+      const r = await window.sonal.corpus.supprimerCategorie(cible.id, ouvert ?? undefined, cible.autres > 0)
+      if (r.ok) {
+        corpus.majCodebook(r.corpus.codebook)
+        if (corpus.codeCourant.value === cible.id) corpus.codeCourant.value = corpus.codebook.value[0]?.id ?? ''
+        await corpus.rafraichirUsages()
+      } else {
+        corpus.messageTheme.value = `« ${cible.nom} » vient d'être utilisé ailleurs : la suppression n'a pas été faite.`
+      }
       themeASupprimer.value = null
     })
   }

@@ -2,7 +2,6 @@ import { ref } from 'vue'
 import { ordreThemes } from '../../../shared/corpus'
 import type { Categorie, PatchCategorie, SegmentThematique } from '../../../shared/format'
 import { couleurPourCode, couleurHexPourCode } from '../../editor/decorations'
-import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 /** Gère les thèmes du corpus et leurs projections. */
 export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
@@ -105,21 +104,6 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
     majCodebook(corpus.codebook)
   }
 
-  async function supprimerTheme(id: string) {
-    messageTheme.value = null
-    await lancerOperationGlobale(async () => {
-      await opts.flush()
-      const resultat = await window.sonal.corpus.supprimerCategorie(id)
-      if (!resultat.ok) {
-        messageTheme.value =
-          `« ${nomTheme(id)} » est utilisé ${resultat.usages}× — retire d'abord ses codages.`
-        return
-      }
-      majCodebook(resultat.corpus.codebook)
-      if (codeCourant.value === id) codeCourant.value = codebook.value[0]?.id ?? ''
-    })
-  }
-
   return {
     codebook,
     codeCourant,
@@ -141,6 +125,5 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
     modifierTheme,
     deplacerTheme,
     migrerTheme,
-    supprimerTheme,
   }
 }

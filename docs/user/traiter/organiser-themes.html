@@ -92,9 +92,11 @@
     <h2 id="supprimer">Supprimer un thème avec précaution</h2>
     <p>Ne supprimez pas un thème pour retirer le codage d’un seul passage : utilisez <a href="premier-codage.html#retirer-codage">le retrait d’un codage</a>. Si vous voulez seulement masquer ses marques, rendez-le passif.</p>
     <p>Dans <strong>Édition des thèmes</strong>, la croix à droite d’une ligne demande la suppression. La colonne <strong>Nbre</strong> compte les codages de ce thème dans le corpus, et non le nombre d’entretiens concernés.</p>
+    <p>Une confirmation s’affiche toujours, depuis la vue Corpus comme depuis un entretien.</p>
     <ul>
-      <li><strong>Depuis la vue Corpus :</strong> un thème utilisé ne peut pas être supprimé. Un message indique qu’il possède encore des codages. Un thème inutilisé est supprimé sans confirmation supplémentaire.</li>
-      <li><strong>Depuis un entretien :</strong> la suppression est refusée si un autre entretien utilise le thème. Sinon, une confirmation indique combien de codages seront retirés de l’entretien ouvert. <strong>Annuler</strong> ne change rien ; <strong>Supprimer</strong> retire ces codages et supprime le thème du corpus.</li>
+      <li><strong>Si le thème n’est utilisé nulle part,</strong> la confirmation l’indique et <strong>Supprimer</strong> retire simplement le thème.</li>
+      <li><strong>Si le thème est utilisé,</strong> un encadré jaune indique combien de passages sont codés avec lui, dans l’entretien ouvert et dans les autres. <strong>Annuler</strong> ne change rien ; <strong>Supprimer quand même</strong> retire ces codages de tous les entretiens et supprime le thème du corpus.</li>
+      <li><strong>Sur un corpus partagé,</strong> un thème utilisé dans d’autres entretiens ne peut pas être supprimé d’ici : fusionnez-le ou transférez ses codages vers un autre thème.</li>
     </ul>
     <p class="retenir"><strong>Le texte des entretiens reste conservé, mais les codages retirés sont perdus.</strong> Ne comptez pas sur une restauration après suppression. Les sous-thèmes ne sont pas supprimés avec leur parent : ils remontent au niveau qu’il occupait et conservent leurs propres codages.</p>
     <h2 id="verifier">Vérifier ce qui est conservé</h2>

@@ -15,6 +15,13 @@ export function compterUsagesCategorie(entretiens: EntretienFichier[], code: str
   return n
 }
 
+/** Retire d'un entretien tous les codages d'un thème ; renvoie le nombre de codages retirés. */
+export function retirerCodagesDuTheme(entretien: EntretienFichier, code: string): number {
+  const avant = entretien.annotations.length
+  entretien.annotations = entretien.annotations.filter((a) => !(a.type === 'codage' && a.code === code))
+  return avant - entretien.annotations.length
+}
+
 /** Usages de TOUS les codes en un seul balayage (affichage du panneau). */
 export function usagesParCategorie(entretiens: EntretienFichier[]): Record<string, number> {
   const out: Record<string, number> = {}

@@ -133,7 +133,6 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     modifierTheme: themes.modifierTheme,
     deplacerTheme: themes.deplacerTheme,
     migrerTheme: themes.migrerTheme,
-    supprimerTheme: themes.supprimerTheme,
     lireNotes,
     commanderNotes,
     lirePersonnes,

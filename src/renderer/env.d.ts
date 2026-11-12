@@ -159,7 +159,7 @@ declare global {
         modifierCategorie: (id: string, patch: PatchCategorie) => Promise<CorpusFichier>
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
         migrerCategorie: (id: string, nouveauParent: string | null) => Promise<CorpusFichier>
-        supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
+        supprimerCategorie: (id: string, exceptId?: string, avecCodages?: boolean) => Promise<ResultatSuppressionCategorie>
         analyserOperationTheme: (demande: DemandeOperationTheme, operationPrecedente?: string) => Promise<ApercuOperationTheme>
         detailsOperationTheme: (operationId: string, entretienId: string) => Promise<DetailsOperationTheme>
         executerOperationTheme: (operationId: string, demande: DemandeOperationTheme, options: OptionsExecutionOperationTheme) => Promise<ResultatOperationTheme>

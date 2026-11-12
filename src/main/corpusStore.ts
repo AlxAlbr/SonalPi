@@ -2164,12 +2164,25 @@ export class CorpusStore {
     return { ...resultat, titre }
   }
 
-  /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée.
-   *  Politique explicite + compteur, pas de suppression silencieuse d'annotations. */
-  supprimerCategorie(id: string, exceptId?: string): ResultatSuppressionCategorie {
+  /** Supprime une catégorie. Tant qu'elle est utilisée, la suppression est refusée,
+   *  sauf si l'appelant a demandé explicitement de retirer aussi les codages (`avecCodages`).
+   *  Dans ce cas, les codages sont retirés de tous les entretiens avant la définition :
+   *  une interruption laisse un thème encore présent, jamais des codages sans thème. */
+  supprimerCategorie(id: string, exceptId?: string, avecCodages = false): ResultatSuppressionCategorie {
     this.verifierEcriture()
     const usages = this.compterUsagesCategorie(id, exceptId)
-    if (usages > 0) return { ok: false, usages }
+    if (usages > 0 && !avecCodages) return { ok: false, usages }
+    if (usages > 0) {
+      const concernes = this.chargerEntretiens()
+        .filter((e) => e.id !== exceptId && corpusModel.compterUsagesCategorie([e.data], id) > 0)
+      for (const e of concernes) this.verifierEcritureEntretien(e.id)
+      const maintenant = new Date().toISOString()
+      for (const e of concernes) {
+        corpusModel.retirerCodagesDuTheme(e.data, id)
+        e.data.lastModified = maintenant
+        this.ecrireJsonAtomique(this.entretienFile(e.id), e.data)
+      }
+    }
     const corpus = this.ouvrir()
     corpusModel.retirerCategorie(corpus, id)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
