@@ -110,7 +110,11 @@ export async function ouvrirOrganisation(
   onglet: 'cas' | 'recueils' | 'export' = 'cas',
 ): Promise<void> {
   if (!(await page.locator('.organisation-ecran').isVisible())) {
-    await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
+    if (await page.locator('.entretien-ecran').isVisible()) {
+      await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+      await attendreCorpus(page)
+    }
+    await page.locator('[data-tour="ouvrir-organiser"]').click()
   }
   const nom = { cas: 'Cas', recueils: 'Recueils', export: 'Exporter le corpus' }[onglet]
   const bouton = page.locator('.onglets-organisation').getByRole('button', { name: nom, exact: true })

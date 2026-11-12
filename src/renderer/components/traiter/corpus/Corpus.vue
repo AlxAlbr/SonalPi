@@ -90,7 +90,6 @@ const {
   renommagePossible,
   suppressionPossible,
   presencesSur,
-  entrerOrganisation,
 } = utiliserSonal()
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
@@ -741,9 +740,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
               </li>
             </ul>
-            <p v-if="ongletCorpus === 'accueil'" class="renvoi-organisation">
-              <button type="button" class="lien-organisation" @click="entrerOrganisation()">Cas et Recueils sont dans Organiser & Exporter →</button>
-            </p>
           </div>
         </section>
       </div>
@@ -776,11 +772,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 </template>
 
 <style scoped>
-.renvoi-organisation { margin: 1.2rem 0 0; font-size: .85rem; }
-/* Lien vers un autre espace : texte bleu, souligné au survol. */
-.lien-organisation { border: none; background: none; padding: 0; color: #2e73d8; font: inherit; cursor: pointer; }
-.lien-organisation:hover { text-decoration: underline; }
-.lien-organisation:focus-visible { outline: 2px solid #2e73d8; outline-offset: 2px; border-radius: 2px; }
 .actions-ent {
   display: flex;
   align-items: center;
