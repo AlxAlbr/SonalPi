@@ -142,7 +142,7 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
   await app.close()
 })
 
-test('supprimer une modalité utilisée est refusé (avec compteur)', async () => {
+test('supprimer une modalité utilisée : valeurs signalées, puis effacées avec elle', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-eav-')
   await creerVariable(page, "+ var. d'entretien", 'Lyon')
   await entrerEntretien(page)
@@ -150,14 +150,26 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await page.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
   await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
-  // Fenêtre d'édition des variables : tenter de supprimer la modalité « Lyon »
-  // (utilisée) → refus.
+  // Fenêtre d'édition des variables : supprimer la modalité « Lyon » (utilisée)
+  // → la confirmation signale la valeur ; Annuler ne change rien.
   await retourCorpus(page)
   await entrerDonnees(page)
   await ouvrirEditionVariables(page)
+  const confirmation = page.locator('dialog.dialogue-suppression')
   await page.locator('.modale-vars .liste-var > li').first().locator('.x-mod').first().click()
-  await expect(page.locator('.modale-vars .msg-thm')).toContainText('utilisée 1')
+  await expect(confirmation.locator('.alerte-usage')).toContainText('1 valeur(s) saisie(s)')
+  await confirmation.getByRole('button', { name: 'Annuler', exact: true }).click()
   await expect(page.locator('.modale-vars .liste-var > li').first().locator('.lig-mod')).toHaveCount(1)
+  // « Supprimer quand même » retire la modalité et efface la valeur saisie.
+  await page.locator('.modale-vars .liste-var > li').first().locator('.x-mod').first().click()
+  await confirmation.getByRole('button', { name: 'Supprimer quand même', exact: true }).click()
+  await expect(page.locator('.modale-vars .liste-var > li').first().locator('.lig-mod')).toHaveCount(0)
+  const valeurs = await page.evaluate(async () => {
+    const corpus = await window.sonal.corpus.ouvrir()
+    const idVar = Object.keys(corpus.variables)[0]
+    return (await window.sonal.corpus.usagesDonnee(idVar)).valeurs
+  })
+  expect(valeurs).toBe(0)
   await app.close()
 })
 

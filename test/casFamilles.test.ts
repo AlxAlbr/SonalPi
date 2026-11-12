@@ -229,6 +229,9 @@ describe('CorpusStore — familles et migration v6', () => {
     store.casCommander({ type: 'creer-famille', famille: familleCas(), cas: [casModalite('c')] })
     expect(store.supprimerModalite('v', 'c')).toEqual({ ok: false, usages: 1 })
     expect(store.supprimerVariable('v').ok).toBe(false)
+    // Effacer les valeurs ne suffit pas : les règles des cas bloquent toujours la suppression.
+    expect(store.supprimerModalite('v', 'c', undefined, true).ok).toBe(false)
+    expect(store.supprimerVariable('v', undefined, true).ok).toBe(false)
     const avant = readFileSync(fichier, 'utf8')
     expect(() => store.casCommander({ type: 'completer-famille', famille: familleCas(), cas: [casModalite('a'), casModalite('disparue')] })).toThrow()
     expect(readFileSync(fichier, 'utf8')).toBe(avant)

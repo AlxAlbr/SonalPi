@@ -397,14 +397,16 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:ajouterVariable', lib, portee),
     modifierVariable: (id: string, patch: Partial<Variable>): Promise<CorpusFichier> =>
       invoquer('corpus:modifierVariable', id, patch),
-    supprimerVariable: (id: string): Promise<ResultatSuppression> =>
-      invoquer('corpus:supprimerVariable', id),
+    usagesDonnee: (idVar: string, idMod?: string, exceptId?: string): Promise<{ valeurs: number; cas: number }> =>
+      invoquer('corpus:usagesDonnee', idVar, idMod, exceptId),
+    supprimerVariable: (id: string, exceptId?: string, avecValeurs?: boolean): Promise<ResultatSuppression> =>
+      invoquer('corpus:supprimerVariable', id, exceptId, avecValeurs),
     ajouterModalite: (idVar: string, lib: string): Promise<CorpusFichier> =>
       invoquer('corpus:ajouterModalite', idVar, lib),
     modifierModalite: (idVar: string, idMod: string, lib: string): Promise<CorpusFichier> =>
       invoquer('corpus:modifierModalite', idVar, idMod, lib),
-    supprimerModalite: (idVar: string, idMod: string): Promise<ResultatSuppression> =>
-      invoquer('corpus:supprimerModalite', idVar, idMod),
+    supprimerModalite: (idVar: string, idMod: string, exceptId?: string, avecValeurs?: boolean): Promise<ResultatSuppression> =>
+      invoquer('corpus:supprimerModalite', idVar, idMod, exceptId, avecValeurs),
     matrice: (): Promise<MatriceCorpus> => invoquer('corpus:matrice'),
     marquerDemo: (marqueur: MarqueurDemo, dirAttendu?: string): Promise<CorpusFichier> =>
       invoquer('corpus:marquerDemo', marqueur, dirAttendu),

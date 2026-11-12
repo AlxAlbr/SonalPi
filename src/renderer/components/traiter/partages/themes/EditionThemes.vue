@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { utiliserSonal } from '../../../../composables/sonal'
 import { visiblesThemes } from '../../../../../shared/corpus/categories'
 import { operationGlobaleEnCours } from '../../../../operationGlobaleCorpus'
+import DialogueSuppression from '../DialogueSuppression.vue'
 
 /**
  *  Fenêtre d'ÉDITION des thèmes : le crayon ouvre une modale, la consultation
@@ -93,14 +94,6 @@ function changerDescription(id: string, evt: Event) {
 }
 const usageTotal = computed(() => (themeASupprimer.value ? themeASupprimer.value.n + themeASupprimer.value.autres : 0))
 
-// La confirmation de suppression est une fenêtre modale, ouverte au-dessus de la fenêtre d'édition.
-const dialogueSuppression = ref<HTMLDialogElement | null>(null)
-watch(themeASupprimer, (demande) => {
-  const dialogue = dialogueSuppression.value
-  if (!dialogue) return
-  if (demande && !dialogue.open) dialogue.showModal()
-  else if (!demande && dialogue.open) dialogue.close()
-}, { flush: 'post' })
 
 // --- Migration d'un thème sous un nouveau parent ---
 // ▲▼ ne réordonnent que DANS la fratrie ; le ⤵ change l'emplacement du thème dans l'arbre (sous un autre thème parent,
@@ -158,39 +151,32 @@ onMounted(() => {
       <p v-if="contexte === 'entretien' && hintCodage" class="msg-thm">{{ hintCodage }}</p>
 
       <!-- Confirmation de suppression (acte destructif) : l'usage du thème est signalé, jamais bloquant. -->
-      <dialog
-        ref="dialogueSuppression"
-        class="dialogue-suppression"
-        aria-labelledby="titre-suppression-theme"
-        @cancel.prevent="themeASupprimer = null"
+      <DialogueSuppression
+        :ouvert="!!themeASupprimer"
+        :titre="themeASupprimer ? `Supprimer le thème « ${themeASupprimer.nom} » ?` : ''"
+        :peut-supprimer="!!themeASupprimer && !(themeASupprimer.autres > 0 && themeASupprimer.partage)"
+        :libelle-supprimer="usageTotal > 0 ? 'Supprimer quand même' : 'Supprimer'"
+        :occupe="operationGlobaleEnCours"
+        @confirmer="confirmerSuppressionTheme"
+        @annuler="themeASupprimer = null"
       >
-      <div v-if="themeASupprimer" class="confirm-suppr">
-        <h4 id="titre-suppression-theme">Supprimer le thème « {{ themeASupprimer.nom }} » ?</h4>
-        <p v-if="usageTotal > 0" class="alerte-usage">
-          <span aria-hidden="true">⚠</span>
-          <span>
-            Ce thème est utilisé par <b>{{ usageTotal }} passage(s) codé(s)</b><template v-if="themeASupprimer.n > 0 && themeASupprimer.autres > 0">
-              ({{ themeASupprimer.n }} dans cet entretien, {{ themeASupprimer.autres }} dans d’autres entretiens)</template><template v-else-if="themeASupprimer.autres > 0">
-              dans le corpus</template>.
-            Le supprimer retire aussi ces codages des textes — <b>irréversible</b>.
-          </span>
-        </p>
-        <p v-else class="usage-nul">Ce thème n’est utilisé nulle part.</p>
-        <p v-if="themeASupprimer.autres > 0 && themeASupprimer.partage" class="usage-partage">
-          Sur un corpus partagé, un thème utilisé dans d’autres entretiens ne peut pas être supprimé d’ici.
-          Utilisez plutôt « Fusionner » ou « Transférer » (onglet Thèmes du corpus).
-        </p>
-        <div class="confirm-actions">
-          <button
-            v-if="!(themeASupprimer.autres > 0 && themeASupprimer.partage)"
-            class="danger"
-            :disabled="operationGlobaleEnCours"
-            @click="confirmerSuppressionTheme"
-          >{{ usageTotal > 0 ? 'Supprimer quand même' : 'Supprimer' }}</button>
-          <button autofocus @click="themeASupprimer = null">Annuler</button>
-        </div>
-      </div>
-      </dialog>
+        <template v-if="themeASupprimer">
+          <p v-if="usageTotal > 0" class="alerte-usage">
+            <span aria-hidden="true">⚠</span>
+            <span>
+              Ce thème est utilisé par <b>{{ usageTotal }} passage(s) codé(s)</b><template v-if="themeASupprimer.n > 0 && themeASupprimer.autres > 0">
+                ({{ themeASupprimer.n }} dans cet entretien, {{ themeASupprimer.autres }} dans d’autres entretiens)</template><template v-else-if="themeASupprimer.autres > 0">
+                dans le corpus</template>.
+              Le supprimer retire aussi ces codages des textes — <b>irréversible</b>.
+            </span>
+          </p>
+          <p v-else class="usage-nul">Ce thème n’est utilisé nulle part.</p>
+          <p v-if="themeASupprimer.autres > 0 && themeASupprimer.partage" class="usage-partage">
+            Sur un corpus partagé, un thème utilisé dans d’autres entretiens ne peut pas être supprimé d’ici.
+            Utilisez plutôt « Fusionner » ou « Transférer » (onglet Thèmes du corpus).
+          </p>
+        </template>
+      </DialogueSuppression>
 
       <!-- Choix de la destination d'une migration (⤵ d'une ligne) -->
       <div v-if="migrationDe" class="confirm-suppr">
@@ -540,53 +526,5 @@ onMounted(() => {
   margin-left: 0.4rem;
   max-width: 100%;
 }
-/* .confirm-suppr/.confirm-actions : styles GLOBAUX (base.css), ici posés sur le fond blanc de la fenêtre. */
-.dialogue-suppression {
-  width: min(440px, 92vw);
-  padding: 1rem 1.1rem;
-  border: 1px solid #d6dce8;
-  border-radius: 10px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-}
-.dialogue-suppression::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-.dialogue-suppression .confirm-suppr {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: 0.85rem;
-}
-.dialogue-suppression h4 {
-  margin: 0;
-  font-size: 1rem;
-  color: #b3261e;
-}
-.dialogue-suppression .confirm-actions {
-  justify-content: flex-end;
-  margin-top: 0.8rem;
-}
-/* Signale en évidence que le thème est utilisé : fond jaune vif, texte sombre, pour ne pas passer inaperçu. */
-.alerte-usage {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  margin: 0.45rem 0 0;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid #e0a800;
-  border-left-width: 4px;
-  border-radius: 5px;
-  background: #fff3cd;
-  color: #5c4400;
-  font-size: 0.8rem;
-}
-.usage-nul,
-.usage-partage {
-  margin: 0.4rem 0 0;
-  font-size: 0.78rem;
-}
-.usage-nul {
-  color: #6b4c49;
-}
+/* .confirm-suppr/.confirm-actions : styles GLOBAUX (base.css). */
 </style>

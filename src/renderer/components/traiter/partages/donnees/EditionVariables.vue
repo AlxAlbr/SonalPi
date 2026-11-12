@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { utiliserSonal } from '../../../../composables/sonal'
 import { operationGlobaleEnCours } from '../../../../operationGlobaleCorpus'
+import DialogueSuppression from '../DialogueSuppression.vue'
 
 /**
  * Fenêtre d'ÉDITION des variables : « Ajouter/modifier une variable » — le
@@ -13,6 +14,8 @@ import { operationGlobaleEnCours } from '../../../../operationGlobaleCorpus'
  *  - statut publique/privée (privée = exclue des exports) ;
  *  - modalités (le dictionnaire), à la main, via un MODÈLE pré-rempli (intégré
  *    ou importé — « Mes modèles »), ou par export/import d'un fichier JSON.
+ *  Supprimer une variable ou une modalité demande toujours une confirmation, qui signale ses valeurs saisies.
+ *  Ces valeurs peuvent être effacées avec elle ; les règles des cas, elles, empêchent la suppression.
  */
 defineEmits<{ fermer: [] }>()
 
@@ -32,12 +35,17 @@ const {
   ajouterVariable,
   renommerVariable,
   basculerPriveeVariable,
-  supprimerVariable,
   ajouterModalite,
   ajouterModalitesModele,
   renommerModalite,
-  supprimerModalite,
+  donneeASupprimer,
+  demanderSuppressionDonnee,
+  confirmerSuppressionDonnee,
 } = utiliserSonal()
+
+const valeursTotal = computed(() => (donneeASupprimer.value ? donneeASupprimer.value.n + donneeASupprimer.value.autres : 0))
+const suppressionPossible = computed(() => !!donneeASupprimer.value
+  && donneeASupprimer.value.cas === 0 && !(donneeASupprimer.value.autres > 0 && donneeASupprimer.value.partage))
 
 /** Modèles de modalités pré-remplies INTÉGRÉS. Les modèles IMPORTÉS vivent à
  *  part (`modelesUtilisateur`, registre du profil) et sont proposés dans le
@@ -230,6 +238,42 @@ onMounted(() => {
 
       <p v-if="messageVar" class="msg-thm">{{ messageVar }}</p>
 
+      <!-- Confirmation de suppression : les valeurs saisies sont signalées, jamais bloquantes ; les cas, si. -->
+      <DialogueSuppression
+        :ouvert="!!donneeASupprimer"
+        :titre="donneeASupprimer ? `Supprimer ${donneeASupprimer.idMod === undefined ? 'la variable' : 'la modalité'} « ${donneeASupprimer.nom} » ?` : ''"
+        :peut-supprimer="suppressionPossible"
+        :libelle-supprimer="valeursTotal > 0 ? 'Supprimer quand même' : 'Supprimer'"
+        :occupe="operationGlobaleEnCours"
+        @confirmer="confirmerSuppressionDonnee"
+        @annuler="donneeASupprimer = null"
+      >
+        <template v-if="donneeASupprimer">
+          <p v-if="valeursTotal > 0" class="alerte-usage">
+            <span aria-hidden="true">⚠</span>
+            <span>
+              {{ donneeASupprimer.idMod === undefined ? 'Cette variable a' : 'Cette modalité est choisie dans' }}
+              <b>{{ valeursTotal }} valeur(s) saisie(s)</b><template v-if="donneeASupprimer.n > 0 && donneeASupprimer.autres > 0">
+                ({{ donneeASupprimer.n }} dans cet entretien, {{ donneeASupprimer.autres }} dans d’autres entretiens)</template><template v-else-if="donneeASupprimer.autres > 0">
+                dans le corpus</template>.
+              La supprimer efface aussi ces valeurs, qui redeviennent vides — <b>irréversible</b>.
+            </span>
+          </p>
+          <p v-else-if="donneeASupprimer.cas === 0" class="usage-nul">Aucune valeur n’est saisie.</p>
+          <p v-if="donneeASupprimer.cas > 0" class="alerte-usage">
+            <span aria-hidden="true">⚠</span>
+            <span>
+              Elle sert aussi à <b>{{ donneeASupprimer.cas }} cas ou famille(s) de cas</b> (règles ou dérivations).
+              Retirez d’abord ces usages dans « Organiser & Exporter », onglet Cas : elle ne peut pas être supprimée d’ici.
+            </span>
+          </p>
+          <p v-if="donneeASupprimer.cas === 0 && donneeASupprimer.autres > 0 && donneeASupprimer.partage" class="usage-partage">
+            Sur un corpus partagé, une valeur saisie dans d’autres entretiens ne peut pas être effacée d’ici.
+            Videz d’abord ces valeurs dans la table de données.
+          </p>
+        </template>
+      </DialogueSuppression>
+
       <p v-if="variablesListees.length === 0" class="vide">
         <template v-if="portee">Aucune variable de portée {{ portee }} — « + var. de {{ portee }} ».</template>
         <template v-else>Aucune variable — « + var. d'entretien » ou « + var. de locuteur ».</template>
@@ -273,7 +317,7 @@ onMounted(() => {
             >
               {{ v.priv ? '🔒 privée' : '🔓 publique' }}
             </button>
-            <button class="x" title="Supprimer la variable" :disabled="operationGlobaleEnCours" @click="supprimerVariable(v.id)">✕</button>
+            <button class="x" title="Supprimer la variable" :disabled="operationGlobaleEnCours" @click="demanderSuppressionDonnee(v.id)">✕</button>
           </div>
           <p v-if="v.modalites.length === 0" class="note-libre">
             Aucune modalité — saisie en <b>texte libre</b> dans la table (chaque valeur saisie crée sa
@@ -288,7 +332,7 @@ onMounted(() => {
                 @keyup.enter="($event.target as HTMLInputElement).blur()"
                 @change="renommerModalite(v.id, m.id, $event)"
               />
-              <button class="x-mod" title="Supprimer la modalité" :disabled="operationGlobaleEnCours" @click="supprimerModalite(v.id, m.id)">✕</button>
+              <button class="x-mod" title="Supprimer la modalité" :disabled="operationGlobaleEnCours" @click="demanderSuppressionDonnee(v.id, m.id)">✕</button>
             </li>
           </ul>
           <div class="actions-mod">

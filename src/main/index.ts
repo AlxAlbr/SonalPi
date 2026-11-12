@@ -1705,18 +1705,28 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Variable>) =>
     executerDefinitions('variable.modifier', (cible) => cible.modifierVariable(id, patch)),
   )
-  ipcMain.handle('corpus:supprimerVariable', (_e, id: string) =>
-    executerDefinitions('variable.supprimer', (cible) => cible.supprimerVariable(id)),
+  ipcMain.handle('corpus:usagesDonnee', (_e, idVar: string, idMod?: string, exceptId?: string) =>
+    store.usagesDonnee(idVar, idMod, exceptId),
   )
+  ipcMain.handle('corpus:supprimerVariable', (_e, id: string, exceptId?: string, avecValeurs?: boolean) => {
+    // Effacer des valeurs dans plusieurs entretiens n'est possible que sur un corpus local.
+    if (avecValeurs && contextesDistants.actuel) {
+      throw new Error('Une variable qui a des valeurs dans d’autres entretiens ne peut pas être supprimée depuis un corpus partagé.')
+    }
+    return executerDefinitions('variable.supprimer', (cible) => cible.supprimerVariable(id, exceptId, avecValeurs))
+  })
   ipcMain.handle('corpus:ajouterModalite', (_e, idVar: string, lib: string) =>
     executerDefinitions('modalite.creer', (cible) => cible.ajouterModalite(idVar, lib)),
   )
   ipcMain.handle('corpus:modifierModalite', (_e, idVar: string, idMod: string, lib: string) =>
     executerDefinitions('modalite.modifier', (cible) => cible.modifierModalite(idVar, idMod, lib)),
   )
-  ipcMain.handle('corpus:supprimerModalite', (_e, idVar: string, idMod: string) =>
-    executerDefinitions('modalite.supprimer', (cible) => cible.supprimerModalite(idVar, idMod)),
-  )
+  ipcMain.handle('corpus:supprimerModalite', (_e, idVar: string, idMod: string, exceptId?: string, avecValeurs?: boolean) => {
+    if (avecValeurs && contextesDistants.actuel) {
+      throw new Error('Une modalité choisie dans d’autres entretiens ne peut pas être supprimée depuis un corpus partagé.')
+    }
+    return executerDefinitions('modalite.supprimer', (cible) => cible.supprimerModalite(idVar, idMod, exceptId, avecValeurs))
+  })
   ipcMain.handle('corpus:matrice', () => store.matriceCorpus())
 
   // Audio : une session d'éditeur existante est réutilisée. Sur un entretien

@@ -1,4 +1,5 @@
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, provide, inject, type InjectionKey } from 'vue'
+import { compterValeursVariable, effacerValeursVariable } from '../../shared/corpus/requetes'
 import { useRetoursContextuels } from './useRetoursContextuels'
 import { useContextesPanneaux } from './useContextesPanneaux'
 import { capturerAffichage, capturerSelection } from './contexteVisuel'
@@ -310,6 +311,11 @@ export function creerSonal() {
   //  `n` : codages dans l'entretien ouvert ; `autres` : codages dans les autres entretiens ;
   //  `partage` : corpus distant, où l'on ne peut pas retirer des codages d'autres entretiens.
   const themeASupprimer = ref<{ id: string; nom: string; n: number; autres: number; partage: boolean } | null>(null)
+  // Même principe pour une variable ou une modalité (`idMod`) : `n` et `autres` comptent des valeurs saisies,
+  //  `cas` les règles ou dérivations des cas qui s'en servent et empêchent la suppression.
+  const donneeASupprimer = ref<{
+    idVar: string; idMod?: string; nom: string; n: number; autres: number; cas: number; partage: boolean
+  } | null>(null)
 
   const mediasCorpus = useMediasCorpus({
     membership: corpus.membership,
@@ -1055,6 +1061,46 @@ export function creerSonal() {
     })
   }
 
+  // --- Suppression d'une variable ou d'une modalité (même logique que les thèmes) ---
+  const valeursOuvertes = () => ({ meta: ent.meta, locuteurs: ent.locuteurs.value })
+  /** Compte les valeurs puis ouvre la confirmation ; seules les règles des cas empêchent la suppression. */
+  async function demanderSuppressionDonnee(idVar: string, idMod?: string) {
+    corpus.messageVar.value = null
+    const ouvert = ent.ouvertId.value
+    const usages = await window.sonal.corpus.usagesDonnee(idVar, idMod, ouvert ?? undefined)
+    const variable = corpus.variables.value.find((v) => v.id === idVar)
+    const nom = idMod === undefined
+      ? variable?.lib ?? idVar
+      : variable?.modalites.find((m) => m.id === idMod)?.lib ?? idMod
+    donneeASupprimer.value = {
+      idVar, idMod, nom,
+      n: ouvert ? compterValeursVariable(valeursOuvertes(), idVar, idMod) : 0,
+      autres: usages.valeurs, cas: usages.cas, partage: idDistantCourant.value !== null,
+    }
+  }
+  /** Confirme : efface les valeurs de l'entretien ouvert puis, si besoin, celles des autres entretiens,
+   *  et supprime la définition (l'entretien ouvert n'est pas recompté). */
+  async function confirmerSuppressionDonnee() {
+    const cible = donneeASupprimer.value
+    if (!cible || cible.cas > 0 || (cible.autres > 0 && cible.partage)) return
+    await lancerOperationGlobale(async () => {
+      const ouvert = ent.ouvertId.value
+      if (ouvert && effacerValeursVariable(valeursOuvertes(), cible.idVar, cible.idMod) > 0) {
+        if (!await publierAvantSuppressionDefinition()) return
+      }
+      const r = cible.idMod === undefined
+        ? await window.sonal.corpus.supprimerVariable(cible.idVar, ouvert ?? undefined, cible.autres > 0)
+        : await window.sonal.corpus.supprimerModalite(cible.idVar, cible.idMod, ouvert ?? undefined, cible.autres > 0)
+      if (r.ok) {
+        corpus.majVariables(r.corpus.variables)
+        await corpus.rafraichirMatrice()
+      } else {
+        corpus.messageVar.value = `« ${cible.nom} » vient d'être utilisée ailleurs : la suppression n'a pas été faite.`
+      }
+      donneeASupprimer.value = null
+    })
+  }
+
   watch([dernierTirage, corpus.revisionPersonnesCorpus], () => {
     if (casCorpus.casActifs.value) void casCorpus.actualiserCas()
   })
@@ -1567,6 +1613,7 @@ export function creerSonal() {
     afficherSynthese: () => entrerAnalyse('synthese'),
     afficherAnalysesCroisees: () => entrerAnalyse('analyses-croisees'),
     themeASupprimer,
+    donneeASupprimer,
     corpusSelId,
     corpusSelMeta,
     selectionnerCorpus,
@@ -1655,6 +1702,8 @@ export function creerSonal() {
     reprendre,
     demanderSuppressionTheme,
     confirmerSuppressionTheme,
+    demanderSuppressionDonnee,
+    confirmerSuppressionDonnee,
     listeEntretiens,
     modaleNouveauCorpus,
     modaleCorpusDistant,

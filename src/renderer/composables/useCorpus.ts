@@ -141,11 +141,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     ajouterVariable: variables.ajouterVariable,
     renommerVariable: variables.renommerVariable,
     basculerPriveeVariable: variables.basculerPriveeVariable,
-    supprimerVariable: variables.supprimerVariable,
     ajouterModalite: variables.ajouterModalite,
     ajouterModalitesModele: variables.ajouterModalitesModele,
     renommerModalite: variables.renommerModalite,
-    supprimerModalite: variables.supprimerModalite,
     // modèles de modalités réutilisables (« Mes modèles », niveau profil)
     modelesUtilisateur: variables.modelesUtilisateur,
     lireModelesUtilisateur: variables.lireModelesUtilisateur,

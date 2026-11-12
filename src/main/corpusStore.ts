@@ -2231,20 +2231,50 @@ export class CorpusStore {
     return corpusModel.compterUsagesModalite(this.datas(), idVar, idMod) + compterUsagesCasVariable(this.ouvrir(), idVar, idMod)
   }
 
-  supprimerVariable(id: string): ResultatSuppression {
+  /** Usages d'une variable (ou d'une modalité), en deux parts : les valeurs saisies dans les entretiens,
+   *  que l'on peut effacer avec la définition, et les règles ou dérivations des cas, qui bloquent la suppression.
+   *  `exceptId` exclut un entretien du comptage (l'entretien ouvert, compté par l'interface). */
+  usagesDonnee(idVar: string, idMod?: string, exceptId?: string): { valeurs: number; cas: number } {
+    const datas = this.chargerEntretiens().filter((e) => e.id !== exceptId).map((e) => e.data)
+    const valeurs = idMod === undefined
+      ? corpusModel.compterUsagesVariable(datas, idVar)
+      : corpusModel.compterUsagesModalite(datas, idVar, idMod)
+    return { valeurs, cas: compterUsagesCasVariable(this.ouvrir(), idVar, idMod) }
+  }
+
+  /** Efface les valeurs d'une variable (ou d'une modalité) dans tous les entretiens, sauf `exceptId`. */
+  private effacerValeursDonnee(idVar: string, idMod: string | undefined, exceptId?: string): void {
+    const concernes = this.chargerEntretiens()
+      .filter((e) => e.id !== exceptId && corpusModel.compterValeursVariable(e.data, idVar, idMod) > 0)
+    for (const e of concernes) this.verifierEcritureEntretien(e.id)
+    const maintenant = new Date().toISOString()
+    for (const e of concernes) {
+      corpusModel.effacerValeursVariable(e.data, idVar, idMod)
+      e.data.lastModified = maintenant
+      this.ecrireJsonAtomique(this.entretienFile(e.id), e.data)
+    }
+  }
+
+  /** Supprime une variable. Les règles et dérivations des cas bloquent toujours la suppression ;
+   *  les valeurs saisies la bloquent aussi, sauf si l'appelant a demandé de les effacer (`avecValeurs`).
+   *  Les valeurs sont effacées avant la définition : une interruption laisse la variable en place. */
+  supprimerVariable(id: string, exceptId?: string, avecValeurs = false): ResultatSuppression {
     this.verifierEcriture()
-    const usages = this.compterUsagesVariable(id)
-    if (usages > 0) return { ok: false, usages }
+    const { valeurs, cas } = this.usagesDonnee(id, undefined, exceptId)
+    if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
+    if (valeurs > 0) this.effacerValeursDonnee(id, undefined, exceptId)
     const corpus = this.ouvrir()
     corpusModel.retirerVariable(corpus, id)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return { ok: true, corpus }
   }
 
-  supprimerModalite(idVar: string, idMod: string): ResultatSuppression {
+  /** Supprime une modalité, selon la même règle que `supprimerVariable`. */
+  supprimerModalite(idVar: string, idMod: string, exceptId?: string, avecValeurs = false): ResultatSuppression {
     this.verifierEcriture()
-    const usages = this.compterUsagesModalite(idVar, idMod)
-    if (usages > 0) return { ok: false, usages }
+    const { valeurs, cas } = this.usagesDonnee(idVar, idMod, exceptId)
+    if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
+    if (valeurs > 0) this.effacerValeursDonnee(idVar, idMod, exceptId)
     const corpus = this.ouvrir()
     corpusModel.retirerModalite(corpus, idVar, idMod)
     this.ecrireJsonAtomique(this.corpusFile, corpus)

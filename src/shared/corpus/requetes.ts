@@ -40,6 +40,33 @@ export function compterUsagesVariable(entretiens: EntretienFichier[], idVar: str
   return n
 }
 
+/** Valeurs d'une variable dans un seul entretien, et chez ses locuteurs ;
+ *  avec `idMod`, seulement celles égales à cette modalité. */
+type ValeursEntretien = { meta: { valeursGen: Record<string, string> }; locuteurs: Array<{ valeursLoc: Record<string, string> }> }
+const valeurVisee = (valeur: string | undefined, idMod?: string) => valeur != null && (idMod === undefined || valeur === idMod)
+
+export function compterValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
+  let n = valeurVisee(entretien.meta?.valeursGen?.[idVar], idMod) ? 1 : 0
+  for (const l of entretien.locuteurs) if (valeurVisee(l.valeursLoc?.[idVar], idMod)) n++
+  return n
+}
+
+/** Efface d'un entretien les valeurs d'une variable (ou d'une seule modalité) ; renvoie le nombre de valeurs effacées. */
+export function effacerValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
+  let n = 0
+  if (valeurVisee(entretien.meta?.valeursGen?.[idVar], idMod)) {
+    delete entretien.meta.valeursGen[idVar]
+    n++
+  }
+  for (const l of entretien.locuteurs) {
+    if (valeurVisee(l.valeursLoc?.[idVar], idMod)) {
+      delete l.valeursLoc[idVar]
+      n++
+    }
+  }
+  return n
+}
+
 /** Usages d'une modalité = nombre de valeurs égales à `idMod` pour `idVar`. */
 export function compterUsagesModalite(entretiens: EntretienFichier[], idVar: string, idMod: string): number {
   let n = 0

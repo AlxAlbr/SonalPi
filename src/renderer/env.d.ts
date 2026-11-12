@@ -246,10 +246,11 @@ declare global {
           portee: 'entretien' | 'locuteur',
         ) => Promise<{ id: string; corpus: CorpusFichier }>
         modifierVariable: (id: string, patch: Partial<Variable>) => Promise<CorpusFichier>
-        supprimerVariable: (id: string) => Promise<ResultatSuppression>
+        usagesDonnee: (idVar: string, idMod?: string, exceptId?: string) => Promise<{ valeurs: number; cas: number }>
+        supprimerVariable: (id: string, exceptId?: string, avecValeurs?: boolean) => Promise<ResultatSuppression>
         ajouterModalite: (idVar: string, lib: string) => Promise<CorpusFichier>
         modifierModalite: (idVar: string, idMod: string, lib: string) => Promise<CorpusFichier>
-        supprimerModalite: (idVar: string, idMod: string) => Promise<ResultatSuppression>
+        supprimerModalite: (idVar: string, idMod: string, exceptId?: string, avecValeurs?: boolean) => Promise<ResultatSuppression>
         matrice: () => Promise<MatriceCorpus>
         marquerDemo: (marqueur: MarqueurDemo, dirAttendu?: string) => Promise<CorpusFichier>
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>

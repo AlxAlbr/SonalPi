@@ -1009,6 +1009,32 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
     }, [])
     expect(store.supprimerVariable(v)).toEqual({ ok: false, usages: 1 })
   })
+
+  test('sur demande, la suppression efface aussi les valeurs saisies dans tous les entretiens', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id: v } = store.ajouterVariable('Statut', 'locuteur')
+    store.ajouterModalite(v, 'A')
+    const c = store.ajouterModalite(v, 'B')
+    const [a, b] = c.variables[v].modalites.map((m) => m.id)
+    const entretien = (valeur: string) => ({
+      corpsTexte: { type: 'doc' as const, content: [] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [{ index: 1, nom: 'A', valeursLoc: { [v]: valeur }, personneRef: null }],
+      meta: { valeursGen: {}, audioRef: null },
+    })
+    store.importerEntretien('E1', entretien(a), [])
+    store.importerEntretien('E2', entretien(b), [])
+    expect(store.usagesDonnee(v)).toEqual({ valeurs: 2, cas: 0 })
+    // Une modalité : seules ses valeurs sont effacées.
+    expect(store.supprimerModalite(v, a, undefined, true).ok).toBe(true)
+    expect(store.usagesDonnee(v)).toEqual({ valeurs: 1, cas: 0 })
+    // La variable : toutes ses valeurs restantes disparaissent avec elle.
+    expect(store.supprimerVariable(v, undefined, true).ok).toBe(true)
+    expect(store.usagesDonnee(v)).toEqual({ valeurs: 0, cas: 0 })
+    expect(store.ouvrir().variables[v]).toBeUndefined()
+  })
 })
 
 describe('CorpusStore — règles corpus & scan anon (lecture)', () => {

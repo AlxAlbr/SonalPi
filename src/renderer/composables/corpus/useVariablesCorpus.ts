@@ -8,7 +8,6 @@ import type {
   Variable,
 } from '../../../shared/format'
 import { afficherErreurGlobale, effacerErreurGlobaleSi } from '../../erreurs'
-import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 /** Gère les variables du corpus et leur matrice de valeurs. */
 export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
@@ -95,19 +94,6 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     }
   }
 
-  async function supprimerVariable(id: string) {
-    messageVar.value = null
-    await lancerOperationGlobale(async () => {
-      await opts.flush()
-      const resultat = await window.sonal.corpus.supprimerVariable(id)
-      if (!resultat.ok) {
-        messageVar.value = `Variable utilisée ${resultat.usages}× — traite d’abord ses valeurs et ses usages dans les cas ou familles.`
-        return
-      }
-      majVariables(resultat.corpus.variables)
-    })
-  }
-
   async function basculerPriveeVariable(id: string, privee: boolean) {
     const corpus = await window.sonal.corpus.modifierVariable(id, { priv: privee })
     majVariables(corpus.variables)
@@ -136,19 +122,6 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
       const corpus = await window.sonal.corpus.modifierModalite(idVar, idMod, libelle)
       majVariables(corpus.variables)
     }
-  }
-
-  async function supprimerModalite(idVar: string, idMod: string) {
-    messageVar.value = null
-    await lancerOperationGlobale(async () => {
-      await opts.flush()
-      const resultat = await window.sonal.corpus.supprimerModalite(idVar, idMod)
-      if (!resultat.ok) {
-        messageVar.value = `Modalité utilisée ${resultat.usages}× — traite d’abord ses valeurs et ses usages dans les cas ou familles.`
-        return
-      }
-      majVariables(resultat.corpus.variables)
-    })
   }
 
   async function lireModelesUtilisateur(): Promise<void> {
@@ -249,12 +222,10 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     reinitialiser,
     ajouterVariable,
     renommerVariable,
-    supprimerVariable,
     basculerPriveeVariable,
     ajouterModalite,
     ajouterModalitesModele,
     renommerModalite,
-    supprimerModalite,
     lireModelesUtilisateur,
     importerModeleUtilisateur,
     poserGen,
