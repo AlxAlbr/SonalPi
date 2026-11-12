@@ -263,7 +263,8 @@ export function useOperationsThemesCorpus(deps: {
     if (destination !== null && !d.cibles.some((c) => (typeof c === 'string' ? c : c.token) === destination)) return
     if (!details.value.get(codage.entretienId)?.codages.some((c) => cleCodageTheme(c.codage) === cleCodageTheme(codage))) return
     d.choix = d.choix.filter((c) => cleCodageTheme(c.codage) !== cleCodageTheme(codage))
-    if (destination !== null) d.choix.push({ codage: { ...codage }, destination })
+    // Choisir la source comme destination revient à laisser le codage où il est.
+    if (destination !== null && destination !== d.source) d.choix.push({ codage: { ...codage }, destination })
     demandeConfirmee.value = null
   }
 

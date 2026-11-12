@@ -254,10 +254,10 @@ export function verifierDemandeOperationTheme(corpus: CorpusFichier, demande: De
       'Les destinations existantes et anciennes ne peuvent pas être mélangées.')
     if (existantes.length) {
       exiger(new Set(existantes).size === existantes.length, 'Une destination de division est sélectionnée plusieurs fois.')
-      for (const cible of existantes) {
-        exigerCategorie(corpus, cible)
-        exiger(cible !== demande.source, 'La source ne peut pas être une destination de la division.')
-      }
+      for (const cible of existantes) exigerCategorie(corpus, cible)
+      // La source peut rester l'une des destinations : ses codages y restent, elle ne peut alors pas être supprimée.
+      exiger(!existantes.includes(demande.source) || !demande.effacerSource,
+        'La source ne peut pas être supprimée si elle reste une destination de la division.')
     }
   }
   const tokens = new Set<string>()
@@ -359,7 +359,8 @@ export function construirePlanEntretienTheme(
     const destinationsExistantes = demande.cibles.every((cible) => typeof cible === 'string')
     return {
       sources: [demande.source],
-      reaffectations: demande.choix.filter((choix) => choix.codage.entretienId === entretienId)
+      // Un codage attribué à la source elle-même n'a rien à changer : il reste en place.
+      reaffectations: demande.choix.filter((choix) => choix.codage.entretienId === entretienId && choix.destination !== demande.source)
         .map((choix) => ({
           annotationId: choix.codage.annotationId,
           destination: destinationsExistantes ? choix.destination : resoudre(choix.destination),

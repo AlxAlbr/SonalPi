@@ -115,6 +115,29 @@ describe('réaffectations pures', () => {
     expect(resultat.entretien.annotations.map((a) => a.id)).toEqual(['a', 'c'])
   })
 
+  test('la source peut rester l’une des destinations de la division', () => {
+    const demande: Extract<DemandeOperationTheme, { type: 'division' }> = {
+      type: 'division', source: 'source', cibles: ['source', 'cible'], choix: [], effacerSource: false,
+    }
+    demande.choix = [
+      { codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' },
+      { codage: { entretienId: 'e1', annotationId: 'b' }, destination: 'source' },
+    ]
+    verifierDemandeOperationTheme(corpus(), demande)
+    verifierRepartitionOperationTheme(demande, demande.choix.map((choix) => choix.codage))
+    const e = entretien([codage('a'), codage('b')])
+    const plan = construirePlanEntretienTheme(e, 'e1', demande, [])
+    expect(plan.reaffectations).toEqual([{ annotationId: 'a', destination: 'cible' }])
+    expect(appliquerReaffectationsTheme(e, plan).entretien.annotations.map((a) => a.code)).toEqual(['cible', 'source'])
+  })
+
+  test('une source qui reste destination ne peut pas être supprimée', () => {
+    const demande: Extract<DemandeOperationTheme, { type: 'division' }> = {
+      type: 'division', source: 'source', cibles: ['source', 'cible'], choix: [], effacerSource: true,
+    }
+    expect(() => verifierDemandeOperationTheme(corpus(), demande)).toThrow(/reste une destination/)
+  })
+
   test('division partielle : les codages sans choix restent sur la source', () => {
     const demande = division()
     demande.choix = [{ codage: { entretienId: 'e1', annotationId: 'a' }, destination: 'cible' }]
@@ -289,7 +312,7 @@ describe('validation des demandes', () => {
   })
 
   test.each([
-    ['cible', 'cible'], ['source', 'cible'], ['inconnue', 'cible'],
+    ['cible', 'cible'], ['inconnue', 'cible'],
   ])('refuse des destinations existantes invalides (%s, %s)', (premiere, seconde) => {
     expect(() => verifierDemandeOperationTheme(corpus(), {
       ...division(), cibles: [premiere, seconde],

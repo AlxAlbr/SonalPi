@@ -62,11 +62,15 @@ const ciblesFusion = computed(() => {
   return categories.value.filter((c) => [source.value, secondeFusion.value]
     .filter((id) => id !== c.id).every((retiree) => !estDescendantDe(c.id, retiree)))
 })
+/** Destinations proposées : toutes les thématiques, y compris la source (dont les codages restent en place). */
 function ciblesDivision(index: number) {
   const dejaChoisies = new Set(destinationsDivision.value.slice(0, nombreDestinations.value)
     .filter((id, i) => i !== index && !!id))
-  return categories.value.filter((c) => c.id !== source.value && !dejaChoisies.has(c.id))
+  return categories.value.filter((c) => !dejaChoisies.has(c.id))
+    .map((c) => c.id === source.value ? { ...c, libelle: `${c.libelle} (thématique source, conservée)` } : c)
 }
+const sourceDansDestinations = computed(() => !!source.value
+  && destinationsDivision.value.slice(0, nombreDestinations.value).includes(source.value))
 const titre = computed(() => typeChoisi.value ? titres[typeChoisi.value] : '')
 const verificationAutorisee = computed(() => {
   const d = suivi.value?.demande ?? demande.value
@@ -110,7 +114,7 @@ function motif(type: TypeOperation): string | null {
   if (!gesteDisponible(capacite)) return lectureSeule.value ? 'Ce corpus est actuellement en lecture seule ou hors ligne.' : 'Ce parcours n’est pas encore disponible sur ce corpus.'
   if (!codebook.value.length) return 'Créez d’abord une thématique avec le crayon.'
   if (type === 'fusion' && codebook.value.length < 2) return 'Une fusion demande deux thématiques existantes.'
-  if (type === 'division' && codebook.value.length < 3) return 'Une division demande une source et deux destinations existantes.'
+  if (type === 'division' && codebook.value.length < 2) return 'Une division demande une source et au moins une autre thématique existante.'
   return null
 }
 async function ouvrir(type: TypeOperation): Promise<void> {
@@ -160,7 +164,7 @@ function requete(): DemandeOperationTheme {
   return {
     type: 'division', source: source.value,
     cibles: destinationsDivision.value.slice(0, nombreDestinations.value),
-    choix: [], effacerSource: effacerSource.value,
+    choix: [], effacerSource: effacerSource.value && !sourceDansDestinations.value,
   }
 }
 async function preparer(): Promise<void> { await ops.commencer(requete()) }
@@ -306,9 +310,10 @@ watch([etape, () => props.actif, vue], async () => {
                     </select>
                   </label>
                 </div>
-                <p class="note">Créez au préalable les thématiques nécessaires avec le crayon du codebook.</p>
-                <label v-if="gesteDisponible('suppressionSourceThemes')" class="case"><input v-model="effacerSource" type="checkbox" />Supprimer la source après répartition complète</label>
-                <p v-if="effacerSource" class="note">Les sous-thèmes de la source seront replacés sous son ancien parent.</p>
+                <p class="note">Créez au préalable les thématiques nécessaires avec le crayon du codebook. La thématique source peut être l’une des destinations : les codages qui lui sont attribués restent en place.</p>
+                <label v-if="gesteDisponible('suppressionSourceThemes')" class="case"><input v-model="effacerSource" type="checkbox" :disabled="sourceDansDestinations" />Supprimer la source après répartition complète</label>
+                <p v-if="sourceDansDestinations" class="note">La source reste une destination : elle ne sera pas supprimée.</p>
+                <p v-else-if="effacerSource" class="note">Les sous-thèmes de la source seront replacés sous son ancien parent.</p>
               </template>
             </template>
           </fieldset>
@@ -316,10 +321,11 @@ watch([etape, () => props.actif, vue], async () => {
         </form>
 
         <template v-else-if="etape === 'repartition' && demande?.type === 'division' && apercu">
-          <p><b>{{ nonRepartis }}</b> codage(s) sans destination sur {{ apercu.totaux.passages }}. {{ demande.effacerSource ? 'Tous les codages doivent être répartis, orphelins compris.' : 'Les codages sans destination resteront sur la source.' }}</p>
+          <p v-if="demande.cibles.includes(demande.source)"><b>{{ nonRepartis }}</b> codage(s) sur {{ apercu.totaux.passages }} restent sur la source, qui est l’une des destinations.</p>
+          <p v-else><b>{{ nonRepartis }}</b> codage(s) sans destination sur {{ apercu.totaux.passages }}. {{ demande.effacerSource ? 'Tous les codages doivent être répartis, orphelins compris.' : 'Les codages sans destination resteront sur la source.' }}</p>
           <p v-if="apercu.execution === 'entretiens-sequentiels'" class="note">Les compteurs portent uniquement sur les codages observés. Les membres indisponibles seront nommés dans l’aperçu ; ils ne seront pas modifiés.</p>
           <p v-if="perime" class="alerte">L’aperçu doit être recalculé avant de continuer. Les choix ne seront conservés que si les fichiers sont toujours valides.</p>
-          <RepartitionTheme :apercu="apercu" :destinations="destinationsRepartition" :details="details" :choix="choixParCodage" :chargements="detailsEnCours" :disabled="occupe || perime"
+          <RepartitionTheme :apercu="apercu" :destinations="destinationsRepartition" :source="demande.source" :details="details" :choix="choixParCodage" :chargements="detailsEnCours" :disabled="occupe || perime"
             @charger="ops.chargerDetails" @attribuer="ops.attribuer" @tout-attribuer="ops.toutAttribuer" @consulter="consulter" />
           <footer>
             <button :disabled="occupe || !!suivi" @click="ops.reinitialiser">Modifier les destinations</button>

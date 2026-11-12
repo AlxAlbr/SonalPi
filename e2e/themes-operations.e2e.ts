@@ -210,6 +210,32 @@ test('division avec source conservée : les codages non répartis restent sur la
   expect(apres.corpus.codebook.cat_003.parent).toBeNull()
 })
 
+test('division : la source peut être l’une des destinations, ses codages restent en place', async () => {
+  await page.getByRole('button', { name: 'Diviser…', exact: true }).click()
+  await modale().getByRole('combobox', { name: 'Thématique source', exact: true }).selectOption('cat_001')
+  await modale().getByRole('combobox', { name: 'Destination 1', exact: true }).selectOption('cat_001')
+  await modale().getByRole('combobox', { name: 'Destination 2', exact: true }).selectOption('cat_002')
+  // La source reste une destination : elle ne peut pas être supprimée.
+  await expect(modale().getByLabel('Supprimer la source après répartition complète')).toBeDisabled()
+  await expect(modale()).toContainText('La source reste une destination')
+  await modale().getByRole('button', { name: 'Préparer la répartition' }).click()
+  await expect(modale()).toContainText('restent sur la source, qui est l’une des destinations')
+  await modale().getByRole('button', { name: /▸ Entretien Karine/ }).click()
+  // La source est une colonne numérotée comme les autres : pas de colonne « Source » en plus.
+  await expect(modale().getByRole('columnheader', { name: '1. Famille' }).first()).toBeVisible()
+  await expect(modale().getByRole('columnheader', { name: 'Source', exact: true })).toHaveCount(0)
+  await expect(modale().getByRole('radio', { name: 'Attribuer orphelin à Famille', exact: true })).toBeChecked()
+  await modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true }).check()
+  await modale().getByRole('button', { name: 'Voir l’aperçu final' }).click()
+  await expect(modale()).toContainText('1 codage(s) resteront sur la source')
+  await modale().getByRole('button', { name: 'Confirmer et appliquer' }).click()
+  await expect(modale()).toContainText('Opération appliquée')
+  const apres = await lire()
+  expect(apres.corpus.codebook.cat_001).toBeDefined()
+  expect(apres.annotations.find((a) => a.id === 'orphelin')?.code).toBe('cat_001')
+  expect(apres.annotations.find((a) => a.id === 'a')?.code).not.toBe('cat_001')
+})
+
 test('la consultation conserve l’atelier mais invalide l’aperçu ; aucun choix obsolète n’est réinventé', async () => {
   await ouvrirDivision(false)
   await modale().getByRole('radio', { name: 'Attribuer a à Travail', exact: true }).check()

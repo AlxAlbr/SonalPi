@@ -11,6 +11,8 @@ import { cleCodageTheme } from '../../../composables/corpus/useOperationsThemesC
 const props = defineProps<{
   apercu: ApercuOperationTheme
   destinations: Array<{ id: string; nom: string }>
+  /** Thématique source de la division : si elle figure parmi les destinations, elle remplace la colonne « Source ». */
+  source?: string
   details: Map<string, DetailsOperationTheme>
   choix: Map<string, string>
   chargements: Set<string>
@@ -25,6 +27,9 @@ const emit = defineEmits<{
 const deplie = ref<string | null>(null)
 const selection = ref<string | null>(null)
 const tousVers = ref('')
+const sourceEstDestination = computed(() => props.destinations.some((d) => d.id === props.source))
+const estAttribue = (cle: string, destination: string): boolean =>
+  props.choix.get(cle) === destination || (destination === props.source && !props.choix.has(cle))
 const entretiens = computed(() => props.apercu.parEntretien.filter((e) => e.passages > 0))
 const codages = computed(() => deplie.value ? props.details.get(deplie.value)?.codages ?? [] : [])
 watch(() => props.apercu.operationId, () => { deplie.value = null; selection.value = null })
@@ -88,7 +93,7 @@ function tout(): void {
                 <thead><tr>
                   <th scope="col">Passage</th>
                   <th v-for="(destination, index) in destinations" :key="destination.id" scope="col">{{ index + 1 }}. {{ destination.nom }}</th>
-                  <th scope="col">Source</th>
+                  <th v-if="!sourceEstDestination" scope="col">Source</th>
                 </tr></thead>
                 <tbody>
                   <tr v-for="codage in codages.filter((c) => section === 'texte' ? !!c.extrait : !c.extrait)" :key="cleCodageTheme(codage.codage)"
@@ -99,10 +104,10 @@ function tout(): void {
                     </button></td>
                     <td v-for="destination in destinations" :key="destination.id">
                       <input type="radio" :name="cleCodageTheme(codage.codage)" :aria-label="`Attribuer ${codage.annotationId} à ${destination.nom}`"
-                        :checked="choix.get(cleCodageTheme(codage.codage)) === destination.id" :disabled="disabled"
+                        :checked="estAttribue(cleCodageTheme(codage.codage), destination.id)" :disabled="disabled"
                         @focus="selectionner(codage)" @change="emit('attribuer', codage.codage, destination.id)" />
                     </td>
-                    <td><input type="radio" :name="cleCodageTheme(codage.codage)" :aria-label="`Conserver ${codage.annotationId} sur la source`"
+                    <td v-if="!sourceEstDestination"><input type="radio" :name="cleCodageTheme(codage.codage)" :aria-label="`Conserver ${codage.annotationId} sur la source`"
                       :checked="!choix.has(cleCodageTheme(codage.codage))" :disabled="disabled"
                       @focus="selectionner(codage)" @change="emit('attribuer', codage.codage, null)" /></td>
                   </tr>

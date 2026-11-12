@@ -192,6 +192,8 @@ Dans un corpus distant, le bouton global **Actualiser** renouvelle aussi l’out
   dans la hiérarchie n’est pas proposée.
 - **Diviser…** répartit les codages vers deux à quatre thématiques déjà
   présentes dans le codebook. Créez-les auparavant avec le crayon si nécessaire.
+  La thématique source peut être l’une des destinations : les codages qui lui
+  sont attribués restent en place, et la source n’est alors pas supprimée.
 
 Avant toute écriture, l’aperçu annonce passages, entretiens, orphelins, doublons
 prévisibles et éventuels fichiers indisponibles. Une fusion indique aussi les
@@ -203,9 +205,11 @@ Pour diviser, dépliez un entretien et choisissez une destination pour chaque
 codage, ou attribuez tous ses codages à une destination. Sur une ligne
 sélectionnée, les touches **1 à 4** choisissent la destination correspondante.
 Les codages sans texte, notamment les orphelins, apparaissent séparément.
-Sans destination, un codage reste sur la source. **Supprimer la source après
-répartition complète** exige une destination pour tous les codages, orphelins
-compris. Les destinations conservent leur position actuelle dans le codebook. Si la
+Sans destination, un codage reste sur la source ; si la source est l’une des
+destinations, elle devient une colonne numérotée comme les autres. **Supprimer
+la source après répartition complète** exige une destination pour tous les
+codages, orphelins compris, et n’est pas proposé lorsque la source reste une
+destination. Les destinations conservent leur position actuelle dans le codebook. Si la
 source est supprimée, ses sous-thèmes sont replacés sous son ancien parent.
 
 **Consulter l’entretien** conserve l’atelier mais invalide son aperçu. Au
