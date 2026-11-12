@@ -175,7 +175,7 @@ test('supprimer une modalité utilisée : valeurs signalées, puis effacées ave
 
 for (const portee of ['entretien', 'locuteur'] as const) {
   for (const suppression of ['variable', 'modalité'] as const) {
-    test(`supprimer une ${suppression} de ${portee} empêche le Journal de restaurer ses valeurs`, async () => {
+    test(`suppression de ${suppression} de ${portee} : fermeture obligatoire si utilisée, Journal protégé sinon`, async () => {
       const { app, page } = await ouvrirSurCorpus('sonal-eav-journal-')
       try {
         await creerVariable(page, portee === 'entretien' ? "+ var. d'entretien" : '+ var. de locuteur', 'A')
@@ -194,14 +194,29 @@ for (const portee of ['entretien', 'locuteur'] as const) {
         await select.selectOption({ label: 'B' })
         await expect(page.locator('.tete .etat')).toHaveText('à jour')
         await page.locator('.panneau.donnees .nouvelle-var').click()
-        await variable.locator(suppression === 'variable' ? '.x' : '.x-mod').first().click()
+        await variable.locator(suppression === 'variable' ? '.x' : '.x-mod').nth(suppression === 'variable' ? 0 : 1).click()
         const confirmation = page.locator('dialog.dialogue-suppression')
+        await expect(confirmation).toContainText('Enregistrez-le et fermez-le')
+        await expect(confirmation.getByRole('button', { name: /^Supprimer/ })).toHaveCount(0)
+        await confirmation.getByRole('button', { name: 'Annuler', exact: true }).click()
+        if (suppression === 'variable') {
+          await fermerEditionVariables(page)
+          await retourCorpus(page)
+          await entrerDonnees(page)
+          await ouvrirEditionVariables(page)
+        }
+        await variable.locator(suppression === 'variable' ? '.x' : '.x-mod').first().click()
         await expect(confirmation.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
         await confirmation.getByRole('button', { name: /^Supprimer/ }).click()
         await expect(variable.locator('.lig-mod')).toHaveCount(suppression === 'variable' ? 0 : 1)
         await fermerEditionVariables(page)
+        if (suppression === 'variable') {
+          await retourCorpus(page)
+          await entrerEntretien(page)
+        }
         await page.locator('[data-onglet="journal"]').click()
-        await expect(page.locator('.journal .annuler-entree').first()).toBeDisabled()
+        if (suppression === 'modalité') await expect(page.locator('.journal .annuler-entree').first()).toBeDisabled()
+        else await expect(page.locator('.journal .annuler-entree')).toHaveCount(0)
         const usages = await page.evaluate(async () => {
           const c = await window.sonal.corpus.ouvrir()
           const id = Object.keys(c.membership)[0]
@@ -234,11 +249,16 @@ test('une suppression refusée conserve les valeurs dans l’entretien affiché 
       ipcMain.removeHandler('corpus:supprimerVariable')
       ipcMain.handle('corpus:supprimerVariable', () => ({ ok: false, usages: 1 }))
     })
-    await page.locator('.panneau.donnees .nouvelle-var').click()
+    await retourCorpus(page)
+    await entrerDonnees(page)
+    await ouvrirEditionVariables(page)
     await page.locator('.modale-vars .liste-var > li .x').first().click()
     await page.locator('dialog.dialogue-suppression').getByRole('button', { name: 'Supprimer quand même' }).click()
     await expect(page.locator('.modale-vars .msg-thm')).toContainText("la suppression n'a pas été faite")
     await fermerEditionVariables(page)
+    await retourCorpus(page)
+    await entrerEntretien(page)
+    await ongletDonnees(page)
     await expect(select.locator('option:checked')).toHaveText('A')
     const valeurs = await page.evaluate(async () => {
       const c = await window.sonal.corpus.ouvrir()

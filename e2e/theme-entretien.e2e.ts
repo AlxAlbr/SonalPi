@@ -74,7 +74,7 @@ test('créer un thème depuis l’entretien (fenêtre d’édition) → apparaî
   await app.close()
 })
 
-test('supprimer un thème depuis l’entretien : confirmation + retrait des codages', async () => {
+test('supprimer un thème utilisé exige de fermer l’entretien avant de confirmer au corpus', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
 
   // Coder « Lieu » sur « Karine ».
@@ -86,11 +86,21 @@ test('supprimer un thème depuis l’entretien : confirmation + retrait des coda
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await expect(page.locator('.confirm-suppr .alerte-usage')).toContainText('1 passage(s) codé(s)')
+  await expect(page.locator('dialog.dialogue-suppression')).toContainText('Enregistrez-le et fermez-le')
+  await expect(page.locator('.confirm-suppr .danger')).toHaveCount(0)
+  await page.locator('dialog.dialogue-suppression').getByRole('button', { name: 'Annuler' }).click()
+  await fermerEditionThemes(page)
+  await expect(page.locator('.editeur .annot')).toHaveCount(1)
+  await retourCorpus(page)
+  await ouvrirEditionThemes(page)
+  await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await page.locator('.confirm-suppr .danger').click()
   await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(0)
   await fermerEditionThemes(page)
 
-  // Le thème a disparu de la liste de codage ET son codage est retiré du modèle.
+  await retourCorpus(page)
+  await entrerEntretien(page)
+  await page.locator('[data-onglet="themes"]').click()
   await expect(page.locator('.theme-coder', { hasText: 'Lieu' })).toHaveCount(0)
   await expect(page.locator('.editeur .annot')).toHaveCount(0)
   await app.close()
@@ -104,6 +114,7 @@ test('le Journal ne restaure pas un codage dont le thème a été supprimé', as
     await selectionner(page, 'Karine')
     await coderTheme(page, 'Lieu')
     await expect(page.locator('.editeur .annot')).toHaveCount(0)
+    await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await ouvrirEditionThemes(page)
     await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
     await page.locator('dialog.dialogue-suppression').getByRole('button', { name: 'Supprimer', exact: true }).click()
@@ -139,8 +150,7 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien :
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
-  // Retour, rouvrir e1 (1er de la liste), supprimer « Lieu » :
-  // la confirmation signale en évidence les deux usages, sans bloquer.
+  // L'entretien courant doit être fermé avant de supprimer ses codages.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
@@ -156,7 +166,9 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien :
   const usages = () => page.evaluate(async () =>
     Object.values(await (window as any).sonal.corpus.usagesParCategorie() as Record<string, number>).reduce((a, b) => a + b, 0))
   expect(await usages()).toBe(2)
-  // « Supprimer quand même » retire le thème et ses codages dans les DEUX entretiens.
+  await fermerEditionThemes(page)
+  await retourCorpus(page)
+  await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await page.locator('.confirm-actions').getByRole('button', { name: 'Supprimer quand même', exact: true }).click()
   await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(0)

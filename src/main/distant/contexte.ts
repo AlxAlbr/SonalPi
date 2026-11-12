@@ -392,6 +392,11 @@ export class ContexteCorpusDistant {
     return this.transactions.executer(mutation)
   }
 
+  async executerSuppressionDefinitions<T>(mutation: () => T): Promise<T> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.executerSuppressionDefinitions(mutation)
+  }
+
   async ajouterVarianteAnon(demande: DemandeAjoutVarianteAnon) {
     this.exigerOuvert()
     exigerGeste('webdav', 'anon.ajouter-variante')

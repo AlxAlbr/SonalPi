@@ -16,6 +16,7 @@ import type { ConfigDestinationGitLab } from '../../src/main/distant/coffre'
 import {
   BailGitLab,
   cleRessourceBailGitLab,
+  cheminBailRessourceGitLab,
   type DepotCommitsGitLab,
   type FichierGitLab,
 } from '../../src/main/gitlab/bailGitLab'
@@ -31,6 +32,7 @@ import type { CommandeRecueils, ItemRecueil } from '../../src/shared/corpus/recu
 import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
 import { deduireSourcesCas } from '../../src/main/casOrchestration'
 import { DepotMemoire } from './depotMemoire'
+import { corpusSuppressionDefinitions, definitionsSupprimees, entretienSuppressionDefinitions, supprimerDefinitionTest } from '../fixtures/suppressionDefinitions'
 
 const destination: ConfigDestinationGitLab = {
   fournisseur: 'gitlab',
@@ -520,6 +522,63 @@ describe('tri par contenu', () => {
 })
 
 describe('suppression de définitions GitLab', () => {
+  for (const type of definitionsSupprimees) {
+    test(`${type} : une édition ouverte, même par nous, bloque sans publier sa copie`, async () => {
+      const corpus = corpusSuppressionDefinitions()
+      const { transactions, depot, coordination } = banc(new Map([
+        [CHEMIN_CORPUS, JSON.stringify(corpus)],
+        ...['e1', 'e2'].map((id): [string, string] => [`${RACINE}/entretiens/${id}.json`, JSON.stringify(entretienSuppressionDefinitions())]),
+      ]))
+      const ressource = cleRessourceBailGitLab(destination.branche, `${RACINE}/entretiens/e1.json`)
+      const acquisition = await coordination.acquireRessource(ressource)
+      if (!acquisition.ok) throw new Error('Session de test indisponible')
+      await expect(transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))).rejects.toThrow(/ouvert en édition/)
+      expect(commitsDeDonnees(depot)).toHaveLength(0)
+      await coordination.liberer(acquisition.droit)
+      expect((await transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))).valeur.ok).toBe(true)
+    })
+  }
+
+  test('une garde de session perdue avant le commit refuse toute la suppression', async () => {
+    const corpus = corpusSuppressionDefinitions()
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus)],
+      ...['e1', 'e2'].map((id): [string, string] => [`${RACINE}/entretiens/${id}.json`, JSON.stringify(entretienSuppressionDefinitions())]),
+    ]))
+    const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab(destination.branche, `${RACINE}/entretiens/e1.json`))
+    const publier = depot.publierCommit.bind(depot)
+    vi.spyOn(depot, 'publierCommit').mockImplementation(async (branche, message, actions) => {
+      if (actions.some((action) => action.file_path === CHEMIN_CORPUS)) {
+        depot.modifierHorsProtocole(chemin, depot.fichiers.get(chemin)!.contenu)
+      }
+      return publier(branche, message, actions)
+    })
+    await expect(transactions.executerSuppressionDefinitions((store) => store.supprimerCategorie('theme'))).rejects.toThrow()
+    expect(JSON.parse(depot.fichiers.get(CHEMIN_CORPUS)!.contenu).codebook.theme).toBeDefined()
+    expect(commitsDeDonnees(depot)).toHaveLength(0)
+  })
+
+  test('une nouvelle édition ne peut commencer entre la lecture et la suppression', async () => {
+    const corpus = corpusSuppressionDefinitions()
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus)],
+      ...['e1', 'e2'].map((id): [string, string] => [`${RACINE}/entretiens/${id}.json`, JSON.stringify(entretienSuppressionDefinitions())]),
+    ]))
+    const tiers = new BailGitLab({ branche: destination.branche, depot,
+      identite: () => ({ userId: 'autre', machineId: 'autre', sessionId: 'autre' }) })
+    const lire = depot.lireFichier.bind(depot)
+    let tente = false
+    vi.spyOn(depot, 'lireFichier').mockImplementation(async (chemin, ref) => {
+      if (chemin === `${RACINE}/entretiens/e1.json` && !tente) {
+        tente = true
+        expect((await tiers.acquireRessource(cleRessourceBailGitLab(destination.branche, chemin))).ok).toBe(false)
+      }
+      return lire(chemin, ref)
+    })
+    expect((await transactions.executerSuppressionDefinitions((store) => store.supprimerCategorie('theme'))).valeur.ok).toBe(true)
+    expect(tente).toBe(true)
+  })
+
   function corpusAvecTheme(): CorpusFichier {
     const corpus = corpusAvec({ e1: 'Entretien 1', e2: 'Entretien 2' })
     corpus.codebook.theme = {

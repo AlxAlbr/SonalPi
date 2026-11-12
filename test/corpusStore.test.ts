@@ -742,7 +742,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     expect(ids).toEqual(['v1', 'v2'])
   })
 
-  test('supprimerCategorie avec exceptId EXCLUT l’entretien courant du compte', () => {
+  test('supprimerCategorie interdit d’exclure un entretien de la suppression', () => {
     const { store } = storeNeuf()
     store.ouvrir()
     const codage = { id: 'a1', type: 'codage' as const, from: 0, to: 1, auteur: 'm', code: 'cat_005' }
@@ -751,9 +751,8 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
 
     // Sans exceptId : E1 utilise cat_005 → refus.
     expect(store.supprimerCategorie('cat_005').ok).toBe(false)
-    // Avec exceptId = E1 : on l'exclut, plus personne d'AUTRE ne l'utilise → autorisé.
-    expect(store.supprimerCategorie('cat_005', e1).ok).toBe(true)
-    expect(store.ouvrir().codebook['cat_005']).toBeUndefined()
+    expect(() => store.supprimerCategorie('cat_005', e1)).toThrow(/fermez/)
+    expect(store.ouvrir().codebook['cat_005']).toBeDefined()
   })
 })
 

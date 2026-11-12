@@ -74,9 +74,9 @@ export interface SourcesTransaction {
   publierSource?: (entretienId: string) => Promise<void>
 }
 
-/** Sessions locales à publier avant un décompte de suppressions. */
+/** Une suppression ne publie jamais les sessions ouvertes à la place de leur utilisateur. */
 export interface SourcesSuppressionDefinitions {
-  publierSource?: (entretienId: string) => Promise<void>
+  verifierSessionsFermees?: () => void
 }
 
 export interface OptionsTransactionsGitLab {
@@ -274,33 +274,34 @@ export class TransactionsGitLab {
     })
   }
 
-  /** Suppression refusée dès qu'une version publiée utilise la définition.
-   *
-   *  Les entretiens du membership frais sont lus au même SHA et gardés dans
-   *  le commit : une publication concurrente fait refuser la suppression. */
+  /** Supprime une définition uniquement lorsque les entretiens sont fermés.
+   *  Les droits des entretiens restent protégés dans le même commit que la définition. */
   executerSuppressionDefinitions<T>(
     preparer: (store: CorpusStore) => T,
     sources: SourcesSuppressionDefinitions = {},
   ): Promise<ResultatTransactionDefinitions<T>> {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
-      const apercu = await this.lireBase(this.branche)
-      exigerAbsenceDissociationGitLab(apercu.corpus)
-      const prevues = this.sourcesAttendues(
-        (corpus) => Object.keys(corpus.membership),
-        apercu.corpus,
-      )
-      for (const entretienId of prevues) {
-        await sources.publierSource?.(entretienId)
-      }
+      sources.verifierSessionsFermees?.()
       const droit = await this.acquerirBailCorpus()
+      const droitsEntretiens: DroitsEditionGitLab[] = []
       try {
         const sha = await this.options.depot.resoudreTete(this.branche)
         const frais = await this.lireBase(sha)
+        exigerAbsenceDissociationGitLab(frais.corpus)
         const retenues = this.sourcesAttendues(
           (corpus) => Object.keys(corpus.membership),
           frais.corpus,
-        )
+        ).sort()
+        if (2 * retenues.length + 2 > MAX_ACTIONS_PUBLICATION) {
+          throw new Error('Ce corpus contient trop d’entretiens pour protéger cette suppression dans un seul envoi. Aucune définition supprimée.')
+        }
+        for (const id of retenues) {
+          const acquisition = await this.options.coordination.acquireRessource(this.ressourceEntretien(id))
+          if (!acquisition.ok) throw new Error(`L’entretien « ${this.titreDe(id, frais.corpus)} » est ouvert en édition. Enregistrez et fermez les entretiens avant de supprimer cette définition.`)
+          droitsEntretiens.push(acquisition.droit)
+        }
+        sources.verifierSessionsFermees?.()
         const lues = await this.lireSources(retenues, sha, frais.corpus)
         const operationId = this.nouvelleOperation()
         const preparation = preparerDefinitions(
@@ -311,18 +312,19 @@ export class TransactionsGitLab {
         )
         if (preparation.candidat) {
           const actions = this.actionsGardees(frais, preparation, lues)
-          this.verifierBornes(operationId, actions)
-          const resultat = await this.options.publication.publierSousDroit({
+          this.verifierBornes(operationId, actions, droitsEntretiens.length + 1)
+          const resultat = await this.options.publication.publierSousDroits({
             operationId,
             nature: 'transaction-corpus',
             actions,
-          }, droit)
+          }, [droit, ...droitsEntretiens])
           this.verifierPublication(resultat, 'La suppression de la définition')
         }
         const installe = preparation.candidat ?? preparation.baseFraîche
         this.installer(operationId, installe)
         return { valeur: preparation.valeur, corpus: installe }
       } finally {
+        for (const droitEntretien of droitsEntretiens.reverse()) await this.libererBail(droitEntretien)
         await this.libererBail(droit)
       }
     })
@@ -951,8 +953,8 @@ export class TransactionsGitLab {
 
   /** Contrôle des bornes avant l'envoi, sur le plan métier : le corps exact
    *  sera revérifié par le publieur, bail compris. */
-  private verifierBornes(operationId: string, actions: ActionPlanGitLab[]): void {
-    verifierBornesAnticipees(this.branche, `Sonal ${operationId}`, actions)
+  private verifierBornes(operationId: string, actions: ActionPlanGitLab[], nombreDroits = 1): void {
+    verifierBornesAnticipees(this.branche, `Sonal ${operationId}`, actions, nombreDroits)
   }
 
   private cheminDistant(cheminRelatif: string): string {

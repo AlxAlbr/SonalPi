@@ -49,6 +49,7 @@ import {
   gestureRecueil,
   gestureTri,
   matriceCapacites,
+  porteeGeste,
   type GesteCorpus,
   type FournisseurCorpus,
 } from './gitlab/politiqueGestes'
@@ -792,6 +793,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         return contexte.executerDefinitions(geste, fn).then((resultat) => resultat.valeur)
       }
       exigerGeste('webdav', geste)
+      if (porteeGeste(geste) === 'suppression-definition') {
+        return contexte.executerSuppressionDefinitions(() => fn(store))
+      }
       return contexte.executerDefinitions(() => fn(store))
     })
     if (!execution) {
@@ -1156,6 +1160,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     executerDefinitions('theme.migrer', (cible) => cible.migrerCategorie(id, nouveauParent)),
   )
   ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string, avecCodages?: boolean) => {
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer ce thème.')
     // Retirer des codages dans plusieurs entretiens n'est possible que sur un corpus local.
     if (avecCodages && contextesDistants.actuel) {
       throw new Error('Un thème utilisé dans d’autres entretiens ne peut pas être supprimé depuis un corpus partagé.')
@@ -1709,6 +1714,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     store.usagesDonnee(idVar, idMod, exceptId),
   )
   ipcMain.handle('corpus:supprimerVariable', (_e, id: string, exceptId?: string, avecValeurs?: boolean) => {
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer cette variable.')
     // Effacer des valeurs dans plusieurs entretiens n'est possible que sur un corpus local.
     if (avecValeurs && contextesDistants.actuel) {
       throw new Error('Une variable qui a des valeurs dans d’autres entretiens ne peut pas être supprimée depuis un corpus partagé.')
@@ -1722,6 +1728,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     executerDefinitions('modalite.modifier', (cible) => cible.modifierModalite(idVar, idMod, lib)),
   )
   ipcMain.handle('corpus:supprimerModalite', (_e, idVar: string, idMod: string, exceptId?: string, avecValeurs?: boolean) => {
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer cette modalité.')
     if (avecValeurs && contextesDistants.actuel) {
       throw new Error('Une modalité choisie dans d’autres entretiens ne peut pas être supprimée depuis un corpus partagé.')
     }

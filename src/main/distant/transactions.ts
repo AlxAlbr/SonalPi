@@ -536,6 +536,15 @@ export class TransactionsCorpus {
     )
   }
 
+  /** Relit tous les entretiens fermés avant de retirer une définition partagée. */
+  executerSuppressionDefinitions<T>(mutation: () => T): Promise<T> {
+    return this.executerCorrectionEntretiens(
+      { corpus: true, entretiens: [], sessionsFermees: true },
+      () => Object.keys(this.getStore().ouvrir().membership),
+      mutation,
+    )
+  }
+
   /** Trie selon les contenus publiés sans remplacer les fichiers du miroir local. */
   async trierEntretiens(mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>): Promise<CorpusFichier> {
     return this.avecMutation(() => this.trierEntretiensSousVerrou(mode))
@@ -938,6 +947,7 @@ export class TransactionsCorpus {
       corpus: boolean
       entretiens: string[] | (() => string[])
       ordreCorpus?: 'avant' | 'apres'
+      sessionsFermees?: boolean
     },
     idsDemandes: string[] | (() => string[]),
     mutation: () => T,
@@ -946,7 +956,7 @@ export class TransactionsCorpus {
   }
 
   private async corrigerEntretiensSousVerrous<T>(
-    cibles: { corpus: boolean; entretiens: string[] | (() => string[]); ordreCorpus?: 'avant' | 'apres' },
+    cibles: { corpus: boolean; entretiens: string[] | (() => string[]); ordreCorpus?: 'avant' | 'apres'; sessionsFermees?: boolean },
     idsDemandes: string[] | (() => string[]), mutation: () => T,
   ): Promise<T> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
@@ -972,6 +982,9 @@ export class TransactionsCorpus {
 
       const sessions = this.options.getSessions?.() ?? null
       const idsTenus = new Set(sessions?.idsTenus() ?? [])
+      if (cibles.sessionsFermees && (idsTenus.size || sessions?.idsRecuperablesLocalement?.().length || this.options.sessionsEnCours?.().length)) {
+        throw new ErreurTransaction('Enregistrez et fermez les entretiens en édition avant de supprimer une définition du corpus partagé.')
+      }
       for (const id of ids) {
         if (idsTenus.has(id)) continue
         const provider = this.providerPourEntretien()
@@ -1033,7 +1046,25 @@ export class TransactionsCorpus {
       const publierDefinitions = async (): Promise<void> => {
         if (!corpusModifie) return
         try {
-          await this.publierCorpus(etagCorpus)
+          let garantir: (() => void) | undefined
+          if (cibles.sessionsFermees) {
+            let valideJusqua = Infinity
+            for (const verrou of [{ provider: providerCorpus, chemin: CHEMIN_VERROU_CORPUS }, ...verrousEntretiens]) {
+              const debut = Date.now()
+              const preuve = await verrou.provider.battre(verrou.chemin)
+              if (!preuve.ok) throw new ErreurTransaction('Un entretien n’est plus protégé. Aucune suppression envoyée ; réessayez après sa fermeture.')
+              valideJusqua = Math.min(valideJusqua, debut + preuve.dureeGarantieMs)
+            }
+            for (const id of ids) {
+              if (await this.etagServeurDe(CHEMIN_ENTRETIEN(id)) !== etags.get(id)) {
+                throw new ErreurTransaction('Un entretien a changé pendant la vérification. Aucune suppression envoyée ; actualisez le corpus.')
+              }
+            }
+            garantir = () => {
+              if (Date.now() + 60_000 >= valideJusqua) throw new ErreurTransaction('La protection des entretiens va expirer. Aucune suppression envoyée ; réessayez.')
+            }
+          }
+          await this.publierCorpus(etagCorpus, undefined, true, garantir)
           publies.push('les définitions')
         } catch (e) {
           const reconciliation = await this.reconcilierCorpusApresEchec(contenuCorpusTente)
@@ -1519,12 +1550,14 @@ export class TransactionsCorpus {
     etagAttendu: string | null,
     contenuFourni?: string,
     noterManifeste = true,
+    garantir?: () => void,
   ): Promise<string> {
     const contenu = contenuFourni
       ?? readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
     exigerAbsenceDissociationWebDAV(JSON.parse(contenu))
     try { exigerAbsenceDissociationWebDAV(JSON.parse(await this.client.getTexte(CHEMIN_CORPUS))) }
     catch (e) { if (!(e instanceof ErreurHttp && e.statut === 404)) throw e }
+    garantir?.()
     const nouveauEtag = await this.client.putTexte(
       CHEMIN_CORPUS,
       contenu,

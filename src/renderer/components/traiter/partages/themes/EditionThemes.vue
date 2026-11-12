@@ -150,11 +150,11 @@ onMounted(() => {
       <p v-if="messageTheme" class="msg-thm">{{ messageTheme }}</p>
       <p v-if="contexte === 'entretien' && hintCodage" class="msg-thm">{{ hintCodage }}</p>
 
-      <!-- Confirmation de suppression (acte destructif) : l'usage du thème est signalé, jamais bloquant. -->
+      <!-- La confirmation explique les conséquences et les éventuels blocages. -->
       <DialogueSuppression
         :ouvert="!!themeASupprimer"
         :titre="themeASupprimer ? `Supprimer le thème « ${themeASupprimer.nom} » ?` : ''"
-        :peut-supprimer="!!themeASupprimer && !(themeASupprimer.autres > 0 && themeASupprimer.partage)"
+        :peut-supprimer="!!themeASupprimer && !themeASupprimer.blocage && !(usageTotal > 0 && themeASupprimer.partage)"
         :libelle-supprimer="usageTotal > 0 ? 'Supprimer quand même' : 'Supprimer'"
         :occupe="operationGlobaleEnCours"
         @confirmer="confirmerSuppressionTheme"
@@ -171,8 +171,9 @@ onMounted(() => {
             </span>
           </p>
           <p v-else class="usage-nul">Ce thème n’est utilisé nulle part.</p>
-          <p v-if="themeASupprimer.autres > 0 && themeASupprimer.partage" class="usage-partage">
-            Sur un corpus partagé, un thème utilisé dans d’autres entretiens ne peut pas être supprimé d’ici.
+          <p v-if="themeASupprimer.blocage" class="usage-partage">{{ themeASupprimer.blocage }}</p>
+          <p v-if="usageTotal > 0 && themeASupprimer.partage" class="usage-partage">
+            Sur un corpus partagé, un thème utilisé ne peut pas être supprimé d’ici.
             Utilisez plutôt « Fusionner » ou « Transférer » (onglet Thèmes du corpus).
           </p>
         </template>

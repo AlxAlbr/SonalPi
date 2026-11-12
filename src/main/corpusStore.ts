@@ -2169,7 +2169,6 @@ export class CorpusStore {
     corpusAvant: CorpusFichier,
     corpusApres: CorpusFichier,
     retirerUsages: (data: EntretienFichier) => number,
-    exceptId?: string,
   ): void {
     if (this.lectureSeule) {
       this.ecrireJsonAtomique(this.corpusFile, corpusApres)
@@ -2179,10 +2178,12 @@ export class CorpusStore {
     const entretiens = []
     const maintenant = new Date().toISOString()
     for (const e of instantane.entretiens) {
-      if (e.id === exceptId) continue
       if (!e.ok) throw new Error(`L’entretien « ${e.titre} » est indisponible. La suppression n’a pas été faite.`)
       const apres = structuredClone(e.avant)
       if (!retirerUsages(apres)) continue
+      if (this.ecrituresAutorisees.has(e.id)) {
+        throw new Error(`L’entretien « ${e.titre} » est ouvert en édition. Enregistrez-le et fermez-le avant de supprimer cette définition.`)
+      }
       this.verifierEcritureEntretien(e.id)
       apres.lastModified = maintenant
       corpusApres.membership[e.id].lastModified = maintenant
@@ -2197,13 +2198,14 @@ export class CorpusStore {
   /** Supprime un thème après retrait de ses codages, si ce retrait a été confirmé. */
   supprimerCategorie(id: string, exceptId?: string, avecCodages = false): ResultatSuppressionCategorie {
     this.verifierEcriture()
-    const usages = this.compterUsagesCategorie(id, exceptId)
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer ce thème.')
+    const usages = this.compterUsagesCategorie(id)
     if (usages > 0 && !avecCodages) return { ok: false, usages }
     if (avecCodages && this.lectureSeule) throw new Error('Le retrait global des codages exige un corpus local.')
     const avant = this.ouvrir()
     const corpus = structuredClone(avant)
     corpusModel.retirerCategorie(corpus, id)
-    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.retirerCodagesDuTheme(data, id), exceptId)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.retirerCodagesDuTheme(data, id))
     return { ok: true, corpus }
   }
 
@@ -2265,26 +2267,28 @@ export class CorpusStore {
    *  Les valeurs sont effacées avant la définition : une interruption laisse la variable en place. */
   supprimerVariable(id: string, exceptId?: string, avecValeurs = false): ResultatSuppression {
     this.verifierEcriture()
-    const { valeurs, cas } = this.usagesDonnee(id, undefined, exceptId)
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer cette variable.')
+    const { valeurs, cas } = this.usagesDonnee(id)
     if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
     if (avecValeurs && this.lectureSeule) throw new Error('L’effacement global des valeurs exige un corpus local.')
     const avant = this.ouvrir()
     const corpus = structuredClone(avant)
     corpusModel.retirerVariable(corpus, id)
-    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, id), exceptId)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, id))
     return { ok: true, corpus }
   }
 
   /** Supprime une modalité, selon la même règle que `supprimerVariable`. */
   supprimerModalite(idVar: string, idMod: string, exceptId?: string, avecValeurs = false): ResultatSuppression {
     this.verifierEcriture()
-    const { valeurs, cas } = this.usagesDonnee(idVar, idMod, exceptId)
+    if (exceptId !== undefined) throw new Error('Enregistrez et fermez l’entretien avant de supprimer cette modalité.')
+    const { valeurs, cas } = this.usagesDonnee(idVar, idMod)
     if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
     if (avecValeurs && this.lectureSeule) throw new Error('L’effacement global des valeurs exige un corpus local.')
     const avant = this.ouvrir()
     const corpus = structuredClone(avant)
     corpusModel.retirerModalite(corpus, idVar, idMod)
-    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, idVar, idMod), exceptId)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, idVar, idMod))
     return { ok: true, corpus }
   }
 

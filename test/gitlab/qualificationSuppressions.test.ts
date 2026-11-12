@@ -1,167 +1,60 @@
-/** Qualification des suppressions de définitions et des sessions déjà ouvertes. */
-
+/** Qualification des suppressions de définitions avec des éditions déjà ouvertes. */
 import { describe, expect, it } from 'vitest'
-import { gesteAutorise } from '../../src/main/gitlab/politiqueGestes'
-import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
-import {
-  cheminBailCorpus,
-  commitsTouchant,
-  configuration,
-  configurationPresente,
-  contenuDe,
-  corpusAvecEntretiens,
-  creerRacine,
-  definirPrefixeBanc,
-  entretienPublie,
-  lireFichier,
-  nettoyer,
-  ouvrirSession,
-  pile,
-} from './qualificationBanc'
+import { configuration, configurationPresente, contenuDe, creerRacine, definirPrefixeBanc, lireFichier, nettoyer, ouvrirSession, pile } from './qualificationBanc'
+import { corpusSuppressionDefinitions, definitionsSupprimees, entretienSuppressionDefinitions, supprimerDefinitionTest } from '../fixtures/suppressionDefinitions'
 
-definirPrefixeBanc('d2')
-
+definirPrefixeBanc('suppression-definitions-fermees')
 const decrire = configurationPresente ? describe : describe.skip
 
-function corpusAvecTheme(): CorpusFichier {
-  const corpus = corpusAvecEntretiens({ e1: 'Entretien 1' })
-  corpus.codebook.theme = {
-    id: 'theme',
-    nom: 'Thème supprimable',
-    parent: null,
-    ordre: 0,
-    actif: true,
-    codeExport: 'theme',
+decrire('suppressions de définitions GitLab réelles — entretiens fermés', () => {
+  for (const type of definitionsSupprimees) {
+    it(`${type} : refuse un tiers et notre propre édition, puis réussit après fermeture`, { timeout: 120_000 }, async () => {
+      const corpus = corpusSuppressionDefinitions()
+      const racine = await creerRacine(`fermeture-${type === 'thème' ? 'theme' : type === 'modalité' ? 'modalite' : type}`, { corpus })
+      const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'alice', corpusLocal: corpus })
+      const bob = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'bob', corpusLocal: corpus })
+      const contenu = JSON.stringify(entretienSuppressionDefinitions())
+      await alice.depot.publierCommit('main', 'Qualification : entretiens fermés', ['e1', 'e2'].map((id) => ({
+        action: 'create', file_path: `${racine}/entretiens/${id}.json`, content: contenu,
+      })))
+      const sessionBob = ouvrirSession(bob, `${racine}/entretiens/e1.json`, 'e1')
+      const sessionAlice = ouvrirSession(alice, `${racine}/entretiens/e2.json`, 'e2')
+      const supprimer = () => alice.transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))
+      try {
+        const avant = contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))
+        await expect(sessionBob.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
+        await expect(supprimer()).rejects.toThrow(/ouvert en édition/)
+        expect(contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))).toBe(avant)
+        await expect(sessionBob.fermer()).resolves.toEqual({ fermee: true })
+        await expect(sessionAlice.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
+        await expect(supprimer()).rejects.toThrow(/ouvert en édition/)
+        await expect(sessionAlice.fermer()).resolves.toEqual({ fermee: true })
+        // Une lecture sans session d'édition ne bloque pas la suppression.
+        await lireFichier(`${racine}/entretiens/e1.json`, configuration.token2 as string)
+        expect((await supprimer()).valeur.ok).toBe(true)
+        for (const id of ['e1', 'e2']) expect(contenuDe(await lireFichier(`${racine}/entretiens/${id}.json`, configuration.token1 as string))).toBe(contenu)
+      } finally {
+        await sessionAlice.fermer().catch(() => {})
+        await sessionBob.fermer().catch(() => {})
+        nettoyer(alice, bob)
+      }
+    })
+
+    it(`${type} : refuse les usages publiés même lorsque tous les entretiens sont fermés`, { timeout: 90_000 }, async () => {
+      const corpus = corpusSuppressionDefinitions()
+      const racine = await creerRacine(`usage-${type === 'thème' ? 'theme' : type === 'modalité' ? 'modalite' : type}`, { corpus })
+      const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'alice', corpusLocal: corpus })
+      try {
+        await alice.depot.publierCommit('main', 'Qualification : usage publié', ['e1', 'e2'].map((id) => ({
+          action: 'create', file_path: `${racine}/entretiens/${id}.json`,
+          content: JSON.stringify(entretienSuppressionDefinitions(id === 'e1' ? type : undefined)),
+        })))
+        const avant = contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))
+        expect((await alice.transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))).valeur).toEqual({ ok: false, usages: 1 })
+        expect(contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))).toBe(avant)
+      } finally {
+        nettoyer(alice)
+      }
+    })
   }
-  return corpus
-}
-
-decrire('suppressions de définitions GitLab — qualification à deux comptes', () => {
-  it('empêche une session déjà ouverte de republier la définition supprimée', { timeout: 90_000 }, async () => {
-    const corpus = corpusAvecTheme()
-    const racine = await creerRacine('session-ouverte', { corpus })
-    const alice = pile({
-      racine,
-      jeton: configuration.token1 as string,
-      userId: 'user1',
-      sessionId: 'suppression-alice',
-      corpusLocal: corpus,
-    })
-    const bob = pile({
-      racine,
-      jeton: configuration.token2 as string,
-      userId: 'user2',
-      sessionId: 'suppression-bob',
-      corpusLocal: corpus,
-    })
-    const cheminEntretien = `${racine}/entretiens/e1.json`
-    await alice.depot.publierCommit('main', 'qualification D2: entretien publié', [{
-      action: 'create',
-      file_path: cheminEntretien,
-      content: entretienPublie('Version publiée'),
-    }])
-    const session = ouvrirSession(bob, cheminEntretien, 'e1')
-
-    try {
-      expect(gesteAutorise('gitlab', 'theme.supprimer')).toBe(true)
-      await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
-      alice.requetes.length = 0
-      const debut = performance.now()
-      const resultat = await alice.transactions.executerSuppressionDefinitions(
-        (store) => store.supprimerCategorie('theme'),
-      )
-      const duree = performance.now() - debut
-      expect(resultat.valeur.ok).toBe(true)
-      expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
-      expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(3)
-      console.log(
-        `[banc D2] suppression face à une session ouverte — 1 commit de données, `
-        + `3 commits au total, ${alice.requetes.length} requêtes, ${Math.round(duree)} ms`,
-      )
-
-      const candidat = JSON.parse(entretienPublie('Candidat de Bob')) as EntretienFichier
-      candidat.annotations.push({
-        id: 'a1',
-        type: 'codage',
-        from: 1,
-        to: 2,
-        auteur: 'bob',
-        code: 'theme',
-      })
-      await session.ecrire(JSON.stringify(candidat, null, 2))
-      await session.marquerSale()
-      await expect(session.publier()).resolves.toMatchObject({
-        statut: 'refuse',
-        raison: 'references',
-      })
-      expect(session.etat()).toMatchObject({ etat: 'edition' })
-
-      const corpusDistant = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
-      )) as CorpusFichier
-      expect(corpusDistant.codebook.theme).toBeUndefined()
-      const sourceDistante = JSON.parse(contenuDe(
-        await lireFichier(cheminEntretien, configuration.token1 as string),
-      )) as EntretienFichier
-      expect(sourceDistante.annotations).toHaveLength(0)
-
-      candidat.annotations = []
-      await session.ecrire(JSON.stringify(candidat, null, 2))
-      await session.marquerSale()
-      await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
-      await expect(session.fermer()).resolves.toEqual({ fermee: true })
-    } finally {
-      nettoyer(alice, bob)
-    }
-  })
-
-  it('refuse une suppression tant qu’une version publiée utilise la définition', { timeout: 90_000 }, async () => {
-    const corpus = corpusAvecTheme()
-    const racine = await creerRacine('usage-publie', { corpus })
-    const alice = pile({
-      racine,
-      jeton: configuration.token1 as string,
-      userId: 'user1',
-      sessionId: 'usage-alice',
-      corpusLocal: corpus,
-    })
-    const source = JSON.parse(entretienPublie('Usage publié')) as EntretienFichier
-    source.annotations.push({
-      id: 'a1',
-      type: 'codage',
-      from: 1,
-      to: 2,
-      auteur: 'alice',
-      code: 'theme',
-    })
-    await alice.depot.publierCommit('main', 'qualification D2: usage publié', [{
-      action: 'create',
-      file_path: `${racine}/entretiens/e1.json`,
-      content: JSON.stringify(source, null, 2),
-    }])
-
-    try {
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
-      alice.requetes.length = 0
-      const debut = performance.now()
-      const resultat = await alice.transactions.executerSuppressionDefinitions(
-        (store) => store.supprimerCategorie('theme'),
-      )
-      const duree = performance.now() - debut
-      expect(resultat.valeur).toEqual({ ok: false, usages: 1 })
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
-      expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(2)
-      console.log(
-        `[banc D2] usage publié — 0 commit de données, 2 commits de coordination, `
-        + `${alice.requetes.length} requêtes, ${Math.round(duree)} ms`,
-      )
-      const corpusDistant = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
-      )) as CorpusFichier
-      expect(corpusDistant.codebook.theme).toBeDefined()
-    } finally {
-      nettoyer(alice)
-    }
-  })
 })

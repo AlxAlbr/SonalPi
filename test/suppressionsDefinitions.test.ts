@@ -80,6 +80,27 @@ describe.each<TypeSuppression>(['thème', 'variable', 'modalité'])('Suppression
     }
   })
 
+  test('un entretien concerné en édition bloque la suppression jusqu’à sa fermeture', () => {
+    const b = banc()
+    b.store.ouvrirEntretienPourEdition(b.ids[0])
+    const avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8')
+    const source = readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')
+    expect(() => supprimer(b, type)).toThrow(/ouvert en édition/)
+    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')).toBe(source)
+    expect(existsSync(join(b.dir, '.transaction-fichiers.json'))).toBe(false)
+    b.store.revoquerEcritureEntretien(b.ids[0])
+    expect(supprimer(b, type).ok).toBe(true)
+  })
+
+  test('un entretien non concerné en édition ou une simple lecture ne bloque pas', () => {
+    const b = banc()
+    const id = b.store.creerEntretienVide('Sans usage').id
+    b.store.ouvrirEntretienPourEdition(id)
+    b.store.lireEntretien(b.ids[0])
+    expect(supprimer(b, type).ok).toBe(true)
+  })
+
   test('un entretien indisponible empêche toute suppression', () => {
     const b = banc()
     const avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8')

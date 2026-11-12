@@ -45,7 +45,7 @@ const {
 
 const valeursTotal = computed(() => (donneeASupprimer.value ? donneeASupprimer.value.n + donneeASupprimer.value.autres : 0))
 const suppressionPossible = computed(() => !!donneeASupprimer.value
-  && donneeASupprimer.value.cas === 0 && !(donneeASupprimer.value.autres > 0 && donneeASupprimer.value.partage))
+  && !donneeASupprimer.value.blocage && donneeASupprimer.value.cas === 0 && !(valeursTotal.value > 0 && donneeASupprimer.value.partage))
 
 /** Modèles de modalités pré-remplies INTÉGRÉS. Les modèles IMPORTÉS vivent à
  *  part (`modelesUtilisateur`, registre du profil) et sont proposés dans le
@@ -238,7 +238,7 @@ onMounted(() => {
 
       <p v-if="messageVar" class="msg-thm">{{ messageVar }}</p>
 
-      <!-- Confirmation de suppression : les valeurs saisies sont signalées, jamais bloquantes ; les cas, si. -->
+      <!-- La suppression attend la fermeture des entretiens concernés. -->
       <DialogueSuppression
         :ouvert="!!donneeASupprimer"
         :titre="donneeASupprimer ? `Supprimer ${donneeASupprimer.idMod === undefined ? 'la variable' : 'la modalité'} « ${donneeASupprimer.nom} » ?` : ''"
@@ -267,8 +267,9 @@ onMounted(() => {
               Retirez d’abord ces usages dans « Organiser & Exporter », onglet Cas : elle ne peut pas être supprimée d’ici.
             </span>
           </p>
-          <p v-if="donneeASupprimer.cas === 0 && donneeASupprimer.autres > 0 && donneeASupprimer.partage" class="usage-partage">
-            Sur un corpus partagé, une valeur saisie dans d’autres entretiens ne peut pas être effacée d’ici.
+          <p v-if="donneeASupprimer.blocage" class="usage-partage">{{ donneeASupprimer.blocage }}</p>
+          <p v-if="donneeASupprimer.cas === 0 && valeursTotal > 0 && donneeASupprimer.partage" class="usage-partage">
+            Sur un corpus partagé, les valeurs saisies ne peuvent pas être effacées d’ici.
             Videz d’abord ces valeurs dans la table de données.
           </p>
         </template>

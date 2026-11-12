@@ -744,7 +744,11 @@ export class ContexteGitLab {
     }
     if (portee === 'suppression-definition') {
       return this.transactions.executerSuppressionDefinitions(preparer, {
-        publierSource: (id) => this.publierSourceDetenue(id),
+        verifierSessionsFermees: () => {
+          if ([...this.sessions.values()].some((session) => session.protege)) {
+            throw new Error('Enregistrez et fermez les entretiens en édition avant de supprimer une définition du corpus partagé.')
+          }
+        },
       })
     }
     if (portee === 'pseudonymisation-ajout-variante') {

@@ -13,7 +13,7 @@ emplacement dans le dossier GitLab : elle classe les trois fournisseurs.
 | `definitions-corpus` | Définition calculable depuis le seul corpus courant. |
 | `definitions-avec-sources` | Définition et sources publiées qu’elle référence ou contrôle. |
 | `tri-contenus` | Lecture de contenus publiés sur un corpus calme. |
-| `suppression-definition` | Décompte des usages et contrôle des publications de session. |
+| `suppression-definition` | Décompte des usages publiés et fermeture des éditions avant retrait. |
 | `suppression-entretien` | Corpus, entretien retiré et archivage. |
 | `valeurs-entretien`, `pseudonymisation-entretiens` | Une source et les définitions qu’elle applique. |
 | Portées de pseudonymisation globale et de réaffectation thématique | Protocole spécialisé, inventaire, cibles et reprise propres à l’opération. |
@@ -58,6 +58,35 @@ Griser un bouton ne remplace aucune des protections suivantes. Inversement,
 une capacité générale `editionEntretien` ne dispense pas d’acquérir sa session.
 Les droits de consultation seule et l’état hors ligne ne doivent jamais être
 levés pour faire passer une opération techniquement présente mais non ouverte.
+
+## Suppression des définitions
+
+La suppression d’un thème, d’une variable ou d’une modalité ne retire plus des
+valeurs dans une session ouverte et ne publie jamais cette session automatiquement.
+En local, le store refuse les entretiens concernés encore autorisés en écriture.
+Une consultation seule ou une édition sans usage de la définition ne bloque pas.
+L’ancien paramètre d’exclusion d’un entretien est refusé, y compris par IPC.
+
+Sur un corpus partagé, les usages non publiés d’un autre poste sont inconnus :
+toutes les éditions doivent donc être fermées. Les usages publiés restent bloquants ;
+cette règle n’ouvre pas la suppression globale des codages ou valeurs distants.
+
+- GitLab acquiert le corpus puis les entretiens dans un ordre stable.
+  Le commit garde les versions lues et tous les droits ensemble.
+  Le nombre d’actions limite ce parcours à 124 entretiens avec la borne actuelle de 250 actions.
+- WebDAV réserve également les entretiens, sans réutiliser nos propres sessions.
+  La transaction relit les contenus publiés, vérifie les droits et leur durée restante avant l’envoi.
+  Elle ne publie que le corpus, sous précondition de version.
+
+Les contrôles de l’interface expliquent le refus ; les droits serveur empêchent
+une nouvelle édition de passer entre la vérification et la suppression.
+Les réaffectations thématiques et les opérations de pseudonymisation gardent leurs
+protocoles spécialisés, distincts de cette suppression directe de définition.
+
+Régressions en mémoire : `test/suppressionsDefinitions.test.ts`,
+`test/gitlab/definitionsSources.test.ts` et `test/webdav/suppressionDefinitions.test.ts`.
+Qualification réelle : `test/gitlab/qualificationSuppressions.test.ts` et
+`test/webdav/suppressionDefinitions-nextcloud.test.ts` sur les deux variantes Nextcloud.
 
 ## Ajouter ou modifier un geste
 
