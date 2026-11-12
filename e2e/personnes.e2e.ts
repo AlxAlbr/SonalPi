@@ -47,6 +47,15 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
     await expect(panneau.getByRole('alert')).toHaveCount(0)
+    // Le retour de l'action est un bandeau pleine largeur, au-dessus des colonnes, que l'on peut fermer.
+    const bandeau = panneau.getByRole('status').filter({ hasText: 'Modification enregistrée.' })
+    await expect(bandeau).toBeVisible()
+    await expect(bandeau).toHaveClass(/succes/)
+    const largeurBandeau = (await bandeau.boundingBox())!.width
+    const largeurColonnes = (await panneau.locator('.deux-colonnes').boundingBox())!.width
+    expect(Math.abs(largeurBandeau - largeurColonnes)).toBeLessThan(2)
+    await bandeau.getByRole('button', { name: 'Fermer ce message' }).click()
+    await expect(bandeau).toHaveCount(0)
     await panneau.locator('.repertoire').getByRole('button', { name: /K\. Dupont/ }).click()
     await expect(panneau.locator('.liens li')).toHaveCount(2)
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Ouvrir l’entretien' }).click()
@@ -89,6 +98,12 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.getByRole('button', { name: 'Ne plus associer', exact: true }).click()
     await panneau.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
+    // Le retour d'action se ferme de lui-même quand on quitte l'onglet.
+    await expect(bandeau).toBeVisible()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await expect(panneau).toHaveAttribute('aria-busy', 'false')
+    await expect(bandeau).toHaveCount(0)
     await panneau.locator('.repertoire').getByRole('button', { name: /K\. Dupont/ }).click()
     await expect(panneau.locator('.liens li')).toHaveCount(1)
     await expect(panneau.locator('.repertoire').getByRole('button', { name: 'Karine', exact: true })).toBeVisible()

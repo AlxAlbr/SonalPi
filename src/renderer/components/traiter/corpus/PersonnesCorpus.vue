@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RapprochementCorpus from './RapprochementCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
+import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import { utiliserSonal } from '../../../composables/sonal'
 import { analyserRapprochementPersonne, natureNomPersonne, suggestionsPersonnes } from '../../../../shared/corpus/rapprochementsPersonnes'
@@ -398,6 +399,13 @@ watch(dossierCourantDir, () => {
   dialogueSeparation.value?.close()
   separation.value = null
 })
+// Les retours d'action ne concernent que l'instant : ils se ferment dès que l'on quitte l'onglet.
+watch(() => props.actif && vue.value === 'corpus', (visible) => {
+  if (visible) return
+  message.value = ''
+  ficheVideId.value = ''
+  if (!erreurLecture.value) erreur.value = ''
+})
 watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonnesCorpus], () => {
   if (props.actif && vue.value === 'corpus') void actualiser()
   else if (!props.actif && dialogueAide.value?.open) fermerAide()
@@ -417,15 +425,18 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
     </BarreOngletCorpus>
     <p v-if="lectureUniquement" class="information">Consultation seule : reconnectez le corpus distant pour appliquer une correction.</p>
     <p v-else-if="corpusDistant" class="information">Les corrections sont publiées sous verrou. Une opération touchant plusieurs entretiens peut réussir partiellement ; actualisez alors le répertoire pour reprendre les éléments restants.</p>
-    <p v-if="erreur && charge" role="alert" class="erreur alerte-projection">
+    <!-- Retour des actions : un bandeau pleine largeur, fermable, au-dessus du répertoire et de la fiche. -->
+    <BandeauRetourCorpus v-if="erreur && charge" type="erreur" @fermer="erreur = ''; erreurLecture = false">
       {{ erreur }}<template v-if="erreurLecture"> Le répertoire affiché est le dernier résultat lisible et peut ne plus être à jour.</template>
-    </p>
-    <p v-if="message && charge" role="status">{{ message }}</p>
-    <section v-if="ficheVide && charge" aria-label="Personne sans entretien">
-      <p>« {{ ficheVide.nom }} » n’est plus associée à aucun entretien.</p>
-      <button :disabled="desactive" @click="selectionner(`p:${ficheVide.id}`)">Examiner cette personne</button>
-      <button :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
-    </section>
+    </BandeauRetourCorpus>
+    <BandeauRetourCorpus v-if="message && charge" type="succes" @fermer="message = ''">{{ message }}</BandeauRetourCorpus>
+    <BandeauRetourCorpus v-if="ficheVide && charge" type="suggestion" etiquette="Personne sans entretien" @fermer="ficheVideId = ''">
+      « {{ ficheVide.nom }} » n’est plus associée à aucun entretien.
+      <template #actions>
+        <button type="button" :disabled="desactive" @click="selectionner(`p:${ficheVide.id}`)">Examiner cette personne</button>
+        <button type="button" class="danger" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
+      </template>
+    </BandeauRetourCorpus>
     <div v-if="occupe && !charge" class="etat-projection" role="status">Chargement…</div>
     <div v-else-if="erreurLecture && erreur && !charge" class="etat-projection">
       <p role="alert">{{ erreur }}</p>
