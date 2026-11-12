@@ -87,6 +87,11 @@ Régressions en mémoire : `test/suppressionsDefinitions.test.ts`,
 `test/gitlab/definitionsSources.test.ts` et `test/webdav/suppressionDefinitions.test.ts`.
 Qualification réelle : `test/gitlab/qualificationSuppressions.test.ts` et
 `test/webdav/suppressionDefinitions-nextcloud.test.ts` sur les deux variantes Nextcloud.
+La qualification a été rejouée avec succès le 12 novembre 2026 : thèmes, variables
+et modalités ont été vérifiés avec deux utilisateurs sur GitLab, Nextcloud avec
+`files_lock` et Nextcloud avec verrous conditionnels. Les scénarios couvrent le
+refus des éditions en cours, la réussite après fermeture et la conservation des
+données lors d’un refus.
 
 ## Ajouter ou modifier un geste
 
