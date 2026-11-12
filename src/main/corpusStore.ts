@@ -2164,28 +2164,46 @@ export class CorpusStore {
     return { ...resultat, titre }
   }
 
-  /** Supprime une catégorie. Tant qu'elle est utilisée, la suppression est refusée,
-   *  sauf si l'appelant a demandé explicitement de retirer aussi les codages (`avecCodages`).
-   *  Dans ce cas, les codages sont retirés de tous les entretiens avant la définition :
-   *  une interruption laisse un thème encore présent, jamais des codages sans thème. */
+  /** Supprime une définition et ses usages locaux avec une reprise possible après interruption. */
+  private appliquerSuppressionDefinition(
+    corpusAvant: CorpusFichier,
+    corpusApres: CorpusFichier,
+    retirerUsages: (data: EntretienFichier) => number,
+    exceptId?: string,
+  ): void {
+    if (this.lectureSeule) {
+      this.ecrireJsonAtomique(this.corpusFile, corpusApres)
+      return
+    }
+    const instantane = this.lireInstantaneOperationTheme()
+    const entretiens = []
+    const maintenant = new Date().toISOString()
+    for (const e of instantane.entretiens) {
+      if (e.id === exceptId) continue
+      if (!e.ok) throw new Error(`L’entretien « ${e.titre} » est indisponible. La suppression n’a pas été faite.`)
+      const apres = structuredClone(e.avant)
+      if (!retirerUsages(apres)) continue
+      this.verifierEcritureEntretien(e.id)
+      apres.lastModified = maintenant
+      corpusApres.membership[e.id].lastModified = maintenant
+      entretiens.push({ id: e.id, avant: e.avant, apres })
+    }
+    this.appliquerTransactionFichiers({
+      operation: 'remplacement', id: genId('suppression-definition'),
+      corpusAvant, corpusApres, entretiens, ordre: 'entretiens-puis-corpus',
+    })
+  }
+
+  /** Supprime un thème après retrait de ses codages, si ce retrait a été confirmé. */
   supprimerCategorie(id: string, exceptId?: string, avecCodages = false): ResultatSuppressionCategorie {
     this.verifierEcriture()
     const usages = this.compterUsagesCategorie(id, exceptId)
     if (usages > 0 && !avecCodages) return { ok: false, usages }
-    if (usages > 0) {
-      const concernes = this.chargerEntretiens()
-        .filter((e) => e.id !== exceptId && corpusModel.compterUsagesCategorie([e.data], id) > 0)
-      for (const e of concernes) this.verifierEcritureEntretien(e.id)
-      const maintenant = new Date().toISOString()
-      for (const e of concernes) {
-        corpusModel.retirerCodagesDuTheme(e.data, id)
-        e.data.lastModified = maintenant
-        this.ecrireJsonAtomique(this.entretienFile(e.id), e.data)
-      }
-    }
-    const corpus = this.ouvrir()
+    if (avecCodages && this.lectureSeule) throw new Error('Le retrait global des codages exige un corpus local.')
+    const avant = this.ouvrir()
+    const corpus = structuredClone(avant)
     corpusModel.retirerCategorie(corpus, id)
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.retirerCodagesDuTheme(data, id), exceptId)
     return { ok: true, corpus }
   }
 
@@ -2242,19 +2260,6 @@ export class CorpusStore {
     return { valeurs, cas: compterUsagesCasVariable(this.ouvrir(), idVar, idMod) }
   }
 
-  /** Efface les valeurs d'une variable (ou d'une modalité) dans tous les entretiens, sauf `exceptId`. */
-  private effacerValeursDonnee(idVar: string, idMod: string | undefined, exceptId?: string): void {
-    const concernes = this.chargerEntretiens()
-      .filter((e) => e.id !== exceptId && corpusModel.compterValeursVariable(e.data, idVar, idMod) > 0)
-    for (const e of concernes) this.verifierEcritureEntretien(e.id)
-    const maintenant = new Date().toISOString()
-    for (const e of concernes) {
-      corpusModel.effacerValeursVariable(e.data, idVar, idMod)
-      e.data.lastModified = maintenant
-      this.ecrireJsonAtomique(this.entretienFile(e.id), e.data)
-    }
-  }
-
   /** Supprime une variable. Les règles et dérivations des cas bloquent toujours la suppression ;
    *  les valeurs saisies la bloquent aussi, sauf si l'appelant a demandé de les effacer (`avecValeurs`).
    *  Les valeurs sont effacées avant la définition : une interruption laisse la variable en place. */
@@ -2262,10 +2267,11 @@ export class CorpusStore {
     this.verifierEcriture()
     const { valeurs, cas } = this.usagesDonnee(id, undefined, exceptId)
     if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
-    if (valeurs > 0) this.effacerValeursDonnee(id, undefined, exceptId)
-    const corpus = this.ouvrir()
+    if (avecValeurs && this.lectureSeule) throw new Error('L’effacement global des valeurs exige un corpus local.')
+    const avant = this.ouvrir()
+    const corpus = structuredClone(avant)
     corpusModel.retirerVariable(corpus, id)
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, id), exceptId)
     return { ok: true, corpus }
   }
 
@@ -2274,10 +2280,11 @@ export class CorpusStore {
     this.verifierEcriture()
     const { valeurs, cas } = this.usagesDonnee(idVar, idMod, exceptId)
     if (cas > 0 || (valeurs > 0 && !avecValeurs)) return { ok: false, usages: valeurs + cas }
-    if (valeurs > 0) this.effacerValeursDonnee(idVar, idMod, exceptId)
-    const corpus = this.ouvrir()
+    if (avecValeurs && this.lectureSeule) throw new Error('L’effacement global des valeurs exige un corpus local.')
+    const avant = this.ouvrir()
+    const corpus = structuredClone(avant)
     corpusModel.retirerModalite(corpus, idVar, idMod)
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    this.appliquerSuppressionDefinition(avant, corpus, (data) => corpusModel.effacerValeursVariable(data, idVar, idMod), exceptId)
     return { ok: true, corpus }
   }
 

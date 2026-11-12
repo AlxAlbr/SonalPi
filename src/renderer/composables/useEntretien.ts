@@ -65,6 +65,8 @@ export function useEntretien(deps: {
   codeExtraits: () => string
   nomCode: (code: string) => string
   libelleValeur: (idVar: string, idMod: string) => string
+  themeExiste?: (id: string) => boolean
+  valeurExiste?: (idVar: string, idMod: string | null) => boolean
   /** Catégories de note (définitions corpus) : nom d'une catégorie depuis
    *  son id (les notesEnTexte l'affichent) et id par défaut du formulaire de
    *  création. Injection orchestrateur — le scope entretien ne porte plus la
@@ -267,6 +269,8 @@ export function useEntretien(deps: {
     notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
+    themeExiste: deps.themeExiste,
+    valeurExiste: deps.valeurExiste,
     effetsAnnulation: {
       rafraichirProjections: rafraichir,
       rafraichirDecorations,

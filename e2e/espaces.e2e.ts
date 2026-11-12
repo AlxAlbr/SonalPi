@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, entrerEntretien, lancer, ouvrirAnalyse, ouvrirOrganisation } from './util'
+import { entrerCorpus, entrerEntretien, lancer, ouvrirAnalyse, ouvrirOrganisation, retourCorpus } from './util'
 
 /**
  *  Navigation par espaces : « Préparer et suivre » (tableau de bord, documents
@@ -86,12 +86,14 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await app.close()
 })
 
-test('depuis un entretien, l’espace ne ferme pas le travail en cours', async () => {
+test('depuis un entretien, le retour au corpus permet de changer d’espace puis de reprendre', async () => {
   const app = await lancer(mkdtempSync(join(tmpdir(), 'sonal-espaces-ent-')))
   const page = await app.firstWindow()
   await entrerCorpus(page)
   await entrerEntretien(page)
   await expect(page.locator('.editeur')).toContainText('Karine')
+  await expect(page.locator('.barre-outils')).toBeHidden()
+  await retourCorpus(page)
 
   await page.locator('.barre-outils').getByRole('button', { name: 'Préparer & Suivre' }).click()
   await expect(page.locator('.espace-preparation')).toBeVisible()
@@ -100,8 +102,10 @@ test('depuis un entretien, l’espace ne ferme pas le travail en cours', async (
   await expect(page.locator('.fil')).not.toContainText('Préparer et suivre')
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
 
-  // Importer et traiter ramène à l'entretien ouvert, intact.
+  // Le traitement revient au corpus ; Reprendre rouvre le dernier entretien.
   await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter' }).click()
+  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await page.locator('.tete .btn-reprise').click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Entretien')
@@ -174,6 +178,7 @@ test('l’organisation reprend son onglet depuis les autres espaces et conserve 
     const page = await app.firstWindow()
     await entrerCorpus(page)
     await entrerEntretien(page)
+    await retourCorpus(page)
     await page.locator('.barre-outils').getByRole('button', { name: 'Préparer & Suivre' }).click()
     await ouvrirOrganisation(page, 'recueils')
     await expect(page.locator('#contenu-recueils-organisation')).toBeVisible()
@@ -185,6 +190,8 @@ test('l’organisation reprend son onglet depuis les autres espaces et conserve 
     await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
     await expect(page.locator('.onglets-organisation').getByRole('button', { name: 'Recueils', exact: true })).toHaveAttribute('aria-current', 'page')
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
+    await expect(page.locator('.corpus-ecran')).toBeVisible()
+    await page.locator('.tete .btn-reprise').click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.locator('.editeur')).toContainText('Karine')
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
@@ -293,8 +300,8 @@ test('depuis Lexico, une concordance ouvre l’entretien et l’espace reprend s
   await expect(page.locator('.entretien-ecran')).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Entretien')
 
-  // Le retour dans l'espace retrouve Lexico et son index, sans recalcul.
-  await page.locator('.barre-outils').getByRole('button', { name: 'Analyser & Interpréter' }).click()
+  // Le retour contextuel retrouve Lexico et son index, sans recalcul.
+  await page.getByRole('button', { name: '← Revenir à Lexico', exact: true }).click()
   await expect(page.locator('.espace-analyse .panneau-lexico')).toContainText('Index lexical')
   await expect(page.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
   await expect(principal.locator('.table-wrap tbody tr').first()).toBeVisible()

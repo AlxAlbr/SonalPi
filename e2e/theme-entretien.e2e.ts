@@ -16,10 +16,8 @@ import {
 /**
  *  Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
  *  d'édition : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
- *  l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
- *  refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →
- *  retrait des codages de CET entretien (modèle = vérité) + suppression de la
- *  définition (store).
+ *  l'écran Corpus. La suppression confirmée retire aussi les codages du thème.
+ *  Les autres entretiens ne peuvent être modifiés ainsi que dans un corpus local.
  */
 
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
@@ -96,6 +94,27 @@ test('supprimer un thème depuis l’entretien : confirmation + retrait des coda
   await expect(page.locator('.theme-coder', { hasText: 'Lieu' })).toHaveCount(0)
   await expect(page.locator('.editeur .annot')).toHaveCount(0)
   await app.close()
+})
+
+test('le Journal ne restaure pas un codage dont le thème a été supprimé', async () => {
+  const { app, page } = await ouvrir('sonal-theme-journal-')
+  try {
+    await selectionner(page, 'Karine')
+    await coderTheme(page, 'Lieu')
+    await selectionner(page, 'Karine')
+    await coderTheme(page, 'Lieu')
+    await expect(page.locator('.editeur .annot')).toHaveCount(0)
+    await ouvrirEditionThemes(page)
+    await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
+    await page.locator('dialog.dialogue-suppression').getByRole('button', { name: 'Supprimer', exact: true }).click()
+    await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(0)
+    await fermerEditionThemes(page)
+    await page.locator('[data-onglet="journal"]').click()
+    await expect(page.locator('.journal .annuler-entree').first()).toBeDisabled()
+    await expect(page.locator('.editeur .annot')).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
 })
 
 test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien : signalé, puis retiré partout', async () => {

@@ -1,6 +1,6 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import type {} from '../src/renderer/env'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { attendreCorpus, fermerAiguillage, fermerEditionThemes, ouvrirEditionThemes, ouvrirSurCorpus, retourCorpus } from './util'
@@ -242,14 +242,12 @@ test('la consultation conserve l’atelier mais invalide l’aperçu ; aucun cho
   await modale().getByRole('button', { name: 'Consulter l’entretien', exact: true }).click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
   await retourCorpus(page)
-  await page.evaluate(async () => {
-    const lecture = await window.sonal.corpus.lireEntretien('e1')
-    if (!lecture.ok) throw new Error('Entretien absent')
-    const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
-    await window.sonal.corpus.ecrireEntretien('e1', { ...payload,
-      annotations: [...payload.annotations, { id: 'nouveau', type: 'codage', code: 'cat_001', from: 2, to: 4, auteur: 'test' }],
-    })
-  })
+  // Une modification externe invalide l'aperçu sans contourner la session fermée.
+  const profil = await app.evaluate(({ app }) => app.getPath('userData'))
+  const fichier = join(profil, 'corpus', 'entretiens', 'e1.json')
+  const entretien = JSON.parse(readFileSync(fichier, 'utf8'))
+  entretien.annotations.push({ id: 'nouveau', type: 'codage', code: 'cat_001', from: 2, to: 4, auteur: 'test' })
+  writeFileSync(fichier, JSON.stringify(entretien, null, 2))
   await expect(modale()).toBeVisible()
   await expect(modale()).toContainText('L’aperçu doit être recalculé')
   await expect(modale().getByRole('button', { name: 'Voir l’aperçu final' })).toBeDisabled()

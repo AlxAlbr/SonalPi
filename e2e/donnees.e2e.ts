@@ -17,9 +17,9 @@ import {
  *  Données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
  *  variables/modalités et la MATRICE vivent sur la TABLE DE DONNÉES ; la SAISIE des
  *  valeurs (portée entretien + portée locuteur) vit à l'écran Entretien. Invariants
- *  inchangés : (1) matrice = requête juste après réouverture ; (2) valeur de portée
- *  locuteur chez SON locuteur (pas de sentinelle l="all") ; (3) supprimer une
- *  modalité utilisée = refus + compteur.
+ *  La matrice doit refléter les valeurs enregistrées.
+ *  Chaque valeur de locuteur reste chez son propriétaire.
+ *  Une suppression confirmée efface ses valeurs sans permettre leur restauration par le Journal.
  */
 
 /** Crée une variable via la fenêtre d'édition des variables (crayon de la table de données),
@@ -171,6 +171,83 @@ test('supprimer une modalité utilisée : valeurs signalées, puis effacées ave
   })
   expect(valeurs).toBe(0)
   await app.close()
+})
+
+for (const portee of ['entretien', 'locuteur'] as const) {
+  for (const suppression of ['variable', 'modalité'] as const) {
+    test(`supprimer une ${suppression} de ${portee} empêche le Journal de restaurer ses valeurs`, async () => {
+      const { app, page } = await ouvrirSurCorpus('sonal-eav-journal-')
+      try {
+        await creerVariable(page, portee === 'entretien' ? "+ var. d'entretien" : '+ var. de locuteur', 'A')
+        await entrerDonnees(page)
+        await ouvrirEditionVariables(page)
+        const variable = page.locator('.modale-vars .liste-var > li').first()
+        await variable.locator('.mini', { hasText: '+ modalité' }).click()
+        await variable.locator('.lib-mod').nth(1).fill('B')
+        await variable.locator('.lib-mod').nth(1).press('Tab')
+        await fermerEditionVariables(page)
+        await retourCorpus(page)
+        await entrerEntretien(page)
+        await ongletDonnees(page)
+        const select = page.locator('.saisie-eav-sel').first()
+        await select.selectOption({ label: 'A' })
+        await select.selectOption({ label: 'B' })
+        await expect(page.locator('.tete .etat')).toHaveText('à jour')
+        await page.locator('.panneau.donnees .nouvelle-var').click()
+        await variable.locator(suppression === 'variable' ? '.x' : '.x-mod').first().click()
+        const confirmation = page.locator('dialog.dialogue-suppression')
+        await expect(confirmation.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
+        await confirmation.getByRole('button', { name: /^Supprimer/ }).click()
+        await expect(variable.locator('.lig-mod')).toHaveCount(suppression === 'variable' ? 0 : 1)
+        await fermerEditionVariables(page)
+        await page.locator('[data-onglet="journal"]').click()
+        await expect(page.locator('.journal .annuler-entree').first()).toBeDisabled()
+        const usages = await page.evaluate(async () => {
+          const c = await window.sonal.corpus.ouvrir()
+          const id = Object.keys(c.membership)[0]
+          const lecture = await window.sonal.corpus.lireEntretien(id)
+          if (!lecture.ok) throw new Error('Entretien absent')
+          return {
+            variables: Object.keys(c.variables).length,
+            valeurs: [...Object.values(lecture.data.meta.valeursGen), ...lecture.data.locuteurs.flatMap((l) => Object.values(l.valeursLoc))],
+          }
+        })
+        expect(usages.variables).toBe(suppression === 'variable' ? 0 : 1)
+        expect(usages.valeurs).toHaveLength(suppression === 'variable' ? 0 : 1)
+      } finally {
+        await app.close()
+      }
+    })
+  }
+}
+
+test('une suppression refusée conserve les valeurs dans l’entretien affiché et sur disque', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-eav-refus-')
+  try {
+    await creerVariable(page, "+ var. d'entretien", 'A')
+    await entrerEntretien(page)
+    await ongletDonnees(page)
+    const select = page.locator('.saisie-eav-sel').first()
+    await select.selectOption({ label: 'A' })
+    await expect(page.locator('.tete .etat')).toHaveText('à jour')
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('corpus:supprimerVariable')
+      ipcMain.handle('corpus:supprimerVariable', () => ({ ok: false, usages: 1 }))
+    })
+    await page.locator('.panneau.donnees .nouvelle-var').click()
+    await page.locator('.modale-vars .liste-var > li .x').first().click()
+    await page.locator('dialog.dialogue-suppression').getByRole('button', { name: 'Supprimer quand même' }).click()
+    await expect(page.locator('.modale-vars .msg-thm')).toContainText("la suppression n'a pas été faite")
+    await fermerEditionVariables(page)
+    await expect(select.locator('option:checked')).toHaveText('A')
+    const valeurs = await page.evaluate(async () => {
+      const c = await window.sonal.corpus.ouvrir()
+      return (await window.sonal.corpus.usagesDonnee(Object.keys(c.variables)[0])).valeurs
+    })
+    expect(valeurs).toBe(1)
+  } finally {
+    await app.close()
+  }
 })
 
 test('sous-onglets « Locuteur » / « Entretien » : le crayon ouvre l’édition bornée à la portée affichée', async () => {

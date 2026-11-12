@@ -91,6 +91,11 @@ export function creerSonal() {
     },
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
+    themeExiste: (id) => corpus.codebook.value.some((theme) => theme.id === id),
+    valeurExiste: (idVar, idMod) => {
+      const variable = corpus.variables.value.find((v) => v.id === idVar)
+      return !!variable && (idMod === null || variable.modalites.some((m) => m.id === idMod))
+    },
     // Catégories de note : définitions au corpus, résolues ici pour le scope entretien (nom affichable + défaut du formulaire de création).
     nomCategorieNote: (id) => corpus.nomCategorieNote(id),
     categorieNoteDefaut: () => corpus.categorieNoteDefaut(),
@@ -1009,6 +1014,8 @@ export function creerSonal() {
     analysesCroisees.reinitialiserAnalysesCroisees()
     sourcesAnalyseCorpus.reinitialiserSourcesAnalyse()
     confirmationAjout.value = null
+    themeASupprimer.value = null
+    donneeASupprimer.value = null
     libererContexteAjout('cas')
     libererContexteAjout('recueil')
     retours.terminerConsultation()
@@ -1033,25 +1040,37 @@ export function creerSonal() {
   async function demanderSuppressionTheme(id: string) {
     ent.hintCodage.value = null
     corpus.messageTheme.value = null
+    const revision = revisionCorpus.value
     const ouvert = ent.ouvertId.value
     const autres = await window.sonal.corpus.compterUsagesCategorie(id, ouvert ?? undefined)
+    if (revision !== revisionCorpus.value || ouvert !== ent.ouvertId.value) return
     const n = ouvert ? ent.entretien.annotations.filter((a) => a.type === 'codage' && a.code === id).length : 0
     themeASupprimer.value = { id, nom: corpus.nomTheme(id), n, autres, partage: idDistantCourant.value !== null }
   }
-  /** Confirme : retire les codages de l'entretien ouvert (modèle=vérité) puis, si besoin, ceux des autres
-   *  entretiens, et supprime la DÉFINITION au corpus (l'entretien ouvert n'est pas recompté). */
+  /** En local, les fichiers sont modifiés ensemble avant de mettre à jour l'entretien affiché. */
   async function confirmerSuppressionTheme() {
     const cible = themeASupprimer.value
     if (!cible || (cible.autres > 0 && cible.partage)) return
     await lancerOperationGlobale(async () => {
+      const revision = revisionCorpus.value
       const ouvert = ent.ouvertId.value
+      const local = idDistantCourant.value === null
       if (ouvert) {
-        ent.retirerCodagesDuCode(cible.id)
-        if (!await publierAvantSuppressionDefinition()) return
+        if (local) await ent.viderSauvegarde()
+        else {
+          ent.retirerCodagesDuCode(cible.id)
+          if (!await publierAvantSuppressionDefinition()) return
+        }
       }
-      const r = await window.sonal.corpus.supprimerCategorie(cible.id, ouvert ?? undefined, cible.autres > 0)
+      if (revision !== revisionCorpus.value || ouvert !== ent.ouvertId.value) return
+      const r = await window.sonal.corpus.supprimerCategorie(
+        cible.id, local ? undefined : ouvert ?? undefined, local && cible.n + cible.autres > 0,
+      )
+      if (revision !== revisionCorpus.value) return
       if (r.ok) {
+        if (local && ouvert) ent.retirerCodagesDuCode(cible.id)
         corpus.majCodebook(r.corpus.codebook)
+        ent.rafraichir()
         if (corpus.codeCourant.value === cible.id) corpus.codeCourant.value = corpus.codebook.value[0]?.id ?? ''
         await corpus.rafraichirUsages()
       } else {
@@ -1066,8 +1085,10 @@ export function creerSonal() {
   /** Compte les valeurs puis ouvre la confirmation ; seules les règles des cas empêchent la suppression. */
   async function demanderSuppressionDonnee(idVar: string, idMod?: string) {
     corpus.messageVar.value = null
+    const revision = revisionCorpus.value
     const ouvert = ent.ouvertId.value
     const usages = await window.sonal.corpus.usagesDonnee(idVar, idMod, ouvert ?? undefined)
+    if (revision !== revisionCorpus.value || ouvert !== ent.ouvertId.value) return
     const variable = corpus.variables.value.find((v) => v.id === idVar)
     const nom = idMod === undefined
       ? variable?.lib ?? idVar
@@ -1078,21 +1099,31 @@ export function creerSonal() {
       autres: usages.valeurs, cas: usages.cas, partage: idDistantCourant.value !== null,
     }
   }
-  /** Confirme : efface les valeurs de l'entretien ouvert puis, si besoin, celles des autres entretiens,
-   *  et supprime la définition (l'entretien ouvert n'est pas recompté). */
+  /** En local, les valeurs affichées ne sont effacées qu'après la suppression enregistrée. */
   async function confirmerSuppressionDonnee() {
     const cible = donneeASupprimer.value
     if (!cible || cible.cas > 0 || (cible.autres > 0 && cible.partage)) return
     await lancerOperationGlobale(async () => {
+      const revision = revisionCorpus.value
       const ouvert = ent.ouvertId.value
-      if (ouvert && effacerValeursVariable(valeursOuvertes(), cible.idVar, cible.idMod) > 0) {
-        if (!await publierAvantSuppressionDefinition()) return
+      const local = idDistantCourant.value === null
+      if (ouvert) {
+        if (local) await ent.viderSauvegarde()
+        else if (effacerValeursVariable(valeursOuvertes(), cible.idVar, cible.idMod) > 0) {
+          if (!await publierAvantSuppressionDefinition()) return
+        }
       }
+      if (revision !== revisionCorpus.value || ouvert !== ent.ouvertId.value) return
+      const exceptId = local ? undefined : ouvert ?? undefined
+      const avecValeurs = local && cible.n + cible.autres > 0
       const r = cible.idMod === undefined
-        ? await window.sonal.corpus.supprimerVariable(cible.idVar, ouvert ?? undefined, cible.autres > 0)
-        : await window.sonal.corpus.supprimerModalite(cible.idVar, cible.idMod, ouvert ?? undefined, cible.autres > 0)
+        ? await window.sonal.corpus.supprimerVariable(cible.idVar, exceptId, avecValeurs)
+        : await window.sonal.corpus.supprimerModalite(cible.idVar, cible.idMod, exceptId, avecValeurs)
+      if (revision !== revisionCorpus.value) return
       if (r.ok) {
+        if (local && ouvert) effacerValeursVariable(valeursOuvertes(), cible.idVar, cible.idMod)
         corpus.majVariables(r.corpus.variables)
+        ent.rafraichir()
         await corpus.rafraichirMatrice()
       } else {
         corpus.messageVar.value = `« ${cible.nom} » vient d'être utilisée ailleurs : la suppression n'a pas été faite.`

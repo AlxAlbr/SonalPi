@@ -115,14 +115,14 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.editeur')).toContainText('Karine')
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
 
-  // L'entretien s'ouvre sur les locuteurs, avec les raccourcis au-dessus des onglets.
+  // L'entretien s'ouvre sur les locuteurs ; Ctrl+F ouvre la recherche à la demande.
   await expect(page.locator('[data-onglet="maison"]')).toHaveCount(0)
   await expect(page.locator('[data-onglet="locuteurs"]')).toHaveClass(/actif/)
-  const bulleRaccourcis = page.locator('.bulle-raccourcis')
-  await expect(bulleRaccourcis).toContainText('Espace')
-  await expect(bulleRaccourcis).toContainText('Ctrl+F')
-  await page.getByRole('button', { name: 'Masquer les raccourcis' }).click()
-  await expect(bulleRaccourcis).toHaveCount(0)
+  await page.locator('.editeur').click()
+  await page.keyboard.press('ControlOrMeta+f')
+  await expect(page.locator('.entretien-ecran .barre-recherche')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.entretien-ecran .barre-recherche')).toBeHidden()
 
   // Le bouton ferme l’entretien et revient au corpus.
   await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)
@@ -130,9 +130,9 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // Une bulle fermée le reste aux ouvertures suivantes.
+  // Une nouvelle ouverture n'affiche pas de recherche spontanément.
   await entrerEntretien(page)
-  await expect(bulleRaccourcis).toHaveCount(0)
+  await expect(page.locator('.entretien-ecran .barre-recherche')).toBeHidden()
 
   await app.close()
 })

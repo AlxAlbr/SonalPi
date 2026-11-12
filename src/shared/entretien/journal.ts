@@ -76,6 +76,8 @@ export interface CtxInverse {
   locuteurs: Locuteur[]
   valeursGen: Record<string, string>
   notes?: Note[]
+  themeExiste?: (id: string) => boolean
+  valeurExiste?: (idVar: string, idMod: string | null) => boolean
   blocs?: {
     locDe: (pos: number) => number | null | undefined
     poserLoc: (pos: number, loc: number | null) => void
@@ -118,6 +120,7 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
       // déjà revenue au modèle (re-codée) → rien à re-poser.
       return (
         !estOrpheline(inverse.annotation) &&
+        (inverse.annotation.type !== 'codage' || !ctx.themeExiste || !!inverse.annotation.code && ctx.themeExiste(inverse.annotation.code)) &&
         !ctx.entretien.annotations.some((a) => a.id === inverse.annotation.id)
       )
     case 'editerAnnotation':
@@ -125,10 +128,12 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
     case 'restaurerLocs':
       return !!ctx.blocs && inverse.blocs.every((b) => ctx.blocs!.locDe(b.pos) !== undefined)
     case 'renommerLocuteur':
-    case 'poserValeurLoc':
       return ctx.locuteurs.some((l) => l.index === inverse.index)
+    case 'poserValeurLoc':
+      return ctx.locuteurs.some((l) => l.index === inverse.index) &&
+        (!ctx.valeurExiste || ctx.valeurExiste(inverse.idVar, inverse.idMod))
     case 'poserValeurGen':
-      return true
+      return !ctx.valeurExiste || ctx.valeurExiste(inverse.idVar, inverse.idMod)
     case 'retirerNote':
       return !!ctx.notes?.some((note) => noteInchangee(note, inverse.note))
     case 'restaurerNote': {

@@ -27,6 +27,8 @@ export function useJournalEntretien(deps: {
   notes: Ref<Note[]>
   lireValeursGen: () => Record<string, string>
   lireEditeur: () => Editor | null
+  themeExiste?: CtxInverse['themeExiste']
+  valeurExiste?: CtxInverse['valeurExiste']
   effetsAnnulation: EffetsAnnulation
 }) {
   const journal = reactive<Journal>({ entrees: [] })
@@ -45,6 +47,8 @@ export function useJournalEntretien(deps: {
       locuteurs: deps.locuteurs.value,
       notes: deps.notes.value,
       valeursGen: deps.lireValeursGen(),
+      themeExiste: deps.themeExiste,
+      valeurExiste: deps.valeurExiste,
       blocs: ed
         ? {
             locDe: (pos) => {
@@ -76,6 +80,8 @@ export function useJournalEntretien(deps: {
   }
 
   watch(deps.notes, rafraichirJournal, { deep: true })
+  // Les définitions peuvent disparaître pendant que le Journal reste ouvert.
+  watch(() => journal.entrees.map((entree) => estApplicable(entree.inverse, ctxInverse())), rafraichirJournal)
 
   function enregistrerAction(libelle: string, inverse: Inverse) {
     return enregistrer(journal, libelle, inverse, genId)
