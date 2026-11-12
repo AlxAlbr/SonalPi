@@ -16,7 +16,7 @@ function banc(natif = false, nombre = 3) {
   serveur.creerDossierRelatif('verrous')
   const f = fixtureRenommageAnon(Array.from({ length: nombre }, (_, i) => `e${i + 1}`))
   for (const s of f.sources.slice(2)) s.data.annotations = []
-  serveur.poser('corpus.json', JSON.stringify(f.corpus, null, 2))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus, null, 2))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2))
   const dir = mkdtempSync(join(tmpdir(), 'sonal-rename-dav-')); dossiers.push(dir)
   const puts: string[] = []; const pistes: string[] = []; const miroirs: string[] = []; const sessions: string[] = []
@@ -27,7 +27,7 @@ function banc(natif = false, nombre = 3) {
     pistes.push(`${init?.method ?? 'GET'} ${chemin}`)
     await pieges.avant(chemin, init)
     const r = pieges.reponse(chemin, init) ?? await serveur.fetch(url, init)
-    if (init?.method === 'PUT' && r.ok && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) puts.push(chemin)
+    if (init?.method === 'PUT' && r.ok && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) puts.push(chemin)
     await pieges.apres(chemin, init)
     return r
   }
@@ -55,7 +55,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     b.sessions.push('e3')
     const liberer = await b.tiers('e4')
     expect(await b.service.appliquer(p)).toMatchObject({ statut: 'termine', annotations: 4, incluses: 2, entretiens: 2, definitionModifiee: true })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json'])
     expect(b.miroirs).toEqual(b.puts)
     const avant = b.f.sources[0].data
     const apres = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!)
@@ -78,7 +78,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     await expect(b.service.instantane()).rejects.toThrow('reste à reprendre')
     await liberer()
     expect(await b.reprendre(b.creer())).toMatchObject({ statut: 'termine', annotations: 4, entretiens: 2 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json'])
   })
   test('cible changée différée, modification étrangère acceptée et aucun écrasement', async () => {
     const b = banc(natif); const p = await b.preparer()
@@ -88,7 +88,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
       b.serveur.poser(`entretiens/${id}.json`, JSON.stringify(data))
     }
     expect(await b.service.appliquer(p)).toMatchObject({ statut: 'partiel', annotations: 2 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
     expect(await b.reprendre()).toMatchObject({ statut: 'termine', annotations: 4 })
     expect(JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!).meta.titre).toBe('Publication concurrente synthétique')
     expect(b.miroirs).not.toContain('entretiens/e3.json')
@@ -107,7 +107,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     expect(await b.service.appliquer(p)).toMatchObject({ statut: 'partiel', nouvellesCibles: ['e3'], annotations: 4 })
     b.pieges.apres = async () => {}
     expect(await b.reprendre()).toMatchObject({ statut: 'termine', annotations: 6, entretiens: 3 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'entretiens/e3.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'entretiens/e3.json'])
   })
   test('session récupérable ciblée différée ; non-ciblée ne refuse pas le lot', async () => {
     const b = banc(natif); const p = await b.preparer(); b.sessions.push('e2', 'e3')
@@ -122,29 +122,29 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     data.annotations = []
     b.serveur.poser('entretiens/e2.json', JSON.stringify(data))
     expect(await b.reprendre()).toMatchObject({ statut: 'termine', annotations: 2, ciblesRetirees: ['e2'] })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
   })
   test('catégorie préservée à la reprise ; divergence de variante interdit la poursuite', async () => {
     const b = banc(natif); const p = await b.preparer(); const liberer = await b.tiers('e2')
     await b.service.appliquer(p); await liberer()
-    const corpus = JSON.parse(b.serveur.contenuDe('corpus.json')!)
+    const corpus = JSON.parse(b.serveur.contenuDe('corpus.crp')!)
     corpus.reglesAnon.personne.categorie = 'Catégorie concurrente'
-    b.serveur.poser('corpus.json', JSON.stringify(corpus))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus))
     expect(await b.reprendre()).toMatchObject({ statut: 'termine' })
-    expect(JSON.parse(b.serveur.contenuDe('corpus.json')!).reglesAnon.personne.categorie).toBe('Catégorie concurrente')
+    expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).reglesAnon.personne.categorie).toBe('Catégorie concurrente')
     const c = banc(natif); const q = await c.preparer(); const rendre = await c.tiers('e2')
     await c.service.appliquer(q); await rendre()
-    const divergent = JSON.parse(c.serveur.contenuDe('corpus.json')!)
+    const divergent = JSON.parse(c.serveur.contenuDe('corpus.crp')!)
     divergent.reglesAnon.personne.pseudos = ['Choix concurrent']
-    c.serveur.poser('corpus.json', JSON.stringify(divergent))
+    c.serveur.poser('corpus.crp', JSON.stringify(divergent))
     await expect(c.reprendre()).rejects.toThrow('définition du lot a changé')
-    expect(c.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(c.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
   })
   test('réponse perdue : octets acceptés reconnus sans rejeu', async () => {
     const b = banc(natif)
     b.pieges.apres = async (chemin, init) => { if (chemin === 'entretiens/e1.json' && init?.method === 'PUT') throw new Error('réponse perdue') }
     expect(await b.service.appliquer(await b.preparer())).toMatchObject({ statut: 'termine', annotations: 4 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json'])
   })
   test('réponse et relecture perdues : verrous conservés, instance vivante reprend sans nouveau PUT', async () => {
     const b = banc(natif); const p = await b.preparer(); let disparu = false
@@ -155,7 +155,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     b.pieges.avant = async () => {}; b.pieges.apres = async () => {}
     await expect(b.reprendre(b.creer())).rejects.toThrow('verrou reste tenu')
     expect(await b.reprendre()).toMatchObject({ statut: 'termine', annotations: 4 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json'])
   })
   test('original relu après envoi incertain ne constitue jamais une preuve de refus', async () => {
     const b = banc(natif); const p = await b.preparer()
@@ -163,7 +163,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     expect(await b.service.appliquer(p)).toMatchObject({ statut: 'indetermine' })
     b.pieges.avant = async () => {}
     await expect(b.reprendre()).rejects.toThrow('indéterminée')
-    expect(b.puts).toEqual(['corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp'])
   })
   test('PUT définitivement refusé reste différé, sans état inconnu ni verrou conservé', async () => {
     const b = banc(natif)
@@ -184,11 +184,11 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     expect(await b.service.appliquer(await b.preparer())).toMatchObject({ statut: 'partiel', annotations: 2 })
     expect(b.service.lireSuivi()!.indeterminee).toBe(false)
     expect(JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!).meta.titre).toBe('Course concurrente')
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e2.json'])
   })
   test('ETag faible refuse l’inventaire, expiration refuse le PUT de la cible', async () => {
     const b = banc(natif)
-    b.pieges.reponse = (chemin, init) => chemin === 'corpus.json' && init?.method === 'GET'
+    b.pieges.reponse = (chemin, init) => chemin === 'corpus.crp' && init?.method === 'GET'
       ? new Response(b.serveur.contenuDe(chemin), { headers: { ETag: 'W/"faible"' } }) : null
     await expect(b.service.instantane()).rejects.toThrow('ETag fort')
     b.pieges.reponse = () => null
@@ -201,7 +201,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
       }
     }
     expect(await b.service.appliquer(p)).toMatchObject({ statut: 'partiel', annotations: 2 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e2.json'])
   })
   test('contrôle final indisponible interdit une fausse fin complète', async () => {
     const b = banc(natif); const p = await b.preparer(); let final = false
@@ -236,6 +236,6 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
       const j = JSON.parse(original); alterer(j); writeFileSync(chemin, JSON.stringify(j))
       expect(() => b.creer().lireSuivi()).toThrow('invalide')
     }
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
   })
 })

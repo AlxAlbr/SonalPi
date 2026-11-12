@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 
 const racine = join(process.cwd(), 'CorpusTest', 'CorpusSynthAnnot')
-const corpus = JSON.parse(readFileSync(join(racine, 'corpus.json'), 'utf8')) as CorpusFichier
+const corpus = JSON.parse(readFileSync(join(racine, 'corpus.crp'), 'utf8')) as CorpusFichier
 const attendus = [
   { titre: '1Coordinatrice', annotations: 80, ancres: 200, locuteurs: 2, caracteres: 4225 },
   { titre: '2RetraiteAnticipee', annotations: 97, ancres: 190, locuteurs: 2, caracteres: 4603 },
@@ -23,7 +23,7 @@ describe('corpus exemple annoté SonalPi2', () => {
     expect(corpus.codebook.cat_025.parent).toBe('cat_026')
     expect(corpus.codebook.cat_007.description).toContain("l'annonce")
     expect(corpus.meta?.sourceV1).toBeUndefined()
-    expect(readdirSync(racine).sort()).toEqual(['corpus.json', 'entretiens', 'png'])
+    expect(readdirSync(racine).sort()).toEqual(['corpus.crp', 'entretiens', 'png'])
     for (const categorie of Object.values(corpus.codebook)) {
       if (categorie.parent) expect(corpus.codebook[categorie.parent]).toBeDefined()
     }

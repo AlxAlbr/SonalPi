@@ -40,7 +40,7 @@ for (const port of [8080, 8081]) {
           'destination-a': { id: 'destination-a', nom: 'Destination A', ordre: 1, parent: null, actif: true, codeExport: 'destination-a' },
           'destination-b': { id: 'destination-b', nom: 'Destination B', ordre: 2, parent: null, actif: true, codeExport: 'destination-b' },
         }
-        await client.putTexte('corpus.json', JSON.stringify(c), { ifNoneMatch: '*' })
+        await client.putTexte('corpus.crp', JSON.stringify(c), { ifNoneMatch: '*' })
         const contenu = entretienDistantValide({
           corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Un passage partagé.' }] }] },
           annotations: [
@@ -78,7 +78,7 @@ for (const port of [8080, 8081]) {
         const final = await nouveau.analyserOperationTheme(d, reprise.apercu.operationId)
         expect(await nouveau.executerOperationTheme(final.operationId, d, { entretiens: 'tous-prevus' })).toMatchObject({ statut: 'appliquee', entretiens: 2, reaffectes: 2 })
         expect(await client.getTexteAvecEtag('entretiens/e1.json')).toEqual(e1Avant)
-        const dernierCorpus = JSON.parse(await client.getTexte('corpus.json')) as CorpusFichier
+        const dernierCorpus = JSON.parse(await client.getTexte('corpus.crp')) as CorpusFichier
         expect(Object.keys(dernierCorpus.codebook)).toHaveLength(3)
         expect(dernierCorpus.codebook.source).toBeDefined()
         expect(JSON.parse(await tiers.getTexte('entretiens/e2.json')).annotations[0].code).toBe('destination-b')

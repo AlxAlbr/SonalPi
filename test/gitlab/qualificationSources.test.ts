@@ -132,12 +132,12 @@ function sessionDe(p: Pile, id: string, idSession: string) {
       stockageLocal: stockage,
       journal: p.journal,
       preparerGardeDefinitions: async (contenuEntretien) => {
-        const corpus = await p.depot.lireFichier(`${p.racine}/corpus.json`, 'main')
-        if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+        const corpus = await p.depot.lireFichier(`${p.racine}/corpus.crp`, 'main')
+        if (!corpus) throw new Error('Le fichier corpus.crp est introuvable sur GitLab.')
         verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
         return {
           action: 'update',
-          chemin: `${p.racine}/corpus.json`,
+          chemin: `${p.racine}/corpus.crp`,
           contenu: corpus.contenu,
           commitId: corpus.commitId,
         }
@@ -152,7 +152,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     const { p, racine } = await racineAvecSource('d1')
     const cheminSource = `${racine}/entretiens/e1.json`
     const avantSource = (await lireFichier(cheminSource, configuration.token1 as string)).corps.last_commit_id
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
     const debut = performance.now()
 
     const commande = commandeRattachement('e1', 'p1')
@@ -164,7 +164,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
 
     // Le corpus publié porte le rattachement, calculé sur la version publiée.
     const publie = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     const rattachements = publie.cas?.['cas-1']?.rattachements ?? []
     expect(rattachements.map((r) => r.source)).toEqual([{ entretienId: 'e1', repereId: 'p1' }])
@@ -173,7 +173,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
 
     // La garde de la source est bien dans le commit de données, et la source
     // elle-même n'a pas bougé : la garde est pure.
-    const donnees = await commitsTouchant(`${racine}/corpus.json`) - avant
+    const donnees = await commitsTouchant(`${racine}/corpus.crp`) - avant
     const apresSource = (await lireFichier(cheminSource, configuration.token1 as string)).corps.last_commit_id
     expect(apresSource).toBe(avantSource)
     console.log(
@@ -189,7 +189,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
   it('une source modifiée pendant la préparation refuse le commit entier', { timeout: 90_000 }, async () => {
     const { p, racine } = await racineAvecSource('d2')
     const cheminSource = `${racine}/entretiens/e1.json`
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
     const localAvant = JSON.stringify(p.lireLocal())
 
     // Un tiers publie l'entretien entre notre lecture et l'envoi du commit :
@@ -217,7 +217,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     )).rejects.toThrow(/a changé pendant l’opération/)
 
     // Le corpus reste intact, et le miroir n'a rien reçu.
-    expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
+    expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant)
     expect(JSON.stringify(p.lireLocal())).toBe(localAvant)
     console.log('[banc D1] source périmée — commit refusé, corpus et miroirs intacts')
     nettoyer(p)
@@ -262,7 +262,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'd4' })
     // La version publiée ne porte pas le repère demandé.
     await publierEntretiens(p, { e1: entretienPublie('Version publiée', []) })
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
 
     const commande = commandeRattachement('e1', 'p-absent')
     await expect(p.transactions.executerDefinitionsAvecSources(
@@ -270,7 +270,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
       { deduire: deduireSourcesCas(commande) ?? (() => []) },
     )).rejects.toThrow("La référence de passage n'existe pas dans l'entretien")
 
-    expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
+    expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant)
     console.log('[banc D1] repère absent de la version publiée — geste suspendu, aucun commit de données')
     nettoyer(p)
   })
@@ -285,7 +285,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
       e2: entretienPublie('Un', [], '2026-03-03T10:00:00.000Z'),
       e3: entretienPublie('Un mot', [], '2026-01-01T10:00:00.000Z'),
     })
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
     const debut = performance.now()
 
     const contexte = contexteTri(p, { observerVerrous: async () => ({ entrees: [], indisponible: false }) })
@@ -295,9 +295,9 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     // Le tri par modification range le plus récent en tête, et le commit ne
     // porte que le corpus : aucun entretien n'est gardé.
     expect(trie.ordreEntretiens).toEqual(['e2', 'e1', 'e3'])
-    expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+    expect(await commitsTouchant(`${racine}/corpus.crp`) - avant).toBe(1)
     const publie = JSON.parse(contenuDe(
-      await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+      await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
     )) as CorpusFichier
     expect(publie.ordreEntretiens).toEqual(['e2', 'e1', 'e3'])
     console.log(
@@ -390,7 +390,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
         content: entretienPublie('v'.repeat(600 * 1024), ['p1']),
       }])
     }
-    const avant = await commitsTouchant(`${racine}/corpus.json`)
+    const avant = await commitsTouchant(`${racine}/corpus.crp`)
     const debut = performance.now()
 
     const commande = commandeRattachement('e1', 'p1')
@@ -401,7 +401,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
     const duree = performance.now() - debut
 
     // Le commit de données est unique et emporte corpus, quatre gardes et bail.
-    expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+    expect(await commitsTouchant(`${racine}/corpus.crp`) - avant).toBe(1)
     const envoye = p.commitsEnvoyes.find((commit) => commit.message.startsWith('Sonal op-'))
     expect(envoye?.actions).toBe(6)
     // Aucune transcription n'a traversé le corps : six fois moins d'octets
@@ -439,7 +439,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
           content: entretienPublie(`Texte ${index}`, ['p1']),
         }),
       ))
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
       const debut = performance.now()
 
       const commande = commandeRattachement('e1', 'p1')
@@ -451,7 +451,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
 
       // Un commit unique de données : corpus, autant de gardes que de sources,
       // et la mutation du bail — à la borne exacte pour 248.
-      expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+      expect(await commitsTouchant(`${racine}/corpus.crp`) - avant).toBe(1)
       const envoye = p.commitsEnvoyes.find((commit) => commit.message.startsWith('Sonal op-'))
       expect(envoye?.actions).toBe(nombre + 2)
       expect((envoye?.octets ?? 0)).toBeLessThan(2 * 1024 * 1024)
@@ -577,7 +577,7 @@ decrire('gestes à sources GitLab — qualification à deux comptes', () => {
       expect(apres.transactions.transactionReconciliee()).toBe(true)
 
       const publie = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
+        await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string),
       )) as CorpusFichier
       expect(publie.cas?.['cas-1']?.rattachements).toHaveLength(1)
       // La source est restée intacte : la garde portée par le commit était pure.

@@ -31,7 +31,7 @@ function publieurVersSousDossier(serveur: ServeurWebDAVMemoire, chemin = '/Equip
 }
 
 describe('PublieurCorpus.publierSquelette', () => {
-  it('crée un corpus neuf sur une cible inexistante : chaîne de dossiers + dossiers techniques + corpus.json', async () => {
+  it('crée un corpus neuf sur une cible inexistante : chaîne de dossiers + dossiers techniques + corpus.crp', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const clientCible = new ClientWebDAV(
       { baseUrl: serveur.baseUrl + '/Equipe/MonNouveau', identifiants: serveur.identifiants },
@@ -40,8 +40,8 @@ describe('PublieurCorpus.publierSquelette', () => {
 
     await publieurVersSousDossier(serveur).publierSquelette('Terrain Aide aux Devoirs')
 
-    // Le corpus.json distant est exactement le squelette partagé (né en mémoire).
-    const contenu = JSON.parse(await clientCible.getTexte('corpus.json'))
+    // Le corpus.crp distant est exactement le squelette partagé (né en mémoire).
+    const contenu = JSON.parse(await clientCible.getTexte('corpus.crp'))
     expect(contenu).toEqual(squeletteCorpus('Terrain Aide aux Devoirs'))
 
     // Les dossiers techniques existent (PROPFIND de la racine du corpus).
@@ -63,7 +63,7 @@ describe('PublieurCorpus.publierSquelette', () => {
       { baseUrl: serveur.baseUrl + '/Equipe/MonNouveau', identifiants: serveur.identifiants },
       serveur.fetch,
     )
-    const contenu = JSON.parse(await clientCible.getTexte('corpus.json'))
+    const contenu = JSON.parse(await clientCible.getTexte('corpus.crp'))
     expect((contenu as { nom?: string }).nom).toBe('Premier nom')
   })
 
@@ -79,7 +79,7 @@ describe('PublieurCorpus.publierSquelette', () => {
 
     // La republication est IDEMPOTENTE : MKCOL 405 tolérés, PUT aboutit.
     await publieurVersSousDossier(serveur).publierSquelette('Reprise')
-    const contenu = JSON.parse(await clientCible.getTexte('corpus.json'))
+    const contenu = JSON.parse(await clientCible.getTexte('corpus.crp'))
     expect((contenu as { nom?: string }).nom).toBe('Reprise')
   })
 
@@ -106,7 +106,7 @@ describe('PublieurCorpus.publierSquelette', () => {
     couper = false
     await new PublieurCorpus(config, serveur.fetch).publierSquelette('Reprise après échec')
     const clientCible = new ClientWebDAV(config, serveur.fetch)
-    const contenu = JSON.parse(await clientCible.getTexte('corpus.json'))
+    const contenu = JSON.parse(await clientCible.getTexte('corpus.crp'))
     expect((contenu as { nom?: string }).nom).toBe('Reprise après échec')
   })
 
@@ -139,7 +139,7 @@ describe('squeletteCorpus — partagé local/distant', () => {
     const store = new CorpusStore(dir)
     store.ouvrir() // déclenche amorcer() sur dossier vierge
 
-    const ecrit = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+    const ecrit = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
     expect(ecrit).toEqual(squeletteCorpus())
   })
 

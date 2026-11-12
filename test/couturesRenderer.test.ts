@@ -4,10 +4,32 @@ import {
   appliquerStatutSession,
   choisirSrtAvantMutation,
   preparerFermetureEntretien,
+  creerGardeOuverture,
+  MESSAGE_OUVERTURE_EN_COURS,
 } from '../src/renderer/couturesApplication'
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('ouvertures exclusives sans file', () => {
+  test('refuse une demande concurrente et ne l’exécute jamais après la première', async () => {
+    const ouvrir = creerGardeOuverture()
+    let terminer!: () => void
+    const premiere = ouvrir(() => new Promise<void>((resolve) => { terminer = resolve }))
+    const seconde = vi.fn(async () => 'seconde')
+    await expect(ouvrir(seconde)).rejects.toThrow(MESSAGE_OUVERTURE_EN_COURS)
+    terminer()
+    await premiere
+    expect(seconde).not.toHaveBeenCalled()
+    await expect(ouvrir(seconde)).resolves.toBe('seconde')
+  })
+  test('libère la garde après une erreur ou une annulation', async () => {
+    const ouvrir = creerGardeOuverture()
+    await expect(ouvrir(async () => { throw new Error('sauvegarde refusée') })).rejects.toThrow('sauvegarde refusée')
+    await expect(ouvrir(async () => null)).resolves.toBeNull()
+    await expect(ouvrir(async () => 'corpus suivant')).resolves.toBe('corpus suivant')
+  })
 })
 
 describe('rétrogradation visible du renderer', () => {

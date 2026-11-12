@@ -23,14 +23,14 @@ for (const port of [8080, 8081]) {
       const tiers = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: { utilisateur: 'olivier', motDePasse: 'olivier-olivier-5678' } })
       await origin.creerDossier('entretiens'); await origin.creerDossier('verrous')
       const f = fixtureRetraitVarianteAnon(), dir = mkdtempSync(join(tmpdir(), 'sonal-retrait-nc-'))
-      await origin.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+      await origin.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
       for (const e of f.sources) await origin.putTexte(`entretiens/${e.id}.json`, JSON.stringify(e.data, null, 2), { ifNoneMatch: '*' })
       const puts: string[] = [], miroirs = new Map<string, string>(), panne = { reponse: '', lecture: '' }
       const transport: ImplementationFetch = async (url, init) => {
         const p = decodeURIComponent(new URL(String(url)).pathname).replace(`${new URL(origin.config.baseUrl).pathname}/`, '')
         if (init?.method === 'GET' && panne.lecture === p) throw new Error('Lecture synthétique perdue')
         const r = await fetch(url, init)
-        if (init?.method === 'PUT' && r.ok && (p === 'corpus.json' || p.startsWith('entretiens/'))) {
+        if (init?.method === 'PUT' && r.ok && (p === 'corpus.crp' || p.startsWith('entretiens/'))) {
           puts.push(p)
           if (panne.reponse === p) { panne.lecture = p; await r.body?.cancel(); throw new Error('Réponse synthétique perdue') }
         }
@@ -54,14 +54,14 @@ for (const port of [8080, 8081]) {
       try {
         const nonCible = await b.origin.getTexte('entretiens/e3.json')
         expect(await b.service.appliquer(b.preparation.token, true)).toMatchObject({ statut: 'termine', annotations: 6, exceptions: 3, incluses: 2, varianteRetiree: true })
-        expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+        expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
         expect(await b.origin.getTexte('entretiens/e3.json')).toBe(nonCible)
         for (const s of b.f.sources.slice(0, 2)) {
           const actuel = JSON.parse(await b.origin.getTexte(`entretiens/${s.id}.json`)), attendu = structuredClone(s.data)
           for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
           attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
         }
-        expect(JSON.parse(await b.origin.getTexte('corpus.json')).reglesAnon.personne.pseudos).toEqual(['Rebecca'])
+        expect(JSON.parse(await b.origin.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Rebecca'])
       } finally { await rendre(); await b.nettoyer() }
     })
     test('cible tenue, exception ancienne refusée ; modification indépendante restante permise et reprise neuve', { timeout: 120_000 }, async () => {
@@ -95,7 +95,7 @@ for (const port of [8080, 8081]) {
         expect(b.puts.filter((p) => p === 'entretiens/e1.json')).toHaveLength(1)
       } finally { await b.nettoyer() }
     })
-    test.each(['corpus.json', 'entretiens/e1.json'])('réponse perdue %s : preuve sans répétition et nouvelle instance sans droits hérités', { timeout: 120_000 }, async (chemin) => {
+    test.each(['corpus.crp', 'entretiens/e1.json'])('réponse perdue %s : preuve sans répétition et nouvelle instance sans droits hérités', { timeout: 120_000 }, async (chemin) => {
       const b = await banc()
       try {
         b.panne.reponse = chemin
@@ -106,7 +106,7 @@ for (const port of [8080, 8081]) {
         expect(b.puts).toEqual(puts); expect(await b.origin.getTexteAvecEtag('verrous/corpus.lock.json')).toEqual(droits)
         expect((await b.reprendre(r.operationId, neuf)).statut).toBe('partiel'); expect(b.puts).toEqual(puts)
         await b.service.relireSuivi(r.operationId); expect((await b.reprendre(r.operationId)).statut).toBe('termine')
-        expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+        expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
       } finally { await b.nettoyer() }
     })
   })

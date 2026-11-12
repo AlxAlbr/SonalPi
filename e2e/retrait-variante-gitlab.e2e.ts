@@ -81,8 +81,8 @@ async function instrumenter(app: ElectronApplication, projet: number, mode: Sond
       if (adresse.pathname === `/api/v4/projects/${args.projet}/repository/commits` && init?.method === 'POST') {
         const commit = JSON.parse(String(init.body))
         if (commit.commit_message.startsWith('Sonal retrait-variante-')) {
-          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.json' || a.file_path.startsWith('entretiens/')))
-          if (a.file_path === 'corpus.json') {
+          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.crp' || a.file_path.startsWith('entretiens/')))
+          if (a.file_path === 'corpus.crp') {
             const c = JSON.parse(a.encoding === 'base64' ? Buffer.from(a.content, 'base64').toString('utf8') : a.content)
             phase = c.retraitVarianteAnon ? 'barriere' : 'retrait'
           } else phase = a.file_path.split('/').at(-1).replace('.json', '')
@@ -103,14 +103,14 @@ async function banc(suffixe: string) {
   const id = randomUUID(), projet = await api<{ id: number; path_with_namespace: string }>('/projects', { method: 'POST', body: JSON.stringify({ name: `Sonal retrait ${suffixe} ${id}`, path: `sonal-retrait-${id}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }) })
   const f = fixtureRetraitVarianteAnon(); f.corpus.nom = 'Retrait synthétique'
   await api(`/projects/${projet.id}/repository/commits`, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'fixture : retrait synthétique', actions: [
-    { action: 'create', file_path: 'corpus.json', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
+    { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
   const second = await api<{ id: number }>('/user', {}, config.token2!)
   await api(`/projects/${projet.id}/members`, { method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }) })
   await expect.poll(async () => { try { return (await api<{ can_push: boolean }>(`/projects/${projet.id}/repository/branches/main`, {}, config.token2!)).can_push } catch { return false } }, { timeout: 90_000, intervals: [500, 1_000, 2_000, 5_000] }).toBe(true)
   const depot = new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: config.url!, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: config.token! } }))
   const bob = new BailGitLab({ branche: 'main', depot: new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: config.url!, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: config.token2! } })), identite: () => ({ userId: String(second.id), machineId: 'fixture-bob', sessionId: suffixe }) })
-  const lire = (id: string) => depot.lireFichier(id === 'corpus' ? 'corpus.json' : `entretiens/${id}.json`, 'main')
+  const lire = (id: string) => depot.lireFichier(id === 'corpus' ? 'corpus.crp' : `entretiens/${id}.json`, 'main')
   return { f, projet, depot, bob, lire }
 }
 function remplacer(avant: EntretienFichier, date: string) {
@@ -146,7 +146,7 @@ test.describe('Retrait de variante GitLab — parcours normal dans l’applicati
         return { premier, second }
       }, b.f.demande)
       expect(consommation.premier).toContain('Confirmez'); expect(consommation.second).toContain('expiré')
-      const corpusTenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.json')); if (!corpusTenu.ok) throw new Error('Fixture corpus')
+      const corpusTenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.crp')); if (!corpusTenu.ok) throw new Error('Fixture corpus')
       try {
         dialogue = await preparer(page); await confirmer(dialogue)
         await expect(dialogue.getByRole('button', { name: 'Relire le suivi GitLab', exact: true })).toBeEnabled()
@@ -197,7 +197,7 @@ test.describe('Retrait de variante GitLab — parcours normal dans l’applicati
       dialogue = await preparer(page)
       const source = (await b.lire('corpus'))!, concurrent = JSON.parse(source.contenu)
       concurrent.reglesAnon.personne.categorie = 'Autre'
-      await b.depot.publierCommit('main', 'fixture : catégorie changée après bilan', [{ action: 'update', file_path: 'corpus.json', last_commit_id: source.commitId, content: JSON.stringify(concurrent) }])
+      await b.depot.publierCommit('main', 'fixture : catégorie changée après bilan', [{ action: 'update', file_path: 'corpus.crp', last_commit_id: source.commitId, content: JSON.stringify(concurrent) }])
       await confirmer(dialogue); await expect(dialogue).toContainText('Le retrait n’a pas pu être terminé')
       expect(await phases(app)).toEqual([])
       await dialogue.getByRole('button', { name: 'Annuler', exact: true }).click()
@@ -265,7 +265,7 @@ test.describe('Retrait de variante GitLab — parcours normal dans l’applicati
       await instrumenter(app, b.projet.id, 'kill'); const page = await app.firstWindow(); await ouvrir(page, shim, session, b.projet)
       const dialogue = await preparer(page); await confirmer(dialogue)
       await expect.poll(() => app.evaluate(() => (globalThis as unknown as { sondeRetrait: Sonde }).sondeRetrait.accepte), { timeout: 30_000 }).toBe(true)
-      const baux = await Promise.all(['corpus.json', 'entretiens/e1.json'].map(async (chemin) => {
+      const baux = await Promise.all(['corpus.crp', 'entretiens/e1.json'].map(async (chemin) => {
         const path = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', chemin)), source = (await b.depot.lireFichier(path, 'main'))!
         return { path, source, bail: JSON.parse(source.contenu) }
       }))

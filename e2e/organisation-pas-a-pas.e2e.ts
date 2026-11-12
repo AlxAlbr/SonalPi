@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { attendreAccueil, lancer, selectionner } from './util'
 import { preparerApprentissage } from './exemples-util'
 
-const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
 async function suivante(page: Page) {
   await page.locator('.fini-pp').getByRole('button', { name: /Étape suivante/ }).click()
 }
@@ -13,7 +13,7 @@ async function suivante(page: Page) {
 test('le parcours organise un cas, compose un recueil et exporte quatre entretiens sans modifier le modèle', async () => {
   const racine = mkdtempSync(join(tmpdir(), 'sonal-parcours-organisation-'))
   const dir = join(racine, 'organisation'), sortie = join(racine, 'sortie')
-  const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')
+  const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'), 'utf8')
   const app = await lancer(join(racine, 'profil'))
   try {
     const page = await app.firstWindow()
@@ -77,7 +77,7 @@ test('le parcours organise un cas, compose un recueil et exporte quatre entretie
     expect(readdirSync(sortie).filter((nom) => !nom.startsWith('_') && nom.endsWith('.txt'))).toHaveLength(4)
     expect(lireCorpus(dir).demo.parcours.analyse?.validees ?? []).toEqual([])
     expect((await page.evaluate(() => window.sonal.corpus.recents())).some((r) => r.type === 'local' && r.dir === dir)).toBe(false)
-    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')).toBe(modele)
+    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'), 'utf8')).toBe(modele)
   } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
 })
 

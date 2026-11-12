@@ -22,7 +22,7 @@ async function banc(suffixe: string) {
     store: p.store, depot: p.depot, coordination: p.coordination, publication: p.publication, journal: p.journal, file: new FileOperationsContexte() }
   const s = new RetraitsVarianteAnonGitLab(options, () => []), a = await s.preparer(f.demande)
   const lire = async (id: string) => JSON.parse((await p.depot.lireFichier(`${racine}/entretiens/${id}.json`, 'main'))!.contenu)
-  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.json`, 'main'))!.contenu)
+  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.crp`, 'main'))!.contenu)
   const reprise = async (service = s) => service.appliquer((await service.preparerReprise(service.lireSuivi()!.operationId)).token, true)
   return { f, p, s, a, options, lire, corpus, reprise }
 }
@@ -104,7 +104,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
     const b = await banc(`perte-${phase}`)
     try {
       b.p.avantCommitDeDonneesQuand((actions) => actions.some((a) => a.action === 'update' && (phase === 'entretien' ? a.file_path.endsWith('/entretiens/e1.json')
-        : a.file_path.endsWith('/corpus.json') && a.content !== undefined && (phase === 'barriere' ? !!JSON.parse(a.content).retraitVarianteAnon : JSON.parse(a.content).reglesAnon.personne.pseudos.length === 1))), async () => {
+        : a.file_path.endsWith('/corpus.crp') && a.content !== undefined && (phase === 'barriere' ? !!JSON.parse(a.content).retraitVarianteAnon : JSON.parse(a.content).reglesAnon.personne.pseudos.length === 1))), async () => {
         b.p.rendreHistoriqueIndisponible(); b.p.perdreReponseDuCommitDeDonnees()
       })
       const r = await b.s.appliquer(b.a.token, true); expect(r.statut).toBe('indetermine')
@@ -148,7 +148,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
       expect(await b.s.appliquer(b.a.token, true)).toMatchObject({ statut: 'indetermine' })
       b.p.rendreHistorique()
       const coordination = new BailGitLab({ branche: 'main', depot: b.p.depot, identite: () => ({ userId: 'user1', machineId: 'neuf-contexte', sessionId: 'neuf-contexte' }) })
-      const baux = await Promise.all(['corpus.json', 'entretiens/e1.json'].map(async (p) => {
+      const baux = await Promise.all(['corpus.crp', 'entretiens/e1.json'].map(async (p) => {
         const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.p.racine}/${p}`))
         return { chemin, contenu: (await b.p.depot.lireFichier(chemin, 'main'))!.contenu }
       }))
@@ -172,7 +172,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
         b.p.rendreHistoriqueIndisponible(); b.p.perdreReponseDuCommitDeDonnees()
       })
       const r = await b.s.appliquer(b.a.token, true); b.p.rendreHistorique()
-      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.p.racine}/corpus.json`)), avant = (await b.p.depot.lireFichier(chemin, 'main'))!.contenu
+      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${b.p.racine}/corpus.crp`)), avant = (await b.p.depot.lireFichier(chemin, 'main'))!.contenu
       const coordination = new BailGitLab({ branche: 'main', depot: b.p.depot, identite: () => ({ userId: 'user1', machineId: 'neuf', sessionId: 'neuve' }) })
       await reprendreOperationsGitLab({ depot: b.p.depot, coordination, journal: b.p.journal, dirMiroir: b.p.dossier }); expect(b.p.journal.lister()).toHaveLength(1)
       const relance = new RetraitsVarianteAnonGitLab({ ...b.options, coordination }, () => [])

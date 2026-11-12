@@ -10,7 +10,7 @@ import { ClientLfsGitLab, identifierFichierGitLab, pointeurLfsGitLab } from '../
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { fixturePseudonymisation } from '../../test/fixtures/pseudonymisation'
 import { exporterSonal } from '../../src/renderer/formatSonal/exportSonal'
-import { attendreAccueil, attendreCorpus, lancer, ouvrirMigration, retourCorpus } from '../util'
+import { attendreAccueil, attendreCorpus, fermerAiguillage, lancer, retourCorpus } from '../util'
 
 export const config = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''), token: process.env.GITLAB_USER1_TOKEN,
@@ -130,15 +130,24 @@ export async function lancerQualification(profil: string, preserverSettings = fa
 }
 export async function connecterSource(page: Page, source: Projet) {
   await attendreAccueil(page)
-  await ouvrirMigration(page, 'gitlab')
-  const modal = page.getByRole('dialog', { name: 'Migration SonalPi1 — GitLab' })
-  await modal.getByLabel('Adresse du projet source', { exact: true }).fill(adresse(source))
-  await modal.getByRole('combobox', { name: /^Connexion GitLab/ }).selectOption('jeton-personnel')
-  const secret = modal.getByLabel('Jeton d’accès GitLab (scope api)', { exact: true })
+  await page.locator('.distant-corpus').click()
+  await page.getByRole('tab', { name: 'GitLab', exact: true }).click()
+  const connexion = page.locator('.modale-distant')
+  await connexion.locator('.url-projet-gitlab').fill(adresse(source))
+  await connexion.locator('select').first().selectOption('jeton-personnel')
+  const secret = connexion.locator('input[type=password]').first()
   if (await secret.isVisible()) await secret.fill(config.token!)
-  await modal.getByRole('button', { name: /^(Se connecter et lire|Lire) la source$/ }).click()
+  await connexion.locator('.action-gitlab').click()
+  const modal = page.getByRole('dialog', { name: 'Passer à SonalPi2 — GitLab' })
   await expect(modal.getByText('Corpus : terrain/corpus.crp', { exact: true })).toBeVisible({ timeout: 30_000 })
   return modal
+}
+export async function ouvrirReprise(page: Page) {
+  await attendreAccueil(page)
+  await page.locator('.distant-corpus').click()
+  await page.getByRole('tab', { name: 'GitLab', exact: true }).click()
+  await page.getByRole('button', { name: 'Reprendre un passage à SonalPi2…' }).click()
+  return page.getByRole('dialog', { name: 'Reprendre un passage à SonalPi2', exact: true })
 }
 export async function preparer(page: Page, source: Projet, cible: Projet, urlMedia?: string, nombreEntretiens = 4) {
   const modal = await connecterSource(page, source)
@@ -190,6 +199,7 @@ export async function ouvrirProfilNeuf(page: Page, cible: Projet, urlMedia?: str
   await page.locator('.modale-distant input[type=password]').fill(config.token!)
   await page.locator('.action-gitlab').click()
   await expect(page.locator('.modale-distant')).toBeHidden({ timeout: 30_000 })
+  await fermerAiguillage(page, 'entretiens', 30_000)
   await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
   await attendreCorpus(page)
   if (!urlMedia) return

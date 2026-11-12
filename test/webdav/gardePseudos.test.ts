@@ -19,11 +19,11 @@ for (const natif of [false, true]) describe(`garde des nouveaux choix WebDAV —
   async function banc(maintenant?: () => number) {
     const f = fixtureRenommageAnon(['e1'])
     const serveur = new ServeurWebDAVMemoire(); serveur.creerDossierRelatif('verrous')
-    serveur.poser('corpus.json', JSON.stringify(f.corpus)); serveur.poser('entretiens/e1.json', JSON.stringify(f.sources[0].data))
+    serveur.poser('corpus.crp', JSON.stringify(f.corpus)); serveur.poser('entretiens/e1.json', JSON.stringify(f.sources[0].data))
     const pieges = { corpus: () => {} }
     const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, async (url, init) => {
       const r = await serveur.fetch(url, init)
-      if (String(url).endsWith('/corpus.json') && init?.method === 'GET') pieges.corpus()
+      if (String(url).endsWith('/corpus.crp') && init?.method === 'GET') pieges.corpus()
       return r
     })
     const dir = mkdtempSync(join(tmpdir(), 'sonal-garde-pseudo-')); dossiers.push(dir)
@@ -41,7 +41,7 @@ for (const natif of [false, true]) describe(`garde des nouveaux choix WebDAV —
       sessions.dispose()
     })
     f.corpus.reglesAnon.personne.pseudos = ['Nouvelle', 'Rebecca']
-    serveur.poser('corpus.json', JSON.stringify(f.corpus))
+    serveur.poser('corpus.crp', JSON.stringify(f.corpus))
     const ecrire = (data = structuredClone(f.sources[0].data)) => { writeFileSync(fichier, JSON.stringify(data)); sessions.noterSale('e1'); return data }
     return { f, serveur, client, garde, sessions, ecrire, identite, dir, pieges }
   }
@@ -112,9 +112,9 @@ for (const natif of [false, true]) describe(`garde des nouveaux choix WebDAV —
   test('contournement direct : changement de définition entre validation et garde finale refuse', async () => {
     const b = await banc(); let lectures = 0; let envois = 0
     const client = new ClientWebDAV(b.client.config, async (url, init) => {
-      if (init?.method === 'GET' && String(url).endsWith('corpus.json') && ++lectures === 2) {
+      if (init?.method === 'GET' && String(url).endsWith('corpus.crp') && ++lectures === 2) {
         const corpus = structuredClone(b.f.corpus); corpus.reglesAnon.personne.pseudos = ['Autre']
-        b.serveur.poser('corpus.json', JSON.stringify(corpus))
+        b.serveur.poser('corpus.crp', JSON.stringify(corpus))
       }
       return b.serveur.fetch(url, init)
     })

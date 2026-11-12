@@ -50,9 +50,9 @@ function ecrireWav(chemin: string): void {
 /** Un entretien au TEXTE VIDE (créé « audio seul », sans transcription). */
 function ecrireEntretienVide(dir: string, id: string): void {
   const now = new Date().toISOString()
-  const fc = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.json'), 'utf8'))
+  const fc = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.crp'), 'utf8'))
   fc.membership[id] = { titre: 'Entretien vierge', date: null, lastModified: now }
-  writeFileSync(join(dir, 'corpus', 'corpus.json'), JSON.stringify(fc), 'utf8')
+  writeFileSync(join(dir, 'corpus', 'corpus.crp'), JSON.stringify(fc), 'utf8')
   writeFileSync(
     join(dir, 'corpus', 'entretiens', `${id}.json`),
     JSON.stringify(

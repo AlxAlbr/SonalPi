@@ -75,7 +75,7 @@ describe('conversion et documents natifs de migration GitLab', () => {
     )
     expect(annotations(entretien.annotations)).toEqual(annotations(conversion.payload.annotations))
     expect(entretien.legacy).toEqual(conversion.payload.legacy)
-    const corpus = JSON.parse(documents.find((d) => d.chemin === 'corpus.json')!.contenu)
+    const corpus = JSON.parse(documents.find((d) => d.chemin === 'corpus.crp')!.contenu)
     expect(corpus.ordreEntretiens).toEqual([id])
     for (const definition of conversion.codebook ?? []) expect(corpus.codebook[definition.id]).toBeDefined()
     for (const definition of conversion.variables ?? []) expect(corpus.variables[definition.id]).toBeDefined()

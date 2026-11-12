@@ -1,7 +1,8 @@
 import { CorpusStore, type PreparationOuvertureCorpus } from './corpusStore'
+import { lireFichierCorpus } from './ouvertureFichier'
+import { join } from 'node:path'
+import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
 import type { OuvertureCorpus } from '../shared/format'
-import type { DemandeMigration } from '../shared/corpus/migrationCrp'
-import type { InstallationAutresMigration } from './conservationMigrationLocale'
 import type { InstallationExemple } from '../shared/exemples'
 import type { ExemplesLocaux } from './exemples'
 
@@ -78,8 +79,8 @@ export async function executerTransitionPreparee<T, R>(
 interface DependancesTransitionsLocales {
   creerStore?: (dir: string) => CorpusStore
   exemples?: Pick<ExemplesLocaux, 'preparerInstallation'>
+  verifierCible?: (dir: string) => void
   fermerContexteActuel: () => Promise<void>
-  preparerDocumentsMigration?: (req: DemandeMigration) => Promise<InstallationAutresMigration>
   finaliser: (
     store: CorpusStore,
     dir: string,
@@ -92,6 +93,7 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
   const creerStore = deps.creerStore ?? ((dir: string) => new CorpusStore(dir))
 
   const preparerStore = (dir: string): CorpusStore => {
+    deps.verifierCible?.(dir)
     const store = creerStore(dir)
     store.lectureSeule = false
     return store
@@ -99,6 +101,8 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
 
   return {
     ouvrirDossier: async (dir: string): Promise<OuvertureCorpus> => {
+      const lecture = lireFichierCorpus(join(dir, NOM_FICHIER_CORPUS))
+      if (lecture.classification.type !== 'v2') throw new Error('Ce fichier SonalPi1 doit être ouvert par le sélecteur de fichier pour passer à SonalPi2.')
       const store = preparerStore(dir)
       return executerTransitionPreparee(
         () => store.preparerOuverture(),
@@ -130,24 +134,6 @@ export function creerTransitionsLocales(deps: DependancesTransitionsLocales) {
       )
     },
 
-    migrer: async (req: DemandeMigration): Promise<OuvertureCorpus> => {
-      const store = preparerStore(req.dossier)
-      const preparation = store.preparerMigrationDepuisV1(
-        req.nom, { cheminCrp: req.cheminCrp, dateCreation: req.dateCreation },
-        req.codebook, req.variables, req.reglesAnon, req.paramsAnon, req.traitementsLexico,
-      )
-      const documents = await deps.preparerDocumentsMigration?.(req)
-      try {
-        return await executerTransitionPreparee(
-          () => preparation,
-          deps.fermerContexteActuel,
-          (preparee) => {
-            documents?.installer()
-            return deps.finaliser(store, req.dossier, preparee)
-          },
-        )
-      } finally { documents?.nettoyer() }
-    },
   }
 }
 

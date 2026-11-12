@@ -72,8 +72,7 @@ export class ServiceMigrationGitLab {
   }
 
   abandonner(preparationId: string): void {
-    this.preparation.abandonner(preparationId)
-    this.documents = null
+    if (this.preparation.abandonner(preparationId)) this.documents = null
   }
 
   listerSuivis(): SuiviMigrationGitLab[] {
@@ -126,7 +125,7 @@ export class ServiceMigrationGitLab {
       if (etat.generationBail && etat.identite.sessionId !== this.options.identite.sessionId) {
         const client = await this.options.authentification.client(etat.bilan.cible.compteId, etat.bilan.cible.projetId)
         const ancienneSession = new BailGitLab({ branche: etat.branche, depot: new DepotCommitsGitLabClient(client), identite: () => etat.identite })
-        const encoreActif = await ancienneSession.retrouverDroitJournalise(cleRessourceBailGitLab(etat.branche, 'corpus.json'), etat.generationBail)
+        const encoreActif = await ancienneSession.retrouverDroitJournalise(cleRessourceBailGitLab(etat.branche, 'corpus.crp'), etat.generationBail)
         if (encoreActif) throw new Error('La précédente opération est encore active. Votre progression est conservée ; réessayez un peu plus tard.')
       }
       if (baseMedia) {

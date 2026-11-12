@@ -6,7 +6,7 @@ par règle analytique. Son contenu est assemblé explicitement par l’utilisate
 
 ## Modèle à comprendre
 
-`corpus.json.recueils` conserve les recueils, chacun avec une identité, un nom,
+`corpus.crp.recueils` conserve les recueils, chacun avec une identité, un nom,
 ses dates, un `modeTexte` et un tableau ordonné `items`. Un item est :
 
 - un titre de niveau 1 à 4 ;

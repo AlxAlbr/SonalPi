@@ -6,7 +6,7 @@ import { lancer, attendreAccueil, ecrireSeedDemo } from './util'
 import { choisirDossierExemple, configurerSourcesExemples, preparerApprentissage } from './exemples-util'
 
 const catalogue = (page: Page) => page.getByRole('dialog', { name: 'Choisir un parcours pas à pas' })
-function lireCorpus(dir: string) { return JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) }
+function lireCorpus(dir: string) { return JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) }
 async function ouvrirLibre(app: ElectronApplication, page: Page, dir: string, annote = false) {
   await choisirDossierExemple(app, dir)
   await page.locator('.carte-demo.exemples').click()
@@ -226,7 +226,7 @@ test('reprendre une exploration ne réimporte pas les entretiens renommés ou su
     corpus.membership[premier].titre = 'Mon titre conservé'
     delete corpus.membership[retire]
     corpus.ordreEntretiens = corpus.ordreEntretiens.filter((id: string) => id !== retire)
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     rmSync(join(dir, 'entretiens', `${retire}.json`))
     app = await lancer(profil, { preserverSettings: true })
     page = await app.firstWindow()
@@ -247,7 +247,7 @@ test('une nouvelle session retrouve les démos enregistrées et leurs acquis san
   corpus.demo = { id: 'exercice-traitement', exemple: 'synth', usage: 'apprentissage',
     racineSources: sources, parcoursApprentissage: 'traitement', dernierParcoursId: 'traitement',
     parcours: { traitement: { validees: ['coder'] } } }
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
   ecrireSeedDemo(join(profil, 'corpus'))
   writeFileSync(join(profil, 'settings.json'), JSON.stringify({
     recents: [join(profil, 'corpus')],
@@ -277,14 +277,14 @@ test('ouvrir manuellement un corpus d’apprentissage le rattache sans bascule n
   corpus.demo = { id: 'exercice-traitement', exemple: 'synth', usage: 'apprentissage',
     racineSources: join(racine, 'sources'), parcoursApprentissage: 'traitement',
     parcours: { traitement: { validees: ['coder'] } } }
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
   const app = await lancer(join(racine, 'profil'))
   try {
     const page = await app.firstWindow()
     await attendreAccueil(page)
     const avant = await page.evaluate(() => window.sonal.corpus.dossierCourant())
     await choisirDossierExemple(app, dir)
-    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await page.locator('.ouvrir-corpus').click()
     await expect(catalogue(page)).toBeVisible()
     expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
     await expect(page.locator('.spotlight-bulle')).toHaveCount(0)
@@ -331,7 +331,7 @@ for (const parcours of ['preparation', 'traitement'] as const) {
     try {
       const page = await app.firstWindow()
       await attendreAccueil(page)
-      const autreCorpus = readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8')
+      const autreCorpus = readFileSync(join(profil, 'corpus', 'corpus.crp'), 'utf8')
       await preparerApprentissage(app, page, sources, dir, parcours)
       const id = lireCorpus(dir).demo.id
       if (parcours === 'preparation') {
@@ -352,11 +352,11 @@ for (const parcours of ['preparation', 'traitement'] as const) {
       await expect(page.locator('.fini-pp')).toBeVisible()
       await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
       await expect(catalogue(page).locator('.progression-pp')).toContainText('1 étape')
-      const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+      const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
       page.once('dialog', (dialogue) => dialogue.dismiss())
       await catalogue(page).getByRole('button', { name: 'Recommencer cette démo', exact: true }).click()
       await expect(catalogue(page)).toBeVisible()
-      expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
+      expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
       page.once('dialog', (dialogue) => dialogue.accept())
       await catalogue(page).getByRole('button', { name: 'Recommencer cette démo', exact: true }).click()
       const bilan = page.getByRole('dialog', { name: 'La démo a été remise à zéro' })
@@ -369,7 +369,7 @@ for (const parcours of ['preparation', 'traitement'] as const) {
       expect(lireCorpus(dir).demo.parcours[parcours].validees).toEqual([])
       expect(Object.keys(lireCorpus(dir).membership)).toHaveLength(0)
       expect(JSON.stringify(lireCorpus(dir))).not.toContain('Une question à effacer')
-      expect(readFileSync(join(profil, 'corpus', 'corpus.json'), 'utf8')).toBe(autreCorpus)
+      expect(readFileSync(join(profil, 'corpus', 'corpus.crp'), 'utf8')).toBe(autreCorpus)
       if (parcours === 'preparation') {
         await bilan.getByRole('button', { name: 'Commencer la première étape', exact: true }).click()
       } else {
@@ -401,7 +401,7 @@ test('un dossier contenant des données est refusé, sans créer de corpus ni va
     await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…' }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer' }).click()
     await expect(page.locator('.installation-exemple').getByRole('alert')).toContainText('dossier vide')
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(sources)).toBe(false)
     expect((await page.evaluate(() => window.sonal.exemples.etat())).travaux).toHaveLength(0)
     expect(readFileSync(join(dir, 'questions.txt'), 'utf8')).toBe('Mon travail')

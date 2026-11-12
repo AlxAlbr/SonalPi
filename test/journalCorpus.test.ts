@@ -108,7 +108,7 @@ describe('Journal du corpus — commandes Notes', () => {
   test('modifie atomiquement les champs autorisés et ignore une validation sans changement', () => {
     const { dir, store } = preparer()
     const { entretienId } = ajouterNote(store)
-    const corpusAvant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+    const corpusAvant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
     const vueAvant = store.notesInventaire().notes[0]
 
     store.notesCommander({
@@ -128,7 +128,7 @@ describe('Journal du corpus — commandes Notes', () => {
       rang: 0,
     })
     expect(lecture.data.notes?.[0].modifieLe).toBeTruthy()
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(corpusAvant)
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(corpusAvant)
     expect(store.journalCorpusLister()).toHaveLength(1)
 
     const vueApres = store.notesInventaire().notes[0]
@@ -357,7 +357,7 @@ describe('Journal du corpus — commandes Personnes', () => {
     store.personnesCommander({ type: 'modifier', personneId, nom: 'Maria' }, true)
     expect(store.journalCorpusLister()).toHaveLength(1)
     expect(new CorpusStore(dir).journalCorpusLister()).toEqual([])
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).not.toHaveProperty('journal')
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).not.toHaveProperty('journal')
   })
 
   test('grise une entrée si sa cible a changé et ne l’écrase pas', () => {

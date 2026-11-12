@@ -1,5 +1,23 @@
 import type { EtatSessionPublic } from '../shared/distant'
 
+export const MESSAGE_OUVERTURE_EN_COURS = 'Une ouverture est déjà en cours. Terminez-la, puis réessayez.'
+
+/** Refuse une ouverture concurrente sans la différer après l'opération active. */
+export function creerGardeOuverture(surOccupation: (occupee: boolean) => void = () => {}) {
+  let occupee = false
+  return async function effectuerOuverture<T>(operation: () => Promise<T>): Promise<T> {
+    if (occupee) throw new Error(MESSAGE_OUVERTURE_EN_COURS)
+    occupee = true
+    surOccupation(true)
+    try {
+      return await operation()
+    } finally {
+      occupee = false
+      surOccupation(false)
+    }
+  }
+}
+
 interface ActionsStatutSession {
   definirStatut: (statut: EtatSessionPublic) => void
   rendreEditeurNonModifiable: () => void

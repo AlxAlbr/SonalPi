@@ -94,7 +94,7 @@ test('manuel : décrire, organiser et désactiver les thèmes sans modifier les 
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await expect(page.locator('.editeur .annot')).toHaveAttribute('title', 'Motivations')
 
-    const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier
+    const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(lireCorpus().membership).find(([, ref]) => ref.titre === '1Coordinatrice')![0]
     const fichier = join(dossier, 'entretiens', `${id}.json`)
     const avant = readFileSync(fichier, 'utf8')

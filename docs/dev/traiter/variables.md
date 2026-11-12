@@ -9,7 +9,7 @@ une seconde base à maintenir.
 
 | Notion | Stockage | Contenu |
 |---|---|---|
-| Variable | `corpus.json.variables` | `id`, `lib`, `portee`, `priv`, `ordre`, `vExport` et `modalites`. |
+| Variable | `corpus.crp.variables` | `id`, `lib`, `portee`, `priv`, `ordre`, `vExport` et `modalites`. |
 | Modalité | Dans sa variable | `id`, `lib` et `mExport`. |
 | Valeur d’entretien | `EntretienFichier.meta.valeursGen` | Association `idVar → idMod`. |
 | Valeur de locuteur | `Locuteur.valeursLoc` | Association `idVar → idMod`. |

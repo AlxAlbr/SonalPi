@@ -64,9 +64,13 @@ export function useMigrationGitLab(
       await api.abandonner(decouverte.preparationId)
       throw new Error('La source a changé. Préparez de nouveau la migration.')
     }
-    source.value = decouverte
-    cheminCrp.value = decouverte.corpus.length === 1 ? decouverte.corpus[0] : ''
+    utiliserSource(decouverte)
     return decouverte.projet
+  }
+
+  function utiliserSource(preparation: SourceMigrationGitLab): void {
+    source.value = preparation
+    cheminCrp.value = preparation.corpus.length === 1 ? preparation.corpus[0] : ''
   }
 
   async function preparerBilan(compteId: string): Promise<void> {
@@ -166,6 +170,6 @@ export function useMigrationGitLab(
     source, cheminCrp, urlCible, externe,
     baseMediaUrl, baseMediaUtilisateur, baseMediaMotDePasse,
     bilan, progression, suivis, publicationEnCours,
-    chargerSource, preparerBilan, abandonner, invaliderBilan, chargerSuivis, executer, reprendre, arreter,
+    chargerSource, utiliserSource, preparerBilan, abandonner, invaliderBilan, chargerSuivis, executer, reprendre, arreter,
   }
 }

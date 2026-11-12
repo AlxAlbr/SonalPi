@@ -31,7 +31,7 @@ export class CorrespondancesGitLab {
   async lireInstantane(controlerJournal = true): Promise<InstantaneOperationTheme & { sha: string; sourceCorpus: FichierGitLab }> {
     if (controlerJournal) this.exigerReconcilie()
     const sha = await this.options.depot.resoudreTete(this.options.destination.branche)
-    const sourceCorpus = await this.lire('corpus.json', sha)
+    const sourceCorpus = await this.lire('corpus.crp', sha)
     const corpus = this.decoderCorpus(sourceCorpus.contenu)
     let octets = Buffer.byteLength(sourceCorpus.contenu)
     const entretiens: InstantaneOperationTheme['entretiens'] = []
@@ -69,14 +69,14 @@ export class CorrespondancesGitLab {
       this.exigerSansSessions(ids)
       const droits: DroitsEditionGitLab[] = []
       try {
-        for (const relatif of ['corpus.json', ...ids.map((id) => `entretiens/${id}.json`)]) {
+        for (const relatif of ['corpus.crp', ...ids.map((id) => `entretiens/${id}.json`)]) {
           this.exigerSansSessions(ids)
           const acquisition = await this.options.coordination.acquireRessource(cleRessourceBailGitLab(this.options.destination.branche, this.chemin(relatif)))
           if (!acquisition.ok) throw new Error('Le corpus ou un entretien cible est tenu par un autre poste. Aucun import appliqué.')
           droits.push(acquisition.droit)
         }
         const sha = await this.options.depot.resoudreTete(this.options.destination.branche)
-        const sourceCorpus = await this.lire('corpus.json', sha)
+        const sourceCorpus = await this.lire('corpus.crp', sha)
         const avant = this.decoderCorpus(sourceCorpus.contenu)
         exigerAbsenceDissociationGitLab(avant)
         if (empreinteCorrespondance(avant) !== preparation.empreinteCorpus) throw new Error('Le corpus a changé depuis l’aperçu. Recalculez avant d’importer.')

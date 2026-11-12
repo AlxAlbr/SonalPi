@@ -303,12 +303,12 @@ describe('CorpusStore — migration v7 → v8 et attributs persistés', () => {
     corpus.attributsCas = { attr: definitionAttribut() }
     const data = sourceFamille()
     data.formatVersion = 7
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))
     const store = new CorpusStore(dir)
     const migre = store.ouvrir()
     expect(migre).toMatchObject({ formatVersion: FORMAT_VERSION, cas: corpus.cas, famillesCas: { f: famille }, attributsCas: { attr: definitionAttribut() } })
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
     expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
     const rouvert = new CorpusStore(dir).ouvrir()
     expect(rouvert.attributsCas).toEqual({ attr: definitionAttribut() })
@@ -321,7 +321,7 @@ describe('CorpusStore — migration v7 → v8 et attributs persistés', () => {
     mkdirSync(join(dir, 'entretiens'))
     const corpus = corpusFamille()
     corpus.variables.taille = variableTaille()
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(sourceFamille()))
     const store = new CorpusStore(dir)
     store.casCommander({ type: 'creer-famille', famille: familleCas(), cas: [casModalite('a')] })

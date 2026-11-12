@@ -49,7 +49,7 @@ describe('CorpusStore — recueils et repères', () => {
       },
     })
     expect(corpus.recueils?.r1.items).toHaveLength(1)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).recueils.r1.items[0].source)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).recueils.r1.items[0].source)
       .toEqual({ entretienId: 'e1', repereId: 'p1' })
   })
 

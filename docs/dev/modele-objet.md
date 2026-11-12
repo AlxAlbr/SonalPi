@@ -7,7 +7,7 @@ leurs relations, pas une copie exhaustive des interfaces TypeScript.
 
 ## Corpus et entretiens
 
-`corpus.json` contient les définitions communes et le `membership`, une liste de
+`corpus.crp` contient les définitions communes et le `membership`, une liste de
 références légères vers les entretiens. Il ne contient pas leurs transcriptions.
 Chaque `entretiens/<id>.json` porte son texte et ses données propres.
 
@@ -36,7 +36,7 @@ nécessite une orchestration explicite, pas une simple mutation d’objet.
 
 ## Propriétaires des données
 
-| Dans `corpus.json` | Dans le fichier d’entretien |
+| Dans `corpus.crp` | Dans le fichier d’entretien |
 |---|---|
 | Thèmes, hiérarchie et descriptions du codebook. | Codages de plages référant les thèmes. |
 | Variables, modalités et portée. | Valeurs d’entretien ou de locuteur. |

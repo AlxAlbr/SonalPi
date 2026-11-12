@@ -50,7 +50,7 @@ export class ExemplesLocaux {
 
   reconnaitre(dir: string): { travail: TravailExemple; marqueur: MarqueurDemo } | null {
     try {
-      const corpus = lireJson<CorpusFichier>(join(dir, 'corpus.json'))
+      const corpus = lireJson<CorpusFichier>(join(dir, 'corpus.crp'))
       const identite = identiteExemple(corpus.demo)
       if (!identite || !corpus.demo || !Number.isInteger(corpus.formatVersion)
         || corpus.formatVersion < 1 || corpus.formatVersion > FORMAT_VERSION
@@ -138,7 +138,7 @@ export class ExemplesLocaux {
         const meme = reconnu && reconnu.travail.usage === travail.usage && reconnu.travail.exemple === travail.exemple
           && reconnu.travail.parcoursApprentissage === travail.parcoursApprentissage
           && reconnu.marqueur.id === travail.id
-        return { ...travail, etat: meme ? 'pret' : existsSync(join(travail.dir, 'corpus.json')) ? 'illisible' : 'absent',
+        return { ...travail, etat: meme ? 'pret' : existsSync(join(travail.dir, 'corpus.crp')) ? 'illisible' : 'absent',
           ...(meme ? { nom: reconnu.travail.nom, marqueur: reconnu.marqueur } : {}) }
       }),
     }
@@ -165,7 +165,7 @@ export class ExemplesLocaux {
     const memoire = this.memoire()
     const sources = memoire.sources
     const racine = canonique(sources)
-    if (!isAbsolute(sources) || existsSync(join(sources, 'corpus.json'))
+    if (!isAbsolute(sources) || existsSync(join(sources, 'corpus.crp'))
       || seRecouvrent(racine, canonique(this.deps.ressources))
       || memoire.travaux.some((t) => seRecouvrent(racine, canonique(t.dir)))) {
       throw new Error('Le dossier des fichiers d’exercice doit être distinct des corpus de travail et des exemples fournis.')
@@ -216,10 +216,10 @@ export class ExemplesLocaux {
       }
       if (demande.exemple === 'synth-annote') {
         mkdirSync(stage, { recursive: true })
-        for (const fichier of ['corpus.json', 'entretiens', 'png']) {
+        for (const fichier of ['corpus.crp', 'entretiens', 'png']) {
           cpSync(join(this.deps.ressources, 'CorpusSynthAnnot', fichier), join(stage, fichier), { recursive: true })
         }
-        const corpus = lireJson<CorpusFichier>(join(stage, 'corpus.json'))
+        const corpus = lireJson<CorpusFichier>(join(stage, 'corpus.crp'))
         for (const id of Object.keys(corpus.membership)) {
           const chemin = join(stage, 'entretiens', `${id}.json`)
           const entretien = lireJson<{ meta: { audioRef: string | null } }>(chemin)

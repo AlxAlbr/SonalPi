@@ -18,7 +18,7 @@ const dirs: string[] = []
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 function banc(natif: boolean, maintenant = Date.now) {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }), f = fixtureRetraitVarianteAnon()
-  serveur.creerDossierRelatif('verrous'); serveur.poser('corpus.json', JSON.stringify(f.corpus))
+  serveur.creerDossierRelatif('verrous'); serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
   const dir = mkdtempSync(join(tmpdir(), 'sonal-retrait-webdav-')); dirs.push(dir)
   const sessions: string[] = [], miroirs = new Map<string, string>(), puts: string[] = [], tentatives: string[] = [], acquisitions: string[] = []
@@ -28,9 +28,9 @@ function banc(natif: boolean, maintenant = Date.now) {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const chemin = decodeURIComponent(new URL(url).pathname).replace(`${serveur.racineDav}/`, '').replace(/\/$/, '')
     await pieges.avant(chemin, init)
-    if (init.method === 'PUT' && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) tentatives.push(chemin)
+    if (init.method === 'PUT' && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) tentatives.push(chemin)
     const reponse = await serveur.fetch(input, init)
-    if (init.method === 'PUT' && reponse.ok && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) puts.push(chemin)
+    if (init.method === 'PUT' && reponse.ok && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) puts.push(chemin)
     if ((init.method === 'LOCK' || init.method === 'PUT' && chemin.startsWith('verrous/')) && reponse.ok) acquisitions.push(chemin)
     await pieges.apres(chemin, init); return reponse
   }
@@ -48,7 +48,7 @@ function banc(natif: boolean, maintenant = Date.now) {
     const chemin = natif ? `entretiens/${id}.json` : `verrous/${id}.lock.json`
     expect((await tiers.acquerir(chemin)).ok).toBe(true); return () => tiers.liberer(chemin)
   }
-  const corpus = () => JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+  const corpus = () => JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
   const entretien = (id: string) => JSON.parse(serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
   return { f, dir, serveur, client, sessions, miroirs, puts, tentatives, acquisitions, panne, pieges, creer, service: creer(), tenir, corpus, entretien, fermerPolitique: () => { politique = false } }
 }
@@ -59,7 +59,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
     expect(p.lecture).toBe('webdav'); expect(b.acquisitions).toEqual([])
     p.demande.pseudoConserve = 'Sans autorité'
     expect(await b.service.appliquer(p.token, true)).toMatchObject({ statut: 'termine', annotations: 6, exceptions: 3, incluses: 2, varianteRetiree: true })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
     expect(b.acquisitions.filter((p) => p === 'verrous/corpus.lock.json')).toHaveLength(4)
     expect(b.acquisitions.filter((p) => p.includes('e1'))).toHaveLength(1)
     expect(b.acquisitions.filter((p) => p.includes('e2'))).toHaveLength(1)
@@ -111,18 +111,18 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
     for (const id of ['e1', 'e2']) b.serveur.poser(`entretiens/${id}.json`, JSON.stringify(b.f.sources[2].data))
     const p = await b.service.preparer(b.f.demande); expect(p.bilan.annotations).toBe(0)
     expect((await b.service.appliquer(p.token, true)).statut).toBe('termine')
-    expect(b.puts).toEqual(['corpus.json', 'corpus.json']); expect(b.acquisitions.every((p) => p === 'verrous/corpus.lock.json')).toBe(true)
+    expect(b.puts).toEqual(['corpus.crp', 'corpus.crp']); expect(b.acquisitions.every((p) => p === 'verrous/corpus.lock.json')).toBe(true)
   })
   it('accord absent consommé, expiration après lecture lente et définition périmée refusés', async () => {
     let temps = Date.now(); const b = banc(natif, () => temps), a = await b.service.preparer(b.f.demande)
     await expect(b.service.appliquer(a.token, false)).rejects.toThrow('Confirmez')
     await expect(b.service.appliquer(a.token, true)).rejects.toThrow('expiré')
     const p = await b.service.preparer(b.f.demande)
-    b.pieges.avant = async (p, i) => { if (p === 'corpus.json' && i.method === 'GET') temps += 300_001 }
+    b.pieges.avant = async (p, i) => { if (p === 'corpus.crp' && i.method === 'GET') temps += 300_001 }
     await expect(b.service.appliquer(p.token, true)).rejects.toThrow('expiré')
     expect(b.puts).toEqual([])
     b.pieges.avant = async () => {}; const frais = await b.service.preparer(b.f.demande), corpus = b.corpus()
-    corpus.reglesAnon.personne.categorie = 'Autre'; b.serveur.poser('corpus.json', JSON.stringify(corpus))
+    corpus.reglesAnon.personne.categorie = 'Autre'; b.serveur.poser('corpus.crp', JSON.stringify(corpus))
     await expect(b.service.appliquer(frais.token, true)).rejects.toThrow('corpus a changé')
   })
   it('sessions locales et cible tenue différées ; déclaration conservée jusqu’au nouveau bilan et nouvel accord', async () => {
@@ -148,10 +148,10 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
     await rendre(); await expect(b.service.preparerReprise(r.operationId)).rejects.toThrow('déjà traité')
     expect(b.puts.filter((p) => p === 'entretiens/e1.json')).toHaveLength(1)
   })
-  it.each(['corpus.json', 'entretiens/e1.json', 'final'])('réponse perdue %s : preuve exacte sans rejeu ni droits hérités', async (phase) => {
+  it.each(['corpus.crp', 'entretiens/e1.json', 'final'])('réponse perdue %s : preuve exacte sans rejeu ni droits hérités', async (phase) => {
     const b = banc(natif); let inconnu = false
     b.pieges.apres = async (p, i) => {
-      if (!inconnu && i.method === 'PUT' && (phase === 'final' ? p === 'corpus.json' && !JSON.parse(String(i.body)).retraitVarianteAnon : p === phase)) { inconnu = true; throw new Error('Réponse perdue') }
+      if (!inconnu && i.method === 'PUT' && (phase === 'final' ? p === 'corpus.crp' && !JSON.parse(String(i.body)).retraitVarianteAnon : p === phase)) { inconnu = true; throw new Error('Réponse perdue') }
     }
     b.pieges.avant = async (p, i) => { if (inconnu && i.method === 'GET' && !p.startsWith('verrous/')) throw new Error('Lecture indisponible') }
     const p = await b.service.preparer(b.f.demande), r = await b.service.appliquer(p.token, true)
@@ -179,7 +179,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
     const b = banc(natif)
     b.pieges.apres = async (p, i) => { if (p === 'entretiens/e1.json' && i.method === 'PUT') b.fermerPolitique() }
     const p = await b.service.preparer(b.f.demande), r = await b.service.appliquer(p.token, true)
-    expect(r.annotations).toBe(3); expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(r.annotations).toBe(3); expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
     expect((await b.service.relireSuivi(r.operationId)).annotations).toBe(3)
     await expect(b.service.preparerReprise(r.operationId)).rejects.toThrow('Politique fermée')
   })
@@ -240,7 +240,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
   it('ouverture protégée sans réseau ni tirage et journal malformé refusé avant ouverture', async () => {
     const b = banc(natif), rendre = await b.tenir('e2'), p = await b.service.preparer(b.f.demande)
     await b.service.appliquer(p.token, true); await rendre()
-    writeFileSync(join(b.dir, 'corpus.json'), b.serveur.contenuDe('corpus.json')!)
+    writeFileSync(join(b.dir, 'corpus.crp'), b.serveur.contenuDe('corpus.crp')!)
     for (const s of b.f.sources) writeFileSync(join(b.dir, `${s.id}.json`), JSON.stringify(s.data))
     const demandes: string[] = []; b.pieges.avant = async (p) => { demandes.push(p); throw new Error('Réseau interdit à ouverture') }
     const ouvert = await preparerContexteNextcloud({ id: 'synthetique', dirLocal: b.dir, client: b.client, verrouNatif: natif, identite: () => ({ userId: 'olivier', machineId: 'neuf', sessionId: 'neuf' }) })

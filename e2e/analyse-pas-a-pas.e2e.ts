@@ -6,7 +6,7 @@ import { attendreAccueil, lancer } from './util'
 import { preparerApprentissage } from './exemples-util'
 
 const catalogue = (page: Page) => page.getByRole('dialog', { name: 'Choisir un parcours pas à pas' })
-const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
 async function voirParcours(page: Page) {
   await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Voir les étapes ou changer de parcours' }).click()
 }
@@ -28,7 +28,7 @@ async function calculerMatrice(page: Page) {
 test('les quatre étapes traversent les trois outils et reviennent des chiffres aux passages', async () => {
   const racine = mkdtempSync(join(tmpdir(), 'sonal-parcours-analyse-'))
   const dir = join(racine, 'analyse')
-  const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')
+  const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'), 'utf8')
   const app = await lancer(join(racine, 'profil'))
   try {
     const page = await app.firstWindow()
@@ -67,7 +67,7 @@ test('les quatre étapes traversent les trois outils et reviennent des chiffres 
     await expect(page.getByTestId('resume-parcours-global')).toContainText('terminé')
     await expect.poll(() => lireCorpus(dir).demo.parcours.analyse.validees.length).toBe(4)
     expect(lireCorpus(dir).demo.parcours.traitement?.validees ?? []).toEqual([])
-    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'), 'utf8')).toBe(modele)
+    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'), 'utf8')).toBe(modele)
   } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
 })
 

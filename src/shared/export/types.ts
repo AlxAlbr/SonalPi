@@ -31,7 +31,7 @@ export interface EntreeExport {
   /** Valeurs de portée entretien → tabDat `l="all"` (les valeurs de portée locuteur viennent des `valeursLoc` de chaque locuteur). */
   meta: { valeursGen: Record<string, string> }
   legacy: LegacyBlobs
-  /** Règles corpus partagées (corpus.json.reglesAnon).
+  /** Règles corpus partagées (corpus.crp.reglesAnon).
    *  Les règles appliquées dans cet entretien ressortent en entries
    *  `portee:'corpus'` de l'`anon-json`. */
   reglesAnon?: RegleAnon[]

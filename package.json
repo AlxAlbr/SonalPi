@@ -75,6 +75,14 @@
     "files": [
       "out/**"
     ],
+    "fileAssociations": [{
+      "ext": "crp",
+      "name": "Corpus Sonal",
+      "description": "Corpus SonalPi2 (dossier multifichier)",
+      "mimeType": "application/x-sonalpi-corpus",
+      "role": "Editor",
+      "rank": "Alternate"
+    }],
     "asarUnpack": [
       "**/pdf.worker*.mjs"
     ],

@@ -63,7 +63,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
   test('migre le format 8 avec des réglages Lexico vides', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-lexico-v8-'))
     new CorpusStore(dir).ouvrir()
-    const chemin = join(dir, 'corpus.json')
+    const chemin = join(dir, 'corpus.crp')
     const ancien = JSON.parse(readFileSync(chemin, 'utf8'))
     ancien.formatVersion = 8
     delete ancien.lexico
@@ -98,8 +98,8 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(store.ouvrir().nom).toBeUndefined() // un corpus neuf n'a pas de nom
     const corpus = store.poserNom('Enquête 2024')
     expect(corpus.nom).toBe('Enquête 2024')
-    // persisté dans corpus.json, et survit à une réouverture
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).nom).toBe('Enquête 2024')
+    // Persisté dans corpus.crp, et survit à une réouverture.
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).nom).toBe('Enquête 2024')
     expect(new CorpusStore(dir).ouvrir().nom).toBe('Enquête 2024')
   })
 
@@ -175,7 +175,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
 })
 
 describe('CorpusStore — corpus courant supprimé sur disque', () => {
-  test('après ouverture, un corpus.json disparu lève CORPUS_SUPPRIME et ne laisse aucun squelette', () => {
+  test('après ouverture, un corpus.crp disparu lève CORPUS_SUPPRIME et ne laisse aucun squelette', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir() // premier ouvert : le corpus existe → amorçage consommé
     rmSync(dir, { recursive: true }) // suppression EXTERIEURE (geste utilisateur)
@@ -186,7 +186,7 @@ describe('CorpusStore — corpus courant supprimé sur disque', () => {
   test('un NOUVEAU store sur un dossier dont le corpus a disparu ré-amorce (nouveau choix explicite)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    rmSync(join(dir, 'corpus.json'))
+    rmSync(join(dir, 'corpus.crp'))
     expect(() => store.ouvrir()).toThrowError(/CORPUS_SUPPRIME/)
     // Re-choisir ce dossier dans l'app = nouveau store = nouvel amorçage permis.
     expect(new CorpusStore(dir).ouvrir().membership).toEqual({})
@@ -299,7 +299,7 @@ describe('CorpusStore — version du format natif', () => {
   test('un corpus de version inconnue fait échouer l’ouverture', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const f = join(dir, 'corpus.json')
+    const f = join(dir, 'corpus.crp')
     const c = JSON.parse(readFileSync(f, 'utf8'))
     c.formatVersion = 999
     writeFileSync(f, JSON.stringify(c), 'utf8')
@@ -601,7 +601,7 @@ describe('CorpusStore — migration formatVersion 2→3', () => {
     }
     mkdirSync(join(dir, 'entretiens'), { recursive: true })
     mkdirSync(join(dir, 'audio'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
     writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
     writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
     writeFileSync(join(dir, 'audio', 'e1.png'), 'fake-png', 'utf8')
@@ -644,7 +644,7 @@ describe('CorpusStore — migration formatVersion 2→3', () => {
     }
     mkdirSync(join(dir, 'entretiens'), { recursive: true })
     mkdirSync(join(dir, 'audio'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
     writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
     writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
 
@@ -677,7 +677,7 @@ describe('CorpusStore — migration formatVersion 2→3', () => {
       meta: { valeursGen: {}, audioRef: null },
     }
     mkdirSync(join(dir, 'entretiens'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
     writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
 
     const store = new CorpusStore(dir)
@@ -779,7 +779,7 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
-    const avant = readFileSync(join(dir, 'corpus.json'), 'utf8') // pour repérage
+    const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8') // Pour repérage.
     void avant
 
     const corpus = store.modifierCategorie('cat_001', { nom: 'Famille élargie', couleur: '#0331ff' })
@@ -795,10 +795,10 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
     store.ouvrir()
     const corpus = store.modifierCategorie('cat_001', { taille: 24 })
     expect(corpus.codebook.cat_001.taille).toBe(24)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).codebook.cat_001.taille).toBe(24)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).codebook.cat_001.taille).toBe(24)
     // Retour à la taille du texte : la clé disparaît du fichier (spread + stringify).
     store.modifierCategorie('cat_001', { taille: undefined })
-    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
     expect('taille' in surDisque.codebook.cat_001).toBe(false)
   })
 
@@ -874,7 +874,7 @@ describe('CorpusStore — catégories de note (définitions corpus)', () => {
     })),
   })
 
-  test('un corpus sans le champ lit les bacs par défaut ; ajouter persiste dans corpus.json', () => {
+  test('un corpus sans le champ lit les bacs par défaut ; ajouter persiste dans corpus.crp', () => {
     const { store, dir } = storeNeuf()
     expect(store.categoriesNote().map((c) => c.id)).toEqual([
       'ncat_postcollecte', 'ncat_resume', 'ncat_reflexion', 'ncat_generale',
@@ -882,7 +882,7 @@ describe('CorpusStore — catégories de note (définitions corpus)', () => {
     const { id, corpus } = store.ajouterCategorieNote('synthèse', '#0331ff')
     expect(id).toMatch(/^ncat_/)
     expect(corpus.categoriesNote!.find((c) => c.id === id)?.nom).toBe('synthèse')
-    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
     expect(surDisque.categoriesNote!.find((c) => c.id === id)).toBeDefined()
   })
 
@@ -1044,11 +1044,11 @@ describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
     expect(store.reglesAnon()).toEqual([])
     expect(store.scanAnon()).toEqual([])
 
-    // Pose une règle corpus « Lyon » dans corpus.json (écriture directe :
+    // Pose une règle corpus « Lyon » dans corpus.crp (écriture directe :
     // 3a est lecture seule, la création viendra en 3b).
     const corpus = store.ouvrir()
     corpus.reglesAnon.r1 = { id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2))
 
     expect(store.reglesAnon()).toEqual([{ id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }])
     const [scan] = store.scanAnon()
@@ -1061,7 +1061,7 @@ describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
     const { store, dir } = storeNeuf()
     const corpus = store.ouvrir()
     corpus.reglesAnon.r2 = { id: 'r2', entite: ['Lyon'], pseudos: ['L1'] }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2))
     // e1 : « Karine habite Lyon depuis sa retraite. » → « Lyon » démarre à l'offset 15.
     const e = lireFichier(dir, 'entretiens/e1.json')
     e.annotations.push({ id: 'a', type: 'anon', from: 15, to: 19, auteur: '', etat: 'anonymise', pseudo: 'L1' })
@@ -1128,7 +1128,7 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     store.regleAnonAjouterPseudo(r.id, 'Rebecca')
     expect(store.regleAnonParEntite('Karine')?.pseudos).toEqual(['Marie', 'Rebecca'])
     // Cap à 2 : un 3ᵉ refusé
-    const regle = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon[r.id]
+    const regle = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).reglesAnon[r.id]
     expect(regle.pseudos).toEqual(['Marie', 'Rebecca'])
     // Suppression
     expect(() => store.regleAnonSupprimer(r.id)).not.toThrow()
@@ -1146,7 +1146,7 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     expect(seconde.existait).toBe(true)
     expect(seconde.regle.id).toBe(premiere.regle.id)
     expect(seconde.regle.pseudos).toEqual(['Marie']) // pas touchée.
-    const regles = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon
+    const regles = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).reglesAnon
     expect(Object.keys(regles)).toHaveLength(1)
   })
 
@@ -1241,7 +1241,7 @@ describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () 
     return { apercu: a.apercu, ...mapperDefinitions(a.apercu.raw) }
   }
 
-  test('crée corpus.json avec nom + meta.sourceV1 + définitions (pas le bloc par défaut)', () => {
+  test('crée corpus.crp avec nom + meta.sourceV1 + définitions (pas le bloc par défaut)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-migre-'))
     const { apercu, codebook, variables } = definitionsDepuisFixture()
     const corpus = new CorpusStore(dir).migrerDepuisV1(
@@ -1263,12 +1263,13 @@ describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () 
     expect(Object.keys(corpus.variables).sort()).toEqual(['v1', 'v2', 'v3'])
     expect(corpus.membership).toEqual({})
 
-    // Lisible à l'ouverture : ouvrir() ne ré-amorce pas (corpus.json présent).
+    // Lisible à l'ouverture : ouvrir() ne ré-amorce pas (corpus.crp présent).
     const relu = new CorpusStore(dir).ouvrir()
     expect(relu.nom).toBe('MonCorpus')
     expect(relu.meta?.sourceV1?.cheminCrp).toBe('/home/user/MonCorpus.crp')
-    // Structure sur disque : corpus.json + entretiens/ (png/ créés plus tard).
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    // Structure sur disque : corpus.crp + entretiens/ (png/ créés plus tard).
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
     expect(existsSync(join(dir, 'entretiens'))).toBe(true)
   })
 
@@ -1387,7 +1388,7 @@ describe('CorpusStore — paramètres de pseudonymisation (étape 4a)', () => {
     })
     expect(ecrit.prioriteValidation).toBe('entretien')
     expect(ecrit.motsLiaison).toEqual({ actif: false, liste: ['à', 'de'] })
-    // Persisté dans corpus.json (relecture par un nouveau store).
+    // Persisté dans corpus.crp (relecture par un nouveau store).
     const relu = new CorpusStore(dir).lireParamsAnon()
     expect(relu.prioriteValidation).toBe('entretien')
     expect(relu.motsLiaison?.actif).toBe(false)
@@ -1456,7 +1457,7 @@ describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la créatio
 })
 
 describe('CorpusStore — tableau de bord (définitions corpus)', () => {
-  test('un corpus sans le champ lit le tableau par défaut ; une commande persiste dans corpus.json', () => {
+  test('un corpus sans le champ lit le tableau par défaut ; une commande persiste dans corpus.crp', () => {
     const { store, dir } = storeNeuf()
     const defaut = store.tableauBord()
     expect(defaut.colonnes.map((c) => c.id)).toEqual(
@@ -1471,7 +1472,7 @@ describe('CorpusStore — tableau de bord (définitions corpus)', () => {
       contenu: { badgeId: 'ok', note: 'vu' },
     })
     expect(retour.tableaubord!.cellules['ent-1']!.contact).toMatchObject({ badgeId: 'ok', note: 'vu' })
-    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
     expect(surDisque.tableaubord!.cellules['ent-1']!.contact!.badgeId).toBe('ok')
     // La date a été posée automatiquement par le store.
     expect(surDisque.tableaubord!.cellules['ent-1']!.contact!.date).toBeTypeOf('string')

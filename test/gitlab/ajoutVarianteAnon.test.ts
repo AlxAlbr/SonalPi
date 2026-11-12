@@ -19,11 +19,11 @@ afterEach(() => { dossiers.splice(0).forEach((d) => rmSync(d, { recursive: true,
 function banc() {
   const f = fixtureRenommageAnon(); f.corpus.reglesAnon.personne.pseudos = ['Claire']
   const dir = mkdtempSync(join(tmpdir(), 'sonal-ajout-variante-gitlab-')); dossiers.push(dir)
-  mkdirSync(join(dir, 'entretiens')); writeFileSync(join(dir, 'corpus.json'), JSON.stringify({ ...f.corpus, nom: 'Miroir périmé' }))
+  mkdirSync(join(dir, 'entretiens')); writeFileSync(join(dir, 'corpus.crp'), JSON.stringify({ ...f.corpus, nom: 'Miroir périmé' }))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify(s.data))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const depot = new DepotMemoire(); depot.charger(new Map([
-    ['racine/corpus.json', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string]),
+    ['racine/corpus.crp', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string]),
   ]))
   const journal = new JournalPublicationGitLab('destination', join(dir, 'suivi'))
   const creerCoordination = () => new BailGitLab({ branche: 'main', depot, identite: () => ({ userId: 'max', machineId: 'poste', sessionId: 'session' }) })
@@ -31,21 +31,21 @@ function banc() {
   const transactions = new TransactionsGitLab({ destination: { fournisseur: 'gitlab', id: 'destination', compteId: 'max', projetId: 42, nomProjet: 'Fixture', branche: 'main', racine: 'racine' },
     store, depot, coordination, file, journal, publication: new PublieurGitLab({ branche: 'main', depot, coordination, journal }) })
   const tirer = vi.fn(async () => {
-    store.appliquerTransactionFichiers({ operation: 'remplacement', id: 'tirage-fixture', corpusAvant: store.ouvrir(), corpusApres: JSON.parse(depot.fichiers.get('racine/corpus.json')!.contenu), entretiens: [] })
-    return { telecharges: ['corpus.json'], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
+    store.appliquerTransactionFichiers({ operation: 'remplacement', id: 'tirage-fixture', corpusAvant: store.ouvrir(), corpusApres: JSON.parse(depot.fichiers.get('racine/corpus.crp')!.contenu), entretiens: [] })
+    return { telecharges: ['corpus.crp'], corbeille: [], inaccessibles: [], date: new Date().toISOString() }
   })
   const session = { ouvrir: vi.fn(async () => ({ etat: 'edition' })), fermer: vi.fn(async () => ({ fermee: true })) }
   const c = new ContexteGitLab('destination', store, { dirLocal: dir, tirer } as never, () => session as never, transactions)
   const demande = { regleAvant: structuredClone(f.corpus.reglesAnon.personne), pseudo: 'Rebecca' }
   const ajouter = (d = demande) => c.executerDefinitions('anon.ajouter-variante', (s) => s.regleAnonAjouterVariante(d))
-  const corpus = () => JSON.parse(depot.fichiers.get('racine/corpus.json')!.contenu)
+  const corpus = () => JSON.parse(depot.fichiers.get('racine/corpus.crp')!.contenu)
   const locaux = () => f.sources.map((s) => readFileSync(join(dir, 'entretiens', `${s.id}.json`), 'utf8'))
   const sources = () => [...depot.fichiers].filter(([p]) => p.startsWith('racine/entretiens/'))
   const commits = () => depot.commits.filter((p) => p.message.startsWith('Sonal ajout-variante-'))
-  const bail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.json'))
+  const bail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.crp'))
   const perdre = (accepte = true) => {
     depot.avantCommit = (actions) => {
-      if (!actions.some((a) => a.file_path === 'racine/corpus.json')) return
+      if (!actions.some((a) => a.file_path === 'racine/corpus.crp')) return
       depot.avantCommit = () => {}
       if (accepte) { depot.rendreCommitsIllisibles(); depot.echouerApresAccepter(new Error('Réponse perdue')) }
       else throw new Error('Transport incertain avant réponse')
@@ -63,7 +63,7 @@ test('définition serveur, corpus seul, aucune lecture/garde de source ni verrou
   expect(b.sources()).toEqual(avant); expect(b.locaux()).toEqual(locaux)
   expect([...b.depot.lectures.keys()].some((p) => p.includes('/entretiens/'))).toBe(false)
   expect(b.commits()).toHaveLength(1)
-  expect(b.commits()[0].actions.map((a) => a.file_path)).toEqual(['racine/corpus.json', b.bail])
+  expect(b.commits()[0].actions.map((a) => a.file_path)).toEqual(['racine/corpus.crp', b.bail])
   expect(b.depot.fichiers.has(b.bail)).toBe(false); expect(b.journal.lister()).toEqual([])
 })
 test('session indépendante ouverte conservée, aucun enregistrement ni fermeture automatique', async () => {
@@ -76,7 +76,7 @@ test.each(['pseudos', 'categorie', 'entite', 'absente'])('définition modifiée 
   if (champ === 'absente') delete nouveau.reglesAnon.personne
   else if (champ === 'categorie') nouveau.reglesAnon.personne.categorie = 'Autre'
   else nouveau.reglesAnon.personne[champ as 'pseudos' | 'entite'] = ['Autre']
-  b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(nouveau))
+  b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(nouveau))
   await expect(b.ajouter()).rejects.toThrow(/changé|n’existe plus/)
   expect(b.corpus()).toEqual(nouveau); expect(b.store.ouvrir()).toEqual(avantLocal); expect(b.commits()).toEqual([])
 })
@@ -92,12 +92,12 @@ test.each(['alias', 'troisieme', 'suppression', 'dissociation'])('limites et op�
   if (cas === 'suppression') corpus.suppressionAnon = { operationId: 'suppression-anon-test', regleId: 'personne' }
   if (cas === 'dissociation') corpus.dissociationAnon = { operationId: 'dissociation-test', regleId: 'personne' }
   b.demande.regleAvant = structuredClone(corpus.reglesAnon.personne)
-  b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(corpus))
+  b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(corpus))
   await expect(b.ajouter()).rejects.toThrow(); expect(b.commits()).toEqual([]); expect(b.corpus()).toEqual(corpus)
 })
 test('corpus tenu : refus ; bail entretien tenu : ajout autorisé sans toucher ce bail', async () => {
   const b = banc(), bob = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'bob', machineId: 'autre', sessionId: 'autre' }) })
-  const tenu = await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/corpus.json')); if (!tenu.ok) throw new Error('Fixture')
+  const tenu = await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/corpus.crp')); if (!tenu.ok) throw new Error('Fixture')
   const garde = b.depot.fichiers.get(b.bail)
   await expect(b.ajouter()).rejects.toThrow('modification'); expect(b.depot.fichiers.get(b.bail)).toEqual(garde)
   await bob.liberer(tenu.droit)
@@ -108,7 +108,7 @@ test('corpus tenu : refus ; bail entretien tenu : ajout autorisé sans toucher c
 })
 test('course juste avant publication : garde perdue, édition concurrente conservée', async () => {
   const b = banc(), concurrent = structuredClone(b.f.corpus); concurrent.nom = 'Édition indépendante'
-  b.depot.avantCommit = (actions) => { if (actions.some((a) => a.file_path === 'racine/corpus.json')) b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(concurrent)) }
+  b.depot.avantCommit = (actions) => { if (actions.some((a) => a.file_path === 'racine/corpus.crp')) b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(concurrent)) }
   await expect(b.ajouter()).rejects.toThrow('changé pendant'); expect(b.corpus()).toEqual(concurrent); expect(b.commits()).toEqual([])
 })
 test('réponse perdue : Actualiser reconnaît sans deuxième commit et rend uniquement son droit acquis', async () => {
@@ -147,7 +147,7 @@ test('même compte et génération mais autre propriétaire : droit non rendu', 
 })
 test('format distant rétrogradé : aucune migration ni publication implicite', async () => {
   const b = banc(), corpus = structuredClone(b.f.corpus); corpus.formatVersion = 7
-  b.depot.modifierHorsProtocole('racine/corpus.json', JSON.stringify(corpus))
+  b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(corpus))
   await expect(b.ajouter()).rejects.toThrow('version du corpus'); expect(b.corpus()).toEqual(corpus); expect(b.commits()).toEqual([])
 })
 

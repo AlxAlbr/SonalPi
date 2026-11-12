@@ -20,7 +20,7 @@ async function banc(suffixe: string, fetchImpl?: typeof fetch) {
   const s = new DissociationsAnonGitLab(options, () => [])
   const a = await s.preparer(f.demande)
   const lire = async (id: string) => JSON.parse((await p.depot.lireFichier(`${racine}/entretiens/${id}.json`, 'main'))!.contenu)
-  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.json`, 'main'))!.contenu)
+  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.crp`, 'main'))!.contenu)
   const reprise = async (service = s) => service.appliquer((await service.preparerReprise(service.lireSuivi()!.operationId)).token, true)
   return { f, p, s, a, options, lire, corpus, reprise }
 }
@@ -102,7 +102,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
       if (refuser && init?.method === 'POST' && corps.includes('Sonal dissociation-')) {
         const commit = JSON.parse(corps), a = commit.actions.find((a: { action: string }) => a.action === 'update')
         const data = a?.content ? JSON.parse(a.content) : null
-        const concerne = phase === 'entretien' ? a?.file_path.endsWith('/e1.json') : a?.file_path.endsWith('/corpus.json') && (phase === 'barriere' ? !!data?.dissociationAnon : !data?.reglesAnon?.personne)
+        const concerne = phase === 'entretien' ? a?.file_path.endsWith('/e1.json') : a?.file_path.endsWith('/corpus.crp') && (phase === 'barriere' ? !!data?.dissociationAnon : !data?.reglesAnon?.personne)
         if (concerne) { const headers = new Headers(init.headers); headers.set('PRIVATE-TOKEN', 'qualification-invalide'); return fetch(url, { ...init, headers }) }
       }
       return fetch(url, init)
@@ -119,7 +119,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
   it('mémoire acquise changée entre scan final et envoi : garde native refuse le retrait sans restauration', { timeout: 180_000 }, async () => {
     const { p, s, a, corpus, lire } = await banc('course-memoire-finale')
     try {
-      p.avantCommitDeDonneesQuand((actions) => actions.some((a) => a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne), async () => {
+      p.avantCommitDeDonneesQuand((actions) => actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne), async () => {
         const chemin = `${p.racine}/entretiens/e1.json`, source = (await p.depot.lireFichier(chemin, 'main'))!, data = JSON.parse(source.contenu)
         data.definitionsAnonLocales.pop()
         await nouveauDepot(configuration.token2!).publierCommit('main', 'qualification : mémoire concurrente avant finalisation', [{ action: 'update', file_path: chemin, last_commit_id: source.commitId, content: JSON.stringify(data) }])

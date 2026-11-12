@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { CorpusStore } from '../src/main/corpusStore'
 import { lancer, attendreAccueil, attendreCorpus, ecrireSeedDemo, entrerCorpus, fermerAiguillage } from './util'
 
 /** Renomme le 1er entretien via le panneau MÉTA (sélectionne sa carte, édite le nom). */
@@ -13,35 +14,31 @@ async function renommerPremier(page: import('@playwright/test').Page, nom: strin
   await input.blur() // @change → renomme (membership réactif)
 }
 
-/**
- * Multi-corpus : « Ouvrir un corpus… » (openDirectory, stubbé) bascule
- * le store du main sur un autre dossier ; les récents sont mémorisés (settings.json
- * du profil) ; rouvrir un récent retrouve SON contenu (chaque dossier = un corpus).
- */
+/** Ouvrir un CRP et reprendre un récent retrouvent le contenu propre à chaque corpus. */
 test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-multi-'))
   const dirB = mkdtempSync(join(tmpdir(), 'sonal-corpusB-'))
   const dirC = mkdtempSync(join(tmpdir(), 'sonal-corpusC-'))
-  // dirB = un corpus EXISTANT (baseline démo posée d'avance) ; dirC reste VIERGE
-  // (prouve le nouvel amorçage S8 rév. : un corpus neuf naît vide).
+  // Deux corpus existants : l'un avec un entretien, l'autre vide.
   ecrireSeedDemo(dirB)
+  new CorpusStore(dirC).ouvrir()
 
   const app = await lancer(profil)
   const page = await app.firstWindow()
   await entrerCorpus(page) // Accueil → Corpus (corpus par défaut du profil)
 
-  // Stub du dialog de dossier : 1er appel → dirB, 2e → dirC.
+  // Le sélecteur ouvre successivement les fichiers natifs des deux corpus.
   await app.evaluate(({ dialog }, dirs) => {
     let i = 0
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dirs[i++]] })
-  }, [dirB, dirC])
+  }, [join(dirB, 'corpus.crp'), join(dirC, 'corpus.crp')])
 
   // Corpus par défaut (profil) : renommer son entretien pour le distinguer.
   await renommerPremier(page, 'ENT-DEFAUT')
 
   // Accueil → « Ouvrir un corpus… » → dirB (existant, avec son propre contenu).
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  await page.locator('.ouvrir-corpus').click()
   await fermerAiguillage(page, 'entretiens', 10_000)
   await attendreCorpus(page)
   // Corpus isolé : SON « Entretien Karine », PAS « ENT-DEFAUT ».
@@ -56,9 +53,8 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await expect(page.locator('.recents li')).toHaveCount(2)
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
 
-  // « Ouvrir un corpus… » → dirC (VIERGE) : amorcé VIDE — aucun entretien, et le
-  // codebook par défaut = le bloc Pondérations SonalPi1 (parent + 3 enfants).
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  // Le second corpus est vide et conserve ses quatre thèmes par défaut.
+  await page.locator('.ouvrir-corpus').click()
   await fermerAiguillage(page)
   await expect(page.locator('.espace-preparation')).toBeVisible()
   await page.locator('.barre-outils').getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
@@ -85,7 +81,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
     .click()
   await expect(page.locator('.recents li')).toHaveCount(2)
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
-  expect(existsSync(join(dirC, 'corpus.json'))).toBe(true)
+  expect(existsSync(join(dirC, 'corpus.crp'))).toBe(true)
 
   await app.close()
 })
@@ -102,8 +98,8 @@ test('un corpus dont le dossier a été supprimé disparaît des « Récents » 
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, dir) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
-  }, dirSupprime)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(dirSupprime, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
   await fermerAiguillage(page, 'entretiens', 10_000)
   await attendreCorpus(page)
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()

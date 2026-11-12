@@ -23,7 +23,7 @@ function attente() {
 async function banc(natif: boolean) {
   const serveur = new ServeurWebDAVMemoire()
   serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', corpusImportWebDAV())
+  serveur.poser('corpus.crp', corpusImportWebDAV())
   for (const id of ['e1', 'e2']) serveur.poser(`entretiens/${id}.json`, entretienImportWebDAV())
   const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-import-contexte-')); dossiers.push(dirLocal)
   const puts: string[] = []
@@ -32,7 +32,7 @@ async function banc(natif: boolean) {
     const chemin = new URL(String(url)).pathname.replace(`${serveur.racineDav}/`, '')
     await pieges.avant(chemin, init)
     const r = await serveur.fetch(url, init)
-    if (r.ok && init?.method === 'PUT' && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) puts.push(chemin)
+    if (r.ok && init?.method === 'PUT' && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) puts.push(chemin)
     return r
   }
   const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, transport)
@@ -123,7 +123,7 @@ for (const natif of [false, true]) describe(`gardes du contexte d’import — $
     try { await expect(b.contexte.importerCorrespondances(b.preparation)).rejects.toThrow('Terminez les mutations') }
     finally { suite.terminer() }
     await mutation
-    expect(b.puts).toEqual(['corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp'])
     await b.contexte.fermer()
   })
   if (!natif) test('arrêt avant le journal : un bail d’import n’est jamais proposé ni publié comme une session', async () => {

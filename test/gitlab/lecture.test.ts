@@ -66,9 +66,9 @@ describe('lecture GitLab à commit fixé', () => {
           return reponseJson([
             {
               id: 'blob-corpus',
-              name: 'corpus.json',
+              name: 'corpus.crp',
               type: 'blob',
-              path: 'corpus.json',
+              path: 'corpus.crp',
               mode: '100644',
             },
           ], { 'x-next-page': '2' })
@@ -93,7 +93,7 @@ describe('lecture GitLab à commit fixé', () => {
     expect(lecteur.commit).toBe(SHA)
     expect(inventaire).toEqual([
       {
-        chemin: 'corpus.json',
+        chemin: 'corpus.crp',
         dossier: false,
         empreinte: { type: 'gitlab-blob', valeur: 'blob-corpus' },
       },
@@ -158,7 +158,7 @@ describe('lecture GitLab à commit fixé', () => {
     const { client } = clientAvec(() => new Response('accès refusé', { status: 403 }))
     const lecteur = new LecteurGitLab(client, SHA)
 
-    const erreur = await lecteur.lireTexte('corpus.json').catch((cause) => cause)
+    const erreur = await lecteur.lireTexte('corpus.crp').catch((cause) => cause)
     expect(erreur).toBeInstanceOf(ErreurGitLab)
     expect(erreur.statut).toBe(403)
     // 401 et 403 ne se confondent pas : le premier demande un renouvellement.

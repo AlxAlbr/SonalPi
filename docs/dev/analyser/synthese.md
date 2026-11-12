@@ -3,7 +3,7 @@
 **Tri et synthèse** extrait les passages qui répondent à des critères analytiques.
 La vue d’ensemble et la liste d’extraits présentent **la même collection**.
 Résultat, critères et sélection restent en mémoire : calculer une synthèse ne
-modifie ni `corpus.json` ni les entretiens.
+modifie ni `corpus.crp` ni les entretiens.
 
 ## Ce que calcule le moteur
 

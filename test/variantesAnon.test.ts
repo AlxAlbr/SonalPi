@@ -26,11 +26,11 @@ afterEach(() => { injection.corpus = ''; dossiers.splice(0).forEach((d) => rmSyn
 function banc() {
   const f = fixture(), dir = mkdtempSync(join(tmpdir(), 'ajout-variante-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens'))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   f.sources.forEach((s) => writeFileSync(join(dir, `entretiens/${s.id}.json`), JSON.stringify(s.data)))
   const store = new CorpusStore(dir); store.ouvrir()
   const fichiers = () => new Map(f.sources.map((s) => [s.id, { contenu: readFileSync(join(dir, `entretiens/${s.id}.json`), 'utf8'), date: statSync(join(dir, `entretiens/${s.id}.json`)).mtimeMs }]))
-  return { f, dir, store, fichiers, corpus: () => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) }
+  return { f, dir, store, fichiers, corpus: () => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) }
 }
 describe('ajout de variante sans publication d’entretien', () => {
   test('seule la liste déclarée change ; ordre, catégorie, identités et copies publiques conservés', () => {
@@ -92,7 +92,7 @@ describe('ajout de variante sans publication d’entretien', () => {
     corpusAvant.reglesAnon.vide.pseudos.push('Nouvelle variante'); expect(b.corpus()).toEqual(corpusAvant)
   })
   test('doublon et demande périmée ne réécrivent pas le corpus', () => {
-    const b = banc(), chemin = join(b.dir, 'corpus.json'), avant = readFileSync(chemin, 'utf8'), date = statSync(chemin).mtimeMs
+    const b = banc(), chemin = join(b.dir, 'corpus.crp'), avant = readFileSync(chemin, 'utf8'), date = statSync(chemin).mtimeMs
     expect(b.store.regleAnonAjouterVariante({ ...b.f.demande, pseudo: 'Inutilisée' }).ajoute).toBe(false)
     b.f.demande.regleAvant.categorie = 'faux'
     expect(() => b.store.regleAnonAjouterVariante(b.f.demande)).toThrow('a changé')
@@ -103,7 +103,7 @@ describe('ajout de variante sans publication d’entretien', () => {
     expect(() => b.store.regleAnonAjouterVariante(b.f.demande)).toThrow(); expect(b.corpus()).toEqual(avant)
   })
   test('échec avant remplacement : ancienne définition intacte, réouverture puis ajout frais sans altérer les sources', () => {
-    const b = banc(), chemin = join(b.dir, 'corpus.json'), avant = readFileSync(chemin, 'utf8'), sources = b.fichiers()
+    const b = banc(), chemin = join(b.dir, 'corpus.crp'), avant = readFileSync(chemin, 'utf8'), sources = b.fichiers()
     injection.corpus = chemin
     expect(() => b.store.regleAnonAjouterVariante(b.f.demande)).toThrow('Interruption')
     expect(readFileSync(chemin, 'utf8')).toBe(avant); expect(b.fichiers()).toEqual(sources)
@@ -113,7 +113,7 @@ describe('ajout de variante sans publication d’entretien', () => {
     expect(b.fichiers()).toEqual(sources)
   })
   test('journal en attente : aucune reprise ou écriture implicite par l’ajout', () => {
-    const b = banc(), chemin = join(b.dir, 'corpus.json'), avant = readFileSync(chemin, 'utf8')
+    const b = banc(), chemin = join(b.dir, 'corpus.crp'), avant = readFileSync(chemin, 'utf8')
     writeFileSync(join(b.dir, '.transaction-fichiers.json'), 'journal synthétique illisible')
     expect(() => b.store.regleAnonAjouterVariante(b.f.demande)).toThrow('transaction reste à reprendre')
     expect(readFileSync(chemin, 'utf8')).toBe(avant); expect(b.fichiers().size).toBe(3)

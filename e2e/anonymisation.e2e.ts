@@ -276,7 +276,7 @@ test('ajout de variante local : erreur après écriture reconnue par actualisati
         original(...args)
         if (interrompt && String(args[1]) === cible) { interrompt = false; throw new Error('Interruption synthétique après remplacement.') }
       }
-    }, join(dir, 'corpus.json'))
+    }, join(dir, 'corpus.crp'))
     await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
     await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
     await expect(modal.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled()

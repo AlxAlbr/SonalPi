@@ -8,7 +8,7 @@ Les noms de code `docsCadre` désignent toujours cette fonctionnalité.
 
 ## Stockage et disponibilité
 
-Les documents du projet vivent hors de `corpus.json`, sous
+Les documents du projet vivent hors de `corpus.crp`, sous
 `<corpus>/DocsPrepaProjet/`, l’unique racine documentaire du projet.
 
 Les exemples sont des ressources indépendantes du corpus, livrées depuis

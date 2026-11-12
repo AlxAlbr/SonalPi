@@ -14,7 +14,7 @@ afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive:
 function banc(natif = false) {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
   serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', corpusImportWebDAV())
+  serveur.poser('corpus.crp', corpusImportWebDAV())
   for (const id of ['e1', 'e2']) serveur.poser(`entretiens/${id}.json`, entretienImportWebDAV())
   const dir = mkdtempSync(join(tmpdir(), 'sonal-correspondances-dav-')); dossiers.push(dir)
   const puts: string[] = []
@@ -25,7 +25,7 @@ function banc(natif = false) {
     pistes.push(`${init?.method ?? 'GET'} ${chemin}`)
     await pieges.avant(chemin, init)
     const r = await serveur.fetch(url, init)
-    if (init?.method === 'PUT' && (chemin === 'corpus.json' || chemin.startsWith('entretiens/')) && r.ok) puts.push(chemin)
+    if (init?.method === 'PUT' && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/')) && r.ok) puts.push(chemin)
     await pieges.apres(chemin, init)
     return r
   }
@@ -133,7 +133,7 @@ describe('garanties du plan WebDAV', () => {
     docs[0].texte = JSON.stringify(table)
     const bilan = await b.service.appliquer(await b.preparer(docs))
     expect(bilan.ajouts).toBe(1)
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json'])
     const autre = banc()
     table.correspondances[2].entite = ['Alias sans occurrence', 'Autre graphie']
     docs[0].texte = JSON.stringify(table)
@@ -177,17 +177,17 @@ describe('garanties du plan WebDAV', () => {
   })
   test('corpus changé pendant l’inventaire ou avant un PUT : refus sans compensation', async () => {
     const b = banc(); let lu = false
-    b.pieges.apres = async (chemin, init) => { if (!lu && chemin.startsWith('entretiens/') && init?.method === 'GET') { lu = true; b.serveur.poser('corpus.json', JSON.stringify({ ...JSON.parse(corpusImportWebDAV()), nom: 'Autre' })) } }
+    b.pieges.apres = async (chemin, init) => { if (!lu && chemin.startsWith('entretiens/') && init?.method === 'GET') { lu = true; b.serveur.poser('corpus.crp', JSON.stringify({ ...JSON.parse(corpusImportWebDAV()), nom: 'Autre' })) } }
     await expect(b.service.instantane()).rejects.toThrow('pendant l’inventaire')
     expect(b.puts).toEqual([])
   })
   test('corpus modifié après un premier succès : arrêt, tiers conservé et reprise refusée', async () => {
     const b = banc(); const p = await b.preparer()
     const corpusTiers = JSON.stringify({ ...JSON.parse(corpusImportWebDAV()), nom: 'Corpus concurrent' })
-    b.pieges.apres = async (chemin, init) => { if (chemin === 'entretiens/e1.json' && init?.method === 'PUT') b.serveur.poser('corpus.json', corpusTiers) }
+    b.pieges.apres = async (chemin, init) => { if (chemin === 'entretiens/e1.json' && init?.method === 'PUT') b.serveur.poser('corpus.crp', corpusTiers) }
     await expect(b.service.appliquer(p)).rejects.toThrow('incomplet')
     expect(b.puts).toEqual(['entretiens/e1.json'])
-    expect(b.serveur.contenuDe('corpus.json')).toBe(corpusTiers)
+    expect(b.serveur.contenuDe('corpus.crp')).toBe(corpusTiers)
     b.pieges.apres = async () => {}
     await expect(b.creer().reprendre(b.service.lireSuivi()!.operationId, true)).rejects.toThrow('incomplet')
     expect(b.puts).toEqual(['entretiens/e1.json'])

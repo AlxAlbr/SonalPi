@@ -48,13 +48,13 @@ function banc(demande: DemandeOperationTheme = transfert, etats: Record<string, 
   mkdirSync(join(dir, 'entretiens'), { recursive: true })
   const c = corpus()
   const entretiens = new Map(Object.keys(c.membership).map((id) => [id, entretien(id)]))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(c, null, 2))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(c, null, 2))
   for (const [id, data] of entretiens) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data, null, 2))
   const store = new CorpusStore(dir)
   store.lectureSeule = true
   const depot = new DepotMemoire()
   depot.charger(new Map([
-    [`${RACINE}/corpus.json`, JSON.stringify(c, null, 2)],
+    [`${RACINE}/corpus.crp`, JSON.stringify(c, null, 2)],
     ...[...entretiens].map(([id, data]) => [`${RACINE}/entretiens/${id}.json`, JSON.stringify(data, null, 2)] as const),
   ]))
   let n = 0
@@ -110,7 +110,7 @@ describe('lots de thématiques GitLab', () => {
       && c.actions.some((a) => a.file_path.endsWith('/entretiens/e1.json') || a.file_path.endsWith('/entretiens/e2.json')))
     expect(donnees).toHaveLength(2)
     expect(donnees.every((c) => c.actions.filter((a) => !a.file_path.startsWith('.sonal/verrous/')).length === 2)).toBe(true)
-    expect(donnees.every((c) => c.actions.some((a) => a.action === 'chmod' && a.file_path.endsWith('/corpus.json')))).toBe(true)
+    expect(donnees.every((c) => c.actions.some((a) => a.action === 'chmod' && a.file_path.endsWith('/corpus.crp')))).toBe(true)
   })
 
   test('ne traite que le sous-ensemble observé libre et conserve le différé', async () => {
@@ -127,11 +127,11 @@ describe('lots de thématiques GitLab', () => {
     const b = banc(fusion)
     const resultat = await b.service.executer('apercu-1', fusion, { entretiens: 'tous-prevus' })
     expect(resultat.statut).toBe('appliquee')
-    const final = lireDistant<CorpusFichier>(b, 'corpus.json')
+    const final = lireDistant<CorpusFichier>(b, 'corpus.crp')
     expect(final.codebook.source).toBeUndefined()
     expect(final.codebook.enfant.parent).toBe('cible')
     const commit = b.depot.commits.find((c) => c.message.startsWith('Sonal publication-')
-      && c.actions.some((a) => a.file_path === `${RACINE}/corpus.json` && a.action === 'update')
+      && c.actions.some((a) => a.file_path === `${RACINE}/corpus.crp` && a.action === 'update')
       && c.actions.filter((a) => a.action === 'chmod').length === 2)
     expect(commit).toBeDefined()
     expect(commit!.actions.filter((a) => !a.file_path.startsWith('.sonal/verrous/'))).toHaveLength(3)
@@ -150,7 +150,7 @@ describe('lots de thématiques GitLab', () => {
     }
     const resultat = await b.service.executer('apercu-1', demande, { entretiens: 'tous-prevus' })
     expect(resultat).toMatchObject({ statut: 'appliquee', entretiens: 2, reaffectes: 4 })
-    const final = lireDistant<CorpusFichier>(b, 'corpus.json')
+    const final = lireDistant<CorpusFichier>(b, 'corpus.crp')
     expect(final.codebook.source).toBeUndefined()
     expect(final.codebook.cible).toBeUndefined()
     expect(final.codebook.enfant.parent).toBe('resultat')
@@ -165,7 +165,7 @@ describe('lots de thématiques GitLab', () => {
     const b = banc(demande)
     const resultat = await b.service.executer('apercu-1', demande, { entretiens: 'tous-prevus' })
     expect(resultat.statut).toBe('appliquee')
-    const final = lireDistant<CorpusFichier>(b, 'corpus.json')
+    const final = lireDistant<CorpusFichier>(b, 'corpus.crp')
     expect(final.codebook.source).toBeUndefined()
     expect(final.codebook.enfant.parent).toBeNull()
   })
@@ -197,7 +197,7 @@ describe('lots de thématiques GitLab', () => {
     let pannePosee = false
     b.depot.rendreCommitsIllisibles()
     b.depot.avantCommit = (actions) => {
-      if (!pannePosee && actions.some((a) => a.file_path === `${RACINE}/corpus.json` && a.action === 'update')
+      if (!pannePosee && actions.some((a) => a.file_path === `${RACINE}/corpus.crp` && a.action === 'update')
         && !actions.some((a) => a.file_path.includes('/entretiens/'))) {
         pannePosee = true
         b.depot.echouerApresAccepter(new Error('réponse perdue après création'))
@@ -205,7 +205,7 @@ describe('lots de thématiques GitLab', () => {
     }
     const inconnu = await b.service.executer('apercu-1', creation, { entretiens: 'tous-prevus' })
     expect(inconnu.statut).toBe('indeterminee')
-    const cree = Object.values(lireDistant<CorpusFichier>(b, 'corpus.json').codebook).find((c) => c.nom === 'Nouvelle')!
+    const cree = Object.values(lireDistant<CorpusFichier>(b, 'corpus.crp').codebook).find((c) => c.nom === 'Nouvelle')!
     expect(cree).toBeDefined()
     b.depot.rendreCommits()
     const verifie = await b.service.reconcilier('apercu-1')
@@ -213,7 +213,7 @@ describe('lots de thématiques GitLab', () => {
     const reprise = await b.service.preparerReprise('apercu-1')
     const termine = await b.service.executer(reprise.apercu.operationId, reprise.demande, { entretiens: 'tous-prevus' })
     expect(termine.statut).toBe('appliquee')
-    expect(Object.values(lireDistant<CorpusFichier>(b, 'corpus.json').codebook).filter((c) => c.nom === 'Nouvelle')).toHaveLength(1)
+    expect(Object.values(lireDistant<CorpusFichier>(b, 'corpus.crp').codebook).filter((c) => c.nom === 'Nouvelle')).toHaveLength(1)
     expect(lireDistant<EntretienFichier>(b, 'entretiens/e1.json').annotations[0].code).toBe(cree.id)
   })
 
@@ -230,7 +230,7 @@ describe('lots de thématiques GitLab', () => {
     }
     const inconnu = await b.service.executer('apercu-1', fusion, { entretiens: 'tous-prevus' })
     expect(inconnu).toMatchObject({ statut: 'indeterminee', bilan: { sourceConservee: null, finalisation: 'indeterminee' } })
-    expect(lireDistant<CorpusFichier>(b, 'corpus.json').codebook.source).toBeUndefined()
+    expect(lireDistant<CorpusFichier>(b, 'corpus.crp').codebook.source).toBeUndefined()
     const commitsAvant = b.depot.commits.length
     b.depot.rendreCommits()
     const verifie = await b.service.reconcilier('apercu-1')

@@ -16,7 +16,7 @@
  *  LECTEUR affiche l'étiquette d'état explicative (« 🔒 … droits ») avec
  *  son bouton « Réessayer ».
  *
- *  Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
+ *  Skippé si la pile ne répond pas (`npm run nc:up`, sans reprovisionnement).
  */
 
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -92,11 +92,11 @@ async function amorcer(): Promise<{ original: string | null }> {
   const c = client(URL_MAX, MAX)
   let original: string | null = null
   try {
-    original = await c.getTexte('corpus.json')
+    original = await c.getTexte('corpus.crp')
   } catch {
     /* pas encore de corpus */
   }
-  await c.putTexte('corpus.json', corpusInitial())
+  await c.putTexte('corpus.crp', corpusInitial())
   await c.putTexte(`entretiens/${ID}.json`, entretienInitial())
   // Désignation SANS fichier derrière : le cas « inaccessible » (droits ou
   // fichier disparu) — matière de l'étiquette du lecteur côté olivier.
@@ -119,8 +119,8 @@ async function amorcer(): Promise<{ original: string | null }> {
 
 async function nettoyer(original: string | null): Promise<void> {
   const c = client(URL_MAX, MAX)
-  if (original !== null) await c.putTexte('corpus.json', original).catch(() => {})
-  else await c.supprimer('corpus.json').catch(() => {})
+  if (original !== null) await c.putTexte('corpus.crp', original).catch(() => {})
+  else await c.supprimer('corpus.crp').catch(() => {})
   await c.supprimer(`entretiens/${ID}.json`).catch(() => {})
   await c.supprimer(`entretiens/${ID_SANS_SON}.json`).catch(() => {})
   await c.supprimer(NOM_AUDIO).catch(() => {})
@@ -175,7 +175,7 @@ test.describe.configure({ mode: 'serial' })
 test('audio distant : téléverser+désigner chez max, pull miroir chez olivier, état inaccessible', async ({}, testInfo) => {
   test.setTimeout(300_000)
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 

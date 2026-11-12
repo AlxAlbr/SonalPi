@@ -34,7 +34,7 @@ for (const port of [8080, 8081]) {
       await parent.creerDossier('sonde'); await parent.creerDossier(dossier)
       const origin = new ClientWebDAV({ baseUrl: `${parent.config.baseUrl}/${dossier}`, identifiants: max })
       await origin.creerDossier('entretiens'); await origin.creerDossier('verrous')
-      await origin.putTexte('corpus.json', corpusImportWebDAV(), { ifNoneMatch: '*' })
+      await origin.putTexte('corpus.crp', corpusImportWebDAV(), { ifNoneMatch: '*' })
       for (const id of ['e1', 'e2']) await origin.putTexte(`entretiens/${id}.json`, entretienImportWebDAV(), { ifNoneMatch: '*' })
       const natif = port === 8080
       const dir = mkdtempSync(join(tmpdir(), 'sonal-correspondances-nc-'))

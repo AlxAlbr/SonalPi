@@ -69,7 +69,7 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…', exact: true }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
     await expect(page.locator('.carte-ent')).toHaveCount(4)
-    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(corpus.membership).find(([, ref]) => ref.titre === '1Coordinatrice')![0]
     const fichier = join(dossier, 'entretiens', `${id}.json`)
     const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
@@ -209,7 +209,7 @@ test('manuel : créer une catégorie ou changer sa couleur est distinct de valid
     await entrerCorpus(page)
     await entrerEntretien(page)
     await page.locator('[data-onglet="notes"]').click()
-    const fichierCorpus = join(racine, 'corpus/corpus.json')
+    const fichierCorpus = join(racine, 'corpus/corpus.crp')
     const categories = () => (JSON.parse(readFileSync(fichierCorpus, 'utf8')) as CorpusFichier).categoriesNote!
     let modale = await nouvelleNote(page, 'À annuler', 'Le brouillon ne sera pas conservé.')
     await modale.getByLabel(/^Catégorie/).selectOption({ label: 'autre…' })

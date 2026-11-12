@@ -5,7 +5,7 @@ les opérations qui peuvent toucher plusieurs entretiens.
 
 ## Règles partagées
 
-Une règle vit dans `corpus.json.reglesAnon` :
+Une règle vit dans `corpus.crp.reglesAnon` :
 
 ```ts
 interface RegleAnon {
@@ -63,7 +63,7 @@ une autorité modifiable.
 ## Créer ou importer une règle
 
 La création valide la définition, refuse les collisions d’alias et écrit le seul
-`corpus.json`. Elle ne recherche ni ne pose automatiquement les correspondances.
+`corpus.crp`. Elle ne recherche ni ne pose automatiquement les correspondances.
 
 L’import de règles applique la même séparation : il ajoute ou complète les
 définitions, mais ne renomme aucun usage existant. Les identifiants étrangers ne
@@ -82,7 +82,7 @@ L’ajout reçoit la définition complète attendue et le nouveau pseudonyme. Il
 la règle avant écriture et refuse une définition périmée, un doublon ou une
 troisième variante.
 
-Seul `corpus.json` change. Les annotations, exceptions, brouillons, définitions
+Seul `corpus.crp` change. Les annotations, exceptions, brouillons, définitions
 locales, locuteurs et personnes restent intacts. L’ajout ne choisit jamais cette
 nouvelle variante pour des occurrences existantes.
 
@@ -176,7 +176,7 @@ ne peut pas être établie.
 ## Barrières temporaires
 
 Sur les fournisseurs distants, certaines opérations publient temporairement une
-barrière dans `corpus.json` :
+barrière dans `corpus.crp` :
 
 - `dissociationAnon` ;
 - `suppressionAnon` ;

@@ -8,7 +8,7 @@ import { ecrireSeedDemo } from '../test/seedDemo'
 
 /** Ajoute un deuxième entretien au corpus de démonstration, avant le lancement. */
 function ajouterEntretien(dirCorpus: string): void {
-  const chemin = join(dirCorpus, 'corpus.json')
+  const chemin = join(dirCorpus, 'corpus.crp')
   const corpus = JSON.parse(readFileSync(chemin, 'utf8')) as CorpusFichier
   corpus.membership.e2 = { titre: 'Deuxième entretien', date: null, lastModified: new Date().toISOString() }
   writeFileSync(chemin, JSON.stringify(corpus, null, 2))

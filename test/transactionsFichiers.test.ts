@@ -88,12 +88,12 @@ describe('TransactionsFichiersCorpus', () => {
       corpusApres: apres,
       entretien: data,
     }
-    ecrireJson(join(dir, 'corpus.json'), avant)
+    ecrireJson(join(dir, 'corpus.crp'), avant)
     ecrireJson(join(dir, 'entretiens', 'e1.json'), data)
     ecrireJournal(dir, plan)
 
     expect(new CorpusStore(dir).ouvrir().membership.e1).toBeDefined()
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).membership.e1).toBeDefined()
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).membership.e1).toBeDefined()
     expect(existsSync(join(dir, 'entretiens', 'e1.json'))).toBe(true)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(false)
   })
@@ -112,7 +112,7 @@ describe('TransactionsFichiersCorpus', () => {
       corpusApres: apres,
       deplacements: [{ source: 'entretiens/e1.json', destination: 'corbeille/e1.json' }],
     }
-    ecrireJson(join(dir, 'corpus.json'), apres)
+    ecrireJson(join(dir, 'corpus.crp'), apres)
     ecrireJson(join(dir, 'entretiens', 'e1.json'), data)
     ecrireJournal(dir, plan)
 
@@ -134,14 +134,14 @@ describe('TransactionsFichiersCorpus', () => {
       return { id, avant, apres }
     })
     const plan: PlanTransactionFichiers = { operation: 'remplacement', id: 'fusion', corpusAvant: avant, corpusApres: apres, entretiens: fichiers }
-    ecrireJson(join(dir, 'corpus.json'), stade === 'corpus' ? apres : avant)
+    ecrireJson(join(dir, 'corpus.crp'), stade === 'corpus' ? apres : avant)
     fichiers.forEach((e, i) => ecrireJson(join(dir, 'entretiens', `${e.id}.json`), stade === 'corpus' || (stade === 'premier entretien' && i === 0) ? e.apres : e.avant))
     ecrireJournal(dir, plan)
     const transactions = new TransactionsFichiersCorpus(dir)
     expect(transactions.reprendre()).toBe(true)
     expect(transactions.reprendre()).toBe(false)
     for (const e of fichiers) expect(JSON.parse(readFileSync(join(dir, 'entretiens', `${e.id}.json`), 'utf8'))).toEqual(e.apres)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(apres)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).toEqual(apres)
   })
 
   it('vérifie tous les entretiens avant de reprendre un remplacement', () => {
@@ -149,20 +149,20 @@ describe('TransactionsFichiersCorpus', () => {
     const avant = corpus()
     const apres = { ...avant, nom: 'Après' }
     const fichiers = ['e1', 'e2'].map(id => ({ id, avant: entretien(), apres: { ...entretien(), lastModified: 'nouveau' } }))
-    ecrireJson(join(dir, 'corpus.json'), avant)
+    ecrireJson(join(dir, 'corpus.crp'), avant)
     ecrireJson(join(dir, 'entretiens/e1.json'), fichiers[0].avant)
     ecrireJson(join(dir, 'entretiens/e2.json'), { ...entretien(), lastModified: 'externe' })
     ecrireJournal(dir, { operation: 'remplacement', id: 'fusion', corpusAvant: avant, corpusApres: apres, entretiens: fichiers })
     expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/e2.*a changé/)
     expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8'))).toEqual(fichiers[0].avant)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(avant)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).toEqual(avant)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
   })
 
   it.each([0, 1, 2, 3, 4])('reprend une division destructive après l’écriture %i, avant d’exposer le corpus', (arret) => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-themes-'))
     const plan = planDivision()
-    ecrireJson(join(dir, 'corpus.json'), plan.corpusAvant)
+    ecrireJson(join(dir, 'corpus.crp'), plan.corpusAvant)
     for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
     const ecritures: string[] = []
     injections.apresRenommage = (destination) => {
@@ -172,7 +172,7 @@ describe('TransactionsFichiersCorpus', () => {
         return
       }
       ecritures.push(chemin)
-      const c = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+      const c = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
       if (ecritures.length < 4) {
         expect(c.codebook.source).toBeDefined()
         expect(c.codebook.nouvelle).toBeDefined()
@@ -184,7 +184,7 @@ describe('TransactionsFichiersCorpus', () => {
       if (ecritures.length === arret) throw new Error('arrêt simulé')
     }
     expect(() => new TransactionsFichiersCorpus(dir).executer(plan)).toThrow('arrêt simulé')
-    expect(ecritures).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'].slice(0, arret))
+    expect(ecritures).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'].slice(0, arret))
     expect(JSON.parse(readFileSync(join(dir, '.transaction-fichiers.json'), 'utf8')).formatVersion).toBe(2)
     injections.apresRenommage = undefined
     const expose = new CorpusStore(dir).ouvrir()
@@ -199,7 +199,7 @@ describe('TransactionsFichiersCorpus', () => {
     const plan = planDivision()
     delete (plan as { corpusIntermediaire?: CorpusFichier }).corpusIntermediaire
     const ecritures: string[] = []
-    ecrireJson(join(dir, 'corpus.json'), plan.corpusAvant)
+    ecrireJson(join(dir, 'corpus.crp'), plan.corpusAvant)
     for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
     injections.apresRenommage = (destination) => {
       const chemin = relative(dir, destination)
@@ -207,26 +207,26 @@ describe('TransactionsFichiersCorpus', () => {
     }
     new TransactionsFichiersCorpus(dir).executer({ ...plan, ordre })
     expect(ecritures).toEqual(ordre === 'corpus-puis-entretiens'
-      ? ['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json']
-      : ['entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+      ? ['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json']
+      : ['entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
   })
 
   it('refuse un état inconnu sur un corpus intermédiaire, sans écrire le corpus final', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-intermediaire-conflit-'))
     const plan = planDivision()
-    ecrireJson(join(dir, 'corpus.json'), plan.corpusIntermediaire)
+    ecrireJson(join(dir, 'corpus.crp'), plan.corpusIntermediaire)
     ecrireJson(join(dir, 'entretiens/e1.json'), plan.entretiens[0].apres)
     ecrireJson(join(dir, 'entretiens/e2.json'), { ...plan.entretiens[1].avant, lastModified: 'concurrent' })
     ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 2, plan })
     expect(() => new CorpusStore(dir).ouvrir()).toThrow(/e2.*a changé/)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(plan.corpusIntermediaire)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).toEqual(plan.corpusIntermediaire)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
   })
 
   it('refuse un corpus final placé avant ses entretiens dans une transaction intermédiaire', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-intermediaire-incoherent-'))
     const plan = planDivision()
-    ecrireJson(join(dir, 'corpus.json'), plan.corpusApres)
+    ecrireJson(join(dir, 'corpus.crp'), plan.corpusApres)
     for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
     ecrireJson(join(dir, '.transaction-fichiers.json'), { formatVersion: 2, plan })
     expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/incohérente/)
@@ -256,11 +256,11 @@ describe('TransactionsFichiersCorpus', () => {
       corpusApres: apres,
       entretien: entretien(),
     }
-    ecrireJson(join(dir, 'corpus.json'), modifie)
+    ecrireJson(join(dir, 'corpus.crp'), modifie)
     ecrireJournal(dir, plan)
 
-    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/corpus.json a changé/)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).nom)
+    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/corpus\.crp a changé/)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).nom)
       .toBe('Modification extérieure')
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
   })

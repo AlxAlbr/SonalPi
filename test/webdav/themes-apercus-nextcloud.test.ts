@@ -38,7 +38,7 @@ for (const port of [8080, 8081]) {
           annotations: [{ id: 'a', type: 'codage', code: 'source', from: 1, to: 6, auteur: 'test' }],
         })
         await client.creerDossier('entretiens')
-        await client.putTexte('corpus.json', contenuCorpus, { ifNoneMatch: '*' })
+        await client.putTexte('corpus.crp', contenuCorpus, { ifNoneMatch: '*' })
         await client.putTexte('entretiens/e1.json', contenuEntretien, { ifNoneMatch: '*' })
         requetes.length = 0
         const lecture = await client.getTexteAvecEtag('entretiens/e1.json')
@@ -48,19 +48,19 @@ for (const port of [8080, 8081]) {
         const dir = mkdtempSync(join(tmpdir(), 'sonal-themes-nc-'))
         const store = new CorpusStore(dir)
         store.lectureSeule = true
-        writeFileSync(join(dir, 'corpus.json'), 'miroir périmé, jamais lu')
+        writeFileSync(join(dir, 'corpus.crp'), 'miroir périmé, jamais lu')
         const apercus = new ApercusThemesWebDAV(client, (avant) => store.adapterEntretienOperationTheme(avant))
         const a = await apercus.analyser({ type: 'transfert', conserverSource: true, source: 'source', cible: { type: 'existante', id: 'cible' } })
         expect(a.faisable).toBe(true)
         expect(a.totaux.passages).toBe(1)
         expect(a.obstacles).toEqual([{ phase: 'entretiens', entretienId: 'absent', motif: expect.any(String) }])
         expect(apercus.details(a.operationId, 'e1').codages[0].extrait).toBe('Texte')
-        expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe('miroir périmé, jamais lu')
+        expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe('miroir périmé, jamais lu')
         const partage = new ClientWebDAV({
           baseUrl: `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: comptes.olivier,
         })
         expect(await partage.getTexteAvecEtag('entretiens/e1.json')).toEqual(lecture)
-        expect((await client.getTexteAvecEtag('corpus.json')).contenu).toBe(contenuCorpus)
+        expect((await client.getTexteAvecEtag('corpus.crp')).contenu).toBe(contenuCorpus)
         expect(await client.getTexteAvecEtag('entretiens/e1.json')).toEqual(lecture)
         expect(requetes.every((methode) => methode === 'GET')).toBe(true)
       } finally {

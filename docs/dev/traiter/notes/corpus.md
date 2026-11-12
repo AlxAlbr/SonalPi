@@ -50,7 +50,7 @@ pas de suppression en cascade des notes.
 
 En distant, ces commandes de définition suivent les transactions du fournisseur.
 Le retrait d’une catégorie utilisée relève des gardes de suppression de
-définition, et pas d’une simple écriture de `corpus.json`.
+définition, et pas d’une simple écriture de `corpus.crp`.
 
 ## Disponibilité selon le fournisseur
 

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { CorpusStore } from '../src/main/corpusStore'
 import { lancer, attendreAccueil, attendreCorpus, ecrireSeedDemo } from './util'
 
 /**
@@ -21,8 +22,8 @@ test('première ouverture : aiguillage affiché, puis « gestion de projet »', 
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
-  }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(dossier, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
 
   // L'accueil de la préparation est déjà en place derrière la fenêtre.
   await expect(aiguillage(page)).toBeVisible()
@@ -59,8 +60,8 @@ test('première ouverture : « corriger un entretien » mène aux entretiens du 
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
-  }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(dossier, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await page.getByRole('button', { name: 'Télécharger un entretien pour le corriger' }).click()
@@ -73,13 +74,14 @@ test('première ouverture : « corriger un entretien » mène aux entretiens du 
 test('première ouverture d’un corpus vide : « corriger » ouvre l’ajout d’entretien', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-aiguillage-vide-'))
   const dossier = mkdtempSync(join(tmpdir(), 'sonal-aiguillage-vide-corpus-'))
+  new CorpusStore(dossier).ouvrir()
   const app = await lancer(profil)
   const page = await app.firstWindow()
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
-  }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(dossier, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await page.getByRole('button', { name: 'Télécharger un entretien pour le corriger' }).click()
@@ -96,8 +98,8 @@ test('refermer l’aiguillage laisse l’accueil affiché et ne le remontre plus
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [d] })
-  }, dossier)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(dossier, 'corpus.crp'))
+  await page.locator('.ouvrir-corpus').click()
   await expect(aiguillage(page)).toBeVisible()
 
   await aiguillage(page).getByRole('button', { name: 'Fermer' }).click()

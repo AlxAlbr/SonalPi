@@ -109,7 +109,7 @@ test('Préparer et suivre utilise un corpus vierge distinct de celui du Traiteme
     await spotlightSur(page, '[data-tour="carte-1Coordinatrice"] .crayon')
     await expect(page.locator('.carte-ent')).toHaveCount(1)
     await expect(page.locator('.carte-ent').first()).toContainText('1Coordinatrice')
-    expect(Object.values(JSON.parse(readFileSync(join(corpus, 'corpus.json'), 'utf8')).membership)
+    expect(Object.values(JSON.parse(readFileSync(join(corpus, 'corpus.crp'), 'utf8')).membership)
       .some((entretien: any) => entretien.titre === 'Entretien préparatoire')).toBe(true)
     await page.getByRole('button', { name: 'Mettre le guide en pause', exact: true }).click()
     await page.getByTestId('resume-parcours-global').getByRole('button', { name: 'Sortir de la démo' }).click()

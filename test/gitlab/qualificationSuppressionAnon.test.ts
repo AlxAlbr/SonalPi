@@ -20,7 +20,7 @@ async function banc(suffixe: string) {
   const s = new SuppressionsAnonGitLab(options, () => [])
   const a = await s.preparer(f.demande)
   const lire = async (id: string) => JSON.parse((await p.depot.lireFichier(`${racine}/entretiens/${id}.json`, 'main'))!.contenu)
-  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.json`, 'main'))!.contenu)
+  const corpus = async () => JSON.parse((await p.depot.lireFichier(`${racine}/corpus.crp`, 'main'))!.contenu)
   const reprise = async (service = s) => service.appliquer((await service.preparerReprise(service.lireSuivi()!.operationId)).token, true)
   return { f, p, s, a, options, lire, corpus, reprise }
 }
@@ -130,7 +130,7 @@ decrire('suppression GitLab — qualification préparatoire du moteur à deux co
     const { p, s, a, options, reprise } = await banc(`reponse-perdue-${phase}`)
     try {
       p.avantCommitDeDonneesQuand((actions) => actions.some((a) => a.action === 'update' && (phase === 'entretien' ? a.file_path.endsWith('/entretiens/e1.json')
-        : a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)), async () => {
+        : a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)), async () => {
         p.rendreHistoriqueIndisponible(); p.perdreReponseDuCommitDeDonnees()
       })
       const r = await s.appliquer(a.token, true); expect(r.statut).toBe('indetermine')

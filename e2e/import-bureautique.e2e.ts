@@ -56,7 +56,7 @@ for (const extension of ['docx', 'pdf']) {
         await expect(page.locator('.editeur')).toContainText('Depuis cinq ans')
         await expect(page.locator('.tete .etat')).toHaveText('à jour')
         expect(readFileSync(source)).toEqual(octets)
-        const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.json'), 'utf8'))
+        const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.crp'), 'utf8'))
         const id = Object.keys(corpus.membership).find((id) => corpus.membership[id].titre === 'Entretien')!
         const sauvegarde = JSON.parse(readFileSync(join(profil, 'corpus/entretiens', `${id}.json`), 'utf8'))
         expect(sauvegarde.locuteurs.map((l: { nom: string }) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])

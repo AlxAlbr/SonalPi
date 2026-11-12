@@ -21,7 +21,7 @@ function banc() {
     mkdirSync(join(store.repertoire, 'entretiens'), { recursive: true })
     writeFileSync(join(store.repertoire, 'entretiens', `${e.id}.json`), JSON.stringify(e.data))
   }
-  writeFileSync(join(store.repertoire, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(store.repertoire, 'corpus.crp'), JSON.stringify(corpus))
   return { dir, store, fixture }
 }
 describe('export des correspondances', () => {
@@ -135,15 +135,18 @@ describe('cache et persistance du main', () => {
     const avant = readFileSync(fichier, 'utf8')
     const apercu = service.preparerExport(OPTIONS_TABLE_DEFAUT)
     expect(readFileSync(fichier, 'utf8')).toBe(avant)
-    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'corpus.json'))).toThrow('hors du corpus')
+    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'corpus.crp'))).toThrow('destination JSON')
+    expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'export.json'))).toThrow('hors du corpus')
     symlinkSync(store.repertoire, join(dir, 'lien'), 'dir')
     expect(() => service.verifierDestination(apercu.token, join(dir, 'lien', 'export.json'))).toThrow('hors du corpus')
+    symlinkSync(join(store.repertoire, 'corpus.crp'), join(dir, 'corpus-lie.json'))
+    expect(() => service.verifierDestination(apercu.token, join(dir, 'corpus-lie.json'))).toThrow('hors du corpus')
     expect(() => service.verifierDestination(apercu.token, join(dir, 'export.json'))).not.toThrow()
   })
   test('les membres absents ne sont pas des usages nuls silencieux', () => {
     const { store } = banc()
     const corpus = store.ouvrir(); corpus.membership.absent = { titre: 'Absent', date: null, lastModified: '' }
-    writeFileSync(join(store.repertoire, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(store.repertoire, 'corpus.crp'), JSON.stringify(corpus))
     const service = new TablesCorrespondance({ store: () => store, lecture: () => 'miroir' })
     const apercu = service.preparerExport(OPTIONS_TABLE_DEFAUT)
     expect(apercu.lecture).toBe('miroir'); expect(apercu.indisponibles).toEqual([{ id: 'absent', titre: 'Absent' }])
@@ -167,9 +170,9 @@ describe('cache et persistance du main', () => {
     const service = new TablesCorrespondance({ store: () => store, lecture: () => 'local' })
     const apercu = service.preparerImport(doc([v1('Nouvelle', 'Autre')]))
     const p = service.consommerImport(apercu.token, { [apercu.lignes[0].id]: 'remplacer' })
-    const avant = readFileSync(join(store.repertoire, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(store.repertoire, 'corpus.crp'), 'utf8')
     expect(() => store.importerDefinitionsAnon(p.lignes, p.choix, p.empreinte)).toThrow('non autorisée')
-    expect(readFileSync(join(store.repertoire, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(store.repertoire, 'corpus.crp'), 'utf8')).toBe(avant)
     store.lectureSeule = true
     expect(() => store.importerDefinitionsAnon(p.lignes, {}, p.empreinte)).toThrow('transaction sous droit')
   })

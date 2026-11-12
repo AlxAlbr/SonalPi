@@ -23,7 +23,7 @@ export interface ResultatImport {
   /** Variables EAV extraites de var/dic-json → fusionnées dans le corpus. */
   variables: Variable[]
   /** Règles corpus extraites de l'`anon-json` (portée corpus) → fusionnées dans
-   *  corpus.json.reglesAnon (passées au store à l'import). */
+   *  corpus.crp.reglesAnon (passées au store à l'import). */
   reglesAnon: RegleAnon[]
   legacy: LegacyBlobs
 }
@@ -118,7 +118,7 @@ export function importerSonal(domDoc: Document): ResultatImport {
     notes: notesV1,
   }
   // Catégories de note : elles vivent au CORPUS (bacs par défaut normalisés
-  //  à la lecture de corpus.json) — l'entretien importé n'en porte pas. La
+  //  à la lecture de corpus.crp) — l'entretien importé n'en porte pas. La
   //  note migrée référence le bac « générale » (id stable d'un bac par défaut).
   // Une seule note migre le texte SonalPi1 : bac « générale », pas de date, privée.
   //  Le `corps` est échappé (HTML sanitisé, sans <mark> : le libre SonalPi1 n'en a pas).

@@ -75,7 +75,7 @@ interface Banc {
  *  Deux clients : max (nous) et olivier (tiers). */
 async function banc(): Promise<Banc> {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
-  serveur.poser('corpus.json', corpusInitial())
+  serveur.poser('corpus.crp', corpusInitial())
   serveur.poser('entretiens/e1.json', entretienE1())
   const clientMax = new ClientWebDAV(
     { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
@@ -94,7 +94,7 @@ async function banc(): Promise<Banc> {
 }
 
 function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
-  return JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+  return JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
 }
 
 describe('Migration distante vers le format courant', () => {
@@ -118,7 +118,7 @@ describe('Migration distante vers le format courant', () => {
     const entretienV4 = JSON.parse(entretienE1()) as EntretienFichier
     entretienV4.formatVersion = version
     entretienV4.reperesPassages = [{ id: 'p1', from: 1, to: 1 }]
-    serveur.poser('corpus.json', JSON.stringify(corpusV4))
+    serveur.poser('corpus.crp', JSON.stringify(corpusV4))
     serveur.poser('entretiens/e1.json', JSON.stringify(entretienV4))
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
@@ -147,6 +147,34 @@ describe('Migration distante vers le format courant', () => {
 })
 
 describe('Transaction générique', () => {
+  it('renomme le projet sans déplacer le miroir ni les entretiens, puis le second poste récupère le nom', async () => {
+    const { serveur, clientOlivier, miroir, store, tx } = await banc()
+    const second = new MiroirWebDAV(clientOlivier, mkdtempSync(join(tmpdir(), 'sonal-nom-second-')))
+    await second.tirer()
+    const dossierInitial = miroir.dirLocal
+    const entretienAvant = serveur.contenuDe('entretiens/e1.json')
+    await tx.executer(() => store.poserNom('  Projet commun  '))
+    expect(corpusServeur(serveur).nom).toBe('Projet commun')
+    expect(store.lectureSeule).toBe(true)
+    expect(miroir.dirLocal).toBe(dossierInitial)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(entretienAvant)
+    expect(new CorpusStore(second.dirLocal).ouvrir().nom).toBe('Trans')
+    expect((await second.tirer()).telecharges).toContain('corpus.crp')
+    expect(new CorpusStore(second.dirLocal).ouvrir().nom).toBe('Projet commun')
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('un verrou détenu par un tiers refuse le nouveau nom sans modifier le corpus', async () => {
+    const { serveur, clientOlivier, miroir, store, tx } = await banc()
+    const avant = readFileSync(join(miroir.dirLocal, 'corpus.crp'))
+    const verrou = new ProviderPutConditionnel(clientOlivier, IDENTITE_OLIVIER)
+    await verrou.acquerir('verrous/corpus.lock.json')
+    try {
+      await expect(tx.executer(() => store.poserNom('Interdit'))).rejects.toThrow(/olivier/)
+      expect(corpusServeur(serveur).nom).toBe('Trans')
+      expect(readFileSync(join(miroir.dirLocal, 'corpus.crp'))).toEqual(avant)
+    } finally { await verrou.liberer('verrous/corpus.lock.json') }
+  })
   it('chemin heureux : mutation locale publiée sur le serveur, verrou libéré, garde restaurée', async () => {
     const { serveur, store, tx } = await banc()
     const r = await tx.executer(() => store.ajouterCategorie('Thèmes à nous', null))
@@ -174,7 +202,7 @@ describe('Transaction générique', () => {
     // notre manifeste périmé ne doit PAS servir de base à la mutation.
     const concurrent = JSON.parse(corpusInitial()) as CorpusFichier
     concurrent.nom = 'Version du collègue'
-    serveur.poser('corpus.json', JSON.stringify(concurrent))
+    serveur.poser('corpus.crp', JSON.stringify(concurrent))
     await tx.executer(() => store.ajouterCategorie('À nous', null))
     const final = corpusServeur(serveur)
     expect(final.nom).toBe('Version du collègue') // la version fraîche était la base…
@@ -183,13 +211,13 @@ describe('Transaction générique', () => {
 
   it('divergence 412 : un PUT concurrent juste avant le nôtre → refus NET, jamais d\u2019écrasement', async () => {
     const { serveur, clientOlivier, miroir, store } = await banc()
-    // Middleware : au moment où NOTRE PUT corpus.json part, un collègue pousse sa version —
+    // Middleware : au moment où NOTRE PUT corpus.crp part, un collègue pousse sa version —
     // notre garde If-Match ne correspond plus → 412 garanti.
     const clientInstrumente = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
-          await clientOlivier.putTexte('corpus.json', corpusInitial())
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
+          await clientOlivier.putTexte('corpus.crp', corpusInitial())
         }
         return serveur.fetch(entree as URL, init)
       },
@@ -208,7 +236,7 @@ describe('Transaction générique', () => {
     const clientMort = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           throw new TypeError('fetch failed') // politique α : refus immédiat
         }
         return serveur.fetch(entree as URL, init)
@@ -226,7 +254,7 @@ describe('Transaction générique', () => {
     const clientReponsePerdue = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           await serveur.fetch(entree as URL, init)
           throw new TypeError('réponse perdue')
         }
@@ -267,7 +295,7 @@ describe('Création et import d’entretien — transaction multi-fichiers', () 
       async (entree, init) => {
         const url = String(entree)
         if (init?.method === 'PUT' && url.includes('/entretiens/')) ordre.push('entretien')
-        if (init?.method === 'PUT' && url.endsWith('/corpus.json')) ordre.push('corpus')
+        if (init?.method === 'PUT' && url.endsWith('/corpus.crp')) ordre.push('corpus')
         return serveur.fetch(entree as URL, init)
       },
     )
@@ -325,7 +353,7 @@ describe('Création et import d’entretien — transaction multi-fichiers', () 
     const clientPanne = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           return new Response('panne', { status: 503 })
         }
         return serveur.fetch(entree as URL, init)
@@ -352,12 +380,12 @@ describe('Commandes de cas distantes', () => {
       regles: [{ type: 'entretiens', entretienIds: [id === 'c1' ? 'e1' : 'absent'] }], rattachements: [],
     }))
     const sourceAvant = serveur.contenuDe('entretiens/e1.json')
-    const avant = serveur.contenuDe('corpus.json')
+    const avant = serveur.contenuDe('corpus.crp')
     await expect(tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))).rejects.toThrow(/partie du corpus/)
-    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    expect(serveur.contenuDe('corpus.crp')).toBe(avant)
     const frais = corpusServeur(serveur)
     frais.nom = 'Modification extérieure'
-    serveur.poser('corpus.json', JSON.stringify(frais))
+    serveur.poser('corpus.crp', JSON.stringify(frais))
     nouveaux[1].regles = [{ type: 'entretiens', entretienIds: ['e1'] }]
     await tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))
     await tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))
@@ -484,7 +512,7 @@ describe('Suppression d\u2019entretien — double verrou', () => {
         }],
       },
     }
-    serveur.poser('corpus.json', JSON.stringify(courant, null, 2))
+    serveur.poser('corpus.crp', JSON.stringify(courant, null, 2))
     await miroir.tirer()
     const impact = store.analyserSuppressionEntretien('e1')
 
@@ -519,7 +547,7 @@ describe('Suppression d\u2019entretien — double verrou', () => {
         }],
       },
     }
-    serveur.poser('corpus.json', JSON.stringify(concurrent, null, 2))
+    serveur.poser('corpus.crp', JSON.stringify(concurrent, null, 2))
 
     await expect(tx.supprimerEntretien('e1', impact)).rejects.toThrow(/ont changé/)
 
@@ -575,7 +603,7 @@ describe('Suppression d\u2019entretien — double verrou', () => {
     const clientPanne = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           return new Response('panne', { status: 503 })
         }
         return serveur.fetch(entree as URL, init)
@@ -837,10 +865,10 @@ function entretienKarine(): string {
  *  miroir re-tiré (l'état que verrait le panneau Pseudos). */
 async function bancAnon() {
   const b = await banc()
-  const c = JSON.parse(b.serveur.contenuDe('corpus.json')!) as CorpusFichier
+  const c = JSON.parse(b.serveur.contenuDe('corpus.crp')!) as CorpusFichier
   c.reglesAnon['reg-1'] = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
   c.membership.e2 = { titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z' }
-  b.serveur.poser('corpus.json', JSON.stringify(c, null, 2))
+  b.serveur.poser('corpus.crp', JSON.stringify(c, null, 2))
   b.serveur.poser('entretiens/e2.json', entretienKarine())
   await b.miroir.tirer()
   return b
@@ -875,23 +903,23 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
     const data = JSON.parse(source) as EntretienFichier
     const regle = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
     const empreinte = empreinteAnon(data, regle)
-    const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+    const corpus = JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
     corpus.reglesAnon['reg-1'].pseudos = ['Autre variante']
-    serveur.poser('corpus.json', JSON.stringify(corpus))
+    serveur.poser('corpus.crp', JSON.stringify(corpus))
     const resultat = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: regle.id, empreinte, plages: [{ from: 9, to: 15 }] }])
     expect(resultat.succes).toEqual([])
     expect(resultat.echecs[0].raison).toContain('périmé')
     expect(serveur.contenuDe('entretiens/e2.json')).toBe(source)
-    expect(JSON.parse(readFileSync(join(miroir.dirLocal, 'corpus.json'), 'utf8')).reglesAnon['reg-1'].pseudos).toEqual(['Autre variante'])
+    expect(JSON.parse(readFileSync(join(miroir.dirLocal, 'corpus.crp'), 'utf8')).reglesAnon['reg-1'].pseudos).toEqual(['Autre variante'])
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
   })
 
   it('applique la définition distante fraîche et garde corpus puis entretien jusqu’à la publication', async () => {
     const { serveur, clientMax, tx } = await bancAnon()
-    const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+    const corpus = JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
     corpus.reglesAnon['reg-1'].pseudos = ['Pseudo actuel']
-    serveur.poser('corpus.json', JSON.stringify(corpus))
+    serveur.poser('corpus.crp', JSON.stringify(corpus))
     const publier = clientMax.putTexte.bind(clientMax)
     const ordre: string[] = []
     clientMax.putTexte = async (chemin, contenu, options) => {
@@ -917,9 +945,9 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
     clientMax.getTexte = async (chemin) => {
       const contenu = await lire(chemin)
       if (chemin === 'entretiens/e2.json') {
-        const corpus = JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+        const corpus = JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
         corpus.reglesAnon['reg-1'].pseudos = ['Modification concurrente']
-        serveur.poser('corpus.json', JSON.stringify(corpus))
+        serveur.poser('corpus.crp', JSON.stringify(corpus))
       }
       return contenu
     }
@@ -1042,7 +1070,7 @@ describe('Correction courte d’un entretien distant', () => {
     corpus.membership.e2 = {
       titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z',
     }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     b.serveur.poser('entretiens/e2.json', contenu)
     await b.miroir.tirer()
   }
@@ -1078,7 +1106,7 @@ describe('Correction courte d’un entretien distant', () => {
 
     const corpus = corpusServeur(b.serveur)
     corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Camille Martin' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     b.serveur.poser(
       'entretiens/e2.json',
       entretienAvecLocuteur('loc-source', 'Intervieweur', 'pers-source'),
@@ -1202,7 +1230,7 @@ describe('Correction courte d’un entretien distant', () => {
     await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
     const corpus = corpusServeur(b.serveur)
     corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     const source = JSON.parse(
       entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
     ) as EntretienFichier
@@ -1235,7 +1263,7 @@ describe('Correction courte d’un entretien distant', () => {
     await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
     const corpus = corpusServeur(b.serveur)
     corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     b.serveur.poser(
       'entretiens/e2.json',
       entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
@@ -1372,12 +1400,12 @@ describe('Correction courte d’un entretien distant', () => {
     const corpus = corpusServeur(b.serveur)
     corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
     corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     await b.miroir.tirer()
     const ordre: string[] = []
     const reel = b.clientMax.putTexte.bind(b.clientMax)
     b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.json' || chemin.startsWith('entretiens/')) ordre.push(chemin)
+      if (chemin === 'corpus.crp' || chemin.startsWith('entretiens/')) ordre.push(chemin)
       return reel(chemin, contenu, options)
     }
 
@@ -1393,7 +1421,7 @@ describe('Correction courte d’un entretien distant', () => {
     })
     const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
     expect(entretien2.locuteurs[0].personneRef).toBe('p1')
-    expect(ordre.indexOf('entretiens/e2.json')).toBeLessThan(ordre.indexOf('corpus.json'))
+    expect(ordre.indexOf('entretiens/e2.json')).toBeLessThan(ordre.indexOf('corpus.crp'))
   })
 
   it('publie une session déjà tenue avant de terminer une réunion', async () => {
@@ -1403,7 +1431,7 @@ describe('Correction courte d’un entretien distant', () => {
     const corpus = corpusServeur(b.serveur)
     corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
     corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     await b.miroir.tirer()
     const ordre: string[] = []
     const txSession = new TransactionsCorpus(b.clientMax, b.miroir, () => b.store, IDENTITE_MAX, {
@@ -1420,7 +1448,7 @@ describe('Correction courte d’un entretien distant', () => {
     })
     const reel = b.clientMax.putTexte.bind(b.clientMax)
     b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.json') ordre.push('corpus')
+      if (chemin === 'corpus.crp') ordre.push('corpus')
       return reel(chemin, contenu, options)
     }
 
@@ -1447,7 +1475,7 @@ describe('Correction courte d’un entretien distant', () => {
     corpus.membership.e3 = {
       titre: 'Entretien trois', date: null, lastModified: '2026-01-01T00:00:00Z',
     }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     b.serveur.poser('entretiens/e3.json', entretienAvecLocuteur('loc-3', 'Marie C', 'p1'))
     await b.miroir.tirer()
     const reel = b.clientMax.putTexte.bind(b.clientMax)
@@ -1487,13 +1515,13 @@ describe('Correction courte d’un entretien distant', () => {
     await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
     const corpus = corpusServeur(b.serveur)
     corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     await b.miroir.tirer()
     const attendu = JSON.stringify(b.store.personnesInventaire())
     const ordre: string[] = []
     const reel = b.clientMax.putTexte.bind(b.clientMax)
     b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.json' || chemin.startsWith('entretiens/')) ordre.push(chemin)
+      if (chemin === 'corpus.crp' || chemin.startsWith('entretiens/')) ordre.push(chemin)
       return reel(chemin, contenu, options)
     }
 
@@ -1513,7 +1541,7 @@ describe('Correction courte d’un entretien distant', () => {
     const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
     expect(entretien1.locuteurs[0].personneRef).toBe('p1')
     expect(entretien2.locuteurs[0].personneRef).toBe(nouvelleId)
-    expect(ordre.indexOf('corpus.json')).toBeLessThan(ordre.indexOf('entretiens/e2.json'))
+    expect(ordre.indexOf('corpus.crp')).toBeLessThan(ordre.indexOf('entretiens/e2.json'))
   })
 
   it('conserve la nouvelle définition si un déplacement de séparation échoue', async () => {
@@ -1522,7 +1550,7 @@ describe('Correction courte d’un entretien distant', () => {
     await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
     const corpus = corpusServeur(b.serveur)
     corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
     await b.miroir.tirer()
     const attendu = JSON.stringify(b.store.personnesInventaire())
     const reel = b.clientMax.putTexte.bind(b.clientMax)
@@ -1685,7 +1713,7 @@ describe("Lot d'anonymisation en masse — corpus LOCAL (boucle directe du store
     const store = new CorpusStore(dir)
     const corpus = store.ouvrir()
     corpus.reglesAnon['reg-1'] = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
     writeFileSync(join(dir, 'entretiens', 'e1.json'), entretienKarine(), 'utf8')
 
     const r = await appliquerRegleLotLocal(store, [
@@ -1731,7 +1759,7 @@ describe('Familles de cas — transactions fraîches', () => {
     const { serveur, tx, store } = await banc()
     const courant = corpusServeur(serveur)
     courant.variables = corpusFamille().variables
-    serveur.poser('corpus.json', JSON.stringify(courant))
+    serveur.poser('corpus.crp', JSON.stringify(courant))
     const sourceAvant = serveur.contenuDe('entretiens/e1.json')
     const famille = familleCas()
     const creation = { type: 'creer-famille' as const, famille, cas: [casModalite('a')] }
@@ -1739,10 +1767,10 @@ describe('Familles de cas — transactions fraîches', () => {
     await tx.executer(() => store.casCommander(creation))
     const complement = { type: 'completer-famille' as const, famille, cas: [casModalite('b')] }
     await tx.executer(() => store.casCommander(complement))
-    const avant = serveur.contenuDe('corpus.json')
+    const avant = serveur.contenuDe('corpus.crp')
     await expect(tx.executer(() => store.casCommander({ type: 'completer-famille', famille,
       cas: [casModalite('c'), casModalite('b', famille, 'concurrent')] }))).rejects.toThrow(/déjà/)
-    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    expect(serveur.contenuDe('corpus.crp')).toBe(avant)
     await tx.executer(() => store.casCommander(complement))
     expect(Object.keys(corpusServeur(serveur).cas!)).toHaveLength(2)
     expect(await tx.executer(() => store.supprimerModalite('v', 'a'))).toEqual({ ok: false, usages: 1 })
@@ -1762,11 +1790,11 @@ describe('Familles de cas — transactions fraîches', () => {
     const courant = corpusServeur(serveur)
     courant.variables = corpusFamille().variables
     courant.variables.v.modalites = courant.variables.v.modalites.filter((m) => m.id !== 'b')
-    serveur.poser('corpus.json', JSON.stringify(courant))
-    const avant = serveur.contenuDe('corpus.json')
+    serveur.poser('corpus.crp', JSON.stringify(courant))
+    const avant = serveur.contenuDe('corpus.crp')
     await expect(tx.executer(() => store.casCommander({ type: 'creer-famille', famille: familleCas(),
       cas: [casModalite(), casModalite('b')] }))).rejects.toThrow(/modalité/)
-    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    expect(serveur.contenuDe('corpus.crp')).toBe(avant)
   })
 
   it('relit les sources serveur avant une dérivation et protège la confidentialité contre une édition concurrente', async () => {
@@ -1783,7 +1811,7 @@ describe('Familles de cas — transactions fraîches', () => {
     courant.famillesCas = { f: familleCas() }
     courant.cas = { 'cas-f-a': casModalite('a') }
     courant.attributsCas = {}
-    serveur.poser('corpus.json', JSON.stringify(courant))
+    serveur.poser('corpus.crp', JSON.stringify(courant))
 
     const source = sourceFamille()
     for (const locuteur of source.locuteurs) {
@@ -1823,7 +1851,7 @@ describe('Familles de cas — transactions fraîches', () => {
 
     const concurrent = corpusServeur(serveur)
     concurrent.attributsCas![definition.id].priv = false
-    serveur.poser('corpus.json', JSON.stringify(concurrent))
+    serveur.poser('corpus.crp', JSON.stringify(concurrent))
     await expect(tx.executerDefinitionsAvecSources(
       () => Object.keys(store.ouvrir().membership),
       () => store.casCommander({
@@ -1872,7 +1900,7 @@ describe('Tri distant des entretiens', () => {
       rangAjout: 1,
     }
     corpus.ordreEntretiens = ['e1', 'e2']
-    serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
 
     const e1 = JSON.parse(entretienE1()) as EntretienFichier
     e1.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'court' }] }] }
@@ -1905,13 +1933,13 @@ describe('Tri distant des entretiens', () => {
       rangAjout: 1,
     }
     corpus.ordreEntretiens = ['e1', 'absent']
-    serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
-    const avant = serveur.contenuDe('corpus.json')
+    serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
+    const avant = serveur.contenuDe('corpus.crp')
     let publicationsCorpus = 0
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           publicationsCorpus += 1
         }
         return serveur.fetch(entree as URL, init)
@@ -1922,7 +1950,7 @@ describe('Tri distant des entretiens', () => {
     await expect(tx.trierEntretiens('modif')).rejects.toThrow()
 
     expect(publicationsCorpus).toBe(0)
-    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    expect(serveur.contenuDe('corpus.crp')).toBe(avant)
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
   })
 })
@@ -1933,10 +1961,10 @@ describe('Tri distant — publication conditionnelle', () => {
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp')) {
           const concurrent = JSON.parse(corpusInitial()) as CorpusFichier
           concurrent.nom = 'Version concurrente'
-          await clientOlivier.putTexte('corpus.json', JSON.stringify(concurrent))
+          await clientOlivier.putTexte('corpus.crp', JSON.stringify(concurrent))
         }
         return serveur.fetch(entree as URL, init)
       },
@@ -1957,7 +1985,7 @@ describe('Tri distant — publication conditionnelle', () => {
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
-        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json') && !reponsePerdue) {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.crp') && !reponsePerdue) {
           reponsePerdue = true
           await serveur.fetch(entree as URL, init)
           throw new TypeError('réponse perdue')

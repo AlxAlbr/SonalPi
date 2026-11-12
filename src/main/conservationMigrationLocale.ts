@@ -19,7 +19,9 @@ export interface InstallationAutresMigration {
 export class ConservationMigrationLocale {
   private capture: { cheminCrp: string; destination: string; racine: string; signature: string; bilan: BilanFichiersMigrationLocale } | null = null
 
-  async preparer(cheminCrp: string, destination: string): Promise<BilanFichiersMigrationLocale> {
+  constructor(private readonly referencesSupplementaires: string[] = []) {}
+
+  async preparer(cheminCrp: string, destination: string, signal?: AbortSignal): Promise<BilanFichiersMigrationLocale> {
     this.capture = null
     const racine = await realpath(dirname(cheminCrp))
     const cible = resolve(destination)
@@ -31,13 +33,14 @@ export class ConservationMigrationLocale {
     const fichiers: string[] = [], nonRepris: FichierNonReprisMigration[] = []
     const parcourir = async (dir: string, parent = ''): Promise<void> => {
       for (const entree of await readdir(dir, { withFileTypes: true })) {
+        signal?.throwIfAborted()
         const chemin = parent ? `${parent}/${entree.name}` : entree.name, abs = join(dir, entree.name)
         if (resolve(abs) === cible) continue
         const exclusion = raisonExclusionMigration(chemin)
         if (exclusion) { nonRepris.push({ chemin, raison: exclusion }); continue }
         if (entree.isSymbolicLink()) { nonRepris.push({ chemin, raison: 'Lien vers un autre emplacement, non copié.' }); continue }
         if (entree.isDirectory()) {
-          if (existsSync(join(abs, 'corpus.json'))) nonRepris.push({ chemin, raison: 'Autre corpus SonalPi2, non copié.' })
+          if (existsSync(join(abs, 'corpus.crp'))) nonRepris.push({ chemin, raison: 'Autre corpus SonalPi2, non copié.' })
           else await parcourir(abs, chemin)
         } else if (entree.isFile()) fichiers.push(chemin)
         else nonRepris.push({ chemin, raison: 'Ce fichier ne peut pas être copié comme un document.' })
@@ -51,7 +54,7 @@ export class ConservationMigrationLocale {
       const base = chemin.slice(0, -extname(chemin).length)
       return [...refs.map((ref) => relatif(racine, resolve(parent, ref))), ...['out', 'lem', 'cnct', 'lexaf.json'].map((ext) => `${base}.${ext}`)]
     }
-    const utilises = new Set([crp, ...mapperEntretiensV1(analyse.apercu.raw.tabEnt)
+    const utilises = new Set([crp, ...this.referencesSupplementaires.map((p) => relatif(racine, p)), ...mapperEntretiensV1(analyse.apercu.raw.tabEnt)
       .flatMap((e) => [e.rtrPath, e.audioRef].filter((p): p is string => !!p)).map((p) => relatif(racine, resolve(racine, p)))])
     const lexico = lireReglagesLexicoV1(source), base = crp.slice(0, -extname(crp).length)
     for (const ext of lexico.fichiers) if (!lexico.diagnostics.some((d) => d.startsWith(ext))) utilises.add(`${base}${ext}`)
@@ -60,7 +63,7 @@ export class ConservationMigrationLocale {
         const a = analyserCrp(decoderCrp(await lireDocument(join(racine, p))), basename(p))
         return a.ok ? a.apercu.raw : null
       },
-      information: async (p) => { await verifierParents(racine, p); return empreinte(join(racine, p)) },
+      information: async (p) => { await verifierParents(racine, p); return empreinte(join(racine, p), undefined, signal) },
     })
     for (const e of mapperEntretiensV1(analyse.apercu.raw.tabEnt)) {
       if (e.rtrPath && !existsSync(resolve(racine, e.rtrPath))) conservation.avertissements.push(`Transcription introuvable pour « ${e.titre} » : cet entretien sera créé sans texte.`)
@@ -73,13 +76,13 @@ export class ConservationMigrationLocale {
     return structuredClone(bilan)
   }
 
-  async preparerCopie(req: DemandeMigration): Promise<InstallationAutresMigration> {
+  async preparerCopie(req: DemandeMigration, signal?: AbortSignal): Promise<InstallationAutresMigration> {
     const capture = this.capture
     if (!capture || capture.bilan.bilanId !== req.bilanFichiersId || capture.cheminCrp !== resolve(req.cheminCrp) || capture.destination !== resolve(req.dossier)) {
       throw new Error('Le bilan des documents a changé. Choisissez de nouveau le dossier de destination.')
     }
     if ((await empreinte(join(capture.racine, basename(req.cheminCrp)))).sha256 !== capture.signature) throw new Error('Le corpus source a changé depuis le bilan. Relisez-le avant de migrer.')
-    const actuel = await this.preparer(capture.cheminCrp, capture.destination)
+    const actuel = await this.preparer(capture.cheminCrp, capture.destination, signal)
     if (this.capture?.racine !== capture.racine || JSON.stringify({ ...actuel, bilanId: '' }) !== JSON.stringify({ ...capture.bilan, bilanId: '' })) {
       throw new Error('Les documents sources ont changé depuis le bilan. Choisissez de nouveau la destination avant de migrer.')
     }
@@ -92,10 +95,11 @@ export class ConservationMigrationLocale {
     const stage = await mkdtemp(join(destination, '.migration-autres-'))
     try {
       for (const fichier of capture.bilan.autres) {
+        signal?.throwIfAborted()
         await verifierParents(capture.racine, fichier.cheminSource)
         const cible = join(stage, fichier.cheminDestination.slice('Autres/'.length))
         await mkdir(dirname(cible), { recursive: true })
-        const identite = await empreinte(join(capture.racine, fichier.cheminSource), cible)
+        const identite = await empreinte(join(capture.racine, fichier.cheminSource), cible, signal)
         if (identite.sha256 !== fichier.sha256 || identite.taille !== fichier.taille) throw new Error(`Le document « ${fichier.cheminSource} » a changé depuis le bilan. Aucun document ne sera remplacé.`)
       }
       return {
@@ -143,15 +147,15 @@ async function lireDocument(chemin: string): Promise<Buffer> {
     return await fichier.readFile()
   } finally { await fichier.close() }
 }
-async function empreinte(chemin: string, copie?: string): Promise<{ taille: number; sha256: string }> {
+async function empreinte(chemin: string, copie?: string, signal?: AbortSignal): Promise<{ taille: number; sha256: string }> {
   const fichier = await open(chemin, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
   try {
     const st = await fichier.stat()
     if (!st.isFile()) throw new Error('Le document source n’est pas un fichier ordinaire.')
     const hash = createHash('sha256'); let taille = 0
     const verification = new Transform({ transform(morceau, _enc, fin) { taille += morceau.length; hash.update(morceau); fin(null, morceau) } })
-    const lecture = fichier.createReadStream({ autoClose: false })
-    if (copie) await pipeline(lecture, verification, createWriteStream(copie, { flags: 'wx', mode: 0o600 }))
+    const lecture = fichier.createReadStream({ autoClose: false, signal })
+    if (copie) await pipeline(lecture, verification, createWriteStream(copie, { flags: 'wx', mode: 0o600 }), { signal })
     else for await (const morceau of lecture) { taille += morceau.length; hash.update(morceau) }
     if (taille !== st.size) throw new Error('Le document source a changé pendant sa lecture.')
     return { taille, sha256: hash.digest('hex') }

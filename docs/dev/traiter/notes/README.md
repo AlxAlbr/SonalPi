@@ -8,7 +8,7 @@ notes sans en devenir propriétaire.
 
 | Notion | Stockage | Sens |
 |---|---|---|
-| Catégorie de note | `corpus.json.categoriesNote` | Définition partagée : identifiant, nom et couleur. |
+| Catégorie de note | `corpus.crp.categoriesNote` | Définition partagée : identifiant, nom et couleur. |
 | Note | `EntretienFichier.notes` | Contenu, catégorie, statut, dates et ordre manuel. |
 | Lien vers un commentaire | `data-liens` dans le corps de la note | Références aux annotations de commentaire du même entretien. |
 | Locuteurs concernés | `Note.locuteurIds` | Zéro, un ou plusieurs identifiants stables de locuteurs de cet entretien. |
@@ -38,7 +38,7 @@ nettoyage HTML, effectué dans le renderer.
 
 ## Ce qui fait foi
 
-1. Le contenu reste dans l’entretien, jamais dans `corpus.json`.
+1. Le contenu reste dans l’entretien, jamais dans `corpus.crp`.
 2. Renommer ou recolorer une catégorie ne réécrit pas les notes.
 3. Les commentaires et leurs libellés affichés ne sont pas copiés dans la note.
 4. Les personnes agrègent les notes de leurs locuteurs sans les déplacer.

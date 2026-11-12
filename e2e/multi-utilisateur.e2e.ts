@@ -54,7 +54,7 @@
  *  - DÉMO (`DEMO_PAUSE_MS=4000 npm run test:multiuser`) : bandeaux de
  *  narration, pauses d'observation, frappe visible — à regarder sans xvfb.
  *  Réglage fin : DEMO_PAUSE_MS=8000 pour un rythme encore plus calme.
- *  Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
+ *  Skippé si la pile ne répond pas (`npm run nc:up`, sans reprovisionnement).
  */
 
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -196,11 +196,11 @@ async function amorcer(): Promise<{ original: string | null }> {
   const c = clientMax()
   let original: string | null = null
   try {
-    original = await c.getTexte('corpus.json')
+    original = await c.getTexte('corpus.crp')
   } catch {
     /* pas encore de corpus */
   }
-  await c.putTexte('corpus.json', corpusInitial())
+  await c.putTexte('corpus.crp', corpusInitial())
   await c.putTexte(`entretiens/${ID}.json`, entretienInitial())
   await c.putTexte(`entretiens/${ID2}.json`, entretienInitial())
   await c.supprimer(`verrous/${ID}.lock.json`).catch(() => {})
@@ -219,9 +219,9 @@ async function amorcer(): Promise<{ original: string | null }> {
 
 async function nettoyer(original: string | null): Promise<void> {
   const c = clientMax()
-  // Le banc contrat lit corpus.json : restaurer l'état d'avant la démo.
-  if (original !== null) await c.putTexte('corpus.json', original).catch(() => {})
-  else await c.supprimer('corpus.json').catch(() => {})
+  // Le banc contrat lit corpus.crp : restaurer l'état d'avant la démo.
+  if (original !== null) await c.putTexte('corpus.crp', original).catch(() => {})
+  else await c.supprimer('corpus.crp').catch(() => {})
   await c.supprimer(`entretiens/${ID}.json`).catch(() => {})
   await c.supprimer(`entretiens/${ID2}.json`).catch(() => {})
   await c.supprimer(`verrous/${ID}.lock.json`).catch(() => {})
@@ -288,9 +288,9 @@ async function taperFin(page: Page, phrase: string): Promise<void> {
 test.describe.configure({ mode: 'serial' })
 
 test('démo visible : deux postes, un verrou, zéro écrasement', async ({ }, testInfo) => {
-  test.setTimeout(DEMO ? 600_000 : 240_000) // démo : pauses + frappe ralentie
+  test.setTimeout(DEMO ? 600_000 : 240_000) // Démo : pauses + frappe ralentie.
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 
@@ -418,7 +418,7 @@ async function ouvrirBaseDonnees(page: Page): Promise<void> {
  *  le serveur PORTE la mutation avant d'enchaîner le geste suivant. */
 async function attendreDefinitionServeur(frag: string): Promise<void> {
   await expect
-    .poll(() => clientMax().getTexte('corpus.json').then((t) => t?.includes(frag)), {
+    .poll(() => clientMax().getTexte('corpus.crp').then((t) => t?.includes(frag)), {
       timeout: 20_000,
       intervals: [200],
     })
@@ -428,7 +428,7 @@ async function attendreDefinitionServeur(frag: string): Promise<void> {
 test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, table accessible, ligne verrouillée bloquée', async ({ }, testInfo) => {
   test.setTimeout(DEMO ? 600_000 : 240_000)
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 
@@ -465,7 +465,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
 
     /* 2. Max ouvre l'entretien (verrou acquis) puis crée une VARIABLE
      *  D'ENTRETIEN depuis l'onglet Donnée : la transaction de définitions
-     *  publie corpus.json IMMÉDIATEMENT, sans attendre la fermeture. */
+     *  publie corpus.crp IMMÉDIATEMENT, sans attendre la fermeture. */
     console.log("② Max crée une variable d'entretien depuis l'onglet Donnée…")
     await pause(pMax, "Max ouvre l'entretien : le VERROU lui est accordé…")
     await ouvrirEntretien(pMax)
@@ -492,9 +492,9 @@ await attendreDefinitionServeur('"Lyon"')
     await pMax.locator('.modale-vars .fermer').click()
     await expect(pMax.locator('.modale-vars')).toHaveCount(0)
     // Vérification SERVEUR : les définitions sont déjà partagées (flux B).
-    const corpusServeur = await clientMax().getTexte('corpus.json')
+    const corpusServeur = await clientMax().getTexte('corpus.crp')
     if (!corpusServeur?.includes('"Ville"'))
-      throw new Error('variable « Ville » absente du corpus.json serveur après création')
+      throw new Error('variable « Ville » absente du corpus.crp serveur après création')
 
     /* 3. Olivier ouvre la BASE DE DONNÉES : elle reste ACCESSIBLE et
      *  interactive (jamais lecture seule), la colonne « Ville » est là,
@@ -586,7 +586,7 @@ async function creerVariableVille(page: Page): Promise<void> {
 test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis saisie par LIGNE « Saisir… »', async ({ }, testInfo) => {
   test.setTimeout(DEMO ? 600_000 : 240_000)
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 
@@ -625,7 +625,7 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
     await ouvrirEntretien(pMax)
     await narrer(pMax, "Il crée la variable d'entretien « Ville » (modalité « Lyon »)…")
     await creerVariableVille(pMax)
-    const corpusApresVar = await clientMax().getTexte('corpus.json')
+    const corpusApresVar = await clientMax().getTexte('corpus.crp')
     if (!corpusApresVar?.includes('"Ville"')) throw new Error('variable « Ville » absente du serveur')
 
     /* 3. Olivier ouvre l’onglet Données et lance le lot sur « Ville ». */
@@ -710,7 +710,7 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
 test('démo visible : saisie par CELLULE — refus inline nominatif, garde par ligne, Shift+Entrée remonte', async ({ }, testInfo) => {
   test.setTimeout(DEMO ? 600_000 : 240_000)
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 
@@ -832,7 +832,7 @@ await expect
 test('démo visible : PANNEAU MÉTA sous verrou — nom/suppression grisés chez autrui, rendus à la libération', async ({ }, testInfo) => {
   test.setTimeout(DEMO ? 600_000 : 240_000)
   if (!(await pret())) {
-    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up`, sans reprovisionnement')
     test.skip(true, 'pile Docker non disponible')
   }
 

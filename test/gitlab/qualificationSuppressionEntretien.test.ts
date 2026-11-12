@@ -107,7 +107,7 @@ function tirerDansUnMiroirNeuf(racine: string, dossier: string): CorpusFichier {
     destinationId: `qualification-e-neuf-${racine}`,
   })
   return miroir.tirer([]).then(() =>
-    JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier)
+    JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier)
 }
 
 function cheminLocal(p: Pile, chemin: string): string {
@@ -158,7 +158,7 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
       const impact = await alice.transactions.analyserSuppressionEntretien('e1')
       expect(impact.entretienId).toBe('e1')
 
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
       alice.requetes.length = 0
       const debut = performance.now()
       const apres = await alice.transactions.supprimerEntretien('e1', impact)
@@ -166,7 +166,7 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
 
       expect(apres.membership.e1).toBeUndefined()
       expect(apres.ordreEntretiens).toEqual(['e2'])
-      expect(await commitsTouchant(`${racine}/corpus.json`) - avant).toBe(1)
+      expect(await commitsTouchant(`${racine}/corpus.crp`) - avant).toBe(1)
       // Deux acquisitions, un commit de données, deux libérations.
       expect(await commitsTouchant(cheminBailCorpus(racine))).toBe(3)
       // Le filtre `path` de l'API est un préfixe : l'archive se compte par
@@ -225,12 +225,12 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
     try {
       const impact = await alice.transactions.analyserSuppressionEntretien('e1')
       await expect(sessionBob.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
 
       await expect(alice.transactions.supprimerEntretien('e1', impact))
         .rejects.toThrow(/user2/)
 
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant)
+      expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant)
       expect((await lireFichier(`${racine}/entretiens/e1.json`, JETON1)).statut).toBe(200)
       expect((await lireFichier(`${racine}/corbeille/e1.json`, JETON1)).statut).toBe(404)
       expect(alice.lireLocal().membership.e1).toBeDefined()
@@ -358,7 +358,7 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
         destinationId: 'arret',
         dossier: alice.dossier,
       })
-      const avantReprise = await commitsTouchant(`${racine}/corpus.json`)
+      const avantReprise = await commitsTouchant(`${racine}/corpus.crp`)
       await reprendreOperationsGitLab({
         depot: relance.depot,
         coordination: relance.coordination,
@@ -366,7 +366,7 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
         dirMiroir: relance.dossier,
       })
 
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avantReprise)
+      expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avantReprise)
       expect(relance.journal.lister()).toEqual([])
       expect(relance.lireLocal().membership.e1).toBeUndefined()
       expect(existsSync(cheminLocal(relance, 'corbeille/e1.json'))).toBe(true)
@@ -378,7 +378,7 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
         journal: relance.journal,
         dirMiroir: relance.dossier,
       })
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avantReprise)
+      expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avantReprise)
     } finally {
       nettoyer(alice)
     }
@@ -476,14 +476,14 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
 
     try {
       const impact = await alice.transactions.analyserSuppressionEntretien('e1')
-      const avant = await commitsTouchant(`${racine}/corpus.json`)
+      const avant = await commitsTouchant(`${racine}/corpus.crp`)
       // Un autre poste modifie le corpus entre notre lecture et notre commit.
       alice.avantCommitDeDonnees(async (p) => {
-        const observe = await lireFichier(`${racine}/corpus.json`, JETON2)
+        const observe = await lireFichier(`${racine}/corpus.crp`, JETON2)
         const modifie: CorpusFichier = { ...JSON.parse(contenuDe(observe)), nom: 'Renommé entre-temps' }
         await p.depot.publierCommit('main', 'qualification E: course sur le corpus', [{
           action: 'update',
-          file_path: `${racine}/corpus.json`,
+          file_path: `${racine}/corpus.crp`,
           content: JSON.stringify(modifie, null, 2),
           last_commit_id: observe.corps.last_commit_id,
         }])
@@ -492,12 +492,12 @@ decrire('suppression d’un entretien GitLab — qualification à deux comptes',
       await expect(alice.transactions.supprimerEntretien('e1', impact)).rejects.toThrow()
 
       // La garde périmée a refusé tout le commit : ni l'entretien, ni l'archive.
-      expect(await commitsTouchant(`${racine}/corpus.json`)).toBe(avant + 1)
+      expect(await commitsTouchant(`${racine}/corpus.crp`)).toBe(avant + 1)
       expect((await lireFichier(`${racine}/entretiens/e1.json`, JETON1)).statut).toBe(200)
       expect((await lireFichier(`${racine}/corbeille/e1.json`, JETON1)).statut).toBe(404)
       expect(alice.lireLocal().membership.e1).toBeDefined()
       const corpusDistant = JSON.parse(contenuDe(
-        await lireFichier(`${racine}/corpus.json`, JETON1),
+        await lireFichier(`${racine}/corpus.crp`, JETON1),
       )) as CorpusFichier
       expect(corpusDistant.membership.e1).toBeDefined()
       expect(corpusDistant.nom).toBe('Renommé entre-temps')

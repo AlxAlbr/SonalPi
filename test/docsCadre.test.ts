@@ -323,7 +323,7 @@ describe('aperçus intégrés (local)', () => {
 describe('sécurité des chemins', () => {
   it('resoudreLocal refuse un nom non sain et un document absent', () => {
     const racine = corpusTemporaire()
-    expect(() => resoudreLocal(racine, '../corpus.json')).toThrow()
+    expect(() => resoudreLocal(racine, '../corpus.crp')).toThrow()
     expect(() => resoudreLocal(racine, '/etc/passwd')).toThrow()
     expect(() => resoudreLocal(racine, 'absent.txt')).toThrow()
   })

@@ -20,7 +20,7 @@ const ID = 'ent-abc'
 
 function banc(options: { maintenant?: () => number } = {}) {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', corpusDistantValide([ID]))
+  serveur.poser('corpus.crp', corpusDistantValide([ID]))
   serveur.poser(`${'entretiens'}/${ID}.json`, entretienDistantValide({ lastModified: 'v1', texte: '' }))
   const dirMiroir = mkdtempSync(join(tmpdir(), 'session-'))
   const panne = {

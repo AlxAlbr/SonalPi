@@ -99,7 +99,7 @@ describe('installation et reprise des corpus exemples', () => {
     terminer()
     const resultat = await ouverture
     expect(resultat.corpus.demo?.usage).toBe('apprentissage')
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
   })
   test('la préparation crée un corpus vierge sans étape prévalidée', () => {
     const dir = join(racine, 'exercice')
@@ -131,7 +131,7 @@ describe('installation et reprise des corpus exemples', () => {
     const libre = installer(join(racine, 'libre'), 'synth-annote', 'libre')
     const autreParcours = parcours === 'analyse' ? 'organisation' : 'analyse'
     const autre = installer(join(racine, autreParcours), 'synth-annote', 'apprentissage', autreParcours)
-    const avantAutre = readFileSync(join(racine, autreParcours, 'corpus.json'))
+    const avantAutre = readFileSync(join(racine, autreParcours, 'corpus.crp'))
     const dir = join(racine, parcours)
     const corpus = installer(dir, 'synth-annote', 'apprentissage', parcours)
     expect(corpus.demo?.parcours).toEqual({ [parcours]: { validees: [] } })
@@ -141,8 +141,8 @@ describe('installation et reprise des corpus exemples', () => {
     const id = Object.keys(corpus.membership)[0]
     store.renommerEntretien(id, 'Mon titre personnel')
     store.marquerDemo({ ...corpus.demo!, parcours: { [parcours]: { validees: ['premiere-etape'] } } })
-    const avantPreparation = readFileSync(join(racine, 'preparation', 'corpus.json'))
-    const avantLibre = readFileSync(join(racine, 'libre', 'corpus.json'))
+    const avantPreparation = readFileSync(join(racine, 'preparation', 'corpus.crp'))
+    const avantLibre = readFileSync(join(racine, 'libre', 'corpus.crp'))
     const reset = service.preparerInstallation(dir, 'Démo', {
       exemple: 'synth-annote', usage: 'apprentissage', parcoursApprentissage: parcours, recommencer: true,
     })
@@ -151,9 +151,9 @@ describe('installation et reprise des corpus exemples', () => {
     expect(apres.demo?.id).toBe(corpus.demo?.id)
     expect(apres.demo?.parcours).toEqual({ [parcours]: { validees: [] } })
     expect(apres.membership[id].titre).toBe(corpus.membership[id].titre)
-    expect(readFileSync(join(racine, 'preparation', 'corpus.json'))).toEqual(avantPreparation)
-    expect(readFileSync(join(racine, 'libre', 'corpus.json'))).toEqual(avantLibre)
-    expect(readFileSync(join(racine, autreParcours, 'corpus.json'))).toEqual(avantAutre)
+    expect(readFileSync(join(racine, 'preparation', 'corpus.crp'))).toEqual(avantPreparation)
+    expect(readFileSync(join(racine, 'libre', 'corpus.crp'))).toEqual(avantLibre)
+    expect(readFileSync(join(racine, autreParcours, 'corpus.crp'))).toEqual(avantAutre)
     expect(service.etat().apprentissages).toEqual({ preparation: preparation.demo?.id,
       [parcours]: corpus.demo?.id, [autreParcours]: autre.demo?.id })
     expect(service.etat().libres['synth-annote']).toBe(libre.demo?.id)
@@ -170,7 +170,7 @@ describe('installation et reprise des corpus exemples', () => {
     store.marquerDemo({ ...corpus.demo!, parcours: {
       traitement: { validees: ['charger', 'coder'], contexte: { entretienId: 'ent-42' } },
     } })
-    const avant = readFileSync(join(dir, 'corpus.json'))
+    const avant = readFileSync(join(dir, 'corpus.crp'))
     const registre = JSON.stringify(memoire)
     const session = new ExemplesLocaux({ ressources: join(process.cwd(), 'CorpusTest'), documents: racine,
       lire: () => JSON.parse(registre), ecrire: vi.fn() })
@@ -178,7 +178,7 @@ describe('installation et reprise des corpus exemples', () => {
       validees: ['charger', 'coder'], contexte: { entretienId: 'ent-42' },
     })
     expect(session.etat().apprentissages.traitement).toBe(corpus.demo!.id)
-    expect(readFileSync(join(dir, 'corpus.json'))).toEqual(avant)
+    expect(readFileSync(join(dir, 'corpus.crp'))).toEqual(avant)
   })
   test.each([
     { mode: 'pas-a-pas', racineSources: '/sources', validees: ['coder'] },
@@ -187,7 +187,7 @@ describe('installation et reprise des corpus exemples', () => {
     const dir = join(racine, 'non-reconnu')
     const store = new CorpusStore(dir)
     const corpus = store.ouvrir()
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify({ ...corpus, demo }))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify({ ...corpus, demo }))
     expect(service.reconnaitre(dir)).toBeNull()
     expect(service.etat().travaux).toEqual([])
   })
@@ -209,7 +209,7 @@ describe('installation et reprise des corpus exemples', () => {
   })
   test('le corpus annoté référence les audios installés sur ce poste sans modifier les originaux', () => {
     const dir = join(racine, 'annote')
-    const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'))
+    const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'))
     const corpus = installer(dir, 'synth-annote', 'libre')
     let nombre = 0
     for (const id of Object.keys(corpus.membership)) {
@@ -220,9 +220,9 @@ describe('installation et reprise des corpus exemples', () => {
     }
     expect(nombre).toBe(324)
     expect(existsSync(join(dir, 'audio'))).toBe(false)
-    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.json'))).toEqual(modele)
+    expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'))).toEqual(modele)
   })
-  test('refuse un dossier avec des données, même sans entretien ni corpus.json', () => {
+  test('refuse un dossier avec des données, même sans entretien ni corpus.crp', () => {
     const dir = join(racine, 'preparation')
     mkdirSync(dir)
     writeFileSync(join(dir, 'questions.txt'), 'Mon travail')
@@ -238,7 +238,7 @@ describe('installation et reprise des corpus exemples', () => {
       mkdirSync(dir)
       writeFileSync(join(dir, 'note.txt'), 'Ne pas remplacer')
       expect(() => preparation.publier()).toThrow('dossier vide')
-      expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+      expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
       expect(existsSync(sources)).toBe(false)
     } finally { preparation.nettoyer() }
   })
@@ -309,7 +309,7 @@ describe('installation et reprise des corpus exemples', () => {
   test('refuse une version de corpus inconnue sans perdre son accès', () => {
     const dir = join(racine, 'exercice')
     const corpus = installer(dir)
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify({ ...corpus, formatVersion: 999 }))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify({ ...corpus, formatVersion: 999 }))
     expect(service.etat().travaux[0].etat).toBe('illisible')
     expect(service.etat().travaux[0].dir).toBe(dir)
   })
@@ -326,9 +326,9 @@ describe('installation et reprise des corpus exemples', () => {
   test('ne remplace pas un corpus illisible par une nouvelle installation', () => {
     const dir = join(racine, 'exercice')
     installer(dir)
-    writeFileSync(join(dir, 'corpus.json'), '{illisible')
+    writeFileSync(join(dir, 'corpus.crp'), '{illisible')
     expect(service.etat().travaux[0].etat).toBe('illisible')
     expect(() => installer(dir)).toThrow()
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe('{illisible')
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe('{illisible')
   })
 })

@@ -13,6 +13,8 @@ import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'no
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
+import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
+import { validerCorpusV2 } from '../shared/ouvertureFichier'
 import { ajouterVarianteAnon, type DemandeAjoutVarianteAnon, type ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { appliquerImportCorrespondances, type LigneImportCorrespondance, type ChoixImportCorrespondance } from '../shared/corpus/importCorrespondances'
@@ -222,7 +224,7 @@ interface DeplacementPngPrepare {
   readonly contenuSourceInitial: Buffer
 }
 
-/** Un store de préparation ne connaît que `corpus.json` et les sources qu'on
+/** Un store de préparation ne connaît que `corpus.crp` et les sources qu'on
  *  lui a prévues : toute lecture, tout inventaire et toute écriture d'entretien
  *  non prévue y est un défaut, pas une donnée absente. Les lectures
  *  « tolérantes » du store ignorent volontairement un entretien manquant et
@@ -236,6 +238,15 @@ export class ErreurCorpusSeul extends Error {
     )
     this.name = 'ErreurCorpusSeul'
   }
+}
+
+/** Lit le nom affiché sans initialiser ni modifier le corpus. */
+export function lireNomCorpus(dir: string, repli = basename(dir)): string {
+  try {
+    const corpus: unknown = JSON.parse(readFileSync(join(dir, NOM_FICHIER_CORPUS), 'utf8'))
+    validerCorpusV2(corpus)
+    return corpus.nom?.trim() || repli
+  } catch { return repli }
 }
 
 /** Résultat d'une préparation en mémoire, sans modification de la cible. */
@@ -284,14 +295,14 @@ export class CorpusStore {
   fournisseurMiroir?: 'webdav' | 'gitlab'
 
   /** Préparation d'une transaction de définitions : ce store ne connaît que
-   *  `corpus.json`, et les seuls entretiens qui lui sont confiés comme sources.
+   *  `corpus.crp`, et les seuls entretiens qui lui sont confiés comme sources.
    *  Voir `ErreurCorpusSeul`. */
   private sourcesPreparation: Set<string> | null = null
   private inventairePreparationComplet = false
 
   /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier vient d'être choisi explicitement, neuf ou vide),
    *  puis faux dès qu'un corpus existe.
-   *  Si `corpus.json` disparaît ensuite (dossier supprimé à l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de recréer un corpus fantôme en silence. */
+   *  Si `corpus.crp` disparaît ensuite (dossier supprimé à l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de recréer un corpus fantôme en silence. */
   private amortissable = true
 
   /** Écriture du corpus accordée pour la durée d'un callback de préparation.
@@ -379,7 +390,8 @@ export class CorpusStore {
   }
 
   /** Instanciation de la classe CorpusStore avec le chemin du répertoire du corpus */
-  constructor(dir: string) {
+  constructor(dir: string, strict = false) {
+    this.amortissable = !strict
     this.dir = dir
     this.transactionsFichiers = new TransactionsFichiersCorpus(dir)
     this.operationsThemes = new OperationsThemesCorpus({
@@ -394,9 +406,9 @@ export class CorpusStore {
   get repertoire(): string { return this.dir }
 
   /** Exemple : dir = "/home/user/projets/mon_corpus",
-    *  corpusFile → "/home/user/projets/mon_corpus/corpus.json". */
+    *  corpusFile → "/home/user/projets/mon_corpus/corpus.crp". */
   private get corpusFile() {
-    return join(this.dir, 'corpus.json')
+    return join(this.dir, NOM_FICHIER_CORPUS)
   }
 
   /** Dossier des entretiens : `<corpus>/entretiens/` */
@@ -463,6 +475,7 @@ export class CorpusStore {
 
     const contenuCorpusInitial = readFileSync(this.corpusFile, 'utf8')
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
+    validerCorpusV2(corpus)
     corpus.personnes ??= {}
     corpusModel.normaliserDescriptionsThemes(corpus.codebook)
     const versionInitiale = corpus.formatVersion as number
@@ -600,8 +613,9 @@ export class CorpusStore {
    *  dossier quand il est absent (corpus anciens sans nom). */
   poserNom(nom: string): CorpusFichier {
     this.verifierEcriture()
+    if (typeof nom !== 'string' || !nom.trim()) throw new Error('Le nom du corpus ne peut pas être vide.')
     const corpus = this.ouvrir()
-    corpus.nom = nom
+    corpus.nom = nom.trim()
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
@@ -705,9 +719,8 @@ export class CorpusStore {
   /** Prépare un corpus SonalPi2 dans un dossier dédié, à partir d'une migration SonalPi1.
    *  Contrairement à un corpus neuf, on n'ajoute pas le bloc « Pondérations ».
    *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
-   *  Le dossier a déjà été vérifié par la garde (`migrer:verifierDossier`).
-   *  En défense en profondeur, on REFUSE ici tout corpus.json existant, on n'écrase jamais.
-   *  La lecture des entretiens (.Sonal + audio) se branche après la finalisation. */
+   *  Refuse tout corpus.crp existant : les définitions ne sont jamais écrasées.
+   *  Le main complète ensuite ce store non actif avant d'ouvrir le corpus. */
   preparerMigrationDepuisV1(
     nom: string,
     sourceV1: SourceV1,
@@ -853,7 +866,7 @@ export class CorpusStore {
     this.invaliderRefsAudio()
 
     // Le membership n'est PAS réécrit ici.
-    // En distant, écrire corpus.json à chaque autosave imposerait de prendre aussi le verrou corpus à chaque fermeture d'entretien.
+    // En distant, écrire corpus.crp à chaque autosave imposerait de prendre aussi le verrou corpus à chaque fermeture d'entretien.
     // Il n'est écrit que par création, import, renommage ou suppression.
     // Le `lastModified` affiché est dérivé du fichier entretien lui-même.
     return now
@@ -1185,7 +1198,7 @@ export class CorpusStore {
     if (!existsSync(this.corpusFile)) {
       throw new Error(this.amortissable
         ? 'Ouvrez le corpus avant de préparer une opération sur les thématiques.'
-        : `${CORPUS_SUPPRIME}: le fichier corpus.json courant a été supprimé.`)
+        : `${CORPUS_SUPPRIME}: le fichier corpus.crp courant a été supprimé.`)
     }
     let octets = 0
     const lire = (fichier: string): string => {
@@ -1820,7 +1833,7 @@ export class CorpusStore {
   }
 
   // ── Tableau de bord (définitions corpus) — lire → muter → écrire ─────────
-  /** Le tableau de bord du corpus (`corpus.json.tableaubord`), normalisé :
+  /** Le tableau de bord du corpus (`corpus.crp.tableaubord`), normalisé :
    *  un corpus ancien sans le champ obtient le tableau par défaut. */
   tableauBord(): TableauBord {
     const c = this.ouvrir()
@@ -1840,7 +1853,7 @@ export class CorpusStore {
   }
 
   // ── Catégories de note (définitions corpus) — lire → muter → écrire ───────
-  /** Les catégories de note du corpus (`corpus.json.categoriesNote`),
+  /** Les catégories de note du corpus (`corpus.crp.categoriesNote`),
    *  normalisées : un corpus existant sans le champ obtient les bacs par défaut. */
   categoriesNote(): NoteCategory[] {
     const c = this.ouvrir()
@@ -1910,7 +1923,7 @@ export class CorpusStore {
 
   // ── Règles d'anonymisation corpus + scan (étape 3a, lecture seule) ────────
 
-  /** Les règles corpus (`corpus.json.reglesAnon`), sous forme de tableau.
+  /** Les règles corpus (`corpus.crp.reglesAnon`), sous forme de tableau.
    *  En 3a (lecture) on ne fait que LIRE : aucune création possible tant que le
    *  cran corpus du slider (3b) n'est pas activé. */
   reglesAnon(): RegleAnon[] {

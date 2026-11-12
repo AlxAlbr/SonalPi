@@ -16,7 +16,7 @@ class LectureMemoire implements LectureDistante {
     if (dossier === '') {
       return [
         {
-          chemin: 'corpus.json',
+          chemin: 'corpus.crp',
           dossier: false,
           empreinte: { type: 'webdav-etag', valeur: 'corpus-v1' },
         },
@@ -41,7 +41,7 @@ class LectureMemoire implements LectureDistante {
   })
 
   readonly lireTexte = vi.fn(async (chemin: string): Promise<string> => {
-    if (chemin === 'corpus.json') return corpusDistantValide(['e1'])
+    if (chemin === 'corpus.crp') return corpusDistantValide(['e1'])
     return entretienDistantValide({
       texte: 'lu par le contrat',
       meta: {
@@ -56,7 +56,7 @@ class LectureMemoire implements LectureDistante {
 describe('lecture distante', () => {
   test('l’adaptateur WebDAV expose une empreinte de lecture et télécharge en flux', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{"membership":{}}')
+    serveur.poser('corpus.crp', '{"membership":{}}')
     serveur.poser('audio/extrait.mp3', 'octets-audio')
     const requetes: string[] = []
     const client = new ClientWebDAV(
@@ -71,9 +71,9 @@ describe('lecture distante', () => {
     const destination = join(mkdtempSync(join(tmpdir(), 'sonal-lecture-')), 'extrait.mp3')
 
     const racine = await lecture.inventorier('')
-    expect(racine.find((entree) => entree.chemin === 'corpus.json')?.empreinte)
+    expect(racine.find((entree) => entree.chemin === 'corpus.crp')?.empreinte)
       .toMatchObject({ type: 'webdav-etag' })
-    await expect(lecture.lireTexte('corpus.json')).resolves.toContain('membership')
+    await expect(lecture.lireTexte('corpus.crp')).resolves.toContain('membership')
     await transfert.telechargerFichier('audio/extrait.mp3', destination)
 
     expect(readFileSync(destination, 'utf8')).toBe('octets-audio')
@@ -111,7 +111,7 @@ describe('lecture distante', () => {
     const tirage = await miroir.tirer()
 
     expect(tirage.telecharges).toEqual([
-      'corpus.json',
+      'corpus.crp',
       'entretiens/e1.json',
       'audio/extrait.mp3',
     ])

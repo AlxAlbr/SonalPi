@@ -29,7 +29,7 @@ le point de départ des autres. La création n’est pas une étape pédagogique
 
 ## Identité du corpus et mémoire du poste
 
-Le champ additif `corpus.json.demo` contient l’identité et les acquis :
+Le champ additif `corpus.crp.demo` contient l’identité et les acquis :
 
 ```text
 id, exemple, usage, racineSources,
@@ -63,7 +63,7 @@ useExemples → InstallationExemple.vue → cycle de création du corpus
 
 La destination doit être **vide ou absente**. Un dossier contenant des fichiers
 n’est pas disponible au seul motif que son `membership` est vide ou qu’il n’a
-pas de `corpus.json`. Les sources, les exemples fournis et les travaux enregistrés
+pas de `corpus.crp`. Les sources, les exemples fournis et les travaux enregistrés
 sont protégés contre les recouvrements, y compris par imbrication ou lien symbolique.
 Les propositions de dossiers utilisent des noms sans accents et des underscores ;
 un suffixe `_2`, puis `_3`, évite les emplacements déjà enregistrés. Cela ne

@@ -106,7 +106,7 @@ export class SuiviDurableMigrationGitLab {
     if (!Array.isArray(confirmes) || confirmes.length > autres.length || confirmes.some((p, i) => p !== autres[i].cheminDestination) ||
       (e.phase !== 'copie' && confirmes.length !== autres.length)) throw new Error('Copies documentaires incomplètes.')
     const supplement = (e.bilan.destinationMedia === 'depot' && e.bilan.medias.length ? e.bilan.medias.length + 1 : 0) + (autres.length ? autres.length + 1 : 0)
-    if (e.documents.length !== e.bilan.entretiens.length + supplement + 1 || e.documents.at(-1)?.chemin !== 'corpus.json' ||
+    if (e.documents.length !== e.bilan.entretiens.length + supplement + 1 || e.documents.at(-1)?.chemin !== 'corpus.crp' ||
       e.documents.filter((d) => /^entretiens\/[^/]+\.json$/.test(d.chemin)).length !== e.bilan.entretiens.length) {
       throw new Error('Correspondance des documents incomplète.')
     }

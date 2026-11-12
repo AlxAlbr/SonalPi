@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConservationMigrationLocale } from '../src/main/conservationMigrationLocale'
-import { creerTransitionsLocales } from '../src/main/transitionContexte'
+import { executerTransitionPreparee } from '../src/main/transitionContexte'
 import type { DemandeMigration } from '../src/shared/corpus/migrationCrp'
 
 const dossiers: string[] = []
@@ -108,9 +108,13 @@ describe('conservation locale des documents de migration', () => {
   it('ne laisse aucun document dans la cible si le contexte courant refuse sa fermeture', async () => {
     const f = fixture(); mkdirSync(f.cible)
     const bilan = await f.service.preparer(f.cheminCrp, f.cible), finaliser = vi.fn()
-    const transitions = creerTransitionsLocales({ fermerContexteActuel: async () => { throw new Error('Fermeture refusée') }, finaliser,
-      preparerDocumentsMigration: (req) => f.service.preparerCopie(req) })
-    await expect(transitions.migrer(f.requete(bilan.bilanId))).rejects.toThrow('Fermeture refusée')
+    const documents = await f.service.preparerCopie(f.requete(bilan.bilanId))
+    try {
+      await expect(executerTransitionPreparee(() => documents,
+        async () => { throw new Error('Fermeture refusée') },
+        (preparation) => { preparation.installer(); finaliser() },
+      )).rejects.toThrow('Fermeture refusée')
+    } finally { documents.nettoyer() }
     expect(finaliser).not.toHaveBeenCalled()
     expect(readdirSync(f.cible)).toEqual([])
   })

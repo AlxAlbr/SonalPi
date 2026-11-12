@@ -9,7 +9,9 @@ import type {
 } from '../../shared/corpus/migrationGitLab'
 import { analyserCrp, mapperEntretiensV1 } from '../../shared/corpus/migrationCrp'
 import { importerTraitementsLexicoV1 } from '../../shared/lexico/traitements'
-import type { CoffreComptes } from '../distant/coffre'
+import type { CoffreComptes, ConfigDestinationGitLab } from '../distant/coffre'
+import type { IdentificationProjetGitLab, ProjetGitLabPrepare } from '../../shared/gitlab'
+import { classifierCorpus } from '../../shared/ouvertureFichier'
 import { preparerBaseMediaVerifiee, type BaseMediaVerifiee } from '../medias/baseMedia'
 import { verifierCheminMediaRelatif } from '../medias/designation'
 import type { ServiceAuthentificationGitLab } from './authentification'
@@ -105,6 +107,44 @@ export class PreparateurMigrationGitLab {
     }
     this.preparation = { source, lecture: new LectureV1GitLab(client, lecteur.commit), fichiers, empreintes }
     return structuredClone(source)
+  }
+
+  /** Identifie le contenu avant toute installation ou reprise d'écriture distante. */
+  async identifier(destination: ConfigDestinationGitLab): Promise<IdentificationProjetGitLab> {
+    const generation = ++this.generation
+    this.preparation = null
+    const compte = this.authentification.comptePublic(destination.compteId)
+    const projet: ProjetGitLabPrepare = {
+      compteId: destination.compteId, urlInstance: compte.urlInstance, utilisateur: compte.utilisateur,
+      projetId: destination.projetId, nomProjet: destination.nomProjet, branche: destination.branche,
+    }
+    const client = await this.authentification.client(projet.compteId, projet.projetId)
+    const racine = destination.racine
+    const lecteur = await LecteurGitLab.depuisBranche(client, projet.branche, racine)
+    const directs = await lecteur.inventorier('')
+    const lecture = new LectureV1GitLab(client, lecteur.commit)
+    const natif = directs.find((e) => !e.dossier && e.chemin === 'corpus.crp')
+    if (natif && classifierCorpus(await lecture.lireDocument([racine, natif.chemin].filter(Boolean).join('/')), natif.chemin).type === 'v2') {
+      if (generation !== this.generation) throw new Error('La source a changé pendant sa lecture.')
+      return { type: 'v2' }
+    }
+    if (directs.some((e) => !e.dossier && e.chemin === 'corpus.json')) {
+      throw new Error('Ce projet contient un ancien fichier corpus.json. Vérifiez son format et renommez le fichier natif V2 en corpus.crp avant de l’ouvrir.')
+    }
+    const relatifs = await inventorierDepotMigration(lecteur)
+    const empreintes = Object.fromEntries(Object.entries(relatifs).map(([p, hash]) => [[racine, p].filter(Boolean).join('/'), hash]))
+    const fichiers = Object.keys(empreintes).sort()
+    const corpus: string[] = []
+    for (const chemin of fichiers.filter((p) => /\.crp$/i.test(p))) {
+      const classification = classifierCorpus(await lecture.lireDocument(chemin), posix.basename(chemin))
+      if (classification.type === 'v2') throw new Error(`Le fichier V2 « ${chemin} » doit s’appeler corpus.crp dans le dossier du corpus.`)
+      corpus.push(chemin)
+    }
+    if (!corpus.length) throw new Error('Aucun corpus SonalPi1 ou SonalPi2 trouvé dans ce projet.')
+    if (generation !== this.generation) throw new Error('La source a changé pendant sa lecture.')
+    const source: SourceMigrationGitLab = { preparationId: randomUUID(), projet, commit: lecteur.commit, corpus }
+    this.preparation = { source, lecture, fichiers, empreintes }
+    return { type: 'migration', source: structuredClone(source) }
   }
 
   async preparer(demande: DemandeBilanMigrationGitLab): Promise<BilanMigrationGitLab> {
@@ -249,10 +289,11 @@ export class PreparateurMigrationGitLab {
     return structuredClone({ bilan: this.preparation.bilan, baseMedia: this.preparation.baseMedia })
   }
 
-  abandonner(preparationId: string): void {
-    if (this.preparation?.source.preparationId !== preparationId) return
+  abandonner(preparationId: string): boolean {
+    if (this.preparation?.source.preparationId !== preparationId) return false
     this.generation += 1
     this.preparation = null
+    return true
   }
 
   private exigerPreparation(id: string): Preparation {

@@ -117,7 +117,7 @@ export class OperationsThemesWebDAV {
       }
       signaler('definitions', 0, 0)
       j = await this.avecVerrou(this.deps.verrouCorpus(), async (verifier, garantir) => {
-        const lecture = await this.lire('corpus.json')
+        const lecture = await this.lire('corpus.crp')
         const corpus = decoderCorpusTheme(lecture.contenu)
         exigerAbsenceDissociationWebDAV(corpus)
         if (empreinteTheme(corpus) !== manifeste.corpus) throw new RefusOperationTheme('Le corpus a changé : recalculez l’aperçu.')
@@ -141,11 +141,11 @@ export class OperationsThemesWebDAV {
           const definitions = preparerDefinitionsOperationTheme(corpus, demande, () => j!.cibles[index++].id)
           verifierReferencesThemes(definitions.corpus, [])
           await verifier()
-          await this.publier(j, { chemin: 'corpus.json', contenu: this.serialiser(definitions.corpus, lecture.contenu) }, lecture.etag, garantir)
+          await this.publier(j, { chemin: 'corpus.crp', contenu: this.serialiser(definitions.corpus, lecture.contenu) }, lecture.etag, garantir)
         } else {
           this.verifierDestinations(corpus, j)
           j.definitionsConfirmees = true
-          this.deps.miroir('corpus.json', lecture.contenu, lecture.etag)
+          this.deps.miroir('corpus.crp', lecture.contenu, lecture.etag)
           this.journal.ecrire(j)
         }
         return j
@@ -158,7 +158,7 @@ export class OperationsThemesWebDAV {
           this.exigerSansSession(id)
           await this.avecVerrou(this.deps.verrouEntretien(id), async (verifier, garantir) => {
             this.exigerSansSession(id)
-            const corpusLu = await this.lire('corpus.json')
+            const corpusLu = await this.lire('corpus.crp')
             const corpus = decoderCorpusTheme(corpusLu.contenu)
             exigerAbsenceDissociationWebDAV(corpus)
             this.verifierDestinations(corpus, j!)

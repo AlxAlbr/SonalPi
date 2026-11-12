@@ -76,14 +76,14 @@ async function banc(suffixe: string) {
   const f = fixtureRenommageAnon(); f.corpus.nom = 'Variantes synthétiques'; f.corpus.reglesAnon.personne.pseudos = ['Claire']
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'fixture : variantes synthétiques', actions: [
-    { action: 'create', file_path: 'corpus.json', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
+    { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
   const second = await api<{ id: number }>('/user', {}, config.token2!)
   await api(`/projects/${projet.id}/members`, { method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }) })
   await expect.poll(async () => { try { return (await api<{ can_push: boolean }>(`/projects/${projet.id}/repository/branches/main`, {}, config.token2!)).can_push } catch { return false } }, { timeout: 90_000, intervals: [500, 1_000, 2_000, 5_000] }).toBe(true)
   const depot = new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: config.url!, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: config.token! } }))
   const bob = new BailGitLab({ branche: 'main', depot: new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: config.url!, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: config.token2! } })), identite: () => ({ userId: String(second.id), machineId: 'fixture-bob', sessionId: suffixe }) })
-  const lire = () => depot.lireFichier('corpus.json', 'main')
+  const lire = () => depot.lireFichier('corpus.crp', 'main')
   const sources = () => Promise.all(f.sources.map((s) => depot.lireFichier(`entretiens/${s.id}.json`, 'main')))
   return { f, projet, depot, bob, lire, sources }
 }
@@ -100,7 +100,7 @@ test.describe('Ajout de variante GitLab — parcours normal', () => {
       const avant = await b.sources(), chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'entretiens/e1.json')), bail = await b.depot.lireFichier(chemin, 'main')
       let modal = await editer(page); await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
       expect(JSON.parse((await b.lire())!.contenu).reglesAnon.personne.pseudos).toEqual(['Claire'])
-      const tenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.json')); if (!tenu.ok) throw new Error('Fixture corpus')
+      const tenu = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'corpus.crp')); if (!tenu.ok) throw new Error('Fixture corpus')
       modal = await editer(page); await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
       await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé'); await modal.getByRole('button', { name: 'Fermer', exact: true }).click()
       await b.bob.liberer(tenu.droit)
@@ -119,7 +119,7 @@ test.describe('Ajout de variante GitLab — parcours normal', () => {
     try {
       await instrumenter(app, b.projet.id); const page = await app.firstWindow(); await ouvrir(page, shim, session, b.projet)
       let modal = await editer(page), source = await b.lire(); const concurrent = JSON.parse(source!.contenu); concurrent.reglesAnon.personne.categorie = 'Autre'
-      await b.depot.publierCommit('main', 'fixture : définition changée', [{ action: 'update', file_path: 'corpus.json', last_commit_id: source!.commitId, content: JSON.stringify(concurrent) }])
+      await b.depot.publierCommit('main', 'fixture : définition changée', [{ action: 'update', file_path: 'corpus.crp', last_commit_id: source!.commitId, content: JSON.stringify(concurrent) }])
       await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
       await modal.getByRole('button', { name: 'Fermer', exact: true }).click(); await page.locator('.synchro-zone button').click()
       await expect(page.locator('.synchro-zone button')).toBeEnabled()
@@ -142,7 +142,7 @@ test.describe('Ajout de variante GitLab — parcours normal', () => {
       await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Claire / Rebecca')
       expect(await app.evaluate(() => (globalThis as unknown as { sondeVariante: Sonde }).sondeVariante.envois)).toBe(1)
       expect(await b.sources()).toEqual(avant)
-      expect(await b.depot.lireFichier(cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.json')), 'main')).toBeNull()
+      expect(await b.depot.lireFichier(cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.crp')), 'main')).toBeNull()
     } finally { await app.close(); await session.fermer(); shim.nettoyer(); rmSync(profil, { recursive: true, force: true }) }
   })
   test('variante GitLab : SIGKILL après ajout accepté, relance reconnaît sans libérer le bail ; autre ajout refusé', async ({ browser }, info) => {
@@ -152,7 +152,7 @@ test.describe('Ajout de variante GitLab — parcours normal', () => {
       await instrumenter(app, b.projet.id, 'kill'); const page = await app.firstWindow(); await ouvrir(page, shim, session, b.projet)
       const avant = await b.sources(), modal = await editer(page); await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
       await expect.poll(() => app.evaluate(() => (globalThis as unknown as { sondeVariante: Sonde }).sondeVariante.accepte)).toBe(true)
-      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.json')), bail = await b.depot.lireFichier(chemin, 'main')
+      const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.crp')), bail = await b.depot.lireFichier(chemin, 'main')
       const processus = app.process(), sortie = new Promise<void>((resolve) => processus.once('exit', () => resolve()))
       expect(processus.kill('SIGKILL')).toBe(true); await sortie; mort = true; expect(processus.signalCode).toBe('SIGKILL')
       app = await lancerProfil(profil, shim, true); await instrumenter(app, b.projet.id)

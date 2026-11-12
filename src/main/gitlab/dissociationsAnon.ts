@@ -144,7 +144,7 @@ export class DissociationsAnonGitLab {
       if (this.nombreCiblesFinales(j, p.instantane.corpus, p.plan.entretiens.map((e) => e.id)) > MAX_CIBLES_DISSOCIATION_GITLAB) throw new Error(refusCibles)
       this.enCours = true
       try {
-        await this.avecBail('corpus.json', async (droit) => {
+        await this.avecBail('corpus.crp', async (droit) => {
           const frais = await this.lecteur.lireInstantane(false)
           if (!egaux(frais.corpus, p.instantane.corpus)) throw new Error('Le corpus a changé depuis l’aperçu. Recalculez la dissociation.')
           if (j) this.verifierCorpus(j, frais.corpus)
@@ -177,10 +177,10 @@ export class DissociationsAnonGitLab {
         for (const cible of j!.cibles.filter((c) => c.etat === 'a-faire')) {
           try {
             this.exigerSansSession(cible.id)
-            await this.avecBail('corpus.json', (droitCorpus) => this.avecBail(`entretiens/${cible.id}.json`, async (droit) => {
+            await this.avecBail('corpus.crp', (droitCorpus) => this.avecBail(`entretiens/${cible.id}.json`, async (droit) => {
               this.exigerSansSession(cible.id)
               const sha = await this.options.depot.resoudreTete(this.options.destination.branche)
-              const corpusSource = await this.lire('corpus.json', sha)
+              const corpusSource = await this.lire('corpus.crp', sha)
               const corpus = JSON.parse(corpusSource.contenu) as CorpusFichier
               this.verifierCorpus(j!, corpus)
               if (!Object.hasOwn(corpus.membership, cible.id)) throw new Error('La cible ne fait plus partie du corpus. Recalculez la reprise.')
@@ -201,7 +201,7 @@ export class DissociationsAnonGitLab {
             this.journal.ecrire(j!)
           }
         }
-        await this.avecBail('corpus.json', async (droit) => {
+        await this.avecBail('corpus.crp', async (droit) => {
           const final = await this.lecteur.lireInstantane(false)
           this.verifierCorpus(j!, final.corpus)
           this.verifierMemoiresAcquises(j!, final)

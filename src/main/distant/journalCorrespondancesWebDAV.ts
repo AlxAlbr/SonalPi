@@ -60,7 +60,7 @@ export class JournalCorrespondancesWebDAV {
     if (!j || j.version !== 1 || j.destination !== this.destination || typeof j.operationId !== 'string' || !/^[a-zA-Z0-9._:-]{1,120}$/.test(j.operationId)
       || typeof j.termine !== 'boolean' || !bilan || ![bilan.ajouts, bilan.variantes, bilan.remplacements, bilan.ignores].every(compte)
       || !bilan.entretiens || ![bilan.entretiens.definitionsLocales, bilan.entretiens.locuteurs, bilan.entretiens.entretiens].every(compte)
-      || !Array.isArray(fichiers) || !fichiers.length || fichiers.length > 101 || fichiers[0]?.chemin !== 'corpus.json'
+      || !Array.isArray(fichiers) || !fichiers.length || fichiers.length > 101 || fichiers[0]?.chemin !== 'corpus.crp'
       || new Set(fichiers.map((f) => f?.chemin)).size !== fichiers.length) throw new Error('Le journal des correspondances est invalide ou appartient à une autre destination.')
     let envois = 0
     for (const [index, f] of fichiers.entries()) {

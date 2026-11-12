@@ -21,7 +21,7 @@ import {
 import { squeletteCorpus } from '../../shared/corpus/squelette'
 import { DOSSIER_DOCS_PROJET } from '../../shared/docsCadre'
 
-/** La cible contient déjà un corpus (`corpus.json` présent au moment du PUT :
+/** La cible contient déjà un corpus (`corpus.crp` présent au moment du PUT :
  *  soit il y était avant l'appel, soit un collègue a publié entre-temps —
  *  c'est le serveur qui tranche les courses). Refus net, rien d'écrasé :
  *  l'utilisateur passe par « Ouvrir un corpus distant ». */
@@ -92,7 +92,7 @@ export class PublieurCorpus {
    *  1. chaîne de dossiers (`preparerRacine`) ;
    *  2. dossiers techniques (`entretiens/`, `verrous/`, `presence/`,
    *     `corbeille/`) ;
-   *  3. PUT `corpus.json` sous `If-None-Match: *`, garde atomique qui refuse
+   *  3. PUT `corpus.crp` sous `If-None-Match: *`, garde atomique qui refuse
    *     tout écrasement d'un corpus existant.
    *  Pas de verrou à la naissance : le corpus naît complet en un PUT, rien
    *  n'est à protéger ; la première écriture concurrente passera par le
@@ -107,7 +107,7 @@ export class PublieurCorpus {
     // Les documents de préparation sont ajoutés par l'utilisateur dans Nextcloud.
     await client.mkcol(DOSSIER_DOCS_PROJET)
     try {
-      await client.putTexte('corpus.json', JSON.stringify(squeletteCorpus(nom), null, 2), {
+      await client.putTexte('corpus.crp', JSON.stringify(squeletteCorpus(nom), null, 2), {
         ifNoneMatch: '*',
       })
     } catch (e) {

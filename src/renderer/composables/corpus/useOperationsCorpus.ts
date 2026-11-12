@@ -28,7 +28,8 @@ import {
   type FormatExport,
   type OptionsExport,
 } from '../../../shared/export/types'
-import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
+import { MIGRATION_ANNULEE, type DemandePreparationMigration } from '../../../shared/migrationV1'
+import { infoGlobale } from '../../erreurs'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type { ReperePassage } from '../../../shared/entretien/reperesPassages'
 import type {
@@ -128,73 +129,58 @@ export function useOperationsCorpus(deps: {
     impact: ImpactSuppressionEntretien
   } | null>(null)
 
-  async function migrerDepuisV1(
-    requete: DemandeMigration,
-    entretiensV1?: CrpV1Entretien[],
-  ): Promise<void> {
-    await deps.cycle.preparerBascule()
-    const resultat = await window.sonal.migrer.executer(requete)
-    deps.profil.dossierCourantNom.value = resultat.nom
-    await deps.profil.rafraichirRecents()
-    deps.distant.quitter()
-    await deps.cycle.appliquerCorpus(resultat.corpus, resultat.dir)
-    for (const entretien of mapperEntretiensV1(entretiensV1)) {
-      await importerEntretienV1(requete.cheminCrp, entretien)
-    }
-    await deps.corpus.rafraichirUsages()
-    await deps.medias.rafraichirAudios()
-    void deps.medias.regenererOndesManquantes()
-    deps.vue.value = 'corpus'
+  const etatMigration = ref<'repos' | 'preparation' | 'finalisation'>('repos')
+  const annulationMigrationDemandee = ref(false)
+  function verifierAnnulationMigration(): void {
+    if (annulationMigrationDemandee.value) throw new Error(MIGRATION_ANNULEE)
   }
-
-  async function importerEntretienV1(
-    cheminCrp: string,
-    entretienV1: EntretienV1Import,
-  ): Promise<void> {
-    let payload: PayloadEntretien | null = null
-    let reglesAnon: RegleAnon[] | undefined
-    const lecture = await window.sonal.migrer.lireSonal(cheminCrp, entretienV1.rtrPath)
-    if (lecture) {
-      try {
-        const resultat = importerFichier(lecture.nom, lecture.contenu, (html) =>
-          new DOMParser().parseFromString(html, 'text/html'),
-        )
-        payload = {
-          ...resultat.payload,
-          meta: {
-            ...resultat.payload.meta,
-            audioRef: entretienV1.audioRef,
-            sourceV1: { rtrPath: entretienV1.rtrPath },
-          },
+  async function annulerMigration(): Promise<void> {
+    if (etatMigration.value !== 'preparation') return
+    annulationMigrationDemandee.value = true
+    await window.sonal.migrer.annuler()
+  }
+  async function migrerDepuisV1(requete: DemandePreparationMigration): Promise<boolean> {
+    etatMigration.value = 'preparation'
+    annulationMigrationDemandee.value = false
+    try {
+      await deps.cycle.preparerBascule()
+      verifierAnnulationMigration()
+      const preparation = await window.sonal.migrer.preparer(requete)
+      verifierAnnulationMigration()
+      for (let index = 0; index < preparation.nbEntretiens; index++) {
+        verifierAnnulationMigration()
+        const source = await window.sonal.migrer.lireEntretien(index)
+        verifierAnnulationMigration()
+        if (source) {
+          let resultat: ReturnType<typeof importerFichier>
+          try { resultat = importerFichier(source.nom, source.contenu, (html) => new DOMParser().parseFromString(html, 'text/html')) }
+          catch (erreur) { throw new Error(`Entretien illisible « ${source.nom} » : ${erreur instanceof Error ? erreur.message : String(erreur)}`) }
+          await window.sonal.migrer.ajouterEntretien(index, resultat.payload, resultat.reglesAnon)
+        } else {
+          const vide: PayloadEntretien = { corpsTexte: DOC_VIDE, annotations: [], ancres: [], locuteurs: [], brouillonsAnon: [], meta: { valeursGen: {}, audioRef: null } }
+          await window.sonal.migrer.ajouterEntretien(index, vide, [])
         }
-        reglesAnon = resultat.reglesAnon
-      } catch {
-        payload = null
       }
+      await deps.cycle.preparerBascule()
+      verifierAnnulationMigration()
+      etatMigration.value = 'finalisation'
+      const resultat = await window.sonal.migrer.finaliser()
+      deps.distant.quitter()
+      deps.profil.dossierCourantNom.value = resultat.nom
+      await deps.cycle.appliquerCorpus(resultat.corpus, resultat.dir)
+      await deps.corpus.rafraichirScanAnon()
+      await deps.profil.rafraichirRecents()
+      deps.vue.value = 'corpus'
+      const avertissement = await window.sonal.migrer.terminer()
+      if (avertissement) infoGlobale.value = avertissement
+      return true
+    } catch (erreur) {
+      if (annulationMigrationDemandee.value && erreur instanceof Error && erreur.message.endsWith(MIGRATION_ANNULEE)) return false
+      throw erreur
+    } finally {
+      try { await window.sonal.migrer.annuler() }
+      finally { etatMigration.value = 'repos'; annulationMigrationDemandee.value = false }
     }
-    if (!payload) {
-      payload = {
-        corpsTexte: DOC_VIDE,
-        annotations: [],
-        ancres: [],
-        locuteurs: [],
-        meta: {
-          valeursGen: {},
-          audioRef: entretienV1.audioRef,
-          sourceV1: { rtrPath: entretienV1.rtrPath },
-        },
-        brouillonsAnon: [],
-      }
-    }
-    const resultat = await window.sonal.corpus.importer(
-      entretienV1.titre,
-      payload,
-      [],
-      [],
-      reglesAnon,
-    )
-    deps.corpus.membership.value = resultat.corpus.membership
-    await deps.corpus.rafraichirScanAnon()
   }
 
   async function proposerFusionDivergence(id: string): Promise<void> {
@@ -509,6 +495,9 @@ export function useOperationsCorpus(deps: {
     divergenceProposee,
     entretienASupprimer,
     migrerDepuisV1,
+    etatMigration,
+    annulationMigrationDemandee,
+    annulerMigration,
     proposerFusionDivergence,
     reinitialiserDivergence: () => {
       divergenceProposee.value = null

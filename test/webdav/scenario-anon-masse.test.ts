@@ -109,7 +109,7 @@ async function amorcerServeur(base: string): Promise<void> {
   await client.supprimer('verrous/corpus.lock.json').catch(() => {})
   for (const id of ['e1', 'e2', 'e3']) await client.supprimer(`verrous/${id}.lock.json`).catch(() => {})
   for (const id of ['e1', 'e2', 'e3']) await client.deverrouiller(`entretiens/${id}.json`).catch(() => {})
-  await client.putTexte('corpus.json', corpusInitial())
+  await client.putTexte('corpus.crp', corpusInitial())
   for (const id of ['e1', 'e2', 'e3']) await client.putTexte(`entretiens/${id}.json`, entretien())
 }
 

@@ -16,7 +16,7 @@ async function instrumenter(app: ElectronApplication, racine: string, mode: Sond
     g.sondeVarianteWebDAV = { mode: args.mode, accepte: false, publies: [], lecturesEntretiens: 0 }
     g.fetch = async (url, init) => {
       const adresse = url instanceof Request ? url.url : String(url), methode = init?.method ?? (url instanceof Request ? url.method : 'GET')
-      const s = g.sondeVarianteWebDAV, corpus = adresse === `${args.racine}/corpus.json`
+      const s = g.sondeVarianteWebDAV, corpus = adresse === `${args.racine}/corpus.crp`
       if (adresse.startsWith(`${args.racine}/entretiens/`) && methode === 'GET') s.lecturesEntretiens++
       if (s.mode === 'perte' && s.accepte && corpus && methode === 'GET') throw new Error('Relecture synthétique indisponible')
       const r = await original(url, init)
@@ -63,7 +63,7 @@ async function banc(port: number) {
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureRenommageAnon(); f.corpus.nom = 'Variantes synthétiques'; f.corpus.reglesAnon.personne.pseudos = ['Claire']
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
-  await client.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+  await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-variante-webdav-electron-'))
   // Aucun corpus local ne doit se charger pendant la première connexion distante.
@@ -92,7 +92,7 @@ for (const port of [8080, 8081]) test.describe(`Ajout de variante WebDAV :${port
       const page = await app.firstWindow(); await connecter(page, b.client.config.baseUrl)
       const avant = await b.sources(); let modal = await editer(page)
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
-      expect(JSON.parse(await b.client.getTexte('corpus.json')).reglesAnon.personne.pseudos).toEqual(['Claire'])
+      expect(JSON.parse(await b.client.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Claire'])
       const rendreCorpus = await b.tenir('corpus')
       try { modal = await editer(page); await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé'); await modal.getByRole('button', { name: 'Fermer', exact: true }).click() }
       finally { await rendreCorpus() }
@@ -106,23 +106,23 @@ for (const port of [8080, 8081]) test.describe(`Ajout de variante WebDAV :${port
       await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(modal).toBeHidden()
       await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Claire / Rebecca')
       const attendu = structuredClone(b.f.corpus); attendu.reglesAnon.personne.pseudos.push('Rebecca')
-      expect(JSON.parse(await b.client.getTexte('corpus.json'))).toEqual(attendu); expect(await b.sources()).toEqual(avant)
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV)).toMatchObject({ publies: ['corpus.json'], lecturesEntretiens: 0 })
+      expect(JSON.parse(await b.client.getTexte('corpus.crp'))).toEqual(attendu); expect(await b.sources()).toEqual(avant)
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV)).toMatchObject({ publies: ['corpus.crp'], lecturesEntretiens: 0 })
     } finally { await rendre(); if (app) await app.close(); await b.nettoyer() }
   })
   test('définition distante changée : refus puis nouveau choix après actualisation', async () => {
     const b = await banc(port); let app: ElectronApplication | undefined
     try {
       app = await b.lancement(); await instrumenter(app, b.client.config.baseUrl); const page = await app.firstWindow(); await connecter(page, b.client.config.baseUrl)
-      let modal = await editer(page); const s = await b.tiers.getTexteAvecEtag('corpus.json'), c = JSON.parse(s.contenu); c.reglesAnon.personne.categorie = 'Autre'
-      await b.tiers.putTexte('corpus.json', JSON.stringify(c, null, 2), { ifMatch: s.etag! })
+      let modal = await editer(page); const s = await b.tiers.getTexteAvecEtag('corpus.crp'), c = JSON.parse(s.contenu); c.reglesAnon.personne.categorie = 'Autre'
+      await b.tiers.putTexte('corpus.crp', JSON.stringify(c, null, 2), { ifMatch: s.etag! })
       await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
       await modal.getByRole('button', { name: 'Fermer', exact: true }).click(); await page.locator('.synchro-zone button').click()
       await expect(page.locator('.synchro-zone button')).toBeEnabled()
       await expect(page.locator('.pseudo-table tbody tr', { hasText: 'Karine' }).getByText('Autre', { exact: true })).toBeVisible()
       modal = await editer(page); await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(modal).toBeHidden()
-      expect(JSON.parse(await b.client.getTexte('corpus.json')).reglesAnon.personne).toMatchObject({ pseudos: ['Claire', 'Rebecca'], categorie: 'Autre' })
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.json'])
+      expect(JSON.parse(await b.client.getTexte('corpus.crp')).reglesAnon.personne).toMatchObject({ pseudos: ['Claire', 'Rebecca'], categorie: 'Autre' })
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.crp'])
     } finally { if (app) await app.close(); await b.nettoyer() }
   })
   test('réponse perdue : nouvel envoi bloqué puis Actualiser reconnaît sans répétition', async () => {
@@ -137,7 +137,7 @@ for (const port of [8080, 8081]) test.describe(`Ajout de variante WebDAV :${port
       await page.locator('.synchro-zone button').click()
       await expect(page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true })).toHaveText('Claire / Rebecca')
       expect(await b.sources()).toEqual(avant); expect(await b.verrou()).toBeNull()
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.json'])
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.crp'])
     } finally { if (app) await app.close(); await b.nettoyer() }
   })
   test('SIGKILL après acceptation : reconnaissance sans rendre le droit ancien, autre ajout refusé', async ({}, info) => {
@@ -165,8 +165,8 @@ for (const port of [8080, 8081]) test.describe(`Ajout de variante WebDAV :${port
       // Le banc a prouvé la mort du processus et la génération exacte ; ce n’est pas une action produit.
       await b.client.supprimer('verrous/corpus.lock.json', bail.etag!)
       autre = await editer(page, 'Ailleurs', 'Nouvelle / Alba'); await autre.getByRole('button', { name: 'Enregistrer', exact: true }).click(); await expect(autre).toBeHidden()
-      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.json'])
-      expect(JSON.parse(await b.client.getTexte('corpus.json')).reglesAnon.personne.pseudos).toEqual(['Claire', 'Rebecca']); expect(await b.sources()).toEqual(avant)
+      expect(await app.evaluate(() => (globalThis as unknown as { sondeVarianteWebDAV: Sonde }).sondeVarianteWebDAV.publies)).toEqual(['corpus.crp'])
+      expect(JSON.parse(await b.client.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Claire', 'Rebecca']); expect(await b.sources()).toEqual(avant)
     } finally { if (app) await app.close(); await b.nettoyer() }
   })
 })

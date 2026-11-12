@@ -130,25 +130,7 @@ test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus l
   // Deux entretiens dans le corpus (le seed n'en a qu'un) : le second est posé AVANT le lancement —
   // le seed est idempotent, il ne touchera à rien.
   const dir = mkdtempSync(join(tmpdir(), 'sonal-lot-'))
-  ecrireSeedDemo(join(dir, 'corpus'))
-  const c = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.json'), 'utf8')) as {
-    membership: Record<string, unknown>
-  }
-  c.membership.e2 = { titre: 'Second entretien', date: null, lastModified: new Date().toISOString() }
-  writeFileSync(join(dir, 'corpus', 'corpus.json'), JSON.stringify(c, null, 2))
-  writeFileSync(
-    join(dir, 'corpus', 'entretiens', 'e2.json'),
-    JSON.stringify({
-      formatVersion: 3,
-      lastModified: new Date().toISOString(),
-      corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
-      annotations: [],
-      ancres: [],
-      locuteurs: [],
-      brouillonsAnon: [],
-      meta: { valeursGen: {}, audioRef: null },
-    }),
-  )
+  poserSecondEntretien(dir)
 
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -209,11 +191,11 @@ test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus l
  *  le seed est idempotent et n'en contient qu'un (parité du test lot ci-dessus). */
 function poserSecondEntretien(dir: string) {
   ecrireSeedDemo(join(dir, 'corpus'))
-  const c = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.json'), 'utf8')) as {
+  const c = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.crp'), 'utf8')) as {
     membership: Record<string, unknown>
   }
   c.membership.e2 = { titre: 'Second entretien', date: null, lastModified: new Date().toISOString() }
-  writeFileSync(join(dir, 'corpus', 'corpus.json'), JSON.stringify(c, null, 2))
+  writeFileSync(join(dir, 'corpus', 'corpus.crp'), JSON.stringify(c, null, 2))
   writeFileSync(
     join(dir, 'corpus', 'entretiens', 'e2.json'),
     JSON.stringify({

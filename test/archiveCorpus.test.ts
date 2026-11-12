@@ -28,7 +28,7 @@ function corpusSurDisque(): string {
   mkdirSync(join(dir, 'verrous'))
   mkdirSync(join(dir, 'presence'))
   mkdirSync(join(dir, 'sessions'))
-  writeFileSync(join(dir, 'corpus.json'), '{"nom":"Corpus A"}', 'utf8')
+  writeFileSync(join(dir, 'corpus.crp'), '{"nom":"Corpus A"}', 'utf8')
   writeFileSync(join(dir, 'entretiens', 'e1.json'), '{"titre":"Un"}', 'utf8')
   writeFileSync(join(dir, 'entretiens', 'reste.tmp'), 'temporaire', 'utf8')
   writeFileSync(join(dir, 'png', 'e1.png'), Buffer.from([1, 2, 3]))
@@ -53,7 +53,7 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
       'DocsPrepaProjet/methode.txt',
       'audio-locaux.json',
       'corbeille/e-ancien.json',
-      'corpus.json',
+      'corpus.crp',
       'entretiens/e1.json',
       'png/e1.png',
     ])
@@ -74,11 +74,11 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
       'DocsPrepaProjet/methode.txt',
       'audio-locaux.json',
       'corbeille/e-ancien.json',
-      'corpus.json',
+      'corpus.crp',
       'entretiens/e1.json',
       'png/e1.png',
     ])
-    expect(await zip.file('corpus.json')!.async('string')).toBe('{"nom":"Corpus A"}')
+    expect(await zip.file('corpus.crp')!.async('string')).toBe('{"nom":"Corpus A"}')
     expect(await zip.file('entretiens/e1.json')!.async('string')).toBe('{"titre":"Un"}')
     expect(await zip.file('png/e1.png')!.async('uint8array')).toEqual(
       new Uint8Array([1, 2, 3]),
@@ -111,7 +111,7 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
     expect(resultat.etat).toBe('refus')
   })
 
-  test('un dossier sans corpus.json est refusé', async () => {
+  test('un dossier sans corpus.crp est refusé', async () => {
     const vide = mkdtempSync(join(tmpdir(), 'sonal-archive-vide-'))
     const resultat = await archiverCorpusLocal({} as never, vide, 'Vide', false)
     expect(resultat.etat).toBe('refus')
@@ -129,6 +129,6 @@ describe('copie de sauvegarde du corpus (ZIP)', () => {
 
     expect(resultat).toEqual({ etat: 'succes', chemin: destination, fichiers: 6 })
     const zip = await JSZip.loadAsync(readFileSync(destination))
-    expect(zip.file('corpus.json')).not.toBeNull()
+    expect(zip.file('corpus.crp')).not.toBeNull()
   })
 })

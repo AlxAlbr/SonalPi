@@ -16,7 +16,7 @@ const LOCAL = entretienDistantValide({ texte: 'travail local non publié' })
 
 function banc() {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', corpusDistantValide(['e1']))
+  serveur.poser('corpus.crp', corpusDistantValide(['e1']))
   serveur.poser(CHEMIN, BASE)
   const requetes: { methode: string; chemin: string }[] = []
   const panne = { inventaireEntretiens: null as number | null }
@@ -85,7 +85,7 @@ describe('miroir distant — protection du travail local', () => {
 
     const tirage = await b.miroir.tirer([CHEMIN])
 
-    expect(tirage.telecharges).toEqual(['corpus.json'])
+    expect(tirage.telecharges).toEqual(['corpus.crp'])
     expect(existsSync(b.fichier)).toBe(false)
     expect(b.miroir.etagDistant(CHEMIN)).toBeNull()
   })
@@ -102,7 +102,7 @@ describe('miroir distant — protection du travail local', () => {
     expect(b.miroir.etagDistant(CHEMIN)).toBe(versionInitiale)
     expect(existsSync(join(b.dir, 'corbeille-miroir', CHEMIN))).toBe(false)
 
-    b.serveur.poser('corpus.json', corpusDistantValide())
+    b.serveur.poser('corpus.crp', corpusDistantValide())
     const tirageSansExclusion = await b.miroir.tirer()
     expect(tirageSansExclusion.corbeille).toEqual([CHEMIN])
     expect(readFileSync(join(b.dir, 'corbeille-miroir', CHEMIN), 'utf8')).toBe(LOCAL)
@@ -151,7 +151,7 @@ describe('miroir distant — protection du travail local', () => {
 
   test('un membership incomplet ne peut pas amorcer un miroir vide', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide(['absent']))
+    serveur.poser('corpus.crp', corpusDistantValide(['absent']))
     const dir = mkdtempSync(join(tmpdir(), 'sonal-miroir-membership-'))
     const miroir = new MiroirWebDAV(
       new ClientWebDAV(
@@ -163,13 +163,13 @@ describe('miroir distant — protection du travail local', () => {
 
     await expect(miroir.tirer()).rejects.toThrow('entretien distant absent')
 
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(join(dir, '.manifeste.json'))).toBe(false)
   })
 
   test('deux chemins incompatibles sous Windows sont refusés avant installation', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('corpus.crp', corpusDistantValide())
     serveur.poser('entretiens/e1.json', entretienDistantValide())
     serveur.poser('entretiens/E1.json', entretienDistantValide())
     const dir = mkdtempSync(join(tmpdir(), 'sonal-miroir-collision-'))
@@ -183,19 +183,19 @@ describe('miroir distant — protection du travail local', () => {
 
     await expect(miroir.tirer()).rejects.toThrow('chemins incompatibles')
 
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(join(dir, '.manifeste.json'))).toBe(false)
   })
 
   test('une version métier inconnue est refusée avant installation', async () => {
     const b = banc()
-    const corpus = JSON.parse(b.serveur.contenuDe('corpus.json')!) as { formatVersion: number }
+    const corpus = JSON.parse(b.serveur.contenuDe('corpus.crp')!) as { formatVersion: number }
     corpus.formatVersion = 999
-    b.serveur.poser('corpus.json', JSON.stringify(corpus))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus))
 
     await expect(b.miroir.tirer()).rejects.toThrow('version non supportée')
 
-    expect(existsSync(join(b.dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(b.dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(b.manifeste)).toBe(false)
   })
 
@@ -217,11 +217,11 @@ describe('miroir distant — protection du travail local', () => {
   test('un manifeste WebDAV historique est migré sans retélécharger les fichiers inchangés', async () => {
     const b = banc()
     await b.miroir.tirer()
-    const etagCorpus = b.miroir.etagDistant('corpus.json')!
+    const etagCorpus = b.miroir.etagDistant('corpus.crp')!
     const etagEntretien = b.miroir.etagDistant(CHEMIN)!
     writeFileSync(b.manifeste, JSON.stringify({
       formatVersion: 1,
-      etags: { 'corpus.json': etagCorpus, [CHEMIN]: etagEntretien },
+      etags: { 'corpus.crp': etagCorpus, [CHEMIN]: etagEntretien },
     }), 'utf8')
     b.requetes.length = 0
 
@@ -232,7 +232,7 @@ describe('miroir distant — protection du travail local', () => {
       formatVersion: 2,
       destination: { fournisseur: 'webdav' },
       empreintes: {
-        'corpus.json': { type: 'webdav-etag', valeur: etagCorpus },
+        'corpus.crp': { type: 'webdav-etag', valeur: etagCorpus },
         [CHEMIN]: { type: 'webdav-etag', valeur: etagEntretien },
       },
     })

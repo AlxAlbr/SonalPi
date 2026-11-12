@@ -17,13 +17,13 @@ async function instrumenter(app: ElectronApplication, racine: string, perte: Son
     g.sondeRetrait = { perte: args.perte, accepte: false, publies: [] }
     g.fetch = async (url, init) => {
       const adresse = url instanceof Request ? url.url : String(url), methode = init?.method ?? (url instanceof Request ? url.method : 'GET')
-      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.json` ? adresse.split('/').at(-1)! : ''
+      const id = adresse.startsWith(`${args.racine}/entretiens/`) || adresse === `${args.racine}/corpus.crp` ? adresse.split('/').at(-1)! : ''
       const s = g.sondeRetrait
-      if (s.perte === 'finale' && s.accepte && id === 'corpus.json' && methode === 'GET') throw new Error('Relecture synthétique indisponible')
+      if (s.perte === 'finale' && s.accepte && id === 'corpus.crp' && methode === 'GET') throw new Error('Relecture synthétique indisponible')
       const r = await original(url, init)
       if (id && methode === 'PUT' && r.ok) {
-        const retrait = id === 'corpus.json' && !JSON.parse(init!.body as string).retraitVarianteAnon
-        s.publies.push(id === 'corpus.json' ? retrait ? 'retrait' : 'barriere' : id)
+        const retrait = id === 'corpus.crp' && !JSON.parse(init!.body as string).retraitVarianteAnon
+        s.publies.push(id === 'corpus.crp' ? retrait ? 'retrait' : 'barriere' : id)
         if (s.perte === 'finale' && retrait || s.perte === 'kill' && id === 'e1.json') {
           s.accepte = true; await r.body?.cancel()
           if (s.perte === 'kill') await new Promise(() => {})
@@ -75,7 +75,7 @@ async function banc(port: number) {
   const client = new ClientWebDAV({ ...parent.config, baseUrl: `${parent.config.baseUrl}/${dossier}` })
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureRetraitVarianteAnon(); f.corpus.nom = 'Retrait synthétique'
-  await client.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+  await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-retrait-webdav-'))
   const tiers = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: { utilisateur: 'olivier', motDePasse: 'olivier-olivier-5678' } })
@@ -133,8 +133,8 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
       await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
       let modal = await preparer(page), source = await b.client.getTexte('entretiens/e1.json')
       expect(source).toContain('Modification indépendante conservée.')
-      const c = await b.tiers.getTexteAvecEtag('corpus.json'), corpus = JSON.parse(c.contenu); corpus.reglesAnon.personne.categorie = 'Autre'
-      await b.tiers.putTexte('corpus.json', JSON.stringify(corpus), { ifMatch: c.etag! })
+      const c = await b.tiers.getTexteAvecEtag('corpus.crp'), corpus = JSON.parse(c.contenu); corpus.reglesAnon.personne.categorie = 'Autre'
+      await b.tiers.putTexte('corpus.crp', JSON.stringify(corpus), { ifMatch: c.etag! })
       await confirmer(modal); await expect(modal).toContainText('Le retrait n’a pas pu être terminé', { timeout: 90_000 })
       expect(await b.client.getTexte('entretiens/e1.json')).toBe(source)
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
@@ -158,7 +158,7 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
       await expect(modal).toContainText('Le serveur n’a pas confirmé le résultat', { timeout: 90_000 })
       await expect(modal.getByRole('button', { name: 'Recalculer la reprise', exact: true })).toBeDisabled()
       await page.screenshot({ path: info.outputPath('retrait-webdav-indetermine.png') })
-      expect(JSON.parse(await b.client.getTexte('corpus.json')).reglesAnon.personne.pseudos).toEqual(['Rebecca'])
+      expect(JSON.parse(await b.client.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Rebecca'])
       await app.evaluate(() => { (globalThis as unknown as { sondeRetrait: Sonde }).sondeRetrait.perte = 'aucune' })
       await modal.getByRole('button', { name: 'Relire le suivi WebDAV', exact: true }).click(); await expect(modal).toBeHidden({ timeout: 90_000 })
       expect(await app.evaluate(() => (globalThis as unknown as { sondeRetrait: Sonde }).sondeRetrait.publies)).toEqual(['barriere', 'e1.json', 'e2.json', 'retrait'])

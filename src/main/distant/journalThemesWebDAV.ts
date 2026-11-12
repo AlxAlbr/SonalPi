@@ -73,7 +73,7 @@ export class JournalLocalThemesWebDAV {
       || (p.entretien
         ? !idEntretienThemeSain(p.entretien.id) || p.chemin !== `entretiens/${p.entretien.id}.json`
           || !compte(p.entretien.reaffectes) || !compte(p.entretien.doublonsSupprimes)
-        : p.chemin !== 'corpus.json'))) {
+        : p.chemin !== 'corpus.crp'))) {
       throw new RefusOperationTheme('L’intention de publication des thématiques WebDAV est invalide.')
     }
     return j

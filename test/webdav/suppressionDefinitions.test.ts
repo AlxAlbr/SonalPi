@@ -15,7 +15,7 @@ for (const natif of [false, true]) {
   describe(`Suppression de définitions WebDAV, verrou natif=${natif}`, () => {
     async function banc(ouvert = false) {
       const serveur = new ServeurWebDAVMemoire({ olivier: 'pass' })
-      serveur.poser('corpus.json', JSON.stringify(corpusSuppressionDefinitions()))
+      serveur.poser('corpus.crp', JSON.stringify(corpusSuppressionDefinitions()))
       for (const id of ['e1', 'e2']) serveur.poser(`entretiens/${id}.json`, JSON.stringify(entretienSuppressionDefinitions()))
       const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, serveur.fetch)
       const tiers = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: { utilisateur: 'olivier', motDePasse: 'pass' } }, serveur.fetch)
@@ -40,12 +40,12 @@ for (const natif of [false, true]) {
     for (const type of definitionsSupprimees) {
       test(`${type} : refuse une édition tierce, puis réussit après fermeture sans modifier les entretiens`, async () => {
         const b = await banc()
-        const avant = b.serveur.contenuDe('corpus.json')
+        const avant = b.serveur.contenuDe('corpus.crp')
         const source = b.serveur.contenuDe('entretiens/e1.json')
         const verrou = b.provider()
         expect((await verrou.acquerir(b.chemin)).ok).toBe(true)
         await expect(b.tx.executerSuppressionDefinitions(() => supprimerDefinitionTest(b.store, type))).rejects.toThrow(/ouvert/)
-        expect(b.serveur.contenuDe('corpus.json')).toBe(avant)
+        expect(b.serveur.contenuDe('corpus.crp')).toBe(avant)
         expect(b.serveur.contenuDe('entretiens/e1.json')).toBe(source)
         await verrou.liberer(b.chemin)
         const propre = b.provider(true)
@@ -59,9 +59,9 @@ for (const natif of [false, true]) {
 
       test(`${type} : refuse notre propre édition sans publication automatique`, async () => {
         const b = await banc(true)
-        const avant = b.serveur.contenuDe('corpus.json')
+        const avant = b.serveur.contenuDe('corpus.crp')
         await expect(b.tx.executerSuppressionDefinitions(() => supprimerDefinitionTest(b.store, type))).rejects.toThrow(/fermez/)
-        expect(b.serveur.contenuDe('corpus.json')).toBe(avant)
+        expect(b.serveur.contenuDe('corpus.crp')).toBe(avant)
         expect(b.publier).not.toHaveBeenCalled()
       })
 
@@ -74,7 +74,7 @@ for (const natif of [false, true]) {
 
     test('la perte d’un droit juste avant l’envoi refuse la suppression', async () => {
       const b = await banc()
-      const avant = b.serveur.contenuDe('corpus.json')
+      const avant = b.serveur.contenuDe('corpus.crp')
       const prototype = natif ? ProviderFilesLock.prototype : ProviderPutConditionnel.prototype
       const battre = prototype.battre
       const espion = vi.spyOn(prototype, 'battre').mockImplementation(async function (chemin) {
@@ -83,7 +83,7 @@ for (const natif of [false, true]) {
       })
       try {
         await expect(b.tx.executerSuppressionDefinitions(() => b.store.supprimerCategorie('theme'))).rejects.toThrow(/protégé/)
-        expect(b.serveur.contenuDe('corpus.json')).toBe(avant)
+        expect(b.serveur.contenuDe('corpus.crp')).toBe(avant)
       } finally {
         espion.mockRestore()
       }
@@ -91,7 +91,7 @@ for (const natif of [false, true]) {
 
     test('un délai après les contrôles empêche encore l’envoi de la suppression', async () => {
       const b = await banc()
-      const avant = b.serveur.contenuDe('corpus.json')
+      const avant = b.serveur.contenuDe('corpus.crp')
       let heure = Date.now(), preuvesFinies = false
       const horloge = vi.spyOn(Date, 'now').mockImplementation(() => heure)
       const prototype = natif ? ProviderFilesLock.prototype : ProviderPutConditionnel.prototype
@@ -104,12 +104,12 @@ for (const natif of [false, true]) {
       const lire = b.client.getTexte.bind(b.client)
       const lecture = vi.spyOn(b.client, 'getTexte').mockImplementation(async (chemin) => {
         const contenu = await lire(chemin)
-        if (chemin === 'corpus.json' && preuvesFinies) heure += 1_000_000
+        if (chemin === 'corpus.crp' && preuvesFinies) heure += 1_000_000
         return contenu
       })
       try {
         await expect(b.tx.executerSuppressionDefinitions(() => b.store.supprimerCategorie('theme'))).rejects.toThrow(/expirer/)
-        expect(b.serveur.contenuDe('corpus.json')).toBe(avant)
+        expect(b.serveur.contenuDe('corpus.crp')).toBe(avant)
       } finally {
         lecture.mockRestore()
         preuve.mockRestore()

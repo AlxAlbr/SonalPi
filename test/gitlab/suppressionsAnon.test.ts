@@ -159,7 +159,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     const b = banc(), publier = b.publication.publierSousDroits.bind(b.publication)
     vi.spyOn(b.publication, 'publierSousDroits').mockImplementation(async (p, d) => {
       const a = p.actions.find((a) => a.action === 'update')!, data = 'contenu' in a ? JSON.parse(a.contenu) : null
-      if (phase === 'entretien' ? a.chemin.endsWith('/e2.json') : a.chemin.endsWith('/corpus.json') && (phase === 'barriere' ? !!data.suppressionAnon : !data.reglesAnon.personne)) throw new Error('Arrêt avant transport')
+      if (phase === 'entretien' ? a.chemin.endsWith('/e2.json') : a.chemin.endsWith('/corpus.crp') && (phase === 'barriere' ? !!data.suppressionAnon : !data.reglesAnon.personne)) throw new Error('Arrêt avant transport')
       return publier(p, d)
     })
     const r = await appliquer(b); expect(r.statut).toBe('indetermine'); expect(b.journal.lister()).toEqual([])
@@ -173,7 +173,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     const b = banc()
     b.depot.avantCommit = (actions) => {
       if (actions.some((a) => a.action === 'update' && (phase === 'entretien' ? a.file_path.endsWith('/e1.json')
-        : a.file_path.endsWith('/corpus.json') && (phase === 'barriere' ? !!JSON.parse(a.content!).suppressionAnon : !JSON.parse(a.content!).reglesAnon.personne)))) {
+        : a.file_path.endsWith('/corpus.crp') && (phase === 'barriere' ? !!JSON.parse(a.content!).suppressionAnon : !JSON.parse(a.content!).reglesAnon.personne)))) {
         b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles()
       }
     }
@@ -196,7 +196,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
       }
     }
     const r = await appliquer(b); b.depot.rendreCommits(); b.depot.avantCommit = () => {}
-    const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.json'))
+    const chemin = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'racine/corpus.crp'))
     const avant = b.depot.fichiers.get(chemin)!.contenu
     const coordination = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 'nouvelle' }) })
     const publication = new PublieurGitLab({ branche: 'main', depot: b.depot, coordination, journal: b.journal, attendre: async () => {} })
@@ -218,7 +218,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     }
     const r = await appliquer(b), entree = structuredClone(b.journal.lister()[0])
     if (cas === 'contenu') entree.actions.find((a) => a.file_path.endsWith('/e1.json'))!.contentSha256 = '0'.repeat(64)
-    else entree.actions = entree.actions.filter((a) => a.file_path !== 'racine/corpus.json')
+    else entree.actions = entree.actions.filter((a) => a.file_path !== 'racine/corpus.crp')
     vi.spyOn(b.journal, 'lister').mockReturnValue([entree])
     expect(b.service.publicationDuLotSeule()).toBe(false)
     await expect(b.service.relireSuivi(r.operationId)).rejects.toThrow('ne correspond pas')
@@ -261,7 +261,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
   test('acquis modifié pendant le transport final : version gardée, puis reprise sans restaurer les choix', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.json') && a.action === 'update' && !JSON.parse(a.content!).reglesAnon.personne)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' })
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.action === 'update' && !JSON.parse(a.content!).reglesAnon.personne)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' })
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', annotations: 8, regleRetiree: false })
     expect(commits(b)).toHaveLength(3); b.depot.avantCommit = () => {}

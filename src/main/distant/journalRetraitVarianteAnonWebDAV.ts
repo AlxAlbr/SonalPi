@@ -85,7 +85,7 @@ export class JournalRetraitVarianteAnonWebDAV {
       if (!j.barriereConfirmee || !c || c.etat !== 'a-faire' || c.avant !== e.avant || c.apres !== e.apres) throw new Error('Intention cible invalide.')
       return
     }
-    if (e.chemin !== 'corpus.json') throw new Error('Destination de retrait invalide.')
+    if (e.chemin !== 'corpus.crp') throw new Error('Destination de retrait invalide.')
     const avant = JSON.parse(e.avant) as CorpusFichier, apres = JSON.parse(e.apres)
     if (avant.formatVersion !== FORMAT_VERSION || avant.dissociationAnon !== undefined || avant.suppressionAnon !== undefined
       || !egauxRetraitVarianteWebDAV(avant.reglesAnon?.[regleId], j.demande.regleAvant)

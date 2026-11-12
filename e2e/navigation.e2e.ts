@@ -19,8 +19,9 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
   await attendreAccueil(page)
   await app.evaluate(({ dialog }, dossier) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dossier] })
-  }, autreCorpus)
-  await page.locator('.carte-demo.ouvrir-corpus').click()
+  }, join(autreCorpus, 'corpus.crp'))
+  await expect(page.getByRole('button', { name: 'Ouvrir par dossier…', exact: true })).toHaveCount(0)
+  await page.locator('.ouvrir-corpus').click()
   await fermerAiguillage(page)
 
   await expect(page.locator('.espace-preparation')).toBeVisible()

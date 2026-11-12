@@ -58,7 +58,7 @@ export function assemblerSessionGitLab(
   const maintenant = options.maintenant ?? Date.now
   const racine = normaliserRacineGitLab(options.racine ?? '')
   const cheminDistant = racine ? `${racine}/${options.cheminRelatif}` : options.cheminRelatif
-  const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
+  const cheminCorpus = racine ? `${racine}/corpus.crp` : 'corpus.crp'
   const ressourcePartagee = cleRessourceBailGitLab(options.branche, cheminDistant)
   const depot = new DepotCommitsGitLabClient(options.client)
   const journal = new JournalPublicationGitLab(
@@ -111,7 +111,7 @@ export function assemblerSessionGitLab(
     margeRenouvellementMs: options.margeRenouvellementMs ?? MARGE_RENOUVELLEMENT_GITLAB_MS,
     preparerGardeDefinitions: async (contenuEntretien, contenuAvant) => {
       const corpus = await depot.lireFichier(cheminCorpus, options.branche)
-      if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+      if (!corpus) throw new Error('Le fichier corpus.crp est introuvable sur GitLab.')
       verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu, contenuAvant)
       return {
         action: 'update',

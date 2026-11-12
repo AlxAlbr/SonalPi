@@ -289,7 +289,7 @@ describe('CorpusStore — recontrôle des recettes à l’enregistrement', () =>
     const corpus = corpusAvecFamille()
     corpus.attributsCas = {}
     corpus.personnes = { p: { id: 'p', nom: 'Marie' } }
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     return dir
   }
 

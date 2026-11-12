@@ -37,7 +37,7 @@ function entretien(): EntretienFichier {
 }
 function banc(hook?: (requete: Request, reponse: Response, serveur: ServeurWebDAVMemoire) => Response | Promise<Response>) {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', JSON.stringify(corpus()))
+  serveur.poser('corpus.crp', JSON.stringify(corpus()))
   serveur.poser('entretiens/e1.json', JSON.stringify(entretien()))
   serveur.poser('entretiens/e2.json', JSON.stringify(entretien()))
   const requetes: Request[] = []
@@ -51,7 +51,7 @@ function banc(hook?: (requete: Request, reponse: Response, serveur: ServeurWebDA
   const store = new CorpusStore(dir)
   store.lectureSeule = true
   // Un miroir volontairement périmé ne doit influencer aucune lecture serveur.
-  writeFileSync(join(dir, 'corpus.json'), 'miroir corpus périmé')
+  writeFileSync(join(dir, 'corpus.crp'), 'miroir corpus périmé')
   const adapter = (data: EntretienFichier) => store.adapterEntretienOperationTheme(data)
   const apercus = new ApercusThemesWebDAV(client, adapter)
   return { serveur, client, requetes, dir, store, adapter, apercus }
@@ -93,9 +93,9 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     expect(a.totaux).toMatchObject({ entretiens: 2, passages: 4, orphelins: 2, doublonsPrevisibles: 2 })
     expect(b.apercus.details(a.operationId, 'e1').codages[0].extrait).toBe('Un ext')
     expect(b.apercus.details(a.operationId, 'e1').codages[1]).toMatchObject({ annotationId: 'orphelin', extrait: '' })
-    expect(b.requetes.map((r) => chemin(r).split('/').at(-1))).toEqual(['corpus.json', 'e1.json', 'e2.json', 'corpus.json'])
+    expect(b.requetes.map((r) => chemin(r).split('/').at(-1))).toEqual(['corpus.crp', 'e1.json', 'e2.json', 'corpus.crp'])
     expect(b.requetes.every((r) => r.method === 'GET')).toBe(true)
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe('miroir corpus périmé')
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe('miroir corpus périmé')
     expect(ouvrir).not.toHaveBeenCalled()
     expect(lire).not.toHaveBeenCalled()
     expect(analyserLocal).not.toHaveBeenCalled()
@@ -127,14 +127,14 @@ describe('aperçus de thèmes depuis WebDAV', () => {
   })
 
   test.each([null, 'W/"faible"'])('ETag %s du corpus : refus de l’inventaire entier', async (etag) => {
-    const b = banc((req, rep) => chemin(req).endsWith('/corpus.json') ? remplacerEtag(rep, etag) : rep)
+    const b = banc((req, rep) => chemin(req).endsWith('/corpus.crp') ? remplacerEtag(rep, etag) : rep)
     await expect(b.apercus.analyser(transfert)).rejects.toThrow(/ETag fort/)
     expect(b.requetes).toHaveLength(1)
   })
 
   test('un changement de définitions pendant l’inventaire refuse le nouvel aperçu', async () => {
     const b = banc((req, rep, serveur) => {
-      if (chemin(req).endsWith('/e1.json')) serveur.poser('corpus.json', JSON.stringify({ ...corpus(), nom: 'Autre version' }))
+      if (chemin(req).endsWith('/e1.json')) serveur.poser('corpus.crp', JSON.stringify({ ...corpus(), nom: 'Autre version' }))
       return rep
     })
     await expect(b.apercus.analyser(transfert)).rejects.toThrow(/changé pendant l’inventaire/)
@@ -143,7 +143,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
   test('un contenu corpus différent refuse même avec un ETag identique', async () => {
     let n = 0
     const b = banc(async (req, rep) => {
-      if (!chemin(req).endsWith('/corpus.json') || ++n !== 2) return rep
+      if (!chemin(req).endsWith('/corpus.crp') || ++n !== 2) return rep
       return new Response(JSON.stringify({ ...corpus(), nom: 'Contenu divergent' }), { status: 200, headers: rep.headers })
     })
     await expect(b.apercus.analyser(transfert)).rejects.toThrow(/changé pendant l’inventaire/)
@@ -153,7 +153,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     const b = banc()
     const c = corpus()
     c.membership[id] = { titre: 'Invalide', date: null, lastModified: '' }
-    b.serveur.poser('corpus.json', JSON.stringify(c))
+    b.serveur.poser('corpus.crp', JSON.stringify(c))
     const a = await b.apercus.analyser(transfert)
     expect(a.obstacles).toContainEqual({ phase: 'entretiens', entretienId: id, motif: expect.stringMatching(/Identifiant/) })
     expect(b.requetes).toHaveLength(4)
@@ -204,7 +204,7 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     const b = banc()
     const c = corpus()
     c.codebook.autre = { id: 'autre', nom: 'Autre', parent: 'absente', ordre: 2, actif: true, codeExport: 'autre' }
-    b.serveur.poser('corpus.json', JSON.stringify(c))
+    b.serveur.poser('corpus.crp', JSON.stringify(c))
     const a = await b.apercus.analyser(transfert)
     expect(a.faisable).toBe(false)
     expect(a.obstacles).toContainEqual({ phase: 'definitions', motif: expect.stringMatching(/hiérarchie/) })

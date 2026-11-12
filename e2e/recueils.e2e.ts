@@ -62,7 +62,7 @@ test('recueil vivant dans l’organisation, ajout contextuel et retour à l’en
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
     await expect(page.locator('.editeur')).toContainText('Karine réside Lyon')
 
-    const corpus = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.json'), 'utf8'))
+    const corpus = JSON.parse(readFileSync(join(userDataDir, 'corpus', 'corpus.crp'), 'utf8'))
     const recueil = Object.values(corpus.recueils)[0] as any
     expect(recueil.items[0].source).toMatchObject({ entretienId: 'e1' })
     expect(recueil.items[1]).toMatchObject({ type: 'titre', libelle: 'Contexte' })

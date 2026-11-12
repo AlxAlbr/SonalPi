@@ -46,7 +46,7 @@ function entretien(texte: string): EntretienFichier {
 
 function banc() {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', JSON.stringify(corpus()))
+  serveur.poser('corpus.crp', JSON.stringify(corpus()))
   serveur.poser(`entretiens/${ID}.json`, JSON.stringify(entretien('serveur')))
   const client = new ClientWebDAV(
     { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
@@ -145,7 +145,7 @@ describe('contexte de corpus distant', () => {
         traitements: { ...attendu, motsOutils: ['le'] },
       }))
     expect(preparation.contexte.store.ouvrir().lexico?.motsOutils).toEqual(['le'])
-    const distant = JSON.parse(b.serveur.contenuDe('corpus.json')!) as CorpusFichier
+    const distant = JSON.parse(b.serveur.contenuDe('corpus.crp')!) as CorpusFichier
     expect(distant.lexico?.motsOutils).toEqual(['le'])
 
     await preparation.contexte.fermer()
@@ -155,7 +155,7 @@ describe('contexte de corpus distant', () => {
     const b = banc()
     mkdirSync(join(b.dirLocal, 'entretiens'), { recursive: true })
     mkdirSync(join(b.dirLocal, 'sessions'), { recursive: true })
-    writeFileSync(join(b.dirLocal, 'corpus.json'), JSON.stringify(corpus()), 'utf8')
+    writeFileSync(join(b.dirLocal, 'corpus.crp'), JSON.stringify(corpus()), 'utf8')
     writeFileSync(
       join(b.dirLocal, 'entretiens', `${ID}.json`),
       JSON.stringify(entretien('travail local à récupérer')),

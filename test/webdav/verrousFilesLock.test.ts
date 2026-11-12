@@ -29,7 +29,7 @@ const ID = 'ent-abc'
 
 function banc() {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
-  serveur.poser('corpus.json', corpusDistantValide([ID]))
+  serveur.poser('corpus.crp', corpusDistantValide([ID]))
   serveur.poser(`entretiens/${ID}.json`, entretienDistantValide({ lastModified: 'v1', texte: '' }))
   const dirMiroir = mkdtempSync(join(tmpdir(), 'fileslock-'))
   const clientMax = new ClientWebDAV(

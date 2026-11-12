@@ -37,7 +37,7 @@ test('manuel : pseudonymiser Fatima, poser une exception et contrôler la règle
     await fenetre.evaluate((w) => w.setContentSize(1280, 900))
     await ouvrirCopieExemple(page, dossier, app)
 
-    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpus = JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(corpus.membership).find(([, ref]) => ref.titre === '1Coordinatrice')![0]
     const fichier = join(dossier, 'entretiens', `${id}.json`)
     const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
@@ -116,7 +116,7 @@ test('manuel : pseudonymiser Fatima, poser une exception et contrôler la règle
     const apresControle = lire()
     expect(apresControle.corpsTexte).toEqual(avant.corpsTexte)
     expect(apresControle.annotations.filter((annotation) => annotation.type === 'anon')).toHaveLength(2)
-    expect(JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')).reglesAnon).toBeTruthy()
+    expect(JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')).reglesAnon).toBeTruthy()
   } finally {
     await app.close()
   }

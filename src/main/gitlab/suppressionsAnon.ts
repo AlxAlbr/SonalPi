@@ -70,7 +70,7 @@ export class SuppressionsAnonGitLab {
       if (modifications.length !== 1 || modifications[0].action !== 'update'
         || modifications[0].file_path !== p.chemin || modifications[0].contentSha256 !== createHash('sha256').update(p.contenu).digest('hex')
         || modifications[0].contentOctets !== Buffer.byteLength(p.contenu)) return false
-      const gardes = p.phase === 'entretien' ? [this.chemin('corpus.json')]
+      const gardes = p.phase === 'entretien' ? [this.chemin('corpus.crp')]
         : p.phase === 'retrait' ? j.cibles.filter((c) => c.etat === 'confirme' && Object.hasOwn(p.corpusAvant!.membership, c.id)).map((c) => this.chemin(`entretiens/${c.id}.json`)) : []
       return egaux(donnees.filter((a) => a.action === 'chmod').map((a) => a.file_path).sort(), gardes.sort())
     })
@@ -166,7 +166,7 @@ export class SuppressionsAnonGitLab {
       if (this.nombreCiblesFinales(j, p.instantane.corpus, p.plan.entretiens.map((e) => e.id)) > MAX_CIBLES_SUPPRESSION_ANON_GITLAB) throw new Error(refusCibles)
       this.enCours = true
       try {
-        await this.avecBail('corpus.json', async (droit) => {
+        await this.avecBail('corpus.crp', async (droit) => {
           const frais = await this.lecteur.lireInstantane(false)
           if (!egaux(frais.corpus, p.instantane.corpus)) throw new Error('Le corpus a changé depuis l’aperçu. Recalculez la suppression.')
           if (j) this.verifierCorpus(j, frais.corpus)
@@ -199,10 +199,10 @@ export class SuppressionsAnonGitLab {
         for (const cible of j!.cibles.filter((c) => c.etat === 'a-faire')) {
           try {
             this.exigerSansSession(cible.id)
-            await this.avecBail('corpus.json', (droitCorpus) => this.avecBail(`entretiens/${cible.id}.json`, async (droit) => {
+            await this.avecBail('corpus.crp', (droitCorpus) => this.avecBail(`entretiens/${cible.id}.json`, async (droit) => {
               this.exigerSansSession(cible.id)
               const sha = await this.options.depot.resoudreTete(this.options.destination.branche)
-              const corpusSource = await this.lire('corpus.json', sha), corpus = JSON.parse(corpusSource.contenu) as CorpusFichier
+              const corpusSource = await this.lire('corpus.crp', sha), corpus = JSON.parse(corpusSource.contenu) as CorpusFichier
               this.verifierCorpus(j!, corpus)
               if (!Object.hasOwn(corpus.membership, cible.id)) throw new Error('L’entretien ne fait plus partie du corpus. Recalculez la reprise.')
               const source = await this.lire(`entretiens/${cible.id}.json`, sha)
@@ -221,7 +221,7 @@ export class SuppressionsAnonGitLab {
             this.journal.ecrire(j!)
           }
         }
-        await this.avecBail('corpus.json', async (droit) => {
+        await this.avecBail('corpus.crp', async (droit) => {
           const final = await this.lecteur.lireInstantane(false)
           this.verifierCorpus(j!, final.corpus); this.verifierAcquis(j!, final)
           const controle = inventorierSuppressionAnon(this.corpusDePreparation(final.corpus), sources(final), j!.demande)

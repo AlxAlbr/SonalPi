@@ -39,7 +39,7 @@ function entretien(): EntretienFichier {
 async function banc(natif = false) {
   const serveur = new ServeurWebDAVMemoire()
   serveur.creerDossierRelatif('verrous')
-  serveur.poser('corpus.json', JSON.stringify(corpus()))
+  serveur.poser('corpus.crp', JSON.stringify(corpus()))
   for (const id of ['e1', 'e2', 'e3']) serveur.poser(`entretiens/${id}.json`, JSON.stringify(entretien()))
   const requetes: Request[] = []
   let intercepter: (req: Request) => Promise<Response | undefined> = async () => undefined
@@ -64,7 +64,7 @@ async function banc(natif = false) {
   const tx = creerTransactions()
   const lire = (id: string) => JSON.parse(serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
   const journal = () => JSON.parse(readFileSync(join(miroir.dirLocal, '.themes-webdav.json'), 'utf8'))
-  const puts = () => requetes.filter((r) => r.method === 'PUT' && /\/(corpus\.json|entretiens\/e[123]\.json)$/.test(new URL(r.url).pathname))
+  const puts = () => requetes.filter((r) => r.method === 'PUT' && /\/(corpus\.crp|entretiens\/e[123]\.json)$/.test(new URL(r.url).pathname))
   return { serveur, client, miroir, store, tx, creerTransactions, sessions, recuperables, requetes, lire, journal, puts,
     maximumVerrous: () => maximumVerrous, intercepter: (fn: typeof intercepter) => { intercepter = fn } }
 }
@@ -85,7 +85,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
       expect(b.serveur.verrouNatifDe(`entretiens/${id}.json`)).toBeUndefined()
       expect(b.serveur.contenuDe(`verrous/${id}.lock.json`)).toBeUndefined()
     }
-    expect(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook.source).toBeDefined()
+    expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).codebook.source).toBeDefined()
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(b.puts()).toHaveLength(3)
     expect(b.journal().termine).toBe(true)
@@ -115,7 +115,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     const r = await b.tx.executerOperationTheme(a.operationId, d, options)
     expect(r.statut).toBe('partielle')
     expect(b.journal().cibles).toEqual([])
-    expect(Object.values(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook)).toHaveLength(4)
+    expect(Object.values(JSON.parse(b.serveur.contenuDe('corpus.crp')!).codebook)).toHaveLength(4)
     const tx = b.creerTransactions()
     refuser = false
     const reprise = await tx.preparerRepriseOperationTheme(a.operationId)
@@ -128,7 +128,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     expect(b.journal().cibles).toEqual([])
     expect(b.lire('e2').annotations.find((a) => a.id === 'a')?.code).toBe('destination-b')
     expect(b.lire('e2').annotations.find((a) => a.id === 'orphelin')?.code).toBe('source')
-    expect(b.puts().filter((req) => new URL(req.url).pathname.endsWith('/corpus.json'))).toHaveLength(0)
+    expect(b.puts().filter((req) => new URL(req.url).pathname.endsWith('/corpus.crp'))).toHaveLength(0)
   })
 
   test('entretien changé après l’aperçu : aucun écrasement, échec nommé et poursuite du lot', async () => {
@@ -224,7 +224,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     const creation: DemandeOperationTheme = { type: 'transfert', source: 'source', conserverSource: true,
       cible: { type: 'nouvelle', token: 'nouvelle', nom: 'Nouvelle', parent: null } }
     b.intercepter(async (req) => {
-      if (req.method === 'PUT' && new URL(req.url).pathname.endsWith('/corpus.json')) throw new Error('réponse des définitions perdue')
+      if (req.method === 'PUT' && new URL(req.url).pathname.endsWith('/corpus.crp')) throw new Error('réponse des définitions perdue')
       return undefined
     })
     const a = await b.tx.analyserOperationTheme(creation)
@@ -232,7 +232,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     expect(b.puts()).toHaveLength(1)
     for (const id of ['e1', 'e2', 'e3']) expect(b.lire(id)).toEqual(entretien())
     const j = b.journal()
-    b.serveur.poser('corpus.json', j.publication.contenu)
+    b.serveur.poser('corpus.crp', j.publication.contenu)
     b.intercepter(async () => undefined)
     expect(await b.tx.reconcilierOperationTheme(a.operationId)).toMatchObject({ statut: 'partielle', bilan: { ciblesCreees: j.cibles } })
     expect((await b.tx.preparerRepriseOperationTheme(a.operationId)).demande).toMatchObject({
@@ -249,7 +249,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
       ? new Response('refus', { status: 403 }) : undefined)
     const a = await b.tx.analyserOperationTheme(creation)
     expect(await b.tx.executerOperationTheme(a.operationId, creation, options)).toMatchObject({ statut: 'partielle', bilan: { reussis: [], echecs: [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }], ciblesCreees: [{ token: 'nouvelle' }] } })
-    expect(Object.keys(JSON.parse(b.serveur.contenuDe('corpus.json')!).codebook)).toHaveLength(5)
+    expect(Object.keys(JSON.parse(b.serveur.contenuDe('corpus.crp')!).codebook)).toHaveLength(5)
   })
 
   test('un miroir non actualisable après un commit garde l’intention et ne relance pas le PUT', async () => {
@@ -304,7 +304,7 @@ describe('publication des opérations de thèmes WebDAV', () => {
     const b = await banc()
     const a = await b.tx.analyserOperationTheme(transfert)
     expect(await b.tx.executerOperationTheme(a.operationId, { ...transfert, source: 'cible' }, options)).toMatchObject({ statut: 'non-appliquee' })
-    b.serveur.poser('corpus.json', JSON.stringify({ ...corpus(), nom: 'Modifié' }))
+    b.serveur.poser('corpus.crp', JSON.stringify({ ...corpus(), nom: 'Modifié' }))
     expect(await b.tx.executerOperationTheme(a.operationId, transfert, options)).toMatchObject({ statut: 'non-appliquee', motif: expect.stringMatching(/corpus a changé/) })
     expect(await b.tx.executerOperationTheme('inexistant', { ...division(), effacerSource: true }, options)).toMatchObject({ statut: 'non-appliquee' })
     expect(b.puts()).toHaveLength(0)

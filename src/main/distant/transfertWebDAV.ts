@@ -62,7 +62,7 @@ export class TransfertWebDAV implements TransfertFichiersDistants {
 
   private cheminSain(chemin: string): boolean {
     if (!chemin || chemin.startsWith('/') || chemin.includes('\\')) return false
-    if (chemin.endsWith('.json')) return false
+    if (/\.(json|crp)$/i.test(chemin)) return false
     return !chemin.split('/').some((segment) =>
       segment === '' || segment === '.' || segment === '..' || segment.includes(':') || segment.includes('\0'),
     )

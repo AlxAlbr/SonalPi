@@ -21,10 +21,10 @@ decrire('suppressions de définitions GitLab réelles — entretiens fermés', (
       const sessionAlice = ouvrirSession(alice, `${racine}/entretiens/e2.json`, 'e2')
       const supprimer = () => alice.transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))
       try {
-        const avant = contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))
+        const avant = contenuDe(await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string))
         await expect(sessionBob.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
         await expect(supprimer()).rejects.toThrow(/ouvert en édition/)
-        expect(contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))).toBe(avant)
+        expect(contenuDe(await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string))).toBe(avant)
         await expect(sessionBob.fermer()).resolves.toEqual({ fermee: true })
         await expect(sessionAlice.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
         await expect(supprimer()).rejects.toThrow(/ouvert en édition/)
@@ -49,9 +49,9 @@ decrire('suppressions de définitions GitLab réelles — entretiens fermés', (
           action: 'create', file_path: `${racine}/entretiens/${id}.json`,
           content: JSON.stringify(entretienSuppressionDefinitions(id === 'e1' ? type : undefined)),
         })))
-        const avant = contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))
+        const avant = contenuDe(await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string))
         expect((await alice.transactions.executerSuppressionDefinitions((store) => supprimerDefinitionTest(store, type))).valeur).toEqual({ ok: false, usages: 1 })
-        expect(contenuDe(await lireFichier(`${racine}/corpus.json`, configuration.token1 as string))).toBe(avant)
+        expect(contenuDe(await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string))).toBe(avant)
       } finally {
         nettoyer(alice)
       }

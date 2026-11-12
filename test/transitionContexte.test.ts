@@ -135,7 +135,7 @@ describe('transition de contexte préparée', () => {
 
     expect(appels).toEqual(['preparer', 'fermer', 'finaliser'])
     expect(corpus.nom).toBe('Nouvelle enquête')
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
   })
 
   test('un refus laisse un corpus v2 strictement inchangé', async () => {
@@ -158,7 +158,7 @@ describe('transition de contexte préparée', () => {
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
     }
-    const fichierCorpus = join(dir, 'corpus.json')
+    const fichierCorpus = join(dir, 'corpus.crp')
     const fichierEntretien = join(dir, 'entretiens', 'e1.json')
     const ancienPng = join(dir, 'audio', 'e1.png')
     ecrireJson(fichierCorpus, corpus)
@@ -198,14 +198,14 @@ describe('transition de contexte préparée', () => {
       (preparation) => store.finaliserOuverture(preparation),
     )).rejects.toThrow('session distante bloquée')
 
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(join(dir, 'entretiens'))).toBe(false)
     expect(readFileSync(temoin, 'utf8')).toBe('à conserver')
   })
 
   test('une cible invalide est refusée avant de fermer le contexte actuel', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-transition-invalide-'))
-    writeFileSync(join(dir, 'corpus.json'), '{invalide', 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), '{invalide', 'utf8')
     const store = new CorpusStore(dir)
     let fermetureDemandee = false
 
@@ -216,14 +216,14 @@ describe('transition de contexte préparée', () => {
     )).rejects.toThrow()
 
     expect(fermetureDemandee).toBe(false)
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe('{invalide')
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe('{invalide')
   })
 
   test('une cible modifiée après préparation est refusée', () => {
     const dir = cibleAbsente('sonal-transition-course-')
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture('Préparé')
-    ecrireJson(join(dir, 'corpus.json'), {
+    ecrireJson(join(dir, 'corpus.crp'), {
       formatVersion: 3,
       codebook: {},
       variables: {},
@@ -234,7 +234,7 @@ describe('transition de contexte préparée', () => {
     })
 
     expect(() => store.finaliserOuverture(preparation)).toThrow(/cible a changé/)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).nom)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).nom)
       .toBe('Créé ailleurs')
   })
 })

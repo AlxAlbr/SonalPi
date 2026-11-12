@@ -5,7 +5,7 @@ import { basename, join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { creerTransitionsLocales, oublierCompte } from '../src/main/transitionContexte'
 import type { CorpusFichier, OuvertureCorpus } from '../src/shared/format'
-import type { DemandeMigration } from '../src/shared/corpus/migrationCrp'
+import { MigrationV1 } from '../src/main/migrationV1'
 
 function dossierTemporaire(prefixe: string): string {
   return mkdtempSync(join(tmpdir(), prefixe))
@@ -94,7 +94,7 @@ describe('couture des handlers IPC de changement de corpus', () => {
   test('l’ouverture refusée conserve le contexte et la cible octet pour octet', async () => {
     const banc = bancTransition()
     const cible = dossierTemporaire('sonal-ipc-ouverture-')
-    const fichier = join(cible, 'corpus.json')
+    const fichier = join(cible, 'corpus.crp')
     const contenu = JSON.stringify(corpusVide('Cible existante'), null, 2)
     writeFileSync(fichier, contenu, 'utf8')
 
@@ -105,26 +105,19 @@ describe('couture des handlers IPC de changement de corpus', () => {
     expect(readFileSync(fichier, 'utf8')).toBe(contenu)
   })
 
-  test('la migration refusée conserve le contexte et le dossier non vide', async () => {
+  test('la préparation de migration refuse un dossier non vide sans changer le contexte', () => {
     const banc = bancTransition()
     const cible = dossierTemporaire('sonal-ipc-migration-')
     const temoin = join(cible, 'temoin.txt')
     writeFileSync(temoin, 'intact', 'utf8')
-    const demande: DemandeMigration = {
-      nom: 'Corpus migré',
-      cheminCrp: '/source/corpus.crp',
-      dateCreation: null,
-      dossier: cible,
-      codebook: [],
-      variables: [],
-    }
-
-    await expect(banc.transitions.migrer(demande))
-      .rejects.toThrow('publication impossible')
+    const cheminCrp = join(dossierTemporaire('sonal-ipc-source-'), 'Source.crp')
+    writeFileSync(cheminCrp, JSON.stringify({ tabEnt: [] }))
+    expect(() => new MigrationV1({ nom: 'Corpus migré', cheminCrp, dossier: cible }))
+      .toThrow(/neuf ou vide/)
 
     verifierAncienContexteConserve(banc)
     expect(readFileSync(temoin, 'utf8')).toBe('intact')
-    expect(existsSync(join(cible, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(cible, 'corpus.crp'))).toBe(false)
     expect(existsSync(join(cible, 'entretiens'))).toBe(false)
   })
 })

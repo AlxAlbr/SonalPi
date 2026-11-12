@@ -58,7 +58,7 @@ Les imports `.sonal` et les migrations `.crp` reconstruisent le même modèle :
 - `taille`, `couleur` et `act` sont normalisés.
 
 La migration locale et la migration GitLab appellent toutes deux
-`mapperDefinitions`. Une description V1 rejoint donc le `corpus.json` natif dans
+`mapperDefinitions`. Une description V1 rejoint donc le `corpus.crp` natif dans
 les deux parcours. L’export `.sonal` réunit les deux champs pour rester lisible
 par SonalPi1.
 

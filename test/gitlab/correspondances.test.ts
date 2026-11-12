@@ -31,10 +31,10 @@ function banc() {
   const corpus = corpusAvecEntretiens({ e1: 'Un', e2: 'Deux' })
   const entretien = JSON.parse(entretienPublie('Texte intact')) as EntretienFichier
   entretien.locuteurs = [{ index: 1, nom: 'Karine', personneRef: 'personne-1' }]
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const depot = new DepotMemoire()
-  depot.charger(new Map([['racine/corpus.json', JSON.stringify(corpus)], ...['e1', 'e2'].map((id) => [`racine/entretiens/${id}.json`, JSON.stringify(entretien)] as [string, string])]))
+  depot.charger(new Map([['racine/corpus.crp', JSON.stringify(corpus)], ...['e1', 'e2'].map((id) => [`racine/entretiens/${id}.json`, JSON.stringify(entretien)] as [string, string])]))
   const coordination = new BailGitLab({ branche: 'main', depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 's1' }) })
   const journal = new JournalPublicationGitLab('destination', join(dir, 'operations'))
   const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal, attendre: async () => {} })
@@ -80,7 +80,7 @@ describe('import ciblé GitLab gardé', () => {
     expect(bilan.ajouts).toBe(1); expect(bilan.ignores).toBe(0)
     expect(commitsDonnees(b)).toHaveLength(1)
     expect(commitsDonnees(b)[0].actions[0].action).toBe('update')
-    expect(Object.values(JSON.parse(b.depot.fichiers.get('racine/corpus.json')!.contenu).reglesAnon)).toEqual([expect.objectContaining({ entite: ['Définition partagée'] })])
+    expect(Object.values(JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu).reglesAnon)).toEqual([expect.objectContaining({ entite: ['Définition partagée'] })])
     const autre = banc()
     table.correspondances[2].entite = ['Alias sans occurrence', 'Autre graphie']
     docs[0].texte = JSON.stringify(table)
@@ -113,9 +113,9 @@ describe('import ciblé GitLab gardé', () => {
     await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/entretiens/e2.json'))
     await expect(b.service.appliquer(preparation)).rejects.toThrow('tenu par un autre poste')
     expect(commitsDonnees(b)).toHaveLength(0)
-    expect((await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/corpus.json'))).ok).toBe(true)
+    expect((await bob.acquireRessource(cleRessourceBailGitLab('main', 'racine/corpus.crp'))).ok).toBe(true)
   })
-  test.each(['racine/corpus.json', 'racine/entretiens/e2.json'])('refuse la version modifiée après aperçu : %s', async (chemin) => {
+  test.each(['racine/corpus.crp', 'racine/entretiens/e2.json'])('refuse la version modifiée après aperçu : %s', async (chemin) => {
     const b = banc(); const { preparation } = await preparer(b)
     const data = JSON.parse(b.depot.fichiers.get(chemin)!.contenu); data.lastModified = 'nouvelle-version'
     b.depot.modifierHorsProtocole(chemin, JSON.stringify(data))
@@ -155,7 +155,7 @@ describe('import ciblé GitLab gardé', () => {
     const coordination = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 'relance' }) })
     await reprendreOperationsGitLab({ depot: b.depot, coordination, journal: b.journal, dirMiroir: b.dir })
     expect(b.journal.lister()).toEqual([]); expect(commitsDonnees(b)).toHaveLength(1)
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).not.toContain('Alias sans occurrence')
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).not.toContain('Alias sans occurrence')
   })
   test('le contexte empêche une ouverture pendant le ciblage et conserve les candidats récupérables', async () => {
     const b = banc(); const { preparation } = await preparer(b)

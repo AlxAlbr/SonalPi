@@ -68,8 +68,6 @@ import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
-import type { BilanFichiersMigrationLocale } from '../shared/corpus/conservationMigration'
-import type { ChoixCrpMigration, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type {
   ApiDistant,
@@ -118,6 +116,7 @@ declare global {
       corpus: {
         surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void) => () => void
         ouvrir: () => Promise<CorpusFichier>
+        renommer: (nom: string) => Promise<CorpusFichier>
         dossierCourant: () => Promise<DossierCorpus & { distant: string | null }>
         recents: () => Promise<EntreeRecent[]>
         retirerRecent: (
@@ -321,18 +320,10 @@ declare global {
         extraireTexteEntretien: (nom: string, octets: Uint8Array) => Promise<string>
         cheminDe: (f: File) => string
       }
-      migrer: {
+      migrer: import('../shared/migrationV1').PontMigrationV1 & {
         gitlab: import('../shared/corpus/migrationGitLab').ApiMigrationGitLab
-        preparerFichiers: (cheminCrp: string, dossier: string) => Promise<BilanFichiersMigrationLocale>
-        choisirCrp: () => Promise<ChoixCrpMigration | null>
-        choisirDossier: (nom: string) => Promise<string | null>
-        verifierDossier: (dir: string) => Promise<VerificationDossierMigration>
-        executer: (req: DemandeMigration) => Promise<OuvertureCorpus>
-        lireSonal: (
-          cheminCrp: string,
-          rtrPath: string | null,
-        ) => Promise<{ nom: string; contenu: string } | null>
       }
+      ouverture: import('../shared/ouvertureFichier').PontOuvertureFichier
       exemples: {
         etat: () => Promise<EtatExemples>
         textesSources: () => Promise<Array<{ cle: string; contenu: string }>>

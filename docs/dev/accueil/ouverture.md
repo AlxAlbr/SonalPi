@@ -9,14 +9,15 @@ l’interface doit réutiliser ce cycle, pas affecter directement le dossier cou
 
 | Action | Point d’entrée renderer | Suite côté main |
 |---|---|---|
-| Démarrage | `useCycleCorpus.chargerCorpus()` | Lecture des Récents, puis ouverture du premier récent local admissible. |
-| Ouvrir un dossier | `useCycleCorpus.choisirDossier()`, puis `useProfil` | Choix natif et `changerDossier()`, sauf corpus d’apprentissage reconnu. |
+| Démarrage | `useCycleCorpus.chargerCorpus()` | Demande système prioritaire ; sinon premier récent local admissible. Aucun secours automatique si la demande échoue. |
+| Ouvrir un CRP | `useCycleCorpus.choisirFichier()` ou demande système | `ouverture:preparer`, puis finalisation locale ou proposition V1. |
 | Créer un corpus local | `NouveauCorpus.vue`, puis `creerNouveauCorpus()` | `corpus:creerNouveau` et transition locale. |
 | Cliquer sur un récent | `useCycleCorpus.ouvrirRecent()` | Ouverture locale ou commande du fournisseur distant. |
 | Créer ou reprendre un exemple | `useExemples` | Installation explicite ou ouverture ordinaire ; voir [corpus exemples](exemples.md). |
 | Ouvrir ou créer sur un serveur | `CorpusDistant.vue`, `NouveauCorpusDistant.vue` | Commandes WebDAV ou GitLab, jamais ouverture locale du miroir. |
 
-Le démarrage charge éventuellement un corpus mais laisse l’Accueil affiché.
+Sans fichier explicitement demandé, le démarrage charge éventuellement un corpus
+mais laisse l’Accueil affiché.
 Sans récent local admissible, il ne crée aucun corpus d’exercice. Un retour à
 l’accueil par `allerAccueil()` ferme l’entretien ; il ne désactive pas à lui seul
 le corpus courant.
@@ -57,8 +58,11 @@ et ses contrôles restent côté main. Les captures et générations de contexte
 
 ## Ce qui constitue un corpus neuf
 
-Un dossier correspond à un corpus. L’ouverture ordinaire peut amorcer un dossier
-sans `corpus.json`, contrairement à la réouverture automatique depuis les Récents.
+Un dossier correspond à un corpus et son fichier natif porte le nom fixe
+`corpus.crp`. L'ouverture, par fichier ou par dossier, exige un V2 existant et valide ;
+elle n'amorce jamais un dossier vide ni une cible absente. Seule une création
+explicite peut initialiser un nouveau dossier. Les anciens V2 en `corpus.json`
+sont à sauvegarder et renommer manuellement, sans modification automatique des sources.
 
 Le contenu initial vient de `src/shared/corpus/squelette.ts` : version courante,
 quatre catégories du bloc Pondérations, aucun entretien, et valeurs initiales des
@@ -66,7 +70,7 @@ autres fonctions, notamment tableau de bord et traitements Lexico. Ce même
 squelette sert à la création distante. Ne pas dupliquer ces défauts dans un dialogue.
 
 Chaque instance de `CorpusStore` ne peut amorcer qu’une fois. Après ouverture,
-la disparition de `corpus.json` produit `CORPUS_SUPPRIME`, avant toute création de
+la disparition de `corpus.crp` produit `CORPUS_SUPPRIME`, avant toute création de
 dossier : une commande ne doit pas recréer silencieusement le corpus supprimé.
 
 Deux autres parcours ont des règles différentes :
@@ -74,20 +78,41 @@ Deux autres parcours ont des règles différentes :
 - l’installation d’un exemple exige un dossier vide ou absent, même sans entretien ;
 - la migration SonalPi1 reprend les définitions du `.crp`, pas celles d’un corpus neuf.
 
+## Demandes système et garde d'ouverture
+
+`main/demandesOuverture.ts` traite les arguments, URI `file:` et événements système.
+Le verrou d'instance est propre au profil. Avant disponibilité du renderer, seule
+la première demande est conservée ; ensuite, `useCycleCorpus` rejette les demandes
+concurrentes sans FIFO ni acquittement/rejeu. La garde accompagne aussi la migration,
+le renommage et l'authentification. La file sensible du main est conservée.
+
+`main/ouvertureFichier.ts` identifie le contenu et les chemins canoniques. Un V2
+valide sous un autre nom n'est pas ouvert à sa place ; les miroirs connus renvoient
+au fournisseur et les inconnus sont refusés. Le renderer prépare son autosave avant
+le commit et la fermeture des sessions. Un CRP V1 ouvre la fenêtre minimale de
+[migration locale](../migration/README.md), depuis toute vue.
+
 ## Récents : mémoire du poste et règles de sélection
 
 Les Récents sont enregistrés dans le `settings.json` du profil, pas dans le corpus.
-Le main fournit une liste fraîche à l’accueil et au menu applicatif.
+Le main fournit une liste fraîche à l’accueil et au menu applicatif. Le libellé
+vient de `corpus.crp.nom`, avec repli sur l'emplacement pour les corpus anciens.
+« Renommer le corpus » change ce libellé partagé, pas les chemins ni les URL.
 
 | Entrée | Identité et admissibilité |
 |---|---|
-| Locale | Chemin du dossier ; présence de `corpus.json` et exclusion des corpus d’apprentissage reconnus. |
+| Locale | Chemin du dossier ; présence de `corpus.crp` et exclusion des corpus d’apprentissage reconnus. |
 | Distante | Identifiant du compte WebDAV ou de la destination GitLab ; accès encore enregistré dans le coffre. |
 
 Une entrée distante admissible ne prouve pas que le serveur répond ni que le
 secret est disponible. L’accueil peut demander de repasser par l’assistant de
 connexion. Le fournisseur et l’identifiant servent à rouvrir le corpus, jamais
 le chemin de son miroir.
+
+L'Accueil propose un seul sélecteur local, celui du fichier `.crp`. Sélectionner le
+CRP d'un apprentissage reconnu rattache ce parcours sans remplacer le corpus actif.
+Les opérations internes par dossier restent disponibles pour les récents et les
+exemples, mais n'ont pas de bouton distinct sur l'Accueil.
 
 Le démarrage et le choix de secours après suppression ne sélectionnent que le
 premier récent **local** admissible. Ils n’ouvrent pas automatiquement un serveur.
@@ -124,6 +149,18 @@ rejouée sur le corpus de secours.** La garde de bascule du renderer absorbe les
 notifications simultanées.
 
 ## Entrées distantes
+
+L'ouverture GitLab, par adresse ou destination enregistrée, commence par
+`PreparateurMigrationGitLab.identifier()`. Cette lecture au même commit reconnaît
+le contenu V2 de `corpus.crp` en priorité, ou conserve une préparation V1 et ses
+candidats. Le pont rend alors une ouverture distante ordinaire ou une proposition
+`{ type: 'migration', source }`. Une erreur d'accès ou un natif V2 invalide n'est pas
+un signal V1. Aucun miroir ni reprise d'écriture n'est installé pour identifier une V1.
+
+`useCycleCorpus` remplace la fenêtre de connexion par la fenêtre de passage en
+conservant la même garde et la préparation source. Les accès ne sont pas redemandés.
+La reprise reste disponible dans le volet GitLab d'ouverture distante, sans la carte
+sur l'Accueil et sans nouvelle lecture de la V1. Voir [la migration](../migration/README.md).
 
 La création distante publie le corpus sur le serveur avant de l’ouvrir par son
 fournisseur ; elle ne crée pas un corpus local à synchroniser ensuite.

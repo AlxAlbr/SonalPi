@@ -18,7 +18,7 @@ import type { ModeTriEntretiens } from '../../shared/format'
 
 /** Ce qu'un geste doit savoir du corpus pour se calculer. */
 export type PorteeGesteCorpus =
-  /** Mutation calculée sur le seul `corpus.json`. */
+  /** Mutation calculée sur le seul `corpus.crp`. */
   | 'definitions-corpus'
   /** Mutation qui écrit une référence ou une recette à partir des entretiens
    *  publiés : chaque source lue entre dans le commit, sous sa garde. */
@@ -126,6 +126,7 @@ export type FournisseurCorpus = 'local' | 'webdav' | 'gitlab'
 
 /** Chaque geste du corpus, avec la lecture qu'il exige. */
 const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
+  'corpus.renommer': 'definitions-corpus',
   // Codebook (thèmes).
   'theme.creer': 'definitions-corpus',
   'theme.modifier': 'definitions-corpus',

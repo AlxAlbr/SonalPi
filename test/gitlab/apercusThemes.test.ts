@@ -32,7 +32,7 @@ function entretien(): string {
       { id: 'orphelin', type: 'codage', code: 'source', from: 8, to: 8, auteur: 'test' }] })
 }
 function banc(options: { membres?: string[]; maxApercus?: number; maintenant?: () => number; maxOctetsCache?: number } = {}) {
-  const fichiers: Record<string, string> = { 'donnees/corpus.json': corpus(options.membres),
+  const fichiers: Record<string, string> = { 'donnees/corpus.crp': corpus(options.membres),
     ...Object.fromEntries((options.membres ?? ['e1', 'e2']).map((id) => [`donnees/entretiens/${id}.json`, entretien()])) }
   const versions = new Map([[SHA, fichiers]])
   let tete = SHA
@@ -65,10 +65,10 @@ function banc(options: { membres?: string[]; maxApercus?: number; maintenant?: (
   })
   const locaux: string[] = []
   const observateur = new ObservationBailsGitLab({ instantane: new InstantaneLectureGitLab(client, 'main', 'donnees'),
-    branche: 'main', racine: 'donnees', idsEntretiens: () => Object.keys(JSON.parse(fichiers['donnees/corpus.json']).membership),
+    branche: 'main', racine: 'donnees', idsEntretiens: () => Object.keys(JSON.parse(fichiers['donnees/corpus.crp']).membership),
     ressource: (id) => `entretien:destination:${id}`, bailTenuLocalement: (id) => locaux.includes(id) })
   const dir = mkdtempSync(join(tmpdir(), 'sonal-apercu-gl-'))
-  writeFileSync(join(dir, 'corpus.json'), 'miroir périmé')
+  writeFileSync(join(dir, 'corpus.crp'), 'miroir périmé')
   const store = new CorpusStore(dir)
   const observer = vi.fn((ids, lecteur) => observateur.observerCibles(ids, lecteur))
   const service = new ApercusThemesGitLab({ ...options, client, branche: 'main', racine: 'donnees',
@@ -92,7 +92,7 @@ describe('aperçus des opérations de thèmes GitLab', () => {
   test('tout est lu au SHA résolu, même si la tête change ; aucune écriture ni repli miroir', async () => {
     const b = banc()
     b.intercepter((url) => {
-      if (decodeURIComponent(url.pathname).includes('/files/donnees/corpus.json')) b.nouvelleTete({ ...b.fichiers, 'donnees/corpus.json': 'autre version' })
+      if (decodeURIComponent(url.pathname).includes('/files/donnees/corpus.crp')) b.nouvelleTete({ ...b.fichiers, 'donnees/corpus.crp': 'autre version' })
       return undefined
     })
     const lireLocal = vi.spyOn(b.store, 'lireEntretien')
@@ -101,7 +101,7 @@ describe('aperçus des opérations de thèmes GitLab', () => {
     expect(b.requetes.filter((r) => !r.url.pathname.includes('/branches/')).every((r) => r.url.searchParams.get('ref') === SHA)).toBe(true)
     expect(b.requetes.every((r) => r.methode === 'GET')).toBe(true)
     expect(lireLocal).not.toHaveBeenCalled()
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe('miroir périmé')
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe('miroir périmé')
     expect(b.service.details(a.operationId, 'e1').codages[1]).toMatchObject({ orphelin: true, extrait: '' })
   })
 

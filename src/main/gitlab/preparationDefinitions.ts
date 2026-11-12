@@ -4,7 +4,7 @@
  *  Le store du miroir actif n'est jamais utilisé pour préparer et n'est jamais
  *  déverrouillé : il reste en lecture seule, et ne reçoit ni base fraîche ni
  *  candidat avant que leur statut soit certain. La préparation se fait donc dans
- *  un `CorpusStore` neuf, alimenté du seul `corpus.json` lu sur le serveur, et
+ *  un `CorpusStore` neuf, alimenté du seul `corpus.crp` lu sur le serveur, et
  *  détruit en `finally`.
  *
  *  Un geste qui écrit une référence ou une recette a besoin des entretiens
@@ -73,7 +73,7 @@ export function preparerDefinitions<T>(
 ): ResultatPreparationDefinitions<T> {
   const dossier = mkdtempSync(join(tmpdir(), 'sonal-gitlab-definitions-'))
   try {
-    const cheminCorpus = join(dossier, 'corpus.json')
+    const cheminCorpus = join(dossier, 'corpus.crp')
     writeFileSync(cheminCorpus, contenuServeur, 'utf8')
     mkdirSync(join(dossier, 'entretiens'), { recursive: true })
     for (const source of sources) {

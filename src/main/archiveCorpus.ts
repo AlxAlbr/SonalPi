@@ -1,6 +1,6 @@
 /**
  *  Copie de sauvegarde du corpus LOCAL en archive ZIP.
- *  Le corpus est un dossier autonome (`corpus.json`, `entretiens/`, `png/`,
+ *  Le corpus est un dossier autonome (`corpus.crp`, `entretiens/`, `png/`,
  *  `DocsPrepaProjet/`…) : l'archive en est un instantané fidèle, décompressable
  *  tel quel dans un dossier vide pour retrouver un corpus ouvrable.
  *  Les corpus distants sont refusés : leur sauvegarde relève du serveur.
@@ -89,7 +89,7 @@ export async function archiverCorpusLocal(
         'un corpus distant se sauvegarde sur son serveur.',
     }
   }
-  if (!existsSync(join(dir, 'corpus.json'))) {
+  if (!existsSync(join(dir, 'corpus.crp'))) {
     return { etat: 'refus', message: "Aucun corpus ouvert : il n'y a rien à sauvegarder." }
   }
   const chemin = await choisirDestination(e, {

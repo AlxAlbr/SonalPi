@@ -239,7 +239,7 @@ async function amorcerConsultation(
         actions: [
           {
             action: 'create',
-            file_path: `${racineCourante ? `${racineCourante}/` : ''}corpus.json`,
+            file_path: `${racineCourante ? `${racineCourante}/` : ''}corpus.crp`,
             content: Buffer.from(JSON.stringify(corpus)).toString('base64'),
             encoding: 'base64',
           },
@@ -382,8 +382,8 @@ async function instrumenterDissociation(app: ElectronApplication, projet: number
       if (adresse.pathname === `/api/v4/projects/${args.projet}/repository/commits` && init?.method === 'POST') {
         const commit = JSON.parse(String(init.body))
         if (commit.commit_message.startsWith('Sonal dissociation-')) {
-          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.json' || a.file_path.startsWith('entretiens/')))
-          if (a.file_path === 'corpus.json') {
+          const a = commit.actions.find((a: { action: string; file_path: string }) => a.action === 'update' && (a.file_path === 'corpus.crp' || a.file_path.startsWith('entretiens/')))
+          if (a.file_path === 'corpus.crp') {
             const contenu = JSON.parse(a.encoding === 'base64' ? Buffer.from(a.content, 'base64').toString('utf8') : a.content)
             phase = contenu.reglesAnon.personne ? 'barriere' : 'retrait'
           } else phase = a.file_path.split('/').at(-1).replace('.json', '')
@@ -405,7 +405,7 @@ async function bancDissociation(suffixe: string) {
   const f = fixtureDissociationAnon()
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : dissociation synthétique', actions: [
-    { action: 'create', file_path: 'corpus.json', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
+    { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
   const second = await api<{ id: number }>('/user', configuration.token2 as string)
   await api(`/projects/${projet.id}/members`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }) })
@@ -472,7 +472,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await expect(modal).toContainText('5 passage(s) concerné(s)', { timeout: 30_000 }); await expect(modal.getByRole('checkbox')).not.toBeChecked()
       await modal.getByRole('checkbox').check(); await modal.getByRole('button', { name: 'Confirmer la dissociation globale' }).click()
       await expect(modal).toHaveCount(0, { timeout: 30_000 })
-      expect(JSON.parse((await b.depot.lireFichier('corpus.json', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
+      expect(JSON.parse((await b.depot.lireFichier('corpus.crp', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
       for (const source of b.f.sources) {
         const actuel = JSON.parse((await b.depot.lireFichier(`entretiens/${source.id}.json`, 'main'))!.contenu)
         const attendu = structuredClone(source.data); attendu.lastModified = actuel.lastModified
@@ -497,7 +497,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await expect(bouton).toBeEnabled(); page.once('dialog', (d) => d.dismiss()); await bouton.click()
       await expect(page.locator('.editeur')).toBeVisible()
       await expect(page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true })).toHaveCount(0)
-      expect(JSON.parse((await b.depot.lireFichier('corpus.json', 'main'))!.contenu).dissociationAnon).toBeUndefined()
+      expect(JSON.parse((await b.depot.lireFichier('corpus.crp', 'main'))!.contenu).dissociationAnon).toBeUndefined()
       expect((await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/e1.json'))).ok).toBe(false)
       page.once('dialog', (d) => d.accept()); await bouton.click()
       const modal = page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true }); await expect(modal).toBeVisible({ timeout: 30_000 })
@@ -525,7 +525,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await expect(modal).toContainText('Le serveur n’a pas confirmé le résultat', { timeout: 30_000 })
       await expect(modal.getByRole('button', { name: 'Recalculer la reprise', exact: true })).toBeDisabled()
       await page.screenshot({ path: info.outputPath('dissociation-gitlab-indeterminee.png') })
-      expect(JSON.parse((await b.depot.lireFichier('corpus.json', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
+      expect(JSON.parse((await b.depot.lireFichier('corpus.crp', 'main'))!.contenu).reglesAnon.personne).toBeUndefined()
       await app.evaluate(() => { (globalThis as unknown as { sondeDissociation: SondeDissociation }).sondeDissociation.mode = 'normal' })
       await modal.getByRole('button', { name: 'Relire le suivi GitLab', exact: true }).click()
       await expect(modal).toHaveCount(0, { timeout: 30_000 })
@@ -541,7 +541,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await ouvrirDepuisFormulaireGitLab(page, shim, session, identifiantsDe(configuration.utilisateur as string), '', String(b.projet.id)); await attendreCorpus(page)
       const modal = await ouvrirDissociation(page); await modal.getByRole('checkbox').check(); await modal.getByRole('button', { name: 'Confirmer la dissociation globale' }).click()
       await expect.poll(() => app.evaluate(() => (globalThis as unknown as { sondeDissociation: SondeDissociation }).sondeDissociation.accepte), { timeout: 30_000 }).toBe(true)
-      const cheminBail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.json'))
+      const cheminBail = cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'corpus.crp'))
       const bailAvant = JSON.parse((await b.depot.lireFichier(cheminBail, 'main'))!.contenu)
       const acquis = (await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu
       const processus = app.process(), sortie = new Promise<void>((resolve) => processus.once('exit', () => resolve()))
@@ -586,7 +586,7 @@ test.describe('Consultation GitLab à deux profils', () => {
     f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0,
       modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
     await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : corpus synthétique du renommage', actions: [
-      { action: 'create', file_path: 'corpus.json', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
+      { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
     ] }) })
     const secondCompte = await api<{ id: number }>('/user', configuration.token2 as string)
     await api(`/projects/${projet.id}/members`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ user_id: secondCompte.id, access_level: 40 }) })
@@ -915,7 +915,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       )
       await attendreCorpus(page)
       const corpusCree = await api<{ content: string }>(
-        `/projects/${configuration.projetId}/repository/files/${encodeURIComponent(`${racineCreation}/corpus.json`)}?ref=${branche}`,
+        `/projects/${configuration.projetId}/repository/files/${encodeURIComponent(`${racineCreation}/corpus.crp`)}?ref=${branche}`,
         configuration.token1 as string,
       )
       expect(Buffer.from(corpusCree.content, 'base64').toString('utf8')).toContain(

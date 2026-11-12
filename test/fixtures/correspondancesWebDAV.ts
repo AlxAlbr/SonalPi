@@ -22,7 +22,7 @@ export const entretienImportWebDAV = () => entretienDistantValide({
   corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte intact.' }] }] },
 })
 export function serviceImportWebDAV(client: ClientWebDAV, dir: string, natif: boolean, sessions: string[] = [], miroir = (_chemin: string, _contenu: string, _etag: string) => {}) {
-  writeFileSync(join(dir, 'corpus.json'), corpusDistantValide([]))
+  writeFileSync(join(dir, 'corpus.crp'), corpusDistantValide([]))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const identite = { userId: 'max', machineId: 'banc-correspondances', sessionId: randomUUID() }
   const creer = () => new CorrespondancesWebDAV({ client, store, dirLocal: dir, sessionsLocales: () => sessions, miroir,

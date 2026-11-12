@@ -91,7 +91,7 @@ distant. Pour les règles de push et le rôle de GitHub, voir [remotes](git-remo
 Après `npm run pack:dir`, contrôler :
 
 - `resources/CorpusTest/CorpusSynth/` avec `srt/`, `audio/` et `docs/` ;
-- `resources/CorpusTest/CorpusSynthAnnot/` avec `corpus.json`, `entretiens/` et `png/` ;
+- `resources/CorpusTest/CorpusSynthAnnot/` avec `corpus.crp`, `entretiens/` et `png/` ;
 - `resources/docsCadreExemples/` ;
 - le worker PDF dans `resources/app.asar.unpacked/out/renderer/assets/`.
 

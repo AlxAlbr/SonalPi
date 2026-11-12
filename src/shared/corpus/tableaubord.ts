@@ -8,7 +8,7 @@
  *
  *  Le tableau ne référence rien hors de lui-même : les lignes sont du texte
  *  libre, sans lien au membership ni aux entretiens réels.
- *  Agrégat de `corpus.json.tableaubord` ; fonction pures, sans I/O.
+ *  Agrégat de `corpus.crp.tableaubord` ; fonction pures, sans I/O.
  */
 
 export interface ColonneTableau {

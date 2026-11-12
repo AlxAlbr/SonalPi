@@ -52,7 +52,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…', exact: true }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
     await expect(page.locator('.carte-ent')).toHaveCount(4)
-    const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier
+    const lireCorpus = () => JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier
     const id = Object.entries(lireCorpus().membership).find(([, ref]) => ref.titre === '1Coordinatrice')![0]
     const lireEntretien = () => JSON.parse(readFileSync(join(dossier, 'entretiens', `${id}.json`), 'utf8')) as EntretienFichier
     const avant = lireEntretien()

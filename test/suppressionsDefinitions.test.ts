@@ -83,10 +83,10 @@ describe.each<TypeSuppression>(['thème', 'variable', 'modalité'])('Suppression
   test('un entretien concerné en édition bloque la suppression jusqu’à sa fermeture', () => {
     const b = banc()
     b.store.ouvrirEntretienPourEdition(b.ids[0])
-    const avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(b.dir, 'corpus.crp'), 'utf8')
     const source = readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')
     expect(() => supprimer(b, type)).toThrow(/ouvert en édition/)
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(avant)
     expect(readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')).toBe(source)
     expect(existsSync(join(b.dir, '.transaction-fichiers.json'))).toBe(false)
     b.store.revoquerEcritureEntretien(b.ids[0])
@@ -103,11 +103,11 @@ describe.each<TypeSuppression>(['thème', 'variable', 'modalité'])('Suppression
 
   test('un entretien indisponible empêche toute suppression', () => {
     const b = banc()
-    const avant = readFileSync(join(b.dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(b.dir, 'corpus.crp'), 'utf8')
     const premier = readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')
     rmSync(join(b.dir, 'entretiens', `${b.ids[1]}.json`))
     expect(() => supprimer(b, type)).toThrow(/indisponible/)
-    expect(readFileSync(join(b.dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(avant)
     expect(readFileSync(join(b.dir, 'entretiens', `${b.ids[0]}.json`), 'utf8')).toBe(premier)
     expect(existsSync(join(b.dir, '.transaction-fichiers.json'))).toBe(false)
   })
@@ -121,9 +121,9 @@ describe.each<TypeSuppression>(['thème', 'variable', 'modalité'])('Suppression
     const externe = b.lire(b.ids[1])
     externe.meta.audioRef = '/audio/modifie.wav'
     writeFileSync(fichier, JSON.stringify(externe, null, 2))
-    const corpusAvant = JSON.parse(readFileSync(join(b.dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    const corpusAvant = JSON.parse(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')) as CorpusFichier
     expect(() => new CorpusStore(b.dir).ouvrir()).toThrow(/a changé/)
     expect(b.lire(b.ids[1]).meta.audioRef).toBe('/audio/modifie.wav')
-    expect(JSON.parse(readFileSync(join(b.dir, 'corpus.json'), 'utf8'))).toEqual(corpusAvant)
+    expect(JSON.parse(readFileSync(join(b.dir, 'corpus.crp'), 'utf8'))).toEqual(corpusAvant)
   })
 })

@@ -13,7 +13,7 @@ import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 export function ecrireSeedDemo(dirCorpus: string): void {
   // IDEMPOTENT : ne JAMAIS écraser un corpus existant — les tests de persistance relancent l'app sur le même dossier,
   // et doivent retrouver leur état.
-  if (existsSync(join(dirCorpus, 'corpus.json'))) return
+  if (existsSync(join(dirCorpus, 'corpus.crp'))) return
   const now = new Date().toISOString()
   const blanc = '#ffffff'
   const corpus: CorpusFichier = {
@@ -59,6 +59,6 @@ export function ecrireSeedDemo(dirCorpus: string): void {
     meta: { valeursGen: {}, audioRef: null },
   }
   mkdirSync(join(dirCorpus, 'entretiens'), { recursive: true })
-  writeFileSync(join(dirCorpus, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+  writeFileSync(join(dirCorpus, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
   writeFileSync(join(dirCorpus, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
 }

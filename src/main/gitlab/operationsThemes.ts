@@ -267,9 +267,9 @@ export class OperationsThemesGitLab {
   private async preparerDefinitions(j: JournalThemesGitLab | null, operationId: string, demande: DemandeOperationTheme,
     selectionnes: string[], differes: Array<{ id: string; motif: string }>, echecs: Array<{ id: string; motif: string }>,
     empreinteCorpus: string): Promise<JournalThemesGitLab> {
-    const droit = await this.acquerir(this.ressource('corpus.json'), 'Le corpus GitLab')
+    const droit = await this.acquerir(this.ressource('corpus.crp'), 'Le corpus GitLab')
     try {
-      const fichier = await this.lire('corpus.json', this.deps.branche)
+      const fichier = await this.lire('corpus.crp', this.deps.branche)
       const corpus = decoderCorpusTheme(fichier.contenu)
       exigerAbsenceDissociationGitLab(corpus)
       verifierDemandeOperationTheme(corpus, demande)
@@ -317,8 +317,8 @@ export class OperationsThemesGitLab {
         verifierReferencesThemes(definitions.corpus, [])
         const contenu = JSON.stringify(definitions.corpus, null, 2)
         await this.publier(j, {
-          operationId: this.nouvelleOperation(), phase: 'definitions', chemin: this.chemin('corpus.json'), contenu,
-        }, [{ action: 'update', chemin: this.chemin('corpus.json'), contenu, commitId: fichier.commitId }], droit)
+          operationId: this.nouvelleOperation(), phase: 'definitions', chemin: this.chemin('corpus.crp'), contenu,
+        }, [{ action: 'update', chemin: this.chemin('corpus.crp'), contenu, commitId: fichier.commitId }], droit)
       } else {
         this.verifierDestinations(corpus, j)
         j.definitionsConfirmees = true
@@ -337,7 +337,7 @@ export class OperationsThemesGitLab {
     try {
       this.exigerSansSession(id)
       const sha = await this.deps.depot.resoudreTete(this.deps.branche)
-      const corpusFichier = await this.lire('corpus.json', sha)
+      const corpusFichier = await this.lire('corpus.crp', sha)
       const corpus = decoderCorpusTheme(corpusFichier.contenu)
       exigerAbsenceDissociationGitLab(corpus)
       this.verifierDestinations(corpus, j)
@@ -364,16 +364,16 @@ export class OperationsThemesGitLab {
         entretien: { id, reaffectes: mutation.reaffectes, doublonsSupprimes: mutation.doublonsSupprimes },
       }, [
         { action: 'update', chemin: this.chemin(`entretiens/${id}.json`), contenu, commitId: source.commitId },
-        { action: 'garde', chemin: this.chemin('corpus.json'), commitId: corpusFichier.commitId, executable: corpusFichier.executable },
+        { action: 'garde', chemin: this.chemin('corpus.crp'), commitId: corpusFichier.commitId, executable: corpusFichier.executable },
       ], droit)
     } finally { await this.liberer(droit) }
   }
 
   private async finaliser(j: JournalThemesGitLab, demande: DemandeOperationTheme): Promise<void> {
-    const droit = await this.acquerir(this.ressource('corpus.json'), 'Le corpus GitLab')
+    const droit = await this.acquerir(this.ressource('corpus.crp'), 'Le corpus GitLab')
     try {
       const sha = await this.deps.depot.resoudreTete(this.deps.branche)
-      const fichier = await this.lire('corpus.json', sha)
+      const fichier = await this.lire('corpus.crp', sha)
       const corpus = decoderCorpusTheme(fichier.contenu)
       exigerAbsenceDissociationGitLab(corpus)
       this.verifierDestinations(corpus, j)
@@ -399,8 +399,8 @@ export class OperationsThemesGitLab {
       verifierReferencesThemes(final, entretiens)
       const contenu = JSON.stringify(final, null, 2)
       await this.publier(j, {
-        operationId: this.nouvelleOperation(), phase: 'finalisation', chemin: this.chemin('corpus.json'), contenu,
-      }, [{ action: 'update', chemin: this.chemin('corpus.json'), contenu, commitId: fichier.commitId }, ...gardes], droit)
+        operationId: this.nouvelleOperation(), phase: 'finalisation', chemin: this.chemin('corpus.crp'), contenu,
+      }, [{ action: 'update', chemin: this.chemin('corpus.crp'), contenu, commitId: fichier.commitId }, ...gardes], droit)
     } finally { await this.liberer(droit) }
   }
 

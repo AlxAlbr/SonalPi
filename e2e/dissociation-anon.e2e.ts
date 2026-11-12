@@ -201,7 +201,7 @@ test('dissociation interrompue : journal privé, fermeture et relance sans réé
     await expect(modal).toContainText('Interruption synthétique')
     const cheminAcquis = join(dir, 'entretiens', `${ids[0]}.json`), acquis = readFileSync(cheminAcquis, 'utf8'), mtime = statSync(cheminAcquis).mtimeMs
     expect(JSON.parse(acquis).annotations.some((a: { regle?: string }) => a.regle === regle.id)).toBe(false)
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon[regle.id]).toBeDefined()
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).reglesAnon[regle.id]).toBeDefined()
     expect(statSync(join(dir, '.transaction-fichiers.json')).mode & 0o777).toBe(0o600)
     await app.close()
     app = await lancer(profil); page = await app.firstWindow()

@@ -147,7 +147,7 @@ export class RetraitsVarianteAnonWebDAV {
         if (!j.barriereConfirmee) {
           const apres = structuredClone(frais.corpus)
           apres.retraitVarianteAnon = barriereRetraitVarianteWebDAV(j)
-          await this.publier(j, { phase: 'barriere', chemin: 'corpus.json', avant: frais.sourceCorpus.contenu,
+          await this.publier(j, { phase: 'barriere', chemin: 'corpus.crp', avant: frais.sourceCorpus.contenu,
             apres: this.serialiser(apres, frais.sourceCorpus.contenu), etagAvant: frais.sourceCorpus.etag }, garantir)
         }
       })
@@ -156,7 +156,7 @@ export class RetraitsVarianteAnonWebDAV {
         try {
           await this.avecVerrous([c.id], async (maintenir, garantir) => {
             await maintenir()
-            const corpusSource = await this.lire('corpus.json'), corpus = this.corpus(corpusSource.contenu)
+            const corpusSource = await this.lire('corpus.crp'), corpus = this.corpus(corpusSource.contenu)
             this.verifierCorpus(j!, corpus)
             if (!Object.hasOwn(corpus.membership, c.id)) throw new Error('La cible ne fait plus partie du corpus. Recalculez la reprise.')
             const source = await this.lire(`entretiens/${c.id}.json`)
@@ -182,7 +182,7 @@ export class RetraitsVarianteAnonWebDAV {
         }
         const apres = structuredClone(final.corpus)
         apres.reglesAnon[j!.demande.regleAvant.id].pseudos = [j!.demande.pseudoConserve]; delete apres.retraitVarianteAnon
-        await this.publier(j!, { phase: 'retrait', chemin: 'corpus.json', avant: final.sourceCorpus.contenu,
+        await this.publier(j!, { phase: 'retrait', chemin: 'corpus.crp', avant: final.sourceCorpus.contenu,
           apres: this.serialiser(apres, final.sourceCorpus.contenu), etagAvant: final.sourceCorpus.etag }, garantir)
       })
       return this.bilan(j!)
@@ -222,7 +222,7 @@ export class RetraitsVarianteAnonWebDAV {
   }
   private installerActuels(j: LotRetraitVarianteWebDAV, s: Instantane) {
     try {
-      this.deps.miroir('corpus.json', s.sourceCorpus.contenu, s.sourceCorpus.etag)
+      this.deps.miroir('corpus.crp', s.sourceCorpus.contenu, s.sourceCorpus.etag)
       for (const c of j.cibles.filter((c) => c.etat === 'confirme' && Object.hasOwn(s.corpus.membership, c.id) && !this.sessionPresente(c.id))) {
         const source = s.entretiens.find((e) => e.id === c.id)?.source
         if (!source) throw new Error()
@@ -256,7 +256,7 @@ export class RetraitsVarianteAnonWebDAV {
     await garantir(); j.envoi = envoi; this.journal.ecrire(j)
     try {
       if (corpusSource) {
-        const corpus = await this.lire('corpus.json')
+        const corpus = await this.lire('corpus.crp')
         if (corpus.etag !== corpusSource.etag || corpus.contenu !== corpusSource.contenu) throw new Error('Le corpus a changé avant le PUT de la cible.')
       }
       await garantir(); this.verifierContexte('application')
@@ -376,7 +376,7 @@ export class RetraitsVarianteAnonWebDAV {
   }
   private async lireInventaire(maintenir?: () => Promise<void>): Promise<Instantane> {
     await maintenir?.()
-    const premier = await this.lire('corpus.json'), corpus = this.corpus(premier.contenu)
+    const premier = await this.lire('corpus.crp'), corpus = this.corpus(premier.contenu)
     const entretiens: Instantane['entretiens'] = []
     let octets = Buffer.byteLength(premier.contenu)
     if (octets > 64 * 1024 * 1024) throw new InventaireTropGrand('L’inventaire de retrait dépasse 64 Mio.')
@@ -394,7 +394,7 @@ export class RetraitsVarianteAnonWebDAV {
       }
     }
     await maintenir?.()
-    const dernier = await this.lire('corpus.json')
+    const dernier = await this.lire('corpus.crp')
     if (dernier.etag !== premier.etag || dernier.contenu !== premier.contenu) throw new Error('Le corpus a changé pendant l’inventaire. Recalculez le retrait.')
     return { corpus, sourceCorpus: dernier, entretiens }
   }

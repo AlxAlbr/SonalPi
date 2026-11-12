@@ -24,7 +24,7 @@ function payload(texte: string): PayloadEntretien {
 }
 
 function lireCorpus(dir: string): CorpusFichier {
-  return JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+  return JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
 }
 
 function changerDate(dir: string, id: string, lastModified: string): void {
@@ -75,7 +75,7 @@ describe('CorpusStore — ordre et tri des entretiens', () => {
     const corpus = lireCorpus(dir)
     corpus.membership[ancien].lastModified = '2099-01-01T00:00:00Z'
     corpus.membership[recent].lastModified = '2000-01-01T00:00:00Z'
-    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
 
     expect(store.trierEntretiens('modif').ordreEntretiens).toEqual([recent, ancien])
   })
@@ -98,10 +98,10 @@ describe('CorpusStore — ordre et tri des entretiens', () => {
     const a = store.creerEntretienVide('A').id
     const b = store.creerEntretienVide('B').id
     rmSync(join(dir, 'entretiens', `${b}.json`))
-    const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+    const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
 
     expect(() => store.trierEntretiens('longueur')).toThrow(/ne peut pas être lu/)
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
     expect(store.ouvrir().ordreEntretiens).toEqual([a, b])
   })
 })

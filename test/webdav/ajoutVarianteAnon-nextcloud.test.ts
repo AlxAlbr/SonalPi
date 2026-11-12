@@ -22,7 +22,7 @@ for (const port of [8080, 8081]) {
       const tiers = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`, identifiants: olivier })
       await origin.creerDossier('entretiens'); await origin.creerDossier('verrous')
       const f = fixtureRenommageAnon(); f.corpus.reglesAnon.personne.pseudos = ['Claire']
-      await origin.putTexte('corpus.json', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
+      await origin.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
       for (const s of f.sources) await origin.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
       const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-ajout-variante-nc-'))
       const requetes: { chemin: string; methode: string }[] = [], publies: string[] = [], miroir: string[] = []
@@ -31,7 +31,7 @@ for (const port of [8080, 8081]) {
         const p = decodeURIComponent(new URL(String(url)).pathname).replace(`${new URL(origin.config.baseUrl).pathname}/`, '')
         requetes.push({ chemin: p, methode: init?.method ?? 'GET' }); init = await pieges.avant(p, init)
         const r = await fetch(url, init)
-        if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) publies.push(p)
+        if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) publies.push(p)
         return pieges.apres(p, init, r)
       }
       const client = new ClientWebDAV(origin.config, transport)
@@ -56,8 +56,8 @@ for (const port of [8080, 8081]) {
         const avant = await b.sources()
         expect(await b.moteur.appliquer(b.demande)).toMatchObject({ ajoute: true })
         const attendu = structuredClone(b.f.corpus); attendu.reglesAnon.personne.pseudos.push('Rebecca')
-        expect(JSON.parse(await b.tiers.getTexte('corpus.json'))).toEqual(attendu); expect(await b.sources()).toEqual(avant)
-        expect(b.requetes.some((r) => r.chemin.startsWith('entretiens/'))).toBe(false); expect(b.publies).toEqual(['corpus.json'])
+        expect(JSON.parse(await b.tiers.getTexte('corpus.crp'))).toEqual(attendu); expect(await b.sources()).toEqual(avant)
+        expect(b.requetes.some((r) => r.chemin.startsWith('entretiens/'))).toBe(false); expect(b.publies).toEqual(['corpus.crp'])
       } finally { await rendre(); await b.nettoyer() }
     })
     test('corpus tenu puis doublon : aucune publication', { timeout: 120_000 }, async () => {
@@ -71,11 +71,11 @@ for (const port of [8080, 8081]) {
     test('catégorie fraîche divergente puis relecture et nouveau choix', { timeout: 120_000 }, async () => {
       const b = await banc()
       try {
-        const source = await b.tiers.getTexteAvecEtag('corpus.json'), c = JSON.parse(source.contenu); c.reglesAnon.personne.categorie = 'Autre'
-        await b.tiers.putTexte('corpus.json', JSON.stringify(c, null, 2), { ifMatch: source.etag! })
+        const source = await b.tiers.getTexteAvecEtag('corpus.crp'), c = JSON.parse(source.contenu); c.reglesAnon.personne.categorie = 'Autre'
+        await b.tiers.putTexte('corpus.crp', JSON.stringify(c, null, 2), { ifMatch: source.etag! })
         await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('changé')
         expect(await b.moteur.appliquer({ ...b.demande, regleAvant: c.reglesAnon.personne })).toMatchObject({ ajoute: true })
-        expect(JSON.parse(await b.origin.getTexte('corpus.json')).reglesAnon.personne.categorie).toBe('Autre')
+        expect(JSON.parse(await b.origin.getTexte('corpus.crp')).reglesAnon.personne.categorie).toBe('Autre')
         expect(b.publies).toHaveLength(1)
       } finally { await b.nettoyer() }
     })
@@ -83,28 +83,28 @@ for (const port of [8080, 8081]) {
       const b = await banc(); let concurrent: unknown
       try {
         b.pieges.avant = async (p, init) => {
-          if (p === 'corpus.json' && init?.method === 'PUT') {
+          if (p === 'corpus.crp' && init?.method === 'PUT') {
             const s = await b.tiers.getTexteAvecEtag(p), c = JSON.parse(s.contenu); c.nom = 'Modification du second compte'
             await b.tiers.putTexte(p, JSON.stringify(c, null, 2), { ifMatch: s.etag! }); concurrent = c
           }
           return init
         }
         await expect(b.moteur.appliquer(b.demande)).rejects.toThrow(); expect(b.publies).toHaveLength(0)
-        expect(JSON.parse(await b.origin.getTexte('corpus.json'))).toEqual(concurrent); expect(b.moteur.lireEnvoi()).toBeNull()
+        expect(JSON.parse(await b.origin.getTexte('corpus.crp'))).toEqual(concurrent); expect(b.moteur.lireEnvoi()).toBeNull()
       } finally { await b.nettoyer() }
     })
     test('credential invalide au PUT : refus certain et pas de faux résultat acquis', { timeout: 120_000 }, async () => {
       const b = await banc()
       try {
-        b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') { const headers = new Headers(init.headers); headers.set('Authorization', `Basic ${Buffer.from('max:invalide').toString('base64')}`); return { ...init, headers } } return init }
+        b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') { const headers = new Headers(init.headers); headers.set('Authorization', `Basic ${Buffer.from('max:invalide').toString('base64')}`); return { ...init, headers } } return init }
         await expect(b.moteur.appliquer(b.demande)).rejects.toThrow(); expect(b.moteur.lireEnvoi()).toBeNull(); expect(b.publies).toHaveLength(0)
-        expect(JSON.parse(await b.origin.getTexte('corpus.json')).reglesAnon.personne.pseudos).toEqual(['Claire'])
+        expect(JSON.parse(await b.origin.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Claire'])
       } finally { await b.nettoyer() }
     })
     test('réponse acceptée perdue puis reconnaissance ; nouvelle instance ne rend pas le droit persistant', { timeout: 120_000 }, async () => {
       const b = await banc()
       try {
-        b.pieges.apres = async (p, init, r) => { if (p === 'corpus.json' && init?.method === 'PUT' && r.ok) { await r.body?.cancel(); throw new Error('Réponse perdue') } return r }
+        b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) { await r.body?.cancel(); throw new Error('Réponse perdue') } return r }
         await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('perdue'); expect(b.moteur.lireEnvoi()?.etat).toBe('envoi')
         const droit = await b.origin.getTexteAvecEtag('verrous/corpus.lock.json'), nouveau = b.service()
         await nouveau.reconcilier(); expect(await b.origin.getTexteAvecEtag('verrous/corpus.lock.json')).toEqual(droit)
@@ -115,7 +115,7 @@ for (const port of [8080, 8081]) {
     test('original seul après coupure avant réponse : aucune preuve de refus ni répétition', { timeout: 120_000 }, async () => {
       const b = await banc()
       try {
-        b.pieges.avant = async (p, init) => { if (p === 'corpus.json' && init?.method === 'PUT') throw new Error('Issue inconnue'); return init }
+        b.pieges.avant = async (p, init) => { if (p === 'corpus.crp' && init?.method === 'PUT') throw new Error('Issue inconnue'); return init }
         await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('inconnue')
         const droit = await b.origin.getTexteAvecEtag('verrous/corpus.lock.json')
         await expect(b.moteur.reconcilier()).rejects.toThrow('original'); await expect(b.service().reconcilier()).rejects.toThrow('original')

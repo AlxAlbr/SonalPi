@@ -21,13 +21,13 @@ const dossiers: string[] = []
 afterEach(() => { injection.destination = ''; injection.apresPremier = null; for (const d of dossiers.splice(0)) rmSync(d, { recursive: true, force: true }) })
 function banc() {
   const f = fixtureRetraitVarianteAnon(), dir = mkdtempSync(join(tmpdir(), 'retrait-variante-anon-')); dossiers.push(dir)
-  mkdirSync(join(dir, 'entretiens')); writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  mkdirSync(join(dir, 'entretiens')); writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   for (const s of f.sources) writeFileSync(join(dir, `entretiens/${s.id}.json`), JSON.stringify(s.data))
   let store = new CorpusStore(dir); store.ouvrir()
   let maintenant = Date.parse('2026-10-11T00:00:00.000Z'), local = true, refus = false
   const cache = new RetraitsVarianteAnon({ store: () => store, maintenant: () => maintenant, local: () => local, exiger: () => { if (refus) throw new Error('Politique refusée.') } })
   const lire = (id = 'e1'): EntretienFichier => JSON.parse(readFileSync(join(dir, `entretiens/${id}.json`), 'utf8'))
-  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
+  const corpus = (): CorpusFichier => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
   const fichier = join(dir, '.transaction-fichiers.json')
   return { f, dir, fichier, get store() { return store }, cache, lire, corpus, preparer: () => cache.preparer(f.demande),
     changerStore: () => { store = new CorpusStore(dir) }, expirer: () => { maintenant += 300_001 }, distant: () => { local = false }, refuser: () => { refus = true }, autoriser: () => { refus = false } }
@@ -43,7 +43,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
     expect(b.corpus().membership.e1.lastModified).toBe(attendu.lastModified)
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toBe(tiers); expect(existsSync(b.fichier)).toBe(false)
   })
-  test('variante inutilisée : seul corpus.json change, même avec des liens vers la variante restante', () => {
+  test('variante inutilisée : seul corpus.crp change, même avec des liens vers la variante restante', () => {
     const b = banc()
     for (const id of ['e1', 'e2']) {
       const d = b.lire(id); for (const a of d.annotations) if (a.regle === 'personne') a.pseudo = 'Rebecca'
@@ -76,7 +76,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
     const b = banc(), p = b.preparer(), avant = b.lire()
     if (cas === 'cible' || cas === 'non-cible') { const id = cas === 'cible' ? 'e2' : 'e3'; writeFileSync(join(b.dir, `entretiens/${id}.json`), JSON.stringify({ ...b.lire(id), lastModified: 'concurrent' })) }
     else if (cas === 'absence') rmSync(join(b.dir, 'entretiens/e3.json'))
-    else { const c = b.corpus(); c.reglesAnon.personne.categorie = 'Concurrente'; writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c)) }
+    else { const c = b.corpus(); c.reglesAnon.personne.categorie = 'Concurrente'; writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c)) }
     expect(() => b.cache.appliquer(p.token, true)).toThrow('changé'); expect(b.lire()).toEqual(avant); expect(existsSync(b.fichier)).toBe(false)
   })
   test('une fermeture ultérieure ne donne pas d’autorité au bilan ; sauvegarde tardive refusée', () => {
@@ -89,7 +89,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
     expect(() => b.cache.appliquer(p.token, true)).toThrow('Fermez'); expect(existsSync(b.fichier)).toBe(false)
   })
   test.each(['entretien', 'corpus'] as const)('interruption avant %s : reprise sans retoucher les acquis', (etape) => {
-    const b = banc(); injection.destination = join(b.dir, etape === 'entretien' ? 'entretiens/e2.json' : 'corpus.json')
+    const b = banc(); injection.destination = join(b.dir, etape === 'entretien' ? 'entretiens/e2.json' : 'corpus.crp')
     expect(() => b.cache.appliquer(b.preparer().token, true)).toThrow('Interruption')
     expect(JSON.parse(readFileSync(b.fichier, 'utf8')).formatVersion).toBe(5); expect(statSync(b.fichier).mode & 0o777).toBe(0o600)
     const acquis = readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8'), date = statSync(join(b.dir, 'entretiens/e1.json')).mtimeMs
@@ -102,7 +102,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
   test.each(['cible', 'acquis', 'non-cible', 'nouveau-choix', 'corpus'] as const)('concurrence entre remplacements suspend sans réparer : %s', (cas) => {
     const b = banc()
     injection.apresPremier = () => {
-      if (cas === 'corpus') { const c = b.corpus(); c.nom = 'Concurrent'; writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(c)); return }
+      if (cas === 'corpus') { const c = b.corpus(); c.nom = 'Concurrent'; writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(c)); return }
       const id = cas === 'cible' ? 'e2' : cas === 'acquis' ? 'e1' : 'e3', d = b.lire(id)
       if (cas === 'nouveau-choix') d.annotations.find((a) => a.id === 'a0')!.pseudo = 'Claire'
       else d.lastModified = 'concurrent'
@@ -130,7 +130,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
       const d = b.lire('e3'); d.annotations.find((a) => a.id === 'a0')!.pseudo = 'Claire'; writeFileSync(join(b.dir, 'entretiens/e3.json'), JSON.stringify(d))
       j.plan.controleRetraitVariante.nonCibles[0].empreinte = createHash('sha256').update(JSON.stringify(d)).digest('hex')
     }
-    if (cas === 'final-premature') writeFileSync(join(b.dir, 'corpus.json'), JSON.stringify(j.plan.corpusApres))
+    if (cas === 'final-premature') writeFileSync(join(b.dir, 'corpus.crp'), JSON.stringify(j.plan.corpusApres))
     writeFileSync(b.fichier, JSON.stringify(j)); const avant = b.lire('e2')
     expect(() => new CorpusStore(b.dir).ouvrir()).toThrow(); expect(b.lire('e2')).toEqual(avant)
   })

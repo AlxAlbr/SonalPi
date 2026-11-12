@@ -53,7 +53,7 @@ Principes communs :
 
 Les opérations globales locales utilisent les fichiers du corpus comme autorité.
 Elles préparent toutes les transformations avant le premier remplacement, puis
-écrivent les entretiens ciblés avant `corpus.json`.
+écrivent les entretiens ciblés avant `corpus.crp`.
 
 `.transaction-fichiers.json` conserve les images nécessaires à une reprise
 idempotente. Sa version dépend de l’opération afin que la lecture puisse

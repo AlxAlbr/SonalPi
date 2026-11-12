@@ -18,7 +18,7 @@ function manifeste(version: string): ManifesteMiroir {
     formatVersion: 2,
     destination: IDENTITE,
     empreintes: {
-      'corpus.json': { type: 'webdav-etag', valeur: `corpus-${version}` },
+      'corpus.crp': { type: 'webdav-etag', valeur: `corpus-${version}` },
       'entretiens/e1.json': { type: 'webdav-etag', valeur: `e1-${version}` },
     },
   }
@@ -27,7 +27,7 @@ function manifeste(version: string): ManifesteMiroir {
 describe('installation locale du miroir', () => {
   test('reprend toutes les actions après une interruption entre deux remplacements', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-installation-miroir-'))
-    writeFileSync(join(dir, 'corpus.json'), 'corpus-v1')
+    writeFileSync(join(dir, 'corpus.crp'), 'corpus-v1')
     writeFileSync(join(dir, 'ancien.json'), 'a-archiver')
     writeFileSync(join(dir, '.manifeste.json'), JSON.stringify(manifeste('v1')))
 
@@ -44,14 +44,14 @@ describe('installation locale du miroir', () => {
 
     expect(() => interrompue.appliquer(preparation, {
       installations: [
-        { chemin: 'corpus.json', fichierPrepare: corpusPrepare },
+        { chemin: 'corpus.crp', fichierPrepare: corpusPrepare },
         { chemin: 'entretiens/e1.json', fichierPrepare: entretienPrepare },
       ],
       archives: [{ chemin: 'ancien.json', destination: 'corbeille-miroir/ancien.json' }],
       manifeste: manifeste('v2'),
     })).toThrow('arrêt simulé')
 
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe('corpus-v2')
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe('corpus-v2')
     expect(existsSync(join(dir, 'entretiens/e1.json'))).toBe(false)
     expect(JSON.parse(readFileSync(join(dir, '.manifeste.json'), 'utf8')))
       .toEqual(manifeste('v1'))
@@ -59,7 +59,7 @@ describe('installation locale du miroir', () => {
 
     new InstallationLocaleMiroir(dir, IDENTITE).reprendre()
 
-    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe('corpus-v2')
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe('corpus-v2')
     expect(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).toBe('entretien-v2')
     expect(readFileSync(join(dir, 'corbeille-miroir/ancien.json'), 'utf8')).toBe('a-archiver')
     expect(JSON.parse(readFileSync(join(dir, '.manifeste.json'), 'utf8')))
@@ -77,7 +77,7 @@ describe('installation locale du miroir', () => {
     const fichierPrepare = installation.cheminFichierPrepare(preparation, 0)
     writeFileSync(fichierPrepare, 'contenu')
     expect(() => installation.appliquer(preparation, {
-      installations: [{ chemin: 'corpus.json', fichierPrepare }],
+      installations: [{ chemin: 'corpus.crp', fichierPrepare }],
       archives: [],
       manifeste: manifeste('v2'),
     })).toThrow('arrêt simulé')
@@ -87,6 +87,6 @@ describe('installation locale du miroir', () => {
       destinationId: 'autre-destination',
     })
     expect(() => autre.reprendre()).toThrow('autre destination')
-    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dir, 'corpus.crp'))).toBe(true)
   })
 })

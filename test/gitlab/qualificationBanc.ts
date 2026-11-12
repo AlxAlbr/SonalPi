@@ -139,7 +139,7 @@ export async function creerRacine(
   try {
     await depot.publierCommit('main', `qualification ${etiquetteExecution()}: corpus ${suffixe}`, [{
       action: 'create',
-      file_path: `${racine}/corpus.json`,
+      file_path: `${racine}/corpus.crp`,
       content: JSON.stringify(corpus, null, 2),
     }])
   } catch (erreur) {
@@ -160,9 +160,9 @@ export function nouveauDepot(jeton: string, instance?: string): DepotCommitsGitL
   }))
 }
 
-/** Chemin du bail de `corpus.json` : les commits de coordination s'y comptent. */
+/** Chemin du bail de `corpus.crp` : les commits de coordination s'y comptent. */
 export function cheminBailCorpus(racine: string): string {
-  return cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${racine}/corpus.json`))
+  return cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${racine}/corpus.crp`))
 }
 
 export interface Pile {
@@ -225,7 +225,7 @@ export function pile(options: {
 }): Pile {
   const dossier = options.dossier ?? mkdtempSync(join(tmpdir(), `sonal-banc-${prefixe}-`))
   mkdirSync(join(dossier, 'entretiens'), { recursive: true })
-  const cheminCorpusLocal = join(dossier, 'corpus.json')
+  const cheminCorpusLocal = join(dossier, 'corpus.crp')
   if (options.corpusLocal || !existsSync(cheminCorpusLocal)) {
     writeFileSync(
       cheminCorpusLocal,
@@ -268,8 +268,8 @@ export function pile(options: {
       }
     }
     const estDonnees = estCommit && (
-      (corps.includes(`"${options.racine}/entretiens/`) && corps.includes(`"${options.racine}/corpus.json"`))
-      || (options.inclureCorpusSeul === true && actionsCommit.some((a) => a.action === 'update' && a.file_path === `${options.racine}/corpus.json`)))
+      (corps.includes(`"${options.racine}/entretiens/`) && corps.includes(`"${options.racine}/corpus.crp"`))
+      || (options.inclureCorpusSeul === true && actionsCommit.some((a) => a.action === 'update' && a.file_path === `${options.racine}/corpus.crp`)))
     try {
       if (pannes.historique && url.searchParams.has('search')) {
         throw new Error('historique indisponible')
@@ -320,8 +320,8 @@ export function pile(options: {
     options.journalRepertoire ?? join(dossier, 'operations'),
     undefined,
     {
-      chemin: `${options.racine}/corpus.json`,
-      resourceHash: cleRessourceBailGitLab('main', `${options.racine}/corpus.json`),
+      chemin: `${options.racine}/corpus.crp`,
+      resourceHash: cleRessourceBailGitLab('main', `${options.racine}/corpus.crp`),
     },
   )
   const coordination = new BailGitLab({
@@ -359,7 +359,7 @@ export function pile(options: {
     commitsEnvoyes,
     dossier,
     racine: options.racine,
-    lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier,
+    lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.crp'), 'utf8')) as CorpusFichier,
     /** Le commit de données partira, sa réponse ne reviendra pas. */
     perdreReponseDuCommitDeDonnees(course?: (p: Pile) => Promise<void>): void {
       if (course) avantDonnees.push({ condition: () => true, course })
@@ -393,7 +393,7 @@ export function pile(options: {
 /** Session réelle d'un entretien de qualification, avec son stockage local. */
 export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
   const stockage = new StockageLocalEntretienGitLab(p.dossier, `entretiens/${suffixe}.json`)
-  const cheminCorpus = p.racine ? `${p.racine}/corpus.json` : 'corpus.json'
+  const cheminCorpus = p.racine ? `${p.racine}/corpus.crp` : 'corpus.crp'
   const session = new SessionGitLab({
     id: suffixe,
     ressource: `entretien:qualification:${p.racine}:${suffixe}`,
@@ -411,7 +411,7 @@ export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
     journal: p.journal,
     preparerGardeDefinitions: async (contenuEntretien, contenuAvant) => {
       const corpus = await p.depot.lireFichier(cheminCorpus, 'main')
-      if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+      if (!corpus) throw new Error('Le fichier corpus.crp est introuvable sur GitLab.')
       verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu, contenuAvant)
       return {
         action: 'update',

@@ -61,7 +61,7 @@ exposé.
 
 ## WebDAV
 
-`ApercusThemesWebDAV` lit `corpus.json` et chaque entretien directement sur le
+`ApercusThemesWebDAV` lit `corpus.crp` et chaque entretien directement sur le
 serveur. Le contenu et son ETag fort proviennent du même GET ; un ETag absent ou
 faible rend la source indisponible. Le corpus est relu après l’inventaire pour
 détecter une modification des définitions ou du membership.
@@ -96,7 +96,7 @@ disponibilité est vérifiée à nouveau pendant l’exécution.
 
 `OperationsThemesGitLab` utilise des commits courts :
 
-- création éventuelle d’une destination sous le bail de `corpus.json` ;
+- création éventuelle d’une destination sous le bail de `corpus.crp` ;
 - réaffectation d’un entretien sous son bail ;
 - garde légère du codebook dans chaque commit d’entretien ;
 - finalisation séparée pour retirer les sources.

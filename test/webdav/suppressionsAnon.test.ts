@@ -21,7 +21,7 @@ function banc(natif: boolean, maintenant = Date.now) {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }), source = fixtureSuppression()
   serveur.creerDossierRelatif('verrous')
   const f = { ...source, entretiens: Object.fromEntries(source.sources.map((s) => [s.id, s.data])) }
-  serveur.poser('corpus.json', JSON.stringify(f.corpus, null, 2))
+  serveur.poser('corpus.crp', JSON.stringify(f.corpus, null, 2))
   for (const [id, data] of Object.entries(f.entretiens)) serveur.poser(`entretiens/${id}.json`, JSON.stringify(data, null, 2))
   const dir = mkdtempSync(join(tmpdir(), 'sonal-suppression-webdav-')); dirs.push(dir)
   const sessions: string[] = [], miroirs = new Map<string, string>(), puts: string[] = [], acquisitions: string[] = []
@@ -32,18 +32,18 @@ function banc(natif: boolean, maintenant = Date.now) {
     const chemin = decodeURIComponent(new URL(url).pathname).replace(`${serveur.racineDav}/`, '').replace(/\/$/, '')
     await pieges.avant(chemin, init)
     const reponse = await serveur.fetch(input, init)
-    if (init.method === 'PUT' && reponse.ok && (chemin === 'corpus.json' || chemin.startsWith('entretiens/'))) puts.push(chemin)
+    if (init.method === 'PUT' && reponse.ok && (chemin === 'corpus.crp' || chemin.startsWith('entretiens/'))) puts.push(chemin)
     if ((init.method === 'LOCK' || init.method === 'PUT' && chemin.startsWith('verrous/')) && reponse.ok) acquisitions.push(chemin)
     await pieges.apres(chemin, init)
     return reponse
   }
   const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, fetch)
   const creer = () => serviceSuppressionWebDAV(client, dir, natif, sessions, (p, c) => {
-    if (panne.miroir || panne.final && p === 'corpus.json' && !JSON.parse(c).suppressionAnon) throw new Error('miroir indisponible')
+    if (panne.miroir || panne.final && p === 'corpus.crp' && !JSON.parse(c).suppressionAnon) throw new Error('miroir indisponible')
     miroirs.set(p, c)
   }, maintenant)
   const service = creer()
-  const corpus = () => JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
+  const corpus = () => JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
   const entretien = (id: string) => JSON.parse(serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
   const tenir = async (id: string) => {
     const identite = { userId: 'olivier', machineId: 'autre-poste', sessionId: 'session-autre' }
@@ -62,7 +62,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
       const id = `e${i}`; corpus.membership[id] = { ...corpus.membership.e3, titre: id }
       b.serveur.poser(`entretiens/${id}.json`, JSON.stringify(b.f.entretiens.e3))
     }
-    b.serveur.poser('corpus.json', JSON.stringify(corpus)); b.sessions.push('e3')
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus)); b.sessions.push('e3')
     const rendre = await b.tenir('e4'), avant = b.serveur.contenuDe('entretiens/e3.json')
     b.acquisitions.length = 0
     const p = await b.service.preparer(demande)
@@ -70,7 +70,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     p.regle.pseudos.push('sans autorité')
     const r = await b.service.appliquer(p.token, true)
     expect(r).toMatchObject({ statut: 'termine', annotations: 8, entretiens: 2, inclusesRetirees: 2, inclusesRevelees: 0, regleRetiree: true })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
     expect(b.acquisitions.some((c) => /e(?:3|4)\./.test(c))).toBe(false)
     expect(b.serveur.contenuDe('entretiens/e3.json')).toBe(avant)
     expect(b.corpus().suppressionAnon).toBeUndefined(); expect(b.corpus().reglesAnon.personne).toBeUndefined()
@@ -103,14 +103,14 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     const p = await b.service.preparer(demande)
     expect(p.bilan.annotations).toBe(0)
     expect((await b.service.appliquer(p.token, true)).statut).toBe('termine')
-    expect(b.puts).toEqual(['corpus.json', 'corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'corpus.crp'])
     expect(b.acquisitions.every((p) => p === 'verrous/corpus.lock.json')).toBe(true)
   })
   it('refuse un aperçu expiré pendant les lectures après acquisition du verrou', async () => {
     let temps = Date.now(); const b = banc(natif, () => temps), p = await b.service.preparer(demande)
     let avance = false
     b.pieges.avant = async (chemin, init) => {
-      if (!avance && chemin === 'corpus.json' && init.method === 'GET') { avance = true; temps += 300_001 }
+      if (!avance && chemin === 'corpus.crp' && init.method === 'GET') { avance = true; temps += 300_001 }
     }
     await expect(b.service.appliquer(p.token, true)).rejects.toThrow('expiré')
     expect(b.puts).toEqual([])
@@ -120,7 +120,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     await b.service.preparer(demande); await b.service.preparer(demande); const p = await b.service.preparer(demande)
     await expect(b.service.appliquer(vieux.token, true)).rejects.toThrow('expiré')
     const corpus = b.corpus(); corpus.reglesAnon.personne.categorie = 'Autre'
-    b.serveur.poser('corpus.json', JSON.stringify(corpus))
+    b.serveur.poser('corpus.crp', JSON.stringify(corpus))
     await expect(b.service.appliquer(p.token, true)).rejects.toThrow('corpus a changé')
     expect(b.puts).toEqual([])
   })
@@ -137,12 +137,12 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
       original.call(this, j)
       if (!change && j.envoi?.phase === 'entretien') {
         change = true; const corpus = b.corpus(); corpus.reglesAnon.personne.categorie = 'Changement extérieur'
-        b.serveur.poser('corpus.json', JSON.stringify(corpus))
+        b.serveur.poser('corpus.crp', JSON.stringify(corpus))
       }
     })
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
     expect(r).toMatchObject({ statut: 'partiel', annotations: 0 })
-    expect(b.puts).toEqual(['corpus.json']); expect(b.entretien('e1')).toEqual(b.f.entretiens.e1)
+    expect(b.puts).toEqual(['corpus.crp']); expect(b.entretien('e1')).toEqual(b.f.entretiens.e1)
     expect(JSON.parse(readFileSync(join(b.dir, '.suppression-anon-webdav.json'), 'utf8')).envoi).toBeUndefined()
   })
   it('une modification indépendante valide de la mémoire acquise n’est ni restaurée ni supprimée', async () => {
@@ -189,7 +189,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
     expect(r).toMatchObject({ statut: 'partiel', annotations: 4 })
     expect(b.entretien('e1')).toEqual(b.f.entretiens.e1)
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e2.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e2.json'])
     expect(JSON.parse(readFileSync(join(b.dir, '.suppression-anon-webdav.json'), 'utf8')).envoi).toBeUndefined()
   })
   it('consomme le token même sans consentement ; refuse sa copie dans une autre instance', async () => {
@@ -247,7 +247,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     expect(reprise.bilan.annotations).toBe(4)
     const fin = await b.service.appliquer(reprise.token, true)
     expect(fin).toMatchObject({ statut: 'termine', annotations: 12 })
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json', 'entretiens/e2.json', 'entretiens/e3.json', 'corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'entretiens/e3.json', 'corpus.crp'])
   })
   it('suspend le retrait et la reprise si un lien revient dans un acquis, sans l’enlever implicitement', async () => {
     const b = banc(natif)
@@ -280,7 +280,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     b.pieges.apres = async (p, init) => { if (p === 'entretiens/e1.json' && init.method === 'PUT') { bloque = true; throw new Error('réponse perdue') } }
     b.pieges.avant = async (p, init) => {
       if (p === 'entretiens/e1.json' && init.method === 'GET') { if (bloque) throw new Error('lecture indisponible'); prouve = true }
-      if (p === 'corpus.json' && init.method === 'GET' && prouve && b.service.lireSuivi()?.annotations === 4) {
+      if (p === 'corpus.crp' && init.method === 'GET' && prouve && b.service.lireSuivi()?.annotations === 4) {
         const e = b.entretien('e1'); e.meta.titre = 'Source actuelle'; b.serveur.poser('entretiens/e1.json', JSON.stringify(e)); prouve = false
       }
     }
@@ -302,7 +302,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
     expect(r.statut).toBe('indetermine')
     await expect(b.service.relireSuivi(r.operationId)).rejects.toThrow('original ne prouve pas')
-    expect(b.puts).toEqual(['corpus.json'])
+    expect(b.puts).toEqual(['corpus.crp'])
     expect((await new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'nouveau', sessionId: 'autre' })).acquerir('verrous/corpus.lock.json')).ok).toBe(false)
   })
   it('une nouvelle instance refuse le verrou persistant du même compte, puis reprend après reconnaissance par le détenteur vivant', async () => {
@@ -312,7 +312,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true), autre = b.creer()
     bloque = false
     await expect(autre.relireSuivi(r.operationId)).rejects.toThrow('verrou reste tenu')
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
     await b.service.relireSuivi(r.operationId)
     b.pieges.apres = async () => {}
     const reprise = await autre.preparerReprise(r.operationId)
@@ -322,9 +322,9 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
   it('reconnaît le retrait final accepté sans seconde publication', async () => {
     const b = banc(natif); let bloque = false
     b.pieges.apres = async (p, init) => {
-      if (p === 'corpus.json' && init.method === 'PUT' && !(JSON.parse(init.body as string) as CorpusFichier).reglesAnon.personne) { bloque = true; throw new Error('réponse finale perdue') }
+      if (p === 'corpus.crp' && init.method === 'PUT' && !(JSON.parse(init.body as string) as CorpusFichier).reglesAnon.personne) { bloque = true; throw new Error('réponse finale perdue') }
     }
-    b.pieges.avant = async (p, init) => { if (bloque && p === 'corpus.json' && init.method === 'GET') throw new Error('lecture indisponible') }
+    b.pieges.avant = async (p, init) => { if (bloque && p === 'corpus.crp' && init.method === 'GET') throw new Error('lecture indisponible') }
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
     expect(r).toMatchObject({ statut: 'indetermine', annotations: 8, regleRetiree: false })
     bloque = false
@@ -335,7 +335,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
   it('retire explicitement une cible sortie du membership sans modifier son fichier', async () => {
     const b = banc(natif), rendre = await b.tenir('e2')
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
-    const corps = b.corpus(); delete corps.membership.e2; b.serveur.poser('corpus.json', JSON.stringify(corps))
+    const corps = b.corpus(); delete corps.membership.e2; b.serveur.poser('corpus.crp', JSON.stringify(corps))
     const avant = b.serveur.contenuDe('entretiens/e2.json'), reprise = await b.service.preparerReprise(r.operationId)
     expect(reprise.ciblesRetirees).toEqual(['e2'])
     expect((await b.service.appliquer(reprise.token, true)).statut).toBe('termine')
@@ -374,7 +374,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     b.pieges.avant = async () => {}; b.pieges.apres = async () => {}
     expect(await b.service.relireSuivi(r.operationId)).toMatchObject({ statut: 'partiel', annotations: 4 })
     expect(() => b.service.exigerMiroirComplet()).not.toThrow()
-    expect(b.puts).toEqual(['corpus.json', 'entretiens/e1.json'])
+    expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json'])
   })
   it('la préparation de reprise ne modifie ni les sources ni les fichiers du miroir', async () => {
     const b = banc(natif), rendre = await b.tenir('e2'), p = await b.service.preparer(demande)
@@ -398,7 +398,7 @@ it('un membre nommé __proto__ reste une propriété propre lors de la reprise c
   const b = banc(false), rendre = await b.tenir('e2'), p = await b.service.preparer(demande)
   const r = await b.service.appliquer(p.token, true), corpus = b.corpus()
   Object.defineProperty(corpus.membership, '__proto__', { value: structuredClone(corpus.membership.e1), enumerable: true })
-  b.serveur.poser('corpus.json', JSON.stringify(corpus)); b.serveur.poser('entretiens/__proto__.json', JSON.stringify(b.f.entretiens.e1))
+  b.serveur.poser('corpus.crp', JSON.stringify(corpus)); b.serveur.poser('entretiens/__proto__.json', JSON.stringify(b.f.entretiens.e1))
   const reprise = await b.service.preparerReprise(r.operationId)
   expect(reprise.entretiens.some((e) => e.id === '__proto__' && e.annotations === 4)).toBe(true)
   await rendre(); expect((await b.service.appliquer(reprise.token, true)).statut).toBe('termine')

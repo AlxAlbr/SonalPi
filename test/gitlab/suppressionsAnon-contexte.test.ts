@@ -21,10 +21,10 @@ function banc(recuperables: string[] = []) {
   const f = fixtureDissociationAnon()
   f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const dir = mkdtempSync(join(tmpdir(), 'suppression-contexte-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
-  writeFileSync(join(dir, 'corpus.json'), JSON.stringify(f.corpus))
+  writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus))
   for (const s of f.sources) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), JSON.stringify(s.data))
   const store = new CorpusStore(dir); store.lectureSeule = true
-  const depot = new DepotMemoire(); depot.charger(new Map([['racine/corpus.json', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
+  const depot = new DepotMemoire(); depot.charger(new Map([['racine/corpus.crp', JSON.stringify(f.corpus)], ...f.sources.map((s) => [`racine/entretiens/${s.id}.json`, JSON.stringify(s.data)] as [string, string])]))
   const coordination = new BailGitLab({ branche: 'main', depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 's1' }) })
   const journal = new JournalPublicationGitLab('destination', join(dir, 'operations'))
   const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal, attendre: async () => {} })
@@ -38,7 +38,7 @@ function banc(recuperables: string[] = []) {
   const preparer = () => c.preparerSuppressionAnon(f.demande)
   const appliquer = async () => { ouvrirPolitique(); return c.supprimerRegleAnonPartout((await preparer()).token, true) }
   const lire = (id: string): EntretienFichier => JSON.parse(depot.fichiers.get(`racine/entretiens/${id}.json`)!.contenu)
-  const corpus = (): CorpusFichier => JSON.parse(depot.fichiers.get('racine/corpus.json')!.contenu)
+  const corpus = (): CorpusFichier => JSON.parse(depot.fichiers.get('racine/corpus.crp')!.contenu)
   return { ...f, dir, store, depot, coordination, journal, publication, options, transactions, c, session, tirer, ouvrirPolitique, preparer, appliquer, lire, corpus }
 }
 const commits = (b: ReturnType<typeof banc>) => b.depot.commits.filter((c) => c.message.startsWith('Sonal suppression-'))
@@ -139,7 +139,7 @@ describe('assemblage protégé de suppression GitLab et refus de politique', () 
   test.each(['entretien', 'retrait'])('issue inconnue de %s : Actualiser réconcilie dans la même file sans deadlock ni rejeu', async (phase) => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path.endsWith('/corpus.json') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
+      if (actions.some((a) => phase === 'entretien' ? a.file_path.endsWith('/e1.json') : a.file_path.endsWith('/corpus.crp') && a.content !== undefined && !JSON.parse(a.content).reglesAnon.personne)) {
         b.depot.echouerApresAccepter(new Error('Réponse perdue')); b.depot.rendreCommitsIllisibles()
       }
     }

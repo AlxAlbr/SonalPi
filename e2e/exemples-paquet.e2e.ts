@@ -30,7 +30,7 @@ for (const exemple of [
       await installation.getByRole('button', { name: 'Ouvrir ma copie', exact: true }).click()
       await expect(installation).toHaveCount(0)
       await expect(page.locator(exemple.annote ? '.espace-analyse' : '.corpus-ecran')).toBeVisible()
-      const c = JSON.parse(readFileSync(join(corpus, 'corpus.json'), 'utf8'))
+      const c = JSON.parse(readFileSync(join(corpus, 'corpus.crp'), 'utf8'))
       expect(Object.keys(c.membership)).toHaveLength(4)
       let annotations = 0
       for (const id of Object.keys(c.membership)) {

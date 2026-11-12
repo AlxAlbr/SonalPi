@@ -85,7 +85,7 @@ export function useEntretien(deps: {
   basculerLecture?: () => boolean
   /** Déplace la lecture en secondes ; renvoie false si aucun média n'est chargé. */
   decalerLecture?: (secondes: number) => boolean
-  /** Règles corpus (`corpus.json.reglesAnon`) — injectées par l'orchestrateur
+  /** Règles corpus (`corpus.crp.reglesAnon`) — injectées par l'orchestrateur
    *  (useCorpus) : le menu contexte et les promotions résolvent les règles
    *  multi-pseudo et créent ou relient les règles à la portée corpus. */
   reglesAnon: () => RegleAnon[]
@@ -100,10 +100,10 @@ export function useEntretien(deps: {
     cible: 'entretien' | 'brouillon',
     entite: string,
   ) => Promise<boolean>
-  /** Priorité de validation définie dans `corpus.json.paramsAnon` : la portée
+  /** Priorité de validation définie dans `corpus.crp.paramsAnon` : la portée
    *  qu'applique ENTRÉE sur une ligne du tableau ; Maj+Entrée fait l'inverse. */
   prioriteAnon: () => 'corpus' | 'entretien'
-  /** Réglage mots de liaison (corpus.json.paramsAnon.motsLiaison) :
+  /** Réglage mots de liaison (corpus.crp.paramsAnon.motsLiaison) :
    *  suggestion d'entité-cœur à la validation (« à Lyon » → proposer « Lyon »).
    *  Absent → aucune proposition (tests PUR). */
   motsLiaison?: () => MotsLiaisonParams
