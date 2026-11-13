@@ -27,6 +27,7 @@ import icoAnon from '../../../assets/icones/anon.png'
 import icoEntretiens from '../../../assets/icones/entretiens.svg'
 import icoPersonnes from '../../../assets/icones/personnes.png'
 import icoNotes from '../../../assets/icones/notes.png'
+import icoRecherche from '../../../assets/icones/recherche.png'
 
 const {
   vue,
@@ -254,6 +255,10 @@ async function ouvrirRecherche() {
   champRecherche.value?.select()
 }
 function fermerRecherche() {
+  // Les marqueurs du mur d'ondes suivent la recherche : on les retire à la fermeture.
+  resultats.value = []
+  message.value = ''
+  extraitAffiche.value = null
   void choisirOnglet(ongletAvantRecherche)
 }
 function raccourciRecherche(event: KeyboardEvent) {
@@ -399,8 +404,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       <BarreOngletCorpus
         v-if="ongletCorpus === 'accueil' || ongletCorpus === 'recherche'"
         titre="Entretiens"
-        aide="Choisissez un entretien pour afficher sa fiche à gauche, puis ouvrez-le pour le transcrire et le coder : bouton « Ouvrir », double-clic ou Entrée. Les flèches passent d’un entretien à l’autre ; Ctrl+F cherche dans le texte de tous les entretiens."
       >
+        <!-- La recherche remplace la fiche dans le panneau gauche, le temps de la consulter. -->
+        <button
+          class="mini ouvrir-recherche-corpus"
+          :class="{ actif: ongletCorpus === 'recherche' }"
+          :aria-pressed="ongletCorpus === 'recherche'"
+          title="Rechercher dans tous les entretiens (Ctrl+F)"
+          aria-label="Rechercher dans tous les entretiens"
+          @click="ongletCorpus === 'recherche' ? fermerRecherche() : ouvrirRecherche()"
+        >
+          <img :src="icoRecherche" alt="" draggable="false" />
+        </button>
         <!-- Un seul point d'entrée : la modale à deux zones,
              couvrant import texte, texte+audio et audio seul.
              Masqué quand le fournisseur ne permet pas l'ajout. -->
@@ -432,7 +447,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
           <!-- Fiche de l'entretien sélectionné : il y en a toujours un dès que le corpus en contient.
                Réglages en haut, gestes qui retirent quelque chose en bas. -->
-          <aside v-if="corpusSelId && (ongletCorpus === 'accueil' || ongletCorpus === 'recherche')" v-hauteur-disponible class="panneau meta-ent" aria-label="Fiche de l’entretien">
+          <aside v-if="corpusSelId && ongletCorpus === 'accueil'" v-hauteur-disponible class="panneau meta-ent" aria-label="Fiche de l’entretien">
             <div class="corpus-tete">
               <h3>Fiche de l’entretien</h3>
             </div>
@@ -600,8 +615,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </ul>
           </aside>
 
-          <!-- Recherche plein texte sur tous les entretiens. -->
-          <div v-else-if="ongletCorpus === 'recherche'" class="panneau recherche">
+          <!-- Recherche plein texte sur tous les entretiens : elle prend la place de la fiche.
+               La fermer ramène la fiche de l'entretien sélectionné. -->
+          <div v-else-if="ongletCorpus === 'recherche'" v-hauteur-disponible class="panneau recherche">
             <div class="corpus-tete">
               <h3>Recherche</h3>
               <button class="mini" title="Fermer la recherche (Échap)" aria-label="Fermer la recherche" @click="fermerRecherche">✕</button>
@@ -683,27 +699,42 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 @dblclick="ouvrirEntretien(e.id)"
                 @keydown="naviguerListe($event, e.id)"
               >
-                <div class="ent-titre" :title="e.titre">{{ e.titre }}
-                  <!-- Badge de verrou fiable : « tenu par X » vient du SERVEUR,
-                       scan verrous/ au pull, jamais d'une déduction.
-                       Notre propre session n'est pas badgée (filtrée côté main). -->
-                  <span v-if="badgeVerrou(e.id)" class="badge-verrou"
-                        :title="detentionDe(badgeVerrou(e.id)!)">
-                    🔒 {{ badgeVerrou(e.id)!.userId }}
-                  </span>
-                  <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,
-                       la décision, c'est le verrou ci-dessus. -->
-                  <span v-for="p in presencesSur(e.id)" :key="p.machineId"
-                        class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
-                    👁 {{ p.userId }}
-                  </span>
+                <!-- En-tête : titre et bouton au-dessus de l'onde, qui prend toute la largeur. -->
+                <div class="carte-entete">
+                  <div class="ent-titre" :title="e.titre">{{ e.titre }}
+                    <!-- Badge de verrou fiable : « tenu par X » vient du SERVEUR,
+                         scan verrous/ au pull, jamais d'une déduction.
+                         Notre propre session n'est pas badgée (filtrée côté main). -->
+                    <span v-if="badgeVerrou(e.id)" class="badge-verrou"
+                          :title="detentionDe(badgeVerrou(e.id)!)">
+                      🔒 {{ badgeVerrou(e.id)!.userId }}
+                    </span>
+                    <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,
+                         la décision, c'est le verrou ci-dessus. -->
+                    <span v-for="p in presencesSur(e.id)" :key="p.machineId"
+                          class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
+                      👁 {{ p.userId }}
+                    </span>
+                  </div>
+                  <div class="carte-actions">
+                    <!-- Si l'entretien est verrouillé par autrui, le CRAYON devient VERROU,
+                         visible même sur un écran étroit où le badge du titre est tronqué.
+                         Le détail (qui ? depuis quand ?) passe en tooltip au survol ;
+                         le clic ouvre toujours, en lecture seule.
+                         La suppression vit dans la zone sensible de la fiche. -->
+                    <button
+                      class="crayon ouvrir-ent"
+                      data-tour="crayon-entretien"
+                      :title="titreCrayon(e.id)"
+                      @click.stop="ouvrirEntretien(e.id)"
+                    >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
+                  </div>
                 </div>
                   <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
                        Dans les deux cas, le CALQUE du résumé thématique se
                        superpose : un span par segment codé, positionné en % du
                        TEXTE ; clic = ouvrir l'entretien à cet endroit.
-                       Layout : nom À GAUCHE, onde À DROITE (les lignes empilées
-                       forment le « mur » d'ondes). -->
+                       Les ondes empilées sur toute la largeur forment le « mur » d'ondes. -->
                   <div class="spectro-cadre">
                     <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
                     <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
@@ -728,19 +759,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       @click.stop="afficherExtrait(e.id, m)"
                     ></span>
                   </div>
-                <div class="carte-actions">
-                  <!-- Si l'entretien est verrouillé par autrui, le CRAYON devient VERROU,
-                       visible même sur un écran étroit où le badge du titre est tronqué.
-                       Le détail (qui ? depuis quand ?) passe en tooltip au survol ;
-                       le clic ouvre toujours, en lecture seule.
-                       La suppression vit dans la zone sensible de la fiche. -->
-                  <button
-                    class="crayon ouvrir-ent"
-                    data-tour="crayon-entretien"
-                    :title="titreCrayon(e.id)"
-                    @click.stop="ouvrirEntretien(e.id)"
-                  >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
-                </div>
               </li>
             </ul>
           </div>
@@ -848,6 +866,21 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding-top: 0.7rem;
 }
 /* --- Onglet Recherche : recherche plein texte du corpus --- */
+.ouvrir-recherche-corpus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.45rem;
+}
+.ouvrir-recherche-corpus img {
+  width: 1rem;
+  height: 1rem;
+}
+.ouvrir-recherche-corpus:hover,
+.ouvrir-recherche-corpus.actif {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+}
 .barre-recherche {
   display: flex;
   gap: 0.35rem;
@@ -1134,8 +1167,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-ent {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
   border: 1px solid #e0e0ea;
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
@@ -1153,11 +1186,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   outline: 2px solid #2e73d8;
   outline-offset: 1px;
 }
+.carte-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .ent-titre {
-  /* Nom À GAUCHE, largeur fixe (27 %) — les ondes
-     empilées forment une colonne régulière (« mur » visuel). */
-  width: 27%;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
@@ -1189,7 +1225,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
    c'est lui qui donne la profondeur au « mur » d'ondes. */
 .spectro-cadre {
   position: relative;
-  flex: 1;
+  flex: none;
   min-width: 0;
   height: 25px;
   border-radius: 3px;
@@ -1423,6 +1459,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   align-self: start;
 }
 .colonne-g-corpus .meta-ent,
+.colonne-g-corpus .recherche,
 .colonne-g-corpus .themes-corpus {
   box-sizing: border-box;
   max-height: var(--hauteur-disponible, 70vh);
@@ -1470,6 +1507,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 @media (max-width: 780px) {
   .colonne-g-corpus { position: static; }
   .colonne-g-corpus .meta-ent,
+  .colonne-g-corpus .recherche,
   .colonne-g-corpus .themes-corpus { max-height: none; }
 }
 </style>

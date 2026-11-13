@@ -38,7 +38,7 @@ test('un seul nom, migration complète sans bilan, médias internes copiés et C
     const page = await app.firstWindow()
     await attendreAccueil(page)
     await expect(page.locator('.migrer-corpus')).toHaveCount(0)
-    await expect(page.locator('.ouvrir-corpus')).toContainText('Fichier .crp SonalPi1 ou SonalPi2')
+    await expect(page.locator('.ouvrir-corpus')).toContainText('Fichier .crp')
     await stuberDialogs(app, source.cheminCrp, profil)
     await choisirSource(page)
     const modale = page.locator('.modale-migration')

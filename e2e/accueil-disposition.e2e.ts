@@ -1,12 +1,10 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { lancer, attendreAccueil, ecrireSeedDemo } from './util'
 import type { CorpusFichier } from '../src/shared/format'
 import { intercepterOuverturesAide, lireOuverturesAide } from './aide-util'
-
-const ordreBlocs = (page: Page) => page.locator('.bloc-accueil h3').evaluateAll((titres) => titres.map((titre) => titre.id))
 
 function preparer(vide = false) {
   const racine = mkdtempSync(join(tmpdir(), 'sonal-accueil-ux-'))
@@ -24,7 +22,7 @@ function preparer(vide = false) {
   return { racine, profil, personnel, exemple, homonyme }
 }
 
-test('accueil : deux étages, copies séparées, priorité aux récents et clavier en fenêtre étroite', async () => {
+test('accueil : actions en tête, récents en onglets, apprentissage à côté et clavier en fenêtre étroite', async () => {
   const fixture = preparer()
   const app = await lancer(fixture.profil, { preserverSettings: true, executablePath: process.env.ACCUEIL_E2E_EXECUTABLE })
   try {
@@ -32,67 +30,82 @@ test('accueil : deux étages, copies séparées, priorité aux récents et clavi
     const fenetre = await app.browserWindow(page)
     await fenetre.evaluate((w) => w.setContentSize(1280, 800))
     await attendreAccueil(page)
+    await expect(page.getByRole('heading', { name: 'Vos corpus', level: 2 })).toBeVisible()
+    await expect(page.locator('.actions-corpus .carte-demo')).toHaveCount(4)
     await expect(page.locator('.decouverte-bloc .carte-demo')).toHaveCount(4)
-    await expect(page.locator('.decouverte-bloc .exemples')).toBeVisible()
-    await expect(page.locator('.exemples-bloc .carte-demo, .recents-bloc .carte-demo')).toHaveCount(0)
-    for (const selecteur of ['.exemples-bloc', '.recents-bloc']) {
-      await expect(page.locator(selecteur)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-      await expect(page.locator(selecteur)).toHaveCSS('border-top-width', '0px')
-      await expect(page.locator(selecteur)).toHaveCSS('border-radius', '0px')
-      await expect(page.locator(selecteur)).toHaveCSS('box-shadow', 'none')
-    }
+    await expect(page.locator('.recents-bloc .carte-demo')).toHaveCount(0)
+    await expect(page.locator('.recherche')).toHaveCount(0)
+
+    // L'onglet « Mes corpus » est actif par défaut ; les copies d'exemples sont dans l'autre.
+    const ongletTravail = page.getByRole('tab', { name: /Mes corpus/ })
+    const ongletExemples = page.getByRole('tab', { name: /Copies d’exemples/ })
+    await expect(ongletTravail).toHaveAttribute('aria-selected', 'true')
+    await expect(ongletTravail).toContainText('2')
+    await expect(ongletExemples).toContainText('1')
     const personnel = page.getByRole('list', { name: 'Corpus récents', exact: true })
-    const copies = page.getByRole('list', { name: 'Copies d’exemples récentes', exact: true })
     await expect(personnel.locator('.recent')).toHaveCount(2)
     await expect(personnel).toContainText('Corpus_annote')
+    await expect(personnel.locator('.recent-type').first()).toHaveText('Cet ordinateur')
+    await expect(personnel.locator('.recent-nom').first()).toHaveCSS('color', 'rgb(28, 92, 51)')
+    await expect(page.getByRole('list', { name: 'Copies d’exemples récentes', exact: true })).toHaveCount(0)
+
+    await ongletTravail.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(ongletExemples).toBeFocused()
+    await expect(ongletExemples).toHaveAttribute('aria-selected', 'true')
+    const copies = page.getByRole('list', { name: 'Copies d’exemples récentes', exact: true })
     await expect(copies.locator('.recent')).toHaveCount(1)
     await expect(copies).toContainText('Copie_entretiens_importes')
-    await expect(page.locator('#titre-exemples')).toHaveCSS('text-decoration-line', 'underline')
-    await expect(page.locator('#titre-recents')).toHaveCSS('text-decoration-line', 'underline')
-    await expect(page.locator('#titre-recents')).toHaveCSS('color', 'rgb(28, 92, 51)')
-    await expect(personnel.locator('.recent-nom').first()).toHaveCSS('color', 'rgb(28, 92, 51)')
+    await expect(copies.locator('.recent-type')).toHaveText('Exemple')
     await expect(copies.locator('.recent-nom').first()).toHaveCSS('color', 'rgb(23, 93, 158)')
-    await expect(page.locator('.corpus-bloc')).toHaveCSS('background-color', 'rgb(237, 247, 237)')
-    expect((await copies.boundingBox())!.x).toBeGreaterThan((await page.locator('#titre-exemples').boundingBox())!.x)
-    expect((await personnel.boundingBox())!.x).toBeGreaterThan((await page.locator('#titre-recents').boundingBox())!.x)
     const entrees = await page.evaluate(() => window.sonal.corpus.recents())
     expect(entrees.find((r) => r.type === 'local' && r.dir === fixture.exemple)).toMatchObject({ exemple: 'synth' })
     expect(entrees.find((r) => r.type === 'local' && r.dir === fixture.homonyme)).not.toHaveProperty('exemple')
-    const cadres = await page.locator('.bloc-accueil').evaluateAll((blocs) => blocs.map((bloc) => {
-      const { x, y } = bloc.getBoundingClientRect()
-      return { x, y }
-    }))
-    expect(cadres[0].x).toBeLessThan(cadres[1].x)
-    expect(cadres[0].y).toBe(cadres[1].y)
-    expect(cadres[2].y).toBe(cadres[3].y)
+    await page.keyboard.press('ArrowLeft')
+    await expect(ongletTravail).toHaveAttribute('aria-selected', 'true')
+
+    // Grand écran : récents à gauche, apprentissage à droite, sous les actions.
+    const actions = (await page.locator('.actions-corpus').boundingBox())!
+    const recentsCadre = (await page.locator('.recents-bloc').boundingBox())!
+    const cote = (await page.locator('.decouverte-bloc').boundingBox())!
+    expect(recentsCadre.y).toBeGreaterThan(actions.y)
+    expect(cote.x).toBeGreaterThan(recentsCadre.x)
+    expect(cote.y).toBe(recentsCadre.y)
     const premierRecent = (await personnel.locator('.recent').first().boundingBox())!
     expect(premierRecent.y + premierRecent.height).toBeLessThan(await page.evaluate(() => innerHeight))
     await expect(page.locator('.migration-bloc')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/accueil-deux-colonnes.png' })
 
+    // Fenêtre étroite : tout s'empile, sans défilement horizontal.
     await fenetre.evaluate((w) => w.setContentSize(700, 800))
-    await expect.poll(() => ordreBlocs(page)).toEqual(['titre-recents', 'titre-corpus', 'titre-decouverte', 'titre-exemples'])
+    await expect.poll(async () => {
+      const recents = (await page.locator('.recents-bloc').boundingBox())!
+      const apprendre = (await page.locator('.decouverte-bloc').boundingBox())!
+      return apprendre.y > recents.y
+    }).toBe(true)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await personnel.locator('.recent').first().focus()
     await page.keyboard.press('Tab')
     await expect(personnel.locator('.oubli-recent').first()).toBeFocused()
     await page.screenshot({ path: 'test-results/accueil-etroit.png' })
     await fenetre.evaluate((w) => w.setContentSize(1280, 800))
-    await expect.poll(() => ordreBlocs(page)).toEqual(['titre-decouverte', 'titre-exemples', 'titre-corpus', 'titre-recents'])
 
+    await ongletExemples.click()
     await copies.locator('.recent').click()
-    await expect(page.locator('.corpus-ecran')).toBeVisible()
-    expect((await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir).toBe(fixture.exemple)
+    await expect(page.locator('.ecran.accueil')).toBeHidden()
+    await expect.poll(async () => (await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir).toBe(fixture.exemple)
     await page.locator('.fil .lien-nav').filter({ hasText: 'Accueil' }).click()
+    await ongletExemples.click()
     await copies.locator('.oubli-recent').click()
-    await expect(copies).toHaveCount(0)
-    await expect(page.locator('.exemples-bloc')).toHaveCount(0)
+    // Sans copie, les onglets disparaissent et la liste des corpus de travail reste.
+    await expect(page.getByRole('tablist')).toHaveCount(0)
     expect(existsSync(join(fixture.exemple, 'corpus.crp'))).toBe(true)
     await expect(personnel.locator('.recent')).toHaveCount(2)
     await personnel.locator('.oubli-recent').first().click()
     await expect(personnel.locator('.recent')).toHaveCount(1)
     await personnel.locator('.oubli-recent').first().click()
-    await expect(page.locator('.recents-bloc')).toHaveCount(0)
+    // Plus aucun récent : l'accueil devient la page de bienvenue.
+    await expect(page.getByRole('heading', { name: 'Bienvenue dans SonalPi', level: 2 })).toBeVisible()
     expect(existsSync(join(fixture.personnel, 'corpus.crp'))).toBe(true)
     expect(existsSync(join(fixture.homonyme, 'corpus.crp'))).toBe(true)
   } finally {
@@ -100,7 +113,7 @@ test('accueil : deux étages, copies séparées, priorité aux récents et clavi
   }
 })
 
-test('accueil : de nombreuses copies et des noms longs ne repoussent pas les corpus personnels', async () => {
+test('accueil : de nombreux récents et des noms longs restent lisibles, avec une recherche', async () => {
   const fixture = preparer()
   const copies = [fixture.exemple]
   for (let i = 0; i < 5; i++) {
@@ -118,12 +131,19 @@ test('accueil : de nombreuses copies et des noms longs ne repoussent pas les cor
     const fenetre = await app.browserWindow(page)
     await fenetre.evaluate((w) => w.setContentSize(1024, 768))
     await attendreAccueil(page)
+    const personnel = page.getByRole('list', { name: 'Corpus récents', exact: true })
+    const recent = (await personnel.locator('.recent').first().boundingBox())!
+    expect(recent.y + recent.height).toBeLessThan(await page.evaluate(() => innerHeight))
+    await page.getByRole('tab', { name: /Copies d’exemples/ }).click()
     const liste = page.getByRole('list', { name: 'Copies d’exemples récentes', exact: true })
     await expect(liste.locator('.recent')).toHaveCount(6)
-    expect(await liste.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
-    const recent = (await page.getByRole('list', { name: 'Corpus récents', exact: true }).locator('.recent').first().boundingBox())!
-    expect(recent.y + recent.height).toBeLessThan(await page.evaluate(() => innerHeight))
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+
+    const recherche = page.getByRole('searchbox', { name: 'Rechercher un corpus' })
+    await recherche.fill('place_3')
+    await expect(liste.locator('.recent')).toHaveCount(1)
+    await recherche.fill('introuvable')
+    await expect(page.locator('.recents-bloc')).toContainText('Aucun corpus ne correspond à « introuvable ».')
   } finally {
     await app.close()
   }
@@ -163,7 +183,7 @@ test('accueil : guide et FAQ utilisent les mêmes pages que le menu sans changer
 })
 
 for (const groupe of ['exemples', 'personnels'] as const) {
-  test(`accueil : une seule liste (${groupe}) garde sa place et l’autre reste absente`, async () => {
+  test(`accueil : une seule sorte de récents (${groupe}) s’affiche sans onglets`, async () => {
     const fixture = preparer()
     writeFileSync(join(fixture.profil, 'settings.json'), JSON.stringify({
       recents: groupe === 'exemples' ? [fixture.exemple] : [fixture.personnel, fixture.homonyme],
@@ -171,38 +191,29 @@ for (const groupe of ['exemples', 'personnels'] as const) {
     const app = await lancer(fixture.profil, { preserverSettings: true, executablePath: process.env.ACCUEIL_E2E_EXECUTABLE })
     try {
       const page = await app.firstWindow()
-      const fenetre = await app.browserWindow(page)
-      await fenetre.evaluate((w) => w.setContentSize(1280, 800))
       await attendreAccueil(page)
-      await expect(page.locator('.exemples-bloc')).toHaveCount(groupe === 'exemples' ? 1 : 0)
-      await expect(page.locator('.recents-bloc')).toHaveCount(groupe === 'personnels' ? 1 : 0)
-      const decouverte = (await page.locator('.decouverte-bloc').boundingBox())!
-      const corpus = (await page.locator('.corpus-bloc').boundingBox())!
-      expect(corpus.x).toBe(decouverte.x)
-      expect(corpus.y).toBeGreaterThan(decouverte.y)
-      const liste = (await page.locator(groupe === 'exemples' ? '.exemples-bloc' : '.recents-bloc').boundingBox())!
-      expect(liste.x).toBeGreaterThan(corpus.x)
-      expect(liste.y).toBe(groupe === 'exemples' ? decouverte.y : corpus.y)
-      await fenetre.evaluate((w) => w.setContentSize(700, 800))
-      await expect.poll(() => ordreBlocs(page)).toEqual(groupe === 'exemples'
-        ? ['titre-corpus', 'titre-decouverte', 'titre-exemples']
-        : ['titre-recents', 'titre-corpus', 'titre-decouverte'])
+      await expect(page.getByRole('tablist')).toHaveCount(0)
+      const nom = groupe === 'exemples' ? 'Copies d’exemples récentes' : 'Corpus récents'
+      await expect(page.getByRole('list', { name: nom, exact: true }).locator('.recent')).toHaveCount(groupe === 'exemples' ? 1 : 2)
     } finally {
       await app.close()
     }
   })
 }
 
-test('accueil : sans récent, les actions restent disponibles sans rubrique de migration', async () => {
+test('accueil : sans récent, la page de bienvenue propose tous les points de départ, sans rubrique de migration', async () => {
   const fixture = preparer(true)
   const app = await lancer(fixture.profil, { preserverSettings: true, executablePath: process.env.ACCUEIL_E2E_EXECUTABLE })
   try {
     const page = await app.firstWindow()
     await attendreAccueil(page)
-    await expect(page.locator('.recents-bloc, .exemples-bloc')).toHaveCount(0)
-    await expect(page.locator('#titre-recents, #titre-exemples')).toHaveCount(0)
-    await expect(page.locator('.ouvrir-corpus')).toBeEnabled()
-    await expect(page.locator('.decouverte-bloc .exemples')).toBeEnabled()
+    await expect(page.getByRole('heading', { name: 'Bienvenue dans SonalPi', level: 2 })).toBeVisible()
+    await expect(page.locator('.recents-bloc, .recents')).toHaveCount(0)
+    for (const action of ['parcours', 'exemples', 'nouveau-corpus', 'nouveau-corpus-distant', 'ouvrir-corpus', 'distant-corpus', 'documentation', 'faq']) {
+      await expect(page.locator(`.carte-demo.${action}`)).toBeEnabled()
+    }
+    await expect(page.locator('.carte-demo.parcours')).toContainText('Conseillé pour débuter')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: 'test-results/accueil-sans-recents.png' })
     await expect(page.locator('.migration-bloc, .migrer-corpus, .migrer-gitlab')).toHaveCount(0)
     await expect(page.locator('.distant-corpus')).toBeEnabled()

@@ -77,8 +77,8 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Entretiens')
-  await expect(page.locator('.barre-onglet:visible')).toContainText('Ctrl+F')
-  await expect(page.locator('.renvoi-organisation')).toContainText('Cas')
+  await expect(page.locator('.barre-onglet:visible p')).toHaveCount(0)
+  await expect(page.locator('.renvoi-organisation')).toHaveCount(0)
   await expect(page.locator('.cartes-ent')).toBeVisible()
   // Le premier entretien est sélectionné d'office : sa fiche occupe le panneau gauche, sans croix pour la fermer.
   const fiche = page.getByRole('complementary', { name: 'Fiche de l’entretien' })
@@ -90,7 +90,15 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.carte-ent .ouvrir-ent').first()).toHaveText('Ouvrir')
   // Ni un second clic sur l'entretien ni un clic ailleurs ne referment la fiche.
   await page.locator('.carte-ent .ent-titre').first().click()
-  await page.locator('.barre-onglet:visible p').click()
+  await page.locator('.barre-onglet:visible').click({ position: { x: 5, y: 5 } })
+  await expect(fiche).toBeVisible()
+  // La loupe affiche la recherche à la place de la fiche ; la fermer ramène la fiche.
+  await page.getByRole('button', { name: 'Rechercher dans tous les entretiens' }).click()
+  await expect(page.locator('.colonne-g-corpus .recherche')).toBeVisible()
+  await expect(page.getByLabel('Rechercher dans le corpus')).toBeFocused()
+  await expect(fiche).toHaveCount(0)
+  await page.getByRole('button', { name: 'Fermer la recherche' }).click()
+  await expect(page.locator('.colonne-g-corpus .recherche')).toHaveCount(0)
   await expect(fiche).toBeVisible()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible()
