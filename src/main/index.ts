@@ -2720,8 +2720,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     try { await active.migration.annuler() }
     finally { if (migrationActive === active) migrationActive = null }
   }
-  ipcMain.handle('migrer:destination', (_e, chemin: string, nom: string, emplacement?: string) => {
-    const dossier = proposerDestinationMigration(chemin, nom, emplacement)
+  ipcMain.handle('migrer:destination', (_e, chemin: string, nomDossier: string, emplacement?: string) => {
+    const dossier = proposerDestinationMigration(chemin, nomDossier, emplacement)
     verifierCibleLocale(dossier)
     return dossier
   })

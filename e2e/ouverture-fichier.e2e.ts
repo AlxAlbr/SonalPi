@@ -110,7 +110,7 @@ test('migration proposée depuis l’entretien : demande concurrente refusée, p
     await entrerEntretien(page)
     await app.evaluate(({ app }, chemin) => { app.emit('open-file', { preventDefault() {} }, chemin) }, v1)
     await expect(page.locator('.modale-migration')).toBeVisible()
-    await expect(page.locator('.choisir-crp')).toContainText('Ancien libre.crp')
+    await expect(page.locator('.destination')).toContainText('Ancien libreV2')
     await app.evaluate(({ app }, chemin) => { app.emit('open-file', { preventDefault() {} }, chemin) }, chemin)
     await expect(page.locator('.editeur')).toBeVisible()
     await expect(page.locator('.modale-migration')).toBeVisible()
@@ -128,7 +128,7 @@ test('migration proposée depuis l’entretien : demande concurrente refusée, p
 test('migration V1 reçue au démarrage puis confirmée dans un dossier dédié', async () => {
   const { profil } = preparer()
   const source = ecrireSeedMigrationV1(profil, 'À migrer.crp')
-  const cible = join(profil, 'À migrer - SonalPi2')
+  const cible = join(profil, 'À migrerV2')
   const app = await lancer(profil, { fichiers: [source.cheminCrp] })
   try {
     const page = await app.firstWindow()

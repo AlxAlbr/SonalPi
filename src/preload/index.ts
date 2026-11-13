@@ -621,7 +621,7 @@ contextBridge.exposeInMainWorld('sonal', {
     } satisfies ApiMigrationGitLab,
     choisirCrp: () => ipcRenderer.invoke('migrer:choisirCrp'),
     choisirEmplacement: (emplacement?: string) => ipcRenderer.invoke('migrer:choisirEmplacement', emplacement),
-    destination: (chemin: string, nom: string, emplacement?: string) => ipcRenderer.invoke('migrer:destination', chemin, nom, emplacement),
+    destination: (chemin: string, nomDossier: string, emplacement?: string) => ipcRenderer.invoke('migrer:destination', chemin, nomDossier, emplacement),
     preparer: (req: DemandePreparationMigration) => ipcRenderer.invoke('migrer:preparer', req),
     lireEntretien: (index: number) => ipcRenderer.invoke('migrer:lireEntretien', index),
     ajouterEntretien: (index: number, payload: PayloadEntretien, regles: RegleAnon[]) => ipcRenderer.invoke('migrer:ajouterEntretien', index, payload, regles),

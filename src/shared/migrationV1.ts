@@ -21,7 +21,7 @@ export interface EntretienSourceMigration {
 export interface PontMigrationV1 {
   choisirCrp: () => Promise<string | null>
   choisirEmplacement: (emplacement?: string) => Promise<string | null>
-  destination: (cheminCrp: string, nom: string, emplacement?: string) => Promise<string>
+  destination: (cheminCrp: string, nomDossier: string, emplacement?: string) => Promise<string>
   preparer: (demande: DemandePreparationMigration) => Promise<{ nbEntretiens: number }>
   lireEntretien: (index: number) => Promise<EntretienSourceMigration | null>
   ajouterEntretien: (index: number, payload: PayloadEntretien, regles: RegleAnon[]) => Promise<void>
