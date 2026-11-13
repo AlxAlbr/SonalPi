@@ -15,7 +15,7 @@ export type NavigationProjet =
     }
   | {
       vue: 'corpus'
-      onglet: 'accueil' | 'themes' | 'personnes' | 'notes' | 'donnees' | 'anon'
+      onglet: 'accueil' | 'themes' | 'personnes' | 'notes' | 'commentaires' | 'donnees' | 'anon'
     }
 
 /** La clé désigne le projet local ou distant dans les réglages de ce profil. */

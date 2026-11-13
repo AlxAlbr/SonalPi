@@ -260,7 +260,7 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   }
   if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
   if (n.vue === 'corpus') {
-    return ['accueil', 'themes', 'personnes', 'notes', 'donnees', 'anon'].includes(String(n.onglet))
+    return ['accueil', 'themes', 'personnes', 'notes', 'commentaires', 'donnees', 'anon'].includes(String(n.onglet))
   }
   return false
 }

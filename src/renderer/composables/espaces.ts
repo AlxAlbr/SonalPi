@@ -16,4 +16,4 @@ export type SousEspaceAnalyse = 'accueil' | 'synthese' | 'lexico' | 'analyses-cr
 export type SousEspaceOrganisation = 'accueil' | 'cas' | 'recueils' | 'export'
 
 /** Onglets du corpus dans « Importer et traiter ». */
-export type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon'
+export type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'commentaires' | 'donnees' | 'anon'

@@ -8,6 +8,7 @@ import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import PersonnesCorpus from './PersonnesCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
+import CommentairesCorpus from './CommentairesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import OngletsEspace from '../../app/OngletsEspace.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
@@ -28,6 +29,7 @@ import icoEntretiens from '../../../assets/icones/entretiens.svg'
 import icoPersonnes from '../../../assets/icones/personnes.png'
 import icoNotes from '../../../assets/icones/notes.png'
 import icoRecherche from '../../../assets/icones/recherche.png'
+import icoCommentaires from '../../../assets/icones/commentaires.svg'
 
 const {
   vue,
@@ -344,6 +346,7 @@ function allerOccurrence(id: string, pos: number) {
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
   { id: 'notes', libelle: 'Notes', icone: icoNotes },
+  { id: 'commentaires', libelle: 'Commentaires', icone: icoCommentaires },
   { id: 'personnes', libelle: 'Personnes', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
@@ -422,7 +425,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes' && ongletCorpus !== 'commentaires'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
         <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
         <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
           <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
@@ -767,6 +770,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
       <PersonnesCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
       <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
+      <CommentairesCorpus v-show="ongletCorpus === 'commentaires'" :actif="ongletCorpus === 'commentaires'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />
       </div>

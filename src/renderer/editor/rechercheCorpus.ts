@@ -43,7 +43,7 @@ export interface OptionsRecherche {
 export const CONTEXTE_MOTS = 15
 
 // Schéma MINIMAL miroir exact de l'éditeur (doc › paragraph{loc} › text).
-const schema = new Schema({
+export const schemaCorpsTexte = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*', attrs: { loc: { default: null } } },
@@ -86,7 +86,7 @@ export function rechercherDansCorpsTexte(
 
   let doc: Node
   try {
-    doc = Node.fromJSON(schema, corpsTexte as never)
+    doc = Node.fromJSON(schemaCorpsTexte, corpsTexte as never)
   } catch {
     return []
   }

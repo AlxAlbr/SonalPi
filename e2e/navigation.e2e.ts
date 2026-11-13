@@ -68,12 +68,13 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // Six onglets nommés ; les actions récentes ne sont plus proposées.
+  // Sept onglets nommés ; les actions récentes ne sont plus proposées.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(6)
+  await expect(onglets).toHaveCount(7)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Actions récentes', exact: true })).toHaveCount(0)
   await expect(onglets.nth(1)).toHaveText('Notes')
-  await expect(onglets.nth(2)).toHaveText('Personnes')
+  await expect(onglets.nth(2)).toHaveText('Commentaires')
+  await expect(onglets.nth(3)).toHaveText('Personnes')
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Entretiens')
