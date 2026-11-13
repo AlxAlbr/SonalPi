@@ -370,7 +370,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
 <template>
     <section class="ecran corpus-ecran">
-      <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
       <!-- Corpus distant : horodatage du dernier pull + « Actualiser ».
            Le pull rafraîchit aussi les badges de verrou. -->
       <div v-if="idDistantCourant" class="corpus-barre">
@@ -392,7 +391,13 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </span>
       </div>
 
-      <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
+      <!-- Les onglets et le renommage du corpus partagent la même ligne. -->
+      <div class="ligne-onglets-corpus">
+        <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
+        <span class="zone-renommer-corpus">
+          <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
+        </span>
+      </div>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
 
@@ -861,9 +866,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
-.onglets-corpus {
+.ligne-onglets-corpus {
+  display: flex;
+  align-items: stretch;
   margin-bottom: 0.75rem;
 }
+/* Le bouton suit le dernier onglet ; la ligne des onglets se prolonge jusqu'au bord. */
+.zone-renommer-corpus {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 0 0 6px 0.75rem;
+  border-bottom: 1px solid #e2e4ec;
+}
+.renommer-corpus {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #d5d9e4;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5068;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.renommer-corpus:hover:not(:disabled) {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+  color: #1565c0;
+}
+.renommer-corpus:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
+}
+.renommer-corpus:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les onglets
    ne collent pas à sa bordure basse. */
 .corpus-ecran {
