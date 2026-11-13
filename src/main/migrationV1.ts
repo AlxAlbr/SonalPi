@@ -76,12 +76,11 @@ export function verifierDestinationMigration(dossier: string, sourceDir: string)
   return cible
 }
 
-export function proposerDestinationMigration(cheminCrp: string, nom: string, emplacement?: string): string {
+export function proposerDestinationMigration(cheminCrp: string, nomDossier: string, emplacement?: string): string {
   const racine = dirname(realpathSync(cheminCrp))
   const parent = cheminCanonique(emplacement ?? dirname(racine))
-  const nettoye = nom.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
-  if (!nettoye || nettoye === '.') throw new Error('Saisissez un nom de corpus.')
-  const base = `${nettoye} - SonalPi2`
+  const base = nomDossier.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
+  if (!base || base === '.') throw new Error('Saisissez un nom de dossier.')
   let dossier = join(parent, base)
   for (let n = 2; present(dossier); n++) dossier = join(parent, `${base} (${n})`)
   return verifierDestinationMigration(dossier, racine)

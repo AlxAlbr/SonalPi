@@ -10,10 +10,12 @@ Le dossier complet et les médias nécessaires restent indispensables.
 1. Depuis l'Accueil, cliquez sur **« Ouvrir un corpus local »** et choisissez le
    fichier `.crp` SonalPi1. Une demande d'ouverture du système utilise le même
    parcours. La V1 est reconnue automatiquement, sans redemander le fichier.
-2. La fenêtre **« Passer à SonalPi2 »** propose un nom prérempli avec le nom du
-   fichier sans extension, et un dossier libre. Vous pouvez modifier ce nom ou
-   changer l'emplacement ; aucun second nom de fichier n'est demandé.
-3. Fermez les applications utilisant la V1 et cliquez sur **« Passer à SonalPi2 »**.
+2. La fenêtre **« Créer une version SonalPi2 de ce corpus »** affiche directement
+   l'emplacement du nouveau dossier, dont le nom reprend celui du fichier sans
+   extension suivi de `V2`. Vous pouvez choisir un autre emplacement. Le nom du
+   corpus dans SonalPi2 reste celui du fichier d'origine.
+3. Fermez les applications utilisant la V1 et cliquez sur
+   **« Créer le corpus SonalPi2 »**.
    Le nouveau corpus est préparé et vérifié avant de remplacer le corpus courant.
    Il s'ouvre directement et rejoint les récents, sans bilan de réussites à valider.
 

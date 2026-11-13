@@ -5,6 +5,7 @@ import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
 import ListeRecents from './ListeRecents.vue'
 import { utiliserSonal } from '../../composables/sonal'
 import type { EntreeRecent } from '../../../shared/format'
+import { afficherErreurGlobale } from '../../erreurs'
 
 const {
   recents,
@@ -39,6 +40,10 @@ const blocs = computed(() => {
 const modaleNouveau = modaleNouveauCorpus
 const modaleNouveauDistant = ref(false)
 const ouvrirDocumentation = (entree: 'guide' | 'faq') => window.sonal.application.ouvrirDocumentation(entree)
+async function ouvrirFichierLocal(): Promise<void> {
+  try { await choisirFichier() }
+  catch (erreur) { afficherErreurGlobale(erreur, 'Ouverture du corpus refusée') }
+}
 
 /** Demande le secret dans la modale lorsqu'un récent ne peut pas rouvrir seul. */
 async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
@@ -105,7 +110,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
               <span class="carte-titre">Nouveau corpus local</span>
               <span class="carte-sous">Créer un dossier sur votre poste</span>
             </button>
-            <button class="carte-demo ouvrir-corpus" :disabled="ouvertureEnCours" @click="choisirFichier">
+            <button class="carte-demo ouvrir-corpus" :disabled="ouvertureEnCours" @click="ouvrirFichierLocal">
               <span class="carte-titre">Ouvrir un corpus local</span>
               <span class="carte-sous">Fichier .crp SonalPi1 ou SonalPi2</span>
             </button>
