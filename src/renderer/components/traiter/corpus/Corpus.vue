@@ -345,11 +345,11 @@ function allerOccurrence(id: string, pos: number) {
 /** Onglets du corpus, dans l'ordre d'affichage ; « accueil » est l'onglet Entretiens. */
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
-  { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: 'commentaires', libelle: 'Commentaires', icone: icoCommentaires },
   { id: 'personnes', libelle: 'Personnes', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
+  { id: 'commentaires', libelle: 'Commentaires', icone: icoCommentaires },
+  { id: 'notes', libelle: 'Notes', icone: icoNotes },
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
 ]
 
