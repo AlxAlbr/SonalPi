@@ -109,7 +109,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
           <div class="paire">
             <button class="carte-demo ouvrir-corpus neutre" :disabled="ouvertureEnCours" @click="choisirFichier">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H7.5a2 2 0 0 0-1.9 1.4L3 19z" /><path d="M3 19l2.6-7.6A2 2 0 0 1 7.5 10H22l-2.6 7.6a2 2 0 0 1-1.9 1.4z" /></svg>
-              <span><span class="carte-titre">Un corpus local</span><span class="carte-sous">Fichier .crp SonalPi1 ou SonalPi2</span></span>
+              <span><span class="carte-titre">Un corpus local</span><span class="carte-sous">Fichier .crp</span></span>
             </button>
             <button class="carte-demo distant-corpus neutre" :disabled="ouvertureEnCours" @click="ouvrirAuthentification('webdav')">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z" /><path d="M12 16v-5M9.5 13.5 12 11l2.5 2.5" /></svg>
