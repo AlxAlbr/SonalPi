@@ -163,6 +163,16 @@
 .colonne-droite.noms-pseudonymise .editeur .gouttiere-loc.loc-anon .loc-nom {
   display: none;
 }
+/* Onglet Locuteurs inactif : libellés en gris, la couleur propre au locuteur
+ * (posée en ligne sur le nom et le pseudo) ne revient qu'avec l'onglet. */
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc,
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc .loc-nom,
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc .loc-pseudo {
+  color: #8c8c8c !important;
+}
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc {
+  border-bottom-color: #e4e4e4;
+}
 
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du
  * plugin lecture (le texte entre les 2 ancres encadrant l'instant courant ;

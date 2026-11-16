@@ -284,6 +284,8 @@ const affichageNoms = computed(() => (outilVisible('anon') ? 'comparer' : 'pseud
 const classesColonneDroite = computed(() => ({
   'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif.value,
   'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
+  // Hors de l'onglet Locuteurs, les libellés passent en gris pour ne pas distraire.
+  'locuteurs-discrets': !outilVisible('locuteurs'),
 }))
 const redimensionnementNotesActif = ref(false)
 const largeurMinimaleNotes = 240
