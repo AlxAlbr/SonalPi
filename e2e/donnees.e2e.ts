@@ -43,7 +43,7 @@ async function creerVariable(
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
 async function ongletDonnees(page: Page) {
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  await page.locator('.outils-editeur button[data-onglet="donnees"]').click()
 }
 
 test('Notes et Données partagent le volet droit et se replient au second clic', async () => {
@@ -56,8 +56,8 @@ test('Notes et Données partagent le volet droit et se replient au second clic',
     await entrerEntretien(page)
 
     const volet = page.locator('.volet-notes')
-    const notes = volet.locator('[data-onglet="notes"]')
-    const donnees = volet.locator('[data-onglet="donnees"]')
+    const notes = page.locator('.outils-editeur [data-onglet="notes"]')
+    const donnees = page.locator('.outils-editeur [data-onglet="donnees"]')
     const panneauNotes = volet.locator('.panneau.notes')
     const panneauDonnees = volet.locator('.panneau.donnees')
     const titreNote = panneauNotes.locator('.champ-titre-note input')

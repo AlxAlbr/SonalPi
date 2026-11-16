@@ -166,7 +166,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await spotlightSur(page, '[data-tour="onglet-notes"]')
   // Le geste réel, guidé champ par champ : onglet Notes, titre, corps,
   // puis création — le trou suit chaque cible.
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('.outils-editeur button[data-onglet="notes"]').click()
   await spotlightSur(page, '[data-tour="note-titre"]')
   await page.locator('[data-tour="note-titre"]').fill('Impressions du retour d’entretien')
   await spotlightSur(page, '.nouvelle-note-inline .zone-corps-note')
@@ -293,7 +293,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   await spotlightSur(page, '[data-tour="onglet-donnees"]')
   // La cible = onglet Données. La variable « Ville » (portée locuteur,
   // saisie libre) est pré-créée par le mode pas-à-pas → champ texte par locuteur.
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  await page.locator('.outils-editeur button[data-onglet="donnees"]').click()
   const saisieLibre = page.locator('.panneau.donnees .saisie-eav-libre').first()
   await expect(saisieLibre).toBeVisible({ timeout: 5_000 })
   await saisieLibre.fill('Villebourg')

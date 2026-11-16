@@ -308,6 +308,9 @@ function onDropNote(cibleId: string) {
 
 <template>
   <aside class="panneau notes">
+    <div class="corpus-tete">
+      <h3>Notes</h3>
+    </div>
     <section v-if="!lectureSeule && brouillonNote && !brouillonNote.id" class="nouvelle-note-inline">
       <div class="tete-note-inline">
         <button

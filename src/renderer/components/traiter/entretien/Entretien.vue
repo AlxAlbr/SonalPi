@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { usePanneauxEntretien, type OngletEntretien } from '../../../composables/entretien/usePanneauxEntretien'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
@@ -59,8 +59,7 @@ const {
   afficherRecueilsPourAssociation,
   rafraichirCompteursAAAnonymiser,
 } = utiliserSonal()
-type OngletLateral = 'notes' | 'donnees'
-const journalOuvert = ref(false)
+type OngletLateral = 'notes' | 'donnees' | 'recherche' | 'journal'
 const enteteEditeur = ref<HTMLElement | null>(null)
 let animationNavigationTexte: number | null = null
 
@@ -88,21 +87,6 @@ function garderCurseurVisible(event: KeyboardEvent) {
 const boutonJournal = ref<HTMLButtonElement | null>(null)
 const fenetreJournal = ref<HTMLElement | null>(null)
 
-async function ouvrirJournal() {
-  fermerRecherche()
-  journalOuvert.value = true
-  await nextTick()
-  fenetreJournal.value?.focus()
-}
-
-function fermerJournal() {
-  journalOuvert.value = false
-  boutonJournal.value?.focus()
-}
-
-watch(rechercheOuverte, (ouverte) => {
-  if (ouverte) journalOuvert.value = false
-})
 const ongletGauche = ref<OngletEntretien>('locuteurs')
 const {
   ongletsHaut, ongletsBas, actifHaut, actifBas, partage, proportionHaut,
@@ -125,8 +109,41 @@ const zonesGauche = computed(() => [
 function cibleOutil(id: OngletEntretien) {
   return `#${idPanneaux}-${ongletsBas.value.includes(id) ? 'bas' : 'haut'}`
 }
+// Volet de droite : un seul contenu à la fois, choisi dans la barre au-dessus du texte.
 const ongletLateral = ref<OngletLateral>('notes')
 const voletNotesOuvert = ref(false)
+const libellesFermeture: Record<OngletLateral, string> = {
+  notes: 'Fermer les notes',
+  donnees: 'Fermer les données',
+  recherche: 'Fermer la recherche',
+  journal: 'Fermer le journal',
+}
+const journalOuvert = computed(() => voletNotesOuvert.value && ongletLateral.value === 'journal')
+
+async function ouvrirJournal() {
+  ouvrirVolet('journal')
+  await nextTick()
+  fenetreJournal.value?.focus()
+}
+
+function fermerJournal() {
+  fermerVolet()
+  boutonJournal.value?.focus()
+}
+
+// La recherche (bouton ou Ctrl+F) s'affiche dans le volet ;
+// changer de contenu ou fermer le volet la referme, avec ses surlignages.
+watch(rechercheOuverte, (ouverte) => {
+  if (ouverte) {
+    ongletLateral.value = 'recherche'
+    voletNotesOuvert.value = true
+  } else if (ongletLateral.value === 'recherche') {
+    voletNotesOuvert.value = false
+  }
+})
+watch([voletNotesOuvert, ongletLateral], ([ouvert, onglet]) => {
+  if (rechercheOuverte.value && !(ouvert && onglet === 'recherche')) fermerRecherche()
+})
 const statistiquesOuvertes = ref(false)
 const interventionStatistique = ref<{ loc: number | null; pos: number } | null>(null)
 watch(() => outilVisible('anon'), (visible) => {
@@ -161,9 +178,45 @@ try {
 } catch { /* Stockage facultatif. */ }
 const redimensionnementOutils = ref(false)
 
-/** Largeur bornée : au moins le minimum, au plus la moitié de la fenêtre. */
+// Largeur minimale du transcript : celle de sa barre de boutons.
+// La grille et les poignées de redimensionnement s'appuient sur cette même mesure.
+const largeurMinTranscript = ref(0)
+
+function mesurerMinimumTranscript(): number {
+  const outils = document.querySelector<HTMLElement>('.grille-ent .colonne-droite .outils-editeur')
+  if (!outils) return 0
+  const style = getComputedStyle(outils)
+  const boutons = Array.from(outils.children) as HTMLElement[]
+  let minimum = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight)
+    + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth)
+    + (Number.parseFloat(style.columnGap) || 0) * Math.max(0, boutons.length - 1)
+  for (const bouton of boutons) {
+    const s = getComputedStyle(bouton)
+    minimum += bouton.getBoundingClientRect().width + Number.parseFloat(s.marginLeft) + Number.parseFloat(s.marginRight)
+  }
+  largeurMinTranscript.value = Math.ceil(minimum)
+  return largeurMinTranscript.value
+}
+
+onMounted(() => {
+  void nextTick(mesurerMinimumTranscript)
+  // Les polices peuvent arriver après l'affichage et élargir les boutons.
+  void document.fonts?.ready.then(() => { mesurerMinimumTranscript() })
+})
+
+/** Place que le transcript peut encore céder avant d'atteindre sa largeur minimale. */
+function margeTranscript(): number {
+  const colonne = document.querySelector<HTMLElement>('.grille-ent .colonne-droite')
+  if (!colonne) return Infinity
+  const minimum = mesurerMinimumTranscript()
+  return colonne.getBoundingClientRect().width - minimum
+}
+
+/** Largeur bornée : au moins le minimum, au plus la moitié de la fenêtre,
+ *  sans écraser le transcript sous la largeur de sa barre de boutons. */
 function bornerLargeurOutils(valeur: number): number {
-  const max = Math.max(largeurMinimaleOutils, window.innerWidth * 0.5)
+  const actuelle = document.querySelector<HTMLElement>('.grille-ent .colonne-gauche')?.getBoundingClientRect().width ?? 0
+  const max = Math.min(Math.max(largeurMinimaleOutils, window.innerWidth * 0.5), actuelle + margeTranscript())
   return Math.max(largeurMinimaleOutils, Math.min(valeur, max))
 }
 
@@ -208,6 +261,7 @@ const styleGrille = computed(() => {
   const style: Record<string, string> = {}
   if (largeurNotesPersonnalisee.value !== null) style['--volet-notes-largeur-personnalisee'] = `${largeurNotesPersonnalisee.value}px`
   if (largeurOutilsPersonnalisee.value !== null) style['--largeur-outils-personnalisee'] = `${largeurOutilsPersonnalisee.value}px`
+  if (largeurMinTranscript.value > 0) style['--largeur-min-transcript'] = `${largeurMinTranscript.value}px`
   return Object.keys(style).length ? style : undefined
 })
 
@@ -222,17 +276,8 @@ const classesColonneDroite = computed(() => ({
   'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif.value,
   'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
 }))
-const ignorerClicNotes = ref(false)
 const redimensionnementNotesActif = ref(false)
 const largeurMinimaleNotes = 240
-let xDebutGlissementNotes: number | null = null
-let largeurDebutGlissementNotes = 0
-let idPointeurNotes: number | null = null
-let glissementNotesActif = false
-let ongletGlissement: OngletLateral = 'notes'
-let glissementDepuisReplie = false
-let positionsPointeurNotes: Array<{ x: number; temps: number }> = []
-let animationInertieNotes: number | null = null
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -272,7 +317,6 @@ watch(ajoutSelectionActif, (actif) => {
 }, { flush: 'sync' })
 
 onBeforeUnmount(() => {
-  if (animationInertieNotes !== null) cancelAnimationFrame(animationInertieNotes)
   if (animationNavigationTexte !== null) cancelAnimationFrame(animationNavigationTexte)
 })
 
@@ -289,141 +333,68 @@ function ouvrirRecueilsDepuisSelection() {
 function ouvrirVolet(onglet: OngletLateral) {
   ongletLateral.value = onglet
   voletNotesOuvert.value = true
-  ongletDroite.value = onglet
+  if (onglet !== 'recherche') ongletDroite.value = onglet
 }
 
-function largeurNotesFermee(): number {
-  const grille = document.querySelector<HTMLElement>('.grille-ent')
-  if (!grille) return 52
-  const largeur = getComputedStyle(grille).getPropertyValue('--volet-notes-largeur-fermee')
-  const racine = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
-  return Number.parseFloat(largeur) * racine
+function fermerVolet() {
+  voletNotesOuvert.value = false
+  ongletDroite.value = ongletGauche.value
 }
 
-async function commencerGlissementNotes(event: PointerEvent, onglet: OngletLateral) {
-  if (event.button !== 0) return
-  if (animationInertieNotes !== null) {
-    cancelAnimationFrame(animationInertieNotes)
-    animationInertieNotes = null
-    redimensionnementNotesActif.value = false
-  }
-  const volet = document.querySelector<HTMLElement>('.volet-notes')
-  const panneau = document.querySelector<HTMLElement>(`#panneau-${ongletLateral.value}-entretien`)
-  if (!volet || !panneau) return
-  ongletGlissement = onglet
-  xDebutGlissementNotes = event.clientX
-  glissementDepuisReplie = !voletNotesOuvert.value
-  largeurDebutGlissementNotes = glissementDepuisReplie
-    ? volet.getBoundingClientRect().width
-    : panneau.getBoundingClientRect().width
-  idPointeurNotes = event.pointerId
-  glissementNotesActif = false
-  positionsPointeurNotes = [{ x: event.clientX, temps: performance.now() }]
-  redimensionnementNotesActif.value = true
-  const bouton = event.currentTarget as HTMLButtonElement
-  bouton.setPointerCapture(event.pointerId)
-  await nextTick()
-  if (idPointeurNotes !== event.pointerId) return
-  largeurDebutGlissementNotes = glissementDepuisReplie
-    ? volet.getBoundingClientRect().width
-    : panneau.getBoundingClientRect().width
-}
-
-function glisserNotes(event: PointerEvent) {
-  if (event.pointerId !== idPointeurNotes || xDebutGlissementNotes === null) return
-  const deplacement = xDebutGlissementNotes - event.clientX
-  if (!glissementNotesActif && Math.abs(deplacement) < 4) return
-  glissementNotesActif = true
-  redimensionnementNotesActif.value = true
-  const largeurMax = Math.max(240, window.innerWidth * 0.85)
-  largeurNotesPersonnalisee.value = Math.max(
-    largeurNotesFermee(),
-    Math.min(largeurMax, largeurDebutGlissementNotes + deplacement),
-  )
-  ouvrirVolet(ongletGlissement)
-  const temps = performance.now()
-  positionsPointeurNotes.push({ x: event.clientX, temps })
-  positionsPointeurNotes = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
-}
-
-function terminerGlissementNotesAuRepos() {
-  if (largeurNotesPersonnalisee.value !== null && largeurNotesPersonnalisee.value < largeurMinimaleNotes) {
-    voletNotesOuvert.value = false
-    largeurNotesPersonnalisee.value = null
-  }
-  redimensionnementNotesActif.value = false
-}
-
-function lancerInertieNotes(vitesse: number) {
-  const largeurFermee = largeurNotesFermee()
-  const limiteLargeur = Math.max(240, window.innerWidth * 0.85)
-  let derniereImage = performance.now()
-  const dureeFreinage = 140
-  const animer = (temps: number) => {
-    const ecoule = Math.min(temps - derniereImage, 32)
-    derniereImage = temps
-    const facteur = Math.exp(-ecoule / dureeFreinage)
-    const deplacement = vitesse * dureeFreinage * (1 - facteur)
-    const largeur = largeurNotesPersonnalisee.value ?? 0
-    const largeurMin = vitesse < 0 ? largeurFermee : 0
-    const nouvelleLargeur = Math.max(largeurMin, Math.min(limiteLargeur, largeur + deplacement))
-    largeurNotesPersonnalisee.value = nouvelleLargeur
-    vitesse *= facteur
-
-    if (Math.abs(vitesse) < 0.04 || nouvelleLargeur === largeur) {
-      animationInertieNotes = null
-      terminerGlissementNotesAuRepos()
-      return
-    }
-    animationInertieNotes = requestAnimationFrame(animer)
-  }
-  animationInertieNotes = requestAnimationFrame(animer)
-}
-
-function terminerGlissementNotes(event: PointerEvent) {
-  if (event.pointerId !== idPointeurNotes) return
-  if (glissementNotesActif) {
-    ignorerClicNotes.value = true
-    window.setTimeout(() => {
-      ignorerClicNotes.value = false
-    }, 0)
-  }
-  const temps = performance.now()
-  const derniersMouvements = positionsPointeurNotes.filter((position) => temps - position.temps <= 120)
-  const premierMouvement = derniersMouvements[0]
-  const dernierMouvement = derniersMouvements[derniersMouvements.length - 1]
-  const duree = dernierMouvement && premierMouvement
-    ? dernierMouvement.temps - premierMouvement.temps
-    : 0
-  const vitesse = dernierMouvement && premierMouvement && duree > 0
-    ? Math.max(-1.8, Math.min(1.8, (premierMouvement.x - dernierMouvement.x) / duree))
-    : 0
-  xDebutGlissementNotes = null
-  idPointeurNotes = null
-  positionsPointeurNotes = []
-  const vitesseInertie = event.type === 'pointercancel' ? 0 : vitesse
-  if (glissementNotesActif && Math.abs(vitesseInertie) >= 0.12) {
-    lancerInertieNotes(vitesseInertie)
-    glissementNotesActif = false
-    glissementDepuisReplie = false
-    return
-  }
-  if (glissementNotesActif) terminerGlissementNotesAuRepos()
-  glissementNotesActif = false
-  glissementDepuisReplie = false
-}
-
+/** Bouton de la barre : ouvre ce contenu dans le volet, ou referme le volet s'il l'affiche déjà. */
 function cliquerVolet(onglet: OngletLateral) {
-  if (ignorerClicNotes.value) {
-    ignorerClicNotes.value = false
-    return
-  }
   if (voletNotesOuvert.value && ongletLateral.value === onglet) {
-    voletNotesOuvert.value = false
-    ongletDroite.value = ongletGauche.value
+    if (onglet === 'journal') fermerJournal()
+    else fermerVolet()
+  } else if (onglet === 'recherche') {
+    void ouvrirRecherche()
+  } else if (onglet === 'journal') {
+    void ouvrirJournal()
   } else {
     ouvrirVolet(onglet)
   }
+}
+
+/** Largeur du volet bornée : au moins le minimum, au plus 85 % de la fenêtre,
+ *  sans écraser le transcript sous la largeur de sa barre de boutons. */
+function bornerLargeurNotes(valeur: number): number {
+  const actuelle = document.querySelector<HTMLElement>('.grille-ent .volet-notes')?.getBoundingClientRect().width ?? 0
+  const max = Math.min(Math.max(largeurMinimaleNotes, window.innerWidth * 0.85), actuelle + margeTranscript())
+  return Math.max(largeurMinimaleNotes, Math.min(valeur, max))
+}
+
+// Poignée au bord gauche du volet : elle règle sa largeur à la souris ou au clavier.
+function commencerRedimensionnementNotes(event: PointerEvent): void {
+  if (event.button !== 0) return
+  redimensionnementNotesActif.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function redimensionnerNotes(event: PointerEvent): void {
+  if (!redimensionnementNotesActif.value) return
+  const volet = document.querySelector<HTMLElement>('.grille-ent .volet-notes')
+  if (!volet) return
+  largeurNotesPersonnalisee.value = bornerLargeurNotes(volet.getBoundingClientRect().right - event.clientX)
+}
+
+function finirRedimensionnementNotes(event: PointerEvent): void {
+  if (!redimensionnementNotesActif.value) return
+  redimensionnementNotesActif.value = false
+  const element = event.currentTarget as HTMLElement
+  if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId)
+}
+
+function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const actuelle = largeurNotesPersonnalisee.value
+    ?? document.querySelector<HTMLElement>('.grille-ent .volet-notes')?.getBoundingClientRect().width
+    ?? largeurMinimaleNotes
+  largeurNotesPersonnalisee.value = bornerLargeurNotes(event.key === 'Home'
+    ? largeurMinimaleNotes
+    : event.key === 'End'
+      ? Infinity
+      : actuelle + (event.key === 'ArrowLeft' ? 20 : -20))
 }
 
 </script>
@@ -600,129 +571,147 @@ function cliquerVolet(onglet: OngletLateral) {
               </div>
               <VideoPanel v-show="videoVisible" />
             </div>
+            <!-- Chaque bouton ouvre son contenu dans le volet de droite ;
+                 un second clic sur le bouton actif referme le volet. -->
             <div class="outils-editeur" role="group" aria-label="Outils de l’entretien">
               <button
                 class="ouvrir-recherche"
+                data-onglet="recherche"
+                :class="{ actif: voletNotesOuvert && ongletLateral === 'recherche' }"
+                :aria-expanded="voletNotesOuvert && ongletLateral === 'recherche'"
+                aria-controls="panneau-recherche-entretien"
                 :title="roContenu ? 'Rechercher dans le texte (Ctrl+F)' : 'Rechercher et remplacer dans le texte (Ctrl+F)'"
                 :aria-label="roContenu ? 'Rechercher dans le texte' : 'Rechercher et remplacer dans le texte'"
                 @mousedown.prevent
-                @click="ouvrirRecherche"
+                @click="cliquerVolet('recherche')"
               >
                 <img :src="icoRecherche" alt="" draggable="false" />
               </button>
               <button
                 ref="boutonJournal"
-                class="bouton-journal"
+                class="bouton-volet"
                 data-onglet="journal"
                 :class="{ actif: journalOuvert }"
                 :aria-expanded="journalOuvert"
                 aria-controls="panneau-journal-entretien"
                 title="Journal des actions"
-                @click="journalOuvert ? fermerJournal() : ouvrirJournal()"
+                @click="cliquerVolet('journal')"
               >
                 <img :src="icoJournal" alt="" draggable="false" />
                 <span>Journal</span>
+              </button>
+              <button
+                class="bouton-volet"
+                data-onglet="notes"
+                data-tour="onglet-notes"
+                :class="{ actif: voletNotesOuvert && ongletLateral === 'notes' }"
+                :aria-expanded="voletNotesOuvert && ongletLateral === 'notes'"
+                aria-controls="panneau-notes-entretien"
+                title="Notes"
+                @click="cliquerVolet('notes')"
+              >
+                <img :src="icoNotes" alt="" draggable="false" />
+                <span>Notes</span>
+              </button>
+              <button
+                class="bouton-volet"
+                data-onglet="donnees"
+                data-tour="onglet-donnees"
+                :class="{ actif: voletNotesOuvert && ongletLateral === 'donnees' }"
+                :aria-expanded="voletNotesOuvert && ongletLateral === 'donnees'"
+                aria-controls="panneau-donnees-entretien"
+                title="Données"
+                @click="cliquerVolet('donnees')"
+              >
+                <img :src="icoDonnees" alt="" draggable="false" />
+                <span>Données</span>
               </button>
             </div>
           </div>
           <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />
         </div>
 
-        <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }">
+        <aside class="volet-notes" :class="{ ouvert: voletNotesOuvert }" :inert="!voletNotesOuvert">
+          <div
+            class="poignee-volet"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Largeur du volet de droite"
+            tabindex="0"
+            title="Faites glisser pour régler la largeur"
+            @pointerdown="commencerRedimensionnementNotes"
+            @pointermove="redimensionnerNotes"
+            @pointerup="finirRedimensionnementNotes"
+            @pointercancel="finirRedimensionnementNotes"
+            @keydown="ajusterLargeurNotesAuClavier"
+          ></div>
           <div class="cadre-notes">
             <PanneauDonneesEntretien
               id="panneau-donnees-entretien"
               v-show="ongletLateral === 'donnees'"
               :lecture-seule="roContenu"
-              :inert="!voletNotesOuvert"
             />
             <PanneauNotesEntretien
               id="panneau-notes-entretien"
               v-show="ongletLateral === 'notes'"
-              :inert="!voletNotesOuvert"
-              :class="{ replie: !voletNotesOuvert }"
               :lecture-seule="roContenu"
             />
-          </div>
-          <div class="onglets notes-languette">
-            <button
-              data-onglet="notes"
-              data-tour="onglet-notes"
-              :class="{ actif: voletNotesOuvert && ongletLateral === 'notes' }"
-              :aria-expanded="voletNotesOuvert && ongletLateral === 'notes'"
-              aria-controls="panneau-notes-entretien"
-              title="Notes — faites glisser pour redimensionner"
-              @pointerdown="commencerGlissementNotes($event, 'notes')"
-              @pointermove="glisserNotes"
-              @pointerup="terminerGlissementNotes"
-              @pointercancel="terminerGlissementNotes"
-              @click="cliquerVolet('notes')"
+            <!-- Recherche et remplacement : Entrée passe à l'occurrence suivante, Échap ferme.
+                 Le remplacement est masqué quand l'entretien est en lecture seule. -->
+            <section
+              v-if="rechercheOuverte"
+              id="panneau-recherche-entretien"
+              class="panneau barre-recherche"
+              aria-label="Recherche dans le texte"
             >
-              <img class="ico-onglet" :src="icoNotes" alt="" draggable="false" />
-              <span>Notes</span>
-            </button>
-            <button
-              data-onglet="donnees"
-              data-tour="onglet-donnees"
-              :class="{ actif: voletNotesOuvert && ongletLateral === 'donnees' }"
-              :aria-expanded="voletNotesOuvert && ongletLateral === 'donnees'"
-              aria-controls="panneau-donnees-entretien"
-              title="Données — faites glisser pour redimensionner"
-              @pointerdown="commencerGlissementNotes($event, 'donnees')"
-              @pointermove="glisserNotes"
-              @pointerup="terminerGlissementNotes"
-              @pointercancel="terminerGlissementNotes"
-              @click="cliquerVolet('donnees')"
+              <div class="corpus-tete">
+                <h3>{{ roContenu ? 'Rechercher' : 'Rechercher et remplacer' }}</h3>
+              </div>
+              <div class="ligne-recherche">
+                <input
+                  id="champ-recherche"
+                  v-model="rechercheTexte"
+                  placeholder="Rechercher…"
+                  @keydown.enter.prevent="naviguerRecherche(1)"
+                  @keydown.escape="fermerRecherche"
+                />
+                <span class="compte">{{ compteRecherche }}</span>
+                <button title="Occurrence précédente" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(-1)">‹</button>
+                <button title="Occurrence suivante (Entrée)" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(1)">›</button>
+              </div>
+              <div v-if="!roContenu" class="ligne-remplacement">
+                <input
+                  v-model="remplacementTexte"
+                  placeholder="Remplacer par…"
+                  @keydown.enter.prevent="remplacerOccurrenceCourante"
+                  @keydown.escape="fermerRecherche"
+                />
+                <button :disabled="!occurrencesRecherche.length || indexRecherche < 0" title="Remplacer l'occurrence courante" @click="remplacerOccurrenceCourante">Remplacer</button>
+                <button :disabled="!occurrencesRecherche.length" title="Remplacer toutes les occurrences (une seule annulation Ctrl+Z)" @click="remplacerTout">Tout</button>
+              </div>
+            </section>
+            <section
+              v-if="journalOuvert"
+              id="panneau-journal-entretien"
+              ref="fenetreJournal"
+              class="fenetre-journal"
+              aria-label="Journal des actions de l’entretien"
+              tabindex="-1"
+              @keydown.escape.stop.prevent="fermerJournal"
             >
-              <img class="ico-onglet" :src="icoDonnees" alt="" draggable="false" />
-              <span>Données</span>
-            </button>
+              <PanneauJournalEntretien :lecture-seule="roContenu" />
+            </section>
+            <!-- Croix commune : referme le volet, quel que soit son contenu. -->
+            <button
+              v-if="voletNotesOuvert"
+              type="button"
+              class="fermer-volet"
+              :aria-label="libellesFermeture[ongletLateral]"
+              :title="ongletLateral === 'recherche' || ongletLateral === 'journal' ? 'Fermer (Échap)' : 'Fermer'"
+              @click="cliquerVolet(ongletLateral)"
+            >✕</button>
           </div>
         </aside>
-      </div>
-
-      <section
-        v-if="journalOuvert"
-        id="panneau-journal-entretien"
-        ref="fenetreJournal"
-        class="fenetre-journal"
-        role="dialog"
-        aria-label="Journal des actions de l’entretien"
-        tabindex="-1"
-        @keydown.escape.stop.prevent="fermerJournal"
-      >
-        <button class="fermer-journal" aria-label="Fermer le journal" title="Fermer (Échap)" @click="fermerJournal">✕</button>
-        <PanneauJournalEntretien :lecture-seule="roContenu" />
-      </section>
-
-      <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
-           visible quel que soit le défilement du texte. Entrée = occurrence suivante,
-           Échap ferme ; le remplacement est masqué si le verrou d'autrui fige
-           l'entretien (roContenu). -->
-      <div v-if="rechercheOuverte" class="barre-recherche">
-        <div class="ligne-recherche">
-          <input
-            id="champ-recherche"
-            v-model="rechercheTexte"
-            placeholder="Rechercher…"
-            @keydown.enter.prevent="naviguerRecherche(1)"
-            @keydown.escape="fermerRecherche"
-          />
-          <span class="compte">{{ compteRecherche }}</span>
-          <button title="Occurrence précédente" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(-1)">‹</button>
-          <button title="Occurrence suivante (Entrée)" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(1)">›</button>
-          <button class="fermer" title="Fermer (Échap)" @click="fermerRecherche">✕</button>
-        </div>
-        <div v-if="!roContenu" class="ligne-remplacement">
-          <input
-            v-model="remplacementTexte"
-            placeholder="Remplacer par…"
-            @keydown.enter.prevent="remplacerOccurrenceCourante"
-            @keydown.escape="fermerRecherche"
-          />
-          <button :disabled="!occurrencesRecherche.length || indexRecherche < 0" title="Remplacer l'occurrence courante" @click="remplacerOccurrenceCourante">Remplacer</button>
-          <button :disabled="!occurrencesRecherche.length" title="Remplacer toutes les occurrences (une seule annulation Ctrl+Z)" @click="remplacerTout">Tout</button>
-        </div>
       </div>
 
       <!-- Menu contextuel de l'éditeur (clic droit) : sections anon,
@@ -766,15 +755,15 @@ function cliquerVolet(onglet: OngletLateral) {
 <style scoped>
 .grille-ent {
   display: grid;
+  /* Largeur du volet de droite une fois ouvert ; fermé, sa colonne est nulle. */
   --volet-notes-largeur: min(360px, 34vw);
-  --volet-notes-largeur-fermee: 3.25rem;
   --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
-  --volet-notes-colonne: min(var(--volet-notes-largeur-ajustee), var(--volet-notes-largeur));
   --panneaux-decalage: 1rem;
   /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés.
-     Réglable via la poignée à droite du panneau (valeur personnalisée en pixels). */
-  --largeur-outils: min(var(--largeur-outils-personnalisee, 23.25rem), 50vw);
-  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
+     Réglable via la poignée à droite du panneau (valeur personnalisée en pixels).
+     Elle ne suit pas la largeur de la fenêtre et ne descend jamais sous 280px. */
+  --largeur-outils: max(280px, var(--largeur-outils-personnalisee, 23.25rem));
+  grid-template-columns: var(--largeur-outils) minmax(auto, 1fr) 0px;
   gap: 1rem;
   align-items: start;
   grid-template-areas:
@@ -788,8 +777,7 @@ function cliquerVolet(onglet: OngletLateral) {
   --barre-h: calc(3rem + var(--panneaux-decalage));
 }
 .grille-ent.notes-ouvert {
-  --volet-notes-decalage: calc(var(--volet-notes-colonne) - var(--volet-notes-largeur-ajustee));
-  grid-template-columns: var(--largeur-outils) minmax(0, 1fr) var(--volet-notes-colonne);
+  grid-template-columns: var(--largeur-outils) minmax(auto, 1fr) var(--volet-notes-largeur-ajustee);
 }
 .grille-ent.redimensionnement-notes {
   transition: none;
@@ -797,8 +785,7 @@ function cliquerVolet(onglet: OngletLateral) {
 .grille-ent.redimensionnement-outils {
   transition: none;
 }
-.grille-ent.redimensionnement-notes .cadre-notes,
-.grille-ent.redimensionnement-notes .notes-languette {
+.grille-ent.redimensionnement-notes .colonne-droite {
   transition: none;
 }
 /* Sans lecteur ni statut, aucune barre supplémentaire n'est nécessaire. */
@@ -866,11 +853,8 @@ function cliquerVolet(onglet: OngletLateral) {
 .outils-editeur button.actif {
   background: #e8f0fb;
 }
-/* La loupe est décalée du journal du même espace que journal ↔ réglage d'affichage. */
-.outils-editeur .bouton-journal {
-  margin-left: 1.1rem;
-}
-.outils-editeur .bouton-journal {
+.outils-editeur .ouvrir-recherche,
+.outils-editeur .bouton-volet {
   font-size: 14px;
   min-height: 36px;
   padding: 0.4rem 0.6rem;
@@ -1058,14 +1042,20 @@ function cliquerVolet(onglet: OngletLateral) {
   grid-area: droite;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  /* Le transcript s'étend sous les gouttières de la grille et le décalage du volet Notes,
-     pour ne laisser que cet écart avec les panneaux voisins. */
+  /* Jamais plus étroit que sa barre de boutons (mesurée au montage). */
+  min-width: var(--largeur-min-transcript, 0px);
+  /* Le transcript s'étend dans les gouttières de la grille,
+     pour ne laisser que cet écart avec les panneaux voisins.
+     Volet de droite fermé, il occupe toute la largeur restante. */
   --ecart-panneaux: 0.5rem;
   margin-left: calc(var(--ecart-panneaux) - var(--panneaux-decalage));
-  margin-right: calc(2px + var(--ecart-panneaux) - 2 * var(--panneaux-decalage));
+  margin-right: calc(-1 * var(--panneaux-decalage));
+  transition: margin-right 220ms ease;
   /* En fin de défilement, le bas du transcript laisse la même marge que les panneaux voisins. */
   margin-bottom: 1rem;
+}
+.notes-ouvert .colonne-droite {
+  margin-right: calc(var(--ecart-panneaux) - var(--panneaux-decalage));
 }
 .volet-notes {
   grid-area: volet;
@@ -1074,108 +1064,51 @@ function cliquerVolet(onglet: OngletLateral) {
   align-self: start;
   min-width: 0;
   position: sticky;
-  transform: translateX(calc(var(--panneaux-decalage) - 2px));
   z-index: 22;
   top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
   height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
   box-sizing: border-box;
 }
-.cadre-notes {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--volet-notes-largeur-ajustee);
-  min-width: 0;
-  height: 100%;
-  overflow: clip;
-  transition: transform 220ms ease;
-}
-.cadre-notes > .panneau {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: max(240px, var(--volet-notes-largeur-ajustee));
-  height: 100%;
-  box-sizing: border-box;
-  border-right: 0;
-  border-radius: 8px 0 0 8px;
-  padding-right: 1rem;
-  overflow-y: auto;
-}
-.volet-notes:not(.ouvert) > .cadre-notes {
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  overflow: clip;
-  pointer-events: none;
-}
-.volet-notes:not(.ouvert) .cadre-notes > .panneau {
-  left: 0;
-  right: auto;
-  width: var(--volet-notes-largeur-ajustee);
-  padding: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.volet-notes:not(.ouvert) .cadre-notes > .panneau > * {
+.volet-notes:not(.ouvert) {
   visibility: hidden;
 }
-.onglets.notes-languette {
-  flex-direction: column;
-  gap: 2rem;
-}
-.notes-languette {
+/* Le contenu garde sa largeur pendant l'ouverture : le volet le dévoile sans le recomposer. */
+.cadre-notes {
   position: absolute;
-  z-index: 25;
-  top: 50%;
-  left: -1.375rem;
-  width: 2.75rem;
-  transform: translateY(-50%);
-  transition: translate 220ms ease;
+  inset: 0;
+  overflow: clip;
 }
-.volet-notes:not(.ouvert) .notes-languette {
-  left: -1.375rem;
-}
-.volet-notes.ouvert > .cadre-notes > .panneau {
-  order: 1;
-  padding-left: 2.25rem;
-}
-.volet-notes.ouvert > .cadre-notes {
-  transform: translateX(var(--volet-notes-decalage));
-}
-.volet-notes.ouvert .notes-languette {
-  left: -1.375rem;
-  translate: var(--volet-notes-decalage) 0;
-}
-.notes-languette button {
-  border: 1px solid #ddd;
-  flex-direction: column;
-  gap: 0.45rem;
-  width: 100%;
-  min-height: 6rem;
+.cadre-notes > .panneau,
+.cadre-notes > .fenetre-journal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: max(240px, var(--volet-notes-largeur-ajustee));
   box-sizing: border-box;
-  padding: 0.4rem 0.2rem;
-  border-radius: 6px;
+  border-radius: 8px;
+  overflow-y: auto;
 }
-.volet-notes .notes-languette button {
-  border-bottom: 1px solid #ddd;
-  border-radius: 6px;
+/* Poignée de réglage de la largeur, posée dans l'écart entre le texte et le volet. */
+.poignee-volet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -0.5rem;
+  width: 0.5rem;
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: 5px;
+  z-index: 25;
 }
-.onglets.notes-languette button span {
-  font-size: 14px;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+.poignee-volet:hover,
+.poignee-volet:focus-visible {
+  background: #e8edf5;
 }
-.notes-languette .ico-onglet {
-  width: 20px;
-  height: 20px;
-}
-.notes-languette button:focus-visible {
+.poignee-volet:focus {
   outline: 2px solid #1565c0;
-  outline-offset: 2px;
-  z-index: 1;
+  outline-offset: -2px;
 }
 .lecteur-barre {
   flex: 1 1 0;
@@ -1298,41 +1231,26 @@ function cliquerVolet(onglet: OngletLateral) {
   margin-bottom: 0.5rem;
 }
 
-/* --- Boîte recherche/remplacement (Ctrl+F) --------------------------------
- * Flottante en bas à droite de la fenêtre : visible quel que soit le
- * défilement du texte, sans recouvrir le lecteur audio ni les onglets. */
+/* --- Recherche/remplacement (Ctrl+F) et journal, affichés dans le volet de droite. */
 .barre-recherche {
-  position: fixed;
-  bottom: 0.8rem;
-  right: 0.8rem;
-  z-index: 60;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  padding: 0.5rem;
+  gap: 0.5rem;
 }
 .fenetre-journal {
-  position: fixed;
-  bottom: 0.8rem;
-  right: 0.8rem;
-  z-index: 60;
-  width: min(30rem, calc(100vw - 1.6rem));
-  max-height: min(32rem, calc(100vh - var(--entete-h) - 2rem));
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  border: 1px solid #ddd;
+  background: #fafafe;
 }
-.fenetre-journal :deep(.corpus-tete) {
+.fenetre-journal > .panneau {
+  border: none;
+}
+/* Les titres laissent la place à la croix de fermeture du volet. */
+.cadre-notes :deep(.corpus-tete) {
   padding-right: 2rem;
 }
-.fermer-journal {
+.fermer-volet {
   position: absolute;
+  z-index: 1;
   top: 0.5rem;
   right: 0.5rem;
   border: 1px solid #ccc;
@@ -1348,7 +1266,8 @@ function cliquerVolet(onglet: OngletLateral) {
   gap: 0.3rem;
 }
 .barre-recherche input {
-  width: 13rem;
+  flex: 1;
+  min-width: 0;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.2rem 0.4rem;
@@ -1376,31 +1295,16 @@ function cliquerVolet(onglet: OngletLateral) {
   opacity: 0.4;
   cursor: default;
 }
-.barre-recherche .fermer {
-  color: #888;
-}
 @media (max-width: 1000px) {
   .grille-ent {
-    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-largeur-fermee);
-  }
-  .grille-ent.notes-ouvert {
     --volet-notes-largeur: min(320px, 34vw);
-    grid-template-columns: minmax(180px, 32vw) minmax(0, 1fr) var(--volet-notes-colonne);
-  }
-  .grille-ent:not(.notes-ouvert) {
-    --volet-notes-largeur: min(320px, 34vw);
-  }
-  /* En colonnes étroites, la largeur redevient fluide : la poignée disparaît. */
-  .poignee-largeur {
-    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .grille-ent {
     transition: none;
   }
-  .cadre-notes,
-  .notes-languette {
+  .colonne-droite {
     transition: none;
   }
 }
