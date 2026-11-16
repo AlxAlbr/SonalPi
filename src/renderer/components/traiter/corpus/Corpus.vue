@@ -15,10 +15,10 @@ import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../../composables/sonal'
-import { rechercherDansCorpsTexte } from '../../../editor/rechercheCorpus'
+import { rechercherDansCorpsTexte, transcriptAvecOccurrences } from '../../../editor/rechercheCorpus'
 import { visiblesThemes } from '../../../../shared/corpus/categories'
 import type { EtatVerrouPublic } from '../../../../shared/distant'
-import type { OccurenceRecherche, ResultatRecherche } from '../../../editor/rechercheCorpus'
+import type { OccurenceRecherche, ResultatRecherche, SegmentTranscript } from '../../../editor/rechercheCorpus'
 import type { SegmentThematique } from '../../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
 import icoThemes from '../../../assets/icones/themes.png'
@@ -183,7 +183,7 @@ async function choisirOnglet(onglet: OngletCorpus): Promise<boolean> {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return false
   if (revision !== revisionCorpus.value) return false
   if (ongletCorpus.value === onglet) return true
-  extraitAffiche.value = null
+  transcript.value = null
   ongletCorpus.value = onglet
   if (onglet === 'donnees') await rafraichirMatrice()
   return true
@@ -236,7 +236,7 @@ async function afficherParcours(
   if (parcoursId) selectionnerParcours(parcoursId)
   await choisirOnglet('accueil')
   if (ongletCorpus.value !== 'accueil') return false
-  extraitAffiche.value = null
+  transcript.value = null
   await nextTick()
   const resumeParcours = document.querySelector<HTMLElement>('[data-testid="resume-parcours-global"]')
   resumeParcours?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -260,7 +260,7 @@ function fermerRecherche() {
   // Les marqueurs du mur d'ondes suivent la recherche : on les retire à la fermeture.
   resultats.value = []
   message.value = ''
-  extraitAffiche.value = null
+  transcript.value = null
   void choisirOnglet(ongletAvantRecherche)
 }
 function raccourciRecherche(event: KeyboardEvent) {
@@ -291,37 +291,88 @@ const motEntier = ref(false)
 const resultats = ref<ResultatRecherche[]>([])
 const enCours = ref(false)
 const message = ref('')
-/** Marqueurs pour le « mur » de waveforms (carte par entretien) :
- *  le % divisé par l'axe caractères de chaque occurrence, + le contexte
- *  affiché si on clic. Le clic N'ouvre PAS l'entretien : il reste en vue
- *  Corpus et affiche l'extrait dans le panneau de gauche. */
+/** Marqueurs de recherche sur le « mur » d'ondes, par entretien.
+ *  Un clic sur un marqueur déplie le transcript sous la carte de l'entretien. */
 const marqueursRecherche = computed(() => {
   const out: Record<string, Array<OccurenceRecherche>> = {}
   for (const r of resultats.value) out[r.id] = r.occurrences
   return out
 })
-/** L'extrait d'entretien affiché après le clic sur une barre du mur. */
-const extraitAffiche = ref<{ id: string; titre: string; pre: string; match: string; post: string; pos: number } | null>(null)
-function afficherExtrait(id: string, o: OccurenceRecherche) {
-  const r = resultats.value.find((x) => x.id === id)
-  extraitAffiche.value = { id, titre: r?.titre ?? id, pre: o.pre, match: o.match, post: o.post, pos: o.pos }
+// Textes lus pendant la recherche, réutilisés pour déplier un transcript sans relire le disque.
+const corpsLus = new Map<string, unknown>()
+const requeteLancee = ref('')
+let motEntierLance = false
+
+/** Transcript déplié sous une carte, avec l'occurrence choisie mise en avant. */
+const transcript = ref<{ id: string; pos: number; paragraphes: SegmentTranscript[][] } | null>(null)
+const cadreTranscript = ref<HTMLElement | null>(null)
+// Le transcript est rendu dans la boucle des cartes : on garde l'élément par une fonction.
+function poserCadreTranscript(el: unknown) {
+  cadreTranscript.value = el instanceof HTMLElement ? el : null
 }
+const occurrencesTranscript = computed(() =>
+  transcript.value ? (marqueursRecherche.value[transcript.value.id] ?? []).map((o) => o.pos) : [])
+const rangTranscript = computed(() =>
+  transcript.value ? occurrencesTranscript.value.indexOf(transcript.value.pos) : -1)
+
+async function afficherTranscript(id: string, pos: number) {
+  if (transcript.value?.id === id) {
+    transcript.value.pos = pos
+  } else {
+    let corps = corpsLus.get(id)
+    if (corps === undefined) {
+      const lecture = await window.sonal.corpus.lireEntretien(id)
+      if (!lecture.ok) return
+      corps = lecture.data.corpsTexte
+      corpsLus.set(id, corps)
+    }
+    transcript.value = {
+      id,
+      pos,
+      paragraphes: transcriptAvecOccurrences(corps, requeteLancee.value, { motEntier: motEntierLance }),
+    }
+    if (corpusSelId.value !== id) void selectionnerCorpus(id)
+  }
+  await nextTick()
+  centrerOccurrence()
+}
+/** Fait défiler le transcript jusqu'à l'occurrence choisie, et la page jusqu'au transcript. */
+function centrerOccurrence() {
+  const cadre = cadreTranscript.value
+  const marque = cadre?.querySelector<HTMLElement>('mark.courante')
+  if (!cadre || !marque) return
+  cadre.scrollTop = marque.offsetTop - cadre.clientHeight / 2
+  cadre.closest('li')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+function occurrenceVoisine(sens: 1 | -1) {
+  const liste = occurrencesTranscript.value
+  if (!transcript.value || !liste.length) return
+  const rang = (rangTranscript.value + sens + liste.length) % liste.length
+  void afficherTranscript(transcript.value.id, liste[rang])
+}
+
 /** Lance la recherche : lit chaque entretien et extrait ses occurrences,
- *  avec contexte ±15 mots + position PM, puis groupe par entretien.
- *  Cliquer = ouvrir l'entretien. */
+ *  avec leur contexte et leur position, groupées par entretien. */
 async function lancerRecherche() {
   const q = requete.value.trim()
   if (!q) return
   message.value = ''
   enCours.value = true
   resultats.value = []
+  transcript.value = null
+  corpsLus.clear()
+  requeteLancee.value = q
+  motEntierLance = motEntier.value
   try {
     const res: ResultatRecherche[] = []
     for (const e of listeEntretiens()) {
       const lecture = await window.sonal.corpus.lireEntretien(e.id)
       if (!lecture.ok) continue
       const occurrences = rechercherDansCorpsTexte(lecture.data.corpsTexte, q, { motEntier: motEntier.value })
-      if (occurrences.length) res.push({ id: e.id, titre: e.titre, occurrences })
+      if (occurrences.length) {
+        res.push({ id: e.id, titre: e.titre, occurrences })
+        corpsLus.set(e.id, lecture.data.corpsTexte)
+      }
     }
     resultats.value = res
     const nb = res.reduce((n, r) => n + r.occurrences.length, 0)
@@ -336,11 +387,7 @@ function effacerRecherche() {
   requete.value = ''
   resultats.value = []
   message.value = ''
-}
-/** Cliquer une occurrence → ouvrir l'entretien et cale le texte sur le match,
- *  position PM (comme le clic sur un segment thématique). */
-function allerOccurrence(id: string, pos: number) {
-  ouvrirAuSegment(id, pos)
+  transcript.value = null
 }
 /** Onglets du corpus, dans l'ordre d'affichage ; « accueil » est l'onglet Entretiens. */
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
@@ -430,29 +477,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes' && ongletCorpus !== 'commentaires'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
-        <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
-        <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
-          <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
-               reste en vue Corpus, affiche le contexte de l'occurrence ;
-               bouton pour ouvrir l'entretien si besoin.
-               Visible quel que soit l'onglet actif. -->
-          <div v-if="extraitAffiche" class="panneau extrait">
-            <div class="corpus-tete">
-              <h3>Extrait</h3>
-              <button class="mini" @click="extraitAffiche = null">✕</button>
-            </div>
-            <p class="extrait-ent">Entretien : <b>{{ extraitAffiche.titre }}</b></p>
-            <p class="extrait-texte">
-              <span class="pre">{{ extraitAffiche.pre }}</span>
-              <span class="match">{{ extraitAffiche.match }}</span>
-              <span class="post">{{ extraitAffiche.post }}</span>
-            </p>
-            <button class="mini" @click="ouvrirAuSegment(extraitAffiche.id, extraitAffiche.pos)">
-              Ouvrir l’entretien ici →
-            </button>
-          </div>
-
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes' && ongletCorpus !== 'commentaires'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !corpusSelId }">
+        <!-- Colonne gauche : fiche de l'entretien, recherche ou codebook. -->
+        <aside v-if="ongletCorpus !== 'accueil' || corpusSelId" class="colonne-g-corpus">
           <!-- Fiche de l'entretien sélectionné : il y en a toujours un dès que le corpus en contient.
                Réglages en haut, gestes qui retirent quelque chose en bas. -->
           <aside v-if="corpusSelId && ongletCorpus === 'accueil'" v-hauteur-disponible class="panneau meta-ent" aria-label="Fiche de l’entretien">
@@ -658,7 +685,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
                 <ul class="occ-rech">
                   <li v-for="(o, i) in r.occurrences" :key="i">
-                    <button class="occ-rech-btn" title="Ouvrir l’entretien ici" @click="allerOccurrence(r.id, o.pos)">
+                    <button
+                      class="occ-rech-btn"
+                      :class="{ actif: transcript?.id === r.id && transcript.pos === o.pos }"
+                      title="Afficher ce passage dans le transcript, sous l’entretien"
+                      @click="afficherTranscript(r.id, o.pos)"
+                    >
                       <span class="pre">{{ o.pre }}</span>
                       <span class="match">{{ o.match }}</span>
                       <span class="post">{{ o.post }}</span>
@@ -694,9 +726,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
             <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
             <ul class="cartes-ent" aria-label="Entretiens du corpus">
+              <template v-for="e in listeEntretiens()" :key="e.id">
               <li
-                v-for="e in listeEntretiens()"
-                :key="e.id"
                 class="carte-ent"
                 :data-tour="'carte-' + e.titre"
                 :data-entretien-id="e.id"
@@ -754,20 +785,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       :title="s.codes.map(nomTheme).join(' + ')"
                       @click.stop="ouvrirAuSegment(e.id, s.pos)"
                     ></span>
-                    <!-- Marqueurs de RECHERCHE : une pastille par occurrence,
-                         à son emplacement % (axe caractères, aligné sur le résumé).
-                         Clic = RESTE en vue Corpus et affiche l'extrait dans le panneau de gauche,
-                         mais n'ouvre pas l'entretien. -->
+                    <!-- Marqueurs de recherche : une pastille par occurrence, à sa place dans le texte.
+                         Le clic déplie le transcript sous la carte, sans ouvrir l'entretien. -->
                     <span
                       v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
                       :key="'m' + mi"
                       class="occ-marqueur"
+                      :class="{ courant: transcript?.id === e.id && transcript.pos === m.pos }"
                       :style="{ left: m.pourcent + '%' }"
-                      :title="'Afficher l’extrait — « ' + requete + ' »'"
-                      @click.stop="afficherExtrait(e.id, m)"
+                      :title="'Afficher le passage dans le transcript — « ' + requeteLancee + ' »'"
+                      @click.stop="afficherTranscript(e.id, m.pos)"
                     ></span>
                   </div>
               </li>
+              <!-- Transcript déplié sous la carte : texte simple, occurrences surlignées. -->
+              <li v-if="transcript?.id === e.id" class="transcript-ent" :aria-label="`Transcript de ${e.titre}`">
+                <div class="transcript-tete">
+                  <span class="transcript-compte">
+                    Occurrence {{ rangTranscript + 1 }} / {{ occurrencesTranscript.length }}
+                  </span>
+                  <button class="mini" title="Occurrence précédente" aria-label="Occurrence précédente" @click="occurrenceVoisine(-1)">◄</button>
+                  <button class="mini" title="Occurrence suivante" aria-label="Occurrence suivante" @click="occurrenceVoisine(1)">►</button>
+                  <button class="mini transcript-ouvrir" @click="ouvrirAuSegment(transcript.id, transcript.pos)">Ouvrir l’entretien ici</button>
+                  <button class="mini" title="Replier le transcript" aria-label="Replier le transcript" @click="transcript = null">✕</button>
+                </div>
+                <div :ref="poserCadreTranscript" class="transcript-texte">
+                  <p v-for="(paragraphe, pi) in transcript.paragraphes" :key="pi">
+                    <template v-for="(seg, si) in paragraphe" :key="si">
+                      <mark
+                        v-if="seg.pos !== undefined"
+                        :class="{ courante: seg.pos === transcript.pos }"
+                        @click="afficherTranscript(e.id, seg.pos)"
+                      >{{ seg.texte }}</mark>
+                      <template v-else>{{ seg.texte }}</template>
+                    </template>
+                  </p>
+                </div>
+              </li>
+              </template>
             </ul>
           </div>
         </section>
@@ -1029,7 +1084,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   cursor: pointer;
   line-height: 1.35;
 }
-.occ-rech-btn:hover {
+.occ-rech-btn:hover,
+.occ-rech-btn.actif {
   border-color: #2e73d8;
   background: #f0f6ff;
 }
@@ -1057,35 +1113,49 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-color: #2e73d8;
   color: #1565c0;
 }
-/* --- Panneau Extrait (clic sur une barre du mur de recherche) --- */
-.extrait {
-  border: 1px solid #dce4ef;
-  background: #fafdff;
+/* --- Transcript déplié sous une carte après le choix d'une occurrence --- */
+.transcript-ent {
+  margin-top: -0.5rem;
+  border: 1px solid #2e73d8;
+  border-top: 3px solid #2e73d8;
+  border-radius: 0 0 6px 6px;
+  background: #fff;
 }
-.extrait-ent {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
+.transcript-tete {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #e5e5ef;
+  background: #f5f8fd;
+}
+.transcript-compte {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #44506a;
+}
+.transcript-texte {
+  position: relative;
+  max-height: 45vh;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
   color: #333;
 }
-.extrait-texte {
-  margin: 0.4rem 0;
-  border: 1px solid #e5e5ef;
-  border-left: 3px solid #1565c0;
-  border-radius: 4px;
-  background: #fff;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.82rem;
-  color: #444;
-  line-height: 1.45;
+.transcript-texte p {
+  margin: 0 0 0.6rem;
+  white-space: pre-wrap;
 }
-.extrait-texte .match {
-  font-weight: 700;
-  color: #1565c0;
-  background: #fff3c4;
-  padding: 0 0.15rem;
-  /* Espaces VISUEL autour du match (les espaces du template sont détruits par
-     le mode condense de Vue — marge garantie, cf. .occ-rech-btn .match). */
-  margin: 0 0.3em;
+.transcript-texte mark {
+  background: #fff3a8;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.transcript-texte mark.courante {
+  background: #ffb347;
+  outline: 2px solid #e65100;
+  font-weight: 600;
 }
 /* --- Colonne gauche : métadonnées de l'entretien sélectionné --- */
 .meta-ent .champ-nom {
@@ -1310,7 +1380,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   z-index: 10;
   box-sizing: border-box;
 }
-.occ-marqueur:hover {
+.occ-marqueur:hover,
+.occ-marqueur.courant {
   background: rgb(255 0 0);
   width: 6px;
   margin-left: -3px;

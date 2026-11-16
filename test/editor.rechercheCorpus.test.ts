@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rechercherDansCorpsTexte } from '../src/renderer/editor/rechercheCorpus'
+import { rechercherDansCorpsTexte, transcriptAvecOccurrences } from '../src/renderer/editor/rechercheCorpus'
 
 const corps = {
   type: 'doc',
@@ -85,5 +85,24 @@ describe('rechercherDansCorpsTexte', () => {
   it('résiste à un corps illisible', () => {
     expect(rechercherDansCorpsTexte(null, 'karine')).toEqual([])
     expect(rechercherDansCorpsTexte({ type: 'doc', content: 'nope' }, 'a')).toEqual([])
+  })
+})
+
+describe('transcriptAvecOccurrences', () => {
+  it('isole chaque occurrence avec la même position que la recherche', () => {
+    const paragraphes = transcriptAvecOccurrences(corps, 'pa')
+    const positions = rechercherDansCorpsTexte(corps, 'pa').map((o) => o.pos)
+    const marques = paragraphes.flat().filter((s) => s.pos !== undefined)
+    expect(marques.map((s) => s.pos)).toEqual(positions)
+    expect(marques.every((s) => s.texte.toLowerCase() === 'pa')).toBe(true)
+    expect(paragraphes.map((p) => p.map((s) => s.texte).join(''))).toEqual([
+      'Karine habite Lyon depuis sa retraite.',
+      'Elle parle souvent de son travail passe.',
+    ])
+  })
+
+  it('respecte l’option mot entier', () => {
+    const marques = transcriptAvecOccurrences(corps, 'le', { motEntier: true }).flat().filter((s) => s.pos !== undefined)
+    expect(marques).toHaveLength(0)
   })
 })

@@ -153,3 +153,56 @@ export function rechercherDansCorpsTexte(
   }
   return occ
 }
+
+/** Morceau d'un paragraphe de transcript ; `pos` n'est présent que sur une occurrence. */
+export interface SegmentTranscript {
+  texte: string
+  pos?: number
+}
+
+/**
+ *  Découpe le texte d'un entretien en paragraphes, en isolant chaque occurrence de la requête.
+ *  La position d'une occurrence est celle de `rechercherDansCorpsTexte`,
+ *  ce qui relie un marqueur ou un résultat à son passage dans le transcript.
+ */
+export function transcriptAvecOccurrences(
+  corpsTexte: unknown,
+  requete: string,
+  opts: OptionsRecherche = {},
+): SegmentTranscript[][] {
+  let doc: Node
+  try {
+    doc = Node.fromJSON(schemaCorpsTexte, corpsTexte as never)
+  } catch {
+    return []
+  }
+  const q = requete.trim()
+  const qLow = q.toLowerCase()
+  const dansMot = (c: string | undefined) => !!c && MOT_CHAR.test(c)
+  const paragraphes: SegmentTranscript[][] = []
+  let blockStart = 1
+  for (let k = 0; k < doc.childCount; k++) {
+    const texte = doc.child(k).textContent
+    const bas = texte.toLowerCase()
+    const segments: SegmentTranscript[] = []
+    let curseur = 0
+    let idx = 0
+    while (q) {
+      const i = bas.indexOf(qLow, idx)
+      if (i === -1) break
+      const fin = i + q.length
+      idx = Math.max(fin, i + 1)
+      if (opts.motEntier && (dansMot(texte[i - 1]) || dansMot(texte[fin]))) {
+        idx = i + 1
+        continue
+      }
+      if (i > curseur) segments.push({ texte: texte.slice(curseur, i) })
+      segments.push({ texte: texte.slice(i, fin), pos: blockStart + i })
+      curseur = fin
+    }
+    if (curseur < texte.length) segments.push({ texte: texte.slice(curseur) })
+    paragraphes.push(segments)
+    blockStart += 2 + texte.length
+  }
+  return paragraphes
+}
