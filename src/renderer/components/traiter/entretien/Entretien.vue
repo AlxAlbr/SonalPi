@@ -192,17 +192,26 @@ function mesurerMinimumTranscript(): number {
     + (Number.parseFloat(style.columnGap) || 0) * Math.max(0, boutons.length - 1)
   for (const bouton of boutons) {
     const s = getComputedStyle(bouton)
-    minimum += bouton.getBoundingClientRect().width + Number.parseFloat(s.marginLeft) + Number.parseFloat(s.marginRight)
+    minimum += bouton.offsetWidth + Number.parseFloat(s.marginLeft) + Number.parseFloat(s.marginRight)
   }
+  // Boutons pas encore affichés : on garde la dernière mesure valable.
+  if (boutons.every((bouton) => bouton.offsetWidth === 0)) return largeurMinTranscript.value
   largeurMinTranscript.value = Math.ceil(minimum)
   return largeurMinTranscript.value
 }
 
+// Les boutons peuvent n'avoir leur taille définitive qu'après l'affichage
+// (écran encore masqué, polices chargées plus tard) : on remesure à chaque changement.
+let observateurBoutons: ResizeObserver | null = null
 onMounted(() => {
-  void nextTick(mesurerMinimumTranscript)
-  // Les polices peuvent arriver après l'affichage et élargir les boutons.
-  void document.fonts?.ready.then(() => { mesurerMinimumTranscript() })
+  void nextTick(() => {
+    const outils = document.querySelector<HTMLElement>('.grille-ent .colonne-droite .outils-editeur')
+    if (!outils) return
+    observateurBoutons = new ResizeObserver(() => { mesurerMinimumTranscript() })
+    for (const bouton of Array.from(outils.children)) observateurBoutons.observe(bouton)
+  })
 })
+onBeforeUnmount(() => observateurBoutons?.disconnect())
 
 /** Place que le transcript peut encore céder avant d'atteindre sa largeur minimale. */
 function margeTranscript(): number {
@@ -759,12 +768,14 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
   --volet-notes-largeur: min(360px, 34vw);
   --volet-notes-largeur-ajustee: min(var(--volet-notes-largeur-personnalisee, var(--volet-notes-largeur)), 85vw);
   --panneaux-decalage: 1rem;
+  /* Écart entre le lecteur et le haut des trois panneaux : les boutons posés sur le bord du transcript y respirent. */
+  --ecart-haut-panneaux: 1.75rem;
   /* Largeur commune aux onglets et aux commandes du lecteur, qui restent ainsi alignés.
      Réglable via la poignée à droite du panneau (valeur personnalisée en pixels).
      Elle ne suit pas la largeur de la fenêtre et ne descend jamais sous 280px. */
   --largeur-outils: max(280px, var(--largeur-outils-personnalisee, 23.25rem));
   grid-template-columns: var(--largeur-outils) minmax(auto, 1fr) 0px;
-  gap: 1rem;
+  gap: var(--ecart-haut-panneaux) 1rem;
   align-items: start;
   grid-template-areas:
     'barre barre barre'
@@ -814,7 +825,7 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
  *  Un cache blanc couvre l'écart au-dessus, pour que le texte n'y réapparaisse pas. */
 .entete-editeur {
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  top: calc(var(--entete-h) + var(--barre-h) + var(--ecart-haut-panneaux));
   z-index: 20;
   background: #fff;
 }
@@ -824,15 +835,19 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
   left: 0;
   right: 0;
   bottom: 100%;
-  height: var(--panneaux-decalage);
+  height: var(--ecart-haut-panneaux);
   background: #fff;
 }
+/* Les boutons sont à cheval sur le bord haut du transcript :
+ *  la bande n'a que la hauteur de leur moitié basse, la moitié haute dépasse au-dessus du bord. */
 .outils-editeur {
+  --hauteur-bouton-outils: 2rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 0.4rem;
-  padding: 1.2rem 0.6rem;
+  height: calc(var(--hauteur-bouton-outils) / 2);
+  padding: 0 0.6rem;
   background: #fff;
   border: 1px solid #ddd;
   border-bottom: none;
@@ -855,9 +870,14 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
 }
 .outils-editeur .ouvrir-recherche,
 .outils-editeur .bouton-volet {
+  box-sizing: border-box;
+  height: var(--hauteur-bouton-outils);
+  margin-top: calc(var(--hauteur-bouton-outils) / -2);
+  /* Au-dessus du cache blanc qui couvre l'écart sous le lecteur. */
+  position: relative;
+  z-index: 1;
   font-size: 14px;
-  min-height: 36px;
-  padding: 0.4rem 0.6rem;
+  padding: 0 0.6rem;
 }
 .outils-editeur img {
   display: block;
@@ -916,13 +936,13 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
   flex-direction: column;
   gap: 0.5rem;
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
+  top: calc(var(--entete-h) + var(--barre-h) + var(--ecart-haut-panneaux));
   /* Le panneau reste entièrement visible entre la barre fixe et le bas de la fenêtre,
      avec une marge inférieure d'un rem. */
-  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--ecart-haut-panneaux) - 1rem);
 }
 .colonne-gauche.partagee {
-  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--ecart-haut-panneaux) - 1rem);
 }
 .groupe-outils {
   display: flex;
@@ -1065,9 +1085,9 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
   min-width: 0;
   position: sticky;
   z-index: 22;
-  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
-  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
-  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--panneaux-decalage) - 1rem);
+  top: calc(var(--entete-h) + var(--barre-h) + var(--ecart-haut-panneaux));
+  height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--ecart-haut-panneaux) - 1rem);
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - var(--ecart-haut-panneaux) - 1rem);
   box-sizing: border-box;
 }
 .volet-notes:not(.ouvert) {
