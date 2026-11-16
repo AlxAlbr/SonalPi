@@ -151,8 +151,9 @@ function clicBande(e: MouseEvent) {
         >
           Lire le fichier local
         </button>
+        <span class="espace-aide" aria-hidden="true"></span>
+        <AideLectureAudio />
       </div>
-      <AideLectureAudio />
     </div>
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
@@ -384,13 +385,23 @@ dès que les droits seront ouverts.
   display: inline-flex;
   gap: 0.15rem;
 }
+/* Même hauteur que l'icône des raccourcis clavier. */
 .mini-lect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 1.6rem;
   border: 1px solid #ccc;
   border-radius: 5px;
   background: #fff;
   cursor: pointer;
   font-size: 0.72rem;
-  padding: 0.15rem 0.4rem;
+  padding: 0 0.4rem;
+}
+/* L'aide est écartée des commandes de lecture, dont l'usage est différent. */
+.espace-aide {
+  flex: 1 0 0.9rem;
 }
 .mini-lect:hover {
   border-color: #2e73d8;
