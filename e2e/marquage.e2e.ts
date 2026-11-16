@@ -52,11 +52,11 @@ test('deux thèmes sur la même plage se composent (annotations superposées)', 
   const annot = ed.locator('.annot')
   await expect(annot).toHaveText('Karine')
   await expect(annot).toHaveAttribute('data-annot-count', '2')
-  const style = (await annot.getAttribute('style')) ?? ''
+  // Les soulignés sont portés par le span extérieur, à la taille normale du texte.
+  const style = (await annot.locator('xpath=..').getAttribute('style')) ?? ''
   // (le navigateur normalise le style inline : espaces après « : » et couleurs
   //  résolues en rgb())
   expect(style).toMatch(/background-image:\s*linear-gradient\(to top,/)
-  expect((style.match(/transparent/g) ?? []).length).toBe(3) // séparateur entre barres + arrêt final
   expect(style).toMatch(/padding-bottom:\s*7px/) // 4 + 3 × (2 − 1)
 
   await app.close()

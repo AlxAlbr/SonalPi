@@ -3,6 +3,7 @@ import type { EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { estOrpheline } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
+import type { Annotation } from '../../shared/entretien/annotation'
 
 export const decorationsPluginKey = new PluginKey('sonal-annotations-decorations')
 
@@ -140,6 +141,9 @@ function construireDecorations(
   // un sous-passage codé une fois de plus ne décale pas les barres des voisins ;
   // elles restent continues et alignées.
   const paragraphes: { debut: number; fin: number; maxCodages: number }[] = []
+  // Étage de chaque codage dans un paragraphe (0 = le plus près du texte).
+  // Les plus longs passent au-dessus, et un codage garde le même étage sur tout le paragraphe.
+  const etages: Map<string, number>[] = []
   state.doc.forEach((node, offset) => {
     if (node.type.name !== 'paragraph') return
     const debut = offset + 1
@@ -154,7 +158,22 @@ function construireDecorations(
       const n = codages.filter((c) => c.from <= p && p < c.to).length
       if (n > max) max = n
     }
-    paragraphes.push({ debut, fin, maxCodages: max })
+    const ici = codages
+      .filter((c) => c.from < fin && c.to > debut)
+      .sort((x, y) => y.to - y.from - (x.to - x.from) || x.from - y.from)
+    const etage = new Map<string, number>()
+    for (const c of ici) {
+      const pris = new Set(
+        ici
+          .filter((o) => etage.has(o.id) && o.from < c.to && c.from < o.to)
+          .map((o) => etage.get(o.id)!),
+      )
+      let n = 0
+      while (pris.has(n)) n++
+      etage.set(c.id, n)
+    }
+    etages.push(etage)
+    paragraphes.push({ debut, fin, maxCodages: Math.max(max, ...[...etage.values()].map((n) => n + 1)) })
     bornesBrutes.push(debut, fin)
   })
   const bornes = [...new Set(bornesBrutes)].sort((x, y) => x - y)
@@ -179,18 +198,20 @@ function construireDecorations(
     // Un dégradé à une seule teinte rend comme la box-shadow.
     const codagesIci = couvrant.filter((a) => a.type === 'codage')
     const nbBarres = paragraphe ? paragraphe.maxCodages : codagesIci.length
+    const etageDe = (a: Annotation, k: number) => etages[iparagraphe]?.get(a.id) ?? k
     const stylesCodage: string[] = []
     if (nbBarres > 1) {
+      // Barre k (comptée depuis le bas) : l'étage le plus haut est le plus près du texte.
       const arrets: string[] = []
-      codagesIci.forEach((a, k) => {
-        arrets.push(`${traitDe(a, resoudre)} ${3 * k}px ${3 * k + 2}px`)
-        if (k < codagesIci.length - 1)
-          arrets.push(`transparent ${3 * k + 2}px ${3 * k + 3}px`)
-      })
+      for (let k = 0; k < nbBarres; k++) {
+        const a = codagesIci.find((c, i) => nbBarres - 1 - etageDe(c, i) === k)
+        arrets.push(`${a ? traitDe(a, resoudre) : 'transparent'} ${3 * k}px ${3 * k + 2}px`)
+        if (k < nbBarres - 1) arrets.push(`transparent ${3 * k + 2}px ${3 * k + 3}px`)
+      }
       // Au-delà du DERNIER arrêt, un dégradé prolonge sa dernière couleur.
       // Sans cet arrêt final transparent, la dernière teinte surlignerait tout le passage,
       // au lieu de rester une barre sous le texte.
-      arrets.push(`transparent ${3 * (codagesIci.length - 1) + 2}px`)
+      arrets.push(`transparent ${3 * (nbBarres - 1) + 2}px`)
       stylesCodage.push(`background-image:linear-gradient(to top, ${arrets.join(',')})`)
       stylesCodage.push(`padding-bottom:${4 + 3 * (nbBarres - 1)}px`)
     } else if (codagesIci.length === 1) {
@@ -236,7 +257,6 @@ function construireDecorations(
     // sans afficher de pseudo — pas de data-pseudo, et `anon-suite` neutralise le ::after du CSS.
     const suite = anonymiseIci && pseudos.length === 0
     const style = [
-      marqueCodages,
       police,
       commenteIci ? 'background-color:rgba(255, 213, 79, 0.18)' : '',
     ]
@@ -249,7 +269,7 @@ function construireDecorations(
           : anonymiseIci
             ? `annot anon${suite ? ' anon-suite' : ''}`
             : 'annot',
-        style,
+        ...(style ? { style } : {}),
         // Les incluses masquées ne figurent ni dans le comptage ni dans le titre :
         // le segment se présente comme si elles n'existaient pas.
         'data-annot-count': String(couvrant.filter((a) => !masquee.has(a.id)).length),
@@ -268,6 +288,15 @@ function construireDecorations(
           .join(' + '),
       }),
     )
+    // Les soulignés vivent sur un span EXTÉRIEUR, à la taille normale du texte :
+    // ainsi ils restent à la même hauteur quand le passage grossit (taille de thème)
+    // ou se replie (nom pseudonymisé masqué).
+    // Ajouté après le span principal et avec son propre nodeName, ProseMirror le place autour.
+    if (marqueCodages) {
+      decos.push(
+        Decoration.inline(segFrom, segTo, { nodeName: 'span', class: 'soulignes', style: marqueCodages }),
+      )
+    }
   }
   return DecorationSet.create(state.doc, decos)
 }

@@ -73,10 +73,11 @@ describe('décorations — soulignés multi-codages', () => {
   })
 
   test('deux codages même plage → dégradé 2 barres + arrêt final transparent', () => {
+    // À longueur égale, le premier codé reste le plus près du texte.
     const s = styles(etat([codage('a', 1, 5), codage('b', 1, 5)]))
     expect(s).toEqual([
-      'background-image:linear-gradient(to top, couleur(a) 0px 2px,transparent 2px 3px,' +
-        'couleur(b) 3px 5px,transparent 5px);padding-bottom:7px',
+      'background-image:linear-gradient(to top, couleur(b) 0px 2px,transparent 2px 3px,' +
+        'couleur(a) 3px 5px,transparent 5px);padding-bottom:7px',
     ])
   })
 
@@ -90,16 +91,15 @@ describe('décorations — soulignés multi-codages', () => {
       expect(style).toContain('padding-bottom:10px')
       expect(style).toContain('transparent') // jamais de couleur qui déborde en surlignage
     }
-    // Segment du sous-passage : trois barres ;
-    // les deux barres y gardent leur profondeur d'origine (0-2 et 3-5),
-    // la troisième s'empile en dessous.
+    // Segment du sous-passage : trois barres, la plus courte (c) tout en bas.
     const milieu = s[1]
-    expect(milieu).toContain('couleur(a) 0px 2px')
+    expect(milieu).toContain('couleur(a) 6px 8px')
     expect(milieu).toContain('couleur(b) 3px 5px')
-    expect(milieu).toContain('couleur(c) 6px 8px')
-    // Segments voisins : deux barres aux MÊMES profondeurs que au milieu.
-    expect(s[0]).toContain('couleur(a) 0px 2px')
+    expect(milieu).toContain('couleur(c) 0px 2px')
+    // Segments voisins : les deux longues barres aux MÊMES hauteurs qu'au milieu.
+    expect(s[0]).toContain('couleur(a) 6px 8px')
     expect(s[0]).toContain('couleur(b) 3px 5px')
+    expect(s[0]).toContain('transparent 0px 2px')
     expect(s[2]).toContain('couleur(b) 3px 5px')
   })
 
