@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } fro
 import { usePanneauxEntretien, type OngletEntretien } from '../../../composables/entretien/usePanneauxEntretien'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
+import FenetreHorodatageTour from './FenetreHorodatageTour.vue'
+import BarreTourEntretien from './BarreTourEntretien.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
@@ -58,6 +60,7 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
   rafraichirCompteursAAAnonymiser,
+  tourHorodatage,
 } = utiliserSonal()
 type OngletLateral = 'notes' | 'donnees' | 'recherche' | 'journal'
 const enteteEditeur = ref<HTMLElement | null>(null)
@@ -277,6 +280,10 @@ const styleGrille = computed(() => {
 // Le texte s'affiche pseudonymisé (pseudo seul, comme dans l'export).
 // Pendant le travail dans l'onglet Pseudos, il passe en comparaison :
 // nom réel barré et pseudo côte à côte.
+function fermerHorodatage() {
+  tourHorodatage.value = null
+}
+
 const affichageNoms = computed(() => (outilVisible('anon') ? 'comparer' : 'pseudonymise'))
 
 /** Classes de la colonne de l'éditeur : sélection anon en cours + vue des noms
@@ -457,6 +464,8 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
           class="colonne-gauche"
           :class="{ partagee: partage, 'glissement-onglet': ongletGlisse }"
         >
+          <!-- Tour de parole courant : suit le curseur, flèches pour passer d'un tour à l'autre. -->
+          <BarreTourEntretien />
           <template v-for="zone in zonesGauche" :key="zone.id">
             <div
               v-if="zone.id === 'bas'"
@@ -760,6 +769,14 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
         @valider="validerCommentaire"
         @supprimer="supprimerCommentaire(editionCommentaire!.id!)"
         @fermer="fermerEditionCommentaire"
+      />
+
+      <!-- Temps d'un tour de parole (bouton ✎ du libellé du tour). -->
+      <FenetreHorodatageTour
+        v-if="tourHorodatage != null"
+        :key="tourHorodatage"
+        :pos-bloc="tourHorodatage"
+        @fermer="fermerHorodatage"
       />
 
     </section>
