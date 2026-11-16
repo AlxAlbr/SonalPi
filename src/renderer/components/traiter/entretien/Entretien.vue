@@ -865,11 +865,22 @@ function cliquerVolet(onglet: OngletLateral) {
   height: var(--barre-h);
   box-sizing: border-box;
 }
-/* L'en-tête reste joint au lecteur pendant le défilement, sans espace où le texte pourrait réapparaître. */
+/* L'en-tête s'épingle à la même hauteur que les panneaux voisins :
+ *  le haut du transcript ne bouge donc pas pendant le défilement.
+ *  Un cache blanc couvre l'écart au-dessus, pour que le texte n'y réapparaisse pas. */
 .entete-editeur {
   position: sticky;
-  top: calc(var(--entete-h) + var(--barre-h));
+  top: calc(var(--entete-h) + var(--barre-h) + var(--panneaux-decalage));
   z-index: 20;
+  background: #fff;
+}
+.entete-editeur::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--panneaux-decalage);
   background: #fff;
 }
 .outils-editeur {
@@ -1121,6 +1132,8 @@ function cliquerVolet(onglet: OngletLateral) {
   --ecart-panneaux: 0.5rem;
   margin-left: calc(var(--ecart-panneaux) - var(--panneaux-decalage));
   margin-right: calc(2px + var(--ecart-panneaux) - 2 * var(--panneaux-decalage));
+  /* En fin de défilement, le bas du transcript laisse la même marge que les panneaux voisins. */
+  margin-bottom: 1rem;
 }
 .volet-notes {
   grid-area: volet;
