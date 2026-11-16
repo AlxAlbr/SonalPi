@@ -6,15 +6,11 @@ import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 const props = defineProps<{
   actif: boolean
   lectureSeuleContenu: boolean
-  /** Vue d'affichage des noms côté éditeur (« original » masque les marqueurs). */
-  affichageNoms?: 'original' | 'comparer' | 'pseudonymise'
 }>()
-const emit = defineEmits<{ basculerAffichage: [vue: 'comparer' | 'pseudonymise'] }>()
 const ajoutSelectionActif = defineModel<boolean>('ajoutSelectionActif', { required: true })
 
 const {
   selectionAnon,
-  applicationsAnon,
   hintAnon,
   lignesAnon,
   hitsAAnonymiserParCle,
@@ -48,20 +44,6 @@ const {
   lectureSeule,
   gesteDisponible,
 } = utiliserSonal()
-
-// Prévenir une seule fois quand la vue Original masque une application réussie.
-const avisAffichageOriginal = ref(false)
-let avisAffichageDejaAffiche = false
-watch(applicationsAnon, () => {
-  if (props.affichageNoms === 'original' && !avisAffichageDejaAffiche) {
-    avisAffichageDejaAffiche = true
-    avisAffichageOriginal.value = true
-  }
-})
-function passerEnComparer() {
-  avisAffichageOriginal.value = false
-  emit('basculerAffichage', 'comparer')
-}
 
 // --- ANON : lignes de saisie (en bas du tableau) ---
 // Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM),
@@ -648,17 +630,6 @@ function ouvrirDocumentationPseudo() {
         <div class="portee-dialogue-actions">
           <button @click="accepterSuggestionLiaison">Oui</button>
           <button @click="refuserSuggestionLiaison">Non</button>
-        </div>
-      </div>
-    </div>
-    <div v-if="avisAffichageOriginal" class="portee-dialogue-overlay" role="dialog" aria-modal="true" aria-labelledby="avis-affichage-original-titre">
-      <div class="portee-dialogue">
-        <h4 id="avis-affichage-original-titre">Pseudonymisation posée</h4>
-        <p>Le pseudo a bien été appliqué. Mais vous êtes en vue « Original » : le texte continue d’afficher les noms d’origine, sans aucun marqueur.</p>
-        <p>Pour voir le résultat, passez en vue « Comparer » (noms barrés + pseudos) ou « Pseudonymisé » (pseudos seuls).</p>
-        <div class="portee-dialogue-actions">
-          <button @click="passerEnComparer">Passer en « Comparer »</button>
-          <button @click="avisAffichageOriginal = false">Rester en « Original »</button>
         </div>
       </div>
     </div>

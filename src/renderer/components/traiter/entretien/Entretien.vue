@@ -58,7 +58,6 @@ const {
   afficherCasPourAssociation,
   afficherRecueilsPourAssociation,
   rafraichirCompteursAAAnonymiser,
-  pseudonymisationUtilisee,
 } = utiliserSonal()
 type OngletLateral = 'notes' | 'donnees'
 const journalOuvert = ref(false)
@@ -212,26 +211,15 @@ const styleGrille = computed(() => {
   return Object.keys(style).length ? style : undefined
 })
 
-// Affichage des noms dans le texte : original, comparaison (nom barré + [pseudo],
-// par défaut) ou pseudonymisé (pseudo seul, comme dans l'export). Choix mémorisé.
-type AffichageNoms = 'original' | 'comparer' | 'pseudonymise'
-const RACCOURCI_AFFICHAGE_NOMS = 'sonalpi.entretien.affichageNoms'
-const affichageNoms = ref<AffichageNoms>('comparer')
-try {
-  const memorise = localStorage.getItem(RACCOURCI_AFFICHAGE_NOMS)
-  if (memorise === 'original' || memorise === 'comparer' || memorise === 'pseudonymise') {
-    affichageNoms.value = memorise
-  }
-} catch { /* Stockage facultatif. */ }
-watch(affichageNoms, (valeur) => {
-  try { localStorage.setItem(RACCOURCI_AFFICHAGE_NOMS, valeur) } catch { /* Stockage facultatif. */ }
-})
+// Le texte s'affiche pseudonymisé (pseudo seul, comme dans l'export).
+// Pendant le travail dans l'onglet Pseudos, il passe en comparaison :
+// nom réel barré et pseudo côte à côte.
+const affichageNoms = computed(() => (outilVisible('anon') ? 'comparer' : 'pseudonymise'))
 
 /** Classes de la colonne de l'éditeur : sélection anon en cours + vue des noms
  *  (les règles CSS globales de editeur.css s'y accrochent). */
 const classesColonneDroite = computed(() => ({
   'selection-pseudo-active': outilVisible('anon') && ajoutSelectionActif.value,
-  'noms-original': affichageNoms.value === 'original',
   'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
 }))
 const ignorerClicNotes = ref(false)
@@ -575,9 +563,7 @@ function cliquerVolet(onglet: OngletLateral) {
               v-show="outilVisible('anon')"
               :actif="outilVisible('anon')"
               :lecture-seule-contenu="roContenu"
-              :affichage-noms="affichageNoms"
               v-model:ajout-selection-actif="ajoutSelectionActif"
-              @basculer-affichage="affichageNoms = $event"
             />
           </Teleport>
 
@@ -637,35 +623,6 @@ function cliquerVolet(onglet: OngletLateral) {
                 <img :src="icoJournal" alt="" draggable="false" />
                 <span>Journal</span>
               </button>
-              <!-- Les trois lectures du texte : brut, vérification (nom barré + pseudo),
-                   rendu final pseudonymisé. Masquées tant qu'aucune occurrence n'est
-                   pseudonymisée dans l'entretien : la bascule n'a alors rien à montrer. -->
-              <template v-if="pseudonymisationUtilisee">
-                <span v-if="affichageNoms === 'pseudonymise'" class="mention-pseudos">pseudos affichés</span>
-                <div class="groupe-affichage-noms" role="group" aria-label="Affichage des noms">
-                  <button
-                    type="button"
-                    :class="{ actif: affichageNoms === 'original' }"
-                    :aria-pressed="affichageNoms === 'original'"
-                    title="Texte original, sans pseudonymes"
-                    @click="affichageNoms = 'original'"
-                  >Original</button>
-                  <button
-                    type="button"
-                    :class="{ actif: affichageNoms === 'comparer' }"
-                    :aria-pressed="affichageNoms === 'comparer'"
-                    title="Noms réels barrés et pseudos affichés côte à côte"
-                    @click="affichageNoms = 'comparer'"
-                  >Comparer</button>
-                  <button
-                    type="button"
-                    :class="{ actif: affichageNoms === 'pseudonymise' }"
-                    :aria-pressed="affichageNoms === 'pseudonymise'"
-                    title="Seuls les pseudos sont affichés, comme dans l’export"
-                    @click="affichageNoms = 'pseudonymise'"
-                  >Pseudonymisé</button>
-                </div>
-              </template>
             </div>
           </div>
           <EditorContent :editor="editor" class="cadre" @keydown.capture="garderCurseurVisible" />
@@ -913,35 +870,10 @@ function cliquerVolet(onglet: OngletLateral) {
 .outils-editeur .bouton-journal {
   margin-left: 1.1rem;
 }
-.outils-editeur .bouton-journal,
-.outils-editeur .groupe-affichage-noms button {
+.outils-editeur .bouton-journal {
   font-size: 14px;
   min-height: 36px;
   padding: 0.4rem 0.6rem;
-}
-/* Groupe segmenté « Affichage des noms » : boutons jointifs, nettement décalés
- * des actions qui s'ouvrent (recherche, journal) pour marquer la distinction
- * entre actions et réglage d'affichage. */
-.groupe-affichage-noms {
-  display: inline-flex;
-  margin-left: 1.1rem;
-}
-.groupe-affichage-noms button {
-  margin-left: -1px;
-  border-radius: 0;
-}
-.groupe-affichage-noms button:first-child {
-  border-radius: 5px 0 0 5px;
-}
-.groupe-affichage-noms button:last-child {
-  border-radius: 0 5px 5px 0;
-}
-.mention-pseudos {
-  font-size: 0.75rem;
-  color: #1565c0;
-  align-self: center;
-  white-space: nowrap;
-  margin-left: 1.1rem;
 }
 .outils-editeur img {
   display: block;
