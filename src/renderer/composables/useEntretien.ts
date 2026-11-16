@@ -200,6 +200,7 @@ export function useEntretien(deps: {
     ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
+    allerOccurrence,
     remplacerOccurrenceCourante,
     remplacerTout,
   } = recherche
@@ -853,6 +854,7 @@ export function useEntretien(deps: {
     ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
+    allerOccurrence,
     remplacerOccurrenceCourante,
     remplacerTout,
     brouillonsAnon,
