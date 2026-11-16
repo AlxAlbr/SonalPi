@@ -55,7 +55,11 @@ function attributs(state: EditorState, attr: string): string[] {
     .filter((v): v is string => typeof v === 'string')
 }
 
-const styles = (state: EditorState) => attributs(state, 'style')
+// La teinte de chaque thème est enrobée d'un color-mix qui règle son intensité ;
+// on le retire pour comparer les styles à la couleur seule.
+const enrobage = /color-mix\(in srgb, (couleur\([^)]*\)) calc\(var\(--opacite-themes, 1\) \* 100%\), transparent\)/g
+const styles = (state: EditorState) =>
+  attributs(state, 'style').map((s) => s.replace(enrobage, '$1'))
 const titres = (state: EditorState) => attributs(state, 'title')
 
 function codage(id: string, from: number, to: number): Annotation {

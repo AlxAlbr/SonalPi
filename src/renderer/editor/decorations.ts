@@ -75,7 +75,9 @@ export type ResolveurTaille = (code: string) => number | undefined
 export type ResolveurNom = (code: string) => string
 
 function traitDe(a: { type: string; code?: string }, resoudre: ResolveurCouleur): string {
-  return a.type === 'anon' ? 'hsl(0 0% 45%)' : resoudre(a.code ?? '')
+  if (a.type === 'anon') return 'hsl(0 0% 45%)'
+  // L'intensité suit `--opacite-themes`, que l'entretien baisse hors de l'onglet Thèmes.
+  return `color-mix(in srgb, ${resoudre(a.code ?? '')} calc(var(--opacite-themes, 1) * 100%), transparent)`
 }
 
 /**

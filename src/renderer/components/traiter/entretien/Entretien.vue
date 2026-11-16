@@ -286,6 +286,8 @@ const classesColonneDroite = computed(() => ({
   'noms-pseudonymise': affichageNoms.value === 'pseudonymise',
   // Hors de l'onglet Locuteurs, les libellés passent en gris pour ne pas distraire.
   'locuteurs-discrets': !outilVisible('locuteurs'),
+  // Même idée pour le soulignage des thèmes, atténué hors de l'onglet Thèmes.
+  'themes-discrets': !outilVisible('themes'),
 }))
 const redimensionnementNotesActif = ref(false)
 const largeurMinimaleNotes = 240

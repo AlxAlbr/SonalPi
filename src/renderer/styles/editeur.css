@@ -173,6 +173,10 @@
 .colonne-droite.locuteurs-discrets .editeur .gouttiere-loc {
   border-bottom-color: #e4e4e4;
 }
+/* Onglet Thèmes inactif : le soulignage des passages codés s'atténue. */
+.colonne-droite.themes-discrets {
+  --opacite-themes: 0.35;
+}
 
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du
  * plugin lecture (le texte entre les 2 ancres encadrant l'instant courant ;
