@@ -10,6 +10,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { chargerPics, PICS_PAR_SECONDE, type Pics } from '../../../audio/enveloppeFine'
 import { formaterDuree, formaterTemps, lireTemps } from '../../../../shared/entretien/horodatage'
+import ChampTemps from './ChampTemps.vue'
 
 const props = defineProps<{ posBloc: number }>()
 const emit = defineEmits<{ fermer: [] }>()
@@ -126,39 +127,33 @@ const modifie = computed(() => creation || aDesChangements.value)
 
 // --- Saisie au clavier ---
 const saisieInvalide = ref<string | null>(null)
-function saisir(k: number, evenement: Event) {
-  const champ = evenement.target as HTMLInputElement
-  const t = lireTemps(champ.value)
-  const cle = `${k}-${champ.dataset.role}`
+function saisir(k: number, role: string, valeur: string) {
+  const t = lireTemps(valeur)
+  const cle = `${k}-${role}`
   if (t == null) {
     saisieInvalide.value = cle
   } else {
     saisieInvalide.value = null
     changerTemps(k, t)
   }
-  champ.value = formaterTemps(brouillon.value[k])
 }
-function saisirPrecedent(evenement: Event) {
-  const champ = evenement.target as HTMLInputElement
-  const t = lireTemps(champ.value)
+function saisirPrecedent(valeur: string) {
+  const t = lireTemps(valeur)
   if (t == null) {
     saisieInvalide.value = 'precedent-fin'
   } else {
     saisieInvalide.value = null
     changerFinPrecedent(t)
   }
-  champ.value = formaterTemps(finPrecedent.value ?? 0)
 }
-function saisirSuivant(evenement: Event) {
-  const champ = evenement.target as HTMLInputElement
-  const t = lireTemps(champ.value)
+function saisirSuivant(valeur: string) {
+  const t = lireTemps(valeur)
   if (t == null) {
     saisieInvalide.value = 'suivant-debut'
   } else {
     saisieInvalide.value = null
     changerDebutSuivant(t)
   }
-  champ.value = formaterTemps(debutSuivant.value ?? 0)
 }
 
 // --- Vue de l'onde : fenêtre de temps affichée, élargissable ---
@@ -468,24 +463,22 @@ function extrait(texte: string): string {
       </p>
 
       <div class="bornes-tour">
-        <label>
+        <label :style="{ color: couleur }">
           Début
-          <input
-            :value="formaterTemps(brouillon[premier])"
+          <ChampTemps
+            :model-value="formaterTemps(brouillon[premier])"
             data-role="tour-debut"
             :class="{ invalide: saisieInvalide === `${premier}-tour-debut` }"
-            @change="saisir(premier, $event)"
-            @keydown.enter.prevent="saisir(premier, $event)"
+            @valider="(valeur) => saisir(premier, 'tour-debut', valeur)"
           />
         </label>
-        <label>
+        <label :style="{ color: couleur }">
           Fin
-          <input
-            :value="formaterTemps(brouillon[dernier])"
+          <ChampTemps
+            :model-value="formaterTemps(brouillon[dernier])"
             data-role="tour-fin"
             :class="{ invalide: saisieInvalide === `${dernier}-tour-fin` }"
-            @change="saisir(dernier, $event)"
-            @keydown.enter.prevent="saisir(dernier, $event)"
+            @valider="(valeur) => saisir(dernier, 'tour-fin', valeur)"
           />
         </label>
         <span class="duree">{{ formaterDuree(brouillon[dernier] - brouillon[premier]) }}</span>
@@ -503,24 +496,22 @@ function extrait(texte: string): string {
       <div class="bornes-voisins">
         <label v-if="precedentEditable && info?.precedent" class="fin-precedent" :style="{ color: info.precedent.couleur }">
           Fin précédent
-          <input
-            :value="formaterTemps(finPrecedent ?? 0)"
+          <ChampTemps
+            :model-value="formaterTemps(finPrecedent ?? 0)"
             data-role="precedent-fin"
             :title="info.precedent.nom"
             :class="{ invalide: saisieInvalide === 'precedent-fin' }"
-            @change="saisirPrecedent($event)"
-            @keydown.enter.prevent="saisirPrecedent($event)"
+            @valider="saisirPrecedent"
           />
         </label>
         <label v-if="suivantAffiche && info?.suivant" class="debut-suivant" :style="{ color: info.suivant.couleur }">
           Début suivant
-          <input
-            :value="formaterTemps(debutSuivant ?? 0)"
+          <ChampTemps
+            :model-value="formaterTemps(debutSuivant ?? 0)"
             data-role="suivant-debut"
             :title="info.suivant.nom"
             :class="{ invalide: saisieInvalide === 'suivant-debut' }"
-            @change="saisirSuivant($event)"
-            @keydown.enter.prevent="saisirSuivant($event)"
+            @valider="saisirSuivant"
           />
         </label>
       </div>
@@ -654,22 +645,20 @@ function extrait(texte: string): string {
           </button>
           <span class="texte-passage">{{ extrait(p.texte) }}</span>
           <template v-if="avecAudio">
-            <input
-              :value="formaterTemps(brouillon[p.de])"
+            <ChampTemps
+              :model-value="formaterTemps(brouillon[p.de])"
               data-role="debut"
               :aria-label="`Début du passage ${i + 1}`"
               :class="{ invalide: saisieInvalide === `${p.de}-debut` }"
-              @change="saisir(p.de, $event)"
-              @keydown.enter.prevent="saisir(p.de, $event)"
+              @valider="(valeur) => saisir(p.de, 'debut', valeur)"
             />
             <span class="fleche">→</span>
-            <input
-              :value="formaterTemps(brouillon[p.a])"
+            <ChampTemps
+              :model-value="formaterTemps(brouillon[p.a])"
               data-role="fin"
               :aria-label="`Fin du passage ${i + 1}`"
               :class="{ invalide: saisieInvalide === `${p.a}-fin` }"
-              @change="saisir(p.a, $event)"
-              @keydown.enter.prevent="saisir(p.a, $event)"
+              @valider="(valeur) => saisir(p.a, 'fin', valeur)"
             />
           </template>
         </li>
@@ -703,7 +692,7 @@ function extrait(texte: string): string {
   max-height: none;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   padding: 1.2rem 1.4rem;
   border: 1px solid #c9d8ef;
   border-radius: 10px;

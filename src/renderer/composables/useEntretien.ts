@@ -17,7 +17,7 @@ import { libelleGouttiere, nomDeLocuteur } from '../../shared/entretien/locuteur
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
 import type { Ancre } from '../../shared/entretien/audio'
-import { bornesTour, toursHorodates, type BlocHorodatage } from '../../shared/entretien/horodatage'
+import { bornesTour, formaterTemps, toursHorodates, type BlocHorodatage } from '../../shared/entretien/horodatage'
 import type { BlocParole } from '../../shared/entretien/statistiquesLocuteurs'
 import { useSynchroAudio } from './useSynchroAudio'
 import { useRechercheEntretien } from './entretien/useRechercheEntretien'
@@ -815,6 +815,63 @@ export function useEntretien(deps: {
     return true
   }
 
+  /**
+   *  Modifie en place le début et la fin d'un tour déjà horodaté (champs de la barre).
+   *  Rend null si c'est enregistré, sinon le message à présenter : le tour ne doit pas
+   *  chevaucher le tour précédent ou le tour suivant, ni un passage sortir de ses bornes.
+   */
+  function enregistrerTempsTour(posBloc: number, debut: number, fin: number): string | null {
+    if (!(debut < fin)) return 'Le début doit être avant la fin du tour.'
+    const { tours } = analyserTours()
+    const rang = tours.findIndex((t) => t.posBloc === posBloc)
+    if (rang < 0) return 'Ce tour n’est plus dans l’entretien.'
+    const tour = tours[rang]
+    const ancres = entretien.ancres
+    if (tour.derniereAncre - tour.premiereAncre < 1) {
+      return 'Ce tour n’a pas encore de temps : utilisez « Affiner… » pour le régler.'
+    }
+    const min = tour.premiereAncre > 0 ? ancres[tour.premiereAncre - 1].t : 0
+    const max = tour.derniereAncre + 1 < ancres.length ? ancres[tour.derniereAncre + 1].t : Number.POSITIVE_INFINITY
+    if (debut < min) {
+      return `Le début chevauche le tour précédent : il doit être après ${formaterTemps(min)}.`
+    }
+    if (fin > max) {
+      return `La fin chevauche le tour suivant : elle doit être avant ${formaterTemps(max)}.`
+    }
+    // Une ancre intérieure qui touche du texte ne doit pas sortir du tour. Les ancres
+    // restées sans texte (passage supprimé) sont simplement ramenées dans les bornes.
+    const ed = editor.value
+    const texteAvant = (i: number) =>
+      ed ? ed.state.doc.textBetween(ancres[i - 1].pos, ancres[i].pos, ' ').trim() !== '' : false
+    const texteApres = (i: number) =>
+      ed ? ed.state.doc.textBetween(ancres[i].pos, ancres[i + 1].pos, ' ').trim() !== '' : false
+    for (let i = tour.premiereAncre + 1; i < tour.derniereAncre; i++) {
+      if (ancres[i].t >= debut && ancres[i].t <= fin) continue
+      if (texteAvant(i) || texteApres(i)) {
+        return `Un passage du tour sortirait des nouvelles bornes (${formaterTemps(ancres[i].t)}).`
+      }
+    }
+    for (let i = tour.premiereAncre + 1; i < tour.derniereAncre; i++) {
+      ancres[i].t = Math.min(fin, Math.max(debut, ancres[i].t))
+    }
+    ancres[tour.premiereAncre].t = debut
+    ancres[tour.derniereAncre].t = fin
+    oublierProjection()
+    rafraichir()
+    rafraichirGouttiere()
+    planifierSauvegarde()
+    return null
+  }
+
+  /** Pendant la lecture audio, la barre suit le tour où se trouve la lecture. */
+  function suivreTempsLecture(t: number) {
+    const { tours } = analyserTours()
+    const tour = tours.find((x) => x.bornes && t >= x.bornes.debut && t < x.bornes.fin)
+    if (!tour || tour.posBloc === tourAffiche) return
+    tourAffiche = tour.posBloc
+    rafraichirBarreTour()
+  }
+
   // --- Autosave (débounce) + persistance de l'entretien ouvert ---
   let tid: ReturnType<typeof setTimeout> | undefined
   let sauvegardes = Promise.resolve()
@@ -1159,6 +1216,8 @@ export function useEntretien(deps: {
     allerTourVoisin,
     lireHorodatageTour,
     enregistrerHorodatageTour,
+    enregistrerTempsTour,
+    suivreTempsLecture,
     verrouAutrui, // état du verrou de l'entretien ouvert (bandeau lecture seule)
     entreesJournal,
     annulerEntree,

@@ -151,7 +151,10 @@ export function creerSonal() {
 
   // La lecture avance → le bloc lu suit (surlignage + défilement).
   // Décharger l'audio (url null) éteint le surlignage.
-  watch(audio.position, (t) => ent.majPlageLue(audio.url.value ? t : null))
+  watch(audio.position, (t) => {
+    ent.majPlageLue(audio.url.value ? t : null)
+    if (audio.url.value) ent.suivreTempsLecture(t)
+  })
   watch(audio.url, (u) => {
     if (!u) ent.majPlageLue(null)
   })
