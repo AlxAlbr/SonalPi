@@ -46,6 +46,7 @@ const {
   basculerPseudoOccurrence,
   editionCommentaire,
   commenterDepuisMenu,
+  copierSelectionMenu,
   editerCommentaire,
   fermerEditionCommentaire,
   validerCommentaire,
@@ -751,6 +752,8 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
         :peut-commenter="menuContextuel.peutCommenter"
         :peut-ajouter-cas="menuContextuel.peutAjouterCas"
         :peut-ajouter-recueil="menuContextuel.peutAjouterRecueil"
+        :peut-copier="menuContextuel.peutCopier"
+        @copier="copierSelectionMenu"
         @basculer-exception="basculerException(menuContextuel.anon!.id)"
         @basculer-anonymise="basculerAnonymise(menuContextuel.anon!.id)"
         @basculer-pseudo="basculerPseudoOccurrence(menuContextuel.anon!.id, $event)"

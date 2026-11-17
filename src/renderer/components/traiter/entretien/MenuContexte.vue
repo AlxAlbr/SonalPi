@@ -38,8 +38,11 @@ const props = defineProps<{
   peutAjouterCas: boolean
   /** Une sélection libre peut être ajoutée à un recueil. */
   peutAjouterRecueil: boolean
+  /** Une sélection non vide peut être copiée. */
+  peutCopier: boolean
 }>()
 const emit = defineEmits<{
+  (e: 'copier'): void
   (e: 'basculer-exception'): void
   (e: 'basculer-anonymise'): void
   (e: 'basculer-pseudo', pseudo: string): void
@@ -78,6 +81,16 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
         @contextmenu.stop
       >
         <span v-if="titre" class="menu-ctx-titre" :title="titre">{{ titre }}</span>
+
+        <button
+          v-if="peutCopier"
+          class="menu-ctx-action"
+          role="menuitem"
+          title="Copier le texte sélectionné dans le presse-papiers."
+          @click="emit('copier')"
+        >
+          📋 Copier
+        </button>
 
         <!-- Section ANON : bascule exception ↔ anonymisé (+ multi-pseudo). -->
         <template v-if="anon">

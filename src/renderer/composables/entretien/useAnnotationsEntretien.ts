@@ -41,6 +41,7 @@ export function useAnnotationsEntretien(deps: {
     peutCommenter: boolean
     peutAjouterCas: boolean
     peutAjouterRecueil: boolean
+    peutCopier: boolean
   } | null>(null)
   const editionCommentaire = ref<{
     id: string | null
@@ -132,8 +133,19 @@ export function useAnnotationsEntretien(deps: {
       peutCommenter: cible.plageCommenter != null,
       peutAjouterCas: cible.plageSelection != null,
       peutAjouterRecueil: cible.plageSelection != null,
+      peutCopier: cible.plageSelection != null,
     }
     plageCommenterCourante.value = cible.plageCommenter
+  }
+  /** Copie le texte sélectionné dans le presse-papiers (le clic droit ne
+   *  modifie pas la sélection). */
+  async function copierSelectionMenu() {
+    const ed = deps.lireEditeur()
+    if (!ed) return
+    const { from, to } = ed.state.selection
+    if (from >= to) return
+    await navigator.clipboard.writeText(ed.state.doc.textBetween(from, to, '\n'))
+    fermerMenu()
   }
   /** Plage à commenter capturée à l'ouverture du menu (sélection ou bornes de
    *  l'annotation sous le clic) — consommée par le geste « Commenter ». */
@@ -302,6 +314,7 @@ export function useAnnotationsEntretien(deps: {
     fermerMenu,
     commenterPlage,
     commenterDepuisMenu,
+    copierSelectionMenu,
     editerCommentaire,
     fermerEditionCommentaire,
     validerCommentaire,
