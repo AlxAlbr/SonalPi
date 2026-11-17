@@ -315,6 +315,8 @@ declare global {
         memoriserNavigationProjet: (cle: string, navigation: NavigationProjet) => Promise<void>
         signataire: () => Promise<string>
         memoriserSignataire: (nom: string) => Promise<void>
+        zoomEntretiens: () => Promise<number | null>
+        memoriserZoomEntretiens: (zoom: number) => Promise<void>
       }
       fichier: {
         extraireTexteEntretien: (nom: string, octets: Uint8Array) => Promise<string>

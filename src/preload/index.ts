@@ -530,6 +530,10 @@ contextBridge.exposeInMainWorld('sonal', {
     signataire: (): Promise<string> => invoquer('profil:lireSignataire'),
     memoriserSignataire: (nom: string): Promise<void> =>
       invoquer('profil:memoriserSignataire', nom),
+    /** Zoom de la liste des entretiens (settings.json du profil) ; null si jamais réglé. */
+    zoomEntretiens: (): Promise<number | null> => invoquer('profil:lireZoomEntretiens'),
+    memoriserZoomEntretiens: (zoom: number): Promise<void> =>
+      invoquer('profil:memoriserZoomEntretiens', zoom),
   },
   dialog: {
     /** Choisir un fichier d'entretien (contenu lu ici).

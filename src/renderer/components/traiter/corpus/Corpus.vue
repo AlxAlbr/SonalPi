@@ -97,6 +97,39 @@ const {
   presencesSur,
 } = utiliserSonal()
 
+/** Densité d'affichage de la liste des entretiens, mémorisée sur ce poste. */
+/** Le curseur « Zoom » est continu, du plus serré (0, à gauche) au plus aéré (2, à droite, par défaut).
+ *  La disposition suit l'état le plus proche ;
+ *  la hauteur des cartes et leur espacement glissent d'un état à l'autre.
+ */
+const DENSITES = ['tres-compact', 'compact', 'aere'] as const
+const LIBELLES_DENSITE = ['Très compact', 'Compact', 'Aéré']
+const HAUTEURS_CARTE = [22, 40, 67]
+const ECARTS_CARTES = [2, 5, 8]
+const ZOOM_MAX = DENSITES.length - 1
+/** Le réglage est gardé dans le profil de l'utilisateur et repris au prochain démarrage. */
+const zoom = ref(ZOOM_MAX)
+window.sonal.profil.zoomEntretiens().then(
+  (z) => { if (z !== null) zoom.value = z },
+  () => { /* Réglage facultatif : on garde l'affichage aéré. */ }
+)
+/** Enregistré au relâchement du curseur, pas à chaque pas du glissement. */
+function memoriserZoom(): void {
+  window.sonal.profil.memoriserZoomEntretiens(zoom.value).catch(() => { /* Réglage facultatif. */ })
+}
+const indiceDensite = computed(() => Math.round(zoom.value))
+const densite = computed(() => DENSITES[indiceDensite.value])
+/** Valeur interpolée entre les états voisins du zoom courant. */
+function interpoler(valeurs: number[]): number {
+  const bas = Math.min(Math.floor(zoom.value), ZOOM_MAX - 1)
+  const t = zoom.value - bas
+  return valeurs[bas] + (valeurs[bas + 1] - valeurs[bas]) * t
+}
+const styleListe = computed(() => ({
+  '--h-carte': interpoler(HAUTEURS_CARTE) + 'px',
+  '--ecart-cartes': interpoler(ECARTS_CARTES) + 'px'
+}))
+
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
@@ -460,6 +493,19 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         v-if="ongletCorpus === 'accueil' || ongletCorpus === 'recherche'"
         titre="Entretiens"
       >
+        <label class="mini densite-liste" :title="'Densité de la liste : ' + LIBELLES_DENSITE[indiceDensite]">
+          <span class="densite-libelle">Zoom</span>
+          <input
+            v-model.number="zoom"
+            type="range"
+            min="0"
+            :max="ZOOM_MAX"
+            step="0.01"
+            @change="memoriserZoom"
+            aria-label="Densité de la liste des entretiens"
+            :aria-valuetext="LIBELLES_DENSITE[indiceDensite]"
+          />
+        </label>
         <!-- La recherche remplace la fiche dans le panneau gauche, le temps de la consulter. -->
         <button
           class="mini ouvrir-recherche-corpus"
@@ -470,6 +516,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           @click="ongletCorpus === 'recherche' ? fermerRecherche() : ouvrirRecherche()"
         >
           <img :src="icoRecherche" alt="" draggable="false" />
+          <span>Rechercher</span>
         </button>
         <!-- Un seul point d'entrée : la modale à deux zones,
              couvrant import texte, texte+audio et audio seul.
@@ -725,7 +772,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
 
             <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
-            <ul class="cartes-ent" aria-label="Entretiens du corpus">
+            <ul class="cartes-ent" :class="'densite-' + densite" :style="styleListe" aria-label="Entretiens du corpus">
               <template v-for="e in listeEntretiens()" :key="e.id">
               <li
                 class="carte-ent"
@@ -766,6 +813,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       data-tour="crayon-entretien"
                       :title="titreCrayon(e.id)"
                       @click.stop="ouvrirEntretien(e.id)"
+                      :aria-label="titreCrayon(e.id)"
                     >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
                   </div>
                 </div>
@@ -969,7 +1017,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.45rem;
+  gap: 0.35rem;
+  /* Même gabarit que « + Ajouter un entretien », en graisse normale. */
+  font-size: 0.88rem;
+  padding: 0.28rem 0.65rem;
 }
 .ouvrir-recherche-corpus img {
   width: 1rem;
@@ -1330,7 +1381,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* pas de distorsion */
+  object-fit: fill; /* l'onde s'étire avec la hauteur du cadre, sans être rognée sur les côtés */
   border-radius: 3px; /* conserve le coin arrondi du cadre (overflow visible désormais) */
 }
 /* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
@@ -1618,6 +1669,132 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-actions .ouvrir-ent:hover {
   background: #1f63c6;
+}
+
+/* Curseur de densité de la liste, dans la barre d'onglets. */
+.densite-liste {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch; /* même hauteur que les boutons voisins */
+  /* Mêmes marges intérieures et taille de texte que « Rechercher » et « Ajouter ». */
+  gap: 0.35rem;
+  padding: 0 0.65rem;
+  font-size: 0.88rem;
+  color: #666;
+}
+.densite-libelle {
+  white-space: nowrap;
+}
+.densite-liste input {
+  appearance: none;
+  width: 7.5rem;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.densite-liste input::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #d6d6d6;
+}
+.densite-liste input::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: #111;
+}
+.densite-liste input:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
+}
+
+/* Le zoom fixe la hauteur des cartes et leur espacement ;
+   l'onde occupe toute la place laissée par le titre et le bouton. */
+.cartes-ent {
+  gap: var(--ecart-cartes, 0.5rem);
+}
+.cartes-ent .carte-ent {
+  box-sizing: border-box;
+  height: var(--h-carte, auto);
+}
+.cartes-ent .spectro-cadre {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+.densite-aere .carte-entete {
+  flex: none;
+}
+
+/* Modes compacts : titre, onde et bouton sur une seule ligne.
+   L'en-tête s'efface pour que ses enfants se placent autour de l'onde. */
+.densite-compact .carte-ent,
+.densite-tres-compact .carte-ent {
+  flex-direction: row;
+  align-items: center;
+}
+.densite-compact .carte-entete,
+.densite-tres-compact .carte-entete {
+  display: contents;
+}
+.densite-compact .spectro-cadre,
+.densite-tres-compact .spectro-cadre {
+  order: 1;
+  align-self: stretch;
+}
+.densite-compact .carte-actions {
+  order: 2;
+}
+
+/* Compact : titre dans une colonne fixe, onde au milieu, bouton à droite. */
+.densite-compact .carte-ent {
+  gap: 0.5rem;
+  padding: 3px 0.35rem 3px 0.6rem;
+  border-radius: 8px;
+}
+.densite-compact .ent-titre {
+  flex: 0 0 10rem;
+}
+
+/* Très compact : une fine bande par entretien, titre posé sur l'onde.
+   Le double-clic ouvre l'entretien. */
+.densite-tres-compact {
+  margin-top: 0.25rem;
+}
+.densite-tres-compact .carte-ent {
+  position: relative;
+  padding: 1px;
+  border-radius: 8px;
+}
+.densite-tres-compact .spectro-cadre {
+  border-radius: 7px;
+}
+.densite-tres-compact .spectro {
+  border-radius: 7px;
+}
+.densite-tres-compact .ent-titre {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  max-width: 40%;
+  padding: 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+.densite-tres-compact .carte-actions {
+  display: none;
+}
+.densite-tres-compact .badge-presence,
+.densite-tres-compact .badge-verrou {
+  font-size: 0.65rem;
 }
 @media (max-width: 780px) {
   .colonne-g-corpus { position: static; }

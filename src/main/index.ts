@@ -243,6 +243,8 @@ interface Settings {
    *  partagés entre tous les corpus ; niveau profil, comme signataire).
    *  Les modèles intégrés restent du code ; ici, on ne garde que ce qui a été importé. */
   modelesUtilisateur?: ModeleEAV[]
+  /** Zoom de la liste des entretiens du corpus, de 0 (très compact) à 2 (aéré). */
+  zoomEntretiens?: number
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -287,6 +289,9 @@ function estListeModeles(d: unknown): d is ModeleEAV[] {
     )
   )
 }
+function estZoomEntretiens(z: unknown): z is number {
+  return typeof z === 'number' && Number.isFinite(z) && z >= 0 && z <= 2
+}
 function lireSettings(): Settings {
   try {
     const s = JSON.parse(readFileSync(fichierSettings(), 'utf8')) as Partial<Settings>
@@ -301,6 +306,7 @@ function lireSettings(): Settings {
       navigationProjets: lireNavigationsProjets(s.navigationProjets),
       signataire: typeof s.signataire === 'string' ? s.signataire : undefined,
       modelesUtilisateur: estListeModeles(s.modelesUtilisateur) ? s.modelesUtilisateur : undefined,
+      zoomEntretiens: estZoomEntretiens(s.zoomEntretiens) ? s.zoomEntretiens : undefined,
     }
   } catch {
     return { recents: [] }
@@ -2938,6 +2944,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('profil:memoriserSignataire', (_e, nom: string) => {
     const s = lireSettings()
     s.signataire = typeof nom === 'string' ? nom.trim() : ''
+    ecrireSettings(s)
+  })
+  // Zoom de la liste des entretiens (settings.json, niveau profil) ; null si jamais réglé.
+  ipcMain.handle('profil:lireZoomEntretiens', () => lireSettings().zoomEntretiens ?? null)
+  ipcMain.handle('profil:memoriserZoomEntretiens', (_e, zoom: unknown) => {
+    if (!estZoomEntretiens(zoom)) return
+    const s = lireSettings()
+    s.zoomEntretiens = zoom
     ecrireSettings(s)
   })
   // Picker de dossier PUR (aucun effet de bord sur le store), utilisé par la modale démo.
