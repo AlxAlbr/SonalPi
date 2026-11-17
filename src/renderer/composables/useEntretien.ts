@@ -70,6 +70,8 @@ interface TourBarre {
   bornes: { debut: number; fin: number } | null
   premierBloc: number
   dernierBloc: number
+  premiereAncre: number
+  derniereAncre: number
 }
 
 /** Temps d'un tour de parole, tels que la fenêtre d'horodatage les présente. */
@@ -85,6 +87,29 @@ export interface HorodatageTour {
   max: number | null
   /** Temps estimé du début du tour, pour un tour pas encore horodaté. */
   repere: number | null
+  /** Couleur du locuteur du tour. */
+  couleur: string
+  /** Tour qui précède : affiché pour le situer, sans modification (null : premier tour). */
+  precedent: {
+    posBloc: number
+    nom: string
+    couleur: string
+    debut: number | null
+    fin: number | null
+    /** Début du dernier passage qui a du texte : la fin du tour précédent ne peut pas remonter avant. */
+    debutDernierPassage: number | null
+  } | null
+  /** Tour qui suit : son début peut être décalé s'il est horodaté (null : dernier tour). */
+  suivant: {
+    posBloc: number
+    nom: string
+    couleur: string
+    debut: number | null
+    fin: number | null
+    indexAncre: number
+  } | null
+  /** Rang du tour dans l'entretien (à partir de 1), et tours voisins à parcourir. */
+  navigation: { rang: number; total: number; precedent: number | null; suivant: number | null }
 }
 
 export function useEntretien(deps: {
@@ -544,6 +569,8 @@ export function useEntretien(deps: {
       bornes: bornesTour(t, ancres),
       premierBloc: t.premierBloc,
       dernierBloc: t.dernierBloc,
+      premiereAncre: t.premiereAncre,
+      derniereAncre: t.derniereAncre,
     }))
     // Bloc du curseur : le dernier bloc qui commence avant lui.
     const curseur = ed.state.selection.from
@@ -553,6 +580,12 @@ export function useEntretien(deps: {
     })
     const tour = tours.find((t) => bloc >= t.premierBloc && bloc <= t.dernierBloc)
     return { tours, tourCurseur: tour?.posBloc ?? null }
+  }
+
+  /** Couleur du locuteur d'un tour (celle des libellés et de la barre). */
+  function couleurDeTour(loc: number | null): string {
+    const interviewer = !!locuteurs.value.find((l) => l.index === loc)?.interviewer
+    return libelleGouttiere(locuteurs.value, loc, interviewer).couleur
   }
 
   /** Recalcule la barre : suit le curseur quand il change de tour, sinon garde le tour choisi. */
@@ -660,6 +693,17 @@ export function useEntretien(deps: {
   }
 
   /** Ce que la fenêtre d'horodatage affiche pour le tour qui commence au bloc `posBloc`. */
+  /** Début du dernier passage du tour qui a du texte (null s'il n'en a pas). */
+  function debutDernierPassage(tour: TourBarre): number | null {
+    const ed = editor.value
+    if (!ed) return null
+    const ancres = entretien.ancres
+    for (let i = tour.derniereAncre - 1; i >= tour.premiereAncre; i--) {
+      if (ed.state.doc.textBetween(ancres[i].pos, ancres[i + 1].pos, ' ').trim()) return ancres[i].t
+    }
+    return null
+  }
+
   function lireHorodatageTour(posBloc: number): HorodatageTour | null {
     const ed = editor.value
     const trouve = tourAuBloc(posBloc)
@@ -675,6 +719,11 @@ export function useEntretien(deps: {
         if (texte) passages.push({ de: i - tour.premiereAncre, a: i + 1 - tour.premiereAncre, texte })
       }
     }
+    const { tours } = analyserTours()
+    const rang = tours.findIndex((t) => t.posBloc === posBloc)
+    const apres = rang >= 0 ? tours[rang + 1] : undefined
+    const avant = rang > 0 ? tours[rang - 1] : undefined
+    const horodatageApres = !!apres && apres.derniereAncre - apres.premiereAncre >= 1
     return {
       nom: nomDeLocuteur(locuteurs.value, loc) || 'Tour sans locuteur',
       temps,
@@ -683,6 +732,36 @@ export function useEntretien(deps: {
       min: tour.premiereAncre > 0 ? ancres[tour.premiereAncre - 1].t : 0,
       max: tour.derniereAncre + 1 < ancres.length ? ancres[tour.derniereAncre + 1].t : null,
       repere: tempsDuBloc(posBloc),
+      couleur: couleurDeTour(loc),
+      precedent: avant
+        ? {
+            posBloc: avant.posBloc,
+            nom: nomDeLocuteur(locuteurs.value, avant.loc) || 'Tour sans locuteur',
+            couleur: couleurDeTour(avant.loc),
+            debut: avant.derniereAncre - avant.premiereAncre >= 1 ? ancres[avant.premiereAncre].t : null,
+            fin: avant.derniereAncre - avant.premiereAncre >= 1 ? ancres[avant.derniereAncre].t : null,
+            debutDernierPassage:
+              avant.derniereAncre - avant.premiereAncre >= 1
+                ? (debutDernierPassage(avant) ?? ancres[avant.premiereAncre].t)
+                : null,
+          }
+        : null,
+      suivant: apres
+        ? {
+            posBloc: apres.posBloc,
+            nom: nomDeLocuteur(locuteurs.value, apres.loc) || 'Tour sans locuteur',
+            couleur: couleurDeTour(apres.loc),
+            debut: horodatageApres ? ancres[apres.premiereAncre].t : null,
+            fin: horodatageApres ? ancres[apres.derniereAncre].t : null,
+            indexAncre: horodatageApres ? apres.premiereAncre : -1,
+          }
+        : null,
+      navigation: {
+        rang: rang + 1,
+        total: tours.length,
+        precedent: avant?.posBloc ?? null,
+        suivant: apres?.posBloc ?? null,
+      },
     }
   }
 
@@ -690,11 +769,28 @@ export function useEntretien(deps: {
    *  Enregistre les temps du tour. Sans horodatage préalable, `temps` = [début, fin] :
    *  deux ancres sont posées au début et à la fin du texte du tour.
    */
-  function enregistrerHorodatageTour(posBloc: number, temps: number[]): boolean {
+  function enregistrerHorodatageTour(
+    posBloc: number,
+    temps: number[],
+    debutSuivant: number | null = null,
+    finPrecedent: number | null = null,
+  ): boolean {
     const trouve = tourAuBloc(posBloc)
     if (!trouve) return false
     const { tour } = trouve
     const ancres = entretien.ancres
+    // Le début du tour suivant est écrit avant les ancres du tour : leur insertion ne le décale pas.
+    if (debutSuivant != null) {
+      const { tours } = analyserTours()
+      const apres = tours[tours.findIndex((t) => t.posBloc === posBloc) + 1]
+      if (apres && apres.derniereAncre - apres.premiereAncre >= 1) ancres[apres.premiereAncre].t = debutSuivant
+    }
+    // De même pour la fin du tour précédent, qui est l'ancre juste avant le début de ce tour.
+    if (finPrecedent != null) {
+      const { tours } = analyserTours()
+      const avant = tours[tours.findIndex((t) => t.posBloc === posBloc) - 1]
+      if (avant && avant.derniereAncre - avant.premiereAncre >= 1) ancres[avant.derniereAncre].t = finPrecedent
+    }
     const nb = tour.derniereAncre - tour.premiereAncre + 1
     if (nb >= 2) {
       if (temps.length !== nb) return false
