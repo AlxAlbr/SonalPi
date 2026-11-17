@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { attendreAccueil, lancer, spotlightSur } from './util'
+import { attendreAccueil, lancer, spotlightSur, ouvrirFormulaireNoteDansPanneau } from './util'
 import { choisirDossierExemple, preparerApprentissage } from './exemples-util'
 
 async function ouvrirCatalogueParcours(page: import('@playwright/test').Page): Promise<void> {
@@ -80,6 +80,7 @@ test('Préparer et suivre utilise un corpus vierge distinct de celui du Traiteme
     await page.locator('.liste-pp .ligne-pp').nth(3).click()
     await page.locator('.carte-ent', { hasText: 'Entretien préparatoire' }).locator('.crayon').click()
     await page.locator('[data-tour="onglet-notes"]').click()
+    await ouvrirFormulaireNoteDansPanneau(page)
     await page.locator('[data-tour="note-titre"]').fill('Avant l’entretien')
     await page.locator('.nouvelle-note-inline .zone-corps-note').click()
     await page.keyboard.type('Demander comment les familles découvrent le dispositif.')

@@ -311,3 +311,11 @@ export async function ouvrirSurCorpus(
   await entrerCorpus(page) // Accueil → Corpus
   return { app, page }
 }
+
+/** Ouvre une nouvelle note (« + Créer une note », fenêtre) puis la réduit dans le panneau Notes :
+ *  le formulaire en ligne est alors visible, comme pour une saisie dans le panneau. */
+export async function ouvrirFormulaireNoteDansPanneau(page: Page): Promise<void> {
+  await page.locator('.ouvrir-nouvelle-note').click()
+  await page.locator('.modale-note').getByRole('button', { name: 'Réduire', exact: true }).click()
+  await expect(page.locator('.nouvelle-note-inline')).toBeVisible()
+}

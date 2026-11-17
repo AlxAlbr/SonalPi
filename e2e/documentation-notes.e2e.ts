@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, retourCorpus } from './util'
+import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, retourCorpus, ouvrirFormulaireNoteDansPanneau } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 const titreResume = 'Résumé de l’entretien'
@@ -32,6 +32,7 @@ async function selectionnerDans(zone: Locator, phrase: string) {
 }
 
 async function nouvelleNote(page: Page, titre: string, corps: string) {
+  if ((await page.locator('.nouvelle-note-inline').count()) === 0) await ouvrirFormulaireNoteDansPanneau(page)
   const formulaire = page.locator('.nouvelle-note-inline')
   await formulaire.locator('.champ-titre-note input').fill(titre)
   await formulaire.locator('.zone-corps-note').fill(corps)
@@ -94,11 +95,11 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     if (process.env.SONAL_DOC_CAPTURES === '1') {
       await modale.screenshot({ path: 'docs/user/medias/edition-note.png' })
     }
-    await modale.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await modale.getByRole('button', { name: 'Valider', exact: true }).click()
     modale = await nouvelleNote(page, titrePrive, corpsPrive)
     await modale.getByLabel(/^Catégorie/).selectOption({ label: 'réflexion' })
     await modale.locator('input[type="date"]').fill('2026-02-18')
-    await modale.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await modale.getByRole('button', { name: 'Valider', exact: true }).click()
     await expect(page.locator('.carte-note')).toHaveCount(2)
     await expect(page.locator('.carte-note').filter({ hasText: titreResume }).locator('.corps-note')).toHaveCount(0)
 
@@ -224,7 +225,7 @@ test('manuel : créer une catégorie ou changer sa couleur est distinct de valid
     await modale.locator('.champ-titre-note input').fill('Piste conservée')
     await modale.locator('.zone-corps-note').fill('Une note de travail.')
     await modale.getByLabel(/^Catégorie/).selectOption(categorie.id)
-    await modale.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await modale.getByRole('button', { name: 'Valider', exact: true }).click()
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     const fichier = join(racine, 'corpus/entretiens/e1.json')
     const avant = readFileSync(fichier, 'utf8')
@@ -251,7 +252,7 @@ test('manuel : une session annoncée en lecture seule laisse consulter et copier
     await entrerEntretien(page)
     await page.locator('[data-onglet="notes"]').click()
     const modale = await nouvelleNote(page, 'Note de travail privée', 'Une réflexion à relire avant diffusion.')
-    await modale.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await modale.getByRole('button', { name: 'Valider', exact: true }).click()
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await retourCorpus(page)
     const fichier = join(racine, 'corpus/entretiens/e1.json')

@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, entrerEntretien, selectionner } from './util'
+import { lancer, entrerCorpus, entrerEntretien, selectionner, ouvrirFormulaireNoteDansPanneau } from './util'
 
 /**
  *  Liaison d'un passage d'une note de la FEUILLE à un commentaire : création
@@ -80,6 +80,7 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false)
 
   // Le brouillon survit au passage par Données.
+  await ouvrirFormulaireNoteDansPanneau(page)
   await page.locator('.champ-titre-note input').fill('Titre en cours')
   await page.locator('.zone-corps-note').fill('Corps en cours')
   await boutonDonnees.click()
@@ -89,7 +90,7 @@ test('le volet Notes coexiste avec les onglets et conserve le brouillon', async 
   await expect(page.locator('.zone-corps-note')).toHaveText('Corps en cours')
   await page.locator('.creer-note-inline').click()
   await expect(page.locator('.carte-note')).toContainText('Titre en cours')
-  await expect(page.locator('.champ-titre-note input')).toHaveValue('')
+  await expect(page.locator('.nouvelle-note-inline')).toHaveCount(0)
 
   // La poignée au bord gauche du volet règle sa largeur ; le bord droit ne bouge pas.
   const largeurAvant = (await panneauNotes.boundingBox())!.width
@@ -129,13 +130,13 @@ test('feuille — lier un passage de note à un commentaire', async () => {
 
   // 2. Onglet Notes → créer une note avec du texte.
   await page.locator('.outils-editeur button[data-onglet="notes"]').click()
+  await ouvrirFormulaireNoteDansPanneau(page)
   const formulaire = page.locator('.nouvelle-note-inline')
   await page.locator('.zone-corps-note').click()
   await page.keyboard.type('Une note de terrain importante pour la demonstration')
-  await formulaire.getByRole('button', { name: 'Créer une note', exact: true }).click()
+  await formulaire.getByRole('button', { name: 'Valider', exact: true }).click()
   await expect(page.locator('.carte-note')).toHaveCount(1)
-  await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('')
-  await expect(formulaire.locator('.zone-corps-note')).toHaveText('')
+  await expect(formulaire).toHaveCount(0)
 
   // 3. Vue feuille : sélection dans le bloc, puis bouton Lier.
   await page.locator('.notes-outils button[title*="Vue feuille"]').click()
@@ -172,6 +173,7 @@ test('⤢ agrandit la saisie en cours dans la fenêtre d’édition (Annuler res
   await entrerCorpus(page)
   await entrerEntretien(page)
   await page.locator('.outils-editeur button[data-onglet="notes"]').click()
+  await ouvrirFormulaireNoteDansPanneau(page)
 
   // Une saisie EN COURS dans le formulaire en ligne.
   const formulaire = page.locator('.nouvelle-note-inline')
@@ -199,7 +201,6 @@ test('⤢ agrandit la saisie en cours dans la fenêtre d’édition (Annuler res
   await modale.getByRole('button', { name: 'Valider', exact: true }).click()
   await expect(modale).toHaveCount(0)
   await expect(page.locator('.carte-note')).toContainText('Titre en transfert')
-  await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('')
-  await expect(formulaire.locator('.zone-corps-note')).toHaveText('')
+  await expect(formulaire).toHaveCount(0)
   await app.close()
 })

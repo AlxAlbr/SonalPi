@@ -32,7 +32,7 @@ async function creerNote(page: Page) {
   const formulaire = page.locator('.nouvelle-note-inline')
   await formulaire.locator('.champ-titre-note input').fill('Note avant correction')
   await formulaire.locator('.zone-corps-note').fill('Cette note sert à vérifier le Journal du corpus.')
-  await formulaire.getByRole('button', { name: 'Créer une note', exact: true }).click()
+  await formulaire.getByRole('button', { name: 'Valider', exact: true }).click()
   await expect(page.locator('.carte-note')).toContainText('Note avant correction')
 }
 

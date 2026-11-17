@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ouvrir, coderTheme, selectionner } from './util'
+import { ouvrir, coderTheme, selectionner, ouvrirFormulaireNoteDansPanneau } from './util'
 
 /**
  *  Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
@@ -183,9 +183,10 @@ test('créer et supprimer des notes apparaît au Journal ; annuler restaure leur
     const panneau = page.locator('.panneau.notes')
     const cartes = panneau.locator('.carte-note')
     for (const titre of ['Première', 'Milieu', 'Dernière']) {
+      await ouvrirFormulaireNoteDansPanneau(page)
       await panneau.locator('.nouvelle-note-inline .champ-titre-note input').fill(titre)
       await panneau.locator('.nouvelle-note-inline .zone-corps-note').fill(`Contenu de ${titre}`)
-      await panneau.getByRole('button', { name: 'Créer une note', exact: true }).click()
+      await panneau.getByRole('button', { name: 'Valider', exact: true }).click()
     }
     await expect(cartes.locator('.titre-note')).toHaveText(['Dernière', 'Milieu', 'Première'])
     await ongletJournal(page)
