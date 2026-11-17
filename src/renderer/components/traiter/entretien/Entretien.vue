@@ -100,10 +100,11 @@ const {
 } = usePanneauxEntretien(ongletGauche)
 const idPanneaux = `panneaux-${useId()}`
 const outilsGauche = {
-  locuteurs: { libelle: 'Locuteurs', titre: 'Locuteurs', icone: icoLocuteurs, tour: 'onglet-locuteurs' },
-  anon: { libelle: 'Pseudos', titre: 'Pseudonymisation du texte', icone: icoAnon, tour: undefined },
-  themes: { libelle: 'Thèmes', titre: 'Thématiques', icone: icoThemes, tour: 'onglet-themes' },
-  commentaires: { libelle: 'Comments', titre: 'Commentaires', icone: icoCommentaires, tour: undefined },
+  // Forme courte quand la colonne est étroite, longue quand elle a la place (voir CSS).
+  locuteurs: { libelleLong: 'Locuteurs', libelleCourt: 'Locuteurs', titre: 'Locuteurs', icone: icoLocuteurs, tour: 'onglet-locuteurs' },
+  anon: { libelleLong: 'Pseudonymisation', libelleCourt: 'Pseudo.', titre: 'Pseudonymisation du texte', icone: icoAnon, tour: undefined },
+  themes: { libelleLong: 'Thématiques', libelleCourt: 'Thèmes', titre: 'Thématiques', icone: icoThemes, tour: 'onglet-themes' },
+  commentaires: { libelleLong: 'Commentaires', libelleCourt: 'Comment.', titre: 'Commentaires', icone: icoCommentaires, tour: undefined },
 }
 const zonesGauche = computed(() => [
   { id: 'haut', onglets: ongletsHaut.value, actif: actifHaut.value },
@@ -513,7 +514,8 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
                   @keydown.alt.up.prevent="deplacerOnglet(id, 'haut')"
                 >
                   <img class="ico-onglet" :src="outilsGauche[id].icone" alt="" draggable="false" />
-                  <span>{{ outilsGauche[id].libelle }}</span>
+                  <span class="libelle-long">{{ outilsGauche[id].libelleLong }}</span>
+                  <span class="libelle-court">{{ outilsGauche[id].libelleCourt }}</span>
                 </button>
               </nav>
               <DefilementSuperpose>
@@ -533,7 +535,7 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
             class="apercu-onglet"
             aria-hidden="true"
             :style="{ left: `${position.x + 12}px`, top: `${position.y + 12}px` }"
-          >{{ outilsGauche[ongletGlisse].libelle }}</div>
+          >{{ outilsGauche[ongletGlisse].libelleLong }}</div>
 
           <!-- Déplacer le contenu existant conserve les saisies et les outils ouverts. -->
           <Teleport defer :to="cibleOutil('themes')">
@@ -953,6 +955,8 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
    et les derniers thèmes resteraient inaccessibles tant que le texte n'a pas défilé (la colonne collante repart vers le haut). */
 .colonne-gauche {
   grid-area: gauche;
+  /* Les libellés d'onglets s'adaptent à la largeur de cette colonne (voir plus bas). */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1228,6 +1232,19 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
 .onglets button span {
   font-size: 0.75rem;
   font-weight: 600;
+}
+/* Libellé court par défaut ; le libellé complet s'affiche quand chaque onglet a la place.
+   Seuls les onglets de la colonne gauche sont concernés (le panneau de droite garde ses libellés). */
+.colonne-gauche .onglets .libelle-long {
+  display: none;
+}
+@container (min-width: 480px) {
+  .colonne-gauche .onglets .libelle-long {
+    display: inline;
+  }
+  .colonne-gauche .onglets .libelle-court {
+    display: none;
+  }
 }
 .onglets button.actif {
   background: #fff;

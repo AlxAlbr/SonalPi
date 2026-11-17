@@ -99,7 +99,7 @@ test('manuel : créer un thème et coder un passage sur sa copie du corpus exemp
     await carte.locator('.crayon').click()
     await expect(page.locator('.editeur')).toContainText("surtout pour l'aide aux devoirs")
     await page.locator('[data-onglet="themes"]').click()
-    await page.locator('.themes-coder .crayon').click()
+    await page.locator('.themes-coder .gabarit-action').click()
     await page.locator('.modale-themes').getByRole('button', { name: '+ Thème', exact: true }).click()
     const nom = page.locator('.liste-thm li[data-nom="Nouveau thème"] .nom-thm')
     await nom.fill('Engagement bénévole')

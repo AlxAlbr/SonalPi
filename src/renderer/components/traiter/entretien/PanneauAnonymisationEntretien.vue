@@ -64,6 +64,7 @@ function tooltipIncluses(cle: string): string {
 // le brouillon est persisté, et une nouvelle ligne vide s'ajoute si besoin.
 // Un bouton « + » sous le tableau ajoute des lignes.
 const lignesSaisie = ref<{ id: number; entite: string; pseudo: string }[]>([])
+const aideOuverte = ref(false)
 let seqSaisie = 0
 const nouvelleLigneSaisie = () => ({ id: ++seqSaisie, entite: '', pseudo: '' })
 lignesSaisie.value = [nouvelleLigneSaisie(), nouvelleLigneSaisie()]
@@ -379,34 +380,43 @@ function ouvrirDocumentationPseudo() {
      la sélection peuple la ligne de saisie.
      Entrée sur le Pseudo pose les occurrences (barré + [pseudo], cf. editeur.css). -->
 <aside class="panneau anon">
-  <div class="corpus-tete">
-    <div class="tete-actions">
+  <div class="gabarit-entete">
+    <button
+      type="button"
+      class="gabarit-icone"
+      :aria-expanded="aideOuverte"
+      aria-label="Aide sur la pseudonymisation"
+      title="Aide"
+      @click="aideOuverte = !aideOuverte"
+    >ⓘ</button>
+    <div class="gabarit-actions">
       <button
         type="button"
-        class="mini"
+        class="gabarit-icone"
         title="Recalculer les compteurs (à anonymiser)"
+        aria-label="Recalculer les compteurs"
         @click="rafraichirCompteursAAAnonymiser()"
       >⟳</button>
       <button
         type="button"
-        class="mini"
+        class="gabarit-action"
         title="Ajouter une ligne de saisie"
         v-if="!lectureSeuleContenu"
         @click="lignesSaisie.push(nouvelleLigneSaisie())"
       >+ Ligne</button>
     </div>
   </div>
-  <details class="aide-portee-anon">
-    <summary>Quelques informations</summary>
+  <div v-if="aideOuverte" class="gabarit-aide">
     <p>
       Ici, on pseudonymise le <b>contenu des tours de parole</b> (le texte).
       Pour les noms des locuteurs, consultez l’onglet <b>Locuteurs</b>.
-      <br />
+    </p>
+    <p>
       Si c’est la première fois que vous réalisez cette opération, nous vous conseillons de lire la
       <a href="#documentation-pseudonymisation" @click.prevent="ouvrirDocumentationPseudo">documentation dédiée</a>.
     </p>
-  </details>
-  <label class="selection-option" title="Ajouter automatiquement le texte sélectionné">
+  </div>
+  <label class="selection-option gabarit-ligne" title="Ajouter automatiquement le texte sélectionné">
     <span class="selection-option-texte">
       <span class="selection-option-titre">Ajouter le texte sélectionné</span>
     </span>
@@ -415,14 +425,14 @@ function ouvrirDocumentationPseudo() {
       <span class="selection-option-etat" aria-hidden="true">{{ ajoutSelectionActif ? 'Activé' : 'Désactivé' }}</span>
     </span>
   </label>
-  <p v-if="hintAnon" class="hint-codage">{{ hintAnon }}</p>
+  <p v-if="hintAnon" class="gabarit-indication hint-codage">{{ hintAnon }}</p>
 
   <table class="tableau-anon">
     <thead>
       <tr>
-        <th class="col-entite">Mot ou sélection</th>
+        <th class="col-entite">Mot</th>
         <th class="col-pseudo">Pseudo</th>
-        <th class="col-actions">État · Occ.</th>
+        <th class="col-actions">Occ.</th>
       </tr>
     </thead>
     <tbody>
@@ -638,35 +648,6 @@ function ouvrirDocumentationPseudo() {
 </template>
 
 <style scoped>
-/* Phrase de portée : ce panneau concerne le TEXTE des tours, pas les locuteurs. */
-.aide-portee-anon {
-  font-size: 14px;
-  color: #666;
-  margin: 0.2rem 0.3rem 0.4rem;
-  line-height: 1.5;
-}
-.aide-portee-anon summary {
-  cursor: pointer;
-  color: #425d7a;
-  font-weight: 600;
-  padding: 0.3rem 0;
-}
-.aide-portee-anon p {
-  margin: 0.25rem 0 0.6rem;
-  padding: 0.5rem 0.7rem;
-  border-left: 3px solid #a9c4df;
-  border-radius: 4px;
-  background: #f2f6fb;
-}
-.hint-codage {
-  background: #fff3e0;
-  color: #b06e0f;
-  border: 1px solid #e0a03a;
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
-  margin: 0.3rem 0;
-}
 .selection-option {
   display: flex;
   align-items: center;
@@ -745,23 +726,20 @@ function ouvrirDocumentationPseudo() {
   border-collapse: collapse;
   margin-top: 0.3rem;
 }
-/* En-têtes harmonisés sur les conventions « locuteurs » : petits, hautes
- * (uppercase), gris, centrés — SANS fond ni traits de grille lourds. Un seul
- * séparateur fin sous l'en-tête (comme pour le tableau des locuteurs). */
+/* En-têtes du tableau dans le ton du gabarit commun : petits, gris, sans fond. */
 .tableau-anon th {
   text-align: center;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #6b7480;
   padding: 0.15rem 0.3rem;
   background: transparent;
-  border-bottom: 1px solid #e5e5ef;
+  border-bottom: 1px solid #e3e6ec;
 }
 .tableau-anon td {
   padding: 0.4rem 0.2rem;
   vertical-align: middle;
+  border-bottom: 1px solid #eef1f5;
 }
 .ligne-anon td {
   background: #fff;
@@ -871,19 +849,6 @@ td.col-pseudo {
 /* Compteurs scindés d'une ligne anon : occurrences ANONYMISÉES (barrées) et
  * EXCEPTIONS (laissées en clair). Les badges ronds colorés (.cpt-btn ci-dessous)
  * portent la couleur de chaque état. */
-/* Boutons d'actualisation et d'ajout de ligne du panneau Pseudo. */
-.tete-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-.tete-actions .mini {
-  font-size: 16px;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0.5rem 0.8rem;
-}
 /* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés — vert
  * #15c095 = anonymisé, gris #555 = exception, orange #ff9800 = à anonymiser.
  * Chiffre blanc sur la couleur. */

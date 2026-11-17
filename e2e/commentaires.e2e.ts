@@ -37,7 +37,7 @@ test('Comments permet de commenter une sélection et de retrouver les commentair
   try {
     const onglet = page.locator('.colonne-gauche [data-onglet="commentaires"]')
     const panneau = page.locator('.panneau.commentaires')
-    const ajouter = panneau.getByRole('button', { name: 'Commentaire', exact: true })
+    const ajouter = panneau.getByRole('button', { name: '+ Commentaire', exact: true })
     await onglet.click()
     await expect(panneau).toContainText('Aucun commentaire pour le moment.')
 
@@ -60,10 +60,15 @@ test('Comments permet de commenter une sélection et de retrouver les commentair
     await expect(commentaires.locator('.texte-commentaire')).toHaveText(['Vérifier le prénom', 'Question sur la retraite'])
     await commentaires.first().click()
     await expect(page.locator('.editeur .reperage-hit')).toHaveText('Karine')
+    // Un clic sur un commentaire de la liste ouvre aussi sa modification.
+    await expect(page.locator('[data-test="modale-commentaire"]')).toBeVisible()
+    await page.locator('[data-test="modale-commentaire"]').getByRole('button', { name: 'Annuler', exact: true }).click()
     await expect(page.locator('[data-test="modale-commentaire"]')).toBeHidden()
     await commentaires.last().focus()
     await page.keyboard.press('Enter')
     await expect(page.locator('.editeur .reperage-hit')).toHaveText('retraite')
+    await page.locator('[data-test="modale-commentaire"]').getByRole('button', { name: 'Annuler', exact: true }).click()
+    await expect(page.locator('[data-test="modale-commentaire"]')).toBeHidden()
 
     await page.locator('.carte-commentaire', { hasText: 'Vérifier le prénom' }).click()
     await page.locator('[data-test="commentaire-texte"]').fill('Prénom vérifié')
