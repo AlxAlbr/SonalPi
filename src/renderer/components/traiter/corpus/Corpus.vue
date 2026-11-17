@@ -97,6 +97,22 @@ const {
   presencesSur,
 } = utiliserSonal()
 
+/** Densité d'affichage de la liste des entretiens, mémorisée sur ce poste. */
+const DENSITES = ['aere', 'compact', 'tres-compact'] as const
+const LIBELLES_DENSITE = ['Aéré', 'Compact', 'Très compact']
+const CLE_DENSITE = 'sonal.corpus.densiteEntretiens'
+function lireDensite(): number {
+  try {
+    const i = DENSITES.indexOf(localStorage.getItem(CLE_DENSITE) as (typeof DENSITES)[number])
+    return i >= 0 ? i : 0
+  } catch { return 0 }
+}
+const indiceDensite = ref(lireDensite())
+const densite = computed(() => DENSITES[indiceDensite.value])
+watch(indiceDensite, (i) => {
+  try { localStorage.setItem(CLE_DENSITE, DENSITES[i]) } catch { /* Stockage facultatif. */ }
+})
+
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
@@ -474,6 +490,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <!-- Un seul point d'entrée : la modale à deux zones,
              couvrant import texte, texte+audio et audio seul.
              Masqué quand le fournisseur ne permet pas l'ajout. -->
+        <label class="densite-liste" title="Densité de la liste des entretiens">
+          <input
+            v-model.number="indiceDensite"
+            type="range"
+            min="0"
+            max="2"
+            step="1"
+            aria-label="Densité de la liste des entretiens"
+            :aria-valuetext="LIBELLES_DENSITE[indiceDensite]"
+          />
+          <span class="densite-libelle">{{ LIBELLES_DENSITE[indiceDensite] }}</span>
+        </label>
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
@@ -725,7 +753,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
 
             <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
-            <ul class="cartes-ent" aria-label="Entretiens du corpus">
+            <ul class="cartes-ent" :class="'densite-' + densite" aria-label="Entretiens du corpus">
               <template v-for="e in listeEntretiens()" :key="e.id">
               <li
                 class="carte-ent"
@@ -766,7 +794,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       data-tour="crayon-entretien"
                       :title="titreCrayon(e.id)"
                       @click.stop="ouvrirEntretien(e.id)"
-                    >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
+                      :aria-label="titreCrayon(e.id)"
+                    >
+                      <template v-if="densite === 'aere'">{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</template>
+                      <template v-else-if="badgeVerrou(e.id)">🔒</template>
+                      <svg v-else class="ico-ouvrir" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M11.5 9.5v3.5a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.5" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
                   <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
@@ -1618,6 +1653,127 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-actions .ouvrir-ent:hover {
   background: #1f63c6;
+}
+
+/* Curseur de densité de la liste, dans la barre d'onglets. */
+.densite-liste {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #555;
+  cursor: pointer;
+}
+.densite-liste input {
+  width: 4.5rem;
+  margin: 0;
+  accent-color: #2e73d8;
+  cursor: pointer;
+}
+.densite-libelle {
+  min-width: 5.6rem; /* largeur stable : le bouton voisin ne bouge pas */
+  white-space: nowrap;
+}
+
+/* Modes compacts : titre, onde et bouton sur une seule ligne.
+   L'en-tête s'efface pour que ses enfants se placent autour de l'onde. */
+.densite-compact .carte-ent,
+.densite-tres-compact .carte-ent {
+  flex-direction: row;
+  align-items: center;
+}
+.densite-compact .carte-entete,
+.densite-tres-compact .carte-entete {
+  display: contents;
+}
+.densite-compact .spectro-cadre,
+.densite-tres-compact .spectro-cadre {
+  flex: 1;
+  order: 1;
+}
+.densite-compact .carte-actions {
+  order: 2;
+}
+
+/* Compact : titre dans une colonne fixe, onde moyenne, bouton icône. */
+.densite-compact {
+  gap: 0.3rem;
+}
+.densite-compact .carte-ent {
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.6rem;
+  border-radius: 8px;
+}
+.densite-compact .ent-titre {
+  flex: 0 0 10rem;
+}
+.densite-compact .spectro-cadre {
+  height: 30px;
+}
+.densite-compact .carte-actions .ouvrir-ent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #d5d5de;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+}
+.densite-compact .carte-actions .ouvrir-ent:hover {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+}
+.ico-ouvrir {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Très compact : une fine bande par entretien, titre posé sur l'onde.
+   Le double-clic ouvre l'entretien. */
+.densite-tres-compact {
+  gap: 2px;
+  margin-top: 0.25rem;
+}
+.densite-tres-compact .carte-ent {
+  position: relative;
+  padding: 1px;
+  border-radius: 8px;
+}
+.densite-tres-compact .spectro-cadre {
+  height: 16px;
+  border-radius: 7px;
+}
+.densite-tres-compact .spectro {
+  border-radius: 7px;
+}
+.densite-tres-compact .ent-titre {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  max-width: 40%;
+  padding: 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+.densite-tres-compact .carte-actions {
+  display: none;
+}
+.densite-tres-compact .badge-presence,
+.densite-tres-compact .badge-verrou {
+  font-size: 0.65rem;
 }
 @media (max-width: 780px) {
   .colonne-g-corpus { position: static; }
