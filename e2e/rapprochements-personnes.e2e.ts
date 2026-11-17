@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
 
 test('Personnes : refus révocable et reprise depuis une source choisie', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-rapprochements-e2e-'))
@@ -28,7 +28,7 @@ test('Personnes : refus révocable et reprise depuis une source choisie', async 
       const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], locuteurId: `loc-${ids[0]}`, nom: 'Marie Dupont' })
       await api.personnesCommander({ type: 'lier', entretienId: ids[1], locuteurId: `loc-${ids[1]}`, personneId })
     })
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     const aVerifier = panneau.getByRole('region', { name: 'Suggestions à vérifier' })
     await expect(aVerifier.getByRole('button')).toHaveCount(1)
@@ -94,7 +94,7 @@ test('Personnes : refuser une paire conserve les suggestions vers un troisième 
         await api.ecrireEntretien(id, payload)
       }
     })
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     const aVerifier = panneau.getByRole('region', { name: 'Suggestions à vérifier' })
     await expect(aVerifier.getByRole('button')).toHaveCount(3)

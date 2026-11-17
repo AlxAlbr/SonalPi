@@ -6,7 +6,7 @@ import MenuTheme from '../partages/themes/MenuTheme.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
-import PersonnesCorpus from './PersonnesCorpus.vue'
+import LocuteursCorpus from './LocuteursCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import OngletsEspace from '../../app/OngletsEspace.vue'
@@ -344,7 +344,7 @@ function allerOccurrence(id: string, pos: number) {
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
   { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: 'personnes', libelle: 'Personnes', icone: icoPersonnes },
+  { id: 'personnes', libelle: 'Locuteurs', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
@@ -765,7 +765,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </section>
       </div>
 
-      <PersonnesCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
+      <LocuteursCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
       <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />

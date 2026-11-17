@@ -30,6 +30,7 @@
         <li><a href="#interviewer">Indiquer qui pose les questions</a></li>
         <li><a href="#attribuer">Corriger l’attribution d’un passage</a></li>
         <li><a href="#statistiques">Comparer les prises de parole et les parcourir</a></li>
+        <li><a href="#corpus">Retrouver les interventions dans le corpus</a></li>
         <li><a href="#personnes">Comprendre les rapprochements de personnes</a></li>
         <li><a href="#pseudo">Utiliser le champ Pseudo avec prudence</a></li>
         <li><a href="#supprimer">Supprimer un locuteur</a></li>
@@ -85,11 +86,22 @@
     </figure>
     <p class="retenir"><strong>Les durées sont des estimations à partir des repères du texte.</strong> Les silences repérés entre deux passages ne sont pas attribués ; les pauses non repérées ne peuvent pas être isolées. Une durée <strong>partielle</strong> ne couvre qu’une partie des paroles. Un tiret indique qu’aucune durée ne peut être calculée ; ce n’est pas zéro seconde. Il ne s’agit pas d’une détection automatique des voix.</p>
     <p>Le bilan reste consultable en lecture seule et sans enregistrement associé. Si un enregistrement est chargé et des repères sont disponibles, <strong>Suivante</strong> déplace aussi sa tête de lecture, sans démarrer une lecture arrêtée. Cette consultation ne change pas le texte et n’enregistre pas de nouveau contenu. Les noms affichés restent ceux des locuteurs : le bilan n’est pas pseudonymisé.</p>
+    <h2 id="corpus">Retrouver les interventions dans le corpus</h2>
+    <p>Revenez au <strong>Corpus</strong> par le fil de navigation, puis ouvrez l’onglet <strong>Locuteurs</strong>. La liste réunit les locuteurs déjà reconnus d’un entretien à l’autre. Les noms identiques restent distincts lorsqu’aucune association n’a été confirmée ; le titre de l’entretien aide à les distinguer.</p>
+    <ol>
+      <li>Sélectionnez un nom pour voir ses interventions dans les entretiens concernés.</li>
+      <li>Utilisez <strong>Ctrl-clic</strong> (ou <strong>⌘-clic</strong> sur Mac) pour sélectionner plusieurs noms ; <strong>Maj-clic</strong> sélectionne une plage de la liste.</li>
+      <li>Recherchez un nom, une variante utilisée dans un entretien ou un titre d’entretien. Les lignes masquées par la recherche sont retirées de la sélection.</li>
+      <li>Cliquez sur une intervention dans une barre, ou sur <strong>Suivante</strong> sous l’entretien, pour ouvrir le passage. Le retour au corpus conserve votre sélection.</li>
+    </ol>
+    <p>Les barres représentent le déroulement du <strong>texte</strong>, du début à la fin : leur largeur n’est pas une durée audio. Les interventions sélectionnées sont colorées et les autres restent grises. L’option <strong>Tous les entretiens</strong> conserve aussi les entretiens où les locuteurs sélectionnés n’interviennent pas.</p>
+    <p>Le bouton <strong>Statistiques</strong> présente les nombres de mots et d’interventions de la sélection, avec un détail par locuteur. Une source indisponible est signalée et rend le bilan incomplet. Cette consultation ne modifie ni les paroles ni les associations.</p>
+    <p>Les outils de correction des associations, les notes liées et les données détaillées restent accessibles par <strong>Détails et associations…</strong>. Le bouton <strong>Revenir aux interventions</strong> retrouve la vue d’ensemble.</p>
     <h2 id="personnes">Comprendre les rapprochements de personnes</h2>
     <p>Un locuteur appartient à un entretien. Une <strong>personne</strong> permet de retrouver un même participant dans plusieurs entretiens du corpus.</p>
     <p>Quand vous donnez un nom spécifique à un locuteur, SonalPi peut créer une fiche de personne dans le corpus. S’il repère un nom ou un rôle proche dans un autre entretien, il propose <strong>Une personne déjà rencontrée ?</strong> :</p>
     <ul>
-      <li><strong>Plus tard</strong> conserve le nom saisi sans appliquer le rapprochement proposé. Vous pourrez examiner la question dans l’onglet <strong>Personnes</strong> du corpus.</li>
+      <li><strong>Plus tard</strong> conserve le nom saisi sans appliquer le rapprochement proposé. Vous pourrez examiner la question dans l’onglet <strong>Locuteurs</strong> du corpus, puis <strong>Détails et associations…</strong>.</li>
       <li>Si vous reconnaissez la même personne, sélectionnez la proposition et vérifiez les informations à reprendre avant de <strong>Confirmer</strong>. La reprise du pseudonyme et du statut est cochée par défaut ; décochez-la pour conserver vos informations locales.</li>
       <li>S’il s’agit de personnes différentes, choisissez <strong>Ce n’est pas cette personne</strong> ou <strong>Aucune de ces personnes</strong>.</li>
     </ul>

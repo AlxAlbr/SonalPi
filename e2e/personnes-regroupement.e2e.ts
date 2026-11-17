@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
 
 test('réunir deux personnes : aperçu, annulation et nom choisi', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-regroupement-e2e-'))
@@ -27,7 +27,7 @@ test('réunir deux personnes : aperçu, annulation et nom choisi', async () => {
       }
       return personnes
     })
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     await panneau.locator('.repertoire').getByRole('button', { name: /Marie Dupont/ }).click()
     await panneau.locator('summary').filter({ hasText: 'Réunir…' }).click()

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
 
 test('séparer une personne laisse au moins un locuteur sur la fiche d’origine', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-separation-e2e-'))
@@ -33,7 +33,7 @@ test('séparer une personne laisse au moins un locuteur sur la fiche d’origine
       }
     })
 
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     await panneau.locator('.repertoire').getByRole('button', { name: /Karine Dupont/ }).click()
     await expect(panneau.locator('.liens li')).toHaveCount(3)

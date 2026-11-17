@@ -55,6 +55,11 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     return window.sonal.corpus.personnesInventaire()
   }
 
+  async function lireLocuteursCorpus() {
+    await opts.flush()
+    return window.sonal.corpus.locuteursInventaire()
+  }
+
   async function commanderPersonnes(commande: CommandePersonnes) {
     await opts.flush()
     return window.sonal.corpus.personnesCommander(toRaw(commande), true)
@@ -136,6 +141,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     lireNotes,
     commanderNotes,
     lirePersonnes,
+    lireLocuteursCorpus,
     commanderPersonnes,
     // variables/modalités
     ajouterVariable: variables.ajouterVariable,

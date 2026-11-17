@@ -1455,6 +1455,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return store.notesCommander(commande, true)
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
+  ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
   ipcMain.handle('corpus:personnesCommander', async (
     _e,
     commande: import('../shared/corpus/personnes').CommandePersonnes,

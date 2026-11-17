@@ -29,6 +29,8 @@ import type {
 import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
 import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
+import { appliquerCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../shared/corpus/correctionsLocuteurs'
+import { projeterLocuteursCorpus, type VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
 import {
   etatNoteJournal,
   inventorierNotes,
@@ -1268,8 +1270,8 @@ export class CorpusStore {
     return { ...inventorierNotes(corpus, entretiens), indisponibles }
   }
 
-  /** Inventaire tolérant : les entretiens illisibles restent signalés. */
-  personnesInventaire(): InventairePersonnes {
+  /** Lit les participations sans modifier les fichiers et signale les sources indisponibles. */
+  private lireSourcesPersonnes() {
     this.verifierEntretienLisible()
     const corpus = this.ouvrir()
     const entretiens: corpusModel.EntreeMatrice[] = []
@@ -1284,7 +1286,20 @@ export class CorpusStore {
         indisponibles.push({ id, titre: ref.titre, raison: erreur instanceof Error ? erreur.message : String(erreur) })
       }
     }
+    return { corpus, entretiens, indisponibles }
+  }
+
+  /** Inventaire tolérant : les entretiens illisibles restent signalés. */
+  personnesInventaire(): InventairePersonnes {
+    const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
     return { ...inventorierPersonnes(corpus, entretiens), indisponibles }
+  }
+
+  /** Projette la liste et les interventions sans transmettre les textes à l’interface. */
+  locuteursInventaire(): VueLocuteursCorpus {
+    const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
+    const projection = projeterLocuteursCorpus(corpus, entretiens)
+    return { ...projection, indisponibles: [...indisponibles, ...projection.indisponibles] }
   }
 
   private etatLienJournal(locuteur: Locuteur): EtatLienJournalCorpus {
@@ -1513,7 +1528,58 @@ export class CorpusStore {
     return null
   }
 
-  /** Corrections locales du répertoire, sans réécriture des noms de locuteurs. */
+  /** Enregistre ensemble les corrections qui touchent plusieurs entretiens fermés. */
+  private corrigerLocuteurs(commande: CommandeCorrectionLocuteurs): string {
+    if (this.sourcesPreparation !== null) {
+      throw new Error('Ces corrections ne sont pas encore disponibles dans les corpus distants.')
+    }
+    if (this.transactionsFichiers.journalPresent()) {
+      throw new Error('Une modification reste à terminer. Rouvrez le corpus avant de corriger les locuteurs.')
+    }
+    if (this.ecrituresAutorisees.size) {
+      throw new Error('Fermez les entretiens en édition avant de corriger les locuteurs du corpus.')
+    }
+    const inventaire = this.personnesInventaire()
+    if (inventaire.indisponibles.length) {
+      throw new Error('Correction impossible : certains entretiens sont illisibles.')
+    }
+    if (JSON.stringify(inventaire) !== commande.attendu) {
+      throw new Error('Les locuteurs ou les entretiens ont changé. Actualisez puis vérifiez à nouveau la correction.')
+    }
+    const corpusAvant = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+    const corpus = structuredClone(this.ouvrir())
+    const fichiers = Object.entries(corpus.membership).map(([id, ref]) => {
+      const avant = JSON.parse(readFileSync(this.entretienFile(id), 'utf8')) as EntretienFichier
+      const lecture = this.lireEntretien(id)
+      if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
+      const apres = lecture.data
+      apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
+      return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
+    })
+    const personneId = appliquerCorrectionLocuteurs(
+      corpus,
+      fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres })),
+      commande,
+      () => genId('pers'),
+    )
+    const modifies = fichiers.filter((fichier) => fichier.initial !== JSON.stringify(fichier.apres))
+    const now = new Date().toISOString()
+    for (const fichier of modifies) {
+      fichier.apres.lastModified = now
+      corpus.membership[fichier.id].lastModified = now
+    }
+    this.appliquerTransactionFichiers({
+      operation: 'remplacement',
+      id: genId('locuteurs'),
+      corpusAvant,
+      corpusApres: corpus,
+      entretiens: modifies.map(({ id, avant, apres }) => ({ id, avant, apres })),
+      ordre: commande.type === 'dissocierSelection' ? 'corpus-puis-entretiens' : 'entretiens-puis-corpus',
+    })
+    return personneId
+  }
+
+  /** Applique les corrections locales des identités et des associations. */
   personnesCommander(
     commande: CommandePersonnes,
     journaliser = false,
@@ -1521,6 +1587,9 @@ export class CorpusStore {
     autoriserRapprochementComposite = true,
   ): string | null {
     this.verifierEcriture()
+    if (commande.type === 'renommerGlobal' || commande.type === 'regrouperSelection' || commande.type === 'dissocierSelection') {
+      return this.corrigerLocuteurs(commande)
+    }
     const corpus = this.ouvrir()
     if (commande.type === 'fusionner') {
       const inventaire = this.personnesInventaire()

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
 
 test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-e2e-'))
@@ -18,7 +18,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
       payload.locuteurs = [{ id: 'loc-karine-2', index: 0, nom: 'Mme Dupont', valeursLoc: {}, personneRef: null }]
       await api.ecrireEntretien(id, payload)
     })
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     await expect(panneau).toBeVisible()
     await expect(page.locator('.grille-corpus')).toBeHidden()
@@ -66,8 +66,8 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     const formulaireNote = page.locator('.nouvelle-note-inline')
     await expect(formulaireNote.locator('.champ-titre-note input')).toHaveValue('')
     await expect(formulaireNote.locator('.champ-titre-note input')).not.toHaveAttribute('placeholder')
-    await expect(formulaireNote.getByLabel('Catégorie', { exact: true })).toBeVisible()
-    await expect(formulaireNote.getByLabel('Catégorie', { exact: true })).toHaveValue('ncat_generale')
+    await expect(formulaireNote.getByRole('combobox', { name: /^Catégorie/ })).toBeVisible()
+    await expect(formulaireNote.getByRole('combobox', { name: /^Catégorie/ })).toHaveValue('ncat_generale')
     await expect(formulaireNote.locator('.options-avancees-note select')).toHaveCount(1)
     await formulaireNote.locator('.champ-titre-note input').fill('Identité vérifiée')
     await formulaireNote.getByRole('button', { name: '🔗 Lier à une personne', exact: true }).click()
@@ -101,7 +101,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     // Le retour d'action se ferme de lui-même quand on quitte l'onglet.
     await expect(bandeau).toBeVisible()
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
     await expect(bandeau).toHaveCount(0)
     await panneau.locator('.repertoire').getByRole('button', { name: /K\. Dupont/ }).click()
@@ -110,11 +110,13 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await panneau.locator('.repertoire').getByRole('button', { name: 'Karine', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ouvrir l’entretien', exact: true }).click()
     await expect(page.locator('.lien-personne-loc')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const indexKarine = await page.locator('.nom-loc').evaluateAll(inputs => inputs.findIndex(input => (input as HTMLInputElement).value === 'Karine'))
     expect(indexKarine).toBeGreaterThanOrEqual(0)
     const nomKarine = page.locator('.nom-loc').nth(indexKarine)
     await nomKarine.fill('Karine Durand')
     await nomKarine.press('Tab')
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const apresDeliaison = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())

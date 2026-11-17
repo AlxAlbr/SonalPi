@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir } from './util'
+import { ouvrir, ouvrirRepertoirePersonnes } from './util'
 
 test('la reprise simplifiée au nommage peut être désactivée', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reprise-nommage-')
@@ -13,6 +13,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -25,9 +26,10 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     expect(avant.personnes).toHaveLength(0)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
     await expect(panneau.getByRole('button', { name: 'À vérifier 0', exact: true })).toBeVisible()
     await expect(panneau.getByRole('region', { name: 'Suggestions à vérifier' })).toContainText('Aucun rapprochement proposé.')

@@ -69,6 +69,14 @@ export async function entrerCorpus(page: Page): Promise<void> {
   await attendreCorpus(page)
 }
 
+/** Ouvre les détails des associations depuis l’onglet Locuteurs. */
+export async function ouvrirRepertoirePersonnes(page: Page): Promise<void> {
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+  const details = page.getByRole('button', { name: 'Détails et associations…', exact: true })
+  if (await details.isVisible()) await details.click()
+  await expect(page.locator('.personnes-corpus')).toBeVisible()
+}
+
 /** Ouvre la préparation sans recliquer sur l'onglet déjà repris par la barre. */
 export async function ouvrirPreparation(
   page: Page,

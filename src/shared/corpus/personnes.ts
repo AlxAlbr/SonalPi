@@ -1,6 +1,7 @@
 import type { CorpusFichier, EntretienFichier, Locuteur, Personne } from '../format'
 import type { EntreeMatrice } from './requetes'
 import type { ChoixRepriseLocuteur } from './rapprochementsPersonnes'
+import type { CommandeCorrectionLocuteurs } from './correctionsLocuteurs'
 import { membresPersonnesRegle, type MembrePersonneCas } from './cas'
 
 export interface VueLocuteurPersonne {
@@ -44,6 +45,7 @@ export interface LocuteurASeparer {
 }
 
 export type CommandePersonnes =
+  | CommandeCorrectionLocuteurs
   | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; choix: ChoixRepriseLocuteur } }
   | { type: 'separer'; personneId: string; nom: string; locuteurs: LocuteurASeparer[]; attendu: string }
   | { type: 'creerDefinition'; nom: string }

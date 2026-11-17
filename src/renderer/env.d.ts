@@ -8,6 +8,7 @@ import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAno
 import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import type { EtatMenuApplication } from '../shared/menuApplication'
+import type { VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -201,6 +202,7 @@ declare global {
         notesInventaire: () => Promise<InventaireNotes>
         notesCommander: (commande: CommandeNotes) => Promise<string | null>
         personnesInventaire: () => Promise<InventairePersonnes>
+        locuteursInventaire: () => Promise<VueLocuteursCorpus>
         personnesCommander: (commande: CommandePersonnes, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>

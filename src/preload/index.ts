@@ -60,6 +60,7 @@ import type {
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -354,6 +355,7 @@ contextBridge.exposeInMainWorld('sonal', {
     notesCommander: (commande: CommandeNotes): Promise<string | null> =>
       invoquer('corpus:notesCommander', commande),
     personnesInventaire: (): Promise<InventairePersonnes> => invoquer('corpus:personnesInventaire'),
+    locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),
     personnesCommander: (commande: CommandePersonnes, depuisRepertoire = false): Promise<string | null> =>
       invoquer('corpus:personnesCommander', commande, depuisRepertoire),
     journalLister: (): Promise<EntreeJournalCorpusVue[]> => invoquer('corpus:journalLister'),

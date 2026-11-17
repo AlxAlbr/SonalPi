@@ -36,6 +36,52 @@ export interface StatistiquesLocuteurs {
   reperesIncoherents: boolean
 }
 
+interface NoeudParole {
+  type?: string
+  text?: string
+  attrs?: { loc?: number | null }
+  content?: NoeudParole[]
+}
+
+/** Lit les paragraphes du document enregistré avec leurs positions dans l’éditeur. */
+export function blocsParoleDepuisDocument(document: unknown): BlocParole[] {
+  const doc = document as NoeudParole | null
+  function enfants(noeud: NoeudParole): NoeudParole[] {
+    if (noeud.content !== undefined && !Array.isArray(noeud.content)) {
+      throw new Error('La structure du texte de cet entretien est illisible.')
+    }
+    return noeud.content ?? []
+  }
+  function taille(noeud: NoeudParole): number {
+    if (noeud.type === 'text') {
+      if (typeof noeud.text !== 'string') throw new Error('Un passage du texte de cet entretien est illisible.')
+      return noeud.text.length
+    }
+    if (noeud.content || noeud.type === 'paragraph' || noeud.type === 'heading') {
+      return 2 + enfants(noeud).reduce((total, enfant) => total + taille(enfant), 0)
+    }
+    return 1
+  }
+  function texte(noeud: NoeudParole): string {
+    if (noeud.type === 'text') return noeud.text ?? ''
+    return noeud.content ? noeud.content.map(texte).join('') : ' '
+  }
+  const blocs: BlocParole[] = []
+  let pos = 0
+  for (const noeud of doc ? enfants(doc) : []) {
+    if (noeud.type === 'paragraph') {
+      blocs.push({
+        pos: pos + 1,
+        longueur: taille(noeud) - 2,
+        texte: (noeud.content ?? []).map(texte).join(''),
+        loc: noeud.attrs?.loc ?? null,
+      })
+    }
+    pos += taille(noeud)
+  }
+  return blocs
+}
+
 /** Calcule le bilan depuis le texte, sans compter les libellés affichés autour des paroles. */
 export function statistiquesLocuteurs(
   blocs: BlocParole[],
