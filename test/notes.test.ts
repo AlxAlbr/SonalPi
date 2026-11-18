@@ -3,13 +3,13 @@ import { describe, test, expect } from 'vitest'
 import {
   CATEGORIES_NOTE_DEFAUT,
   normaliserCategoriesNote,
-  normaliserNotes,
   prochainRang,
   renumeroterRangs,
   genIdNote,
   genIdCategorieNote,
   compterUsagesCategorieNote,
 } from '../src/shared/entretien/notes'
+import { normaliserNotesFormat9 as normaliserNotes } from '../src/shared/entretien/notesFormat9'
 import {
   sanitiserCorpsNote,
   normaliserNotesLues,

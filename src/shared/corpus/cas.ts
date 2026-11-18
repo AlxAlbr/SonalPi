@@ -907,9 +907,21 @@ export function compterUsagesAttributCas(
   return { valeursSaisies, derivationsFamilles, derivationsCas }
 }
 
+/** Références aux variables, indépendantes des identités sélectionnées par les cas. */
+export interface SourcesUsagesVariable {
+  cas?: Record<string, {
+    regles: readonly { type: string; variableId?: string; modaliteId?: string }[]
+    derivationsPropres?: readonly { variableSourceId: string }[]
+  }>
+  famillesCas?: Record<string, {
+    origine: { variableId: string }
+    derivationsAttributs?: readonly { variableSourceId: string }[]
+  }>
+}
+
 /** Compte les recettes dépendantes, indépendamment des valeurs observées. */
-export function compterUsagesCasVariable(
-  corpus: { cas?: Record<string, Cas>; famillesCas?: Record<string, FamilleCas> },
+export function compterUsagesCasVariable<T extends SourcesUsagesVariable>(
+  corpus: T,
   variableId: string,
   modaliteId?: string,
 ): number {

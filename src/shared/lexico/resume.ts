@@ -1,5 +1,6 @@
-import type { Categorie, Personne, Variable } from '../format'
-import type { Cas } from '../corpus/cas'
+import type { Categorie } from '../format'
+import type { Locuteur } from '../locuteurs'
+import type { Cas, Variable } from '../natif/format'
 import type { FiltresLexico, SelectionLexico } from './types'
 
 export interface ElementNommeLexico {
@@ -10,7 +11,7 @@ export interface ElementNommeLexico {
 export interface ContexteResumeLexico {
   entretiens: ElementNommeLexico[]
   variables: Variable[]
-  personnes: Personne[]
+  locuteurs: Locuteur[]
   themes: Pick<Categorie, 'id' | 'nom'>[]
   cas: Pick<Cas, 'id' | 'nom'>[]
 }
@@ -63,13 +64,13 @@ export function resumerFiltresLexico(
       variable?.modalites.find((modalite) => modalite.id === modaliteId)?.lib
       ?? `Modalité introuvable (${modaliteId})`)
     if (filtre.nonRenseigne) modalites.push('Non renseigné')
-    lignes.push(`${variable?.portee === 'locuteur' ? 'Paroles de locuteurs dont' : 'Entretiens dont'} ${variable?.lib ?? `Variable introuvable (${id})`} = ${enumerer(modalites) || 'aucune modalité'}`)
+    lignes.push(`${variable?.portee === 'participation' ? 'Paroles de locuteurs dont' : 'Entretiens dont'} ${variable?.lib ?? `Variable introuvable (${id})`} = ${enumerer(modalites) || 'aucune modalité'}`)
   }
-  if (filtres.personnes.selection.mode === 'choix') {
-    const choix = noms(filtres.personnes.selection, contexte.personnes)
-    if (filtres.personnes.sansPersonne) choix.push('Locuteurs sans personne associée')
-    if (filtres.personnes.sansLocuteur) choix.push('Passages sans locuteur')
-    lignes.push(`Personnes : ${enumerer(choix) || 'aucune'}`)
+  if (filtres.locuteurs.selection.mode === 'choix') {
+    const choix = noms(filtres.locuteurs.selection, contexte.locuteurs)
+    if (filtres.locuteurs.sansIdentiteCommune) choix.push('Locuteurs non associés')
+    if (filtres.locuteurs.sansParticipation) choix.push('Passages sans locuteur')
+    lignes.push(`Locuteurs : ${enumerer(choix) || 'aucun'}`)
   }
   if (filtres.themes.mode === 'choix') lignes.push(`Dans les thèmes : ${enumerer(noms(filtres.themes, contexte.themes)) || 'aucun'}`)
   if (filtres.cas.mode === 'choix') lignes.push(`Dans les matériaux des cas : ${enumerer(noms(filtres.cas, contexte.cas)) || 'aucun'}`)
@@ -81,7 +82,7 @@ export function resumerFiltresLexico(
 export function nombreCriteresLexico(filtres: FiltresLexico): number {
   return Number(filtres.entretiens.mode === 'choix')
     + Object.keys(filtres.variables).length
-    + Number(filtres.personnes.selection.mode === 'choix')
+    + Number(filtres.locuteurs.selection.mode === 'choix')
     + Number(filtres.themes.mode === 'choix')
     + Number(filtres.cas.mode === 'choix')
     + Number(!filtres.inclureEnqueteurs)

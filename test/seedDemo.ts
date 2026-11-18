@@ -10,7 +10,7 @@ import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
  *  blocs, 3 thèmes de démo (Famille/Travail/Lieu) + le bloc Pondérations
  *  (cat_004..007) — les ids/contenus historiques dont dépendent les specs.
  */
-export function ecrireSeedDemo(dirCorpus: string): void {
+export function ecrireSeedDemo(dirCorpus: string, avecIdsStables = false): void {
   // IDEMPOTENT : ne JAMAIS écraser un corpus existant — les tests de persistance relancent l'app sur le même dossier,
   // et doivent retrouver leur état.
   if (existsSync(join(dirCorpus, 'corpus.crp'))) return
@@ -53,8 +53,8 @@ export function ecrireSeedDemo(dirCorpus: string): void {
     annotations: [],
     ancres: [],
     locuteurs: [
-      { index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
+      { ...(avecIdsStables ? { id: 'loc-demo-enqueteur' } : {}), index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
+      { ...(avecIdsStables ? { id: 'loc-demo-karine' } : {}), index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
     ],
     meta: { valeursGen: {}, audioRef: null },
   }

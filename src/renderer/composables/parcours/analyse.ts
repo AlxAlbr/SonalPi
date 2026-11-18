@@ -41,7 +41,7 @@ export function creerParcoursAnalyse(deps: DepsParcoursAnalyse): DefinitionParco
     && s.filtresSynthese.value.themes.ids.length === 1 && s.filtresSynthese.value.themes.ids[0] === THEME_UTILITE
   const synthesePrete = () => sur('synthese') && syntheseUtilite()
     && Object.keys(s.filtresSynthese.value.variables).length === 0
-    && s.filtresSynthese.value.personnes.selection.mode === 'sans-restriction'
+    && s.filtresSynthese.value.locuteurs.selection.mode === 'sans-restriction'
     && s.filtresSynthese.value.cas.mode === 'sans-restriction' && !!s.calculeLeSynthese.value
     && !s.chargementSynthese.value && !s.resultatPerimeSynthese.value
     && s.diagnosticsSynthese.value.length === 0 && s.extraitsSynthese.value.length > 0
@@ -67,7 +67,7 @@ export function creerParcoursAnalyse(deps: DepsParcoursAnalyse): DefinitionParco
         ? '[data-tour="onglet-entretiens-synthese"]' : '[data-tour="tous-entretiens-synthese"]'
     }
     if (Object.keys(filtres.variables).length) return '[data-tour="onglet-variables-synthese"]'
-    if (filtres.personnes.selection.mode === 'choix') return '[data-tour="onglet-personnes-synthese"]'
+    if (filtres.locuteurs.selection.mode === 'choix') return '[data-tour="onglet-locuteurs-synthese"]'
     if (filtres.cas.mode === 'choix') return '[data-tour="onglet-cas-synthese"]'
     return '[data-tour="calculer-synthese"]'
   }
@@ -78,7 +78,7 @@ export function creerParcoursAnalyse(deps: DepsParcoursAnalyse): DefinitionParco
     if (!syntheseUtilite()) return 'Dans « Thèmes », cochez seulement « Sens de l’utilité ». Si d’autres thèmes sont cochés, désélectionnez-les d’abord.'
     if (filtres.entretiens.mode === 'choix' && !tousEntretiens(filtres.entretiens.ids)) return 'Dans « Entretiens », cliquez sur « Tout sélectionner » pour comparer les quatre entretiens.'
     if (Object.keys(filtres.variables).length) return 'Dans « Variables », cliquez sur « Effacer la sélection » pour explorer tous les profils.'
-    if (filtres.personnes.selection.mode === 'choix') return 'Dans « Personnes », cliquez sur « Effacer la sélection » pour conserver tous les répondants.'
+    if (filtres.locuteurs.selection.mode === 'choix') return 'Dans « Locuteurs », cliquez sur « Effacer la sélection » pour conserver tous les répondants.'
     if (filtres.cas.mode === 'choix') return 'Dans « Cas », cliquez sur « Tout désélectionner » pour ne pas restreindre les passages.'
     return 'Cliquez sur « Calculer la synthèse ». Les passages sur le sens de l’utilité seront rassemblés pour les quatre entretiens.'
   }

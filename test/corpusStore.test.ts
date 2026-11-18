@@ -968,7 +968,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
     const mat = store.matriceCorpus()
     const ligne = mat.find((e) => e.titre === 'E')!
     expect(ligne.valeursGen[vGen]).toBe(mGen) // valeur entretien chez l'entretien
-    expect(ligne.locuteurs[0].valeursLoc[vLoc]).toBe(mLoc) // valeur locuteur chez le locuteur
+    expect(ligne.participations[0].valeursLoc[vLoc]).toBe(mLoc) // valeur locuteur chez le locuteur
     // Aucun sentinelle « all » nulle part.
     expect(JSON.stringify(mat)).not.toContain('"all"')
   })

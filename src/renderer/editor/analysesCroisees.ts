@@ -62,7 +62,7 @@ export function projeterCelluleAnalyseCroisee(
     texte: textePassage(source.doc, source.data, plage.from, plage.to, mode),
     avant: textePassage(source.doc, source.data, Math.max(0, plage.from - contexte), plage.from, mode).trim(),
     apres: textePassage(source.doc, source.data, plage.to, Math.min(source.doc.content.size, plage.to + contexte), mode).trim(),
-    locuteurs: locuteursPassage(source.doc, source.data, plage.from, plage.to, mode),
+    locuteurs: locuteursPassage(source.doc, source.data.locuteurs, plage.from, plage.to, mode),
   }))
 }
 

@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
+import { verifierVersionNative } from '../shared/versionsNatives'
+import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { validerCorpusV2 } from '../shared/ouvertureFichier'
 import { ajouterVarianteAnon, type DemandeAjoutVarianteAnon, type ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
@@ -28,18 +30,21 @@ import type {
 } from '../shared/corpus/themes'
 import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
 import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
-import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
-import { appliquerCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../shared/corpus/correctionsLocuteurs'
-import { projeterLocuteursCorpus, type VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
+import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes } from '../shared/corpus/personnes'
+import { appliquerCorrectionLocuteursFormat9 } from '../shared/corpus/correctionsLocuteursFormat9'
+import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
+import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
 import {
-  etatNoteJournal,
-  inventorierNotes,
   memeEtatNote,
   memesChampsEditables,
   trouverNote,
+  validerCommandeNotes,
   type CommandeNotes,
   type InventaireNotes,
 } from '../shared/corpus/notes'
+import { etatNoteJournalFormat9 as etatNoteJournal, inventorierNotesFormat9 as inventorierNotes } from '../shared/corpus/notesFormat9'
+import { normaliserNotesFormat9 as normaliserNotes } from '../shared/entretien/notesFormat9'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import { appliquerCommandeTraitementsLexico, normaliserTraitementsLexico, type CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { TraitementsLexico } from '../shared/lexico/types'
@@ -78,7 +83,7 @@ import {
   evaluerDerivationFamille,
   resoudreDerivationCas,
   type LectureSourceAttributs,
-} from '../shared/corpus/observationsAttributs'
+} from '../shared/corpus/observationsAttributsFormat9'
 import {
   TransactionsFichiersCorpus,
   DOSSIER_ARCHIVE_LOCAL,
@@ -114,6 +119,7 @@ import {
   versionSupportee,
   type Categorie,
   type CibleValeur,
+  type ItemLotValeur,
   type CorpusFichier,
   type EntretienFichier,
   type ResultatMutationAnon,
@@ -138,7 +144,6 @@ import {
 } from '../shared/format'
 import {
   normaliserCategoriesNote,
-  normaliserNotes,
   notesParRang,
   renumeroterRangs,
   genIdCategorieNote,
@@ -185,21 +190,20 @@ function idLocuteurHistorique(entretienId: string, index: number): string {
   return `loc-${empreinte}`
 }
 
-/** Complète les anciens locuteurs sans modifier leur index. */
+/** Complète les ids sur des copies, sans modifier les sources ni leurs index. */
 export function completerIdsLocuteurs(
   entretienId: string,
   locuteurs: Locuteur[],
   existants: Locuteur[] = [],
-): Locuteur[] {
+): (Locuteur & { id: string })[] {
   const idsParIndex = new Map(
     existants
       .filter((locuteur): locuteur is Locuteur & { id: string } => Boolean(locuteur.id))
       .map((locuteur) => [locuteur.index, locuteur.id] as const),
   )
   return locuteurs.map((locuteur) => {
-    if (locuteur.id) return locuteur
-    const id = idsParIndex.get(locuteur.index)
-      ?? idLocuteurHistorique(entretienId, locuteur.index)
+    const id = locuteur.id || idsParIndex.get(locuteur.index)
+      || idLocuteurHistorique(entretienId, locuteur.index)
     return { ...locuteur, id }
   })
 }
@@ -736,27 +740,18 @@ export class CorpusStore {
     if (existsSync(this.corpusFile)) {
       throw new Error('Le dossier contient déjà un corpus — la garde a été contournée.')
     }
+    const { locuteurs, variables: variablesNatives, ...commun } = preparerCorpusImportV1(
+      nom, sourceV1, codebook, variables, reglesAnonV1, paramsAnon, traitementsLexico,
+    )
+    // L'écriture au format 9 reste isolée de la préparation native des imports.
     const corpus: CorpusFichier = {
+      ...commun,
       formatVersion: FORMAT_VERSION,
-      codebook: {},
-      variables: {},
-      reglesAnon: {},
-      personnes: {},
-      membership: {},
-      ordreEntretiens: [],
-      recueils: {},
-      cas: {},
-      famillesCas: {},
-      attributsCas: {},
-      lexico: normaliserTraitementsLexico(traitementsLexico),
-      nom,
-      meta: { sourceV1 },
+      personnes: locuteurs,
+      variables: Object.fromEntries(Object.entries(variablesNatives).map(([id, variable]) => [id, {
+        ...variable, portee: variable.portee === 'participation' ? 'locuteur' : variable.portee,
+      }])),
     }
-    corpusModel.fusionnerImport(corpus, codebook, variables)
-    for (const r of reglesAnonV1 ?? []) {
-      if (!corpus.reglesAnon[r.id]) corpus.reglesAnon[r.id] = r
-    }
-    if (paramsAnon) corpus.paramsAnon = paramsAnon
     return {
       corpus,
       nouveau: true,
@@ -942,13 +937,14 @@ export class CorpusStore {
     return { id: plan.id, corpus: plan.corpusApres }
   }
 
-  /** Prépare un import et la fusion de ses définitions sans modifier le disque. */
+  /** Prépare un import et ses identités V1 éventuelles dans une seule transaction. */
   preparerImportEntretien(
     titre: string,
     payload: PayloadEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
+    origine?: 'v1',
   ): PlanAjoutEntretien {
     if (payload.pseudosDeclares !== undefined) normaliserPseudosDeclares(payload.pseudosDeclares)
     const definitionsLocales = payload.definitionsAnonLocales === undefined ? undefined : validerMemoireLocale(payload.definitionsAnonLocales)
@@ -956,14 +952,20 @@ export class CorpusStore {
     const corpusApres = structuredClone(corpusAvant)
     const id = genIdEntretien(titre)
     const now = new Date().toISOString()
-    const entretien: EntretienFichier = {
-      formatVersion: FORMAT_VERSION,
-      lastModified: now,
+    const importe = {
       ...payload,
       ...(definitionsLocales !== undefined ? { definitionsAnonLocales: definitionsLocales } : {}),
       reperesPassages: normaliserReperesPassages(payload.reperesPassages),
       locuteurs: completerIdsLocuteurs(id, payload.locuteurs),
     }
+    if (origine === 'v1') {
+      const preparation = preparerEntretienImportV1(corpusApres.personnes, importe, now, () => genId('pers'))
+      for (const identite of preparation.locuteurs) corpusApres.personnes[identite.id] = identite
+      const associations = new Map(preparation.entretien.participations.map((p) => [p.id, p.locuteurRef]))
+      // Le format 9 enregistre encore le lien sous son nom historique.
+      for (const participation of importe.locuteurs) participation.personneRef = associations.get(participation.id)!
+    }
+    const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...importe }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)
     corpusModel.fusionnerReglesAnon(corpusApres, reglesAnon)
     ajouterEntretienOrdre(corpusApres, id, { titre, date: null, lastModified: now })
@@ -978,9 +980,10 @@ export class CorpusStore {
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
+    origine?: 'v1',
   ): { id: string; corpus: CorpusFichier } {
     this.verifierEcriture()
-    const plan = this.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon)
+    const plan = this.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon, origine)
     this.appliquerTransactionFichiers(plan)
     return { id: plan.id, corpus: plan.corpusApres }
   }
@@ -1298,7 +1301,15 @@ export class CorpusStore {
   /** Projette la liste et les interventions sans transmettre les textes à l’interface. */
   locuteursInventaire(): VueLocuteursCorpus {
     const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
-    const projection = projeterLocuteursCorpus(corpus, entretiens)
+    const projection = projeterRepertoireLocuteurs(corpus.personnes, entretiens.map((entretien) => ({
+      id: entretien.id,
+      titre: entretien.titre,
+      corpsTexte: entretien.data.corpsTexte,
+      participations: entretien.data.locuteurs.map((participation) => ({
+        id: participation.id!, index: participation.index, nom: participation.nom,
+        locuteurRef: participation.personneRef, interviewer: participation.interviewer,
+      })),
+    })))
     return { ...projection, indisponibles: [...indisponibles, ...projection.indisponibles] }
   }
 
@@ -1466,6 +1477,7 @@ export class CorpusStore {
   /** Modifie ou supprime une note après relecture fraîche de son état sémantique. */
   notesCommander(commande: CommandeNotes, journaliser = false): string | null {
     this.verifierEcriture()
+    validerCommandeNotes(commande)
     const corpus = this.ouvrir()
     if (!corpus.membership[commande.entretienId]) {
       throw new Error('Cet entretien ne fait plus partie du corpus.')
@@ -1530,6 +1542,7 @@ export class CorpusStore {
 
   /** Enregistre ensemble les corrections qui touchent plusieurs entretiens fermés. */
   private corrigerLocuteurs(commande: CommandeCorrectionLocuteurs): string {
+    validerCommandeCorrectionLocuteurs(commande)
     if (this.sourcesPreparation !== null) {
       throw new Error('Ces corrections ne sont pas encore disponibles dans les corpus distants.')
     }
@@ -1556,7 +1569,7 @@ export class CorpusStore {
       apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
       return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
     })
-    const personneId = appliquerCorrectionLocuteurs(
+    const locuteurId = appliquerCorrectionLocuteursFormat9(
       corpus,
       fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres })),
       commande,
@@ -1576,7 +1589,7 @@ export class CorpusStore {
       entretiens: modifies.map(({ id, avant, apres }) => ({ id, avant, apres })),
       ordre: commande.type === 'dissocierSelection' ? 'corpus-puis-entretiens' : 'entretiens-puis-corpus',
     })
-    return personneId
+    return locuteurId
   }
 
   /** Applique les corrections locales des identités et des associations. */
@@ -2295,6 +2308,7 @@ export class CorpusStore {
 
   ajouterVariable(lib: string, portee: 'entretien' | 'locuteur'): { id: string; corpus: CorpusFichier } {
     this.verifierEcriture()
+    corpusModel.validerCreationVariableFormat9(lib, portee)
     const corpus = this.ouvrir()
     const id = corpusModel.ajouterVariable(corpus, lib, portee, () => genId('var'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2303,6 +2317,7 @@ export class CorpusStore {
 
   modifierVariable(id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>): CorpusFichier {
     this.verifierEcriture()
+    corpusModel.validerPatchVariableFormat9(patch)
     const corpus = this.ouvrir()
     corpusModel.modifierVariable(corpus, id, patch)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2311,6 +2326,7 @@ export class CorpusStore {
 
   ajouterModalite(idVar: string, lib: string): CorpusFichier {
     this.verifierEcriture()
+    corpusModel.validerLibelleDonnee(lib)
     const corpus = this.ouvrir()
     corpusModel.ajouterModalite(corpus, idVar, lib, () => genId('mod'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2319,6 +2335,7 @@ export class CorpusStore {
 
   modifierModalite(idVar: string, idMod: string, lib: string): CorpusFichier {
     this.verifierEcriture()
+    corpusModel.validerLibelleDonnee(lib)
     const corpus = this.ouvrir()
     corpusModel.modifierModalite(corpus, idVar, idMod, lib)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2388,19 +2405,27 @@ export class CorpusStore {
     this.ecrireJsonAtomique(this.entretienFile(entretienId), entretien)
   }
 
-  /** Pose une valeur EAV dans un entretien (table de données).
-   *  Écriture ciblée atomique, sans rotation `.bak` (valeur scalaire) ;
-   *  le watermark du membership est mis à jour,
-   *  pour rester cohérent avec `ecrireEntretien`.
-   *  Renvoie false si l'entretien manque. */
+  /** Pose une valeur chez son propriétaire, sans rotation de backup ni modification des ids.
+   *  Retourne false si l'entretien ou la participation ciblée est introuvable.
+   */
   poserValeur(entretienId: string, cible: CibleValeur, idVar: string, idMod: string): boolean {
+    return this.poserValeursEntretien(entretienId, [{ entretienId, cible, idVar, idMod }])
+  }
+
+  /** Écrit le lot d'un entretien en une fois ; une destination absente ne laisse aucune modification partielle. */
+  poserValeursEntretien(entretienId: string, items: readonly ItemLotValeur[]): boolean {
     this.verifierEcritureEntretien(entretienId)
+    validerLotValeur(items)
+    if (items.some((item) => item.entretienId !== entretienId)) throw new Error('Le lot de valeurs mélange plusieurs entretiens.')
+    if (items.length === 0) return true
     const f = this.entretienFile(entretienId)
     if (!existsSync(f)) return false
     const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
-    corpusModel.poserValeur(data, cible, idVar, idMod)
-    const now = new Date().toISOString()
-    data.lastModified = now
+    verifierVersionNative(data, `entretien ${entretienId}`)
+    for (const item of items) {
+      if (!corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)) return false
+    }
+    data.lastModified = new Date().toISOString()
     this.ecrireJsonAtomique(f, data)
     // Membership inchangé ici (voir ecrireEntretien).
     return true

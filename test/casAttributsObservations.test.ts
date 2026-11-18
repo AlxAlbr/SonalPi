@@ -8,7 +8,7 @@ import {
   evaluerDerivationFamille, projeterAttributsCas, resoudreDerivationCas,
   variablesDisponiblesFamille, libelleValeurSaisie,
   type LectureSourceAttributs,
-} from '../src/shared/corpus/observationsAttributs'
+} from '../src/shared/corpus/observationsAttributsFormat9'
 import type { Cas, DefinitionAttributCas, DerivationAttributCas } from '../src/shared/corpus/cas'
 import { casModalite, corpusFamille, dateFamille, familleCas, sourceFamille } from './fixtures/casFamilles'
 

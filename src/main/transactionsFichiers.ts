@@ -16,13 +16,43 @@ import { preparerDissociationAnon } from '../shared/corpus/dissociationAnon'
 import { preparerSuppressionAnon } from '../shared/corpus/suppressionAnon'
 import { preparerRetraitVarianteAnon, type DemandeRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
 import { normaliserOrdreEntretiens } from '../shared/corpus/ordreEntretiens'
+import { verifierVersionNative } from '../shared/versionsNatives'
+import { FORMAT_NATIF_LOCUTEURS, type CorpusFichier as CorpusNatif, type EntretienFichier as EntretienNatif } from '../shared/natif/format'
+import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
+import { objet } from '../shared/natif/validationCommune'
 
-export interface PlanAjoutEntretien {
+export interface PlanAjoutEntretien<C = CorpusFichier, E = EntretienFichier> {
   readonly operation: 'ajout'
   readonly id: string
-  readonly corpusAvant: CorpusFichier
-  readonly corpusApres: CorpusFichier
-  readonly entretien: EntretienFichier
+  readonly corpusAvant: C
+  readonly corpusApres: C
+  readonly entretien: E
+}
+
+export type PlanAjoutEntretienNatif = PlanAjoutEntretien<CorpusNatif, EntretienNatif>
+
+/** Vérifie les références avant de publier un nouvel entretien natif. */
+export function validerAjoutEntretienNatif(plan: unknown): asserts plan is PlanAjoutEntretienNatif {
+  if (!objet(plan) || plan.operation !== 'ajout') throw new Error('Cette préparation native ne prend en charge que l’ajout d’entretien.')
+  if (typeof plan.id !== 'string' || !plan.id) throw new Error('Identifiant d’entretien natif invalide.')
+  validerCorpusNatif(plan.corpusAvant)
+  validerCorpusNatif(plan.corpusApres)
+  validerEntretienNatif(plan.entretien)
+  if (!Object.hasOwn(plan.corpusApres.membership, plan.id) || Object.hasOwn(plan.corpusAvant.membership, plan.id)) {
+    throw new Error('L’ajout natif ne correspond pas à un nouvel entretien du corpus.')
+  }
+  const identites = new Set<string>()
+  for (const participation of plan.entretien.participations) {
+    if (participation.locuteurRef === null) continue
+    if (!Object.hasOwn(plan.corpusApres.locuteurs, participation.locuteurRef) || identites.has(participation.locuteurRef)) {
+      throw new Error('Une participation ne peut pas être publiée avec cette identité corpus.')
+    }
+    identites.add(participation.locuteurRef)
+  }
+  const participations = new Set(plan.entretien.participations.map((p) => p.id))
+  if (plan.entretien.notes?.some((note) => note.participationIds?.some((id) => !participations.has(id)))) {
+    throw new Error('Une note référence une participation absente de cet entretien.')
+  }
 }
 
 export interface DeplacementTransactionFichiers {
@@ -72,12 +102,27 @@ export function planSuppressionLocal(
   }
 }
 
+type PlanFichiersAccepte = PlanTransactionFichiers | PlanAjoutEntretienNatif
+
 interface JournalTransactionFichiers {
   readonly formatVersion: 1 | 2 | 3 | 4 | 5
-  readonly plan: PlanTransactionFichiers
+  readonly plan: PlanFichiersAccepte
 }
 
 const NOM_JOURNAL = '.transaction-fichiers.json'
+
+function verifierVersionsPlan(plan: PlanFichiersAccepte): void {
+  verifierVersionNative(plan.corpusAvant, 'corpus avant transaction')
+  verifierVersionNative(plan.corpusApres, 'corpus après transaction')
+  if (plan.operation === 'ajout') verifierVersionNative(plan.entretien, `entretien ${plan.id}`)
+  if (plan.operation === 'remplacement') {
+    if (plan.corpusIntermediaire !== undefined) verifierVersionNative(plan.corpusIntermediaire, 'corpus intermédiaire')
+    for (const entretien of plan.entretiens) {
+      verifierVersionNative(entretien.avant, `entretien ${entretien.id} avant transaction`)
+      verifierVersionNative(entretien.apres, `entretien ${entretien.id} après transaction`)
+    }
+  }
+}
 
 /** Dossier d'archive du miroir. Le dépôt GitLab porte son propre dossier du
  *  même nom : celui-ci ne contient que des fichiers locaux. */
@@ -218,10 +263,10 @@ function validerRetraitVariante(plan: PlanRemplacementEntretiens): void {
   if (!correspondAuJson(contenuJson(plan.corpusApres), contenuJson(attendu))) throw new Error('La copie corpus ne prouve pas le seul retrait de variante consenti.')
 }
 
-function correspondAuCorpus(contenu: string | null, attendu: CorpusFichier): boolean {
+function correspondAuCorpus(contenu: string | null, attendu: Pick<CorpusFichier, 'membership' | 'ordreEntretiens'>): boolean {
   if (contenu === null) return false
   try {
-    const courant = normaliserOrdreEntretiens(JSON.parse(contenu) as CorpusFichier)
+    const courant = normaliserOrdreEntretiens(JSON.parse(contenu) as typeof attendu)
     const cible = normaliserOrdreEntretiens(structuredClone(attendu))
     return contenuJson(courant) === contenuJson(cible)
   } catch {
@@ -264,8 +309,17 @@ export class TransactionsFichiersCorpus {
   private readonly journal: string
   private enCours = false
 
-  constructor(private readonly dir: string) {
+  constructor(private readonly dir: string, private readonly options?: { formatNatif: typeof FORMAT_NATIF_LOCUTEURS }) {
+    if (options && options.formatNatif !== FORMAT_NATIF_LOCUTEURS) throw new Error('Format de préparation non supporté.')
     this.journal = join(dir, NOM_JOURNAL)
+  }
+
+  private verifierPlan(plan: PlanFichiersAccepte): void {
+    if (!this.options) {
+      verifierVersionsPlan(plan)
+      return
+    }
+    validerAjoutEntretienNatif(plan)
   }
 
   journalPresent(): boolean {
@@ -280,10 +334,11 @@ export class TransactionsFichiersCorpus {
     return true
   }
 
-  executer(plan: PlanTransactionFichiers): void {
+  executer(plan: PlanFichiersAccepte): void {
     if (this.enCours) throw new Error('Une transaction de fichiers est déjà en cours.')
     this.enCours = true
     try {
+      this.verifierPlan(plan)
       if (existsSync(this.journal)) this.reprendre()
       if (plan.operation === 'remplacement' && (plan.controleDissociation || plan.id.startsWith('dissociation-'))) validerDissociation(plan)
       if (plan.operation === 'remplacement' && (plan.controleSuppressionAnon || plan.id.startsWith('suppression-anon-'))) validerSuppressionAnon(plan)
@@ -296,7 +351,8 @@ export class TransactionsFichiersCorpus {
     }
   }
 
-  private appliquer(plan: PlanTransactionFichiers): void {
+  private appliquer(plan: PlanFichiersAccepte): void {
+    this.verifierPlan(plan)
     const fichierCorpus = join(this.dir, 'corpus.crp')
     const apres = contenuJson(plan.corpusApres)
     const courant = existsSync(fichierCorpus) ? readFileSync(fichierCorpus, 'utf8') : null
@@ -428,7 +484,7 @@ export class TransactionsFichiersCorpus {
     }
   }
 
-  private ecrireJournal(plan: PlanTransactionFichiers): void {
+  private ecrireJournal(plan: PlanFichiersAccepte): void {
     const formatVersion = plan.operation === 'remplacement' && plan.controleRetraitVariante ? 5 : plan.operation === 'remplacement' && plan.controleSuppressionAnon ? 4 : plan.operation === 'remplacement' && plan.controleDissociation ? 3 : plan.operation === 'remplacement' && plan.corpusIntermediaire ? 2 : 1
     const journal: JournalTransactionFichiers = { formatVersion, plan }
     ecrireAtomiquement(this.journal, contenuJson(journal), 0o600)
@@ -447,6 +503,11 @@ export class TransactionsFichiersCorpus {
     const journal = valeur as Partial<JournalTransactionFichiers>
     if ((journal.formatVersion !== 1 && journal.formatVersion !== 2 && journal.formatVersion !== 3 && journal.formatVersion !== 4 && journal.formatVersion !== 5) || !journal.plan) {
       throw new Error('Version inconnue du journal de transaction multi-fichiers.')
+    }
+    if (this.options) {
+      if (journal.formatVersion !== 1) throw new Error('Ce journal ne peut pas être repris dans la préparation native.')
+      this.verifierPlan(journal.plan)
+      return journal as JournalTransactionFichiers
     }
     const plan = journal.plan as Partial<PlanTransactionFichiers>
     if (

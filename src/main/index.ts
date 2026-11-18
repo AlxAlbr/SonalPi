@@ -29,6 +29,9 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
+import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
+import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { ExemplesLocaux } from './exemples'
 import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
@@ -1449,16 +1452,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:notesInventaire', () => store.notesInventaire())
   ipcMain.handle('corpus:notesCommander', (
     _e,
-    commande: import('../shared/corpus/notes').CommandeNotes,
+    commande: CommandeNotes,
   ) => {
     exigerGeste(fournisseurCourant(), 'note.editer')
+    validerCommandeNotes(commande)
     return store.notesCommander(commande, true)
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
   ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
   ipcMain.handle('corpus:personnesCommander', async (
     _e,
-    commande: import('../shared/corpus/personnes').CommandePersonnes,
+    commande: CommandePersonnes,
     depuisRepertoire = false,
   ) => {
     const magasin = store
@@ -1466,6 +1470,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       exigerGeste('gitlab', 'personnes.commande')
     }
     exigerGeste(fournisseurCourant(), 'personnes.commande')
+    if (estTypeCorrectionLocuteurs(commande.type)) validerCommandeCorrectionLocuteurs(commande)
     const execution = executerContexteDistant(async (contexte) => {
       const transactions = contexte.transactions
       if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
@@ -1792,7 +1797,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
     executerDefinitions('variable.creer', (cible) => cible.ajouterVariable(lib, portee)),
   )
-  ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Variable>) =>
+  ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) =>
     executerDefinitions('variable.modifier', (cible) => cible.modifierVariable(id, patch)),
   )
   ipcMain.handle('corpus:usagesDonnee', (_e, idVar: string, idMod?: string, exceptId?: string) =>
@@ -2854,6 +2859,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // échecs nommés) ; local → boucle directe du store. Mêmes résultats dans les deux modes.
   ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) => {
     exigerGeste(fournisseurCourant(), 'valeurs.lot')
+    validerLotValeur(items)
     return executerSelonFournisseur(
       (contexte) => contexte.transactions.poserValeurLot(items),
       (contexte) => contexte.poserValeurLot(items),

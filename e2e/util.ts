@@ -5,9 +5,10 @@ import { expect, _electron as electron, type ElectronApplication, type Page } fr
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ecrireSeedDemo } from '../test/seedDemo'
+import { ecrireSeedDemo as ecrireSeedUnitaire } from '../test/seedDemo'
 
-export { ecrireSeedDemo } // les specs qui pré-peuplent un dossier pické (multi-corpus)
+/** Les ids des fixtures d'interface sont fixés avant leur écriture, jamais lors de leur consultation. */
+export function ecrireSeedDemo(dir: string): void { ecrireSeedUnitaire(dir, true) }
 
 function launchEnv() {
   const env = { ...process.env }

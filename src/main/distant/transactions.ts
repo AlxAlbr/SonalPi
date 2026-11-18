@@ -52,7 +52,9 @@ import type {
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
-import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { CommandePersonnes } from '../../shared/corpus/contratsLocuteurs'
+import { validerLotValeur } from '../../shared/corpus/valeursVariables'
+import { verifierVersionNative } from '../../shared/versionsNatives'
 import type { SourcePassageCas } from '../../shared/corpus/cas'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { DemandeOperationTheme, OptionsExecutionOperationTheme, ProgressionOperationTheme } from '../../shared/corpus/themes'
@@ -1187,6 +1189,7 @@ export class TransactionsCorpus {
    *  la matrice locale est fraîche sans pull complet, le prochain tirage devient no-op.
    *  JAMAIS de verrou global : un lot long ne doit pas geler le corpus. */
   async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
+    validerLotValeur(items)
     return this.avecMutation(() => this.poserValeurLotSousVerrous(items))
   }
 
@@ -1213,9 +1216,9 @@ export class TransactionsCorpus {
           const gardePrecedente = store.lectureSeule
           store.lectureSeule = false
           try {
-            for (const item of lot)
-              if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
-                throw new ErreurTransaction(`« ${item.entretienId} » est introuvable dans le corpus.`)
+            if (!store.poserValeursEntretien(id, lot)) {
+              throw new ErreurTransaction('Cet entretien ou le locuteur demandé n’est plus disponible. Actualisez la table.')
+            }
           } finally {
             store.lectureSeule = gardePrecedente
           }
@@ -1255,8 +1258,13 @@ export class TransactionsCorpus {
       else
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir
       const data = JSON.parse(brut) as EntretienFichier
-      // Mutation pure locale — parité `store.poserValeur`, sans toucher au membership.
-      for (const item of lot) corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)
+      verifierVersionNative(data, `entretien ${id}`)
+      // Mutation pure locale, sans toucher au membership.
+      for (const item of lot) {
+        if (!corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)) {
+          throw new ErreurTransaction('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
+        }
+      }
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
@@ -1603,14 +1611,15 @@ export async function poserValeurLotLocal(
   store: CorpusStore,
   items: ItemLotValeur[],
 ): Promise<ResultatLotValeur> {
+  validerLotValeur(items)
   const succes: string[] = []
   const echecs: { id: string; raison: string }[] = []
   const ids = [...new Set(items.map((i) => i.entretienId))]
   for (const id of ids) {
     try {
-      for (const item of items.filter((i) => i.entretienId === id))
-        if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
-          throw new Error(`« ${id} » est introuvable dans le corpus.`)
+      if (!store.poserValeursEntretien(id, items.filter((i) => i.entretienId === id))) {
+        throw new Error('Cet entretien ou le locuteur demandé n’est plus disponible. Actualisez la table.')
+      }
       succes.push(id)
     } catch (e) {
       echecs.push({ id, raison: classifier(e).message })

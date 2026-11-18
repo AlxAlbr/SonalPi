@@ -462,7 +462,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               />
             </label>
             <ul v-if="corpusSelMeta" class="meta-infos">
-              <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbLocuteurs }}</b></li>
+              <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbParticipations }}</b></li>
               <li><span>Valeurs saisies</span><b>{{ corpusSelMeta.nbValeurs }}</b></li>
               <li><span>Audio</span><b>{{ corpusSelMeta.audio ? 'lié' : '—' }}</b></li>
               <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
@@ -514,7 +514,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   <span class="val-var" :class="{ vide: !l.valeur }">{{ l.valeur ?? '—' }}</span>
                 </div>
               </template>
-              <div v-for="loc in corpusSelMeta.parLocuteur" :key="loc.nom" class="bloc-loc">
+              <div v-for="loc in corpusSelMeta.parParticipation" :key="loc.participationId !== null ? `id:${loc.participationId}` : `index:${loc.participationIndex}`" class="bloc-loc">
                 <h4>{{ loc.nom }}</h4>
                 <div v-for="l in loc.lignes" :key="l.id" class="ligne-var">
                   <span class="lbl-var" :title="l.lib">{{ l.lib }}</span>

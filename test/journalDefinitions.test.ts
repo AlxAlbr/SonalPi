@@ -2,30 +2,33 @@
 import { describe, expect, test, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { appliquerInverse, estApplicable, type CtxInverse, type Inverse } from '../src/shared/entretien/journal'
+import type { CibleValeur } from '../src/shared/corpus/valeursVariables'
 import { useJournalEntretien } from '../src/renderer/composables/entretien/useJournalEntretien'
 
 function contexte(): CtxInverse {
   return {
+    entretienId: 'e1',
     entretien: { annotations: [], ancres: [], reperesPassages: [] },
-    locuteurs: [{ index: 1, nom: 'Karine', valeursLoc: { v: 'b' }, personneRef: null }],
+    participations: [{ id: 'p1', index: 1, nom: 'Karine', valeursLoc: { v: 'b' } }],
     valeursGen: { v: 'b' },
     themeExiste: (id) => id === 'conserve',
     valeurExiste: (idVar, idMod) => idVar === 'v' && (idMod === null || idMod === 'b'),
   }
 }
 
+const cibles: CibleValeur[] = [{ type: 'entretien' }, { type: 'participation', participationId: 'p1' }]
 describe('Journal de l’entretien et définitions supprimées', () => {
-  test.each(['poserValeurGen', 'poserValeurLoc'] as const)('%s ne restaure ni une modalité ni une variable disparue', (type) => {
+  test.each(cibles)('%j ne restaure ni une modalité ni une variable disparue', (cible) => {
     const ctx = contexte()
     for (const [idVar, idMod] of [['v', 'a'], ['supprimee', 'b'], ['supprimee', null]] as const) {
-      const inverse: Inverse = { type, index: 1, idVar, idMod }
+      const inverse: Inverse = { type: 'poserValeur', entretienId: 'e1', cible, idVar, idMod }
       expect(estApplicable(inverse, ctx)).toBe(false)
       expect(appliquerInverse(inverse, ctx)).toBe(false)
       expect(ctx.valeursGen).toEqual({ v: 'b' })
-      expect(ctx.locuteurs[0].valeursLoc).toEqual({ v: 'b' })
+      expect(ctx.participations[0].valeursLoc).toEqual({ v: 'b' })
     }
-    expect(appliquerInverse({ type, index: 1, idVar: 'v', idMod: 'b' }, ctx)).toBe(true)
-    expect(appliquerInverse({ type, index: 1, idVar: 'v', idMod: null }, ctx)).toBe(true)
+    expect(appliquerInverse({ type: 'poserValeur', entretienId: 'e1', cible, idVar: 'v', idMod: 'b' }, ctx)).toBe(true)
+    expect(appliquerInverse({ type: 'poserValeur', entretienId: 'e1', cible, idVar: 'v', idMod: null }, ctx)).toBe(true)
   })
 
   test('un codage retiré ne revient pas si son thème a été supprimé', () => {
@@ -47,7 +50,7 @@ describe('Journal de l’entretien et définitions supprimées', () => {
       const ctx = contexte()
       const sauvegarder = vi.fn()
       const journal = scope.run(() => useJournalEntretien({
-        entretien: ctx.entretien, locuteurs: ref(ctx.locuteurs), notes: ref([]),
+        entretien: ctx.entretien, ouvertId: ref('e1'), participations: ref(ctx.participations), notes: ref([]),
         lireValeursGen: () => ctx.valeursGen, lireEditeur: () => null,
         valeurExiste: (idVar, idMod) => idVar === 'v' && (idMod === null || modalites.value.includes(idMod)),
         effetsAnnulation: {
@@ -55,8 +58,8 @@ describe('Journal de l’entretien et définitions supprimées', () => {
           rafraichirCompteursAnonymisation: vi.fn(), rafraichirReperage: vi.fn(), planifierSauvegarde: sauvegarder,
         },
       }))!
-      const valeur = journal.enregistrerAction('Valeur A', { type: 'poserValeurGen', idVar: 'v', idMod: 'a' })
-      const nom = journal.enregistrerAction('Nom', { type: 'renommerLocuteur', index: 1, nom: 'Ancien nom' })
+      const valeur = journal.enregistrerAction('Valeur A', { type: 'poserValeur', entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'v', idMod: 'a' })
+      const nom = journal.enregistrerAction('Nom', { type: 'renommerParticipation', reference: { entretienId: 'e1', participationId: 'p1' }, nom: 'Ancien nom' })
       journal.rafraichirJournal()
       expect(journal.entreesJournal.value.every((e) => e.annulable)).toBe(true)
       modalites.value = ['b']

@@ -8,8 +8,9 @@ import {
   type CtxInverse,
   type Inverse,
   type Journal,
+  type ParticipationJournal,
 } from '../../../shared/entretien/journal'
-import type { Locuteur, Note } from '../../../shared/format'
+import type { Note } from '../../../shared/format'
 
 interface EffetsAnnulation {
   rafraichirProjections: () => void
@@ -23,7 +24,9 @@ interface EffetsAnnulation {
 /** Gère le journal volatil et l'application de ses actions inverses. */
 export function useJournalEntretien(deps: {
   entretien: Entretien
-  locuteurs: Ref<Locuteur[]>
+  ouvertId: Readonly<Ref<string | null>>
+  participations: Readonly<Ref<ParticipationJournal[]>>
+  editable?: () => boolean
   notes: Ref<Note[]>
   lireValeursGen: () => Record<string, string>
   lireEditeur: () => Editor | null
@@ -43,8 +46,9 @@ export function useJournalEntretien(deps: {
   function ctxInverse(): CtxInverse {
     const ed = deps.lireEditeur()
     return {
+      entretienId: deps.ouvertId.value,
       entretien: deps.entretien,
-      locuteurs: deps.locuteurs.value,
+      participations: deps.participations.value,
       notes: deps.notes.value,
       valeursGen: deps.lireValeursGen(),
       themeExiste: deps.themeExiste,
@@ -75,20 +79,20 @@ export function useJournalEntretien(deps: {
         minute: '2-digit',
       }),
       libelle: entree.libelle,
-      annulable: estApplicable(entree.inverse, ctx),
+      annulable: deps.editable?.() !== false && estApplicable(entree.inverse, ctx),
     }))
   }
 
   watch(deps.notes, rafraichirJournal, { deep: true })
   // Les définitions peuvent disparaître pendant que le Journal reste ouvert.
-  watch(() => journal.entrees.map((entree) => estApplicable(entree.inverse, ctxInverse())), rafraichirJournal)
+  watch(() => journal.entrees.map((entree) => deps.editable?.() !== false && estApplicable(entree.inverse, ctxInverse())), rafraichirJournal)
 
   function enregistrerAction(libelle: string, inverse: Inverse) {
     return enregistrer(journal, libelle, inverse, genId)
   }
 
   function annulerEntree(id: string) {
-    if (annuler(journal, id, ctxInverse())) {
+    if (deps.editable?.() !== false && annuler(journal, id, ctxInverse())) {
       deps.effetsAnnulation.rafraichirProjections()
       deps.effetsAnnulation.rafraichirDecorations()
       deps.effetsAnnulation.rafraichirGouttiere()

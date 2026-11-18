@@ -1,8 +1,11 @@
 import { estOrpheline, type Annotation } from './annotation'
 import { retirerAnnotation, type Entretien } from './entretien'
-import { renommerLocuteur } from './locuteurs'
-import { notesParRang, renumeroterRangs } from './notes'
-import type { Locuteur, Note } from '../format'
+import { participationParId, renommerParticipation } from './participations'
+import { poserValeurProprietaire, valeursCible, validerLotValeur, type CibleValeur } from '../corpus/valeursVariables'
+import type { ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
+import { noteCreationInchangee, notesParRang, referencesNoteDisponibles, renumeroterRangs } from './notes'
+import { lireNoteFormat9 } from './notesFormat9'
+import type { Note } from '../format'
 
 /**
  *  Journal d'actions annulables. Seules les actions de MODÈLE y entrent
@@ -39,12 +42,10 @@ export type Inverse =
   | { type: 'editerAnnotation'; annotationId: string; auteur: string; texte: string }
   /** Inverse d'« attribuer » : restaurer le loc de chaque bloc touché (positions remappées). */
   | { type: 'restaurerLocs'; blocs: Array<{ pos: number; loc: number | null }> }
-  /** Inverse de « renommer un locuteur » : reposer l'ancien nom. */
-  | { type: 'renommerLocuteur'; index: number; nom: string }
-  /** Inverse de « saisir une valeur » (portée entretien) : reposer l'ancienne (null = effacer). */
-  | { type: 'poserValeurGen'; idVar: string; idMod: string | null }
-  /** Inverse de « saisir une valeur » (portée locuteur). */
-  | { type: 'poserValeurLoc'; index: number; idVar: string; idMod: string | null }
+  /** Restaure le nom local de la participation, sans renommer son identité corpus. */
+  | { type: 'renommerParticipation'; reference: ReferenceParticipation; nom: string }
+  /** Restaure la valeur chez son propriétaire dans le même entretien ; null signifie effacer. */
+  | { type: 'poserValeur'; entretienId: string; cible: CibleValeur; idVar: string; idMod: string | null }
   /** Retire la note créée seulement si son contenu n'a pas changé. */
   | { type: 'retirerNote'; note: Note }
   /** Restaure une note supprimée si les autres notes sont toujours dans le même ordre. */
@@ -71,9 +72,12 @@ export const CAP_JOURNAL = 10
  *  ici) ; `locDe` renvoie `undefined` si la position ne résout plus un bloc
  *  (cible disparue).
  */
+export type ParticipationJournal = Pick<ParticipationLocuteur, 'index' | 'nom' | 'valeursLoc'> & { id?: string }
+
 export interface CtxInverse {
+  entretienId: string | null
   entretien: Entretien
-  locuteurs: Locuteur[]
+  participations: ParticipationJournal[]
   valeursGen: Record<string, string>
   notes?: Note[]
   themeExiste?: (id: string) => boolean
@@ -99,14 +103,7 @@ export function enregistrer(
 }
 
 function noteInchangee(note: Note, initiale: Note): boolean {
-  return note.id === initiale.id &&
-    note.categorieId === initiale.categorieId &&
-    note.titre === initiale.titre &&
-    note.date === initiale.date &&
-    note.statut === initiale.statut &&
-    note.corps === initiale.corps &&
-    note.creeLe === initiale.creeLe &&
-    JSON.stringify(note.locuteurIds ?? []) === JSON.stringify(initiale.locuteurIds ?? [])
+  return noteCreationInchangee(lireNoteFormat9(note), lireNoteFormat9(initiale))
 }
 
 /** L'inverse est-il encore applicable (sa cible existe toujours) ?
@@ -127,13 +124,18 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
       return ctx.entretien.annotations.some((a) => a.id === inverse.annotationId)
     case 'restaurerLocs':
       return !!ctx.blocs && inverse.blocs.every((b) => ctx.blocs!.locDe(b.pos) !== undefined)
-    case 'renommerLocuteur':
-      return ctx.locuteurs.some((l) => l.index === inverse.index)
-    case 'poserValeurLoc':
-      return ctx.locuteurs.some((l) => l.index === inverse.index) &&
-        (!ctx.valeurExiste || ctx.valeurExiste(inverse.idVar, inverse.idMod))
-    case 'poserValeurGen':
-      return !ctx.valeurExiste || ctx.valeurExiste(inverse.idVar, inverse.idMod)
+    case 'renommerParticipation':
+      return !!ctx.entretienId && inverse.reference?.entretienId === ctx.entretienId && typeof inverse.nom === 'string'
+        && !!participationParId(ctx.participations, inverse.reference.participationId)
+    case 'poserValeur': {
+      if (!ctx.entretienId || inverse.entretienId !== ctx.entretienId
+        || (inverse.idMod !== null && typeof inverse.idMod !== 'string')) return false
+      try {
+        validerLotValeur([{ entretienId: inverse.entretienId, cible: inverse.cible, idVar: inverse.idVar, idMod: inverse.idMod ?? '' }])
+        return !!valeursCible({ meta: { valeursGen: ctx.valeursGen }, participations: ctx.participations }, inverse.cible)
+          && (!ctx.valeurExiste || ctx.valeurExiste(inverse.idVar, inverse.idMod))
+      } catch { return false }
+    }
     case 'retirerNote':
       return !!ctx.notes?.some((note) => noteInchangee(note, inverse.note))
     case 'restaurerNote': {
@@ -141,8 +143,9 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
       const ordre = notesParRang(ctx.notes).map((note) => note.id)
       return ordre.length === inverse.ordreApres.length &&
         ordre.every((id, index) => id === inverse.ordreApres[index]) &&
-        (inverse.note.locuteurIds ?? []).every((id) => ctx.locuteurs.some((loc) => loc.id === id))
+        referencesNoteDisponibles(lireNoteFormat9(inverse.note), ctx.participations)
     }
+    default: return false
   }
 }
 
@@ -167,17 +170,11 @@ export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
     case 'restaurerLocs':
       for (const b of inverse.blocs) ctx.blocs!.poserLoc(b.pos, b.loc)
       return true
-    case 'renommerLocuteur':
-      renommerLocuteur(ctx.locuteurs, inverse.index, inverse.nom)
-      return true
-    case 'poserValeurGen':
-      if (inverse.idMod) ctx.valeursGen[inverse.idVar] = inverse.idMod
-      else delete ctx.valeursGen[inverse.idVar]
-      return true
-    case 'poserValeurLoc': {
-      const l = ctx.locuteurs.find((x) => x.index === inverse.index)!
-      if (inverse.idMod) l.valeursLoc[inverse.idVar] = inverse.idMod
-      else delete l.valeursLoc[inverse.idVar]
+    case 'renommerParticipation':
+      return renommerParticipation(ctx.participations, inverse.reference.participationId, inverse.nom)
+    case 'poserValeur': {
+      const valeurs = valeursCible({ meta: { valeursGen: ctx.valeursGen }, participations: ctx.participations }, inverse.cible)!
+      poserValeurProprietaire(valeurs, inverse.idVar, inverse.idMod ?? '')
       return true
     }
     case 'retirerNote': {

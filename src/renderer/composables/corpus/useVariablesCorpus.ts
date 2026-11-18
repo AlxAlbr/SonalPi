@@ -168,8 +168,8 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     return validerCelluleTable(entretienId, { type: 'entretien' }, idVar, idMod)
   }
 
-  async function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
-    return validerCelluleTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
+  async function poserParticipation(entretienId: string, participationId: string, idVar: string, idMod: string) {
+    return validerCelluleTable(entretienId, { type: 'participation', participationId }, idVar, idMod)
   }
 
   async function modaliteParLibelle(idVar: string, libelle: string): Promise<string> {
@@ -192,15 +192,15 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     )
   }
 
-  async function poserLocLibelle(
+  async function poserParticipationLibelle(
     entretienId: string,
-    index: number,
+    participationId: string,
     idVar: string,
     libelle: string,
   ) {
-    return poserLoc(
+    return poserParticipation(
       entretienId,
-      index,
+      participationId,
       idVar,
       libelle ? await modaliteParLibelle(idVar, libelle) : '',
     )
@@ -229,9 +229,9 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     lireModelesUtilisateur,
     importerModeleUtilisateur,
     poserGen,
-    poserLoc,
+    poserParticipation,
     poserGenLibelle,
-    poserLocLibelle,
+    poserParticipationLibelle,
     modaliteParLibelle,
     poserValeurLot,
   }

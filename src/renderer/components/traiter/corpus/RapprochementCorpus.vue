@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Variable } from '../../../../shared/format'
-import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
+import type { InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
+import type { CommandePersonnes } from '../../../../shared/corpus/contratsLocuteurs'
 import type { ChoixRepriseLocuteur } from '../../../../shared/corpus/rapprochementsPersonnes'
 
 const props = defineProps<{ inventaire: InventairePersonnes; cible: VueLocuteurPersonne; candidat: VueLocuteurPersonne; variables: Variable[] }>()

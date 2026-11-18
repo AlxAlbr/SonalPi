@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import { selectionnerLocuteurs, type SelectionListeLocuteurs } from '../../../composables/corpus/selectionListeLocuteurs'
-import type { EntretienLocuteursCorpus, TourLocuteurCorpus, VueLocuteursCorpus } from '../../../../shared/corpus/locuteursCorpus'
+import type { EntretienLocuteursCorpus, TourLocuteurCorpus, VueLocuteursCorpus } from '../../../../shared/corpus/repertoireLocuteurs'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'

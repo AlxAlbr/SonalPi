@@ -692,15 +692,15 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     // le GET frais post-verrou fait foi — la valeur partira du contenu SERVEUR,
     // pas de la copie miroir périmée.
     const avecLoc = JSON.parse(entretienE1()) as {
-      locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
+      locuteurs: { id: string; index: number; nom: string; valeursLoc: Record<string, string> }[]
     }
-    avecLoc.locuteurs.push({ index: 0, nom: 'Marie', valeursLoc: {} })
+    avecLoc.locuteurs.push({ id: 'local-marie', index: 0, nom: 'Marie', valeursLoc: {} })
     serveur.poser('entretiens/e1.json', JSON.stringify(avecLoc))
 
     const r = await tx.poserValeurLot([
       {
         entretienId: 'e1',
-        cible: { type: 'locuteur', index: 0 },
+        cible: { type: 'participation', participationId: 'local-marie' },
         idVar: 'var_ville',
         idMod: 'mod_lyon',
       },
@@ -720,6 +720,44 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     }
     attendu(serveur.contenuDe('entretiens/e1.json')!)
     attendu(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'))
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it.each([false, true])('une cible disparue ne laisse aucun lot partiel, avec session=%s', async (session) => {
+    const { serveur, clientMax, miroir, store, tx } = await banc()
+    const data = JSON.parse(entretienE1()) as EntretienFichier
+    data.locuteurs = [
+      { id: 'autre', index: 7, nom: 'Marie', personneRef: null, valeursLoc: {} },
+      { id: '7', index: 11, nom: 'Marie', personneRef: null, valeursLoc: {} },
+    ]
+    serveur.poser('entretiens/e1.json', JSON.stringify(data))
+    if (session) await miroir.tirer()
+    const sales: string[] = []
+    const transactions = session ? new TransactionsCorpus(clientMax, miroir, () => store, IDENTITE_MAX, {
+      getSessions: () => ({ idsTenus: () => ['e1'], noterSale: (id) => sales.push(id) }),
+    }) : tx
+    const avantServeur = serveur.contenuDe('entretiens/e1.json')!
+    const fichier = join(miroir.dirLocal, 'entretiens/e1.json')
+    const avantLocal = readFileSync(fichier, 'utf8')
+    const item: ItemLotValeur = { entretienId: 'e1', cible: { type: 'participation', participationId: '7' },
+      idVar: 'var_ville', idMod: 'mod_lyon' }
+    const echec = await transactions.poserValeurLot([item, { ...item, cible: { type: 'participation', participationId: 'disparue' } }])
+    expect(echec.succes).toEqual([])
+    expect(echec.echecs).toHaveLength(1)
+    expect(readFileSync(fichier, 'utf8')).toBe(avantLocal)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(avantServeur)
+    expect(sales).toEqual([])
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+
+    expect(await transactions.poserValeurLot([item])).toEqual({ succes: ['e1'], echecs: [] })
+    const apres = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+    expect(apres.locuteurs.map((p) => p.id)).toEqual(['autre', '7'])
+    expect(apres.locuteurs[0]).toEqual(data.locuteurs[0])
+    expect(apres.locuteurs[1].valeursLoc.var_ville).toBe('mod_lyon')
+    if (session) {
+      expect(sales).toEqual(['e1'])
+      expect(serveur.contenuDe('entretiens/e1.json')).toBe(avantServeur)
+    } else expect(JSON.parse(serveur.contenuDe('entretiens/e1.json')!).locuteurs).toEqual(apres.locuteurs)
     expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
   })
 

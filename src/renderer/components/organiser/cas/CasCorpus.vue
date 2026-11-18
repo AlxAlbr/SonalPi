@@ -267,7 +267,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
   if (origine.type === 'manuel') return origine.rattachementId
   if (origine.type === 'regle-modalite') return `modalite-${origine.entretienId}-${origine.modaliteId}-${index}`
   if (origine.type === 'regle-entretien') return `entretien-${origine.entretienId}-${index}`
-  return `${origine.personneId}-${origine.entretienId}-${origine.locuteurIndex}-${index}`
+  return `${origine.locuteurId}-${origine.entretienId}-${origine.participationIndex}-${index}`
 }
 </script>
 
@@ -469,7 +469,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
 
         <section v-if="vueMateriauxCas?.diagnosticsRegles.length" class="diagnostics-regles">
           <h3>Diagnostics des règles</h3>
-          <p v-for="(diagnostic, index) in vueMateriauxCas.diagnosticsRegles" :key="`${diagnostic.personneId}-${diagnostic.entretienId}-${index}`">
+          <p v-for="(diagnostic, index) in vueMateriauxCas.diagnosticsRegles" :key="`${diagnostic.locuteurId}-${diagnostic.entretienId}-${index}`">
             ⚠ {{ diagnostic.diagnostic }}<span v-if="diagnostic.entretienId"> — {{ diagnostic.entretienId }}</span>
           </p>
         </section>

@@ -11,8 +11,8 @@ import type {
   QualcoderSourceExport,
 } from '../../shared/export/qualcoder/modele'
 import { projeterTexteQualcoder, plageTexteQualcoder } from '../../shared/export/qualcoder/projection'
-import { projeterCasDepuisSourcesPreparees } from '../editor/cas'
-import { projeterAttributsCas } from '../../shared/corpus/observationsAttributs'
+import { projeterCasDepuisSourcesPreparees } from '../editor/casFormat9'
+import { projeterAttributsCas } from '../../shared/corpus/observationsAttributsFormat9'
 import { preparerSourcesPassages } from '../editor/passages'
 
 export interface DemandeModeleQualcoder {

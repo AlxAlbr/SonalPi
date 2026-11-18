@@ -8,7 +8,7 @@ import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAno
 import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import type { EtatMenuApplication } from '../shared/menuApplication'
-import type { VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
+import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -59,7 +59,8 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { InventairePersonnes } from '../shared/corpus/personnes'
+import type { CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -246,7 +247,7 @@ declare global {
           lib: string,
           portee: 'entretien' | 'locuteur',
         ) => Promise<{ id: string; corpus: CorpusFichier }>
-        modifierVariable: (id: string, patch: Partial<Variable>) => Promise<CorpusFichier>
+        modifierVariable: (id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) => Promise<CorpusFichier>
         usagesDonnee: (idVar: string, idMod?: string, exceptId?: string) => Promise<{ valeurs: number; cas: number }>
         supprimerVariable: (id: string, exceptId?: string, avecValeurs?: boolean) => Promise<ResultatSuppression>
         ajouterModalite: (idVar: string, lib: string) => Promise<CorpusFichier>

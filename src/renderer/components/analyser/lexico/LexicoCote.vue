@@ -7,7 +7,7 @@ import type { SelectionLexico } from '../../../../shared/lexico/types'
 // Le tableau et les concordances sont dans LexicoPanneau.vue.
 const {
   filtresLexico, ongletFiltresLexico, ongletsFiltresLexico,
-  personnesLexico, membership, variables, codebook, cas, famillesCas,
+  locuteursLexico, membership, variables, codebook, cas, famillesCas,
 } = utiliserSonal()
 
 const onglet = computed({
@@ -79,7 +79,7 @@ function modaliteCochee(variableId: string, modaliteId: string): boolean {
 function modifierModalite(variableId: string, modaliteId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
-  const courant = filtreVariable(variableId) ?? { portee: variable.portee, modaliteIds: [], nonRenseigne: false }
+  const courant = filtreVariable(variableId) ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   const ids = [...courant.modaliteIds]
   const index = ids.indexOf(modaliteId)
   if (index >= 0) ids.splice(index, 1)
@@ -92,7 +92,7 @@ function modifierModalite(variableId: string, modaliteId: string) {
 function modifierNonRenseigne(variableId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
-  const courant = filtreVariable(variableId) ?? { portee: variable.portee, modaliteIds: [], nonRenseigne: false }
+  const courant = filtreVariable(variableId) ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   filtresLexico.value = {
     ...filtresLexico.value,
     variables: { ...filtresLexico.value.variables, [variableId]: { ...courant, nonRenseigne: !courant.nonRenseigne } },
@@ -104,29 +104,29 @@ function retirerVariable(id: string) {
   filtresLexico.value = { ...filtresLexico.value, variables: copie }
 }
 
-function personneCochee(id: string): boolean {
-  const selection = filtresLexico.value.personnes.selection
+function locuteurCoche(id: string): boolean {
+  const selection = filtresLexico.value.locuteurs.selection
   return selection.mode === 'choix' && selection.ids.includes(id)
 }
-function modifierPersonne(id: string) {
-  const personnes = filtresLexico.value.personnes
-  const ids = personnes.selection.mode === 'choix' ? [...personnes.selection.ids] : []
+function modifierLocuteur(id: string) {
+  const locuteurs = filtresLexico.value.locuteurs
+  const ids = locuteurs.selection.mode === 'choix' ? [...locuteurs.selection.ids] : []
   const index = ids.indexOf(id)
   if (index >= 0) ids.splice(index, 1)
   else ids.push(id)
-  filtresLexico.value = { ...filtresLexico.value, personnes: { ...personnes, selection: { mode: 'choix', ids } } }
+  filtresLexico.value = { ...filtresLexico.value, locuteurs: { ...locuteurs, selection: { mode: 'choix', ids } } }
 }
-function modifierPersonneSpeciale(cle: 'sansPersonne' | 'sansLocuteur') {
-  const personnes = filtresLexico.value.personnes
-  const selection = personnes.selection.mode === 'choix' ? personnes.selection : { mode: 'choix' as const, ids: [] }
-  filtresLexico.value = { ...filtresLexico.value, personnes: { ...personnes, selection, [cle]: !personnes[cle] } }
+function modifierSelectionSpeciale(cle: 'sansIdentiteCommune' | 'sansParticipation') {
+  const locuteurs = filtresLexico.value.locuteurs
+  const selection = locuteurs.selection.mode === 'choix' ? locuteurs.selection : { mode: 'choix' as const, ids: [] }
+  filtresLexico.value = { ...filtresLexico.value, locuteurs: { ...locuteurs, selection, [cle]: !locuteurs[cle] } }
 }
-function definirPersonnes(action: 'retirer' | 'tout' | 'aucun') {
+function definirLocuteurs(action: 'retirer' | 'tout' | 'aucun') {
   filtresLexico.value = {
     ...filtresLexico.value,
-    personnes: action === 'retirer'
-      ? { selection: { mode: 'sans-restriction' }, sansPersonne: false, sansLocuteur: false }
-      : { selection: { mode: 'choix', ids: action === 'tout' ? personnesLexico.value.map((item) => item.id) : [] }, sansPersonne: false, sansLocuteur: false },
+    locuteurs: action === 'retirer'
+      ? { selection: { mode: 'sans-restriction' }, sansIdentiteCommune: false, sansParticipation: false }
+      : { selection: { mode: 'choix', ids: action === 'tout' ? locuteursLexico.value.map((item) => item.id) : [] }, sansIdentiteCommune: false, sansParticipation: false },
   }
 }
 
@@ -135,17 +135,17 @@ function badge(ongletCible: typeof onglet.value): string {
     const total = Object.keys(filtresLexico.value.variables).length
     return total ? `${total} critère${total !== 1 ? 's' : ''}` : 'Sans restriction'
   }
-  if (ongletCible === 'personnes') {
-    const filtre = filtresLexico.value.personnes
+  if (ongletCible === 'locuteurs') {
+    const filtre = filtresLexico.value.locuteurs
     if (filtre.selection.mode === 'sans-restriction') return 'Sans restriction'
-    const total = filtre.selection.ids.length + Number(filtre.sansPersonne) + Number(filtre.sansLocuteur)
+    const total = filtre.selection.ids.length + Number(filtre.sansIdentiteCommune) + Number(filtre.sansParticipation)
     return `${total} choisi${total !== 1 ? 's' : ''}`
   }
   return statutListe(ongletCible)
 }
 function filtreApplique(ongletCible: typeof onglet.value): boolean {
   if (ongletCible === 'variables') return Object.keys(filtresLexico.value.variables).length > 0
-  if (ongletCible === 'personnes') return filtresLexico.value.personnes.selection.mode === 'choix'
+  if (ongletCible === 'locuteurs') return filtresLexico.value.locuteurs.selection.mode === 'choix'
   return selectionPour(ongletCible).mode === 'choix'
 }
 
@@ -200,17 +200,17 @@ function basculerEnqueteurs() {
       </article>
     </section>
 
-    <section v-else-if="onglet === 'personnes'" role="tabpanel">
-      <h3>Personnes</h3>
-      <p class="etat-filtre" :class="{ applique: filtresLexico.personnes.selection.mode === 'choix' }">
-        <template v-if="filtresLexico.personnes.selection.mode === 'sans-restriction'">Sans restriction : toutes les paroles admissibles sont analysées. Les personnes restent décochées car aucune personne précise n’est demandée.</template>
-        <template v-else>{{ filtresLexico.personnes.selection.ids.length + Number(filtresLexico.personnes.sansPersonne) + Number(filtresLexico.personnes.sansLocuteur) }} choix de personne appliqué(s).</template>
+    <section v-else-if="onglet === 'locuteurs'" role="tabpanel">
+      <h3>Locuteurs</h3>
+      <p class="etat-filtre" :class="{ applique: filtresLexico.locuteurs.selection.mode === 'choix' }">
+        <template v-if="filtresLexico.locuteurs.selection.mode === 'sans-restriction'">Sans restriction : toutes les paroles admissibles sont analysées. Les cases restent décochées car aucun locuteur précis n’est demandé.</template>
+        <template v-else>{{ filtresLexico.locuteurs.selection.ids.length + Number(filtresLexico.locuteurs.sansIdentiteCommune) + Number(filtresLexico.locuteurs.sansParticipation) }} choix de locuteur appliqué(s).</template>
       </p>
-      <div class="actions-liste"><button @click="definirPersonnes('retirer')">Retirer ce filtre</button><button @click="definirPersonnes('tout')">Tout cocher</button><button @click="definirPersonnes('aucun')">Tout décocher</button></div>
-      <label v-for="personne in personnesLexico" :key="personne.id" class="choix"><input type="checkbox" :checked="personneCochee(personne.id)" @change="modifierPersonne(personne.id)"> {{ personne.nom }}</label>
+      <div class="actions-liste"><button @click="definirLocuteurs('retirer')">Retirer ce filtre</button><button @click="definirLocuteurs('tout')">Tout cocher</button><button @click="definirLocuteurs('aucun')">Tout décocher</button></div>
+      <label v-for="locuteur in locuteursLexico" :key="locuteur.id" class="choix"><input type="checkbox" :checked="locuteurCoche(locuteur.id)" @change="modifierLocuteur(locuteur.id)"> {{ locuteur.nom }}</label>
       <hr>
-      <label class="choix"><input type="checkbox" :checked="filtresLexico.personnes.sansPersonne" @change="modifierPersonneSpeciale('sansPersonne')"> Locuteurs sans personne associée</label>
-      <label class="choix"><input type="checkbox" :checked="filtresLexico.personnes.sansLocuteur" @change="modifierPersonneSpeciale('sansLocuteur')"> Passages sans locuteur</label>
+      <label class="choix"><input type="checkbox" :checked="filtresLexico.locuteurs.sansIdentiteCommune" @change="modifierSelectionSpeciale('sansIdentiteCommune')"> Locuteurs non associés</label>
+      <label class="choix"><input type="checkbox" :checked="filtresLexico.locuteurs.sansParticipation" @change="modifierSelectionSpeciale('sansParticipation')"> Passages sans locuteur</label>
     </section>
 
     <section v-else-if="onglet === 'themes'" role="tabpanel">

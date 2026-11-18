@@ -17,8 +17,9 @@ function note(id: string, rang = 0): Note {
 
 function contexte(notes: Note[]): CtxInverse {
   return {
+    entretienId: 'e1',
     entretien: { annotations: [], ancres: [], reperesPassages: [] },
-    locuteurs: [{ id: 'l1', index: 1, nom: 'Karine', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: 'l1', index: 1, nom: 'Karine', valeursLoc: {} }],
     valeursGen: {}, notes,
   }
 }
@@ -64,7 +65,7 @@ describe('journal des notes — annulations', () => {
     const contextes = [
       contexte([note('fin', 0), note('debut', 1)]),
       contexte([note('debut', 0), note('milieu', 1), note('fin', 2)]),
-      { ...contexte([note('debut', 0), note('fin', 1)]), locuteurs: [] },
+      { ...contexte([note('debut', 0), note('fin', 1)]), participations: [] },
       { ...contexte([]), notes: undefined },
     ]
     for (const ctx of contextes) {
@@ -79,7 +80,7 @@ function preparer() {
   const scope = effectScope()
   const resultat = scope.run(() => {
     const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
-    const locuteurs = ref<Locuteur[]>(contexte([]).locuteurs)
+    const locuteurs = ref<Locuteur[]>(contexte([]).participations.map((p) => ({ ...p, personneRef: null })))
     const sauvegarder = vi.fn()
     const notes = useNotesEntretien({
       entretien, locuteurs, lireEditeur: () => null,
@@ -88,7 +89,7 @@ function preparer() {
       enregistrerAction: (libelle, inverse) => journal.enregistrerAction(libelle, inverse),
     })
     const journal = useJournalEntretien({
-      entretien, locuteurs, notes: notes.notes, lireEditeur: () => null, lireValeursGen: () => ({}),
+      entretien, ouvertId: ref('e1'), participations: locuteurs, notes: notes.notes, lireEditeur: () => null, lireValeursGen: () => ({}),
       effetsAnnulation: {
         rafraichirProjections: vi.fn(), rafraichirDecorations: vi.fn(), rafraichirGouttiere: vi.fn(),
         rafraichirCompteursAnonymisation: vi.fn(), rafraichirReperage: vi.fn(),

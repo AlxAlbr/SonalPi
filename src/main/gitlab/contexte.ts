@@ -25,6 +25,7 @@ import {
   type VerrouTenuParAutrui,
 } from '../../shared/format'
 import { regrouperCiblesAnon } from '../../shared/corpus/lotAnon'
+import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
@@ -587,6 +588,7 @@ export class ContexteGitLab {
   /** Modifie les valeurs entretien par entretien, sans atomicité globale. */
   async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
     exigerGeste('gitlab', 'valeurs.lot')
+    validerLotValeur(items)
     if (!this.transactions) throw new Error('Valeurs GitLab non configurées pour ce contexte.')
     const succes: string[] = []
     const echecs: ResultatLotValeur['echecs'] = []
@@ -648,26 +650,19 @@ export class ContexteGitLab {
           if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
             throw new Error(`La modalité « ${item.idMod} » n’existe plus.`)
           }
-          if (variable.portee !== item.cible.type) {
+          if ((variable.portee === 'locuteur' ? 'participation' : variable.portee) !== item.cible.type) {
             throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
           }
         }
-        if (item.cible.type === 'locuteur') {
-          const index = item.cible.index
-          if (!lecture.data.locuteurs.some((locuteur) => locuteur.index === index)) {
-            throw new Error(`Le locuteur ${index} n’existe plus dans cet entretien.`)
+        if (item.cible.type === 'participation') {
+          const participationId = item.cible.participationId
+          if (lecture.data.locuteurs.filter((p) => p.id === participationId).length !== 1) {
+            throw new Error('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
           }
         }
       }
-      for (const item of items) {
-        if (!this.store.poserValeur(
-          entretienId,
-          item.cible,
-          item.idVar,
-          item.idMod,
-        )) {
-          throw new Error(`L’entretien « ${entretienId} » est introuvable.`)
-        }
+      if (!this.store.poserValeursEntretien(entretienId, items)) {
+        throw new Error('Cet entretien ou le locuteur demandé n’est plus disponible. Actualisez la table.')
       }
       await entree.session.marquerSale()
       this.verifierPublicationEntretien(await entree.session.publier(), entretienId)

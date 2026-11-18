@@ -1,15 +1,16 @@
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { JournalCorpus } from '../src/main/journalCorpus'
 import { ecrireSeedDemo } from './seedDemo'
-import type { ChampsNote } from '../src/shared/corpus/notes'
+import type { ChampsNote, CommandeNotes } from '../src/shared/corpus/notes'
 import type { EntretienFichier, Note } from '../src/shared/format'
 
 const dossiers: string[] = []
 afterEach(() => {
+  vi.restoreAllMocks()
   for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -105,6 +106,21 @@ function champsNote(
 }
 
 describe('Journal du corpus — commandes Notes', () => {
+  test('refuse une modification des références avant toute lecture ou écriture des fichiers', () => {
+    const { dir, store } = preparer()
+    const { entretienId } = ajouterNote(store)
+    const vue = store.notesInventaire().notes[0]
+    const chemin = join(dir, 'entretiens', `${entretienId}.json`)
+    const avant = readFileSync(chemin, 'utf8')
+    const lecture = vi.spyOn(store, 'ouvrir')
+    const commande = { type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: { ...champsNote(vue.attendu), participationIds: ['identite-corpus'] } }
+    expect(() => store.notesCommander(commande as unknown as CommandeNotes, true)).toThrow('demande de modification des notes')
+    expect(lecture).not.toHaveBeenCalled()
+    expect(readFileSync(chemin, 'utf8')).toBe(avant)
+    expect(store.journalCorpusLister()).toEqual([])
+  })
+
   test('modifie atomiquement les champs autorisés et ignore une validation sans changement', () => {
     const { dir, store } = preparer()
     const { entretienId } = ajouterNote(store)
@@ -124,7 +140,7 @@ describe('Journal du corpus — commandes Notes', () => {
     expect(lecture.data.notes?.[0]).toMatchObject({
       titre: 'État B',
       corps: '<mark>Corps B</mark>',
-      locuteurIds: vueAvant.attendu.locuteurIds,
+      locuteurIds: vueAvant.attendu.participationIds,
       rang: 0,
     })
     expect(lecture.data.notes?.[0].modifieLe).toBeTruthy()

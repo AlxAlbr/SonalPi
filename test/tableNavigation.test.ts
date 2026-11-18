@@ -1,125 +1,89 @@
-/**
- *  Modèle PUR de navigation clavier de la table de données :
- *  la grille des cellules éditables est construite dans l'ordre visuel,
- *  et la voisine dans chaque sens.
- *  Sans DOM, le câblage focus/scroll est testé par les e2e.
- */
 import { describe, expect, it } from 'vitest'
-import { celluleVoisine, cleGen, cleLoc, grilleCellules } from '../src/renderer/tableNavigation'
+import { celluleVoisine, cleGen, cleParticipation, grilleCellules } from '../src/renderer/tableNavigation'
 
-/** Deux entretiens : e1 avec 2 locuteurs, e2 avec 1. Deux variables :
- *  « ville » (entretien) et « âge » (locuteur). */
 const entrees = [
-  {
-    entretienId: 'e1',
-    locuteurs: [
-      { index: 0 },
-      { index: 1 },
-    ],
-  },
-  {
-    entretienId: 'e2',
-    locuteurs: [{ index: 0 }],
-  },
+  { entretienId: 'e1', participations: [{ participationId: 'p0' }, { participationId: 'p1' }] },
+  { entretienId: 'e2', participations: [{ participationId: 'p0' }] },
 ]
-const variables = [
-  { id: 'ville', portee: 'entretien' as const },
-  { id: 'age', portee: 'locuteur' as const },
-]
+const variables = [{ id: 'ville', portee: 'entretien' as const }, { id: 'age', portee: 'locuteur' as const }]
 
 describe('grilleCellules', () => {
-  it('ordre VISUEL : ligne entretien puis ses locuteurs, entretien suivant', () => {
+  it('garde l’ordre visuel : entretien, participations, entretien suivant', () => {
     const g = grilleCellules({ entrees, variables, montrerLocuteurs: true, editable: () => true })
-    // Ligne e1 (colonne ville seule — « age » est de portée locuteur)
-    expect(g[0]).toEqual([cleGen('e1', 'ville'), null])
-    // Locuteurs de e1 (colonne age seule)
-    expect(g[1]).toEqual([null, cleLoc('e1', 0, 'age')])
-    expect(g[2]).toEqual([null, cleLoc('e1', 1, 'age')])
-    // Ligne e2 puis son locuteur.
-    expect(g[3]).toEqual([cleGen('e2', 'ville'), null])
-    expect(g[4]).toEqual([null, cleLoc('e2', 0, 'age')])
-  })
-
-  it('filtre « entretien » : les lignes locuteurs disparaissent', () => {
-    const g = grilleCellules({
-      entrees,
-      variables: variables.filter((v) => v.portee === 'entretien'),
-      montrerLocuteurs: false,
-      editable: () => true,
-    })
     expect(g).toEqual([
-      [cleGen('e1', 'ville')],
-      [cleGen('e2', 'ville')],
+      [cleGen('e1', 'ville'), null],
+      [null, cleParticipation('e1', 'p0', 'age')],
+      [null, cleParticipation('e1', 'p1', 'age')],
+      [cleGen('e2', 'ville'), null],
+      [null, cleParticipation('e2', 'p0', 'age')],
     ])
   })
 
-  it('ligne verrouillée 🔒 : géométrie conservée, cellules absentes', () => {
-    const g = grilleCellules({
-      entrees,
-      variables,
-      montrerLocuteurs: true,
-      editable: (id) => id !== 'e1',
-    })
-    expect(g[0]).toEqual([null, null]) // e1 verrouillé : aucun cellule…
-    expect(g[3]).toEqual([cleGen('e2', 'ville'), null]) // …mais la ligne EXISTE
-    expect(g[4]).toEqual([null, cleLoc('e2', 0, 'age')])
+  it('le filtre entretien retire les lignes locales', () => {
+    const g = grilleCellules({ entrees, variables: [variables[0]], montrerLocuteurs: false, editable: () => true })
+    expect(g).toEqual([[cleGen('e1', 'ville')], [cleGen('e2', 'ville')]])
+  })
+
+  it('une ligne verrouillée conserve sa place, sans cellule éditable', () => {
+    const g = grilleCellules({ entrees, variables, montrerLocuteurs: true, editable: (id) => id !== 'e1' })
+    expect(g[0]).toEqual([null, null])
+    expect(g[1]).toEqual([null, null])
+    expect(g[3]).toEqual([cleGen('e2', 'ville'), null])
+    expect(g[4]).toEqual([null, cleParticipation('e2', 'p0', 'age')])
+  })
+
+  it('une participation sans id n’est ni complétée ni rendue éditable', () => {
+    const source = [{ entretienId: 'e1', participations: [{ participationId: null }] }]
+    expect(grilleCellules({ entrees: source, variables, montrerLocuteurs: true, editable: () => true })[1]).toEqual([null, null])
+    expect(source[0].participations[0].participationId).toBeNull()
+  })
+
+  it('des ids contenant des séparateurs ne produisent pas la même clé', () => {
+    expect(cleParticipation('e1', 'p|v', 'x')).not.toBe(cleParticipation('e1', 'p', 'v|x'))
+    expect(cleParticipation('e1', 'p0', 'age')).not.toBe(cleParticipation('e2', 'p0', 'age'))
   })
 })
 
 describe('celluleVoisine', () => {
   const g = grilleCellules({ entrees, variables, montrerLocuteurs: true, editable: () => true })
 
-  it('Entrée (bas) depuis une colonne entretien SAUTE les lignes locuteur', () => {
+  it('Entrée saute les lignes locales dans une colonne entretien', () => {
     expect(celluleVoisine(g, cleGen('e1', 'ville'), 'bas')).toBe(cleGen('e2', 'ville'))
   })
 
-  it('Shift+Entrée (haut) : symétrique', () => {
+  it('Shift+Entrée remonte symétriquement', () => {
     expect(celluleVoisine(g, cleGen('e2', 'ville'), 'haut')).toBe(cleGen('e1', 'ville'))
   })
 
-  it('Entrée (bas) dans une colonne locuteur : d\u2019un locuteur à l\u2019autre, en traversant la ligne entretien', () => {
-    expect(celluleVoisine(g, cleLoc('e1', 0, 'age'), 'bas')).toBe(cleLoc('e1', 1, 'age'))
-    expect(celluleVoisine(g, cleLoc('e1', 1, 'age'), 'bas')).toBe(cleLoc('e2', 0, 'age'))
+  it('une colonne locale parcourt les participations et traverse les lignes entretien', () => {
+    expect(celluleVoisine(g, cleParticipation('e1', 'p0', 'age'), 'bas')).toBe(cleParticipation('e1', 'p1', 'age'))
+    expect(celluleVoisine(g, cleParticipation('e1', 'p1', 'age'), 'bas')).toBe(cleParticipation('e2', 'p0', 'age'))
   })
 
-  it('Tab (droite) / Shift+Tab (gauche) : voisine sur la MÊME ligne, sans sortir', () => {
-    // Ligne e1 : seule cellule = ville → pas de voisine horizontale.
+  it('Tab et Shift+Tab restent sur la ligne', () => {
     expect(celluleVoisine(g, cleGen('e1', 'ville'), 'droite')).toBeNull()
     expect(celluleVoisine(g, cleGen('e1', 'ville'), 'gauche')).toBeNull()
-    // Grille mixte : deux variables d'entretien sur une même ligne.
-    const deuxEnt = grilleCellules({
-      entrees: [{ entretienId: 'e1', locuteurs: [] }],
-      variables: [
-        { id: 'a', portee: 'entretien' as const },
-        { id: 'b', portee: 'entretien' as const },
-      ],
-      montrerLocuteurs: true,
-      editable: () => true,
-    })
-    expect(deuxEnt[0]).toEqual([cleGen('e1', 'a'), cleGen('e1', 'b')])
-    expect(celluleVoisine(deuxEnt, cleGen('e1', 'a'), 'droite')).toBe(cleGen('e1', 'b'))
-    expect(celluleVoisine(deuxEnt, cleGen('e1', 'b'), 'gauche')).toBe(cleGen('e1', 'a'))
+    const deux = grilleCellules({ entrees: [{ entretienId: 'e1', participations: [] }],
+      variables: [{ id: 'a', portee: 'entretien' }, { id: 'b', portee: 'entretien' }],
+      montrerLocuteurs: true, editable: () => true })
+    expect(deux[0]).toEqual([cleGen('e1', 'a'), cleGen('e1', 'b')])
+    expect(celluleVoisine(deux, cleGen('e1', 'a'), 'droite')).toBe(cleGen('e1', 'b'))
+    expect(celluleVoisine(deux, cleGen('e1', 'b'), 'gauche')).toBe(cleGen('e1', 'a'))
   })
 
-  it('bord de grille : null (l\u2019appelant laisse Tab/Entrée natifs reprendre)', () => {
+  it('les bords de grille rendent la main à la navigation native', () => {
     expect(celluleVoisine(g, cleGen('e2', 'ville'), 'bas')).toBeNull()
-    expect(celluleVoisine(g, cleLoc('e2', 0, 'age'), 'bas')).toBeNull()
+    expect(celluleVoisine(g, cleParticipation('e2', 'p0', 'age'), 'bas')).toBeNull()
     expect(celluleVoisine(g, cleGen('e1', 'ville'), 'haut')).toBeNull()
   })
 
-  it('clé inconnue → null', () => {
-    expect(celluleVoisine(g, 'nimporte|quoi', 'bas')).toBeNull()
+  it('une clé inconnue n’a pas de voisine', () => {
+    expect(celluleVoisine(g, 'inconnue', 'bas')).toBeNull()
   })
 
-  it('les lignes verrouillées sont TRAVERSÉES, jamais cibles', () => {
-    const gVerrou = grilleCellules({
-      entrees,
-      variables,
-      montrerLocuteurs: true,
-      editable: (id) => id !== 'e1',
-    })
-    // Depuis… rien sur e1 ; on part de la première cellule existante (e2) :
-    expect(celluleVoisine(gVerrou, cleGen('e2', 'ville'), 'haut')).toBeNull() // e1 verrouillé au-dessus
-    expect(celluleVoisine(gVerrou, cleLoc('e2', 0, 'age'), 'haut')).toBeNull()
+  it('les lignes verrouillées sont traversées sans devenir des cibles', () => {
+    const verrou = grilleCellules({ entrees, variables, montrerLocuteurs: true, editable: (id) => id !== 'e1' })
+    expect(celluleVoisine(verrou, cleGen('e2', 'ville'), 'haut')).toBeNull()
+    expect(celluleVoisine(verrou, cleParticipation('e2', 'p0', 'age'), 'haut')).toBeNull()
   })
 })

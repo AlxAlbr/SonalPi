@@ -15,7 +15,7 @@ import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublicati
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
-import type { CorpusFichier, EntretienFichier, PayloadEntretien } from '../../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type PayloadEntretien } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
 import { decoderCorrespondances, preparerImportCorrespondances } from '../../src/shared/corpus/importCorrespondances'
 import { empreinteDefinitionsCorrespondance } from '../../src/main/tablesCorrespondance'
@@ -634,6 +634,43 @@ describe('écritures courtes d’entretien GitLab', () => {
     expect(actions.map((action) => action.file_path)).toContain(`${RACINE}/corpus.crp`)
     expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
     expect(b.journal.lister()).toHaveLength(0)
+  })
+
+  test('résout les ids locaux sur la source fraîche et refuse un lot incomplet sans publication', async () => {
+    const serveur = corpusAvecValeurs()
+    serveur.variables.v1.portee = 'locuteur'
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const data = entretien()
+    data.formatVersion = FORMAT_VERSION
+    data.locuteurs = [
+      { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, personneRef: null },
+      { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, personneRef: null },
+    ]
+    const chemin = `${RACINE}/entretiens/e1.json`
+    const brut = JSON.stringify(data)
+    b.depot.deposerHorsProtocole(chemin, brut)
+    const fichierLocal = join(b.dirLocal, 'entretiens/e1.json')
+    const perime = structuredClone(data)
+    perime.locuteurs[0].index = 11
+    perime.locuteurs[1].index = 7
+    const avantLocal = JSON.stringify(perime)
+    writeFileSync(fichierLocal, avantLocal)
+    const item = { entretienId: 'e1', cible: { type: 'participation' as const, participationId: '7' }, idVar: 'v1', idMod: 'm1' }
+    await expect(b.transactions.poserValeursEntretien('e1', [item,
+      { ...item, cible: { type: 'participation', participationId: 'disparue' } },
+    ])).rejects.toThrow('Actualisez')
+    expect(b.depot.fichiers.get(chemin)!.contenu).toBe(brut)
+    expect(readFileSync(fichierLocal, 'utf8')).toBe(avantLocal)
+    expect(actionsDeDonnees(b.depot)).toEqual([])
+
+    await b.transactions.poserValeursEntretien('e1', [item])
+    const publie = JSON.parse(b.depot.fichiers.get(chemin)!.contenu) as EntretienFichier
+    expect(publie.locuteurs.map((p) => [p.id, p.index])).toEqual([['autre', 7], ['7', 11]])
+    expect(publie.locuteurs[0]).toEqual(data.locuteurs[0])
+    expect(publie.locuteurs[1].valeursLoc).toEqual({ v1: 'm1' })
+    expect(JSON.parse(readFileSync(fichierLocal, 'utf8'))).toEqual(publie)
+    expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
+    expect(b.journal.lister()).toEqual([])
   })
 
   test('relit le corpus et refuse une modalité supprimée pendant la préparation', async () => {

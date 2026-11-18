@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
 import LocuteursCorpus from '../src/renderer/components/traiter/corpus/LocuteursCorpus.vue'
 import { selectionnerLocuteurs } from '../src/renderer/composables/corpus/selectionListeLocuteurs'
-import type { VueLocuteursCorpus } from '../src/shared/corpus/locuteursCorpus'
+import type { VueLocuteursCorpus } from '../src/shared/corpus/repertoireLocuteurs'
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
@@ -19,12 +19,12 @@ afterEach(() => {
 function donnees(): VueLocuteursCorpus {
   return {
     locuteurs: [
-      { cle: 'a', nom: 'Alice', personneId: 'p1', participations: [
-        { entretienId: 'A', entretienTitre: 'Entretien A', locuteurId: 'a1', nom: 'A. Original' },
-        { entretienId: 'B', entretienTitre: 'Entretien B', locuteurId: 'a2', nom: 'Alice' },
+      { cle: 'a', nom: 'Alice', locuteurId: 'p1', participations: [
+        { entretienId: 'A', entretienTitre: 'Entretien A', participationId: 'a1', nom: 'A. Original' },
+        { entretienId: 'B', entretienTitre: 'Entretien B', participationId: 'a2', nom: 'Alice' },
       ], mots: 7, interventions: 2 },
-      { cle: 'b', nom: 'Bob', personneId: null, participations: [{ entretienId: 'B', entretienTitre: 'Entretien B', locuteurId: 'b', nom: 'Bob' }], mots: 5, interventions: 1 },
-      ...['C', 'D'].map((id) => ({ cle: id, nom: 'Jean', personneId: null, participations: [{ entretienId: id, entretienTitre: `Entretien ${id}`, locuteurId: id, nom: 'Jean' }], mots: 2, interventions: 1 })),
+      { cle: 'b', nom: 'Bob', locuteurId: null, participations: [{ entretienId: 'B', entretienTitre: 'Entretien B', participationId: 'b', nom: 'Bob' }], mots: 5, interventions: 1 },
+      ...['C', 'D'].map((id) => ({ cle: id, nom: 'Jean', locuteurId: null, participations: [{ entretienId: id, entretienTitre: `Entretien ${id}`, participationId: id, nom: 'Jean' }], mots: 2, interventions: 1 })),
     ],
     entretiens: [
       { id: 'A', titre: 'Entretien A', tours: [{ cle: 'a', nom: 'Alice', pos: 1, debut: 0, fin: 100, mots: 3 }] },

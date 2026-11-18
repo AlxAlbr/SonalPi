@@ -211,14 +211,22 @@ describe('installation et reprise des corpus exemples', () => {
     const dir = join(racine, 'annote')
     const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'))
     const corpus = installer(dir, 'synth-annote', 'libre')
+    const identites = new Set<string | null>()
+    expect(Object.keys(corpus.personnes)).toHaveLength(9)
     let nombre = 0
     for (const id of Object.keys(corpus.membership)) {
       const entretien = JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')) as EntretienFichier
       nombre += entretien.annotations.length
+      for (const participation of entretien.locuteurs) {
+        identites.add(participation.personneRef)
+        expect(corpus.personnes[participation.personneRef!]?.nom).toBe(participation.nom)
+      }
       expect(entretien.meta.audioRef?.startsWith(join(sources, 'audio'))).toBe(true)
       expect(existsSync(entretien.meta.audioRef!)).toBe(true)
     }
     expect(nombre).toBe(324)
+    expect(identites.size).toBe(9)
+    expect(identites.has(null)).toBe(false)
     expect(existsSync(join(dir, 'audio'))).toBe(false)
     expect(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'))).toEqual(modele)
   })

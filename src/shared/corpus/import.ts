@@ -1,5 +1,5 @@
 import { parserAliases, regleEnCollisionAlias } from '../entretien/anon'
-import type { Categorie, CorpusFichier, RegleAnon, Variable } from '../format'
+import type { Categorie, CorpusFichier, RegleAnon } from '../format'
 
 /**
  *  Sas d'import de l'agrégat Corpus : le seul flux applications→définitions,
@@ -9,10 +9,10 @@ import type { Categorie, CorpusFichier, RegleAnon, Variable } from '../format'
 
 /** Fusionne codebook + variables importés dans le corpus, par id ;
  *  l'existant fait foi (double import du même `.sonal` = zéro doublon). */
-export function fusionnerImport(
-  corpus: CorpusFichier,
-  codebook: Categorie[],
-  variables: Variable[],
+export function fusionnerImport<V extends { id: string }>(
+  corpus: { codebook: Record<string, Categorie>; variables: Record<string, V> },
+  codebook: readonly Categorie[],
+  variables: readonly V[],
 ): void {
   for (const c of codebook) if (!corpus.codebook[c.id]) corpus.codebook[c.id] = c
   for (const v of variables) if (!corpus.variables[v.id]) corpus.variables[v.id] = v
@@ -25,7 +25,7 @@ export function fusionnerImport(
  *  alias avec des règles existantes, il est ÉCLATÉ — les alias libres restent
  *  libres et deviennent une règle à part (parité SonalPi1 « garder les alias
  *  libres »), les alias déjà gouvernés restant où ils sont. */
-export function fusionnerReglesAnon(corpus: CorpusFichier, regles: RegleAnon[]): void {
+export function fusionnerReglesAnon(corpus: Pick<CorpusFichier, 'reglesAnon'>, regles: RegleAnon[]): void {
   for (const r of regles) {
     const existantes = Object.values(corpus.reglesAnon)
     // Alias de l'entrant déjà gouvernés par une règle existante → retirés.

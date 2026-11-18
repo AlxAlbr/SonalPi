@@ -17,7 +17,7 @@ const {
   locuteurs,
   ouvertId,
   attribuerLoc,
-  renommerLoc,
+  renommerParticipation,
   messagePersonnes,
   rapprochementNommage,
   rapprochementOccupe,
@@ -223,21 +223,21 @@ watch(
             >{{ messagePersonnes }}</p>
             <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
             <ul class="liste-loc">
-              <li v-for="(l, i) in locuteurs" :key="l.index">
+              <li v-for="(l, i) in locuteurs" :key="l.id ? `id:${l.id}` : `index:${l.index}`">
                 <input
                   type="color"
                   class="carre-couleur"
                   :value="l.couleur ?? couleurPourLocuteur(l.index)"
                   :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
                   :disabled="lectureSeule"
-                  @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
+                  @change="choisirCouleurLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                 />
                 <input
                   class="nom-loc"
                   :data-tour="i === 0 ? 'nom-locuteur' : undefined"
                   :value="l.nom"
-                  :disabled="lectureSeule"
-                  @change="renommerLoc(l.index, $event)"
+                  :disabled="lectureSeule || !l.id"
+                  @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, $event)"
                 />
                 <div class="pseudo-cell">
                   <input
@@ -246,7 +246,7 @@ watch(
                     placeholder="pseudo…"
                     title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
                     :disabled="lectureSeule"
-                    @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
+                    @change="setPseudoLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                   />
                 </div>
                 <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
@@ -254,7 +254,7 @@ watch(
                     type="checkbox"
                     :checked="l.interviewer ?? false"
                     :disabled="lectureSeule"
-                    @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                    @change="setInterviewer({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).checked)"
                   />
                   <span class="glisseur"></span>
                   <span class="q">?</span>
@@ -263,7 +263,7 @@ watch(
                   v-if="!lectureSeule"
                   class="x-loc"
                   title="Supprimer ce locuteur"
-                  @click="demanderSuppressionLocuteur(l.index)"
+                  @click="demanderSuppressionLocuteur({ entretienId: ouvertId ?? '', participationId: l.id ?? '' })"
                 >✕</button>
                 <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
                   Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.

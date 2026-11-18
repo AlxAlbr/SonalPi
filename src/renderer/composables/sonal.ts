@@ -89,6 +89,7 @@ export function creerSonal() {
       corpus.perimerScanAnon()
       await corpus.rafraichirUsages()
     },
+    modaliteParLibelle: corpus.modaliteParLibelle,
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     themeExiste: (id) => corpus.codebook.value.some((theme) => theme.id === id),

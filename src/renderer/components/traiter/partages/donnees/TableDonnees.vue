@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../../composables/sonal'
-import { celluleVoisine, grilleCellules, type SensNav } from '../../../../tableNavigation'
+import { celluleVoisine, cleGen, cleParticipation, grilleCellules, type SensNav } from '../../../../tableNavigation'
 import EditionVariables from './EditionVariables.vue'
 import BarreOngletCorpus from '../../corpus/BarreOngletCorpus.vue'
 import { vHauteurDisponible } from '../../../../directives/hauteurDisponible'
@@ -17,9 +17,9 @@ const {
   matriceEnCours,
   modalitesDe,
   poserGen,
-  poserLoc,
+  poserParticipation,
   poserGenLibelle,
-  poserLocLibelle,
+  poserParticipationLibelle,
   membership,
   lectureSeule,
   tableLigneEditable,
@@ -201,8 +201,6 @@ function noterErreurCellule(cle: string, raison: string | null) {
 function effacerErreurCellule(cle: string) {
   delete erreursCellules.value[cle]
 }
-const cleGen = (entId: string, idVar: string) => `${entId}|${idVar}`
-const cleLoc = (entId: string, index: number, idVar: string) => `${entId}|${index}|${idVar}`
 function libelleCell(idVar: string, idMod: string | undefined): string {
   if (!idMod) return ''
   return modalitesDe(idVar).find((m) => m.id === idMod)?.lib ?? idMod
@@ -212,24 +210,26 @@ function surSelectGen(entId: string, idVar: string, evt: Event) {
   if (val === AUTRE) celluleLibre.value = cleGen(entId, idVar)
   else void surValidationGen(entId, idVar, val)
 }
-function surSelectLoc(entId: string, index: number, idVar: string, evt: Event) {
+function surSelectParticipation(entId: string, participationId: string | null, idVar: string, evt: Event) {
+  if (participationId === null) return
   const val = (evt.target as HTMLSelectElement).value
-  if (val === AUTRE) celluleLibre.value = cleLoc(entId, index, idVar)
-  else void surValidationLoc(entId, index, idVar, val)
+  if (val === AUTRE) celluleLibre.value = cleParticipation(entId, participationId, idVar)
+  else void surValidationParticipation(entId, participationId, idVar, val)
 }
 function surValidationGen(entId: string, idVar: string, val: string) {
   return suivreSaisie(cleGen(entId, idVar), poserGen(entId, idVar, val))
 }
-function surValidationLoc(entId: string, index: number, idVar: string, val: string) {
-  return suivreSaisie(cleLoc(entId, index, idVar), poserLoc(entId, index, idVar, val))
+function surValidationParticipation(entId: string, participationId: string, idVar: string, val: string) {
+  return suivreSaisie(cleParticipation(entId, participationId, idVar), poserParticipation(entId, participationId, idVar, val))
 }
 function surLibreGen(entId: string, idVar: string, evt: Event) {
   celluleLibre.value = null
   void suivreSaisie(cleGen(entId, idVar), poserGenLibelle(entId, idVar, (evt.target as HTMLInputElement).value.trim()))
 }
-function surLibreLoc(entId: string, index: number, idVar: string, evt: Event) {
+function surLibreParticipation(entId: string, participationId: string | null, idVar: string, evt: Event) {
+  if (participationId === null) return
   celluleLibre.value = null
-  void suivreSaisie(cleLoc(entId, index, idVar), poserLocLibelle(entId, index, idVar, (evt.target as HTMLInputElement).value.trim()))
+  void suivreSaisie(cleParticipation(entId, participationId, idVar), poserParticipationLibelle(entId, participationId, idVar, (evt.target as HTMLInputElement).value.trim()))
 }
 function focaliserLibre(el: unknown, cle: string) {
   if (el instanceof HTMLInputElement && celluleLibre.value === cle && document.activeElement !== el) {
@@ -482,37 +482,37 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
                 </td>
               </tr>
               <template v-if="filtrePortee !== 'entretien'">
-                <tr v-for="l in e.locuteurs" :key="e.entretienId + '-' + l.index" class="ligne-loc">
-                  <td>👤 {{ l.nom }}</td>
+                <tr v-for="l in e.participations" :key="l.participationId !== null ? `id:${l.participationId}` : `index:${l.index}`" class="ligne-loc">
+                  <td>👤 {{ l.nom }}<small v-if="l.participationId === null">Enregistrez cet entretien pour pouvoir modifier les réponses de ce locuteur.</small></td>
                   <td v-for="v in variablesVisibles" :key="v.id" class="cell-val">
                     <template v-if="v.portee === 'locuteur'">
                       <input
-                        v-if="modalitesDe(v.id).length === 0 || celluleLibre === cleLoc(e.entretienId, l.index, v.id)"
+                        v-if="modalitesDe(v.id).length === 0 || celluleLibre === cleParticipation(e.entretienId, l.participationId, v.id)"
                         class="cell-libre"
-                        :class="{ 'cell-erreur': erreursCellules[cleLoc(e.entretienId, l.index, v.id)] }"
-                        :title="erreursCellules[cleLoc(e.entretienId, l.index, v.id)]"
+                        :class="{ 'cell-erreur': erreursCellules[cleParticipation(e.entretienId, l.participationId, v.id)] }"
+                        :title="erreursCellules[cleParticipation(e.entretienId, l.participationId, v.id)]"
                         placeholder="texte libre"
-                        :disabled="!tableLigneEditable(e.entretienId)"
-                        :value="celluleLibre === cleLoc(e.entretienId, l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
-                        :ref="(el) => refCellule(el, cleLoc(e.entretienId, l.index, v.id))"
-                        @focus="effacerErreurCellule(cleLoc(e.entretienId, l.index, v.id))"
-                        @keydown.enter.prevent="entreeInput(cleLoc(e.entretienId, l.index, v.id), $event)"
-                        @keydown.tab="tabCellule(cleLoc(e.entretienId, l.index, v.id), $event)"
+                        :disabled="l.participationId === null || !tableLigneEditable(e.entretienId)"
+                        :value="celluleLibre === cleParticipation(e.entretienId, l.participationId, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
+                        :ref="(el) => refCellule(el, cleParticipation(e.entretienId, l.participationId, v.id))"
+                        @focus="effacerErreurCellule(cleParticipation(e.entretienId, l.participationId, v.id))"
+                        @keydown.enter.prevent="entreeInput(cleParticipation(e.entretienId, l.participationId, v.id), $event)"
+                        @keydown.tab="tabCellule(cleParticipation(e.entretienId, l.participationId, v.id), $event)"
                         @keyup.esc="celluleLibre = null"
-                        @change="surLibreLoc(e.entretienId, l.index, v.id, $event)"
+                        @change="surLibreParticipation(e.entretienId, l.participationId, v.id, $event)"
                         @blur="celluleLibre = null"
                       />
                       <select
                         v-else
-                        :class="{ 'cell-erreur': erreursCellules[cleLoc(e.entretienId, l.index, v.id)] }"
-                        :title="erreursCellules[cleLoc(e.entretienId, l.index, v.id)]"
-                        :disabled="!tableLigneEditable(e.entretienId)"
+                        :class="{ 'cell-erreur': erreursCellules[cleParticipation(e.entretienId, l.participationId, v.id)] }"
+                        :title="erreursCellules[cleParticipation(e.entretienId, l.participationId, v.id)]"
+                        :disabled="l.participationId === null || !tableLigneEditable(e.entretienId)"
                         :value="l.valeursLoc[v.id] ?? ''"
-                        :ref="(el) => refCellule(el, cleLoc(e.entretienId, l.index, v.id))"
-                        @focus="effacerErreurCellule(cleLoc(e.entretienId, l.index, v.id))"
-                        @change="surSelectLoc(e.entretienId, l.index, v.id, $event)"
-                        @keydown.tab="tabCellule(cleLoc(e.entretienId, l.index, v.id), $event)"
-                        @keydown.enter="entreeSelect(cleLoc(e.entretienId, l.index, v.id), $event)"
+                        :ref="(el) => refCellule(el, cleParticipation(e.entretienId, l.participationId, v.id))"
+                        @focus="effacerErreurCellule(cleParticipation(e.entretienId, l.participationId, v.id))"
+                        @change="surSelectParticipation(e.entretienId, l.participationId, v.id, $event)"
+                        @keydown.tab="tabCellule(cleParticipation(e.entretienId, l.participationId, v.id), $event)"
+                        @keydown.enter="entreeSelect(cleParticipation(e.entretienId, l.participationId, v.id), $event)"
                       >
                         <option value="">—</option>
                         <option v-for="m in modalitesDe(v.id)" :key="m.id" :value="m.id">{{ m.lib }}</option>
@@ -791,6 +791,10 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .ligne-loc td:first-child {
   padding-left: 0.9rem;
   color: #000;
+}
+.ligne-loc small {
+  display: block;
+  white-space: normal;
 }
 .matrice.editable td.cell-val {
   padding: 0.1rem 0.2rem;

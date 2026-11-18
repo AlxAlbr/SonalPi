@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
-  etatNoteJournal,
-  inventorierNotes,
   memeEtatNote,
   memesChampsEditables,
 } from '../src/shared/corpus/notes'
+import { etatNoteJournalFormat9 as etatNoteJournal, inventorierNotesFormat9 as inventorierNotes } from '../src/shared/corpus/notesFormat9'
 import type { CorpusFichier, EntretienFichier, Note } from '../src/shared/format'
 
 const corpus: CorpusFichier = {
@@ -100,7 +99,7 @@ describe('état sémantique d’une note', () => {
   test('ignore seulement modifieLe et compare les objets indépendamment de l’ordre des clés', () => {
     const etat = etatNoteJournal(note({ modifieLe: '2025-02-01T00:00:00.000Z' }))
     expect(etat).not.toHaveProperty('modifieLe')
-    expect(memeEtatNote(etat, { ...etat, locuteurIds: [...(etat.locuteurIds ?? [])] })).toBe(true)
+    expect(memeEtatNote(etat, { ...etat, participationIds: [...(etat.participationIds ?? [])] })).toBe(true)
     expect(memeEtatNote(etat, { ...etat, titre: 'Autre' })).toBe(false)
   })
 

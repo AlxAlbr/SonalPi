@@ -20,6 +20,9 @@ describe('corpus exemple annoté SonalPi2', () => {
       .toEqual(attendus.map((attendu) => attendu.titre))
     expect(Object.keys(corpus.codebook)).toHaveLength(30)
     expect(Object.keys(corpus.variables).sort()).toEqual(['v3', 'v4', 'v5'])
+    expect(Object.keys(corpus.personnes)).toHaveLength(9)
+    expect(Object.values(corpus.personnes).filter((p) => p.nom === 'Question')).toHaveLength(4)
+    expect(Object.values(corpus.personnes).filter((p) => p.nom === 'Réponse')).toHaveLength(3)
     expect(corpus.codebook.cat_025.parent).toBe('cat_026')
     expect(corpus.codebook.cat_007.description).toContain("l'annonce")
     expect(corpus.meta?.sourceV1).toBeUndefined()
@@ -27,6 +30,16 @@ describe('corpus exemple annoté SonalPi2', () => {
     for (const categorie of Object.values(corpus.codebook)) {
       if (categorie.parent) expect(corpus.codebook[categorie.parent]).toBeDefined()
     }
+  })
+
+  test('chaque participation possède sa propre identité, même pour les libellés récurrents', () => {
+    const participations = Object.keys(corpus.membership).flatMap((id) => {
+      const data = JSON.parse(readFileSync(join(racine, 'entretiens', `${id}.json`), 'utf8')) as EntretienFichier
+      return data.locuteurs
+    })
+    expect(participations).toHaveLength(9)
+    expect(new Set(participations.map((p) => p.personneRef)).size).toBe(9)
+    expect(new Set(participations.map((p) => p.id)).size).toBe(9)
   })
 
   for (const attendu of attendus) {
@@ -53,7 +66,10 @@ describe('corpus exemple annoté SonalPi2', () => {
       expect(entretien.ancres.map((ancre) => ancre.pos))
         .toEqual(entretien.ancres.map((ancre) => ancre.pos).sort((a, b) => a - b))
       expect(entretien.locuteurs).toHaveLength(attendu.locuteurs)
+      expect(new Set(entretien.locuteurs.map((l) => l.personneRef)).size).toBe(attendu.locuteurs)
       for (const locuteur of entretien.locuteurs) {
+        expect(locuteur.id).toBeTruthy()
+        expect(corpus.personnes[locuteur.personneRef!]).toEqual({ id: locuteur.personneRef, nom: locuteur.nom })
         for (const [variableId, modaliteId] of Object.entries(locuteur.valeursLoc)) {
           expect(corpus.variables[variableId].modalites.some((m) => m.id === modaliteId)).toBe(true)
         }

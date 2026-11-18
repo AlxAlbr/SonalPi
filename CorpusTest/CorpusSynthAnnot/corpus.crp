@@ -405,7 +405,17 @@
     }
   },
   "reglesAnon": {},
-  "personnes": {},
+  "personnes": {
+    "pers-demo-01": { "id": "pers-demo-01", "nom": "Réponse" },
+    "pers-demo-02": { "id": "pers-demo-02", "nom": "Question" },
+    "pers-demo-03": { "id": "pers-demo-03", "nom": "Réponse" },
+    "pers-demo-04": { "id": "pers-demo-04", "nom": "Question" },
+    "pers-demo-05": { "id": "pers-demo-05", "nom": "Réponse" },
+    "pers-demo-06": { "id": "pers-demo-06", "nom": "Question" },
+    "pers-demo-07": { "id": "pers-demo-07", "nom": "Répondant 1" },
+    "pers-demo-08": { "id": "pers-demo-08", "nom": "Question" },
+    "pers-demo-09": { "id": "pers-demo-09", "nom": "Répondant 2" }
+  },
   "membership": {
     "1Coordinatrice_uw22m0yv": {
       "titre": "1Coordinatrice",

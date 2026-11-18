@@ -8,7 +8,7 @@ import { convertirEntretienMigrationGitLab } from '../../src/renderer/formatSona
 import { importerFichier } from '../../src/renderer/formatSonal/sas'
 import { analyserCrp } from '../../src/shared/corpus/migrationCrp'
 import type { BilanMigrationGitLab } from '../../src/shared/corpus/migrationGitLab'
-import type { EntretienFichier } from '../../src/shared/format'
+import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
 
 const dossiers: string[] = []
 afterEach(() => dossiers.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true })))
@@ -68,7 +68,8 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.meta.audioDistant).toEqual({ chemin: bilan.medias[0].cheminDestination, fournisseur })
     expect(entretien.meta.sourceV1?.rtrPath).toBe(analyse.apercu.raw.tabEnt![0].rtrPath)
     expect(entretien.corpsTexte).toEqual(conversion.payload.corpsTexte)
-    expect(entretien.locuteurs.map(({ id: _id, ...locuteur }) => locuteur)).toEqual(conversion.payload.locuteurs)
+    const sansAssociation = ({ id: _id, personneRef: _ref, ...locuteur }: EntretienFichier['locuteurs'][number]) => locuteur
+    expect(entretien.locuteurs.map(sansAssociation)).toEqual(conversion.payload.locuteurs.map(sansAssociation))
     expect(new Set(entretien.locuteurs.map((locuteur) => locuteur.id)).size).toBe(entretien.locuteurs.length)
     const annotations = (valeurs: typeof entretien.annotations) => valeurs.map((annotation) =>
       annotation.type === 'anon' ? { ...annotation, regle: undefined } : annotation,
@@ -77,6 +78,10 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.legacy).toEqual(conversion.payload.legacy)
     const corpus = JSON.parse(documents.find((d) => d.chemin === 'corpus.crp')!.contenu)
     expect(corpus.ordreEntretiens).toEqual([id])
+    expect(Object.keys(corpus.personnes)).toHaveLength(entretien.locuteurs.length)
+    for (const locuteur of entretien.locuteurs) {
+      expect(corpus.personnes[locuteur.personneRef!]).toEqual({ id: locuteur.personneRef, nom: locuteur.nom })
+    }
     for (const definition of conversion.codebook ?? []) expect(corpus.codebook[definition.id]).toBeDefined()
     for (const definition of conversion.variables ?? []) expect(corpus.variables[definition.id]).toBeDefined()
     for (const annotation of entretien.annotations) {
@@ -156,6 +161,36 @@ describe('conversion et documents natifs de migration GitLab', () => {
     const entretien = JSON.parse([...preparation.documents([])].find((d) => d.chemin.startsWith('entretiens/'))!.contenu)
     expect(entretien.annotations[0].regle).toBe('reg-crp-1')
     expect(entretien.annotations[0].pseudo).toBe('Claire')
+  })
+
+  it('garde les homonymes distincts entre entretiens et retrouve les mêmes identités à la reprise', () => {
+    const a = analyserCrp(JSON.stringify({ tabEnt: [{ id: 1, nom: 'Premier' }, { id: 2, nom: 'Second' }] }), 'terrain.crp')
+    if (!a.ok) throw new Error(a.message)
+    const cible: BilanMigrationGitLab = { ...bilan, apercu: a.apercu, medias: [], entretiens: [
+      { titre: 'Premier', cheminSonal: null, media: null },
+      { titre: 'Second', cheminSonal: null, media: null },
+    ] }
+    const dir = dossier()
+    const preparation = new DocumentsMigrationGitLab(dir, cible)
+    const conversion = convertirEntretienMigrationGitLab({ nom: 'entretien1.sonal', contenu: sonal }, parseur)
+    const avant = structuredClone(conversion)
+    preparation.ajouter(0, conversion)
+    preparation.ajouter(1, conversion)
+    const documents = [...preparation.documents([])]
+    const corpus = JSON.parse(documents.at(-1)!.contenu) as CorpusFichier
+    const entretiens = documents.filter((d) => d.chemin.startsWith('entretiens/'))
+      .map((d) => JSON.parse(d.contenu) as EntretienFichier)
+    const nombre = conversion.payload.locuteurs.length
+    expect(nombre).toBeGreaterThan(0)
+    expect(Object.keys(corpus.personnes)).toHaveLength(nombre * 2)
+    expect(new Set(entretiens.flatMap((e) => e.locuteurs.map((l) => l.personneRef))).size).toBe(nombre * 2)
+    for (const entretien of entretiens) {
+      expect(entretien.notes).toEqual(conversion.payload.notes)
+      expect(entretien.corpsTexte).toEqual(conversion.payload.corpsTexte)
+      expect(entretien.locuteurs.map((l) => l.nom)).toEqual(conversion.payload.locuteurs.map((l) => l.nom))
+    }
+    expect([...new DocumentsMigrationGitLab(dir, cible, true).documents([])]).toEqual(documents)
+    expect(conversion).toEqual(avant)
   })
 
   it('refuse une publication avec conversion ou copies incomplètes', () => {

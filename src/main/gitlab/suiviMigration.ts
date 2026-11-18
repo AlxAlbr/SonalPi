@@ -6,6 +6,7 @@ import { estDestinationAutreMigration, type FichierAutreMigration } from '../../
 import type { ReferenceMediaDistant } from '../../shared/format'
 import type { IdentiteBailGitLab } from './bailGitLab'
 import { MAX_ACTIONS_PUBLICATION } from './limitesPublication'
+import { verifierVersionNative } from '../../shared/versionsNatives'
 
 export interface DocumentMigrationGitLab {
   chemin: string
@@ -40,6 +41,14 @@ const cheminSain = (chemin: string) => typeof chemin === 'string' && !!chemin &&
 
 export const empreinteBlobMigration = (contenu: string) => createHash('sha1').update(`blob ${Buffer.byteLength(contenu)}\0`).update(contenu).digest('hex')
 
+function verifierDocumentNatif(chemin: string, contenu: string): void {
+  if (chemin !== 'corpus.crp' && !/^entretiens\/[^/]+\.json$/.test(chemin)) return
+  let fichier: unknown
+  try { fichier = JSON.parse(contenu) }
+  catch { throw new Error(`Document natif illisible : ${chemin}.`) }
+  verifierVersionNative(fichier, chemin)
+}
+
 /** Un seul suivi de migration ; les intentions de commits utilisent le journal de publication existant. */
 export class SuiviDurableMigrationGitLab {
   readonly fichier: string
@@ -70,10 +79,12 @@ export class SuiviDurableMigrationGitLab {
     if (createHash('sha256').update(contenu).digest('hex') !== document.sha256 || empreinteBlobMigration(contenu) !== document.blob) {
       throw new Error('La préparation locale a changé. Aucun envoi autorisé.')
     }
+    verifierDocumentNatif(document.chemin, contenu)
     return contenu
   }
 
   conserverContenu(chemin: string, contenu: string): DocumentMigrationGitLab {
+    verifierDocumentNatif(chemin, contenu)
     const sha256 = createHash('sha256').update(contenu).digest('hex')
     const document = { chemin, sha256, blob: empreinteBlobMigration(contenu), octets: Buffer.byteLength(contenu) }
     const fichier = join(this.dossier, 'contenus', `${sha256}.bin`)

@@ -1,4 +1,4 @@
-import type { Locuteur } from '../format'
+import type { ParticipationLocuteur } from '../locuteurs'
 import { compterMotsProseMirror } from '../corpus/ordreEntretiens'
 import { projeterAncres, type Ancre } from './audio'
 
@@ -85,7 +85,7 @@ export function blocsParoleDepuisDocument(document: unknown): BlocParole[] {
 /** Calcule le bilan depuis le texte, sans compter les libellés affichés autour des paroles. */
 export function statistiquesLocuteurs(
   blocs: BlocParole[],
-  locuteurs: Locuteur[],
+  locuteurs: readonly Pick<ParticipationLocuteur, 'index' | 'interviewer'>[],
   ancres: Ancre[],
 ): StatistiquesLocuteurs {
   const connus = new Map(locuteurs.map((locuteur) => [locuteur.index, locuteur]))

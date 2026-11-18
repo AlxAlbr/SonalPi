@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { FORMAT_VERSION, type EntretienFichier, type EntretienRef, type Variable } from '../src/shared/format'
+import type { EntretienRef } from '../src/shared/format'
+import { FORMAT_NATIF_LOCUTEURS, type EntretienFichier, type Variable } from '../src/shared/natif/format'
 import { extraireOccurrencesLexico } from '../src/renderer/editor/lexico'
 import { agregerOccurrencesLexico, selectionnerOccurrencesLexico } from '../src/shared/lexico/moteur'
 import { exporterTableauLexico } from '../src/shared/lexico/export'
 import { filtresLexicoParDefaut } from '../src/shared/lexico/types'
-import { resumerEntretiensLexico } from '../src/shared/lexico/resume'
+import { resumerEntretiensLexico, resumerFiltresLexico } from '../src/shared/lexico/resume'
 import { appliquerCommandeTraitementsLexico, appliquerTraitementsLexico, compterConcatenationsLexico, importerTraitementsLexicoV1, normaliserTraitementsLexico } from '../src/shared/lexico/traitements'
 
 const reference: EntretienRef = { titre: 'Entretien A', date: null, lastModified: '' }
 const source: EntretienFichier = {
-  formatVersion: FORMAT_VERSION,
+  formatVersion: FORMAT_NATIF_LOCUTEURS,
   lastModified: '',
   corpsTexte: {
     type: 'doc',
@@ -23,15 +24,15 @@ const source: EntretienFichier = {
     { id: 'theme', type: 'codage', from: 19, to: 26, auteur: '', code: 'travail' },
   ],
   ancres: [],
-  locuteurs: [
-    { index: 0, nom: 'Enquêteur', interviewer: true, valeursLoc: { sexe: 'f' }, personneRef: null },
-    { index: 1, nom: 'Paul', valeursLoc: { sexe: 'm' }, personneRef: 'paul' },
+  participations: [
+    { id: 'enqueteur-local', index: 0, nom: 'Enquêteur', interviewer: true, valeursLoc: { sexe: 'f' }, locuteurRef: null },
+    { id: 'paul-local', index: 1, nom: 'Paul', valeursLoc: { sexe: 'm' }, locuteurRef: 'paul' },
   ],
   meta: { valeursGen: { zone: 'nord' }, audioRef: null },
 }
 
 const variables: Variable[] = [
-  { id: 'sexe', lib: 'Sexe', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [
+  { id: 'sexe', lib: 'Sexe', portee: 'participation', priv: false, ordre: 0, vExport: 0, modalites: [
     { id: 'f', lib: 'F', mExport: 0 }, { id: 'm', lib: 'M', mExport: 1 },
   ] },
 ]
@@ -44,7 +45,7 @@ describe('Lexico', () => {
     ])
     expect(occurrences.some((occurrence) => occurrence.forme === 'marie')).toBe(false)
     const pseudo = occurrences.find((occurrence) => occurrence.pseudonyme)!
-    expect([pseudo.from, pseudo.to, pseudo.locuteurIndex]).toEqual([9, 14, 0])
+    expect([pseudo.from, pseudo.to, pseudo.participationIndex]).toEqual([9, 14, 0])
     expect(occurrences.find((occurrence) => occurrence.forme === 'travail')?.themeIds).toEqual(['travail'])
   })
 
@@ -116,9 +117,51 @@ describe('Lexico', () => {
   it('évalue les variables et le rôle sur le locuteur de chaque occurrence', () => {
     const occurrences = extraireOccurrencesLexico('a', reference, source)
     const filtres = filtresLexicoParDefaut()
-    filtres.variables.sexe = { portee: 'locuteur', modaliteIds: ['m'], nonRenseigne: false }
+    filtres.variables.sexe = { portee: 'participation', modaliteIds: ['m'], nonRenseigne: false }
     const retenues = selectionnerOccurrencesLexico(occurrences, filtres, { variables, cas: {} })
     expect(retenues.map((occurrence) => occurrence.forme)).toEqual(['travail', 'partagé'])
+  })
+
+  it('distingue une participation sans identité commune d’un passage sans participation', () => {
+    const data = structuredClone(source)
+    ;(data.corpsTexte as { content: unknown[] }).content.push({
+      type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Sans attribution' }],
+    })
+    const occurrences = extraireOccurrencesLexico('a', reference, data)
+    const filtres = filtresLexicoParDefaut()
+    filtres.inclureEnqueteurs = true
+    filtres.locuteurs = { selection: { mode: 'choix', ids: ['paul'] }, sansIdentiteCommune: false, sansParticipation: false }
+    const formes = () => selectionnerOccurrencesLexico(occurrences, filtres, { variables, cas: {} }).map((o) => o.forme)
+    expect(formes()).toEqual(['travail', 'partagé'])
+    filtres.locuteurs = { selection: { mode: 'choix', ids: [] }, sansIdentiteCommune: true, sansParticipation: false }
+    expect(formes()).toEqual(['bonjour', 'personne a', '12'])
+    filtres.locuteurs = { selection: { mode: 'choix', ids: [] }, sansIdentiteCommune: false, sansParticipation: true }
+    expect(formes()).toEqual(['sans', 'attribution'])
+    filtres.locuteurs = { selection: { mode: 'sans-restriction' }, sansIdentiteCommune: false, sansParticipation: false }
+    expect(formes()).toEqual(occurrences.map((o) => o.forme))
+  })
+
+  it('une valeur locale absente ne sélectionne pas un passage sans participation', () => {
+    const data = structuredClone(source)
+    data.participations[0].valeursLoc = {}
+    ;(data.corpsTexte as { content: unknown[] }).content.push({
+      type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Sans attribution' }],
+    })
+    const occurrences = extraireOccurrencesLexico('a', reference, data)
+    const filtres = filtresLexicoParDefaut()
+    filtres.inclureEnqueteurs = true
+    filtres.variables.sexe = { portee: 'participation', modaliteIds: [], nonRenseigne: true }
+    expect(selectionnerOccurrencesLexico(occurrences, filtres, { variables, cas: {} }).map((o) => o.forme))
+      .toEqual(['bonjour', 'personne a', '12'])
+  })
+
+  it('résume les identités communes sans confondre les deux choix d’absence', () => {
+    const filtres = filtresLexicoParDefaut()
+    filtres.locuteurs = { selection: { mode: 'choix', ids: ['paul'] }, sansIdentiteCommune: true, sansParticipation: true }
+    const lignes = resumerFiltresLexico(filtres, {
+      entretiens: [], variables, locuteurs: [{ id: 'paul', nom: 'Paul' }], themes: [], cas: [],
+    })
+    expect(lignes).toContain('Locuteurs : Paul, Locuteurs non associés et Passages sans locuteur')
   })
 
   it('intersecte les thèmes et les cas sans compter deux fois', () => {

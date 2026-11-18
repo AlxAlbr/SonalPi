@@ -8,7 +8,7 @@ import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
 import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
-import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { CommandePersonnes } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
@@ -156,9 +156,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     importerModeleUtilisateur: variables.importerModeleUtilisateur,
     // table de données / saisie libre
     poserGen: variables.poserGen,
-    poserLoc: variables.poserLoc,
+    poserParticipation: variables.poserParticipation,
     poserGenLibelle: variables.poserGenLibelle,
-    poserLocLibelle: variables.poserLocLibelle,
+    poserParticipationLibelle: variables.poserParticipationLibelle,
     modaliteParLibelle: variables.modaliteParLibelle,
     poserValeurLot: variables.poserValeurLot,
   }

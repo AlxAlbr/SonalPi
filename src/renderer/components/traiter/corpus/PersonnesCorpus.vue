@@ -6,7 +6,8 @@ import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import { utiliserSonal } from '../../../composables/sonal'
 import { analyserRapprochementPersonne, natureNomPersonne, suggestionsPersonnes } from '../../../../shared/corpus/rapprochementsPersonnes'
-import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
+import type { InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
+import type { CommandePersonnes } from '../../../../shared/corpus/contratsLocuteurs'
 
 const props = defineProps<{ actif: boolean }>()
 const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables, badgeVerrou,

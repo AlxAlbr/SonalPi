@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { ajouterCommentaire, ajouterCodage, modifierCommentaire, retirerAnnotation, type Entretien } from '../src/shared/entretien/entretien'
-import { annuler, appliquerInverse, enregistrer, estApplicable, type CtxInverse } from '../src/shared/entretien/journal'
+import { annuler, appliquerInverse, enregistrer, estApplicable, type CtxInverse, type Journal } from '../src/shared/entretien/journal'
 
 /** Entretien de test vide + générateur d'ids séquentiels (déterministe). */
 function neuf(): { entretien: Entretien; genId: () => string } {
@@ -10,8 +10,9 @@ function neuf(): { entretien: Entretien; genId: () => string } {
 }
 
 const ctx = (e: Entretien): CtxInverse => ({
+  entretienId: 'e1',
   entretien: e,
-  locuteurs: [],
+  participations: [],
   valeursGen: {},
 })
 
@@ -56,7 +57,7 @@ describe('journal des commentaires', () => {
   test('« Commentaire posé » → inverse retirerAnnotation applicable puis annulable', () => {
     const { entretien, genId } = neuf()
     const c = ajouterCommentaire(entretien, { from: 3, to: 9, auteur: 'K', texte: 'note' }, genId)!
-    const journal = { entrees: [] }
+    const journal: Journal = { entrees: [] }
     enregistrer(journal, 'Commentaire posé', { type: 'retirerAnnotation', annotationId: c.id }, genId)
     expect(estApplicable(journal.entrees[0].inverse, ctx(entretien))).toBe(true)
     expect(annuler(journal, journal.entrees[0].id, ctx(entretien))).toBe(true)
@@ -67,7 +68,7 @@ describe('journal des commentaires', () => {
     const { entretien, genId } = neuf()
     const c = ajouterCommentaire(entretien, { from: 3, to: 9, auteur: 'K', texte: 'note' }, genId)!
     retirerAnnotation(entretien, c.id)
-    const journal = { entrees: [] }
+    const journal: Journal = { entrees: [] }
     enregistrer(journal, 'Commentaire supprimé', { type: 'reposerAnnotation', annotation: { ...c } }, genId)
     expect(annuler(journal, journal.entrees[0].id, ctx(entretien))).toBe(true)
     expect(entretien.annotations[0].texte).toBe('note')
@@ -77,7 +78,7 @@ describe('journal des commentaires', () => {
     const { entretien, genId } = neuf()
     const c = ajouterCommentaire(entretien, { from: 3, to: 9, auteur: 'K', texte: 'avant' }, genId)!
     modifierCommentaire(entretien, c.id, { auteur: 'A', texte: 'après' })
-    const journal = { entrees: [] }
+    const journal: Journal = { entrees: [] }
     enregistrer(
       journal,
       'Commentaire modifié',

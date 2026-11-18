@@ -43,7 +43,9 @@ async function creerVariable(
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
 async function ongletDonnees(page: Page) {
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  const bouton = page.locator('.volet-notes [data-onglet="donnees"]')
+  if (await bouton.getAttribute('aria-expanded') !== 'true') await bouton.click()
+  await expect(page.locator('.volet-notes .panneau.donnees')).toBeVisible()
 }
 
 test('Notes et Données partagent le volet droit et se replient au second clic', async () => {

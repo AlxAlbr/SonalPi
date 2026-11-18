@@ -1,8 +1,12 @@
 import type { CorpusFichier, EntretienFichier, Locuteur, Personne } from '../format'
 import type { EntreeMatrice } from './requetes'
-import type { ChoixRepriseLocuteur } from './rapprochementsPersonnes'
-import type { CommandeCorrectionLocuteurs } from './correctionsLocuteurs'
-import { membresPersonnesRegle, type MembrePersonneCas } from './cas'
+import type { LocuteurASeparer } from './contratsLocuteurs'
+import { membresPersonnesRegle, type Cas, type RegleCas } from './cas'
+import type { Cas as CasNatif } from '../natif/format'
+import { associerParticipation, creerLocuteur, regrouperLocuteurs, renommerLocuteur, separerLocuteur, supprimerLocuteurVide, trouverParticipation } from './identitesLocuteurs'
+import { lireCasFormat9 } from '../natif/lectureCasFormat9'
+
+export type { CommandePersonnes, LocuteurASeparer } from './contratsLocuteurs'
 
 export interface VueLocuteurPersonne {
   entretienId: string
@@ -39,24 +43,6 @@ export interface InventairePersonnes {
   indisponibles: { id: string; titre: string; raison: string }[]
 }
 
-export interface LocuteurASeparer {
-  entretienId: string
-  locuteurId: string
-}
-
-export type CommandePersonnes =
-  | CommandeCorrectionLocuteurs
-  | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; choix: ChoixRepriseLocuteur } }
-  | { type: 'separer'; personneId: string; nom: string; locuteurs: LocuteurASeparer[]; attendu: string }
-  | { type: 'creerDefinition'; nom: string }
-  | { type: 'refuser'; entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string }
-  | { type: 'annulerRefus'; entretienId: string; locuteurId: string; cible: string }
-  | { type: 'rapprocher'; entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; attendu?: string; reprise?: ChoixRepriseLocuteur }
-  | { type: 'creer'; entretienId: string; locuteurId: string; nom: string }
-  | { type: 'lier'; entretienId: string; locuteurId: string; personneId: string | null }
-  | { type: 'modifier'; personneId: string; nom: string }
-  | { type: 'supprimer'; personneId: string }
-
 /** Projette les identités sans transporter les transcriptions vers l'interface. */
 export function inventorierPersonnes(corpus: CorpusFichier, entretiens: EntreeMatrice[]): InventairePersonnes {
   return {
@@ -90,81 +76,78 @@ export function inventorierPersonnes(corpus: CorpusFichier, entretiens: EntreeMa
   }
 }
 
-function nomValide(nom: string): string {
-  const valeur = nom.trim()
-  if (!valeur) throw new Error('Le nom de la personne ne peut pas être vide.')
-  return valeur
+/** Pont d'écriture limité aux champs d'association tant que le stockage reste au format 9. */
+function associationsEntretienFormat9(entretien: EntretienFichier) {
+  const data = { participations: entretien.locuteurs.map((l) => ({
+    id: l.id, locuteurRef: l.personneRef, associationRetiree: l.personneDeliee,
+  })) }
+  return { data, appliquer: () => {
+    data.participations.forEach((participation, i) => {
+      const locuteur = entretien.locuteurs[i]
+      locuteur.personneRef = participation.locuteurRef
+      if (participation.associationRetiree === undefined) delete locuteur.personneDeliee
+      else locuteur.personneDeliee = participation.associationRetiree
+    })
+  } }
 }
 
 export function creerPersonne(corpus: CorpusFichier, id: string, nom: string): Personne {
-  const valeur = nomValide(nom)
-  corpus.personnes ??= {}
-  if (!id || corpus.personnes[id]) throw new Error('Identifiant de personne déjà utilisé ou invalide.')
-  const personne: Personne = { id, nom: valeur }
-  corpus.personnes[id] = personne
-  return personne
+  const modele = { locuteurs: corpus.personnes ?? {} }
+  const locuteur = creerLocuteur(modele, id, nom)
+  corpus.personnes = modele.locuteurs
+  return locuteur
 }
 
 export function modifierPersonne(corpus: CorpusFichier, id: string, nom: string): void {
-  const personne = corpus.personnes?.[id]
-  if (!personne) throw new Error('Cette personne n’existe plus.')
-  personne.nom = nomValide(nom)
+  renommerLocuteur({ locuteurs: corpus.personnes ?? {} }, id, nom)
 }
 
 export function trouverLocuteur(entretien: EntretienFichier, locuteurId: string): Locuteur {
-  const locuteur = entretien.locuteurs.find((l) => l.id === locuteurId)
-  if (!locuteur) throw new Error('Ce locuteur n’existe plus. Actualisez le répertoire.')
-  return locuteur
+  return trouverParticipation({ participations: entretien.locuteurs }, locuteurId)
 }
 
 /** Un lien ne renomme jamais le locuteur et ne modifie pas ses valeurs. */
 export function lierLocuteur(corpus: CorpusFichier, entretien: EntretienFichier, locuteurId: string, personneId: string | null): void {
-  const locuteur = trouverLocuteur(entretien, locuteurId)
-  if (personneId !== null) {
-    if (!corpus.personnes?.[personneId]) throw new Error('Cette personne n’existe plus.')
-    if (entretien.locuteurs.some((l) => l.id !== locuteurId && l.personneRef === personneId)) {
-      throw new Error('Cette personne a déjà un locuteur dans cet entretien. Corrigez les locuteurs avant de les rapprocher.')
+  const modele = associationsEntretienFormat9(entretien)
+  associerParticipation({ locuteurs: corpus.personnes ?? {} }, modele.data, locuteurId, personneId)
+  modele.appliquer()
+}
+
+/** Les chaînes du format 9 gardent leur portée historique, sans contexte inventé. */
+export function reconcilierRefusFormat9(
+  entretiens: EntreeMatrice[], conserverId: string, absorberIds: ReadonlySet<string>, membres: ReadonlySet<string>,
+): void {
+  for (const e of entretiens) for (const l of e.data.locuteurs) {
+    if (l.rapprochementsRefuses) {
+      l.rapprochementsRefuses = [...new Set(l.rapprochementsRefuses
+        .map((r) => r.startsWith('personne:') && absorberIds.has(r.slice('personne:'.length)) ? `personne:${conserverId}` : r)
+        .filter((r) => l.personneRef !== conserverId || (r !== `personne:${conserverId}` && !membres.has(r))))]
     }
   }
-  locuteur.personneRef = personneId
-  if (personneId === null) locuteur.personneDeliee = true
-  else delete locuteur.personneDeliee
+}
+
+export function reporterReglesCasFormat9(cas: Cas, source: CasNatif): void {
+  cas.regles = source.regles.map((r): RegleCas => {
+    if (r.type === 'locuteur') return { type: 'personne', personneId: r.locuteurId, inclureEnqueteurs: r.inclureEnqueteurs }
+    if (r.type === 'locuteurs') return { type: 'personnes', membres: r.membres.map((m) => ({ personneId: m.locuteurId, inclureEnqueteurs: m.inclureEnqueteurs })) }
+    if (r.type === 'modalite' && r.portee === 'participation') return { ...r, portee: 'locuteur' }
+    return r
+  })
+  cas.modifieLe = source.modifieLe
 }
 
 /** Regroupe les identités sans propager de données locales. */
 export function fusionnerPersonnes(corpus: CorpusFichier, entretiens: EntreeMatrice[], conserverId: string, absorberId: string): void {
-  const conservee = corpus.personnes[conserverId]
-  const absorbee = corpus.personnes[absorberId]
-  if (!conservee || !absorbee || conserverId === absorberId) throw new Error('Choisissez deux personnes distinctes existantes.')
   const appartient = (ref: string | null) => ref === conserverId || ref === absorberId
-  for (const e of entretiens) {
-    if (e.data.locuteurs.filter(l => appartient(l.personneRef)).length > 1) {
-      throw new Error(`Réunion impossible : plusieurs locuteurs seraient associés à la même personne dans « ${e.titre} ». Modifiez leurs associations avant de les réunir.`)
-    }
-  }
-  const membres = new Set(entretiens.flatMap(e => e.data.locuteurs.filter(l => appartient(l.personneRef)).map(l => `locuteur:${l.id}`)))
-  for (const e of entretiens) for (const l of e.data.locuteurs) {
-    if (appartient(l.personneRef)) l.personneRef = conserverId
-    if (l.rapprochementsRefuses) {
-      l.rapprochementsRefuses = [...new Set(l.rapprochementsRefuses
-        .map(r => r === `personne:${absorberId}` ? `personne:${conserverId}` : r)
-        .filter(r => l.personneRef !== conserverId || (r !== `personne:${conserverId}` && !membres.has(r))))]
-    }
-  }
-  for (const cas of Object.values(corpus.cas ?? {})) {
-    const membres = cas.regles.flatMap(membresPersonnesRegle)
-    if (!membres.some((membre) => membre.personneId === absorberId)) continue
-    const reunis = new Map<string, MembrePersonneCas>()
-    for (const membre of membres) {
-      const id = membre.personneId === absorberId ? conserverId : membre.personneId
-      const precedent = reunis.get(id)
-      reunis.set(id, { personneId: id, inclureEnqueteurs: membre.inclureEnqueteurs || precedent?.inclureEnqueteurs === true })
-    }
-    // L’union conserve une inclusion des enquêteurs demandée par l’une des règles.
-    cas.regles = [{ type: 'personnes', membres: [...reunis.values()] }]
-    cas.modifieLe = new Date().toISOString()
-  }
-  delete corpus.personnes[absorberId]
+  const membres = new Set(entretiens.flatMap((e) => e.data.locuteurs.filter((l) => appartient(l.personneRef)).map((l) => `locuteur:${l.id}`)))
+  const modeles = entretiens.map((e) => ({ ...associationsEntretienFormat9(e.data), id: e.id, titre: e.titre }))
+  const casNatifs = Object.fromEntries(Object.entries(corpus.cas ?? {}).map(([id, cas]) => [id, lireCasFormat9(cas)]))
+  const casModifies = Object.entries(corpus.cas ?? {}).filter(([, cas]) =>
+    cas.regles.some((r) => membresPersonnesRegle(r).some((m) => m.personneId === absorberId)))
+  regrouperLocuteurs({ locuteurs: corpus.personnes, cas: casNatifs }, modeles, conserverId, absorberId)
+  for (const modele of modeles) modele.appliquer()
+  reconcilierRefusFormat9(entretiens, conserverId, new Set([absorberId]), membres)
+  for (const [id, cas] of casModifies) reporterReglesCasFormat9(cas, casNatifs[id])
 }
 
 /** Crée une identité avec une partie des locuteurs d'une personne existante. */
@@ -176,44 +159,24 @@ export function separerPersonne(
   nom: string,
   selection: LocuteurASeparer[],
 ): Personne {
-  if (!corpus.personnes[personneId]) throw new Error('Cette personne n’existe plus.')
-  if (!selection.length) throw new Error('Choisissez au moins un locuteur à séparer.')
-  const cles = selection.map((locuteur) => `${locuteur.entretienId}\0${locuteur.locuteurId}`)
-  if (new Set(cles).size !== cles.length) throw new Error('La sélection contient plusieurs fois le même locuteur.')
-  if (new Set(selection.map((locuteur) => locuteur.entretienId)).size !== selection.length) {
-    throw new Error('Une personne ne peut pas recevoir plusieurs locuteurs du même entretien.')
-  }
-  const membres = entretiens.flatMap((entretien) => entretien.data.locuteurs
-    .filter((locuteur) => locuteur.personneRef === personneId)
-    .map((locuteur) => ({ entretien, locuteur })))
-  const parCle = new Map(membres.map((membre) => [
-    `${membre.entretien.id}\0${membre.locuteur.id}`,
-    membre,
-  ]))
-  const choisis = cles.map((cle) => parCle.get(cle))
-  if (choisis.some((membre) => !membre)) {
-    throw new Error('Un locuteur sélectionné n’est plus associé à cette personne.')
-  }
-  if (selection.length >= membres.length) {
-    throw new Error('Laissez au moins un locuteur sur la personne d’origine.')
-  }
-  const nouvelle = creerPersonne(corpus, nouvelleId, nom)
-  for (const membre of choisis) {
-    membre!.locuteur.personneRef = nouvelle.id
-    delete membre!.locuteur.personneDeliee
-  }
+  const modeles = entretiens.map((e) => ({ ...associationsEntretienFormat9(e.data), id: e.id, titre: e.titre }))
+  const nouvelle = separerLocuteur({ locuteurs: corpus.personnes }, modeles, personneId, nouvelleId, nom,
+    selection.map((p) => ({ entretienId: p.entretienId, participationId: p.locuteurId })))
+  for (const modele of modeles) modele.appliquer()
   return nouvelle
 }
 
 /** Une lecture incomplète ne permet pas de prouver qu'une personne est vide. */
 export function supprimerPersonneVide(corpus: CorpusFichier, inventaire: InventairePersonnes, id: string): void {
-  if (inventaire.indisponibles.length) throw new Error('Suppression impossible : certains entretiens sont illisibles.')
-  if (!corpus.personnes?.[id]) throw new Error('Cette personne n’existe plus.')
-  if (inventaire.locuteurs.some((l) => l.personneRef === id)) throw new Error('Déliez les locuteurs avant de supprimer cette personne.')
-  const casDependants = Object.values(corpus.cas ?? {}).filter((cas) =>
-    cas.regles.some((regle) => membresPersonnesRegle(regle).some((membre) => membre.personneId === id)))
-  if (casDependants.length) {
-    throw new Error(`Cette personne est utilisée par les règles des cas : ${casDependants.map((cas) => cas.nom).join(', ')}. Traitez ces cas avant de la supprimer.`)
-  }
-  delete corpus.personnes[id]
+  supprimerLocuteurVide({
+    locuteurs: corpus.personnes ?? {},
+    cas: Object.fromEntries(Object.entries(corpus.cas ?? {}).map(([cle, cas]) => [cle, lireCasFormat9(cas)])),
+  }, {
+    indisponibles: inventaire.indisponibles,
+    participations: inventaire.locuteurs.map((p) => ({
+      locuteurRef: p.personneRef,
+      rapprochementsRefuses: p.rapprochementsRefuses?.filter((r) => r.startsWith('personne:'))
+        .map((r) => ({ type: 'locuteur' as const, locuteurId: r.slice('personne:'.length) })),
+    })),
+  }, id)
 }

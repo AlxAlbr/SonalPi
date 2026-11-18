@@ -5,10 +5,10 @@ import { snapBornes } from '../../editor/snap'
 import {
   ajouterLocuteur,
   nomDeLocuteur,
-  renommerLocuteur,
-  supprimerLocuteur,
 } from '../../../shared/entretien/locuteurs'
 import type { Inverse } from '../../../shared/entretien/journal'
+import { participationParId, renommerParticipation as renommerNomParticipation, supprimerParticipation } from '../../../shared/entretien/participations'
+import type { ReferenceParticipation } from '../../../shared/locuteurs'
 import type { Locuteur } from '../../../shared/format'
 import type { VueLocuteurPersonne } from '../../../shared/corpus/personnes'
 import {
@@ -53,7 +53,7 @@ export function useLocuteursEntretien(deps: {
   const messagePersonnes = ref('')
   const rapprochementNommage = ref<RapprochementNommage | null>(null)
   const rapprochementOccupe = ref(false)
-  const locuteurASupprimer = ref<{ index: number; nom: string; nbBlocs: number } | null>(null)
+  const locuteurASupprimer = ref<{ reference: ReferenceParticipation; nom: string; nbBlocs: number } | null>(null)
   let nommagesPersonnes = Promise.resolve()
 
   function mettreAJourSelection(vide: boolean) {
@@ -65,6 +65,11 @@ export function useLocuteursEntretien(deps: {
     messagePersonnes.value = ''
     rapprochementNommage.value = null
     locuteurASupprimer.value = null
+  }
+
+  function participationCourante(reference: ReferenceParticipation) {
+    if (reference.entretienId !== deps.ouvertId.value || deps.lectureSeule?.()) return undefined
+    return participationParId(deps.locuteurs.value, reference.participationId)
   }
 
   function attribuerLoc(loc: number | null) {
@@ -220,7 +225,7 @@ export function useLocuteursEntretien(deps: {
         ) {
           throw new Error('Les données locales ont changé. La personne source est conservée ; rouvrez le dialogue pour vérifier la reprise.')
         }
-        if (reprise) reprendreDonneesLocuteur(cible, { ...source, id: source.locuteurId }, reprise)
+        if (reprise) reprendreDonneesLocuteur(cible, source, reprise)
         cible.personneRef = id
         delete cible.personneDeliee
         messagePersonnes.value = reprise
@@ -324,38 +329,41 @@ export function useLocuteursEntretien(deps: {
     })
   }
 
-  function renommerLoc(index: number, event: Event) {
+  function renommerParticipation(reference: ReferenceParticipation, event: Event) {
+    const cible = participationCourante(reference)
+    if (!cible) return
     const nouveau = (event.target as HTMLInputElement).value
-    const ancien = deps.locuteurs.value.find((locuteur) => locuteur.index === index)?.nom
-    renommerLocuteur(deps.locuteurs.value, index, nouveau)
-    if (ancien !== undefined && ancien !== nouveau) {
+    const ancien = cible.nom
+    renommerNomParticipation(deps.locuteurs.value, reference.participationId, nouveau)
+    if (ancien !== nouveau) {
       deps.effets.enregistrerAction(
         `Locuteur renommé : ${ancien} → ${nouveau}`,
-        { type: 'renommerLocuteur', index, nom: ancien },
+        { type: 'renommerParticipation', reference: { ...reference }, nom: ancien },
       )
       deps.effets.rafraichirJournal()
     }
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
-    if (ancien !== undefined && ancien !== nouveau) proposerIdentite(index, nouveau)
+    if (ancien !== nouveau) proposerIdentite(cible.index, nouveau)
   }
 
   function nouveauLocuteur() {
+    if (!deps.ouvertId.value || deps.lectureSeule?.()) return
     ajouterLocuteur(deps.locuteurs.value, 'Nouveau locuteur')
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
   }
 
-  function setInterviewer(index: number, actif: boolean) {
-    const locuteur = deps.locuteurs.value.find((candidat) => candidat.index === index)
+  function setInterviewer(reference: ReferenceParticipation, actif: boolean) {
+    const locuteur = participationCourante(reference)
     if (!locuteur || (locuteur.interviewer ?? false) === actif) return
     locuteur.interviewer = actif
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
   }
 
-  function setPseudoLoc(index: number, pseudo: string) {
-    const locuteur = deps.locuteurs.value.find((candidat) => candidat.index === index)
+  function setPseudoLoc(reference: ReferenceParticipation, pseudo: string) {
+    const locuteur = participationCourante(reference)
     if (!locuteur) return
     const pseudoNormalise = pseudo.trim()
     if (pseudoNormalise) locuteur.pseudo = pseudoNormalise
@@ -367,8 +375,8 @@ export function useLocuteursEntretien(deps: {
     deps.effets.planifierSauvegarde()
   }
 
-  function choisirCouleurLoc(index: number, couleur: string) {
-    const locuteur = deps.locuteurs.value.find((candidat) => candidat.index === index)
+  function choisirCouleurLoc(reference: ReferenceParticipation, couleur: string) {
+    const locuteur = participationCourante(reference)
     if (!locuteur) return
     if (couleur) locuteur.couleur = couleur
     else delete locuteur.couleur
@@ -376,43 +384,52 @@ export function useLocuteursEntretien(deps: {
     deps.effets.planifierSauvegarde()
   }
 
-  function supprimerLocuteurSilencieux(index: number) {
-    const editeur = deps.lireEditeur()
-    if (!editeur) return
-    const locuteurId = deps.locuteurs.value.find((locuteur) => locuteur.index === index)?.id
+  function supprimerParticipationCourante(reference: ReferenceParticipation) {
+    const editeur = deps.lireEditeur(), cible = participationCourante(reference)
+    if (!editeur || !cible || deps.locuteurs.value.filter((p) => p.index === cible.index).length !== 1) return
     const transaction = editeur.state.tr
     editeur.state.doc.forEach((node, offset) => {
-      if (node.type.name === 'paragraph' && node.attrs.loc === index) {
+      if (node.type.name === 'paragraph' && node.attrs.loc === cible.index) {
         transaction.setNodeMarkup(offset, undefined, { ...node.attrs, loc: null })
       }
     })
     if (transaction.steps.length) editeur.view.dispatch(transaction)
-    supprimerLocuteur(deps.locuteurs.value, index)
-    if (locuteurId) deps.effets.retirerLocuteurDesNotes(locuteurId)
+    supprimerParticipation(deps.locuteurs.value, reference.participationId)
+    deps.effets.retirerLocuteurDesNotes(reference.participationId)
     locuteurASupprimer.value = null
     deps.effets.rafraichirProjections()
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
   }
 
-  function demanderSuppressionLocuteur(index: number) {
-    const editeur = deps.lireEditeur()
-    const locuteur = deps.locuteurs.value.find((candidat) => candidat.index === index)
-    if (!editeur || !locuteur) return
+  function bilanSuppression(reference: ReferenceParticipation) {
+    const editeur = deps.lireEditeur(), cible = participationCourante(reference)
+    if (!editeur || !cible) return undefined
     let nbBlocs = 0
     editeur.state.doc.forEach((node) => {
-      if (node.type.name === 'paragraph' && node.attrs.loc === index) nbBlocs++
+      if (node.type.name === 'paragraph' && node.attrs.loc === cible.index) nbBlocs++
     })
-    if (nbBlocs === 0) {
-      supprimerLocuteurSilencieux(index)
-      return
-    }
-    locuteurASupprimer.value = { index, nom: locuteur.nom, nbBlocs }
+    return { reference: { ...reference }, nom: cible.nom, nbBlocs }
+  }
+
+  function demanderSuppressionLocuteur(reference: ReferenceParticipation) {
+    const bilan = bilanSuppression(reference)
+    if (!bilan) return
+    if (bilan.nbBlocs === 0) supprimerParticipationCourante(reference)
+    else locuteurASupprimer.value = bilan
   }
 
   function confirmerSuppressionLocuteur() {
-    const cible = locuteurASupprimer.value
-    if (cible) supprimerLocuteurSilencieux(cible.index)
+    const demande = locuteurASupprimer.value
+    if (!demande) return
+    const bilan = bilanSuppression(demande.reference)
+    if (!bilan) { locuteurASupprimer.value = null; return }
+    if (bilan.nom !== demande.nom || bilan.nbBlocs !== demande.nbBlocs) {
+      locuteurASupprimer.value = bilan
+      messagePersonnes.value = 'Les interventions ont changé. Vérifiez le bilan avant de confirmer à nouveau la suppression.'
+      return
+    }
+    supprimerParticipationCourante(demande.reference)
   }
 
   return {
@@ -424,7 +441,7 @@ export function useLocuteursEntretien(deps: {
     mettreAJourSelection,
     reinitialiser,
     attribuerLoc,
-    renommerLoc,
+    renommerParticipation,
     reporterRapprochement,
     deciderRapprochement,
     nouveauLocuteur,

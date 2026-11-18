@@ -6,6 +6,7 @@ import type { Recueil } from './corpus/recueils'
 import type { Cas, FamilleCas, DefinitionAttributCas } from './corpus/cas'
 import type { TableauBord } from './corpus/tableaubord'
 import type { TraitementsLexico } from './lexico/types'
+import type { Locuteur as IdentiteLocuteur, ParticipationLocuteur } from './locuteurs'
 
 /**
  *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
@@ -372,34 +373,15 @@ export interface VerrouTenuParAutrui {
 
 
 
-/** Identité transverse facultative, indépendante des noms locaux et des pseudonymes. */
-export interface Personne {
-  id: string
-  nom: string
-}
+/** Nom de l'identité corpus dans le format natif 9. */
+export type Personne = IdentiteLocuteur
 
-/** Locuteur : indexé par entretien — le `loc` d'un bloc référence cet index. */
-export interface Locuteur {
+/** Noms de champs de la participation dans le format natif 9. */
+export interface Locuteur extends Omit<ParticipationLocuteur,
+  'id' | 'locuteurRef' | 'associationRetiree' | 'rapprochementsRefuses'> {
   /** Identité stable utilisée pour rapprocher plusieurs versions d'un entretien.
    *  Absente dans les anciens fichiers jusqu'à leur prochaine édition. */
   id?: string
-  index: number
-  nom: string
-  /** Interviewer (celui qui pose les questions) : tours affichés en italique.
-   *  Le « ? » porté par le nom est un artefact de format, réintroduit à
-   *  l'export seulement (comme `l="all"` EAV). Champ ADDITIF optionnel. */
-  interviewer?: boolean
-  /** Pseudonymise l'ÉTIQUETTE du locuteur : le tour s'affiche « Nom [Pseudo] »
-   *  (même idiome CSS que le texte anon). Champ ADDITIF optionnel. */
-  pseudo?: string
-  /** Couleur du NOM du locuteur dans l'éditeur. Absente = couleur auto par index (PALETTE_PASTILLES_LOCUTEURS) ;
-   *  champ ADDITIF optionnel. */
-  couleur?: string
-  /** Décision persistée sur la pseudonymisation du libellé : 'confirme'
-   *  (pseudo affiché) ou 'refuse' (libellé en clair + ⊘). Absent = aucune
-   *  décision ; le « suggéré » est une requête, jamais stockée. */
-  pseudoEtat?: 'confirme' | 'refuse'
-  valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
   /** Une déliaison volontaire interdit la recréation automatique au nommage. */
   personneDeliee?: boolean
@@ -473,19 +455,7 @@ export type ResultatSuppression =
   | { ok: false; usages: number }
 
 
-/** Cible d'une valeur EAV posée depuis la table de données : portée entretien,
- *  ou un locuteur donné (par son index). */
-export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
-
-/** Un item du LOT « modifier en lot » : UNE valeur EAV à poser dans un entretien.
- *  Cible entretien uniquement pour l'instant : les locuteurs diffèrent d'un entretien à l'autre. */
-export interface ItemLotValeur {
-  entretienId: string
-  cible: CibleValeur
-  idVar: string
-  /** '' = effacer la valeur (même sémantique que `poserValeur`). */
-  idMod: string
-}
+export type { CibleValeur, ItemLotValeur } from './corpus/valeursVariables'
 
 /** Retour du lot : succès par entretien (un seul cycle par fichier, même avec plusieurs valeurs) ;
  *  échecs nommés, raison affichable telle quelle. Un échec ponctuel ne bloque jamais les autres entretiens du lot. */
@@ -542,12 +512,12 @@ export interface SegmentThematique {
   codes: string[]
 }
 
-/** Matrice corpus (requête, jamais stockée) : par entretien, valeurs de portée entretien, et celles de ses locuteurs — le renderer aplatit tout en lignes pour la table de données. */
+/** Matrice calculée par entretien ; les ids locaux sont transmis tels qu'ils sont enregistrés. */
 export interface MatriceEntree {
   entretienId: string
   titre: string
   valeursGen: Record<string, string>
-  locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
+  participations: { participationId: string | null; index: number; nom: string; valeursLoc: Record<string, string> }[]
 }
 export type MatriceCorpus = MatriceEntree[]
 

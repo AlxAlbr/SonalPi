@@ -1,13 +1,7 @@
 import type { Locuteur } from '../format'
 
-/**
- *  Locuteurs d'un entretien. Le `loc` d'un bloc RÉFÉRENCE un locuteur par son
- *  `index` (numérique, par entretien — l'exception assumée à l'identité
- *  opaque : sous verrou il n'y a qu'un écrivain, et c'est ce que le `.sonal`
- *  référence). Renommer = éditer l'entrée ; les blocs, qui ne portent que
- *  l'index, ne sont pas touchés (référence, pas copie).
- *
- *  Fonctions pures : aucun DOM, aucun ProseMirror — testables headless.
+/** Helpers d'attribution de parole et d'affichage dans un entretien.
+ *  Les paragraphes référencent l'index local ; les commandes de participation utilisent l'id stable.
  */
 
 /** Nom d'un locuteur par index (fallback lisible si inconnu / non attribué). */
@@ -21,18 +15,12 @@ export function prochainIndex(locuteurs: Locuteur[]): number {
   return locuteurs.reduce((m, l) => Math.max(m, l.index), 0) + 1
 }
 
-/** Renomme un locuteur (répercuté partout par référence — aucun bloc modifié). */
-export function renommerLocuteur(locuteurs: Locuteur[], index: number, nom: string): void {
-  const l = locuteurs.find((x) => x.index === index)
-  if (l) l.nom = nom
-}
-
-/** Génère l'identité opaque d'un nouveau locuteur. */
+/** Génère l'id opaque d'une nouvelle participation. */
 export function genIdLocuteur(): string {
   return `loc-${globalThis.crypto.randomUUID()}`
 }
 
-/** Ajoute un locuteur avec une identité stable et le prochain index libre. */
+/** Ajoute une participation avec son id stable et le prochain index libre. */
 export function ajouterLocuteur(
   locuteurs: Locuteur[],
   nom: string,
@@ -47,14 +35,6 @@ export function ajouterLocuteur(
   }
   locuteurs.push(l)
   return l
-}
-
-/** Retire un locuteur de la liste.
- *  Les blocs qui le référencent doivent être désattribués (loc → null)
- *  par l'appelant — le module ignore l'éditeur. */
-export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
-  const i = locuteurs.findIndex((l) => l.index === index)
-  if (i !== -1) locuteurs.splice(i, 1)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,13 +63,7 @@ export interface LibelleGouttiere {
   couleur: string
 }
 
-/**
- *  Palette PRÉDÉFINIE des pastilles de locuteur (parité visuelle des pastilles
- *  de thème, mais ici auto-remplie — pas de codebook). Une couleur stable par
- *  INDEX (l'identité que les blocs référencent) : renommer un locuteur ne
- *  change pas sa couleur ; la suppression d'un locuteur fait remonter les
- *  couleurs des suivants (l'index est la seule identité du modèle).
- */
+/** La couleur automatique dépend de l'index local, pas du nom ni de l'identité corpus. */
 export const PALETTE_PASTILLES_LOCUTEURS = [
   '#e57373', // rouge doux
   '#64b5f6', // bleu

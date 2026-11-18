@@ -18,6 +18,7 @@ import type {
 import { referenceMediaDistant, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import { poserValeur } from '../../shared/corpus/requetes'
+import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
 import { analyserImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
@@ -532,6 +533,7 @@ export class TransactionsGitLab {
     entretienId: string,
     items: readonly ItemLotValeur[],
   ): Promise<void> {
+    validerLotValeur(items)
     if (items.some((item) => item.entretienId !== entretienId)) {
       throw new Error('Le lot de valeurs mélange plusieurs entretiens.')
     }
@@ -545,17 +547,13 @@ export class TransactionsGitLab {
           if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
             throw new Error(`La modalité « ${item.idMod} » n’existe plus sur GitLab.`)
           }
-          if (variable.portee !== item.cible.type) {
+          if ((variable.portee === 'locuteur' ? 'participation' : variable.portee) !== item.cible.type) {
             throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
           }
         }
-        if (item.cible.type === 'locuteur') {
-          const index = item.cible.index
-          if (!entretien.locuteurs.some((locuteur) => locuteur.index === index)) {
-            throw new Error(`Le locuteur ${index} n’existe plus dans cet entretien.`)
-          }
+        if (!poserValeur(entretien, item.cible, item.idVar, item.idMod)) {
+          throw new Error('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
         }
-        poserValeur(entretien, item.cible, item.idVar, item.idMod)
       }
     })
   }

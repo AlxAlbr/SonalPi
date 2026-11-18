@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { TourLocuteurCorpus } from '../../../../shared/corpus/locuteursCorpus'
+import type { TourLocuteurCorpus } from '../../../../shared/corpus/repertoireLocuteurs'
 
 const props = defineProps<{
   titre: string

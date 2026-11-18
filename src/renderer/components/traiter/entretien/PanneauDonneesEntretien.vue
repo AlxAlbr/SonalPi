@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import EditionVariables from '../partages/donnees/EditionVariables.vue'
+import type { CibleValeur } from '../../../../shared/corpus/valeursVariables'
 
 defineProps<{ lectureSeule: boolean }>()
 
@@ -10,10 +11,10 @@ const {
   varsLoc,
   meta,
   locuteurs,
-  setValeurGen,
-  setValeurLoc,
+  ouvertId,
+  poserValeurEntretien,
+  poserValeurLibelleEntretien,
   modalitesDe,
-  modaliteParLibelle,
 } = utiliserSonal()
 
 const editerVariables = ref(false)
@@ -39,36 +40,25 @@ function ouvrirEdition() {
 }
 const AUTRE = ' autre'
 const celluleLibre = ref<string | null>(null)
-const cleGen = (idVar: string) => `gen|${idVar}`
-const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
+const cleValeur = (cible: CibleValeur, idVar: string) => JSON.stringify([ouvertId.value, cible, idVar])
+watch([ouvertId, locuteurs], () => { celluleLibre.value = null })
 
 function libelleCell(idVar: string, idMod: string | undefined): string {
   if (!idMod) return ''
   return modalitesDe(idVar).find((m) => m.id === idMod)?.lib ?? idMod
 }
 
-function surSelectGen(idVar: string, evt: Event) {
+function surSelect(cible: CibleValeur, idVar: string, evt: Event) {
+  const entretienId = ouvertId.value
+  if (!entretienId) return
   const val = (evt.target as HTMLSelectElement).value
-  if (val === AUTRE) celluleLibre.value = cleGen(idVar)
-  else setValeurGen(idVar, val)
+  if (val === AUTRE) celluleLibre.value = cleValeur(cible, idVar)
+  else poserValeurEntretien({ entretienId, cible, idVar, idMod: val })
 }
 
-function surSelectLoc(index: number, idVar: string, evt: Event) {
-  const val = (evt.target as HTMLSelectElement).value
-  if (val === AUTRE) celluleLibre.value = cleLoc(index, idVar)
-  else setValeurLoc(index, idVar, val)
-}
-
-async function surLibreGen(idVar: string, evt: Event) {
+function surLibre(cible: CibleValeur, idVar: string, evt: Event) {
   celluleLibre.value = null
-  const lib = (evt.target as HTMLInputElement).value.trim()
-  setValeurGen(idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
-}
-
-async function surLibreLoc(index: number, idVar: string, evt: Event) {
-  celluleLibre.value = null
-  const lib = (evt.target as HTMLInputElement).value.trim()
-  setValeurLoc(index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
+  return poserValeurLibelleEntretien(cible, idVar, (evt.target as HTMLInputElement).value.trim())
 }
 
 /** Focalise uniquement le champ ouvert avec l'option « autre… ». */
@@ -121,15 +111,15 @@ function focaliserLibre(el: unknown, cle: string) {
       <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
         <span class="saisie-eav-lib">{{ v.lib }}</span>
         <input
-          v-if="v.modalites.length === 0 || celluleLibre === cleGen(v.id)"
+          v-if="v.modalites.length === 0 || celluleLibre === cleValeur({ type: 'entretien' }, v.id)"
           class="saisie-eav-libre"
           placeholder="texte libre"
           :disabled="lectureSeule"
-          :value="celluleLibre === cleGen(v.id) ? '' : libelleCell(v.id, meta.valeursGen[v.id])"
-          :ref="(el) => focaliserLibre(el, cleGen(v.id))"
+          :value="celluleLibre === cleValeur({ type: 'entretien' }, v.id) ? '' : libelleCell(v.id, meta.valeursGen[v.id])"
+          :ref="(el) => focaliserLibre(el, cleValeur({ type: 'entretien' }, v.id))"
           @keyup.enter="($event.target as HTMLInputElement).blur()"
           @keyup.esc="celluleLibre = null"
-          @change="surLibreGen(v.id, $event)"
+          @change="surLibre({ type: 'entretien' }, v.id, $event)"
           @blur="celluleLibre = null"
         />
         <select
@@ -137,7 +127,7 @@ function focaliserLibre(el: unknown, cle: string) {
           class="saisie-eav-sel"
           :disabled="lectureSeule"
           :value="meta.valeursGen[v.id] ?? ''"
-          @change="surSelectGen(v.id, $event)"
+          @change="surSelect({ type: 'entretien' }, v.id, $event)"
         >
           <option value="">—</option>
           <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>
@@ -149,28 +139,28 @@ function focaliserLibre(el: unknown, cle: string) {
 
     <template v-else>
       <template v-if="varsLoc().length && locuteurs.length">
-        <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
+        <div v-for="l in locuteurs" :key="l.id ? `id:${l.id}` : `index:${l.index}`" class="fiche-loc">
           <div class="fiche-loc-nom">{{ l.nom }}</div>
           <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
             <span class="saisie-eav-lib">{{ v.lib }}</span>
             <input
-              v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
+              v-if="v.modalites.length === 0 || celluleLibre === cleValeur({ type: 'participation', participationId: l.id ?? '' }, v.id)"
               class="saisie-eav-libre"
               placeholder="texte libre"
-              :disabled="lectureSeule"
-              :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
-              :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
+              :disabled="lectureSeule || !l.id"
+              :value="celluleLibre === cleValeur({ type: 'participation', participationId: l.id ?? '' }, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
+              :ref="(el) => focaliserLibre(el, cleValeur({ type: 'participation', participationId: l.id ?? '' }, v.id))"
               @keyup.enter="($event.target as HTMLInputElement).blur()"
               @keyup.esc="celluleLibre = null"
-              @change="surLibreLoc(l.index, v.id, $event)"
+              @change="surLibre({ type: 'participation', participationId: l.id ?? '' }, v.id, $event)"
               @blur="celluleLibre = null"
             />
             <select
               v-else
               class="saisie-eav-sel"
-              :disabled="lectureSeule"
+              :disabled="lectureSeule || !l.id"
               :value="l.valeursLoc[v.id] ?? ''"
-              @change="surSelectLoc(l.index, v.id, $event)"
+              @change="surSelect({ type: 'participation', participationId: l.id ?? '' }, v.id, $event)"
             >
               <option value="">—</option>
               <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>

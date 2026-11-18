@@ -1,5 +1,7 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
-import type { Categorie, EntretienFichier, EntretienRef, Personne, Variable } from '../../../shared/format'
+import type { Categorie, EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
+import type { Locuteur } from '../../../shared/locuteurs'
+import { lireEntretienCasFormat9 } from '../../../shared/natif/lectureCasFormat9'
 import type { Cas } from '../../../shared/corpus/cas'
 import { calculerExtraitsSynthese } from '../../../shared/synthese/moteur'
 import { nombreCriteresSynthese, resumerFiltresSynthese } from '../../../shared/synthese/resume'
@@ -9,13 +11,13 @@ import {
   type ExtraitSyntheseBrut,
   type FiltresSynthese,
 } from '../../../shared/synthese/types'
-import { projeterCasDepuisSourcesPreparees } from '../../editor/cas'
+import { projeterCasDepuisSourcesPreparees } from '../../editor/casFormat9'
 import { type ModeTextePassage, type SourcePassagePreparee } from '../../editor/passages'
 import { diagnosticsValeursSynthese, projeterExtraitsSynthese, sourceMoteurSynthese } from '../../editor/synthese'
 import type { SourcesAnalyseCorpus } from './useSourcesAnalyseCorpus'
 
 /** Dimension de critères affichée dans la colonne de gauche de l'espace. */
-export type OngletCriteresSynthese = 'entretiens' | 'variables' | 'personnes' | 'themes' | 'cas'
+export type OngletCriteresSynthese = 'entretiens' | 'variables' | 'locuteurs' | 'themes' | 'cas'
 
 /** Porte une session Synthèse et conserve un résultat immuable jusqu'au prochain calcul. */
 export function useSyntheseCorpus(deps: {
@@ -34,7 +36,7 @@ export function useSyntheseCorpus(deps: {
   /** Onglet de critères courant ; état de vue, réinitialisé avec le corpus. */
   const ongletCriteresSynthese = ref<OngletCriteresSynthese>('themes')
   const casDisponiblesSynthese = computed(() => Object.keys(deps.cas.value).length > 0)
-  const ongletsCriteresSynthese = computed(() => (['entretiens', 'variables', 'personnes', 'themes', 'cas'] as const)
+  const ongletsCriteresSynthese = computed(() => (['entretiens', 'variables', 'locuteurs', 'themes', 'cas'] as const)
     .filter((onglet) => onglet !== 'cas' || casDisponiblesSynthese.value))
   watch(casDisponiblesSynthese, (disponibles) => {
     if (!disponibles && ongletCriteresSynthese.value === 'cas') ongletCriteresSynthese.value = 'themes'
@@ -42,7 +44,7 @@ export function useSyntheseCorpus(deps: {
   const modeTexteSynthese = ref<ModeTextePassage>('pseudonymise')
   const representationSynthese = ref<'ensemble' | 'extraits'>('ensemble')
   const selectionExtraitSynthese = ref<string | null>(null)
-  const personnesSynthese = ref<Personne[]>([])
+  const locuteursSynthese = ref<Locuteur[]>([])
   const entretiensCalculSynthese = ref<Array<{ id: string; titre: string; longueurSource: number | null }>>([])
   const extraitsBrutsSynthese = ref<ExtraitSyntheseBrut[]>([])
   const sourcesSynthese = ref<Map<string, SourcePassagePreparee>>(new Map())
@@ -73,10 +75,13 @@ export function useSyntheseCorpus(deps: {
   ))
   const entretiensAvecExtraitsSynthese = computed(() => new Set(extraitsBrutsSynthese.value.map((item) => item.entretienId)).size)
   const volumeTexteSynthese = computed(() => extraitsBrutsSynthese.value.reduce((total, item) => total + item.to - item.from, 0))
+  const variablesSynthese = computed(() => deps.variables.value.map((variable) => ({
+    ...variable, portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee,
+  })))
   const contexteResume = computed(() => ({
     entretiens: Object.entries(deps.membership.value).map(([id, item]) => ({ id, nom: item.titre })),
-    variables: deps.variables.value,
-    personnes: personnesSynthese.value,
+    variables: variablesSynthese.value,
+    locuteurs: locuteursSynthese.value,
     themes: deps.codebook.value,
     cas: Object.values(deps.cas.value),
   }))
@@ -93,11 +98,11 @@ export function useSyntheseCorpus(deps: {
     chargementSynthese.value = true
     try {
       const diagnostics: DiagnosticSynthese[] = []
-      let personnes: Personne[] = []
+      let locuteurs: Locuteur[] = []
       try {
-        personnes = (await window.sonal.corpus.personnesInventaire()).personnes
+        locuteurs = (await window.sonal.corpus.personnesInventaire()).personnes
       } catch (erreur) {
-        diagnostics.push({ titre: 'Personnes', message: erreur instanceof Error ? erreur.message : String(erreur) })
+        diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }
       const toutesEntrees = Object.entries(deps.membership.value)
       const idsDemandes = filtresSynthese.value.entretiens.mode === 'choix'
@@ -115,11 +120,12 @@ export function useSyntheseCorpus(deps: {
           diagnostics.push({ entretienId: id, titre: reference.titre, message: source?.raison ?? 'Source indisponible.' })
           continue
         }
-        sources.push(sourceMoteurSynthese(id, reference, source, ordre))
-        const erreurs = diagnosticsValeursSynthese(source, deps.variables.value)
+        const lectureSynthese = { doc: source.doc, data: lireEntretienCasFormat9(source.data) }
+        sources.push(sourceMoteurSynthese(id, reference, lectureSynthese, ordre))
+        const erreurs = diagnosticsValeursSynthese(lectureSynthese, variablesSynthese.value)
         if (erreurs.length) diagnostics.push({ entretienId: id, titre: reference.titre, message: `Valeur(s) de variable invalide(s) : ${erreurs.join(', ')}.` })
       }
-      const personnesParId = Object.fromEntries(personnes.map((personne) => [personne.id, personne]))
+      const locuteursParId = Object.fromEntries(locuteurs.map((locuteur) => [locuteur.id, locuteur]))
       const variablesParId = Object.fromEntries(deps.variables.value.map((variable) => [variable.id, variable]))
       const plagesCas: Record<string, Array<{ entretienId: string; from: number; to: number }>> = {}
       const choixCas = filtresSynthese.value.cas.mode === 'choix' ? filtresSynthese.value.cas.ids : []
@@ -130,7 +136,7 @@ export function useSyntheseCorpus(deps: {
           continue
         }
         const copieCas = JSON.parse(JSON.stringify(cas)) as Cas
-        const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, personnes: personnesParId, variables: variablesParId }, copieCas, preparees, 'pseudonymise')
+        const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, personnes: locuteursParId, variables: variablesParId }, copieCas, preparees, 'pseudonymise')
         plagesCas[id] = projection.passages.flatMap((passage) => {
           if (passage.etat !== 'disponible' || passage.from === null || passage.to === null) {
             diagnostics.push({ titre: cas.nom, message: passage.diagnostic ?? 'Un matériau du cas est indisponible.' })
@@ -148,9 +154,9 @@ export function useSyntheseCorpus(deps: {
         const source = preparees.get(id)
         return [{ id, titre: reference.titre, longueurSource: source?.ok ? source.doc.content.size : null }]
       })
-      extraitsBrutsSynthese.value = calculerExtraitsSynthese(sources, appliques, { variables: deps.variables.value, cas: plagesCas })
+      extraitsBrutsSynthese.value = calculerExtraitsSynthese(sources, appliques, { variables: variablesSynthese.value, cas: plagesCas })
       sourcesSynthese.value = preparees
-      personnesSynthese.value = personnes
+      locuteursSynthese.value = locuteurs
       diagnosticsSynthese.value = diagnostics
       filtresAppliques.value = appliques
       calculeLeSynthese.value = new Date()
@@ -175,7 +181,7 @@ export function useSyntheseCorpus(deps: {
     modeTexteSynthese.value = 'pseudonymise'
     representationSynthese.value = 'ensemble'
     selectionExtraitSynthese.value = null
-    personnesSynthese.value = []
+    locuteursSynthese.value = []
     entretiensCalculSynthese.value = []
     extraitsBrutsSynthese.value = []
     sourcesSynthese.value = new Map()
@@ -199,7 +205,7 @@ export function useSyntheseCorpus(deps: {
     ongletCriteresSynthese, ongletsCriteresSynthese, casDisponiblesSynthese,
     filtreCasIndisponibleSynthese, retirerFiltreCasSynthese,
     modeTexteSynthese, representationSynthese, selectionExtraitSynthese,
-    personnesSynthese, entretiensCalculSynthese, extraitsSynthese, diagnosticsSynthese, resultatPerimeSynthese,
+    locuteursSynthese, entretiensCalculSynthese, extraitsSynthese, diagnosticsSynthese, resultatPerimeSynthese,
     calculeLeSynthese, entretiensAvecExtraitsSynthese, volumeTexteSynthese,
     lignesResumeSynthese, criteresActifsSynthese, calculSynthesePossible,
     exportSynthesePossible, actualiserSynthese,

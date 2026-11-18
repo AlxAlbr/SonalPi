@@ -28,8 +28,10 @@ export function projeterMembership(
   return projection
 }
 
+type CorpusAvecOrdre = Pick<CorpusFichier, 'membership' | 'ordreEntretiens'>
+
 /** Répare en mémoire l'ordre et les rangs des corpus anciens ou incomplets. */
-export function normaliserOrdreEntretiens(corpus: CorpusFichier): CorpusFichier {
+export function normaliserOrdreEntretiens<T extends CorpusAvecOrdre>(corpus: T): T {
   const idsMembership = Object.keys(corpus.membership)
   const vus = new Set<string>()
   const ordre: string[] = []
@@ -64,7 +66,7 @@ export function normaliserOrdreEntretiens(corpus: CorpusFichier): CorpusFichier 
 
 /** Ajoute un entretien à la fin sans réutiliser un rang supprimé. */
 export function ajouterEntretienOrdre(
-  corpus: CorpusFichier,
+  corpus: CorpusAvecOrdre,
   id: string,
   ref: EntretienRef,
 ): void {
@@ -79,7 +81,7 @@ export function ajouterEntretienOrdre(
 }
 
 /** Retire un entretien de l'appartenance et de l'ordre, sans renuméroter. */
-export function retirerEntretienOrdre(corpus: CorpusFichier, id: string): void {
+export function retirerEntretienOrdre(corpus: CorpusAvecOrdre, id: string): void {
   normaliserOrdreEntretiens(corpus)
   delete corpus.membership[id]
   corpus.ordreEntretiens = corpus.ordreEntretiens!.filter((courant) => courant !== id)

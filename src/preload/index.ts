@@ -59,8 +59,9 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
-import type { VueLocuteursCorpus } from '../shared/corpus/locuteursCorpus'
+import type { InventairePersonnes } from '../shared/corpus/personnes'
+import type { CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -410,7 +411,7 @@ contextBridge.exposeInMainWorld('sonal', {
       portee: 'entretien' | 'locuteur',
     ): Promise<{ id: string; corpus: CorpusFichier }> =>
       invoquer('corpus:ajouterVariable', lib, portee),
-    modifierVariable: (id: string, patch: Partial<Variable>): Promise<CorpusFichier> =>
+    modifierVariable: (id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>): Promise<CorpusFichier> =>
       invoquer('corpus:modifierVariable', id, patch),
     usagesDonnee: (idVar: string, idMod?: string, exceptId?: string): Promise<{ valeurs: number; cas: number }> =>
       invoquer('corpus:usagesDonnee', idVar, idMod, exceptId),

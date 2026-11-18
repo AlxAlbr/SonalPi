@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from 'vitest'
-import type { VueNoteCorpus } from '../src/shared/corpus/notes'
+import { etatNoteJournal, type VueNoteCorpus } from '../src/shared/corpus/notes'
 import { sanitiserCorpsNote } from '../src/renderer/notes/sanitiser'
 import {
   corpsNoteEnMarkdown,
@@ -21,7 +21,7 @@ function note(patch: Partial<VueNoteCorpus> = {}): VueNoteCorpus {
     date: '2025-01-03',
     statut: 'public' as const,
     corps: '',
-    locuteurIds: [],
+    participationIds: [],
     rang: 0,
     creeLe: '2025-01-01T10:00:00.000Z',
     modifieLe: null,
@@ -31,7 +31,7 @@ function note(patch: Partial<VueNoteCorpus> = {}): VueNoteCorpus {
     entretienId: 'entretien-1',
     entretienTitre: 'Entretien *A*',
     liensCommentaires: [],
-    attendu: base,
+    attendu: etatNoteJournal(base),
     ...patch,
   }
 }

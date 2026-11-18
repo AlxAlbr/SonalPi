@@ -22,7 +22,7 @@ import {
 import { projeterExtraitsSynthese } from '../src/renderer/editor/synthese'
 import { projeterCelluleAnalyseCroisee } from '../src/renderer/editor/analysesCroisees'
 import { extraireOccurrencesLexico } from '../src/renderer/editor/lexico'
-import { projeterCas } from '../src/renderer/editor/cas'
+import { projeterCas } from '../src/renderer/editor/casFormat9'
 import {
   entreeMatricePseudonymisation,
   EXCEPTION_TEXTE_SENTINELLE,
@@ -144,7 +144,7 @@ function sortiesPassages(): SortieMatrice[] {
         return JSON.stringify(projeterExtraitsSynthese([{
           id: 'x1', entretienId: 'e1', titreEntretien: 'Entretien synthétique',
           from: 1, to: fin, longueurSource: fin, themeIds: [], annotationIds: [],
-          locuteurIds: ['1'], personneIds: [], ordre: 0,
+          participationIds: ['1'], locuteurIds: [], ordre: 0,
         }], sources, 'pseudonymise'))
       },
     },
@@ -189,7 +189,12 @@ function sortiesPassages(): SortieMatrice[] {
       produire: (entree) => {
         const { data } = fichierEntretien(entree)
         return JSON.stringify(extraireOccurrencesLexico(
-          'e1', { titre: 'Entretien synthétique', date: null, lastModified: '' }, data,
+          'e1', { titre: 'Entretien synthétique', date: null, lastModified: '' }, {
+            corpsTexte: data.corpsTexte, annotations: data.annotations, meta: data.meta,
+            participations: data.locuteurs.map((p) => ({
+              index: p.index, locuteurRef: p.personneRef, interviewer: p.interviewer, valeursLoc: p.valeursLoc,
+            })),
+          },
         ))
       },
     },

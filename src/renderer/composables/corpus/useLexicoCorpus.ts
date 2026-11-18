@@ -1,5 +1,7 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
-import type { Categorie, EntretienFichier, EntretienRef, Personne, Variable } from '../../../shared/format'
+import type { Categorie, EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
+import type { Locuteur } from '../../../shared/locuteurs'
+import { lireEntretienCasFormat9 } from '../../../shared/natif/lectureCasFormat9'
 import type { Cas } from '../../../shared/corpus/cas'
 import { agregerOccurrencesLexico, selectionnerOccurrencesLexico } from '../../../shared/lexico/moteur'
 import { filtresLexicoParDefaut, type DiagnosticLexico, type FiltresLexico, type OccurrenceLexico, type PlageLexico, type TraitementsLexico } from '../../../shared/lexico/types'
@@ -7,7 +9,7 @@ import { appliquerTraitementsLexico, LISTES_MOTS_OUTILS, normaliserFormeLexico, 
 import { nombreCriteresLexico, resumerFiltresLexico } from '../../../shared/lexico/resume'
 import { extraireOccurrencesLexico } from '../../editor/lexico'
 import { preparerSourcesPassages, type SourcePassageChargee } from '../../editor/passages'
-import { projeterCasDepuisSourcesPreparees } from '../../editor/cas'
+import { projeterCasDepuisSourcesPreparees } from '../../editor/casFormat9'
 
 interface SourceLexico {
   id: string
@@ -16,7 +18,7 @@ interface SourceLexico {
 }
 
 /** Dimension de filtres affichée dans la colonne de gauche de l'espace. */
-export type OngletFiltresLexico = 'entretiens' | 'variables' | 'personnes' | 'themes' | 'cas'
+export type OngletFiltresLexico = 'entretiens' | 'variables' | 'locuteurs' | 'themes' | 'cas'
 
 /** Charge une session Lexico et dérive toutes ses vues du même index. */
 export function useLexicoCorpus(deps: {
@@ -34,13 +36,13 @@ export function useLexicoCorpus(deps: {
   const occurrencesLexico = ref<OccurrenceLexico[]>([])
   const diagnosticsSourcesLexico = ref<DiagnosticLexico[]>([])
   const diagnosticsCasLexico = ref<Record<string, DiagnosticLexico[]>>({})
-  const personnesLexico = ref<Personne[]>([])
+  const locuteursLexico = ref<Locuteur[]>([])
   const plagesCasLexico = ref<Record<string, PlageLexico[]>>({})
   const filtresLexico = ref<FiltresLexico>(filtresLexicoParDefaut())
   /** Onglet de filtres courant ; état de vue, réinitialisé avec le corpus. */
   const ongletFiltresLexico = ref<OngletFiltresLexico>('entretiens')
   const casDisponiblesLexico = computed(() => Object.keys(deps.cas.value).length > 0)
-  const ongletsFiltresLexico = computed(() => (['entretiens', 'variables', 'personnes', 'themes', 'cas'] as const)
+  const ongletsFiltresLexico = computed(() => (['entretiens', 'variables', 'locuteurs', 'themes', 'cas'] as const)
     .filter((onglet) => onglet !== 'cas' || casDisponiblesLexico.value))
   watch(casDisponiblesLexico, (disponibles) => {
     if (!disponibles && ongletFiltresLexico.value === 'cas') ongletFiltresLexico.value = 'entretiens'
@@ -57,8 +59,11 @@ export function useLexicoCorpus(deps: {
   const calculeLeLexico = ref<Date | null>(null)
   let generation = 0
 
+  const variablesLexico = computed(() => deps.variables.value.map((variable) => ({
+    ...variable, portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee,
+  })))
   const contexteSelection = computed(() => ({
-    variables: deps.variables.value,
+    variables: variablesLexico.value,
     cas: plagesCasLexico.value,
   }))
   const occurrencesTraiteesLexico = computed(() => appliquerTraitementsLexico(
@@ -85,8 +90,8 @@ export function useLexicoCorpus(deps: {
     new Set(occurrencesRetenuesLexico.value.map((occurrence) => occurrence.entretienId)).size)
   const contexteResumeLexico = computed(() => ({
     entretiens: Object.entries(deps.membership.value).map(([id, reference]) => ({ id, nom: reference.titre })),
-    variables: deps.variables.value,
-    personnes: personnesLexico.value,
+    variables: variablesLexico.value,
+    locuteurs: locuteursLexico.value,
     themes: deps.codebook.value,
     cas: Object.values(deps.cas.value),
   }))
@@ -140,13 +145,13 @@ export function useLexicoCorpus(deps: {
     chargementLexico.value = true
     const diagnostics: DiagnosticLexico[] = []
     try {
-      let personnes: Personne[] = []
+      let locuteurs: Locuteur[] = []
       try {
         // L'inventaire ne force pas la publication de l'entretien ouvert.
         // Ses locuteurs seront relus depuis l'instantané en mémoire ci-dessous.
-        personnes = (await window.sonal.corpus.personnesInventaire()).personnes
+        locuteurs = (await window.sonal.corpus.personnesInventaire()).personnes
       } catch (erreur) {
-        diagnostics.push({ titre: 'Personnes', message: erreur instanceof Error ? erreur.message : String(erreur) })
+        diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }
       const sources = await chargerSources(jeton)
       if (jeton !== generation) return
@@ -159,7 +164,7 @@ export function useLexicoCorpus(deps: {
           continue
         }
         try {
-          index.push(...extraireOccurrencesLexico(source.id, source.reference, source.lecture.data))
+          index.push(...extraireOccurrencesLexico(source.id, source.reference, lireEntretienCasFormat9(source.lecture.data)))
           const erreursValeurs: string[] = []
           for (const [variableId, modaliteId] of Object.entries(source.lecture.data.meta?.valeursGen ?? {})) {
             const variable = deps.variables.value.find((candidate) => candidate.id === variableId)
@@ -186,14 +191,14 @@ export function useLexicoCorpus(deps: {
       }
 
       const preparees = preparerSourcesPassages(parId)
-      const personnesParId = Object.fromEntries(personnes.map((personne) => [personne.id, personne]))
+      const locuteursParId = Object.fromEntries(locuteurs.map((locuteur) => [locuteur.id, locuteur]))
       const variablesParId = Object.fromEntries(deps.variables.value.map((variable) => [variable.id, variable]))
       const plagesCas: Record<string, PlageLexico[]> = {}
       const diagnosticsParCas: Record<string, DiagnosticLexico[]> = {}
       for (const cas of Object.values(deps.cas.value)) {
         const projection = projeterCasDepuisSourcesPreparees({
           membership: deps.membership.value,
-          personnes: personnesParId,
+          personnes: locuteursParId,
           variables: variablesParId,
         }, structuredClone(toRaw(cas)), preparees, 'pseudonymise')
         plagesCas[cas.id] = projection.passages.flatMap((passage) => {
@@ -219,7 +224,7 @@ export function useLexicoCorpus(deps: {
       occurrencesLexico.value = index
       diagnosticsSourcesLexico.value = diagnostics
       diagnosticsCasLexico.value = diagnosticsParCas
-      personnesLexico.value = personnes
+      locuteursLexico.value = locuteurs
       plagesCasLexico.value = plagesCas
       calculeLeLexico.value = new Date()
       resultatsPerimesLexico.value = false
@@ -361,7 +366,7 @@ export function useLexicoCorpus(deps: {
     formeSelectionneeLexico.value = ''
     diagnosticsSourcesLexico.value = []
     diagnosticsCasLexico.value = {}
-    personnesLexico.value = []
+    locuteursLexico.value = []
     plagesCasLexico.value = {}
     filtresLexico.value = filtresLexicoParDefaut()
     ongletFiltresLexico.value = 'entretiens'
@@ -380,7 +385,7 @@ export function useLexicoCorpus(deps: {
 
   return {
     chargementLexico, progressionLexico, occurrencesLexico, formeSelectionneeLexico,
-    occurrencesTraiteesLexico, occurrencesRetenuesLexico, lignesLexico, diagnosticsLexico, personnesLexico,
+    occurrencesTraiteesLexico, occurrencesRetenuesLexico, lignesLexico, diagnosticsLexico, locuteursLexico,
     casDisponiblesLexico, ongletsFiltresLexico, filtreCasIndisponibleLexico, retirerFiltreCasLexico,
     filtresLexico, ongletFiltresLexico, traitementsLexico, historiqueTraitementsLexico, enregistrementTraitementsLexico,
     resultatsPerimesLexico, calculeLeLexico,

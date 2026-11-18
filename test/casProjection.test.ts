@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { debutBloc } from '../src/shared/entretien/positions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 import type { Cas } from '../src/shared/corpus/cas'
-import { projeterCas, type SourceCasChargee } from '../src/renderer/editor/cas'
+import { projeterCas, type SourceCasChargee } from '../src/renderer/editor/casFormat9'
 import { projeterRecueil } from '../src/renderer/editor/recueils'
 
 const maintenant = '2026-09-01T10:00:00.000Z'
@@ -179,7 +179,7 @@ describe('cas — résolution et projection', () => {
     const avantSources = structuredClone([...chargees])
     const projection = projeterCas(corpus(), cas, chargees)
 
-    const regle = projection.passages.filter((passage) => passage.origine.type === 'regle-personne')
+    const regle = projection.passages.filter((passage) => passage.origine.type === 'regle-locuteur')
     const manuels = projection.passages.filter((passage) => passage.origine.type === 'manuel')
     expect(regle).toHaveLength(2)
     expect(manuels).toHaveLength(1)
@@ -227,7 +227,7 @@ describe('cas — résolution et projection', () => {
     const projection = projeterCas(corpus(), casPersonne(true), sources(), 'original')
     const entretienB = projection.passages.find((passage) => passage.titreEntretien === 'Entretien B')
     expect(entretienB).toMatchObject({
-      origine: { type: 'regle-personne', personneId: 'personne-1', entretienId: 'e2' },
+      origine: { type: 'regle-locuteur', locuteurId: 'personne-1', entretienId: 'e2' },
       texte: 'Question de la personne.',
       locuteurs: ['Alice enquêtrice'],
     })
@@ -260,7 +260,7 @@ describe('cas — résolution et projection', () => {
     expect(tous.passages).toBe(projection.passages)
     expect(tous.metriques).toBe(projection.metriques)
     expect(regles.passages).toHaveLength(2)
-    expect(regles.passages.every((passage) => passage.origine.type === 'regle-personne')).toBe(true)
+    expect(regles.passages.every((passage) => passage.origine.type === 'regle-locuteur')).toBe(true)
     expect(manuels.passages.map((passage) => passage.texte)).toEqual(['Bonjour'])
     expect(manuels.metriques).toMatchObject({
       rattachementsManuels: 1, passagesDisponibles: 1, sourcesDistinctes: 1,
@@ -335,7 +335,7 @@ describe('cas — résolution et projection', () => {
     delete sansPersonne.personnes['personne-1']
     let projection = projeterCas(sansPersonne, casPersonne(), sources())
     expect(projection.diagnosticsRegles).toEqual([expect.objectContaining({
-      type: 'personne-introuvable', personneId: 'personne-1', entretienId: null,
+      type: 'locuteur-introuvable', locuteurId: 'personne-1', entretienId: null,
     })])
 
     const incompletes = sources()

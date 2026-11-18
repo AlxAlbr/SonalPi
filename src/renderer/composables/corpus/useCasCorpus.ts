@@ -24,7 +24,7 @@ import {
   type AttributCasProjete,
   type DiagnosticAttributCas,
   type VariableCandidateFamille,
-} from '../../../shared/corpus/observationsAttributs'
+} from '../../../shared/corpus/observationsAttributsFormat9'
 import {
   projeterCas,
   projeterCasDepuisSourcesPreparees,
@@ -32,7 +32,7 @@ import {
   type ProjectionCas,
   type SourceCasChargee,
   type ModeMateriauxCas,
-} from '../../editor/cas'
+} from '../../editor/casFormat9'
 import { preparerSourcesPassages, type ModeTextePassage } from '../../editor/passages'
 import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
@@ -400,7 +400,7 @@ export function useCasCorpus(deps: {
       entretiens: entretiens.size,
       passages: projection.passages.length,
       sourcesIndisponibles: projection.diagnosticsRegles
-        .filter((diagnostic) => diagnostic.type !== 'personne-introuvable').length,
+        .filter((diagnostic) => diagnostic.type !== 'locuteur-introuvable').length,
     }
   }
 

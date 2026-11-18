@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import * as corpus from '../src/shared/corpus'
-import { detailsVariablesEntretien } from '../src/shared/corpus/variables'
+import { detailsVariablesEntretien } from '../src/shared/corpus/variablesFormat9'
 import type { CorpusFichier, EntretienFichier, Locuteur } from '../src/shared/format'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
@@ -205,7 +205,7 @@ describe('corpus — requêtes calculées depuis une liste d’entretiens', () =
     const e = ent([], [loc(1, { v2: 'v2m1' })], { v1: 'v1m1' })
     const m = corpus.matriceCorpus([{ id: 'e1', titre: 'T', data: e }])
     expect(m[0]).toMatchObject({ entretienId: 'e1', titre: 'T', valeursGen: { v1: 'v1m1' } })
-    expect(m[0].locuteurs[0]).toMatchObject({ index: 1, valeursLoc: { v2: 'v2m1' } })
+    expect(m[0].participations[0]).toMatchObject({ participationId: null, index: 1, valeursLoc: { v2: 'v2m1' } })
   })
 })
 
@@ -365,15 +365,15 @@ describe('corpus — poserValeur (édition table de données)', () => {
   })
 
   test('portée locuteur → valeursLoc du bon locuteur (pas de sentinelle)', () => {
-    const e = ent([], [loc(1), loc(2)])
-    corpus.poserValeur(e, { type: 'locuteur', index: 2 }, 'v2', 'v2m1')
+    const e = ent([], [{ ...loc(1), id: 'local-a' }, { ...loc(2), id: 'local-b' }])
+    corpus.poserValeur(e, { type: 'participation', participationId: 'local-b' }, 'v2', 'v2m1')
     expect(e.locuteurs.find((l) => l.index === 2)!.valeursLoc).toEqual({ v2: 'v2m1' })
     expect(e.locuteurs.find((l) => l.index === 1)!.valeursLoc).toEqual({})
   })
 
   test('locuteur cible absent → no-op (pas de fantôme)', () => {
     const e = ent([], [loc(1)])
-    corpus.poserValeur(e, { type: 'locuteur', index: 9 }, 'v2', 'v2m1')
+    corpus.poserValeur(e, { type: 'participation', participationId: 'absente' }, 'v2', 'v2m1')
     expect(e.locuteurs[0].valeursLoc).toEqual({})
   })
 })

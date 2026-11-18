@@ -7,7 +7,7 @@ import {
   compterUsagesAttributCas, compterUsagesCasVariable, porteeObservationsCas,
   type CommandeCas, type DefinitionAttributCas, type DerivationAttributCas,
 } from '../src/shared/corpus/cas'
-import { retirerVariable, modifierVariable, type Variable } from '../src/shared/corpus/variables'
+import { retirerVariable, modifierVariable, type Variable } from '../src/shared/corpus/variablesFormat9'
 import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION } from '../src/shared/format'
 import { casModalite, corpusFamille, dateFamille, familleCas, sourceFamille, variableFamille } from './fixtures/casFamilles'

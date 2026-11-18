@@ -65,6 +65,7 @@ export function useEntretien(deps: {
   codeExtraits: () => string
   nomCode: (code: string) => string
   libelleValeur: (idVar: string, idMod: string) => string
+  modaliteParLibelle: (idVar: string, libelle: string) => Promise<string>
   themeExiste?: (id: string) => boolean
   valeurExiste?: (idVar: string, idMod: string | null) => boolean
   /** Catégories de note (définitions corpus) : nom d'une catégorie depuis
@@ -265,7 +266,9 @@ export function useEntretien(deps: {
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journalEntretien = useJournalEntretien({
     entretien,
-    locuteurs,
+    ouvertId,
+    participations: locuteurs,
+    editable: deps.entretienEditable,
     notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
@@ -311,7 +314,7 @@ export function useEntretien(deps: {
     rapprochementOccupe,
     locuteurASupprimer,
     attribuerLoc,
-    renommerLoc,
+    renommerParticipation,
     reporterRapprochement,
     deciderRapprochement,
     nouveauLocuteur,
@@ -322,10 +325,17 @@ export function useEntretien(deps: {
     confirmerSuppressionLocuteur,
   } = locuteursEntretien
 
-  const { setValeurGen, setValeurLoc } = useValeursEntretien({
+  const {
+    poserValeurEntretien, poserValeurLibelleEntretien,
+    attendreSaisies: attendreSaisiesValeurs, annulerSaisies: annulerSaisiesValeurs,
+  } = useValeursEntretien({
+    ouvertId,
     meta,
-    locuteurs,
+    participations: locuteurs,
+    editable: deps.entretienEditable,
+    valeurExiste: deps.valeurExiste,
     libelleValeur: deps.libelleValeur,
+    modaliteParLibelle: deps.modaliteParLibelle,
     enregistrerAction,
     rafraichirJournal,
     planifierSauvegarde,
@@ -554,13 +564,15 @@ export function useEntretien(deps: {
     sauvegardes = operation.catch(() => {})
     return operation
   }
-  /** Vide le debounce et attend aussi une sauvegarde déjà en cours. */
+  /** Termine les saisies en cours, puis attend leur sauvegarde. */
   async function viderSauvegarde(): Promise<void> {
+    await attendreSaisiesValeurs()
     await sauver()
     await sauvegardes
   }
   /** Annule le debounce et préserve l'état courant hors du miroir publiable. */
   async function preserverEtAnnulerSauvegarde(): Promise<boolean> {
+    annulerSaisiesValeurs()
     clearTimeout(tid)
     tid = undefined
     const id = ouvertId.value
@@ -571,6 +583,7 @@ export function useEntretien(deps: {
   }
   /** Annule le debounce sans créer d'écriture, puis attend l'opération déjà partie. */
   async function annulerEtAttendreSauvegarde(): Promise<void> {
+    annulerSaisiesValeurs()
     clearTimeout(tid)
     tid = undefined
     await sauvegardes
@@ -614,6 +627,7 @@ export function useEntretien(deps: {
           : 'Entretien introuvable sur le disque.'
       return false
     }
+    annulerSaisiesValeurs()
     refusFormat.value = null
     chargement = true
     recherche.reinitialiser()
@@ -664,6 +678,7 @@ export function useEntretien(deps: {
   }
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
+    annulerSaisiesValeurs()
     ouvertId.value = null
     selectionPassage.value = null
     recherche.reinitialiser()
@@ -871,7 +886,7 @@ export function useEntretien(deps: {
     coderAvec,
     retirerCodagesDuCode,
     attribuerLoc,
-    renommerLoc,
+    renommerParticipation,
     messagePersonnes,
     rapprochementNommage,
     rapprochementOccupe,
@@ -884,8 +899,8 @@ export function useEntretien(deps: {
     locuteurASupprimer,
     demanderSuppressionLocuteur,
     confirmerSuppressionLocuteur,
-    setValeurGen,
-    setValeurLoc,
+    poserValeurEntretien,
+    poserValeurLibelleEntretien,
     // notes d'entretien
     ajouterNote,
     editerNote,

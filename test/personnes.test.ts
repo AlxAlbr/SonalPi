@@ -154,7 +154,7 @@ describe('Personnes — règles de domaine', () => {
     expect(() => lierLocuteur(c, e, 'l1', 'absent')).toThrow('n’existe plus')
     expect(() => lierLocuteur(c, e, 'absent', 'p1')).toThrow('locuteur')
     lierLocuteur(c, e, 'l1', 'p1')
-    expect(() => lierLocuteur(c, e, 'l2', 'p1')).toThrow('déjà un locuteur')
+    expect(() => lierLocuteur(c, e, 'l2', 'p1')).toThrow('déjà présent dans cet entretien')
     expect(e.locuteurs[1].personneRef).toBeNull()
   })
 
@@ -169,6 +169,29 @@ describe('Personnes — règles de domaine', () => {
     expect(vue.notes).toEqual([expect.objectContaining({ id: 'n1', locuteurIds: ['l1'], entretienTitre: 'A' })])
     lierLocuteur(c, e, 'l1', null)
     expect(e.locuteurs[0].personneRef).toBeNull()
+  })
+
+  test('la suppression préserve une identité citée dans un refus de rapprochement', () => {
+    const c = squeletteCorpus(); const e = entretien()
+    creerPersonne(c, 'p1', 'Marie')
+    e.locuteurs[0].rapprochementsRefuses = ['personne:p1']
+    const avant = structuredClone([c, e])
+    const vue = inventorierPersonnes(c, [{ id: 'e1', titre: 'A', data: e }])
+    expect(() => supprimerPersonneVide(c, vue, 'p1')).toThrow('rapprochements refusés')
+    expect([c, e]).toEqual(avant)
+  })
+
+  test('le pont vers le noyau commun conserve exclusivement les champs du stockage actif', () => {
+    const c = squeletteCorpus(); const e = entretien()
+    const avant = structuredClone(e)
+    creerPersonne(c, 'p1', 'Marie')
+    lierLocuteur(c, e, 'l1', 'p1')
+    lierLocuteur(c, e, 'l1', null)
+    expect(e).toEqual({ ...avant, locuteurs: [{ ...avant.locuteurs[0], personneRef: null, personneDeliee: true }, avant.locuteurs[1]] })
+    expect(c).not.toHaveProperty('locuteurs')
+    expect(e).not.toHaveProperty('participations')
+    expect(e.locuteurs[0]).not.toHaveProperty('locuteurRef')
+    expect(e.locuteurs[0]).not.toHaveProperty('associationRetiree')
   })
 
   test('suppression seulement après déliaison et inventaire complet', () => {

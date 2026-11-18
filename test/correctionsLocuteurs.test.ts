@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { appliquerCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../src/shared/corpus/correctionsLocuteurs'
+import { appliquerCorrectionLocuteursFormat9 } from '../src/shared/corpus/correctionsLocuteursFormat9'
+import type { CommandeCorrectionLocuteurs } from '../src/shared/corpus/contratsLocuteurs'
 import { suggestionsPersonnes } from '../src/shared/corpus/rapprochementsPersonnes'
 import type { EntretienFichier } from '../src/shared/format'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
@@ -14,6 +15,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
+
+const reference = (p: { entretienId: string; locuteurId: string }) => ({ entretienId: p.entretienId, participationId: p.locuteurId })
 
 function preparer() {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-corrections-locuteurs-'))
@@ -37,7 +40,7 @@ function preparer() {
   })
   const attendu = () => JSON.stringify(store.personnesInventaire())
   const regrouper = (nombre = 3, uniformiserNoms = false) => store.personnesCommander({
-    type: 'regrouperSelection', personneIds: participations.slice(0, nombre).map((p) => p.personneId),
+    type: 'regrouperSelection', locuteurIds: participations.slice(0, nombre).map((p) => p.personneId),
     conserverId: participations[0].personneId, nom: 'Jean Martin', uniformiserNoms, attendu: attendu(),
   })!
   const lire = (id: string) => {
@@ -63,7 +66,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     const personneId = b.regrouper()
     const avant = b.participations.map((p) => b.lire(p.entretienId))
     const nonCible = b.fichiers()[4]
-    expect(b.store.personnesCommander({ type: 'renommerGlobal', personneId, nom: '  Jean Dupont  ', attendu: b.attendu() })).toBe(personneId)
+    expect(b.store.personnesCommander({ type: 'renommerGlobal', locuteurId: personneId, nom: '  Jean Dupont  ', attendu: b.attendu() })).toBe(personneId)
     const relu = new CorpusStore(b.dir)
     expect(relu.personnesInventaire().personnes.find((p) => p.id === personneId)?.nom).toBe('Jean Dupont')
     for (const [i, p] of b.participations.entries()) {
@@ -118,8 +121,8 @@ describe('Corrections des locuteurs — stockage local', () => {
     const personneId = b.regrouper(4, true)
     const avant = b.participations.map((p) => b.lire(p.entretienId))
     b.store.personnesCommander({
-      type: 'dissocierSelection', personneId, attendu: b.attendu(),
-      locuteurs: b.participations.slice(2).map(({ entretienId, locuteurId }) => ({ entretienId, locuteurId })),
+      type: 'dissocierSelection', locuteurId: personneId, attendu: b.attendu(),
+      participations: b.participations.slice(2).map(reference),
     })
     const inventaire = new CorpusStore(b.dir).personnesInventaire()
     expect(inventaire.personnes).toHaveLength(3)
@@ -148,7 +151,7 @@ describe('Corrections des locuteurs — stockage local', () => {
       regles: [{ type: 'personne', personneId, inclureEnqueteurs: true }],
     } })
     const avant = b.store.ouvrir().cas
-    b.store.personnesCommander({ type: 'dissocierSelection', personneId, locuteurs: [b.participations[1]], attendu: b.attendu() })
+    b.store.personnesCommander({ type: 'dissocierSelection', locuteurId: personneId, participations: [reference(b.participations[1])], attendu: b.attendu() })
     expect(b.store.ouvrir().cas).toEqual(avant)
   })
 
@@ -157,7 +160,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     const personneId = b.regrouper()
     const avant = b.fichiers()
     for (const locuteurs of [[], b.participations.slice(0, 3), [b.participations[1], b.participations[1]], [b.participations[3]]]) {
-      expect(() => b.store.personnesCommander({ type: 'dissocierSelection', personneId, locuteurs, attendu: b.attendu() })).toThrow()
+      expect(() => b.store.personnesCommander({ type: 'dissocierSelection', locuteurId: personneId, participations: locuteurs.map(reference), attendu: b.attendu() })).toThrow()
       expect(b.fichiers()).toEqual(avant)
     }
   })
@@ -167,10 +170,10 @@ describe('Corrections des locuteurs — stockage local', () => {
     const avant = b.fichiers()
     const personneId = b.participations[0].personneId
     const commandes: CommandeCorrectionLocuteurs[] = [
-      { type: 'renommerGlobal', personneId, nom: ' ', attendu: b.attendu() },
-      { type: 'renommerGlobal', personneId: 'absent', nom: 'Nom', attendu: b.attendu() },
-      { type: 'regrouperSelection', conserverId: personneId, personneIds: [personneId, personneId], nom: 'Nom', uniformiserNoms: false, attendu: b.attendu() },
-      { type: 'regrouperSelection', conserverId: personneId, personneIds: [personneId, 'absent'], nom: 'Nom', uniformiserNoms: false, attendu: b.attendu() },
+      { type: 'renommerGlobal', locuteurId: personneId, nom: ' ', attendu: b.attendu() },
+      { type: 'renommerGlobal', locuteurId: 'absent', nom: 'Nom', attendu: b.attendu() },
+      { type: 'regrouperSelection', conserverId: personneId, locuteurIds: [personneId, personneId], nom: 'Nom', uniformiserNoms: false, attendu: b.attendu() },
+      { type: 'regrouperSelection', conserverId: personneId, locuteurIds: [personneId, 'absent'], nom: 'Nom', uniformiserNoms: false, attendu: b.attendu() },
     ]
     for (const commande of commandes) {
       expect(() => b.store.personnesCommander(commande)).toThrow()
@@ -178,9 +181,21 @@ describe('Corrections des locuteurs — stockage local', () => {
     }
   })
 
+  test('rejette les anciens messages avant de consulter les sources ou préparer une écriture', () => {
+    const b = preparer()
+    const avant = b.fichiers()
+    const ancien = { type: 'renommerGlobal', personneId: b.participations[0].personneId, nom: 'Nom', attendu: b.attendu() }
+    const lecture = vi.spyOn(b.store, 'personnesInventaire')
+    const ecriture = vi.spyOn(b.store, 'appliquerTransactionFichiers')
+    expect(() => b.store.personnesCommander(ancien as unknown as CommandeCorrectionLocuteurs)).toThrow('demande de correction')
+    expect(lecture).not.toHaveBeenCalled()
+    expect(ecriture).not.toHaveBeenCalled()
+    expect(b.fichiers()).toEqual(avant)
+  })
+
   test('refuse un aperçu ancien, un corpus en lecture seule et une session encore ouverte', () => {
     const b = preparer()
-    const commande: CommandeCorrectionLocuteurs = { type: 'renommerGlobal', personneId: b.participations[0].personneId, nom: 'Nom commun', attendu: b.attendu() }
+    const commande: CommandeCorrectionLocuteurs = { type: 'renommerGlobal', locuteurId: b.participations[0].personneId, nom: 'Nom commun', attendu: b.attendu() }
     const autre = b.lire(b.participations[0].entretienId)
     autre.locuteurs[0].pseudo = 'Pseudo modifié'
     b.store.ecrireEntretien(b.participations[0].entretienId, autre)
@@ -213,7 +228,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     })
     b.store.revoquerEcritureEntretien(entretienId)
     expect(() => b.store.exigerSessionLocaleEcriture(entretienId)).toThrow('session locale est fermée')
-    b.store.personnesCommander({ type: 'renommerGlobal', personneId, nom: 'Nom corrigé au corpus', attendu: b.attendu() })
+    b.store.personnesCommander({ type: 'renommerGlobal', locuteurId: personneId, nom: 'Nom corrigé au corpus', attendu: b.attendu() })
     const reouverture = b.store.ouvrirEntretienPourEdition(entretienId)
     if (!reouverture.ok) throw new Error('Réouverture impossible')
     expect(reouverture.data.locuteurs[0].nom).toBe('Nom corrigé au corpus')
@@ -226,7 +241,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     const attendu = b.attendu()
     const corpusAvant = b.fichiers()[0]
     unlinkSync(join(b.dir, 'entretiens', `${b.participations[2].entretienId}.json`))
-    expect(() => b.store.personnesCommander({ type: 'renommerGlobal', personneId: b.participations[0].personneId, nom: 'Nom', attendu })).toThrow('illisibles')
+    expect(() => b.store.personnesCommander({ type: 'renommerGlobal', locuteurId: b.participations[0].personneId, nom: 'Nom', attendu })).toThrow('illisibles')
     expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(corpusAvant)
   })
 
@@ -234,10 +249,10 @@ describe('Corrections des locuteurs — stockage local', () => {
     const b = preparer()
     const personneId = type === 'regrouperSelection' ? b.participations[0].personneId : b.regrouper()
     const commande: CommandeCorrectionLocuteurs = type === 'renommerGlobal'
-      ? { type, personneId, nom: 'Nom corrigé', attendu: b.attendu() }
+      ? { type, locuteurId: personneId, nom: 'Nom corrigé', attendu: b.attendu() }
       : type === 'regrouperSelection'
-        ? { type, personneIds: b.participations.slice(0, 3).map((p) => p.personneId), conserverId: personneId, nom: 'Nom corrigé', uniformiserNoms: true, attendu: b.attendu() }
-        : { type, personneId, locuteurs: b.participations.slice(1, 3), attendu: b.attendu() }
+        ? { type, locuteurIds: b.participations.slice(0, 3).map((p) => p.personneId), conserverId: personneId, nom: 'Nom corrigé', uniformiserNoms: true, attendu: b.attendu() }
+        : { type, locuteurId: personneId, participations: b.participations.slice(1, 3).map(reference), attendu: b.attendu() }
     let cible: ReturnType<CorpusStore['personnesInventaire']> | undefined
     vi.spyOn(b.store, 'appliquerTransactionFichiers').mockImplementation((plan) => {
       if (plan.operation !== 'remplacement') throw new Error('Plan inattendu')
@@ -284,9 +299,9 @@ test('la dissociation vérifie tous les identifiants générés avant de modifie
     } satisfies EntretienFichier,
   }))
   const avant = JSON.stringify([corpus, entretiens])
-  expect(() => appliquerCorrectionLocuteurs(corpus, entretiens, {
-    type: 'dissocierSelection', personneId: 'p',
-    locuteurs: [{ entretienId: 'b', locuteurId: 'b' }, { entretienId: 'c', locuteurId: 'c' }], attendu: '',
+  expect(() => appliquerCorrectionLocuteursFormat9(corpus, entretiens, {
+    type: 'dissocierSelection', locuteurId: 'p',
+    participations: [{ entretienId: 'b', participationId: 'b' }, { entretienId: 'c', participationId: 'c' }], attendu: 'initial',
   }, () => 'meme-identifiant')).toThrow('identifiant')
   expect(JSON.stringify([corpus, entretiens])).toBe(avant)
 })

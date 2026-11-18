@@ -32,22 +32,23 @@ const genId = (() => {
 
 function ctxPur(over: Partial<CtxInverse> = {}): CtxInverse {
   return {
+    entretienId: 'e1',
     entretien: { annotations: [], ancres: [], reperesPassages: [] },
-    locuteurs: [],
+    participations: [],
     valeursGen: {},
     ...over,
   }
 }
 
 function locuteur(index: number, nom: string): Locuteur {
-  return { index, nom, valeursLoc: {}, personneRef: null }
+  return { id: `participation-${index}`, index, nom, valeursLoc: {}, personneRef: null }
 }
 
 describe('journal — enregistrer (cap, ordre)', () => {
   test('la plus récente en tête ; au-delà de 10, la plus ancienne sort', () => {
     const j: Journal = { entrees: [] }
     for (let i = 1; i <= 12; i++)
-      enregistrer(j, `action ${i}`, { type: 'poserValeurGen', idVar: 'v1', idMod: null }, genId)
+      enregistrer(j, `action ${i}`, { type: 'poserValeur', entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'v1', idMod: null }, genId)
     expect(j.entrees).toHaveLength(CAP_JOURNAL)
     expect(j.entrees[0].libelle).toBe('action 12') // la plus récente en tête
     expect(j.entrees.at(-1)!.libelle).toBe('action 3') // 1 et 2 sont sorties
@@ -81,30 +82,30 @@ describe('journal — inverses purs (applicabilité + application)', () => {
     expect(estApplicable({ type: 'reposerAnnotation', annotation: orpheline }, ctx)).toBe(false)
   })
 
-  test('renommerLocuteur : restaure l’ancien nom ; locuteur absent → grisée', () => {
+  test('renommerParticipation : restaure l’ancien nom ; participation absente → grisée', () => {
     const locs = [locuteur(1, 'Chercheur')]
-    const ctx = ctxPur({ locuteurs: locs })
-    expect(appliquerInverse({ type: 'renommerLocuteur', index: 1, nom: 'Enquêteur' }, ctx)).toBe(true)
+    const ctx = ctxPur({ participations: locs })
+    expect(appliquerInverse({ type: 'renommerParticipation', reference: { entretienId: 'e1', participationId: 'participation-1' }, nom: 'Enquêteur' }, ctx)).toBe(true)
     expect(locs[0].nom).toBe('Enquêteur')
-    expect(estApplicable({ type: 'renommerLocuteur', index: 9, nom: 'X' }, ctx)).toBe(false)
+    expect(estApplicable({ type: 'renommerParticipation', reference: { entretienId: 'e1', participationId: 'disparue' }, nom: 'X' }, ctx)).toBe(false)
   })
 
-  test('poserValeurGen : repose l’ancienne valeur, null = efface', () => {
+  test('poserValeur : repose l’ancienne valeur d’entretien, null = efface', () => {
     const valeursGen: Record<string, string> = { v1: 'v1m2' }
     const ctx = ctxPur({ valeursGen })
-    expect(appliquerInverse({ type: 'poserValeurGen', idVar: 'v1', idMod: 'v1m1' }, ctx)).toBe(true)
+    expect(appliquerInverse({ type: 'poserValeur', entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'v1', idMod: 'v1m1' }, ctx)).toBe(true)
     expect(valeursGen.v1).toBe('v1m1')
-    expect(appliquerInverse({ type: 'poserValeurGen', idVar: 'v1', idMod: null }, ctx)).toBe(true)
+    expect(appliquerInverse({ type: 'poserValeur', entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'v1', idMod: null }, ctx)).toBe(true)
     expect('v1' in valeursGen).toBe(false)
   })
 
-  test('poserValeurLoc : chez SON locuteur ; locuteur absent → grisée', () => {
+  test('poserValeur : chez SA participation ; participation absente → grisée', () => {
     const locs = [locuteur(1, 'Karine')]
     locs[0].valeursLoc.v1 = 'v1m2'
-    const ctx = ctxPur({ locuteurs: locs })
-    expect(appliquerInverse({ type: 'poserValeurLoc', index: 1, idVar: 'v1', idMod: null }, ctx)).toBe(true)
+    const ctx = ctxPur({ participations: locs })
+    expect(appliquerInverse({ type: 'poserValeur', entretienId: 'e1', cible: { type: 'participation', participationId: 'participation-1' }, idVar: 'v1', idMod: null }, ctx)).toBe(true)
     expect('v1' in locs[0].valeursLoc).toBe(false)
-    expect(estApplicable({ type: 'poserValeurLoc', index: 2, idVar: 'v1', idMod: 'x' }, ctx)).toBe(false)
+    expect(estApplicable({ type: 'poserValeur', entretienId: 'e1', cible: { type: 'participation', participationId: 'disparue' }, idVar: 'v1', idMod: 'x' }, ctx)).toBe(false)
   })
 
   test('restaurerLocs : sans accès aux blocs → grisée ; avec → applique', () => {
@@ -156,8 +157,9 @@ afterEach(() => {
 /** Le ctx qu'useEntretien construit : accès aux blocs via l'éditeur. */
 function ctxEditeur(ed: Editor, entretien: Entretien): CtxInverse {
   return {
+    entretienId: 'e1',
     entretien,
-    locuteurs: [],
+    participations: [],
     valeursGen: {},
     blocs: {
       locDe: (pos) => {

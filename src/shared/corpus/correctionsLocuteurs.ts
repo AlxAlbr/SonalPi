@@ -1,13 +1,18 @@
-import type { CorpusFichier, Locuteur } from '../format'
-import type { EntreeMatrice } from './requetes'
-import type { LocuteurASeparer } from './personnes'
-import { creerPersonne, fusionnerPersonnes, modifierPersonne } from './personnes'
-import { refuserRapprochement } from './rapprochementsPersonnes'
+import type { ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
+import type { CorpusFichier } from '../natif/format'
+import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from './contratsLocuteurs'
+import { creerLocuteur, regrouperLocuteurs, renommerLocuteur } from './identitesLocuteurs'
+import { refuserRapprochementLocuteurs } from './rapprochementsLocuteurs'
 
-export type CommandeCorrectionLocuteurs =
-  | { type: 'renommerGlobal'; personneId: string; nom: string; attendu: string }
-  | { type: 'regrouperSelection'; personneIds: string[]; conserverId: string; nom: string; uniformiserNoms: boolean; attendu: string }
-  | { type: 'dissocierSelection'; personneId: string; locuteurs: LocuteurASeparer[]; attendu: string }
+export type { CommandeCorrectionLocuteurs } from './contratsLocuteurs'
+
+type CorpusCorrection = Pick<CorpusFichier, 'locuteurs' | 'cas'>
+type ParticipationCorrection = Pick<ParticipationLocuteur, 'id' | 'nom' | 'locuteurRef' | 'associationRetiree' | 'rapprochementsRefuses'>
+interface EntretienCorrection<T extends ParticipationCorrection> {
+  id: string
+  titre: string
+  data: { participations: T[] }
+}
 
 function nomValide(nom: string): string {
   const valeur = nom.trim()
@@ -15,96 +20,70 @@ function nomValide(nom: string): string {
   return valeur
 }
 
-function membresPersonne(entretiens: EntreeMatrice[], personneId: string) {
-  return entretiens.flatMap((entretien) => entretien.data.locuteurs
-    .filter((locuteur) => locuteur.personneRef === personneId)
-    .map((locuteur) => ({ entretienId: entretien.id, locuteur })))
+function membresLocuteur<T extends ParticipationCorrection>(entretiens: readonly EntretienCorrection<T>[], locuteurId: string) {
+  return entretiens.flatMap((e) => e.data.participations.filter((p) => p.locuteurRef === locuteurId)
+    .map((participation) => ({ entretienId: e.id, participation })))
 }
 
-function renommer(corpus: CorpusFichier, entretiens: EntreeMatrice[], personneId: string, nom: string) {
-  modifierPersonne(corpus, personneId, nom)
-  for (const membre of membresPersonne(entretiens, personneId)) membre.locuteur.nom = nom
+function renommer<T extends ParticipationCorrection>(corpus: CorpusCorrection, entretiens: readonly EntretienCorrection<T>[], locuteurId: string, nom: string) {
+  renommerLocuteur(corpus, locuteurId, nom)
+  for (const membre of membresLocuteur(entretiens, locuteurId)) membre.participation.nom = nom
 }
 
 /** Applique une correction à des copies complètes, avant leur enregistrement en une transaction. */
-export function appliquerCorrectionLocuteurs(
-  corpus: CorpusFichier,
-  entretiens: EntreeMatrice[],
+export function appliquerCorrectionLocuteurs<T extends ParticipationCorrection>(
+  corpus: CorpusCorrection,
+  entretiens: readonly EntretienCorrection<T>[],
   commande: CommandeCorrectionLocuteurs,
   genererId: () => string,
 ): string {
+  validerCommandeCorrectionLocuteurs(commande)
   if (commande.type === 'renommerGlobal') {
     const nom = nomValide(commande.nom)
-    renommer(corpus, entretiens, commande.personneId, nom)
-    return commande.personneId
+    renommer(corpus, entretiens, commande.locuteurId, nom)
+    return commande.locuteurId
   }
-
   if (commande.type === 'regrouperSelection') {
     const nom = nomValide(commande.nom)
-    const ids = new Set(commande.personneIds)
-    if (ids.size < 2 || ids.size !== commande.personneIds.length || !ids.has(commande.conserverId)) {
-      throw new Error('Choisissez au moins deux locuteurs distincts et un nom à conserver.')
-    }
-    if (typeof commande.uniformiserNoms !== 'boolean') {
-      throw new Error('Choisissez de conserver les noms des entretiens ou de les remplacer.')
-    }
-    if ([...ids].some((id) => !Object.hasOwn(corpus.personnes, id))) {
+    const ids = new Set(commande.locuteurIds)
+    if ([...ids].some((id) => !Object.hasOwn(corpus.locuteurs, id))) {
       throw new Error('Un locuteur sélectionné n’existe plus. Actualisez la liste.')
     }
-    for (const entretien of entretiens) {
-      if (entretien.data.locuteurs.filter((locuteur) => locuteur.personneRef && ids.has(locuteur.personneRef)).length > 1) {
-        throw new Error(`Réunion impossible : plusieurs locuteurs appartiennent à « ${entretien.titre} ». Corrigez cet entretien avant de les réunir.`)
+    for (const e of entretiens) {
+      if (e.data.participations.filter((p) => p.locuteurRef && ids.has(p.locuteurRef)).length > 1) {
+        throw new Error(`Réunion impossible : plusieurs locuteurs appartiennent à « ${e.titre} ». Corrigez cet entretien avant de les réunir.`)
       }
     }
-    for (const id of ids) {
-      if (id !== commande.conserverId) fusionnerPersonnes(corpus, entretiens, commande.conserverId, id)
-    }
+    for (const id of ids) if (id !== commande.conserverId) regrouperLocuteurs(corpus, entretiens, commande.conserverId, id)
     if (commande.uniformiserNoms) renommer(corpus, entretiens, commande.conserverId, nom)
-    else modifierPersonne(corpus, commande.conserverId, nom)
+    else renommerLocuteur(corpus, commande.conserverId, nom)
     return commande.conserverId
   }
-
-  if (!Object.hasOwn(corpus.personnes, commande.personneId)) {
-    throw new Error('Ce locuteur n’existe plus. Actualisez la liste.')
-  }
-  const membres = membresPersonne(entretiens, commande.personneId)
-  if (!commande.locuteurs.length) throw new Error('Choisissez au moins une participation à dissocier.')
-  if (commande.locuteurs.length >= membres.length) {
-    throw new Error('Laissez au moins une participation sur le locuteur d’origine.')
-  }
-  const cle = (membre: LocuteurASeparer) => JSON.stringify([membre.entretienId, membre.locuteurId])
-  const parCle = new Map(membres.map((membre) => [
-    cle({ entretienId: membre.entretienId, locuteurId: membre.locuteur.id! }), membre.locuteur,
-  ]))
-  const cles = commande.locuteurs.map(cle)
-  if (new Set(cles).size !== cles.length) throw new Error('Une participation est sélectionnée plusieurs fois.')
-  const selection = cles.map((valeur) => parCle.get(valeur))
-  if (selection.some((locuteur) => !locuteur)) {
-    throw new Error('Une participation n’est plus associée à ce locuteur. Actualisez la liste.')
-  }
-
+  if (!Object.hasOwn(corpus.locuteurs, commande.locuteurId)) throw new Error('Ce locuteur n’existe plus. Actualisez la liste.')
+  const membres = membresLocuteur(entretiens, commande.locuteurId)
+  if (commande.participations.length >= membres.length) throw new Error('Laissez au moins une participation sur le locuteur d’origine.')
+  const cle = (p: ReferenceParticipation) => JSON.stringify([p.entretienId, p.participationId])
+  const parCle = new Map(membres.map((m) => [cle({ entretienId: m.entretienId, participationId: m.participation.id }), m.participation]))
+  const selection = commande.participations.map((p) => parCle.get(cle(p)))
+  if (selection.some((p) => !p)) throw new Error('Une participation n’est plus associée à ce locuteur. Actualisez la liste.')
   const ids = new Set<string>()
-  const nouvelles = selection.map((locuteur) => {
+  const nouvelles = selection.map((participation) => {
     const id = genererId()
-    if (!id || id in corpus.personnes || ids.has(id)) {
-      throw new Error('Un identifiant de locuteur est déjà utilisé ou invalide.')
-    }
+    if (!id || Object.hasOwn(corpus.locuteurs, id) || ids.has(id)) throw new Error('Un identifiant de locuteur est déjà utilisé ou invalide.')
     ids.add(id)
-    return { locuteur: locuteur as Locuteur, id, nom: nomValide(locuteur!.nom) }
+    return { participation: participation!, id, nom: nomValide(participation!.nom) }
   })
   for (const nouvelle of nouvelles) {
-    creerPersonne(corpus, nouvelle.id, nouvelle.nom)
-    nouvelle.locuteur.personneRef = nouvelle.id
-    delete nouvelle.locuteur.personneDeliee
+    creerLocuteur(corpus, nouvelle.id, nouvelle.nom)
+    nouvelle.participation.locuteurRef = nouvelle.id
+    delete nouvelle.participation.associationRetiree
   }
   // La distinction volontaire vaut aussi entre les participations dissociées.
-  for (let i = 0; i < membres.length; i++) {
-    for (let j = i + 1; j < membres.length; j++) {
-      const a = membres[i].locuteur, b = membres[j].locuteur
-      if (a.personneRef === b.personneRef) continue
-      refuserRapprochement(a, b)
-      refuserRapprochement(b, a)
-    }
+  for (let i = 0; i < membres.length; i++) for (let j = i + 1; j < membres.length; j++) {
+    const a = membres[i], b = membres[j]
+    if (a.participation.locuteurRef === b.participation.locuteurRef) continue
+    refuserRapprochementLocuteurs(a.participation, b)
+    refuserRapprochementLocuteurs(b.participation, a)
   }
-  return commande.personneId
+  return commande.locuteurId
 }

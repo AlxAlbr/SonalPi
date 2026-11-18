@@ -91,6 +91,18 @@ describe('Rapprochements et reprise sélective', () => {
     ])).toEqual([])
   })
 
+  test('le pont conserve la portée historique des chaînes locales et les ids sans contexte', () => {
+    const source = { entretienId: 'source', locuteur: loc('source-local', 'Marie') }
+    const a = { entretienId: 'e1', locuteur: loc('local-partage', 'Marie') }
+    const b = { entretienId: 'e2', locuteur: loc('local-partage', 'Marie') }
+    expect(suggestionsPersonnes(source, [a, b])).toEqual([a])
+    source.locuteur.rapprochementsRefuses = ['locuteur:local-partage']
+    const avant = structuredClone([source, a, b])
+    expect(suggestionsPersonnes(source, [a, b])).toEqual([])
+    expect([source, a, b]).toEqual(avant)
+    expect(source.locuteur.rapprochementsRefuses).toEqual(['locuteur:local-partage'])
+  })
+
   test('la reprise ne modifie que les champs sélectionnés et protège les valeurs existantes', () => {
     const source = { ...loc('a', 'Marie'), pseudo: 'Alice', interviewer: true, valeursLoc: { age: '40', ville: 'Paris' } }
     const cible = { ...loc('b', 'Mme Dupont'), pseudo: 'Lou', interviewer: false, valeursLoc: { age: '30' } }

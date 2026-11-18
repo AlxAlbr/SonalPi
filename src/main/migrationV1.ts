@@ -265,7 +265,7 @@ export class MigrationV1 {
     const e = this.entretiens[index]
     const meta = { ...payload.meta, audioRef: e.audioRef, sourceV1: { rtrPath: e.rtrPath } }
     delete meta.audioDistant
-    this.store!.importerEntretien(e.titre, { ...payload, meta }, [], [], regles)
+    this.store!.importerEntretien(e.titre, { ...payload, meta }, [], [], regles, 'v1')
     this.imports++
   }
 

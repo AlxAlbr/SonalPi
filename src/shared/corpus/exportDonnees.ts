@@ -48,10 +48,10 @@ export function exporterDonneesCsv(options: OptionsExportDonnees): string {
       ...colonnes.map((v, i) => v.portee === 'entretien' ? libelle(entretien.valeursGen, i) : ''),
     ])
     if (options.montrerLocuteurs) {
-      for (const locuteur of entretien.locuteurs) {
+      for (const participation of entretien.participations) {
         lignes.push([
-          entretien.titre, 'Locuteur', locuteur.nom,
-          ...colonnes.map((v, i) => v.portee === 'locuteur' ? libelle(locuteur.valeursLoc, i) : ''),
+          entretien.titre, 'Locuteur', participation.nom,
+          ...colonnes.map((v, i) => v.portee === 'locuteur' ? libelle(participation.valeursLoc, i) : ''),
         ])
       }
     }
