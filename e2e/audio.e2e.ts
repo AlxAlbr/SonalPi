@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readdirSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus, retourCorpus } from './util'
+import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus, retourCorpus, ouvrirFormulaireNoteDansPanneau } from './util'
 
 /**
  *  Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
@@ -297,7 +297,8 @@ test('entretien sans fichier : création immédiate pour prendre des notes', asy
 
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Notes avant collecte')
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await page.locator('.outils-editeur button[data-onglet="notes"]').click()
+  await ouvrirFormulaireNoteDansPanneau(page)
   await expect(page.locator('[data-tour="creer-note"]')).toBeVisible()
 
   await retourCorpus(page)

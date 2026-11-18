@@ -108,14 +108,19 @@ function focaliserLibre(el: unknown, cle: string) {
       </div>
     </nav>
 
-    <button
-      v-if="!lectureSeule"
-      class="crayon nouvelle-var"
-      :title="sousOnglet === 'locuteur'
-        ? 'Créer une variable de locuteur (une valeur par locuteur)'
-        : 'Créer une variable d’entretien (une valeur par entretien)'"
-      @click="ouvrirEdition"
-    >✏️</button>
+    <div class="gabarit-entete">
+      <div class="gabarit-actions">
+        <button
+          v-if="!lectureSeule"
+          type="button"
+          class="gabarit-action nouvelle-var"
+          :title="sousOnglet === 'locuteur'
+            ? 'Créer une variable de locuteur (une valeur par locuteur)'
+            : 'Créer une variable d’entretien (une valeur par entretien)'"
+          @click="ouvrirEdition"
+        >Modifier</button>
+      </div>
+    </div>
 
     <template v-if="sousOnglet === 'entretien'">
       <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
@@ -144,7 +149,7 @@ function focaliserLibre(el: unknown, cle: string) {
           <option :value="AUTRE">autre…</option>
         </select>
       </div>
-      <p v-if="!varsGen().length" class="vide">Aucune variable d’entretien — ✏️ pour en créer.</p>
+      <p v-if="!varsGen().length" class="gabarit-vide">Aucune variable d’entretien pour le moment. Cliquez sur « Modifier » pour en créer.</p>
     </template>
 
     <template v-else>
@@ -179,8 +184,8 @@ function focaliserLibre(el: unknown, cle: string) {
           </div>
         </div>
       </template>
-      <p v-else-if="varsLoc().length" class="vide">Aucun locuteur dans cet entretien.</p>
-      <p v-else class="vide">Aucune variable de locuteur — ✏️ pour en créer.</p>
+      <p v-else-if="varsLoc().length" class="gabarit-vide">Aucun locuteur dans cet entretien.</p>
+      <p v-else class="gabarit-vide">Aucune variable de locuteur pour le moment. Cliquez sur « Modifier » pour en créer.</p>
     </template>
 
     <Teleport to="body">
@@ -221,10 +226,13 @@ function focaliserLibre(el: unknown, cle: string) {
   font-style: italic;
 }
 .fiche-loc {
-  border-top: 1px dashed #eee;
   padding-top: 0.3rem;
   margin-top: 0.3rem;
   padding-left: 0.9rem;
+}
+/* Séparation entre deux fiches seulement : pas de trait avant la première. */
+.fiche-loc + .fiche-loc {
+  border-top: 1px solid #eef1f5;
 }
 .fiche-loc-nom {
   font-size: 0.78rem;
@@ -275,10 +283,5 @@ function focaliserLibre(el: unknown, cle: string) {
   background: #faf5ec;
   color: #8a6d3b;
   font-weight: 600;
-}
-.nouvelle-var {
-  display: block;
-  margin-left: auto; /* colle le crayon au bord droit, sous les onglets */
-  margin-bottom: 0.4rem;
 }
 </style>

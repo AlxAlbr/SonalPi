@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ouvrir, coderTheme, selectionner } from './util'
+import { ouvrir, coderTheme, selectionner, ouvrirFormulaireNoteDansPanneau } from './util'
 
 /**
  *  Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
@@ -19,60 +19,59 @@ async function coder(page: Page, mot: string, theme: string) {
   await coderTheme(page, theme)
 }
 
-test('Journal flotte près de la recherche et reste indépendant des Notes et Données', async () => {
+test('Recherche, Journal, Notes et Données partagent le volet de droite', async () => {
   const { app, page } = await ouvrir('sonal-volet-journal-')
   try {
     const volet = page.locator('.volet-notes')
-    const boutons = volet.locator('.notes-languette button')
-    await expect(boutons).toHaveText(['Notes', 'Données'])
+    const outils = page.locator('.colonne-droite .outils-editeur')
+    await expect(outils.locator('.bouton-volet')).toHaveText(['Journal', 'Notes', 'Données'])
     await expect(page.locator('.colonne-gauche [data-onglet="journal"]')).toHaveCount(0)
-    const ecarts = await boutons.evaluateAll((elements) => elements.slice(1).map((element, index) =>
-      element.getBoundingClientRect().top - elements[index]!.getBoundingClientRect().bottom,
-    ))
-    expect(ecarts.every((ecart) => ecart >= 31)).toBe(true)
+    await expect(page.locator('.barre .outils-editeur')).toHaveCount(0)
 
+    // Un seul contenu à la fois dans le volet ; les onglets de gauche restent en place.
     for (const onglet of ['notes', 'donnees', 'notes']) {
-      const bouton = volet.locator(`[data-onglet="${onglet}"]`)
+      const bouton = outils.locator(`[data-onglet="${onglet}"]`)
       await bouton.click()
       await expect(bouton).toHaveAttribute('aria-expanded', 'true')
-      await expect(volet.locator('.notes-languette button.actif')).toHaveCount(1)
+      await expect(outils.locator('button.actif')).toHaveCount(1)
       await expect(volet.locator(`#panneau-${onglet}-entretien`)).toBeVisible()
       await expect(page.locator('.colonne-gauche .locuteurs-coder')).toBeVisible()
       for (const autre of ['notes', 'donnees'].filter((nom) => nom !== onglet)) {
         await expect(volet.locator(`#panneau-${autre}-entretien`)).toBeHidden()
       }
     }
-    const journal = page.locator('.colonne-droite .outils-editeur [data-onglet="journal"]')
-    await expect(page.locator('.barre .outils-editeur')).toHaveCount(0)
-    const outils = await page.locator('.outils-editeur').boundingBox()
+
+    const boite = await page.locator('.outils-editeur').boundingBox()
     const cadre = await page.locator('.cadre').boundingBox()
-    expect(outils).not.toBeNull()
-    expect(cadre).not.toBeNull()
-    expect(outils!.y + outils!.height).toBeLessThanOrEqual(cadre!.y + 1)
-    const debut = await page.locator('.editeur p').first().boundingBox()
-    expect(debut).not.toBeNull()
-    expect(outils!.y + outils!.height).toBeLessThanOrEqual(debut!.y)
+    expect(boite!.y + boite!.height).toBeLessThanOrEqual(cadre!.y + 1)
     await expect(page.locator('.entete-editeur')).toHaveCSS('position', 'sticky')
-    expect(Math.abs(outils!.width - cadre!.width)).toBeLessThan(1)
-    expect(Math.abs(outils!.x - cadre!.x)).toBeLessThan(1)
+    expect(Math.abs(boite!.width - cadre!.width)).toBeLessThan(1)
+
+    // Le journal remplace les notes dans le volet et prend le focus ; Échap le referme.
+    const journal = outils.locator('[data-onglet="journal"]')
+    const panneauJournal = volet.locator('#panneau-journal-entretien')
     await journal.click()
-    const fenetre = page.getByRole('dialog', { name: 'Journal des actions de l’entretien' })
-    await expect(fenetre).toBeVisible()
-    await expect(fenetre).toBeFocused()
-    await expect(volet.locator('#panneau-notes-entretien')).toBeVisible()
+    await expect(panneauJournal).toBeVisible()
+    await expect(panneauJournal).toBeFocused()
+    await expect(volet.locator('#panneau-notes-entretien')).toBeHidden()
     await expect(journal).toHaveAttribute('aria-expanded', 'true')
     await page.keyboard.press('Escape')
-    await expect(fenetre).toHaveCount(0)
+    await expect(panneauJournal).toHaveCount(0)
+    await expect(volet).not.toHaveClass(/ouvert/)
     await expect(journal).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(fenetre).toBeVisible()
+    await expect(panneauJournal).toBeVisible()
+
+    // La recherche s'affiche à son tour dans le volet, à la place du journal.
     await page.locator('.ouvrir-recherche').click()
-    await expect(fenetre).toHaveCount(0)
-    await expect(page.locator('.barre-recherche')).toBeVisible()
+    await expect(panneauJournal).toHaveCount(0)
+    await expect(volet.locator('.barre-recherche')).toBeVisible()
+    await expect(page.locator('#champ-recherche')).toBeFocused()
     await journal.click()
     await expect(page.locator('.barre-recherche')).toHaveCount(0)
-    await fenetre.getByRole('button', { name: 'Fermer le journal' }).click()
+    await panneauJournal.getByRole('button', { name: 'Fermer le journal' }).click()
     await expect(journal).toHaveAttribute('aria-expanded', 'false')
+    await expect(volet).not.toHaveClass(/ouvert/)
   } finally {
     await app.close()
   }
@@ -99,10 +98,10 @@ test('la barre reste accessible en défilant sans cacher le début ni laisser de
     for (const y of [400, 900]) {
       await page.evaluate((position) => window.scrollTo(0, position), y)
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(y)
-      const barreSuperieure = await page.locator('.grille-ent > .barre').boundingBox()
-        ?? await page.locator('.app > header').boundingBox()
+      // L'en-tête du texte reste à la hauteur du haut des panneaux voisins.
+      const colonneGauche = await page.locator('.colonne-gauche').boundingBox()
       const barreEditeur = await entete.boundingBox()
-      expect(Math.abs(barreEditeur!.y - barreSuperieure!.y - barreSuperieure!.height)).toBeLessThan(1)
+      expect(Math.abs(barreEditeur!.y - colonneGauche!.y)).toBeLessThan(1)
       for (const bouton of ['.ouvrir-recherche', '[data-onglet="journal"]']) {
         expect(await entete.locator(bouton).evaluate((element) => {
           const rect = element.getBoundingClientRect()
@@ -111,7 +110,7 @@ test('la barre reste accessible en défilant sans cacher le début ni laisser de
       }
     }
     await entete.locator('[data-onglet="journal"]').click()
-    await expect(page.locator('.fenetre-journal')).toBeVisible()
+    await expect(page.locator('.volet-notes .fenetre-journal')).toBeVisible()
     await page.getByRole('button', { name: 'Fermer le journal' }).click()
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
@@ -180,13 +179,14 @@ test('les flèches du clavier permettent de retrouver le début sous la barre fi
 test('créer et supprimer des notes apparaît au Journal ; annuler restaure leur place et leur contenu', async () => {
   const { app, page } = await ouvrir('sonal-journal-notes-')
   try {
-    await page.locator('.onglets button[data-onglet="notes"]').click()
+    await page.locator('.outils-editeur button[data-onglet="notes"]').click()
     const panneau = page.locator('.panneau.notes')
     const cartes = panneau.locator('.carte-note')
     for (const titre of ['Première', 'Milieu', 'Dernière']) {
+      await ouvrirFormulaireNoteDansPanneau(page)
       await panneau.locator('.nouvelle-note-inline .champ-titre-note input').fill(titre)
       await panneau.locator('.nouvelle-note-inline .zone-corps-note').fill(`Contenu de ${titre}`)
-      await panneau.getByRole('button', { name: 'Créer une note', exact: true }).click()
+      await panneau.getByRole('button', { name: 'Valider', exact: true }).click()
     }
     await expect(cartes.locator('.titre-note')).toHaveText(['Dernière', 'Milieu', 'Première'])
     await ongletJournal(page)
@@ -194,7 +194,9 @@ test('créer et supprimer des notes apparaît au Journal ; annuler restaure leur
     await expect(entrees).toHaveCount(3)
     await expect(entrees.first()).toContainText('Note créée : Dernière')
 
+    // Le journal et les notes se relaient dans le volet de droite.
     await page.getByRole('button', { name: 'Fermer le journal' }).click()
+    await page.locator('.outils-editeur button[data-onglet="notes"]').click()
     await cartes.filter({ hasText: 'Milieu' }).getByTitle('Supprimer', { exact: true }).click()
     await ongletJournal(page)
     const creationMilieu = entrees.filter({ hasText: 'Note créée : Milieu' })
@@ -206,6 +208,7 @@ test('créer et supprimer des notes apparaît au Journal ; annuler restaure leur
     await expect(creationMilieu.locator('.annuler-entree')).toBeEnabled()
 
     await page.getByRole('button', { name: 'Fermer le journal' }).click()
+    await page.locator('.outils-editeur button[data-onglet="notes"]').click()
     await panneau.getByTitle('Vue feuille (toutes les notes à la suite, éditables)', { exact: true }).click()
     await expect(panneau.locator('.corps-notes-texte').nth(1)).toHaveText('Contenu de Milieu')
     await ongletJournal(page)
@@ -251,7 +254,7 @@ test('annuler une attribution de locuteur → l’ancien loc restauré, la sciss
   // Attribuer « Lyon » (sous-partie du bloc 1, loc 1) à Karine → scission, loc 2.
   await selectionner(page, 'Lyon')
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
+  await expect(page.locator('.attribuer .boutons-loc')).toBeVisible()
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
   await expect(page.locator('.editeur p')).toHaveCount(4)
   await expect(page.locator('.editeur p[data-loc="2"]', { hasText: 'Lyon' })).toHaveCount(1)

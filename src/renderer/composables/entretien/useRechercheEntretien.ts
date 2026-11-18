@@ -94,6 +94,14 @@ export function useRechercheEntretien(deps: {
     calerOccurrenceActive()
   }
 
+  /** Rend courante l'occurrence de rang `i` (clic sur un repère de la forme d'onde). */
+  function allerOccurrence(i: number) {
+    if (!occurrencesRecherche.value[i]) return
+    indexRecherche.value = i
+    majDecorationsRecherche()
+    calerOccurrenceActive()
+  }
+
   function remplacerOccurrenceCourante() {
     const ed = deps.lireEditeur()
     const occ = occurrencesRecherche.value[indexRecherche.value]
@@ -141,6 +149,7 @@ export function useRechercheEntretien(deps: {
     ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
+    allerOccurrence,
     remplacerOccurrenceCourante,
     remplacerTout,
     surDocumentModifie,

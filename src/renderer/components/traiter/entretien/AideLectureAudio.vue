@@ -12,7 +12,12 @@ const dialogue = ref<HTMLDialogElement | null>(null)
     aria-label="Aide sur les raccourcis clavier du lecteur"
     aria-haspopup="dialog"
     @click="dialogue?.showModal()"
-  >Raccourcis</button>
+  >
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6 9.5h.01M9 9.5h.01M12 9.5h.01M15 9.5h.01M18 9.5h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8 15h8" />
+    </svg>
+  </button>
   <Teleport to="body">
     <dialog ref="dialogue" class="dialogue-aide-lecture" aria-label="Raccourcis clavier du lecteur">
       <h2>Contrôler la lecture au clavier</h2>
@@ -31,19 +36,22 @@ const dialogue = ref<HTMLDialogElement | null>(null)
 </template>
 
 <style scoped>
+/* Icône clavier au bout de la ligne de commandes du lecteur. */
 .aide-lecture {
-  align-self: flex-end;
-  padding: 0;
-  border: none;
-  background: none;
-  color: #2b4a75;
-  font: inherit;
-  font-size: 0.72rem;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 1.6rem;
+  padding: 0 0.45rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  color: #2b3d55;
   cursor: pointer;
 }
 .aide-lecture:hover {
+  border-color: #2e73d8;
   color: #1565c0;
 }
 .dialogue-aide-lecture {

@@ -43,7 +43,7 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
 
   // 4) SAISIR une donnée EAV de portée entretien — la variable « Lieu » (importée)
   //    offre la modalité « MonTest » : on la choisit (fiche de CET entretien).
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  await page.locator('.outils-editeur button[data-onglet="donnees"]').click()
   await page.locator('.saisie-eav-sel').first().selectOption({ label: 'MonTest' })
   await expect(page.locator('header .etat')).toHaveText('à jour')
 

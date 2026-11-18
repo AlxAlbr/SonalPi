@@ -209,6 +209,15 @@ const {
 .app.sans-espaces > .barre-outils {
   display: none;
 }
+/* Sur l'entretien, la zone de travail occupe toute la largeur d'un écran de portable ;
+ * sur un très grand écran, elle reste centrée pour que les lignes de texte restent lisibles. */
+.app.sans-espaces .contenu-app {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-right: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+}
 .contenu-app {
   min-width: 0;
   max-width: 1250px;

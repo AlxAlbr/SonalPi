@@ -13,10 +13,11 @@ import { pluginReperage } from '../editor/reperage'
 import { pluginRecherche } from '../editor/recherche'
 import { pluginRemapJournal } from '../editor/journalRemap'
 import { creerDetectionDoubleAlt, estToucheAlt, SEUIL_DOUBLE_APPUI } from '../editor/raccourcisLecture'
-import { nomDeLocuteur } from '../../shared/entretien/locuteurs'
+import { libelleGouttiere, nomDeLocuteur } from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
 import type { Ancre } from '../../shared/entretien/audio'
+import { bornesTour, formaterTemps, toursHorodates, type BlocHorodatage } from '../../shared/entretien/horodatage'
 import type { BlocParole } from '../../shared/entretien/statistiquesLocuteurs'
 import { useSynchroAudio } from './useSynchroAudio'
 import { useRechercheEntretien } from './entretien/useRechercheEntretien'
@@ -52,6 +53,64 @@ type Extrait = { id: string; texte: string; locuteurs: string[] }
  *  - `nomCode` / `libelleValeur` : libellés lisibles pour le journal (les noms
  *    de thèmes/variables vivent au corpus, le journal vit ici).
  */
+
+/** Tour de parole tel que la barre au-dessus des onglets le présente. */
+export interface BarreTour {
+  posBloc: number
+  nom: string
+  couleur: string
+  bornes: { debut: number; fin: number } | null
+  rang: number
+  total: number
+}
+
+interface TourBarre {
+  posBloc: number
+  loc: number | null
+  bornes: { debut: number; fin: number } | null
+  premierBloc: number
+  dernierBloc: number
+  premiereAncre: number
+  derniereAncre: number
+}
+
+/** Temps d'un tour de parole, tels que la fenêtre d'horodatage les présente. */
+export interface HorodatageTour {
+  nom: string
+  /** Temps des ancres du tour, dans l'ordre ; vide si le tour n'est pas encore horodaté. */
+  temps: number[]
+  /** Passages du tour : chacun va de l'ancre `de` à l'ancre `a` (index dans `temps`). */
+  passages: { de: number; a: number; texte: string }[]
+  texte: string
+  /** Bornes imposées par les tours voisins (null : jusqu'à la fin de l'audio). */
+  min: number
+  max: number | null
+  /** Temps estimé du début du tour, pour un tour pas encore horodaté. */
+  repere: number | null
+  /** Couleur du locuteur du tour. */
+  couleur: string
+  /** Tour qui précède : affiché pour le situer, sans modification (null : premier tour). */
+  precedent: {
+    posBloc: number
+    nom: string
+    couleur: string
+    debut: number | null
+    fin: number | null
+    /** Début du dernier passage qui a du texte : la fin du tour précédent ne peut pas remonter avant. */
+    debutDernierPassage: number | null
+  } | null
+  /** Tour qui suit : son début peut être décalé s'il est horodaté (null : dernier tour). */
+  suivant: {
+    posBloc: number
+    nom: string
+    couleur: string
+    debut: number | null
+    fin: number | null
+    indexAncre: number
+  } | null
+  /** Rang du tour dans l'entretien (à partir de 1), et tours voisins à parcourir. */
+  navigation: { rang: number; total: number; precedent: number | null; suivant: number | null }
+}
 
 export function useEntretien(deps: {
   couleurTrait: (code: string) => string
@@ -127,6 +186,8 @@ export function useEntretien(deps: {
   // --- Modèle en session (LA vérité ; éditeur et disque = projections) ---
   const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
   const locuteurs = ref<Locuteur[]>([])
+  /** Tour dont la fenêtre d'horodatage est ouverte (position de son premier bloc), ou null. */
+  const tourHorodatage = ref<number | null>(null)
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
   const notesEntretien = useNotesEntretien({
     entretien,
@@ -150,6 +211,8 @@ export function useEntretien(deps: {
     validerEditionNote,
     annulerNote,
     agrandirNote,
+    reduireNote,
+    fermerNotePanneau,
     ecrireCorpsNote,
     ecrireTitreNote,
     enregistrerSyncZoneHorsModale,
@@ -200,6 +263,7 @@ export function useEntretien(deps: {
     ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
+    allerOccurrence,
     remplacerOccurrenceCourante,
     remplacerTout,
   } = recherche
@@ -353,6 +417,7 @@ export function useEntretien(deps: {
     fermerMenu,
     commenterPlage,
     commenterDepuisMenu,
+    copierSelectionMenu,
     editerCommentaire,
     fermerEditionCommentaire,
     validerCommentaire,
@@ -462,6 +527,7 @@ export function useEntretien(deps: {
       locuteursEntretien.mettreAJourSelection(ed.state.selection.empty)
       anonymisationEntretien.mettreAJourSelection(ed)
       selectionPassage.value = selectionPassageCourante()
+      rafraichirBarreTour()
     },
   })
   function rafraichirDecorations() {
@@ -480,7 +546,95 @@ export function useEntretien(deps: {
    *  Corpus, sur le modèle en session au lieu du disque. */
   const resumeOuvert = ref<SegmentThematique[]>([])
   const blocsParole = shallowRef<BlocParole[]>([])
+  /** Tour affiché dans la barre au-dessus du panneau d'onglets (null : entretien vide). */
+  const barreTour = ref<BarreTour | null>(null)
+  /** Tour choisi à la main (flèches) ou suivi depuis le curseur, identifié par son premier bloc. */
+  let tourAffiche: number | null = null
+  /** Tour où se trouvait le curseur à la dernière mise à jour : seul un CHANGEMENT de tour le déplace. */
+  let tourCurseurPrec: number | null = null
+  let entretienBarre: string | null = null
+
+  /** Tours du document et le tour contenant le curseur, pour la barre. */
+  function analyserTours(): { tours: TourBarre[]; tourCurseur: number | null } {
+    const ed = editor.value
+    if (!ed) return { tours: [], tourCurseur: null }
+    const blocs: BlocHorodatage[] = []
+    const offsets: number[] = []
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name !== 'paragraph') return
+      blocs.push({ pos: offset + 1, longueur: node.content.size, loc: (node.attrs.loc ?? null) as number | null })
+      offsets.push(offset)
+    })
+    const ancres = entretien.ancres
+    const tours: TourBarre[] = toursHorodates(blocs, ancres).map((t) => ({
+      posBloc: offsets[t.premierBloc],
+      loc: blocs[t.premierBloc].loc,
+      bornes: bornesTour(t, ancres),
+      premierBloc: t.premierBloc,
+      dernierBloc: t.dernierBloc,
+      premiereAncre: t.premiereAncre,
+      derniereAncre: t.derniereAncre,
+    }))
+    // Bloc du curseur : le dernier bloc qui commence avant lui.
+    const curseur = ed.state.selection.from
+    let bloc = -1
+    offsets.forEach((offset, i) => {
+      if (offset < curseur) bloc = i
+    })
+    const tour = tours.find((t) => bloc >= t.premierBloc && bloc <= t.dernierBloc)
+    return { tours, tourCurseur: tour?.posBloc ?? null }
+  }
+
+  /** Couleur du locuteur d'un tour (celle des libellés et de la barre). */
+  function couleurDeTour(loc: number | null): string {
+    const interviewer = !!locuteurs.value.find((l) => l.index === loc)?.interviewer
+    return libelleGouttiere(locuteurs.value, loc, interviewer).couleur
+  }
+
+  /** Recalcule la barre : suit le curseur quand il change de tour, sinon garde le tour choisi. */
+  function rafraichirBarreTour() {
+    const { tours, tourCurseur } = analyserTours()
+    if (entretienBarre !== ouvertId.value) {
+      // Le chargement pose le curseur en fin de texte : il ne doit pas choisir le tour affiché.
+      entretienBarre = ouvertId.value
+      tourAffiche = null
+      tourCurseurPrec = tourCurseur
+    }
+    if (tours.length === 0) {
+      barreTour.value = null
+      tourAffiche = null
+      return
+    }
+    if (tourCurseur !== tourCurseurPrec) {
+      tourCurseurPrec = tourCurseur
+      if (tourCurseur != null) tourAffiche = tourCurseur
+    }
+    if (tourAffiche == null || !tours.some((t) => t.posBloc === tourAffiche)) tourAffiche = tours[0].posBloc
+    const rang = tours.findIndex((t) => t.posBloc === tourAffiche)
+    const t = tours[rang]
+    const interviewer = !!locuteurs.value.find((l) => l.index === t.loc)?.interviewer
+    barreTour.value = {
+      posBloc: t.posBloc,
+      nom: nomDeLocuteur(locuteurs.value, t.loc) || 'Tour sans locuteur',
+      couleur: libelleGouttiere(locuteurs.value, t.loc, interviewer).couleur,
+      bornes: t.bornes,
+      rang: rang + 1,
+      total: tours.length,
+    }
+  }
+
+  /** Passe au tour précédent ou suivant (flèches de la barre) sans déplacer le curseur. */
+  function allerTourVoisin(sens: 1 | -1) {
+    const { tours } = analyserTours()
+    const rang = tours.findIndex((t) => t.posBloc === tourAffiche)
+    const voisin = tours[rang + sens]
+    if (!voisin) return
+    tourAffiche = voisin.posBloc
+    rafraichirBarreTour()
+  }
+
   function rafraichir() {
+    rafraichirBarreTour()
     rafraichirExtraits()
     rafraichirJournal() // l'annulabilité dépend du doc et des annotations
     anonymisationEntretien.rafraichirLignesAnon()
@@ -523,8 +677,201 @@ export function useEntretien(deps: {
   }
 
   // --- Synchro audio (ancres temporelles) : scope dédié — le pont temps ↔ texte ---
-  const { majPlageLue, eteindre: eteindrePlageLue, allerAuTexte, tempsAuTexte, tempsDuBloc } =
+  const { majPlageLue, eteindre: eteindrePlageLue, allerAuTexte, tempsAuTexte, tempsDuBloc, oublierProjection } =
     useSynchroAudio({ editor, ancres: entretien.ancres })
+
+  // --- Horodatage d'un tour : lecture et modification des temps de ses ancres ---
+  function tourAuBloc(posBloc: number) {
+    const ed = editor.value
+    if (!ed) return null
+    const blocs: BlocHorodatage[] = []
+    const offsets: number[] = []
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name !== 'paragraph') return
+      blocs.push({ pos: offset + 1, longueur: node.content.size, loc: (node.attrs.loc ?? null) as number | null })
+      offsets.push(offset)
+    })
+    const tour = toursHorodates(blocs, entretien.ancres).find((t) => offsets[t.premierBloc] === posBloc)
+    return tour ? { tour, loc: blocs[tour.premierBloc].loc } : null
+  }
+
+  /** Ce que la fenêtre d'horodatage affiche pour le tour qui commence au bloc `posBloc`. */
+  /** Début du dernier passage du tour qui a du texte (null s'il n'en a pas). */
+  function debutDernierPassage(tour: TourBarre): number | null {
+    const ed = editor.value
+    if (!ed) return null
+    const ancres = entretien.ancres
+    for (let i = tour.derniereAncre - 1; i >= tour.premiereAncre; i--) {
+      if (ed.state.doc.textBetween(ancres[i].pos, ancres[i + 1].pos, ' ').trim()) return ancres[i].t
+    }
+    return null
+  }
+
+  function lireHorodatageTour(posBloc: number): HorodatageTour | null {
+    const ed = editor.value
+    const trouve = tourAuBloc(posBloc)
+    if (!ed || !trouve) return null
+    const { tour, loc } = trouve
+    const ancres = entretien.ancres
+    const temps: number[] = []
+    const passages: HorodatageTour['passages'] = []
+    if (tour.derniereAncre - tour.premiereAncre >= 1) {
+      for (let i = tour.premiereAncre; i <= tour.derniereAncre; i++) temps.push(ancres[i].t)
+      for (let i = tour.premiereAncre; i < tour.derniereAncre; i++) {
+        const texte = ed.state.doc.textBetween(ancres[i].pos, ancres[i + 1].pos, ' ').trim()
+        if (texte) passages.push({ de: i - tour.premiereAncre, a: i + 1 - tour.premiereAncre, texte })
+      }
+    }
+    const { tours } = analyserTours()
+    const rang = tours.findIndex((t) => t.posBloc === posBloc)
+    const apres = rang >= 0 ? tours[rang + 1] : undefined
+    const avant = rang > 0 ? tours[rang - 1] : undefined
+    const horodatageApres = !!apres && apres.derniereAncre - apres.premiereAncre >= 1
+    return {
+      nom: nomDeLocuteur(locuteurs.value, loc) || 'Tour sans locuteur',
+      temps,
+      passages,
+      texte: ed.state.doc.textBetween(tour.debut, tour.fin, ' ').trim(),
+      min: tour.premiereAncre > 0 ? ancres[tour.premiereAncre - 1].t : 0,
+      max: tour.derniereAncre + 1 < ancres.length ? ancres[tour.derniereAncre + 1].t : null,
+      repere: tempsDuBloc(posBloc),
+      couleur: couleurDeTour(loc),
+      precedent: avant
+        ? {
+            posBloc: avant.posBloc,
+            nom: nomDeLocuteur(locuteurs.value, avant.loc) || 'Tour sans locuteur',
+            couleur: couleurDeTour(avant.loc),
+            debut: avant.derniereAncre - avant.premiereAncre >= 1 ? ancres[avant.premiereAncre].t : null,
+            fin: avant.derniereAncre - avant.premiereAncre >= 1 ? ancres[avant.derniereAncre].t : null,
+            debutDernierPassage:
+              avant.derniereAncre - avant.premiereAncre >= 1
+                ? (debutDernierPassage(avant) ?? ancres[avant.premiereAncre].t)
+                : null,
+          }
+        : null,
+      suivant: apres
+        ? {
+            posBloc: apres.posBloc,
+            nom: nomDeLocuteur(locuteurs.value, apres.loc) || 'Tour sans locuteur',
+            couleur: couleurDeTour(apres.loc),
+            debut: horodatageApres ? ancres[apres.premiereAncre].t : null,
+            fin: horodatageApres ? ancres[apres.derniereAncre].t : null,
+            indexAncre: horodatageApres ? apres.premiereAncre : -1,
+          }
+        : null,
+      navigation: {
+        rang: rang + 1,
+        total: tours.length,
+        precedent: avant?.posBloc ?? null,
+        suivant: apres?.posBloc ?? null,
+      },
+    }
+  }
+
+  /**
+   *  Enregistre les temps du tour. Sans horodatage préalable, `temps` = [début, fin] :
+   *  deux ancres sont posées au début et à la fin du texte du tour.
+   */
+  function enregistrerHorodatageTour(
+    posBloc: number,
+    temps: number[],
+    debutSuivant: number | null = null,
+    finPrecedent: number | null = null,
+  ): boolean {
+    const trouve = tourAuBloc(posBloc)
+    if (!trouve) return false
+    const { tour } = trouve
+    const ancres = entretien.ancres
+    // Le début du tour suivant est écrit avant les ancres du tour : leur insertion ne le décale pas.
+    if (debutSuivant != null) {
+      const { tours } = analyserTours()
+      const apres = tours[tours.findIndex((t) => t.posBloc === posBloc) + 1]
+      if (apres && apres.derniereAncre - apres.premiereAncre >= 1) ancres[apres.premiereAncre].t = debutSuivant
+    }
+    // De même pour la fin du tour précédent, qui est l'ancre juste avant le début de ce tour.
+    if (finPrecedent != null) {
+      const { tours } = analyserTours()
+      const avant = tours[tours.findIndex((t) => t.posBloc === posBloc) - 1]
+      if (avant && avant.derniereAncre - avant.premiereAncre >= 1) ancres[avant.derniereAncre].t = finPrecedent
+    }
+    const nb = tour.derniereAncre - tour.premiereAncre + 1
+    if (nb >= 2) {
+      if (temps.length !== nb) return false
+      temps.forEach((t, k) => {
+        ancres[tour.premiereAncre + k].t = t
+      })
+    } else {
+      if (temps.length !== 2) return false
+      ancres.splice(
+        tour.premiereAncre,
+        Math.max(0, nb),
+        { pos: tour.debut, t: temps[0] },
+        { pos: tour.fin, t: temps[1] },
+      )
+    }
+    oublierProjection()
+    rafraichir()
+    rafraichirGouttiere()
+    planifierSauvegarde()
+    return true
+  }
+
+  /**
+   *  Modifie en place le début et la fin d'un tour déjà horodaté (champs de la barre).
+   *  Rend null si c'est enregistré, sinon le message à présenter : le tour ne doit pas
+   *  chevaucher le tour précédent ou le tour suivant, ni un passage sortir de ses bornes.
+   */
+  function enregistrerTempsTour(posBloc: number, debut: number, fin: number): string | null {
+    if (!(debut < fin)) return 'Le début doit être avant la fin du tour.'
+    const { tours } = analyserTours()
+    const rang = tours.findIndex((t) => t.posBloc === posBloc)
+    if (rang < 0) return 'Ce tour n’est plus dans l’entretien.'
+    const tour = tours[rang]
+    const ancres = entretien.ancres
+    if (tour.derniereAncre - tour.premiereAncre < 1) {
+      return 'Ce tour n’a pas encore de temps : utilisez « Affiner… » pour le régler.'
+    }
+    const min = tour.premiereAncre > 0 ? ancres[tour.premiereAncre - 1].t : 0
+    const max = tour.derniereAncre + 1 < ancres.length ? ancres[tour.derniereAncre + 1].t : Number.POSITIVE_INFINITY
+    if (debut < min) {
+      return `Le début chevauche le tour précédent : il doit être après ${formaterTemps(min)}.`
+    }
+    if (fin > max) {
+      return `La fin chevauche le tour suivant : elle doit être avant ${formaterTemps(max)}.`
+    }
+    // Une ancre intérieure qui touche du texte ne doit pas sortir du tour. Les ancres
+    // restées sans texte (passage supprimé) sont simplement ramenées dans les bornes.
+    const ed = editor.value
+    const texteAvant = (i: number) =>
+      ed ? ed.state.doc.textBetween(ancres[i - 1].pos, ancres[i].pos, ' ').trim() !== '' : false
+    const texteApres = (i: number) =>
+      ed ? ed.state.doc.textBetween(ancres[i].pos, ancres[i + 1].pos, ' ').trim() !== '' : false
+    for (let i = tour.premiereAncre + 1; i < tour.derniereAncre; i++) {
+      if (ancres[i].t >= debut && ancres[i].t <= fin) continue
+      if (texteAvant(i) || texteApres(i)) {
+        return `Un passage du tour sortirait des nouvelles bornes (${formaterTemps(ancres[i].t)}).`
+      }
+    }
+    for (let i = tour.premiereAncre + 1; i < tour.derniereAncre; i++) {
+      ancres[i].t = Math.min(fin, Math.max(debut, ancres[i].t))
+    }
+    ancres[tour.premiereAncre].t = debut
+    ancres[tour.derniereAncre].t = fin
+    oublierProjection()
+    rafraichir()
+    rafraichirGouttiere()
+    planifierSauvegarde()
+    return null
+  }
+
+  /** Pendant la lecture audio, la barre suit le tour où se trouve la lecture. */
+  function suivreTempsLecture(t: number) {
+    const { tours } = analyserTours()
+    const tour = tours.find((x) => x.bornes && t >= x.bornes.debut && t < x.bornes.fin)
+    if (!tour || tour.posBloc === tourAffiche) return
+    tourAffiche = tour.posBloc
+    rafraichirBarreTour()
+  }
 
   // --- Autosave (débounce) + persistance de l'entretien ouvert ---
   let tid: ReturnType<typeof setTimeout> | undefined
@@ -853,6 +1200,7 @@ export function useEntretien(deps: {
     ouvrirRecherche,
     fermerRecherche,
     naviguerRecherche,
+    allerOccurrence,
     remplacerOccurrenceCourante,
     remplacerTout,
     brouillonsAnon,
@@ -864,6 +1212,13 @@ export function useEntretien(deps: {
     refusFormat,
     etatSauvegarde,
     editor,
+    tourHorodatage,
+    barreTour,
+    allerTourVoisin,
+    lireHorodatageTour,
+    enregistrerHorodatageTour,
+    enregistrerTempsTour,
+    suivreTempsLecture,
     verrouAutrui, // état du verrou de l'entretien ouvert (bandeau lecture seule)
     entreesJournal,
     annulerEntree,
@@ -893,6 +1248,8 @@ export function useEntretien(deps: {
     validerEditionNote,
     annulerNote,
     agrandirNote,
+    reduireNote,
+    fermerNotePanneau,
     avertissementNote,
     ecrireCorpsNote,
     ecrireTitreNote,
@@ -925,6 +1282,7 @@ export function useEntretien(deps: {
     editionCommentaire,
     commenterPlage,
     commenterDepuisMenu,
+    copierSelectionMenu,
     editerCommentaire,
     fermerEditionCommentaire,
     validerCommentaire,

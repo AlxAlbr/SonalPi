@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer } from './util'
+import { entrerCorpus, lancer, ouvrirFormulaireNoteDansPanneau } from './util'
 
 test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-e2e-'))
@@ -63,6 +63,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await expect(page.getByText('Lié à « K. Dupont » — le nom saisi reste local.', { exact: true })).toHaveCount(0)
     await expect(page.locator('.entretien-ecran button[data-onglet="locuteurs"].actif')).toHaveAttribute('title', /^Locuteurs(?: —|$)/)
     await page.locator('.entretien-ecran button[data-onglet="notes"]').click()
+    await ouvrirFormulaireNoteDansPanneau(page)
     const formulaireNote = page.locator('.nouvelle-note-inline')
     await expect(formulaireNote.locator('.champ-titre-note input')).toHaveValue('')
     await expect(formulaireNote.locator('.champ-titre-note input')).not.toHaveAttribute('placeholder')
@@ -78,7 +79,7 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await formulaireNote.getByRole('button', { name: '🔗 Lier à une personne', exact: true }).click()
     await expect(choixPersonnes.getByRole('checkbox', { name: 'Karine', exact: true })).toBeChecked()
     await page.keyboard.press('Escape')
-    await formulaireNote.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await formulaireNote.getByRole('button', { name: 'Valider', exact: true }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toBeVisible()
