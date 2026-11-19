@@ -33,15 +33,25 @@ test('les détails restent secondaires et les notes de mêmes ids ne traversent 
     const alice = panneau.getByRole('option').filter({ has: page.getByText('Alice', { exact: true }) })
     await alice.click()
     await expect(details.getByRole('heading', { name: 'Note sélectionnée · Entretien Karine', exact: true })).toBeVisible()
-    await expect(details.getByText('Note étrangère', { exact: true })).toHaveCount(0)
+    await expect(details).not.toContainText('Note étrangère')
     await expect(details.getByText('Donnée locale', { exact: true })).toBeVisible()
     await expect(details.getByText('Valeur conservée', { exact: true })).toBeVisible()
     await expect(details).toContainText('Pseudo conservé')
     await expect(panneau.getByRole('listbox', { name: 'Locuteurs', exact: true })).toBeVisible()
     await expect(panneau.locator('.personnes-corpus')).toHaveCount(0)
-    expect(fichiers(dir, ['e1', autre])).toEqual(avant)
-    await details.getByRole('button', { name: 'Fermer les détails' }).click()
+    for (const width of [1280, 760]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(panneau.getByRole('listbox', { name: 'Locuteurs', exact: true })).toBeVisible()
+      await expect(details.getByRole('heading', { name: 'Informations dans les entretiens' })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    }
+    await details.getByRole('button', { name: 'Fermer les détails' }).focus()
+    await page.keyboard.press('Enter')
     await expect(alice).toHaveAttribute('aria-selected', 'true')
+    await panneau.getByRole('button', { name: 'Détails et vérifications…', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect(details.getByRole('heading', { name: 'Note sélectionnée · Entretien Karine', exact: true })).toBeVisible()
+    expect(fichiers(dir, ['e1', autre])).toEqual(avant)
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 

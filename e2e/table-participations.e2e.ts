@@ -3,7 +3,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { entrerCorpus, entrerDonnees, lancer } from './util'
-import { ecrireSeedDemo as ecrireSeedHistorique } from '../test/seedDemo'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 import type { JSONContent } from '@tiptap/core'
 
@@ -82,9 +81,8 @@ test('la table garde la même participation après un changement extérieur des 
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('consulter les anciennes lignes sans id ne les complète pas et bloque leur saisie', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-table-historique-'))
-  ecrireSeedHistorique(join(dir, 'corpus'))
+test('une participation native sans id est refusée sans réparation ni saisie partielle', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-table-invalide-'))
   const app = await lancer(dir)
   try {
     const page = await app.firstWindow()
@@ -94,16 +92,15 @@ test('consulter les anciennes lignes sans id ne les complète pas et bloque leur
       await window.sonal.corpus.ajouterModalite(id, 'Oui')
     })
     const fichier = join(dir, 'corpus/entretiens/e1.json')
-    const avant = readFileSync(fichier, 'utf8')
-    await page.reload()
-    await entrerCorpus(page)
+    const invalide = JSON.parse(readFileSync(fichier, 'utf8'))
+    for (const p of invalide.participations) delete p.id
+    const avant = JSON.stringify(invalide); writeFileSync(fichier, avant)
+    expect(await page.evaluate(() => window.sonal.corpus.lireEntretien('e1'))).toEqual({ ok: false, raison: 'version' })
     await entrerDonnees(page)
-    const cellules = page.locator('.ligne-loc select')
-    await expect(cellules).toHaveCount(2)
-    await expect(cellules.nth(0)).toBeDisabled()
-    await expect(cellules.nth(1)).toBeDisabled()
-    await expect(page.locator('.ligne-loc small')).toHaveCount(2)
+    await expect(page.locator('.ligne-loc')).toHaveCount(0)
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+    await expect(page.locator('.sources-indisponibles')).toContainText('1 entretien indisponible')
+    await expect(page.locator('.locuteurs-corpus').getByRole('option')).toHaveCount(0)
     expect(readFileSync(fichier, 'utf8')).toBe(avant)
-    expect((JSON.parse(avant) as EntretienFichier).participations.every((p) => !p.id)).toBe(true)
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

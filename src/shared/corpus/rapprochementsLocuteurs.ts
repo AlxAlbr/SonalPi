@@ -122,12 +122,25 @@ export function calculerSuggestionsLocuteurs(
   const membres = (c: CandidatRapprochementLocuteur) => c.participation.locuteurRef
     ? [c, ...(groupes.get(c.participation.locuteurRef) ?? [])] : [c]
   const membresSource = membres(source)
+  const sourceSansRefus = membresSource.every((c) => !c.participation.rapprochementsRefuses?.length)
+  // Les refus concernent le groupe entier, pas chaque apparition du même locuteur.
+  const refusGroupes = new Map<string, boolean>()
+  const groupeRefuse = (c: CandidatRapprochementLocuteur): boolean => {
+    const id = c.participation.locuteurRef
+    if (id && refusGroupes.has(id)) return refusGroupes.get(id)!
+    const cibles = membres(c)
+    const sansRefus = refuse === rapprochementLocuteursRefuse && sourceSansRefus
+      && cibles.every((m) => !m.participation.rapprochementsRefuses?.length)
+    const resultat = !sansRefus && membresSource.some((x) => cibles.some((y) => refuse(x, y)))
+    if (id) refusGroupes.set(id, resultat)
+    return resultat
+  }
   const eligibles = candidats.map((c, ordre) => ({ c, ordre, analyse: accepter(a.nom, c.participation.nom) }))
     .filter(({ c, analyse }) => {
       const b = c.participation
       if (!analyse || c.entretienId === source.entretienId || !b.id) return false
       if (a.locuteurRef && a.locuteurRef === b.locuteurRef) return false
-      if (membresSource.some((x) => membres(c).some((y) => refuse(x, y)))) return false
+      if (groupeRefuse(c)) return false
       return !(b.locuteurRef && (groupes.get(b.locuteurRef) ?? []).some((x) => x.entretienId === source.entretienId
         && x.participation.locuteurRef === b.locuteurRef && x.participation.id !== a.id))
     })

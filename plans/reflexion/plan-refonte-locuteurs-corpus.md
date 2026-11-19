@@ -2,10 +2,9 @@
 
 ## Statut et objectif
 
-**Statut : implémentation en cours. Consultation et corrections depuis la sélection
-corpus, renommage depuis l’entretien et création sans exclusions au nommage livrés en
-local ; détails secondaires et retrait des anciens parcours locaux livrés. La qualification
-complète et les captures finales restent à faire.**
+**Statut : lot local B1–B5 livré et clôturé. Consultation, corrections de sélection,
+renommage depuis l’entretien, création au nommage et détails secondaires sont qualifiés.
+Captures et aide actualisées ; réserves transversales documentées sans extension du lot.**
 
 Remplacer le répertoire technique des personnes et de leurs associations par une
 vue simple des locuteurs du corpus : qui intervient, dans quels entretiens et à
@@ -810,7 +809,22 @@ sans perdre les contrôles de notes, données, reprise, refus et navigation. Le 
 de l’application et des nouveaux tests, le build et les contrôles d’espaces passent.
 Les bancs réels ne sont pas rejoués : aucun nouveau parcours distant n’est activé.
 
-### Prochain lot
+### Qualification et clôture B5
 
-Qualification complète des nouveaux gestes et mise à jour des captures et aides (B5).
-B3 et B4 sont encore non committés ; B1 et B2 restent dans `2f33a3b`.
+B3+B4 sont committés dans `1d83616`, après B1+B2 dans `2f33a3b`, sans push.
+B5 clôt la qualification locale et renouvelle quatre captures, dont les nouvelles
+vues corpus et détails intégrées à l’aide. B5 est livré par le commit de clôture du lot.
+
+Résultats : **4 236 tests locaux/simulés sur 294 fichiers**, **121 scénarios Electron
+ciblés validés**, inclus dans **302 réussites** de la campagne élargie. Ses **21 échecs**
+sont également reproduits sur `31ec321`, avant le lot B ; cinq scénarios sont sautés.
+Typage, build et contrôles d’espaces passent. Aucun nouveau droit distant n’est ouvert.
+
+Les inventaires de 2 000 entretiens sont couverts et les contrôles de refus ne sont
+plus répétés pour chaque apparition d’une identité. Les neuf scénarios de charge
+s’exécutent ; à 1 000 annotations, le p95 des corrections reste de 400 à 647 ms.
+Cette limite et les défauts historiques restent hors lot, sans affaiblir les assertions.
+
+Le [bilan détaillé](../../docs/dev/traiter/locuteurs/qualification.md) précise les
+périmètres, exclusions et réserves. Le lot est clôturé sur ces résultats acquis,
+sans nouvelle campagne générale ni élargissement aux défauts transversaux.

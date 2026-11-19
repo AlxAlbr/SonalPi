@@ -67,6 +67,8 @@ adaptation du stockage 9. Leur remplacement visuel est un chantier distinct.
 
 ## Parcours de lecture
 
+- [qualification.md](qualification.md) : bilan local, captures et réserves de qualification.
+
 - [entretien.md](entretien.md) : attribution, suppression, rôle et pseudonyme.
 - [personnes.md](personnes.md) : parcours historiques de correction et droits distants.
 - [variables.md](../variables.md) : valeurs portées par chaque participation.

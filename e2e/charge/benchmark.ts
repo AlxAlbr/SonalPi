@@ -300,6 +300,8 @@ test('mesure la réactivité de l’éditeur selon la taille et les annotations'
         await deuxImages(page)
         scenario.entreeCorpusMs = arrondir(nodePerformance.now() - debutCorpus)
 
+        await page.locator('[data-tour="ouvrir-traiter"]').click()
+        await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
         const debutOuverture = nodePerformance.now()
         await entrerEntretien(page)
         await deuxImages(page)

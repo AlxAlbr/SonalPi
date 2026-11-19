@@ -2,7 +2,7 @@
 
 ## Statut et articulation
 
-**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B en cours : corrections corpus, renommage depuis l’entretien et création sans exclusions au nommage et détails locaux raccordés.**
+**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot local B1–B5 livré et clôturé, avec réserves transversales documentées.**
 
 Corpus, entretiens, sessions, imports, notes, variables, cas, exports et fournisseurs
 utilisent le modèle natif commun. Les formats V2 de développement 1 à 9 sont refusés
@@ -429,8 +429,8 @@ et sont laissés démarrés. Aucun résultat local ne remplace une qualification
 - [ ] Les deux défauts de présentation Electron documentés avant la bascule restent
   hors de cette série : défilement clavier du journal et écart droit du volet de 2 px.
   Ils avaient également été reproduits sur `2c76cf7` ; leurs seuils restent inchangés.
-- [ ] Terminer la qualification complète du lot B et les captures finales après les
-  raccords corpus, entretien, nommage et détails secondaires.
+- [x] Qualifier le lot B et actualiser les captures après les raccords corpus,
+  entretien, nommage et détails secondaires ; conserver les réserves hors lot.
 
 La bascule native est effectuée et qualifiée sur le périmètre indiqué. Ce bilan
 ne prétend ni que toute la suite Electron est verte, ni que l’ensemble du plan
@@ -499,7 +499,7 @@ relecture refusée et reprise après redémarrage. Les tests B1 restent dans la 
 les bancs réels n’ont pas été rejoués pour cette étape locale.
 
 La création sans exclusions et les détails locaux ont été raccordés ensuite
-(sections 12 et 13). La qualification fonctionnelle complète reste à terminer (B5).
+(sections 12 et 13). Le bilan B5 et ses réserves figurent en section 14.
 
 ## 12. Lot B — création sans exclusions après validation du nom
 
@@ -588,5 +588,23 @@ sélection et les détails ; la consultation sans écriture et les références 
 identiques dans plusieurs entretiens sont vérifiées. Les bancs réels ne sont pas
 rejoués pour cette livraison locale.
 
-B3 et B4 restent non committés. B1 et B2 sont versionnés dans `2f33a3b`.
-Restent la qualification complète, les captures et les dernières vérifications B5.
+B3+B4 sont versionnés dans `1d83616`, après B1+B2 dans `2f33a3b`, sans push.
+
+## 14. Qualification B5 et clôture locale
+
+Le lot est clôturé sur **4 236 tests locaux/simulés réussis dans 294 fichiers** et
+**121 scénarios Electron ciblés validés**. La campagne locale élargie donne
+**302 réussites, 21 échecs et 5 sauts**. Les 21 scénarios en échec échouent également
+sur `31ec321`, avant le lot B ; ils restent dans leurs chantiers transversaux.
+Typage de l’application et des nouveaux tests, build et contrôles d’espaces passent.
+
+Quatre captures sont actualisées et l’aide présente maintenant la sélection corpus
+et les détails. Les inventaires de 2 000 entretiens sont couverts sans mutation ;
+les contrôles de refus sont mutualisés par identité pendant le calcul des suggestions.
+Les neuf scénarios de charge s’exécutent, avec une limite conservée de 400 à 647 ms
+au p95 des corrections à 1 000 annotations. Aucun seuil n’est abaissé.
+
+Le [bilan détaillé](../../docs/dev/traiter/locuteurs/qualification.md) conserve les
+exclusions, réserves et commandes. Aucun nouveau parcours distant n’est activé.
+Les compléments B5 sont livrés par le commit de clôture du lot, sans push supplémentaire.
+Aucune nouvelle relance générale n’est nécessaire pour cette clôture.

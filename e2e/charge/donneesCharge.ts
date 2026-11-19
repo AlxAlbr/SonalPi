@@ -127,7 +127,9 @@ export function ecrireProfilCharge(
   writeFileSync(cheminEntretien, JSON.stringify(entretien), 'utf8')
   writeFileSync(
     join(userDataDir, 'settings.json'),
-    JSON.stringify({ recents: [dirCorpus] }, null, 2),
+    JSON.stringify({ recents: [dirCorpus], navigationProjets: {
+      [`local:${dirCorpus}`]: { vue: 'corpus', onglet: 'accueil' },
+    } }, null, 2),
     'utf8',
   )
 

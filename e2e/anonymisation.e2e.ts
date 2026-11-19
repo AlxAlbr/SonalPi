@@ -22,6 +22,7 @@ import {
 
 import { fixturePseudonymisation } from '../test/fixtures/pseudonymisation'
 import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
+import { importerFixtureNative } from './fixtures-natives'
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
 
@@ -118,11 +119,7 @@ test('renommage global local : annulation, source périmée, inventaire confirm�
   const { app, page } = await ouvrirSurCorpus('sonal-anon-renommage-')
   try {
     const fixture = fixtureRenommageAnon()
-    const ids = await page.evaluate(async ({ corpus, sources }) => {
-      const ids: string[] = []
-      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-      return ids
-    }, fixture)
+    const ids = await importerFixtureNative(page, fixture)
     const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
     await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
     const ouvrirRenommage = async () => {
@@ -213,11 +210,7 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
     const fixture = fixtureRenommageAnon()
     fixture.corpus.reglesAnon.personne.pseudos = ['Claire']
     for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === "personne" && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
-    const ids = await page.evaluate(async ({ corpus, sources }) => {
-      const ids: string[] = []
-      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-      return ids
-    }, fixture)
+    const ids = await importerFixtureNative(page, fixture)
     const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
     await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
     const ouvrirAjout = () => page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true }).click()
@@ -227,12 +220,12 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
     await expect(page.locator('.pseudo-table')).not.toContainText('+ Variante')
     await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
     await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
-    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === "locuteur")!.pseudos).toEqual(['Claire'])
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!.pseudos).toEqual(['Claire'])
     await ouvrirAjout(); await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / claire')
     await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
     await expect(modal.getByRole('alert')).toContainText('différents')
     await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
-    await page.evaluate(() => window.sonal.corpus.regleAnonCategoriser("locuteur", 'Catégorie concurrente'))
+    await page.evaluate(() => window.sonal.corpus.regleAnonCategoriser('personne', 'Catégorie concurrente'))
     await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
     await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
     await expect(modal.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled()
@@ -253,7 +246,7 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
     await expect(retrait).toBeVisible()
     await expect(retrait.getByRole('button', { name: 'Remplacer les choix et retirer la variante', exact: true })).toBeDisabled()
     await retrait.getByRole('button', { name: 'Annuler', exact: true }).click()
-    const regle = (await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === "locuteur")!
+    const regle = (await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!
     expect(regle).toMatchObject({ pseudos: ['Claire', 'Rebecca'], categorie: 'Catégorie concurrente' })
     expect(await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)).toEqual(avant)
   } finally { await app.close() }

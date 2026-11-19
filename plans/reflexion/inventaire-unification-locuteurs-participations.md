@@ -242,10 +242,17 @@ Le panneau historique Personnes est désormais réservé aux corpus distants et 
 canaux encore utilisés transportent le modèle natif. Les raccords locaux B1 à B4
 utilisent la sélection, le nommage sans exclusions et les détails secondaires.
 La régularisation des entrées sans identité est explicite, sans changement à la
-consultation. La qualification complète B5 reste distincte. Les nouvelles corrections
-distantes ne sont pas activées.
+consultation. B5 clôt la qualification locale avec les réserves transversales
+consignées dans le bilan. Les nouvelles corrections distantes ne sont pas activées.
 
-La suite locale/simulée passe sur 280 fichiers (4 078 tests), ainsi que les périmètres
-réels GitLab et Nextcloud ciblés. Le bilan du plan précise les commandes couvertes,
-les tests sautés et les limites Electron : deux accès d’export déjà absents du commit
-initial, en plus des deux défauts de présentation antérieurement documentés.
+La qualification initiale du format natif comptait 4 078 tests sur 280 fichiers,
+avec les périmètres réels GitLab et Nextcloud ciblés. La clôture locale B5 atteint
+**4 236 tests sur 294 fichiers** et **121 scénarios Electron ciblés validés**.
+La campagne élargie donne **302 réussites, 21 échecs également reproduits sur
+`31ec321`, et 5 sauts**. Quatre captures sont actualisées et les neuf scénarios de
+charge s’exécutent, sans masquer les lenteurs à 1 000 annotations.
+
+B1+B2 sont dans `2f33a3b`, B3+B4 dans `1d83616`. B5 est livré par le commit de clôture, sans push.
+Le [bilan de qualification](../../docs/dev/traiter/locuteurs/qualification.md) détaille
+les exclusions et réserves conservées hors lot. Le lot local est clôturé ; aucune
+nouvelle campagne générale ni extension distante n’est engagée.
