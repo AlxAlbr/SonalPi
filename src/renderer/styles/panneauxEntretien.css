@@ -1,9 +1,9 @@
 /**
  *  Gabarit commun des panneaux de la colonne gauche de l'entretien
  *  (Locuteurs, Pseudos, Thèmes, Commentaires). Chaque panneau a :
- *  - un en-tête sans titre, avec le bouton d'aide ⓘ à gauche et au plus
+ *  - un en-tête sans titre, avec le bouton d'aide (icône info) à gauche et au plus
  *    deux actions à droite (l'action principale est pleine, l'autre est une icône) ;
- *  - un bloc d'aide replié, ouvert par ⓘ ;
+ *  - un bloc d'aide replié, ouvert par l'icône info ;
  *  - une liste de lignes identiques, et un même message quand la liste est vide.
  */
 
@@ -72,7 +72,7 @@
   cursor: default;
 }
 
-/* Bloc d'aide, ouvert par ⓘ. */
+/* Bloc d'aide, ouvert par l'icône info. */
 .gabarit-aide {
   margin: 0 0 0.6rem;
   padding: 0.5rem 0.65rem;

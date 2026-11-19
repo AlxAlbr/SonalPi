@@ -388,7 +388,7 @@ function ouvrirDocumentationPseudo() {
       aria-label="Aide sur la pseudonymisation"
       title="Aide"
       @click="aideOuverte = !aideOuverte"
-    >ⓘ</button>
+    ><span class="ico-info" aria-hidden="true"></span></button>
     <div class="gabarit-actions">
       <button
         type="button"

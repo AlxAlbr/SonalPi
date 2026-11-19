@@ -323,7 +323,7 @@ function afficherDate(iso: string): string {
     <p v-if="messageTableau" class="message-tableau">{{ messageTableau }}</p>
     <div class="aide-tableau" :class="{ ouvert: aideOuverte }">
       <button class="aide-titre" @click="aideOuverte = !aideOuverte">
-        <span>ℹ️ Comment remplir le tableau ?</span>
+        <span><span class="ico-info" aria-hidden="true"></span> Comment remplir le tableau ?</span>
         <span class="aide-bascule">{{ aideOuverte ? '▾' : '▸' }}</span>
       </button>
       <div v-if="aideOuverte" class="aide-texte">

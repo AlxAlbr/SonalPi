@@ -71,7 +71,7 @@ function basculerToutesDescriptions() {
         aria-label="Aide sur les thématiques"
         title="Aide"
         @click="aideOuverte = !aideOuverte"
-      >ⓘ</button>
+      ><span class="ico-info" aria-hidden="true"></span></button>
       <div class="gabarit-actions">
         <button
           v-if="idsDescriptions.length"
@@ -134,8 +134,8 @@ function basculerToutesDescriptions() {
           :aria-expanded="descriptionsOuvertes.has(n.cat.id)"
           :title="descriptionsOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
           @click="basculerDescription(n.cat.id)"
-        >ⓘ</button>
-        <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
+        ><span class="ico-info" aria-hidden="true"></span></button>
+        <span v-else class="info-theme info-theme-masque" aria-hidden="true"><span class="ico-info" aria-hidden="true"></span></span>
         <span class="usage gabarit-meta" :title="`${usages[n.cat.id] ?? 0} codage(s)`">
           {{ usages[n.cat.id] ?? 0 }}
         </span>
@@ -211,13 +211,14 @@ function basculerToutesDescriptions() {
   height: 1.3rem;
   margin-right: -0.1rem;
   flex: none;
-  border: 1px solid #d3dae5;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: #fff;
   color: #55708f;
   cursor: pointer;
   padding: 0;
-  font-size: 0.66rem;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 .info-theme:hover {
   border-color: #2e73d8;

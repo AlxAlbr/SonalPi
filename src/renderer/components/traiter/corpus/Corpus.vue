@@ -660,7 +660,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 :aria-pressed="toutesDescriptionsThemesOuvertes"
                 :title="toutesDescriptionsThemesOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
                 @click="basculerToutesDescriptionsThemes"
-              >ⓘ tout</button>
+              ><span class="ico-info" aria-hidden="true"></span> tout</button>
             </div>
             <p v-if="codebook.length === 0" class="vide">Aucun thème — « Éditer les thèmes » pour en créer.</p>
             <ul class="liste-thm-lecture">
@@ -689,8 +689,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   :aria-expanded="descriptionsThemesOuvertes.has(n.cat.id)"
                   :title="descriptionsThemesOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
                   @click="basculerDescriptionTheme(n.cat.id)"
-                >ⓘ</button>
-                <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
+                ><span class="ico-info" aria-hidden="true"></span></button>
+                <span v-else class="info-theme info-theme-masque" aria-hidden="true"><span class="ico-info" aria-hidden="true"></span></span>
                 <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
                 <p v-if="descriptionsThemesOuvertes.has(n.cat.id)" class="description-theme">{{ n.cat.description }}</p>
               </li>
@@ -1588,13 +1588,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   height: 1.3rem;
   margin-right: -0.3rem;
   flex: none;
-  border: 1px solid #d3dae5;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: #fff;
   color: #55708f;
   cursor: pointer;
   padding: 0;
-  font-size: 0.66rem;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 .info-theme:hover {
   border-color: #2e73d8;

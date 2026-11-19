@@ -35,7 +35,7 @@ const aideOuverte = computed({
   <div class="panneau-docs">
     <div class="aide" :class="{ ouvert: aideOuverte }">
       <button class="aide-titre" @click="aideOuverte = !aideOuverte">
-        <span>ℹ️ {{ estProjet ? 'Où sont mes documents ?' : 'À quoi servent ces exemples ?' }}</span>
+        <span><span class="ico-info" aria-hidden="true"></span> {{ estProjet ? 'Où sont mes documents ?' : 'À quoi servent ces exemples ?' }}</span>
         <span class="aide-bascule">{{ aideOuverte ? '▾' : '▸' }}</span>
       </button>
       <div v-if="aideOuverte" class="aide-texte">

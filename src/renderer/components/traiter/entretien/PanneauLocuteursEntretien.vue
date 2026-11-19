@@ -135,7 +135,7 @@ watch(
         aria-label="Aide sur les locuteurs"
         title="Aide"
         @click="aideOuverte = !aideOuverte"
-      >ⓘ</button>
+      ><span class="ico-info" aria-hidden="true"></span></button>
       <button
         type="button"
         class="gabarit-icone"

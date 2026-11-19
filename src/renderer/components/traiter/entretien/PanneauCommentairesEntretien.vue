@@ -54,7 +54,7 @@ function basculerRecherche() {
         aria-label="Aide sur les commentaires"
         title="Aide"
         @click="aideOuverte = !aideOuverte"
-      >ⓘ</button>
+      ><span class="ico-info" aria-hidden="true"></span></button>
       <div class="gabarit-actions">
         <button
           type="button"

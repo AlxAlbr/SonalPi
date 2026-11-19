@@ -187,3 +187,14 @@ body {
   color: #aaa;
   font-weight: 400;
 }
+
+/* Icône d'information, teintée par la couleur du texte du bouton qui la porte. */
+.ico-info {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  -webkit-mask: url('../assets/icones/info.svg') center / contain no-repeat;
+  mask: url('../assets/icones/info.svg') center / contain no-repeat;
+}
