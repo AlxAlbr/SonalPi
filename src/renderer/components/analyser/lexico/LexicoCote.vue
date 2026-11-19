@@ -228,7 +228,7 @@ function basculerEnqueteurs() {
         <template v-else>{{ filtresLexico.themes.ids.length }} thème(s) choisi(s). Ce filtre est appliqué.</template>
       </p>
       <div class="actions-liste"><button @click="definirListe('themes', 'retirer')">Retirer ce filtre</button><button @click="definirListe('themes', 'tout')">Tout cocher</button><button @click="definirListe('themes', 'aucun')">Tout décocher</button></div>
-      <label v-for="theme in themes" :key="theme.id" class="choix" :style="{ paddingLeft: `${theme.profondeur * 1.1 + 0.3}rem` }"><input type="checkbox" :checked="cocheListe('themes', theme.id)" @change="modifierListe('themes', theme.id)"> {{ theme.nom }}</label>
+      <label v-for="theme in themes" :key="theme.id" class="choix" :style="{ paddingLeft: `${theme.profondeur * 1.1 + 0.3}rem` }"><input type="checkbox" :checked="cocheListe('themes', theme.id)" @change="modifierListe('themes', theme.id)"><span class="pastille" :style="{ backgroundColor: theme.couleur || '#788596' }"></span>{{ theme.nom }}</label>
     </section>
 
     <section v-else-if="onglet === 'cas'" role="tabpanel">
@@ -266,6 +266,7 @@ h3 { margin: 0; font-size: 0.95rem; }
 .choix { display: flex; align-items: flex-start; gap: 0.3rem; padding: 0.28rem 0.3rem; font-size: 0.82rem; }
 .choix:hover { background: #f3f6fb; }
 .choix input { margin-top: 0.15rem; }
+.pastille { width: 0.68rem; height: 0.68rem; flex: none; margin-top: 0.22rem; border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 50%; }
 .groupe-variable { border-top: 1px solid #e0e3e9; padding: 0.6rem 0; }
 .groupe-variable header { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .groupe-variable header small { color: #667080; }
