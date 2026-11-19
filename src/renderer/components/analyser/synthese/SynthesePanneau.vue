@@ -5,7 +5,6 @@ import type { ExtraitSynthese } from '../../../../shared/synthese/types'
 import { utiliserSonal } from '../../../composables/sonal'
 import ListeExtraitsSynthese from './ListeExtraitsSynthese.vue'
 import VueEnsembleSynthese from './VueEnsembleSynthese.vue'
-import icoSynthese from '../../../assets/icones/synthese.svg'
 
 // Panneau droit de la synthèse : bilan, calcul, double vue et détail.
 // Les critères sont dans SyntheseCote.vue.
@@ -64,7 +63,7 @@ function afficherDansExtraits() {
 <template>
   <div class="panneau-synthese" aria-label="Tri et synthèse">
     <header class="entete">
-      <div><h2><img class="icone-titre" :src="icoSynthese" alt="" />Tri et synthèse</h2><small>{{ dateCalcul }}</small></div>
+      <small>{{ dateCalcul }}</small>
       <div class="actions">
         <label>Affichage
           <select v-model="modeTexteSynthese">
@@ -131,8 +130,6 @@ function afficherDansExtraits() {
 .bilan { align-items: flex-start; font-size: 0.84rem; }
 .bilan strong { display: block; }
 .bilan details { max-width: 42%; }
-h2 { display: flex; align-items: center; gap: 0.45rem; margin: 0; }
-.icone-titre { width: 22px; height: 22px; object-fit: contain; }
 .actions { display: flex; align-items: center; gap: 0.6rem; }
 .actions label { font-size: 0.8rem; }
 .etat { margin: 0.5rem 0.85rem 0; padding: 0.45rem 0.7rem; background: #edf5ff; border-radius: 5px; }

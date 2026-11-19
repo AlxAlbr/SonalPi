@@ -23,7 +23,7 @@ l’accueil par `allerAccueil()` ferme l’entretien ; il ne désactive pas à l
 le corpus courant.
 
 Après une ouverture explicite, `restaurerNavigationProjet()` lit la mémoire locale
-du profil. En l’absence d’emplacement enregistré, il ouvre l’Accueil de
+du profil. En l’absence d’emplacement enregistré, il ouvre le Tableau de bord de
 **Préparer et suivre** et affiche l’aiguillage de première ouverture. Le choix
 « entretien » mène à la vue Corpus ou, pour un corpus vide, à l’ajout d’entretien.
 Ce choix est indisponible si le corpus est vide et que les droits ne permettent

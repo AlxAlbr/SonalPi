@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
-import AccueilPreparation from './AccueilPreparation.vue'
 import PanneauTableauBord from './tableau-bord/PanneauTableauBord.vue'
 import TableauBord from './tableau-bord/TableauBord.vue'
 import DocsCadreCote from './documents-cadre/DocsCadreCote.vue'
 import DocsCadrePanneau from './documents-cadre/DocsCadrePanneau.vue'
 import OngletsEspace from '../app/OngletsEspace.vue'
-import { URL_KIT_PEDAGOGIQUE } from '../../../shared/ressourcesPedagogiques'
-import icoMaison from '../../assets/icones/maison.png'
 import icoCalendrier from '../../assets/icones/calendrier.png'
 import icoDocuments from '../../assets/icones/documents.png'
 import icoExemples from '../../assets/icones/exemples.svg'
@@ -17,7 +14,6 @@ import icoExemples from '../../assets/icones/exemples.svg'
 // Les panneaux restent montés pour conserver les brouillons entre deux onglets.
 const {
   sousEspacePreparation,
-  afficherAccueilPreparation,
   afficherTableauBord,
   afficherDocsCadre,
   afficherDocumentsExemples,
@@ -29,7 +25,6 @@ const {
 
 /** Un fournisseur peut ne pas proposer les documents du projet (GitLab). */
 const docsDisponibles = computed(() => gesteDisponible('docsCadre'))
-const surAccueil = computed(() => sousEspacePreparation.value === 'accueil')
 const surDocsProjet = computed(
   () => sousEspacePreparation.value === 'docs-cadre' && docsDisponibles.value,
 )
@@ -37,12 +32,11 @@ const surDocumentsExemples = computed(
   () => sousEspacePreparation.value === 'documents-exemples',
 )
 /* Sans documents du projet, « Tableau de bord » reste l'onglet de repli. */
-const surTableau = computed(() => !surAccueil.value && !surDocsProjet.value && !surDocumentsExemples.value)
+const surTableau = computed(() => !surDocsProjet.value && !surDocumentsExemples.value)
 
-type OngletPreparation = 'accueil' | 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
+type OngletPreparation = 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
 const onglets = computed(() => {
   const liste: { id: OngletPreparation; libelle: string; icone: string; tour: string }[] = [
-    { id: 'accueil', libelle: 'Accueil', icone: icoMaison, tour: 'ouvrir-accueil-preparation' },
     { id: 'tableau-bord', libelle: 'Tableau de bord', icone: icoCalendrier, tour: 'ouvrir-tableau-bord' },
     { id: 'docs-cadre', libelle: 'Documents du projet', icone: icoDocuments, tour: 'ouvrir-docs-cadre' },
     { id: 'documents-exemples', libelle: 'Documents exemples', icone: icoExemples, tour: 'ouvrir-documents-exemples' },
@@ -50,11 +44,10 @@ const onglets = computed(() => {
   return liste.filter((onglet) => onglet.id !== 'docs-cadre' || docsDisponibles.value)
 })
 const ongletActif = computed<OngletPreparation>(() =>
-  surAccueil.value ? 'accueil' : surDocsProjet.value ? 'docs-cadre' : surDocumentsExemples.value ? 'documents-exemples' : 'tableau-bord',
+  surDocsProjet.value ? 'docs-cadre' : surDocumentsExemples.value ? 'documents-exemples' : 'tableau-bord',
 )
 function choisirOnglet(id: OngletPreparation) {
-  if (id === 'accueil') afficherAccueilPreparation()
-  else if (id === 'tableau-bord') afficherTableauBord()
+  if (id === 'tableau-bord') afficherTableauBord()
   else if (id === 'docs-cadre') afficherDocsCadre()
   else afficherDocumentsExemples()
 }
@@ -126,7 +119,6 @@ async function surDepot(event: DragEvent): Promise<void> {
     />
     <aside class="cote-preparation">
       <div class="cote-corps">
-        <AccueilPreparation v-show="surAccueil" />
         <PanneauTableauBord v-show="surTableau" />
         <DocsCadreCote
           v-show="surDocsProjet || surDocumentsExemples"
@@ -136,25 +128,12 @@ async function surDepot(event: DragEvent): Promise<void> {
     </aside>
 
     <section class="principal">
-      <article v-show="surAccueil" class="presentation-preparation" aria-labelledby="titre-accueil-preparation">
-        <h2 id="titre-accueil-preparation">Message un peu long mais pouvant servir ...</h2>
-        <p>L’organisation avec un tableau de bord ainsi que l'organisation en espaces de travail
-          ("Préparer et suivre", "Importer et traiter", "Analyser et interpréter", "Organiser et exporter")
-          peut conduire à une organisation linéaire et séquentielle.<br>
-          En grossissant le trait, on attend d'avoir fini de cocher une case avant de commencer la suivante.</p>
-        <p>Or, c'est loin d'être la recommandation et le mode de fonctionnement des concepteurs de ce logiciel.<br>
-          Nous pensons au contraire que <strong>des réalisations d'actions en parallèle (avec parfois des retours en arrière) ont beaucoup d'intérêt en analyse qualitative</strong>.<br>
-          Il arrive qu'après de premiers entretiens exploratoires, on se rende compte qu'il faille changer la problématique.
-          Sur un autre plan, il est inutile d'attendre la fin de tous les entretiens pour commencer à faire des premières analyses ...<br>
-          Bref, ne vous enfermez pas dans une approche trop séquentielle du fait de l'interface.</p>
-          <p><strong>Bonnes explorations et utilisations !</strong></p>
-      </article>
       <div v-show="surTableau" class="outil-preparation">
-        <div data-tour="ancre-guide-tableau"></div>
+        <div class="ancre-guide" data-tour="ancre-guide-tableau"></div>
         <TableauBord />
       </div>
       <div v-show="surDocsProjet || surDocumentsExemples" class="outil-preparation">
-        <div v-show="surDocsProjet" data-tour="ancre-guide-docs-cadre"></div>
+        <div v-show="surDocsProjet" class="ancre-guide" data-tour="ancre-guide-docs-cadre"></div>
         <DocsCadrePanneau :source="surDocumentsExemples ? 'exemple' : 'projet'" />
       </div>
     </section>
@@ -201,13 +180,9 @@ async function surDepot(event: DragEvent): Promise<void> {
   gap: 0.4rem;
   overflow-y: auto;
 }
-.presentation-preparation { padding: 1.4rem; border: 1px solid #dce3ed; border-radius: 10px; background: #f8fafe; line-height: 1.6; }
-.presentation-preparation h2 { margin: 0 0 1rem; font-size: 1.15rem; color: #294c70; }
-.presentation-preparation p { margin: 0 0 1rem; font-size: 0.9rem; }
-.presentation-preparation a { color: #175d9e; overflow-wrap: anywhere; }
-.presentation-preparation a:focus-visible { outline: 3px solid #a55b00; outline-offset: 3px; }
-.presentation-preparation .aide-lien { margin-bottom: 0; color: #607184; font-size: .8rem; }
 .outil-preparation { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; min-height: 0; flex: 1; }
+/* Emplacement des consignes du guide pas à pas : vide, il ne décale pas le contenu vers le bas. */
+.ancre-guide:empty { display: none; }
 .depot-surlignage {
   position: absolute;
   inset: 6px;

@@ -31,8 +31,8 @@ test('Préparer et suivre utilise un corpus vierge distinct de celui du Traiteme
     await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
     await expect(page.locator('.espace-preparation')).toBeVisible()
 
-    await spotlightSur(page, '[data-tour="ouvrir-tableau-bord"]')
-    await page.locator('[data-tour="ouvrir-tableau-bord"]').click()
+    // L'espace s'ouvre directement sur le tableau de bord.
+    await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
     await expect(page.getByTestId('consigne-pas-a-pas')).toBeVisible()
     await spotlightSur(page, '[data-tour="cellule-problematique"]')
     await page.locator('[data-tour="cellule-problematique"]').click()

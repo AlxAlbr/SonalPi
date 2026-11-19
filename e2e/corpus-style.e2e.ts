@@ -12,7 +12,7 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
     await page.evaluate(() => window.sonal.corpus.regleAnonCreer('Karine', ['Claire']))
 
     await page.getByRole('button', { name: 'Préparer & Suivre', exact: true }).click()
-    const reference = page.locator('.accueil-preparation')
+    const reference = page.locator('.panneau-tableau-bord')
     await expect(reference).toBeVisible()
     const panneau = await reference.evaluate((el) => {
       const style = getComputedStyle(el)
@@ -23,7 +23,7 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
         espacement: style.padding,
       }
     })
-    const titre = await reference.locator('h3').evaluate((el) => {
+    const titre = await reference.locator('.corpus-tete h3').evaluate((el) => {
       const style = getComputedStyle(el)
       return { taille: style.fontSize, police: style.fontFamily, graisse: style.fontWeight }
     })

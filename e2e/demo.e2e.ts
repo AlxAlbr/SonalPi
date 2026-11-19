@@ -114,7 +114,7 @@ test('Préparation laisse choisir l’emplacement de sa démo et ne l’inscrit 
     await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…' }).click()
     await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer' }).click()
     await expect(page.locator('.installation-exemple')).toHaveCount(0)
-    await expect(page.locator('.spotlight-bulle')).toContainText('Organiser le suivi')
+    await expect(page.getByTestId('consigne-pas-a-pas')).toContainText('Organiser le suivi')
     const corpus = lireCorpus(dir)
     expect(corpus.nom).toBe('Préparer et suivre')
     expect(corpus.demo.usage).toBe('apprentissage')
@@ -316,7 +316,7 @@ test('un corpus déplacé se retrouve sans préparation et sans modifier le corp
     await expect(catalogue(page).getByRole('button', { name: 'Recommencer cette démo' })).toBeVisible()
     expect(await page.evaluate(() => window.sonal.corpus.dossierCourant())).toEqual(avant)
     await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
-    await expect(page.locator('.spotlight-bulle')).toContainText('Organiser le suivi')
+    await expect(page.getByTestId('consigne-pas-a-pas')).toContainText('Organiser le suivi')
     expect(lireCorpus(nouveau).demo.id).toBe(id)
     await expect(page.locator('.installation-exemple')).toHaveCount(0)
     await expect(page.locator('.modale-nouveau')).toHaveCount(0)
@@ -381,7 +381,8 @@ for (const parcours of ['preparation', 'traitement'] as const) {
         await catalogue(page).getByRole('button', { name: 'Commencer le parcours', exact: true }).click()
       }
       await expect(bilan).not.toBeVisible()
-      await expect(page.locator('.spotlight-bulle')).toContainText(parcours === 'preparation' ? 'Organiser le suivi' : 'Charger un entretien')
+      await expect(parcours === 'preparation' ? page.getByTestId('consigne-pas-a-pas') : page.locator('.spotlight-bulle'))
+        .toContainText(parcours === 'preparation' ? 'Organiser le suivi' : 'Charger un entretien')
     } finally { await app.close(); rmSync(racine, { recursive: true, force: true }) }
   })
 }

@@ -2,11 +2,11 @@
 export type NavigationProjet =
   | {
       vue: 'preparer'
-      onglet: 'accueil' | 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
+      onglet: 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
     }
   | {
       vue: 'analyser'
-      onglet: 'accueil' | 'synthese' | 'lexico' | 'analyses-croisees'
+      onglet: 'synthese' | 'lexico' | 'analyses-croisees'
       panneauVisible: boolean
     }
   | {

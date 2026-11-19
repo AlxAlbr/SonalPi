@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { SelectionSynthese } from '../../../../shared/synthese/types'
 import { utiliserSonal } from '../../../composables/sonal'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 
 // Panneau gauche de la synthèse : les cinq dimensions de critères.
 // Les résultats, le bilan et l'export sont dans SynthesePanneau.vue.
@@ -9,6 +10,9 @@ const {
   filtresSynthese, ongletCriteresSynthese, ongletsCriteresSynthese, casDisponiblesSynthese,
   personnesSynthese, membership, variables, codebook, cas,
 } = utiliserSonal()
+
+/** Le mode d'emploi des critères reste replié derrière l'icône info. */
+const aideOuverte = ref(false)
 
 const onglet = computed({
   get: () => ongletCriteresSynthese.value,
@@ -155,19 +159,23 @@ function nonRenseigne(variableId: string) {
       </button>
     </nav>
 
-    <div class="combinaison">
-      <strong>Comment les choix se combinent</strong>
-      <span>Dans une liste, un passage peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets, il doit répondre à tous les critères.</span>
+    <div class="ligne-info">
+      <BoutonInfo v-model="aideOuverte" libelle="Comment les choix se combinent" />
+      <label class="role">
+        <input
+          type="checkbox"
+          :checked="filtresSynthese.inclureEnqueteurs"
+          @change="filtresSynthese = { ...filtresSynthese, inclureEnqueteurs: !filtresSynthese.inclureEnqueteurs }"
+        >
+        Inclure les paroles des enquêteurs
+      </label>
     </div>
-
-    <label class="role">
-      <input
-        type="checkbox"
-        :checked="filtresSynthese.inclureEnqueteurs"
-        @change="filtresSynthese = { ...filtresSynthese, inclureEnqueteurs: !filtresSynthese.inclureEnqueteurs }"
-      >
-      Inclure les paroles des enquêteurs
-    </label>
+    <div v-if="aideOuverte" class="gabarit-aide combinaison">
+      <p><strong>Comment les choix se combinent</strong></p>
+      <p>Dans une liste, un passage peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets, il doit répondre à tous les critères.</p>
+      <p>Le chiffre affiché à côté de chaque onglet indique le nombre de choix qui y sont appliqués ; un onglet sans choix ne retire aucun passage.</p>
+      <p>Il faut au moins un thème, ou un cas s’il en existe, pour calculer la synthèse. Les résultats s’affichent à droite, en vue d’ensemble ou sous forme d’extraits.</p>
+    </div>
 
     <section v-if="onglet === 'entretiens'" role="tabpanel">
       <h3>Entretiens</h3>
@@ -227,7 +235,10 @@ h3 { margin: 0; font-size: 0.95rem; }
 .onglets button.actif { color: #124d8b; font-weight: 700; background: #e7f0fc; border-color: #3976b8; box-shadow: inset 0 -2px #3976b8; }
 .badge { display: block; margin-top: 0.15rem; font-size: 0.63rem; color: #4f5968; background: #e9ecf1; border-radius: 8px; padding: 0.05rem 0.3rem; }
 .badge.applique { color: #6b4100; background: #ffedb3; font-weight: 700; }
-.combinaison { display: flex; flex-direction: column; gap: 0.18rem; margin: 0.65rem 0.25rem; padding: 0.55rem; border: 1px solid #c9d7ea; border-radius: 5px; background: #f2f7fd; font-size: 0.76rem; line-height: 1.35; }
+.ligne-info { display: flex; align-items: center; gap: 0.5rem; margin: 0.65rem 0.25rem; }
+.ligne-info .role { flex: 1; margin: 0; }
+.combinaison { margin: 0 0.25rem 0.65rem; }
+.combinaison p + p { margin-top: 0.3rem; }
 section, .role { margin: 0.65rem 0.25rem; }
 section, .variable { display: grid; gap: 0.42rem; }
 label { font-size: 0.84rem; }

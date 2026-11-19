@@ -25,7 +25,7 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
   await fermerAiguillage(page)
 
   await expect(page.locator('.espace-preparation')).toBeVisible()
-  await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
 
   await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
   await page.locator('[data-tour="ouvrir-lexico"]').click()

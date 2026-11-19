@@ -35,5 +35,5 @@ export async function preparerApprentissage(app: ElectronApplication, page: Page
   await page.locator('.installation-exemple').getByRole('button', { name: 'Modifier…', exact: true }).click()
   await page.locator('.installation-exemple').getByRole('button', { name: 'Préparer et commencer', exact: true }).click()
   await expect(catalogue).not.toBeVisible()
-  await expect(['analyse', 'organisation'].includes(parcours) ? page.getByTestId('consigne-pas-a-pas') : page.locator('.spotlight-bulle')).toBeVisible()
+  await expect(['preparation', 'analyse', 'organisation'].includes(parcours) ? page.getByTestId('consigne-pas-a-pas') : page.locator('.spotlight-bulle')).toBeVisible()
 }

@@ -257,7 +257,7 @@ export function creerSonal() {
 
     try {
       if (!navigation) {
-        await entrerPreparation('accueil')
+        await entrerPreparation('tableau-bord')
         premiereOuvertureCorpus.value = !corpusDemo.value
       } else if (navigation.vue === 'preparer') await entrerPreparation(navigation.onglet)
       else if (navigation.vue === 'analyser') {
@@ -270,7 +270,7 @@ export function creerSonal() {
         vue.value = 'corpus'
       }
     } catch {
-      selectionnerPreparation('accueil')
+      selectionnerPreparation('tableau-bord')
     }
 
     navigationProjetActive = cleNavigationProjet !== null
@@ -730,10 +730,6 @@ export function creerSonal() {
     selectionnerPreparation(cible)
     if (cible === 'docs-cadre') await docsCadre.preparerDocsCadre('projet')
     if (cible === 'documents-exemples') await docsCadre.preparerDocsCadre('exemple')
-  }
-
-  function afficherAccueilPreparation(): Promise<void> {
-    return entrerPreparation('accueil')
   }
 
   function afficherTableauBord(): Promise<void> {
@@ -1432,10 +1428,10 @@ export function creerSonal() {
   /** Aiguillage de première ouverture : la gestion de projet, où l'app se trouve déjà. */
   function gererProjetPremiereOuverture(): void {
     premiereOuvertureCorpus.value = false
-    void entrerPreparation('accueil')
+    void entrerPreparation('tableau-bord')
   }
 
-  /** Referme l'aiguillage sans choisir : on reste sur l'accueil affiché. */
+  /** Referme l'aiguillage sans choisir : on reste sur le tableau de bord affiché. */
   function fermerPremiereOuverture(): void {
     premiereOuvertureCorpus.value = false
   }
@@ -1618,7 +1614,6 @@ export function creerSonal() {
     revenirTraitement: () => { retours.terminerConsultation(); revenirTraitement() },
     basculerPanneauAnalyse,
     afficherPanneauAnalyse,
-    afficherAccueilPreparation,
     afficherTableauBord,
     afficherDocsCadre,
     afficherDocumentsExemples,
@@ -1639,7 +1634,6 @@ export function creerSonal() {
     sousEspaceOrganisation,
     organisationActive,
     panneauRecueilsActif,
-    afficherAccueilAnalyse: () => entrerAnalyse('accueil'),
     afficherLexico: () => entrerAnalyse('lexico'),
     afficherSynthese: () => entrerAnalyse('synthese'),
     afficherAnalysesCroisees: () => entrerAnalyse('analyses-croisees'),

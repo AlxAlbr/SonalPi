@@ -4,7 +4,6 @@ import { utiliserSonal } from '../../../composables/sonal'
 import type { OngletFiltresLexico } from '../../../composables/corpus/useLexicoCorpus'
 import { exporterTableauLexico, type FormatExportLexico } from '../../../../shared/lexico/export'
 import { compterConcatenationsLexico, LISTES_MOTS_OUTILS, normaliserFormeLexico } from '../../../../shared/lexico/traitements'
-import icoLexico from '../../../assets/icones/lexico.svg'
 
 // Panneau droit de Lexico : bilan, tableau, concordances et traitement lexical.
 // Les filtres sont dans LexicoCote.vue.
@@ -242,10 +241,6 @@ async function annulerDernierTraitement() {
 <template>
   <div class="panneau-lexico" aria-label="Lexico">
     <header class="entete">
-      <div>
-        <h2><img class="icone-titre" :src="icoLexico" alt="" />Lexico</h2>
-        <span class="sous-titre">Index lexical du texte pseudonymisé</span>
-      </div>
       <div class="actions-entete">
         <button data-tour="actualiser-lexico" :disabled="chargementLexico" @click="actualiserLexico">Actualiser</button>
         <button @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} les filtres</button>
@@ -396,12 +391,9 @@ async function annulerDernierTraitement() {
 
 <style scoped>
 .panneau-lexico { display: flex; flex-direction: column; min-height: 0; height: 100%; background: #f7f8fb; border-radius: 8px; overflow: hidden; color: #20232a; }
-.entete { min-height: 3.2rem; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.45rem 0.85rem; background: #fff; border-bottom: 1px solid #d8dbe3; }
-h2, h3 { margin: 0; }
-h2 { display: flex; align-items: center; gap: 0.45rem; font-size: 1.15rem; }
-.icone-titre { width: 24px; height: 24px; object-fit: contain; }
+.entete { min-height: 3.2rem; display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; padding: 0.45rem 0.85rem; background: #fff; border-bottom: 1px solid #d8dbe3; }
+h3 { margin: 0; }
 h3 { font-size: 0.95rem; }
-.sous-titre { color: #687080; font-size: 0.76rem; }
 .actions-entete, .actions-bilan, .exports, .actions-liste { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .etat { margin: 0.45rem 0.85rem 0; padding: 0.4rem 0.65rem; border-radius: 5px; font-size: 0.8rem; }
 .etat.attente { background: #eef3ff; border: 1px solid #bdccec; }

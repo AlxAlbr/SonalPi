@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import type { SelectionLexico } from '../../../../shared/lexico/types'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 
 // Panneau gauche de Lexico : filtres et inclusion des enquêteurs.
 // Le tableau et les concordances sont dans LexicoPanneau.vue.
@@ -9,6 +10,9 @@ const {
   filtresLexico, ongletFiltresLexico, ongletsFiltresLexico,
   personnesLexico, membership, variables, codebook, cas, famillesCas,
 } = utiliserSonal()
+
+/** Le mode d'emploi des filtres reste replié derrière l'icône info. */
+const aideOuverte = ref(false)
 
 const onglet = computed({
   get: () => ongletFiltresLexico.value,
@@ -169,12 +173,16 @@ function basculerEnqueteurs() {
         <span class="badge" :class="{ applique: filtreApplique(cible) }">{{ badge(cible) }}</span>
       </button>
     </div>
-    <div class="combinaison">
-      <strong>Comment les choix se combinent</strong>
-      <span>Dans une liste, un mot peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets filtrés, il doit répondre à tous les critères à la fois.</span>
-      <small>« Sans restriction » signifie que cet onglet ne retire aucun mot.</small>
+    <div class="ligne-info">
+      <BoutonInfo v-model="aideOuverte" libelle="Comment les choix se combinent" />
+      <div class="option-role"><label><input :checked="filtresLexico.inclureEnqueteurs" type="checkbox" @change="basculerEnqueteurs"> Inclure les paroles des enquêteurs</label></div>
     </div>
-    <div class="option-role"><label><input :checked="filtresLexico.inclureEnqueteurs" type="checkbox" @change="basculerEnqueteurs"> Inclure les paroles des enquêteurs</label></div>
+    <div v-if="aideOuverte" class="gabarit-aide combinaison">
+      <p><strong>Comment les choix se combinent</strong></p>
+      <p>Dans une liste, un mot peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets filtrés, il doit répondre à tous les critères à la fois.</p>
+      <p>« Sans restriction » signifie que cet onglet ne retire aucun mot.</p>
+      <p>L’index lexical est calculé sur le texte pseudonymisé : les noms d’origine des personnes pseudonymisées n’y apparaissent pas.</p>
+    </div>
 
     <section v-if="onglet === 'entretiens'" role="tabpanel">
       <h3>Entretiens</h3>
@@ -244,8 +252,10 @@ h3 { margin: 0; font-size: 0.95rem; }
 .onglets button.actif { color: #124d8b; font-weight: 700; background: #e7f0fc; border-color: #3976b8; box-shadow: inset 0 -2px #3976b8; }
 .badge { display: block; margin-top: 0.15rem; font-size: 0.63rem; color: #4f5968; background: #e9ecf1; border-radius: 8px; padding: 0.05rem 0.3rem; }
 .badge.applique { color: #6b4100; background: #ffedb3; font-weight: 700; }
-.combinaison { display: flex; flex-direction: column; gap: 0.18rem; margin: 0.65rem 0.25rem; padding: 0.55rem; border: 1px solid #c9d7ea; border-radius: 5px; background: #f2f7fd; font-size: 0.76rem; line-height: 1.35; }
-.combinaison small { color: #596779; }
+.ligne-info { display: flex; align-items: center; gap: 0.5rem; margin: 0.65rem 0.25rem; }
+.ligne-info .option-role { flex: 1; margin: 0; }
+.combinaison { margin: 0 0.25rem 0.65rem; }
+.combinaison p + p { margin-top: 0.3rem; }
 .aide, section, .option-role { margin: 0.65rem 0.25rem; }
 .aide { color: #606978; font-size: 0.75rem; }
 .option-role { padding: 0.45rem; background: #f2f5fa; font-size: 0.8rem; }

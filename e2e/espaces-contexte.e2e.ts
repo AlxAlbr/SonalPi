@@ -135,7 +135,7 @@ test('un autre corpus ne reprend ni brouillon du tableau ni sélection ou éditi
       .toHaveAttribute('aria-current', 'page')
 
     await page.locator('[data-tour="ouvrir-analyser"]').click()
-    await expect(page.locator('.espace-analyse').getByRole('button', { name: 'Accueil', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.locator('[data-tour="ouvrir-synthese"]')).toHaveAttribute('aria-current', 'page')
     await ouvrirAnalyse(page, 'lexico')
     await expect(panneau.getByLabel('Rechercher une forme')).toHaveValue('')
     await expect(panneau.locator('.edition-regroupement')).toHaveCount(0)

@@ -35,7 +35,7 @@ test('première ouverture : aiguillage affiché, puis « gestion de projet »', 
   await page.getByRole('button', { name: "Aller vers l'interface de gestion de projet" }).click()
   await expect(aiguillage(page)).toHaveCount(0)
   await expect(page.locator('.espace-preparation')).toBeVisible()
-  await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
 
   // La question ne revient pas ; l'espace quitté est repris.
   await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()

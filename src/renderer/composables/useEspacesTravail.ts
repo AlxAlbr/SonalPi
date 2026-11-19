@@ -10,12 +10,10 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
   const vueTraitement = ref<'corpus' | 'entretien'>(
     deps.vue.value === 'entretien' ? 'entretien' : 'corpus',
   )
-  /** Onglet actif de « Préparer et suivre », mémorisé pour ce corpus.
-   *  L'Accueil présente les outils ; il ne lance aucun chargement. */
-  const sousEspacePreparation = ref<SousEspacePreparation>('accueil')
-  /** Onglet actif de « Analyser et interpréter ».
-   *  L'Accueil présente les outils sans lancer de calcul. */
-  const sousEspaceAnalyse = ref<SousEspaceAnalyse>('accueil')
+  /** Onglet actif de « Préparer et suivre », mémorisé pour ce corpus. */
+  const sousEspacePreparation = ref<SousEspacePreparation>('tableau-bord')
+  /** Onglet actif de « Analyser et interpréter », mémorisé pour ce corpus. */
+  const sousEspaceAnalyse = ref<SousEspaceAnalyse>('synthese')
   /** Les filtres de l'onglet d'analyse occupent-ils la colonne de gauche ? */
   const panneauAnalyseVisible = ref(true)
   const ongletCorpus = ref<OngletCorpus>('accueil')
@@ -93,8 +91,8 @@ export function useEspacesTravail(deps: { vue: Ref<VueApplication> }) {
     vueTraitement.value = 'corpus'
     if (preparationActive.value || analyseActive.value || organisationActive.value) deps.vue.value = 'corpus'
     ongletCorpus.value = 'accueil'
-    sousEspacePreparation.value = 'accueil'
-    sousEspaceAnalyse.value = 'accueil'
+    sousEspacePreparation.value = 'tableau-bord'
+    sousEspaceAnalyse.value = 'synthese'
     sousEspaceOrganisation.value = 'accueil'
     panneauAnalyseVisible.value = true
   }

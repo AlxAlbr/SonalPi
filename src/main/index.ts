@@ -254,10 +254,10 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   if (!navigation || typeof navigation !== 'object') return false
   const n = navigation as Record<string, unknown>
   if (n.vue === 'preparer') {
-    return ['accueil', 'tableau-bord', 'docs-cadre', 'documents-exemples'].includes(String(n.onglet))
+    return ['tableau-bord', 'docs-cadre', 'documents-exemples'].includes(String(n.onglet))
   }
   if (n.vue === 'analyser') {
-    return ['accueil', 'synthese', 'lexico', 'analyses-croisees'].includes(String(n.onglet))
+    return ['synthese', 'lexico', 'analyses-croisees'].includes(String(n.onglet))
       && typeof n.panneauVisible === 'boolean'
   }
   if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
@@ -267,9 +267,20 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   return false
 }
 
+/** Les anciens onglets « Accueil » de la préparation et de l'analyse rouvrent leur premier outil. */
+function sansAccueilRetire(navigation: unknown): unknown {
+  if (!navigation || typeof navigation !== 'object') return navigation
+  const n = navigation as Record<string, unknown>
+  if (n.onglet !== 'accueil') return navigation
+  if (n.vue === 'preparer') return { ...n, onglet: 'tableau-bord' }
+  if (n.vue === 'analyser') return { ...n, onglet: 'synthese' }
+  return navigation
+}
+
 function lireNavigationsProjets(navigations: unknown): Record<string, NavigationProjet> | undefined {
   if (!navigations || typeof navigations !== 'object' || Array.isArray(navigations)) return undefined
   const valides = Object.entries(navigations as Record<string, unknown>)
+    .map(([cle, navigation]): [string, unknown] => [cle, sansAccueilRetire(navigation)])
     .filter((entree): entree is [string, NavigationProjet] => entree[0] !== '' && estNavigationProjet(entree[1]))
   return valides.length ? Object.fromEntries(valides) : undefined
 }
