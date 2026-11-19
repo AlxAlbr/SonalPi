@@ -184,7 +184,7 @@ watch(
         <section class="modale-locuteurs">
           <div class="corpus-tete">
             <h3 id="titre-gestion-locuteurs">Gestion des locuteurs</h3>
-            <button class="mini" @click="nouveauLocuteur">+ Locuteur</button>
+            <button class="mini" :disabled="lectureSeule" @click="nouveauLocuteur">+ Locuteur</button>
             <button
               ref="boutonFermerGestion"
               class="fermer"
@@ -194,6 +194,7 @@ watch(
             >✕</button>
           </div>
           <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
+          <p v-if="renommageGlobalDisponible" class="aide-gestion-locuteurs">Valider un nom ajoute un locuteur distinct au corpus, même si un autre porte déjà ce nom. Les rapprochements demandent votre confirmation.</p>
           <div v-if="locuteurASupprimer" class="confirm-suppr">
             Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
             <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
@@ -213,10 +214,10 @@ watch(
             <RapprochementNommage
               v-if="rapprochementNommage"
               :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
+              :entretien-id="rapprochementNommage.entretienId"
               :cible="rapprochementNommage.cible"
               :sources="rapprochementNommage.sources"
               :nom="rapprochementNommage.nom"
-              :lien-actuel="rapprochementNommage.lienActuel"
               :candidats="rapprochementNommage.candidats"
               :occupe="rapprochementOccupe"
               :message="messagePersonnes"
@@ -225,7 +226,7 @@ watch(
             />
             <p
               v-if="messagePersonnes"
-              :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
+              :class="{ 'message-personne-creation': messagePersonnes.startsWith('Locuteur «') }"
               role="status"
             >{{ messagePersonnes }}</p>
             <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
@@ -240,13 +241,17 @@ watch(
                   @change="choisirCouleurLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                 />
                 <div class="nom-cell">
-                <input
-                  class="nom-loc"
-                  :data-tour="i === 0 ? 'nom-locuteur' : undefined"
-                  :value="l.nom"
-                  :disabled="lectureSeule || !l.id"
-                  @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, $event)"
-                />
+                  <input
+                    class="nom-loc"
+                    :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                    :value="l.nom"
+                    :disabled="lectureSeule || !l.id"
+                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                  />
+                  <button v-if="!l.locuteurRef && !l.associationRetiree && renommageGlobalDisponible" type="button" class="renommer-global"
+                    :disabled="lectureSeule || !l.nom.trim()" :aria-label="`Valider le nom ${l.nom}`"
+                    @click="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, l.nom)">Valider le nom</button>
                 <button v-if="l.locuteurRef && renommageGlobalDisponible" type="button" class="renommer-global"
                   :disabled="lectureSeule" :aria-label="`Renommer ${l.nom} dans tous ses entretiens`"
                   @click="demanderRenommageGlobal({ entretienId: ouvertId ?? '', participationId: l.id })">Renommer…</button>

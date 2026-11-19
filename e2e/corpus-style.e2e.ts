@@ -31,7 +31,6 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
 
     const onglets = [
       { nom: 'Notes', panneau: '.filtres-notes', titre: '.corpus-tete h2' },
-      { nom: 'Personnes', panneau: '.repertoire', titre: '.corpus-tete h2' },
       { nom: 'Pseudonymisation', panneau: '.pseudo-gauche', titre: '.corpus-tete h3' },
       { nom: 'Thèmes', panneau: '.themes-corpus', titre: '.corpus-tete h3' },
       { nom: 'Données', panneau: '.donnees-gauche', titre: '.variables-tete h2' },
@@ -53,12 +52,12 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
           await expect(entete).toHaveCSS('font-size', titre.taille)
           await expect(entete).toHaveCSS('font-family', titre.police)
           await expect(entete).toHaveCSS('font-weight', titre.graisse)
-          if (onglet.nom === 'Notes' || onglet.nom === 'Personnes') {
+          if (onglet.nom === 'Notes') {
             const tailles = await cote.locator('h3, h4, summary').evaluateAll((elements) =>
               elements.map((el) => parseFloat(getComputedStyle(el).fontSize)),
             )
             for (const taille of tailles) expect(taille).toBeLessThan(parseFloat(titre.taille))
-            const sections = cote.locator(onglet.nom === 'Notes' ? '.section-notes' : '.carte-repertoire')
+            const sections = cote.locator('.section-notes')
             const retraits = await sections.evaluateAll((elements) => elements.flatMap((section) => {
               const titre = section.querySelector(':scope > h3, :scope > summary')!
               const cadreTitre = titre.getBoundingClientRect()
@@ -85,21 +84,23 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
             expect(cadreChamp!.x).toBeCloseTo(cadreLabel!.x, 1)
             expect(cadreChamp!.x + cadreChamp!.width).toBeLessThanOrEqual(cadreLabel!.x + cadreLabel!.width + 1)
           }
-          if (onglet.nom === 'Personnes') {
-            await expect(cote.locator('.carte-repertoire > h3, .carte-repertoire > summary')).toHaveText([
-              'Rechercher', 'Personnes identifiées (0)', 'Locuteurs à associer (2)', 'Rapprochements à vérifier',
-            ])
-            const tailleFiche = await page.locator('.personnes-corpus .fiche h3').evaluate((el) =>
-              parseFloat(getComputedStyle(el).fontSize),
-            )
-            expect(tailleFiche).toBeLessThan(parseFloat(titre.taille))
-          }
           const cadre = await cote.boundingBox()
           expect(cadre!.x).toBeGreaterThanOrEqual(0)
           expect(cadre!.x + cadre!.width).toBeLessThanOrEqual(largeur)
           await page.screenshot({ path: test.info().outputPath(`${onglet.nom}-${largeur}.png`) })
         })
       }
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+      const locuteurs = page.locator('.locuteurs-corpus')
+      await locuteurs.getByRole('button', { name: 'Détails et vérifications…', exact: true }).click()
+      await expect(locuteurs.getByRole('listbox', { name: 'Locuteurs', exact: true })).toBeVisible()
+      const details = locuteurs.locator('.details-locuteurs')
+      await expect(details).toBeVisible()
+      await expect(locuteurs.locator('.personnes-corpus')).toHaveCount(0)
+      const cadre = await details.boundingBox()
+      expect(cadre!.x).toBeGreaterThanOrEqual(0)
+      expect(cadre!.x + cadre!.width).toBeLessThanOrEqual(largeur + 1)
+      await details.getByRole('button', { name: 'Fermer les détails', exact: true }).click()
     }
   } finally {
     await app.close()

@@ -141,11 +141,12 @@ describe('Personnes — règles de domaine', () => {
     expect(cible.associationRetiree).toBeUndefined()
   })
 
-  test('la création au nommage exclut les libellés d’attente et les rôles', () => {
+  test('tout nom non vide validé est admissible, y compris un rôle ou un libellé provisoire', () => {
     const cible = entretien().participations[0]
-    for (const nom of ['', 'A', 'Nouveau locuteur', 'Inconnu', 'Interviewer', 'Enquêteur']) {
-      expect(peutCreerLocuteurAuNommage({ ...cible, nom })).toBe(false)
+    for (const nom of ['A', 'X', 'Nouveau locuteur', 'Inconnu', 'Participant 1', 'Interviewer', 'Enquêteur']) {
+      expect(peutCreerLocuteurAuNommage({ ...cible, nom })).toBe(true)
     }
+    for (const nom of ['', '  ', '\t\n']) expect(peutCreerLocuteurAuNommage({ ...cible, nom })).toBe(false)
   })
 
   test('refuse les références absentes et deux locuteurs du même entretien', () => {

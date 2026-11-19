@@ -43,11 +43,11 @@ describe('aperçus des corrections de la sélection corpus', () => {
     inventaire.indisponibles.push({ id: 'absent', titre: 'Entretien absent', raison: 'Absent' })
     expect(() => preparerApercuCorrectionLocuteurs('renommerGlobal', lignesCorrections(inventaire).slice(0, 1), inventaire)).toThrow('indisponibles')
   })
-  test('une entrée sans association reste accessible aux corrections historiques, sans création implicite', () => {
+  test('une entrée sans association exige un choix explicite, sans création implicite', () => {
     const inventaire = inventaireCorrections(), selection = lignesCorrections(inventaire).slice(0, 1)
     selection[0].locuteurId = null
     const avant = structuredClone(inventaire)
-    expect(() => preparerApercuCorrectionLocuteurs('renommerGlobal', selection, inventaire)).toThrow('Détails et associations')
+    expect(() => preparerApercuCorrectionLocuteurs('renommerGlobal', selection, inventaire)).toThrow('Conservez d’abord')
     expect(inventaire).toEqual(avant)
   })
   test('une dissociation exige plusieurs participations ; une sélection dupliquée est refusée', () => {

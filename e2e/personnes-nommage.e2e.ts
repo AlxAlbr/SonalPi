@@ -1,30 +1,27 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir } from './util'
+import { ouvrir, retourCorpus } from './util'
 
-test('un nom spécifique crée une personne sans recopier le rôle ni renommer son identité ensuite', async () => {
+test('le nommage crée une identité distincte puis les changements de nom demandent confirmation globale', async () => {
   const { app, page } = await ouvrir('sonal-personnes-nommage-')
   try {
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
-    await nom.fill('Marie Dupont')
-    await nom.press('Tab')
-    const confirmationCreation = page.getByRole('status').filter({ hasText: 'Personne « Marie Dupont » créée' })
-    await expect(confirmationCreation).toBeVisible()
-    await expect(confirmationCreation).toHaveCSS('font-size', '12px')
-    const avant = await page.evaluate(async () => {
-      const vue = await (window as any).sonal.corpus.personnesInventaire()
-      return { locuteurs: vue.locuteurs, locuteur: vue.participations.find((l: any) => l.nom === 'Marie Dupont') }
-    })
-    expect(avant.locuteurs).toHaveLength(1)
-    expect(avant.locuteur.locuteurRef).toBe(avant.locuteurs[0].id)
-    await nom.fill('Mme Dupont')
-    await nom.press('Tab')
-    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
-  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(apres.locuteurs).toEqual(avant.locuteurs)
-    expect(apres.participations.find((l: any) => l.nom === 'Mme Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
-  } finally {
-    await app.close()
-  }
+    await nom.fill('Marie Dupont'); await nom.press('Enter')
+    const confirmation = page.getByRole('status').filter({ hasText: 'Locuteur « Marie Dupont » créé' })
+    await expect(confirmation).toBeVisible(); await expect(confirmation).toHaveCSS('font-size', '14px')
+    const avant = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
+    expect(avant.locuteurs).toHaveLength(1); expect(cible.locuteurRef).toBe(avant.locuteurs[0].id)
+    await nom.fill('Mme Dupont'); await nom.press('Enter')
+    const dialogue = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
+    await expect(dialogue).toBeVisible()
+    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toEqual(avant.locuteurs)
+    await dialogue.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(dialogue).toHaveCount(0)
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click(); await retourCorpus(page)
+    const apres = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    expect(apres.locuteurs).toEqual([{ id: avant.locuteurs[0].id, nom: 'Mme Dupont' }])
+    expect(apres.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual({ ...cible, nom: 'Mme Dupont' })
+  } finally { await app.close() }
 })

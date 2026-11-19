@@ -30,10 +30,10 @@ import type {
   ProgressionOperationTheme,
 } from '../shared/corpus/themes'
 import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
-import { annulerRefusRapprochementLocuteurs, natureNomLocuteur, peutCreerLocuteurAuNommage, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from "../shared/corpus/rapprochementsLocuteurs"
+import { annulerRefusRapprochementLocuteurs, natureNomLocuteur, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from "../shared/corpus/rapprochementsLocuteurs"
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
 import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocuteurs"
-import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import { estTypeCorrectionLocuteurs, validerRapprochementNommage, validerCommandeCorrectionLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
@@ -340,6 +340,7 @@ export class CorpusStore {
   private readonly sessionsLocalesFermees = new Set<string>()
   /** Refuse qu'une autosauvegarde retardée rétablisse un nom corrigé dans cette session. */
   private readonly nomsGlobauxSession = new Map<string, Map<string, { locuteurId: string; nom: string }>>()
+  private readonly associationsVerifieesSession = new Set<string>()
 
   exigerSessionLocaleEcriture(id: string): void {
     if (!this.lectureSeule && this.sessionsLocalesFermees.has(id)) throw new Error('La session locale est fermée. Rouvrez l’entretien avant d’enregistrer.')
@@ -353,6 +354,7 @@ export class CorpusStore {
   revoquerEcritureEntretien(id: string): void {
     this.ecrituresAutorisees.delete(id)
     this.nomsGlobauxSession.delete(id)
+    this.associationsVerifieesSession.delete(id)
     if (!this.lectureSeule) this.sessionsLocalesFermees.add(id)
   }
 
@@ -698,6 +700,13 @@ export class CorpusStore {
     }
 
     validerEntretienNatif(fichier)
+    if (this.associationsVerifieesSession.has(id)) {
+      const actuel = this.lireEntretien(id)
+      if (!actuel.ok || fichier.participations.some((p) => {
+        const enregistre = actuel.data.participations.find((a) => a.id === p.id)
+        return enregistre && enregistre.locuteurRef !== p.locuteurRef
+      })) throw new Error('Les associations des locuteurs ont changé. Rouvrez cet entretien avant de poursuivre les modifications.')
+    }
     const noms = this.nomsGlobauxSession.get(id)
     if (fichier.participations.some((p) => {
       const attendu = noms?.get(p.id)
@@ -1404,6 +1413,9 @@ export class CorpusStore {
       const apres = lecture.data
       return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
     })
+    if (commande.type === 'reprendreInformations' && commande.choix.variables.some((id) => !Object.hasOwn(corpus.variables, id) || corpus.variables[id].portee !== 'participation')) {
+      throw new Error('La définition de ces données a changé. Actualisez les détails avant de reprendre les informations.')
+    }
     const locuteurId = appliquerCorrectionLocuteurs(
       corpus,
       fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres })),
@@ -1422,9 +1434,91 @@ export class CorpusStore {
       corpusAvant,
       corpusApres: corpus,
       entretiens: modifies.map(({ id, avant, apres }) => ({ id, avant, apres })),
-      ordre: commande.type === 'dissocierSelection' ? 'corpus-puis-entretiens' : 'entretiens-puis-corpus',
+      ordre: commande.type === 'dissocierSelection' || commande.type === 'individualiserSelection' ? 'corpus-puis-entretiens' : 'entretiens-puis-corpus',
     })
     return locuteurId
+  }
+
+  private verifierSessionNommage(reference: ReferenceParticipation): void {
+    this.verifierEcriture()
+    if (!reference || typeof reference.entretienId !== 'string' || !reference.entretienId.trim()
+      || typeof reference.participationId !== 'string' || !reference.participationId.trim()
+      || !this.ecrituresAutorisees.has(reference.entretienId)) throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+    if (this.sourcesPreparation !== null) throw new Error('La création au nommage est disponible uniquement en local.')
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une modification reste à terminer. Rouvrez le corpus.')
+    if ([...this.ecrituresAutorisees].some((id) => id !== reference.entretienId)) throw new Error('Fermez les autres entretiens en édition avant de modifier ces associations.')
+  }
+
+  /** Enregistre ensemble les identités et leurs associations, sans remplacer les autres données. */
+  private modifierAssociationsSession(
+    reference: ReferenceParticipation,
+    ids: readonly string[],
+    ordre: 'corpus-puis-entretiens' | 'entretiens-puis-corpus',
+    modifier: (corpus: CorpusFichier, fichiers: { id: string; titre: string; data: EntretienFichier }[]) => void,
+    attendu?: string,
+  ): EntretienFichier {
+    const corpusAvant = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+    const corpus = structuredClone(this.ouvrir())
+    const fichiers = ids.map((id) => {
+      if (!Object.hasOwn(corpus.membership, id)) throw new Error('Cet entretien ne fait plus partie du corpus.')
+      const lecture = this.lireEntretien(id)
+      if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
+      return { id, titre: corpus.membership[id].titre, avant: lecture.data, data: structuredClone(lecture.data) }
+    })
+    modifier(corpus, fichiers)
+    if (attendu !== undefined && JSON.stringify(this.personnesInventaire()) !== attendu) throw new Error('Les locuteurs ou leurs données ont changé. Rouvrez le dialogue avant de confirmer.')
+    const modifies = fichiers.filter((f) => JSON.stringify(f.avant) !== JSON.stringify(f.data))
+    const now = new Date().toISOString()
+    for (const f of modifies) { f.data.lastModified = now; corpus.membership[f.id].lastModified = now }
+    if (modifies.length || JSON.stringify(corpusAvant) !== JSON.stringify(corpus)) {
+      this.associationsVerifieesSession.add(reference.entretienId)
+      this.appliquerTransactionFichiers({ operation: 'remplacement', id: genId('nommage'), corpusAvant, corpusApres: corpus,
+        entretiens: modifies.map((f) => ({ id: f.id, avant: f.avant, apres: f.data })), ordre })
+    }
+    const relecture = this.lireEntretien(reference.entretienId)
+    if (!relecture.ok) throw new Error('Les locuteurs ont été enregistrés mais leur relecture a échoué. Rouvrez le corpus.')
+    const noms = this.nomsGlobauxSession.get(reference.entretienId) ?? new Map<string, { locuteurId: string; nom: string }>()
+    for (const p of relecture.data.participations) if (p.locuteurRef) noms.set(p.id, { locuteurId: p.locuteurRef, nom: p.nom })
+    this.nomsGlobauxSession.set(reference.entretienId, noms)
+    return relecture.data
+  }
+
+  /** Une répétition du même nommage retrouve l'identité enregistrée au lieu d'en créer une autre. */
+  identifierParticipationAuNommage(demande: DemandeIdentificationLocuteur): EntretienFichier {
+    this.verifierSessionNommage(demande)
+    if (typeof demande.nom !== 'string' || !demande.nom.trim()
+      || Object.keys(demande).some((c) => !['entretienId', 'participationId', 'nom'].includes(c))) throw new Error('Validez un nom non vide.')
+    return this.modifierAssociationsSession(demande, [demande.entretienId], 'corpus-puis-entretiens', (corpus, fichiers) => {
+      const data = fichiers[0].data, cible = trouverLocuteur(data, demande.participationId)
+      if (cible.nom !== demande.nom) throw new Error('Le nom a changé. Validez à nouveau le nom courant.')
+      if (cible.associationRetiree) throw new Error('L’association a été retirée volontairement. Choisissez explicitement un locuteur depuis le corpus.')
+      if (cible.locuteurRef) {
+        if (!Object.hasOwn(corpus.locuteurs, cible.locuteurRef)) throw new Error('Le locuteur associé est absent. Vérifiez le corpus.')
+        this.associationsVerifieesSession.add(demande.entretienId)
+        return
+      }
+      const identite = creerPersonne(corpus, genId('pers'), cible.nom)
+      lierLocuteur(corpus, data, cible.id, identite.id)
+    })
+  }
+
+  /** Réunit les identités seulement après le choix explicite d'une proposition fraîche. */
+  rapprocherLocuteurDepuisEntretien(demande: DemandeRapprochementNommage): EntretienFichier {
+    validerRapprochementNommage(demande)
+    this.verifierSessionNommage(demande)
+    const inventaire = this.personnesInventaire()
+    if (inventaire.indisponibles.length || JSON.stringify(inventaire) !== demande.attendu) throw new Error('Les locuteurs ou leurs données ont changé. Rouvrez le dialogue avant de confirmer.')
+    return this.modifierAssociationsSession(demande, Object.keys(this.ouvrir().membership), 'entretiens-puis-corpus', (corpus, fichiers) => {
+      const cibleData = fichiers.find((f) => f.id === demande.entretienId)!.data
+      const sourceData = fichiers.find((f) => f.id === demande.source.entretienId)?.data
+      if (!sourceData) throw new Error('La source sélectionnée est absente.')
+      const cible = trouverLocuteur(cibleData, demande.participationId), source = trouverLocuteur(sourceData, demande.source.participationId)
+      if (!cible.locuteurRef || cible.associationRetiree) throw new Error('Validez d’abord le nom du locuteur pour créer son identité distincte.')
+      if (!source.locuteurRef) lierLocuteur(corpus, sourceData, source.id, cible.locuteurRef)
+      else if (source.locuteurRef !== cible.locuteurRef) fusionnerPersonnes(corpus,
+        fichiers.map((f) => ({ id: f.id, titre: f.titre, data: f.data })), source.locuteurRef, cible.locuteurRef)
+      if (demande.reprise) reprendreDonneesParticipation(cible, source, demande.reprise)
+    }, demande.attendu)
   }
 
   /** Renomme depuis la seule session locale ouverte, après sauvegarde et confirmation. */
@@ -1456,7 +1550,8 @@ export class CorpusStore {
     autoriserRapprochementComposite = true,
   ): string | null {
     this.verifierEcriture()
-    if (commande.type === 'renommerGlobal' || commande.type === 'regrouperSelection' || commande.type === 'dissocierSelection') {
+    if (estTypeCorrectionLocuteurs(commande.type)) {
+      validerCommandeCorrectionLocuteurs(commande)
       return this.corrigerLocuteurs(commande)
     }
     const corpus = this.ouvrir()
@@ -1590,7 +1685,7 @@ export class CorpusStore {
         throw new Error('Ce rapprochement doit créer ou modifier plusieurs associations. Cette correction composite n’est pas encore disponible dans les corpus distants.')
       }
       if (commande.type === 'refuser') {
-        const creerIdentite = peutCreerLocuteurAuNommage(cible)
+        const creerIdentite = !cible.locuteurRef && !cible.associationRetiree && natureNomLocuteur(cible.nom) === 'specifique'
         if (creerIdentite && !autoriserRefusComposite) {
           throw new Error('Cette décision doit aussi créer une personne distincte. Cette correction composite n’est pas encore disponible dans les corpus distants.')
         }

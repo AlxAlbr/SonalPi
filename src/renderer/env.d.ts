@@ -62,7 +62,7 @@ import type {
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
 import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
-import type { CommandeLocuteurs, CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import type { CommandeLocuteurs, CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -206,6 +206,8 @@ declare global {
         notesInventaire: () => Promise<InventaireNotes>
         notesCommander: (commande: CommandeNotes) => Promise<string | null>
         personnesInventaire: () => Promise<InventaireIdentitesLocuteurs>
+        identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur) => Promise<EntretienFichier>
+        rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
         renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>
         personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire?: boolean) => Promise<string | null>

@@ -54,6 +54,7 @@ const {
   verrouAutrui,
   statutSession,
   editionNomsSuspendue,
+  renommageEnCours,
   publiErreur,
   publierMaintenant,
   afficherCasPourAssociation,
@@ -253,7 +254,7 @@ const heureDe = (iso: string | null | undefined) =>
 
 // Lecture seule du contenu : verrou détenu par autrui ou session dégradée.
 const roContenu = computed(
-  () => verrouAutrui.value !== null || statutSession.value.etat === 'degrade' || editionNomsSuspendue.value,
+  () => verrouAutrui.value !== null || statutSession.value.etat === 'degrade' || editionNomsSuspendue.value || renommageEnCours.value,
 )
 
 const messageSessionSuspendue = computed(() => {

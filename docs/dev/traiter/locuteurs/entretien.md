@@ -7,20 +7,29 @@ ni de ProseMirror ; le composable orchestre l’éditeur et la sauvegarde.
 ## Ajouter et renommer
 
 Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des valeurs
-vides et `locuteurRef: null`. Tant qu’elle n’est pas associée, son nommage reste
-local et peut proposer un rapprochement ; ce parcours ne transforme pas un nom
-en identifiant.
+vides et `locuteurRef: null`. Son ajout seul ne crée pas d’identité corpus. En local,
+valider tout nom non vide crée puis associe une identité distincte, avant les
+propositions éventuelles : rôles, caractères uniques et libellés provisoires validés
+sont admissibles. Entrée, la sortie du champ modifié ou « Valider le nom » valident
+la saisie ; un nom identique ne constitue jamais une preuve de rapprochement.
+
+`identifierParticipationAuNommage` enregistre identité et association ensemble.
+« Plus tard » garde cette identité indépendante. Confirmer une proposition réunit
+explicitement les identités via `rapprocherLocuteurDepuisEntretien`, sans fiche vide
+résiduelle ; seuls les champs locaux choisis peuvent être repris. Les retraits
+volontaires restent sans réassociation automatique.
 
 Pour une participation déjà associée, en local, valider le champ Nom ou cliquer
 sur `Renommer…` prépare une confirmation globale. Les noms ne changent qu’après
 confirmation dans tous les entretiens associés. Les index et les paragraphes ne
 sont jamais réécrits ; leur affichage retrouve le nouveau nom par référence.
 
-Le raccord attend les saisies et la sauvegarde, suspend l’autosauvegarde pendant
-la transaction, puis actualise uniquement les noms du modèle ouvert. Les autres
+Ces raccords attendent les saisies et la sauvegarde, suspendent l’autosauvegarde
+pendant la transaction, puis actualisent uniquement les noms ou associations et
+informations explicitement choisies du modèle ouvert. Les autres
 données et l’historique de frappe sont conservés. Une relecture incertaine garde
 l’entretien en lecture seule jusqu’à réouverture du corpus. Les corpus distants
-conservent leur comportement actuel, sans nouveau droit de renommage global.
+n’acquièrent aucun nouveau droit de création au nommage ni de correction globale.
 Voir [personnes.md](personnes.md#renommage-depuis-lentretien-ouvert).
 
 ## Attribuer un tour de parole

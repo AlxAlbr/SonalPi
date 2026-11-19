@@ -2,7 +2,7 @@
 
 ## Statut et articulation
 
-**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B en cours : corrections corpus et renommage depuis l’entretien raccordés.**
+**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B en cours : corrections corpus, renommage depuis l’entretien et création sans exclusions au nommage et détails locaux raccordés.**
 
 Corpus, entretiens, sessions, imports, notes, variables, cas, exports et fournisseurs
 utilisent le modèle natif commun. Les formats V2 de développement 1 à 9 sont refusés
@@ -401,8 +401,9 @@ les droits du fournisseur.
 Les noms de certains canaux IPC et composants du panneau historique Personnes
 subsistent parce que leurs appelants sont encore utilisés. Ils transportent les
 contrats natifs, sans conversion du stockage 9. Les nouvelles corrections sont maintenant accessibles depuis la sélection corpus.
-Le remplacement final des détails et les nouvelles règles de création au nommage
-restent à terminer dans le lot B. Les corrections distantes ne sont pas ouvertes.
+Le renommage depuis l’entretien et la création sans exclusions au nommage sont
+également raccordés. Les détails secondaires et le retrait des anciens parcours
+locaux sont maintenant livrés ; la qualification complète du lot B reste à terminer. Les corrections distantes ne sont pas ouvertes.
 
 ### Qualification exécutée sur le format 10
 
@@ -428,8 +429,8 @@ et sont laissés démarrés. Aucun résultat local ne remplace une qualification
 - [ ] Les deux défauts de présentation Electron documentés avant la bascule restent
   hors de cette série : défilement clavier du journal et écart droit du volet de 2 px.
   Ils avaient également été reproduits sur `2c76cf7` ; leurs seuils restent inchangés.
-- [ ] Terminer le lot B après les raccords corpus et entretien : création au nommage,
-  détails finaux et retrait des anciens parcours.
+- [ ] Terminer la qualification complète du lot B et les captures finales après les
+  raccords corpus, entretien, nommage et détails secondaires.
 
 La bascule native est effectuée et qualifiée sur le périmètre indiqué. Ce bilan
 ne prétend ni que toute la suite Electron est verte, ni que l’ensemble du plan
@@ -452,10 +453,10 @@ Après réussite, les projections sont invalidées, la recherche est effacée et
 sélection est reconstruite depuis les participations. Une préparation périmée ou
 une réponse reçue après changement de corpus ne s’installe pas dans le nouvel écran.
 
-**Limite volontaire de cette étape :** les entrées sans identité commune passent
-encore par les associations historiques. Préparer un aperçu ne crée aucune identité.
-La création universelle au nommage et le retrait des anciens détails restent à faire.
-Le raccord du renommage depuis l’entretien est décrit en section 11. Aucun droit
+**Limite volontaire de cette étape :** les entrées sans identité utilisaient encore
+les associations historiques. Leur régularisation explicite est désormais décrite
+en section 13. Préparer un aperçu ne crée aucune identité. Les raccords du renommage depuis
+l’entretien et de la création sans exclusions sont décrits en sections 11 et 12. Aucun droit
 distant n’est ouvert.
 
 Qualification : **29 nouveaux tests** de préparation, interface et orchestration ;
@@ -468,7 +469,8 @@ ne rejoue pas les fournisseurs réels, dont les politiques restent inchangées.
 Une participation déjà associée se renomme maintenant avec confirmation dans tous
 ses entretiens, depuis son champ Nom ou le bouton `Renommer…` de la gestion des
 locuteurs. La préparation ne modifie pas le nom local et inclut les entretiens non
-affichés. Les entrées sans association restent sur leur parcours de nommage actuel.
+affichés. L’identification des entrées sans association a été raccordée ensuite,
+comme décrit en section 12.
 
 Avant l’envoi, les identifications et saisies en cours sont attendues, le texte est
 sauvegardé et l’autosauvegarde suspendue. Le main autorise uniquement le renommage
@@ -496,5 +498,95 @@ relecture refusée et reprise après redémarrage. Les tests B1 restent dans la 
 **187 tests de fournisseurs simulés** sur six fichiers GitLab/WebDAV passent aussi ;
 les bancs réels n’ont pas été rejoués pour cette étape locale.
 
-Restent la création sans exclusions au nommage (B3), l’interface de détails finale
-et le retrait des anciens parcours (B4), puis la qualification fonctionnelle complète.
+La création sans exclusions et les détails locaux ont été raccordés ensuite
+(sections 12 et 13). La qualification fonctionnelle complète reste à terminer (B5).
+
+## 12. Lot B — création sans exclusions après validation du nom
+
+B1 et B2 sont versionnés dans `2f33a3b`. Le raccord B3 crée maintenant une identité
+propre avant les propositions, pour tout nom non vide validé en local, sans exclusion
+lexicale. L’ajout provisoire ne suffit pas ; Entrée, la sortie d’un champ modifié
+ou « Valider le nom » déclenchent la validation, y compris pour Nouveau locuteur.
+
+Le main enregistre identité et association dans une seule transaction de fichiers,
+en gardant l’identifiant dans le plan de reprise. Répéter la demande retrouve le
+résultat enregistré au lieu de produire des fiches vides supplémentaires. Les
+retraits volontaires restent respectés, les refus sont conservés et le rôle n’est
+jamais déduit du nom. Une source étrangère indisponible diffère les propositions,
+pas la création indépendante dans l’entretien courant.
+
+Plus tard ou Échap conserve l’identité distincte visible dans le corpus. Refuser
+une proposition la conserve aussi. Confirmer utilise un raccord local dédié qui
+réunit les identités avec le moteur existant, sans définition vide restante, et
+redirige les cas et refus. Une source non associée rejoint explicitement l’identité
+créée. Les noms restent locaux ; la reprise de données exige le choix de l’utilisateur.
+Inventaire complet, associations, données et aperçu sont recontrôlés avant écriture.
+Un conflit dans un même entretien reste interdit.
+
+Les heuristiques de suggestions restent séparées de la création : pas de demandes
+répétitives pour les libellés d’attente ou noms très courts ; rôles équivalents
+proposables avec l’avertissement existant. Une validation identique après création
+ne refait ni création ni suggestion. Aucun filtre ne masque l’identité créée.
+
+Le raccord termine les saisies et sauvegardes puis suspend l’édition pendant la
+transaction. La relecture est comparée au payload sauvé et aux seuls changements
+prévus : associations et informations choisies, jamais un remplacement du document.
+Les anciennes associations sont refusées à l’autosauvegarde. Les inverses de nommage
+local devenus incompatibles avec l’identité créée sont retirés. Une réponse perdue
+est relue sans rejeu ; une relecture non vérifiable garde l’entretien en lecture
+seule jusqu’à réouverture. Les réponses d’une ancienne session sont ignorées.
+
+Aucun modèle parallèle, adaptateur natif, nouveau format ou droit distant n’est
+introduit. La création et le rapprochement au nommage restent locaux. Le remplacement
+des détails et anciens parcours a été raccordé ensuite en B4 (section 13) ; la
+qualification complète reste réservée à B5.
+
+Qualification B3 : **50 tests unitaires ajoutés**, **2 763 tests locaux réussis dans
+216 fichiers**, **187 tests de fournisseurs simulés réussis dans six fichiers** et
+**28 parcours Electron locaux réussis**, dont six nouveaux. Le typage de l’application,
+le typage strict des nouveaux tests, le build et la vérification des espaces passent.
+Les parcours de nommage existants ont été alignés sur la création avant proposition
+et la confirmation globale ; les régressions B1/B2 restent dans la série. Les bancs
+GitLab et Nextcloud réels ne sont pas rejoués pour ces gestes locaux.
+
+## 13. Lot B — détails locaux et retrait des anciens parcours
+
+Les détails s’ouvrent désormais sans remplacer les interventions ni leur sélection.
+La projection de lecture conserve la propriété des valeurs et notes par entretien ;
+les notes sont résolues par références contextualisées. Les définitions de variables
+et catégories sont relues pour les affichages et les aperçus. Aucune consultation
+ne complète les ids, ne crée une identité ou ne répare un lien absent.
+
+Les entrées sans identité valide peuvent être conservées séparément après un aperçu
+et une confirmation. Une identité est créée pour chaque voix déjà existante, sans
+nouvelle participation, ni nouveau nom demandé, ni regroupement de noms égaux.
+Retraits volontaires et références absentes ne sont pas réparés implicitement.
+L’intention explicite ne restaure pas un ancien lien et ne modifie pas les cas ou
+les refus existants. Un nom vide demande d’abord une édition dans l’entretien.
+
+Les propositions, distinctions et définitions sans entretien restent secondaires.
+Comparer sélectionne les locuteurs dans la liste ; réunir passe par le regroupement
+déjà livré. Écarter mémorise un refus réciproque sans création ; réexaminer retire
+les refus correspondants des membres des deux groupes sans regroupement automatique.
+La reprise d’informations exige un entretien source, des champs choisis et une
+confirmation, sans synchronisation future. La suppression d’une définition vide
+reste refusée si une participation, un cas ou un refus l’utilise, ou si l’inventaire
+est incomplet. Les textes et notes ne sont pas supprimés.
+
+Ces commandes réutilisent le moteur transactionnel, le modèle natif et les contrôles
+existants : écritures locales, inventaire frais, sessions fermées, comparaison de
+l’aperçu, états capturés à reprendre. Aucun nouveau format ni adaptateur n’est ajouté.
+Les anciens formulaires locaux de création, liaison, déplacement, renommage de
+référence seul et séparation avec nouveau nom sont retirés du parcours. Le composant
+historique reste réservé au distant et ses propriétaires gardent leurs restrictions.
+
+Qualification B4 : **42 nouveaux tests unitaires**, **2 805 tests locaux réussis dans
+218 fichiers**, **187 tests de fournisseurs simulés sur six fichiers** et **37 parcours
+Electron locaux réussis**. Typage de l’application, typage strict des tests ajoutés,
+build et contrôles d’espaces réussis. Les parcours remplacés sont rejoués sur la
+sélection et les détails ; la consultation sans écriture et les références locales
+identiques dans plusieurs entretiens sont vérifiées. Les bancs réels ne sont pas
+rejoués pour cette livraison locale.
+
+B3 et B4 restent non committés. B1 et B2 sont versionnés dans `2f33a3b`.
+Restent la qualification complète, les captures et les dernières vérifications B5.

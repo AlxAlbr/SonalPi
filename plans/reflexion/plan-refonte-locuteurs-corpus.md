@@ -3,8 +3,9 @@
 ## Statut et objectif
 
 **Statut : implémentation en cours. Consultation et corrections depuis la sélection
-corpus et renommage depuis l’entretien livrés en local ; création universelle au nommage
-et remplacement final des détails historiques restent à raccorder.**
+corpus, renommage depuis l’entretien et création sans exclusions au nommage livrés en
+local ; détails secondaires et retrait des anciens parcours locaux livrés. La qualification
+complète et les captures finales restent à faire.**
 
 Remplacer le répertoire technique des personnes et de leurs associations par une
 vue simple des locuteurs du corpus : qui intervient, dans quels entretiens et à
@@ -79,16 +80,16 @@ Le répertoire actuel distingue les personnes définies dans le corpus, les
 locuteurs à associer, les suggestions et les décisions écartées. Il permet de
 créer, renommer, associer, déplacer, délier, réunir et séparer.
 
-Une création automatique au nommage existe déjà, mais elle n’est pas universelle :
+Au cadrage initial, la création automatique au nommage n’était pas universelle :
 
-- certains noms génériques sont ignorés ;
-- les rôles peuvent produire une suggestion, mais ne suffisent pas à la création ;
-- un locuteur volontairement délié n’est pas automatiquement recréé ;
-- un inventaire incomplet suspend la création automatique actuelle ;
-- la présence de candidats ouvre un parcours de rapprochement.
+- certains noms génériques étaient ignorés ;
+- les rôles pouvaient produire une suggestion, mais ne suffisaient pas à la création ;
+- un locuteur volontairement délié n’était pas automatiquement recréé ;
+- un inventaire incomplet suspendait la création automatique ;
+- les candidats étaient proposés avant de créer l’identité distincte.
 
-La simplification envisagée doit donc préciser le comportement de création,
-au-delà d’un changement d’étiquette ou de présentation.
+Le raccord livré plus bas supprime ces exclusions de création et inverse cet ordre,
+sans réassocier un retrait volontaire ni ouvrir les droits distants.
 
 ### Invariants actuels
 
@@ -206,9 +207,11 @@ rapprochement. Cela ne signifie pas réunir tous les « Enquêteur ». Les
 regroupements restent explicites. Si une proposition est reportée, l’entrée
 reste immédiatement visible et indépendante dans le corpus.
 
-Le rythme des suggestions pour les noms génériques reste à préciser afin de
-limiter les demandes répétitives, sans réintroduire une exclusion de création.
-Aucun filtre lexical ne doit empêcher leur présence dans la liste.
+Le raccord local conserve les heuristiques de suggestions séparées de la création :
+les libellés d’attente et noms très courts n’ouvrent pas de demandes répétitives ;
+les rôles équivalents peuvent être proposés avec l’avertissement correspondant.
+Une validation identique après création ne relance ni création ni proposition.
+Ces filtres n’empêchent jamais l’identité d’apparaître dans la liste du corpus.
 
 La suppression d’une liste de noms exclus ne supprime pas les contrôles de
 sauvegarde, de concurrence et de droits. Une création empêchée ou interrompue
@@ -440,10 +443,11 @@ parcours, ni demander à l’utilisateur une fermeture supplémentaire. Conserve
 la vérification interne des sessions comme garde contre un appel hors parcours.
 Vérifier l’inventaire et l’aperçu avant la correction.
 
-Le seul cas local nécessitant un raccord en mémoire est le renommage demandé
-depuis l’entretien lui-même. Sauvegarder d’abord le texte courant, effectuer la
-correction globale puis actualiser ses noms en mémoire, sans remplacer sa
-transcription. Ce raccord ciblé ne dépend pas de la future gestion distante.
+Les actions demandées depuis l’entretien lui-même ont un raccord ciblé en mémoire :
+sauvegarder le texte courant, effectuer le renommage, l’identification ou le
+rapprochement choisi, puis actualiser seulement les noms, associations et données
+prévus, sans remplacer la transcription. Ce raccord ne dépend pas de la future
+gestion distante et ne resynchronise pas les autres entretiens ouverts.
 
 Une reprise après interruption doit reconnaître les identités déjà créées et
 les modifications acquises. La reprise technique d’une transaction n’est pas une
@@ -481,8 +485,8 @@ entretiens sans surbrillance en l’absence de sélection ; retirer de la sélec
 les lignes masquées par une recherche ; afficher les anciens corpus sans écriture
 ni regroupement automatique à la consultation.
 
-Restent à préciser le rythme des suggestions génériques, le dénominateur des
-pourcentages et la régularisation des identités des anciens corpus. Les premières
+Le rythme des suggestions et la régularisation explicite sont maintenant raccordés.
+Le dénominateur des pourcentages reste à préciser. Les premières
 statistiques peuvent se limiter aux volumes de mots et de tours plutôt que de
 présenter un pourcentage ambigu.
 
@@ -671,10 +675,9 @@ et ne se ferment pas pendant l’écriture. Après réussite, la recherche est e
 les projections sont invalidées et les locuteurs résultants sont sélectionnés.
 Les réponses de préparation ou de correction devenues obsolètes sont écartées.
 
-**Périmètre restant :** les entrées sans identité commune gardent pour l’instant
-l’accès aux associations historiques. Une préparation ne régularise pas ces entrées
-silencieusement. Leur parcours final dépend de la création au nommage et du
-remplacement des détails. Le renommage depuis l’entretien est désormais global,
+**Périmètre de ce raccord :** les entrées sans identité utilisaient encore les
+associations historiques. Le raccord B4 décrit plus bas les traite maintenant par
+un choix explicite, sans création silencieuse pendant une préparation. Le renommage depuis l’entretien est désormais global,
 après confirmation, dans le raccord décrit ci-dessous.
 
 Qualification : 29 nouveaux tests ; suite locale de **2 688 tests sur 212 fichiers**
@@ -687,7 +690,8 @@ Pour une participation déjà associée, valider un nouveau nom ouvre un aperçu
 modifier le modèle local. Un bouton `Renommer…` permet aussi d’ouvrir cette confirmation.
 L’aperçu présente tous les entretiens associés, pas seulement l’entretien courant.
 Annuler conserve leurs noms ; confirmer applique le même renommage global que depuis
-le corpus. Les entrées sans association conservent leur nommage actuel en attendant B3.
+le corpus. Les entrées sans association passent maintenant au raccord de création
+sans exclusions décrit ci-dessous, sauf celles volontairement déliées.
 
 Les saisies et identifications en cours sont terminées puis le texte sauvegardé,
 avant suspension de l’éditeur et de l’autosauvegarde. Un point d’entrée main dédié
@@ -714,11 +718,99 @@ couvertes, en plus des parcours de sélection corpus déjà livrés. Une qualifi
 complémentaire de **187 tests simulés GitLab/WebDAV** passe sur six fichiers ; aucun
 nouveau droit distant n’est ouvert et les bancs réels ne sont pas rejoués.
 
-### Prochains lots
+### Création sans exclusions au nommage — réalisée
 
-1. Création sans noms exclus et identité distincte visible avant décision de
-   rapprochement, avec adaptation du dialogue et des refus ; respecter les retraits
-   volontaires existants sans réassociation automatique.
-2. Remplacement des corrections historiques et traitement explicite des entrées sans
-   association, intégration des notes et données dans les détails secondaires.
-3. Qualification complète des nouveaux gestes et mise à jour des captures et aides.
+Tout nom non vide validé dans un entretien local crée une identité distincte avant
+les suggestions : Enquêteur, Participant 1, Inconnu, X, noms à un caractère et
+Nouveau locuteur validé explicitement sont admis. L’ajout seul de l’entrée provisoire
+ne crée rien. Entrée, la sortie du champ modifié et « Valider le nom » valident la saisie.
+Un nom vide est refusé ; un retrait volontaire reste sans réassociation implicite.
+
+Le nom et le texte courant sont sauvegardés avant la création. Le main vérifie la
+seule session locale et associe la participation dans la même transaction que la
+création de l’identité. Une répétition retrouve cette identité ; une reprise garde
+l’identifiant déjà prévu. Une source étrangère indisponible diffère les suggestions,
+mais ne bloque pas la création indépendante dans l’entretien courant.
+
+Plus tard ou Échap conserve l’identité déjà visible, sans rapprochement. Un refus
+la conserve aussi et mémorise les propositions écartées. Confirmer réunit les identités
+avec la transaction existante, sans définition vide résiduelle ; une source non liée
+rejoint explicitement l’identité créée. Les noms locaux sont conservés et seule la
+reprise choisie peut toucher les données locales. Cas et refus suivent la réunion.
+Les conflits dans un même entretien et les aperçus périmés sont refusés avant écriture.
+
+L’éditeur et l’autosauvegarde sont suspendus pendant ces corrections. La réponse est
+comparée au payload sauvegardé : seules les associations et informations prévues
+sont mises à jour en place. Le document, ses notes, la sélection et l’historique de
+frappe ne sont pas rechargés. Les anciens inverses de nommage devenus locaux à une
+identité créée ne peuvent pas en défaire isolément le nom. Le main refuse aussi les
+anciennes associations d’une sauvegarde tardive. Une réponse perdue est relue sans
+rejeu ; une relecture incertaine garde l’entretien en lecture seule jusqu’à réouverture.
+Aucun nouveau parcours distant ni mécanisme général de resynchronisation n’est ajouté.
+Les propositions encore en préparation sont abandonnées lorsqu’un nouveau renommage
+est demandé, sans annuler la création ; son aperçu attend les nommages en cours.
+
+Qualification : **50 tests unitaires ajoutés**, **2 763 tests locaux réussis dans
+216 fichiers**, **187 tests fournisseurs simulés sur six fichiers** et **28 parcours
+Electron locaux réussis**, dont six nouveaux. Typage de l’application et des nouveaux
+tests ainsi que build réussis. Les noms génériques, la validation du libellé provisoire,
+les homonymes indépendants, la réunion sans fiche vide, les refus et retraits,
+la concurrence, les réponses perdues et les propositions tardives sont couverts.
+Les bancs réels ne sont pas rejoués, les parcours distants n’étant pas ouverts.
+B1 et B2 sont versionnés dans `2f33a3b` ; ce raccord B3 est encore non committé.
+
+### Détails secondaires et retrait des parcours locaux historiques — réalisés
+
+« Détails et vérifications… » ouvre un panneau secondaire sans remplacer la liste
+et les interventions. La sélection pilote les informations, valeurs et notes.
+Les notes sont jointes par entretien et id de participation, jamais par le seul id
+local. Les définitions de variables et catégories sont relues avec l’inventaire.
+Les données anciennes non décrites restent signalées plutôt qu’effacées.
+
+Les propositions, distinctions enregistrées et définitions sans entretien sont
+repliées. Le calcul et le rendu sont bornés et l’utilisateur peut élargir leur
+périmètre. Comparer sélectionne les locuteurs dans la liste ; seul le regroupement
+habituel peut les réunir. Écarter une proposition ne crée aucune identité.
+Réexaminer retire les refus correspondants des membres des deux groupes, dans les
+deux sens, sans association et sans effacer les distinctions avec un tiers.
+
+Pour les entrées sans identité valide, « Conserver séparément… » prépare un aperçu
+puis crée une identité distincte pour chaque voix concernée. Aucune participation
+ni parole n’est ajoutée, les noms actuels sont conservés et les autres locuteurs
+sélectionnés ne sont pas modifiés. Un retrait volontaire ne se répare pas à la
+consultation ; cette confirmation crée une identité propre sans restaurer l’ancien
+lien. Les homonymes ne sont pas réunis. Les noms vides nécessitent une édition dans
+l’entretien avant la régularisation.
+
+La reprise ponctuelle reste disponible dans les détails : entretien source et
+champs explicitement choisis, remplacement des données existantes seulement sur
+choix distinct. Noms, notes, couleurs et associations ne sont pas copiés. Les
+variables sélectionnées doivent encore appartenir aux participations. La suppression
+d’une définition vide vérifie inventaire complet, participations, cas et refus.
+Aucun texte ni aucune note n’est supprimé et aucun Undo global n’est annoncé.
+
+Ces cinq commandes passent par le même moteur transactionnel, avec aperçu frais,
+contrôles de droits, de session et de contexte, sans nouvelle génération d’ids à
+la reprise. Les préparations annulées et réponses tardives sont ignorées. Les
+confirmations ne se ferment pas pendant l’enregistrement.
+
+Les formulaires locaux de création de fiche, liaison, déplacement, renommage de
+référence seul et séparation avec saisie d’un nouveau nom ne sont plus exposés.
+Leur remplacement utilise les corrections de sélection déjà livrées : dissocier
+l’entretien avant de réunir son locuteur à un autre groupe. L’ancien composant et
+ses commandes restent nécessaires au répertoire distant, qui ne gagne aucun droit.
+Les parcours Electron concernés ont été réécrits sur ces actions, en conservant les
+contrôles de refus périmés, notes, données, annulation et navigation.
+
+Qualification B4 : **42 tests unitaires ajoutés**, **2 805 tests locaux réussis dans
+218 fichiers**, **187 tests fournisseurs simulés sur six fichiers** et **37 parcours
+Electron locaux réussis**, dont quatre nouveaux dédiés aux détails. Les parcours
+historiques locaux ont été remplacés par les actions de sélection et les détails,
+sans perdre les contrôles de notes, données, reprise, refus et navigation. Le typage
+de l’application et des nouveaux tests, le build et les contrôles d’espaces passent.
+Les bancs réels ne sont pas rejoués : aucun nouveau parcours distant n’est activé.
+
+### Prochain lot
+
+Qualification complète des nouveaux gestes et mise à jour des captures et aides (B5).
+B3 et B4 sont encore non committés ; B1 et B2 restent dans `2f33a3b`.

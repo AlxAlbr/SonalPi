@@ -1,10 +1,11 @@
-# Personnes et rapprochements entre entretiens
+# Locuteurs du corpus et rapprochements entre entretiens
 
 L’onglet Locuteurs propose une vue transverse des interventions pour les corpus
-locaux. Les corrections et les détails restent accessibles dans le répertoire
-Personnes via « Détails et associations… ». La fiche porte un nom de référence ;
-les libellés locaux, pseudonymes, valeurs et notes restent chez leurs propriétaires
-dans chaque entretien.
+locaux. Les corrections utilisent la sélection ; « Détails et vérifications… »
+ouvre les notes, données et propositions sans masquer la liste ni ses interventions.
+Le nom commun appartient au corpus ; pseudonymes, rôles, valeurs et notes restent
+chez leurs propriétaires dans chaque entretien. L’ancien répertoire Personnes est
+conservé uniquement pour les corpus distants, sans nouveau droit.
 
 ## Consultation des interventions
 
@@ -39,7 +40,51 @@ Les statistiques de cette vue portent sur les mots et les tours de la sélection
 sans pourcentage ni durée présentés comme mesurés. La nouvelle vue n’est pas
 activée sur les corpus distants : ils conservent le répertoire existant.
 
-## Inventaire et liens
+## Détails secondaires locaux
+
+`DetailsLocuteursCorpus.vue` ne recrée pas un second répertoire. Les informations
+et notes suivent la sélection courante. Les notes sont filtrées par couple
+`{ entretienId, participationId }` : deux ids locaux identiques dans des entretiens
+différents ne partagent pas leurs notes. L’ouverture des locuteurs et des notes
+réutilise les accès contextuels existants.
+
+`useCorpus.lireDetailsLocuteurs()` lit l’inventaire et les définitions actuelles des
+variables et catégories, sans réutiliser un catalogue potentiellement périmé.
+Les propositions, distinctions et identités sans entretien restent repliées.
+Le rendu et la recherche de propositions sont bornés, avec élargissement explicite.
+`detailsLocuteurs.ts` ne modifie ni les fichiers ni les associations à la lecture.
+
+Les commandes locales supplémentaires utilisent `corrigerLocuteurs()` et le même
+moteur transactionnel, après inventaire complet et confirmation :
+
+- `individualiserSelection` crée une identité propre pour chaque voix sélectionnée
+  sans identité valide, y compris après un retrait volontaire explicitement repris.
+  Elle ne crée aucune participation ni parole et ne restaure pas les anciens liens ;
+- `ecarterRapprochement` mémorise une distinction dans les deux sens, sans création ;
+- `retablirRapprochement` retire les refus correspondants sur les membres des deux
+  groupes, sans association et sans effacer les distinctions avec un tiers ;
+- `reprendreInformations` copie seulement les champs choisis vers une participation
+  d’un même locuteur dans un autre entretien. Source et données sont recontrôlées ;
+  seules les valeurs de portée participation encore définies peuvent être choisies.
+  Les valeurs existantes restent conservées, sauf choix explicite de remplacement ;
+- `supprimerVide` vérifie les participations, cas et refus avant de retirer une
+  définition sans usage. Les textes et notes ne sont pas supprimés.
+
+Les régularisations créent les définitions avant les associations. Les refus,
+reprises et suppressions suivent l’ordre des transactions existantes ; les états
+capturés restent récupérables sans nouvelle allocation d’identifiants. Les sessions
+ouvertes, lectures seules et préparations distantes restent refusées. Une erreur de
+confirmation ne permet pas de répéter aveuglément l’écriture. Le contexte et les
+préparations ont leurs propres gardes contre les réponses tardives.
+
+La comparaison d’une proposition sélectionne les entrées dans la vue principale.
+Les réunions, renommages et dissociations passent exclusivement par les confirmations
+de sélection ; les formulaires locaux historiques de création, liaison, déplacement,
+renommage de référence seul et séparation avec nouveau nom ne sont plus exposés.
+La reprise ponctuelle reste accessible dans les détails, pas comme effet implicite
+d’un regroupement. L’annulation d’une transaction ne constitue pas un Undo utilisateur.
+
+## Inventaire et liens historiques distants
 
 `personnesInventaire()` rassemble les identités dans `locuteurs`, les présences
 locales dans `participations` et les notes qui visent ces participations. Il ne transmet pas les transcriptions et
@@ -47,15 +92,17 @@ signale les entretiens indisponibles. La vue peut ainsi montrer les locuteurs
 non liés, les références invalides, les doublons dans un même entretien et les
 propositions à vérifier.
 
-Les commandes distinguent :
+L’ancien répertoire réservé aux corpus distants conserve les commandes suivantes :
 
 - créer une définition seule ou une fiche liée à un locuteur ;
 - lier, déplacer ou délier un locuteur ;
 - renommer le nom de référence sans renommer les entrées locales ;
 - supprimer une fiche vide, après vérification d’un inventaire complet.
 
-Une création liée écrit la définition avant son association. Si la seconde
-écriture échoue, la fiche vide reste retrouvable et l’erreur est explicite.
+La création liée historique écrit la définition avant son association. Si la seconde
+écriture échoue, la fiche vide reste retrouvable et l’erreur est explicite. Le nommage
+local décrit ci-dessous n’emprunte plus ce parcours : identité et association y sont
+enregistrées dans une transaction unique.
 Délier pose `associationRetiree` pour empêcher une recréation automatique au nommage ;
 une liaison explicite retire ce marqueur.
 
@@ -66,10 +113,28 @@ identiques, rôles équivalents et variantes proches strictes. Les variantes
 proches exigent plusieurs mots ; un prénom ou nom isolé ne suffit pas à déclencher
 un rapprochement approximatif.
 
-Le nommage dans l’entretien peut ouvrir un dialogue de rapprochement. Une
-création automatique sans candidat exige notamment un nom spécifique admissible,
-un locuteur non volontairement délié et un inventaire sans entretien indisponible.
-Un rôle ou un libellé d’attente ne suffit pas à créer une personne.
+En local, valider tout nom non vide dans l’entretien crée d’abord une identité
+indépendante : rôles, noms génériques, caractère unique et « Nouveau locuteur »
+validé explicitement sont admis. Ajouter l’entrée provisoire seule ne suffit pas.
+La validation utilise Entrée, la sortie d’un champ modifié ou « Valider le nom ».
+Une participation déjà associée passe au renommage global, pas à une nouvelle création.
+Un retrait volontaire empêche toujours cette association automatique.
+
+`identifierParticipationAuNommage` vérifie la seule session locale ouverte, le nom
+sauvegardé et la participation avant de créer l’identité et son association ensemble.
+Le même nommage répété retrouve l’identité enregistrée ; une transaction interrompue
+conserve l’identifiant à reprendre. Aucune fiche vide supplémentaire n’est créée à
+la nouvelle tentative. Une source étrangère indisponible n’empêche pas cette création
+indépendante, mais diffère les suggestions et interdit tout rapprochement incomplet.
+
+Une fois l’identité enregistrée, les suggestions peuvent ouvrir le dialogue. Leurs
+heuristiques restent distinctes de l’admissibilité d’un nom : les libellés d’attente
+et très courts ne déclenchent pas de demandes répétitives ; les rôles équivalents
+peuvent être proposés avec un avertissement. Aucun de ces filtres ne bloque la création.
+« Plus tard » garde l’identité indépendante et visible. Une nouvelle validation du
+même nom déjà associé ne répète ni création ni proposition. Demander un renommage
+abandonne les propositions encore en préparation sans annuler les créations ; son
+aperçu attend la fin des nommages pour ne pas partir d’un inventaire intermédiaire.
 
 L’utilisateur peut rapprocher, écarter ou reporter. Les refus sont mémorisés sur
 les locuteurs et restent révocables depuis le répertoire. Ils ne constituent ni
@@ -77,9 +142,21 @@ une suppression de fiche ni une preuve que deux noms désignent des personnes
 différentes dans tous les contextes.
 
 Avant d’appliquer un dialogue, l’orchestration sauvegarde puis relit l’inventaire.
-Elle vérifie que les locuteurs et leurs liens correspondent encore à l’aperçu.
-Une réponse tardive ne doit jamais modifier le locuteur d’un autre entretien
-ou écraser un nouveau choix.
+Elle vérifie que les locuteurs, associations et données correspondent encore à
+l’aperçu. `rapprocherLocuteurDepuisEntretien` réunit explicitement les identités dans
+la transaction existante, en retirant l’identité absorbée et en redirigeant cas et
+refus. Une source encore sans identité rejoint celle qui vient d’être créée, sans
+nouvelle définition. Les noms locaux sont conservés. Un conflit dans un même entretien
+empêche toute écriture. Les refus ne suppriment ni ne recréent l’identité distincte.
+
+Ces gestes attendent les saisies et sauvegardes, suspendent l’édition pendant la
+transaction et n’actualisent que les associations et informations choisies après
+vérification du payload complet. Le document et les objets de participation ne sont
+pas remplacés. Le main refuse les sauvegardes aux anciennes associations. Une réponse
+perdue entraîne une relecture, jamais un rejeu ; une relecture incertaine laisse
+l’entretien en lecture seule jusqu’à réouverture du corpus. Les réponses tardives ne
+modifient pas une autre session. La création automatique et ce raccord de rapprochement
+restent locaux ; aucun nouveau geste distant n’est autorisé.
 
 ## Reprise ponctuelle des informations
 
@@ -139,10 +216,12 @@ la recherche est effacée pour ne pas masquer les entrées renommées ou dissoci
 Les dialogues prennent le focus sur Annuler et bloquent leur fermeture pendant
 l’enregistrement. Les réponses tardives ne réinstallent pas un ancien aperçu.
 
-Les participations sans identité commune restent temporairement corrigées par
-l’accès historique « Ouvrir les associations », sans création silencieuse lors
-de la préparation. La création universelle au nommage et le remplacement final
-de ces détails restent à raccorder. Les anciennes commandes gardent leur comportement.
+Les participations sans identité commune restent visibles indépendamment. Une
+confirmation « Conserver séparément… » leur donne une identité propre, sans modifier
+les autres voix sélectionnées. Aucun nom n’est demandé : il faut ouvrir l’entretien
+si le nom actuel est vide. Consultation et préparation ne régularisent jamais
+silencieusement les données. Les anciennes commandes restent nécessaires aux
+fournisseurs et aux préparations, pas à la nouvelle interface locale.
 
 La garde contre une session encore en édition protège les appels hors parcours.
 En local, le retour au corpus sauvegarde et ferme déjà l’entretien : aucune
@@ -154,7 +233,8 @@ corrections depuis le corpus. La réouverture relit les données corrigées.
 `useRenommageLocuteurOuvert.ts` prépare le même aperçu pour une participation déjà
 associée. Saisir un autre nom n’altère pas encore le modèle local : le dialogue
 `RenommageLocuteurOuvert.vue` exige une confirmation explicite du périmètre global.
-Les entrées sans association conservent pour l’instant leur parcours de nommage.
+Les entrées sans association passent au nommage automatique décrit plus haut,
+sauf celles volontairement déliées, qui restent sans réassociation implicite.
 
 Avant l’envoi, `useEntretien` attend les identifications et saisies libres en cours,
 vide la sauvegarde, bloque l’éditeur et suspend le debounce. Le point d’entrée
@@ -203,19 +283,32 @@ Voir [gestes.md](../../distant/gestes.md) pour la politique commune.
 | Responsabilité | Emplacement |
 |---|---|
 | Inventaire, invariants et commandes | `src/shared/corpus/personnes.ts` |
-| Suggestions, refus et reprise | `src/shared/corpus/rapprochementsPersonnes.ts` |
+| Suggestions, refus et reprise | `src/shared/corpus/rapprochementsLocuteurs.ts` |
 | Renommage global, regroupement multiple et dissociation indépendante | `src/shared/corpus/correctionsLocuteurs.ts` |
 | Persistance et corrections locales | `src/main/corpusStore.ts` |
 | Journal des corrections multi-fichiers | `src/main/transactionsFichiers.ts` |
 | Dispatch et gardes | `src/main/index.ts`, `src/main/gitlab/politiqueGestes.ts` |
 | Transactions WebDAV présentes | `src/main/distant/transactions.ts` |
-| Projection compacte de consultation | `src/shared/corpus/locuteursCorpus.ts` |
+| Projection compacte de consultation | `src/shared/corpus/repertoireLocuteurs.ts` |
 | Liste, sélection et barres d’interventions | `src/renderer/components/traiter/corpus/LocuteursCorpus.vue`, `BarreInterventionsLocuteurs.vue` |
-| Répertoire de détails et dialogue | `src/renderer/components/traiter/corpus/PersonnesCorpus.vue`, `RapprochementCorpus.vue` |
+| Détails secondaires locaux et projection | `src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue`, `src/shared/corpus/detailsLocuteurs.ts` |
+| Répertoire historique distant et dialogue | `src/renderer/components/traiter/corpus/PersonnesCorpus.vue`, `RapprochementCorpus.vue` |
 | Propositions au nommage | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
+| Vérification des associations et données relues | `src/shared/entretien/identificationLocuteurs.ts` |
+| Sauvegarde, suspension et actualisation ciblée | `src/renderer/composables/useEntretien.ts` |
 
 Tests principaux :
 
+- `test/detailsLocuteurs.test.ts`, `test/detailsLocuteursRenderer.test.ts` : notes
+  contextualisées, régularisation, refus réciproques, réexamen, copie choisie,
+  dépendances, aperçus périmés et réponses tardives ;
+- `e2e/locuteurs-details.e2e.ts` : consultation sans écriture, notes sans mélange,
+  suppressions protégées et régularisation explicite des anciennes entrées ;
+- `test/nommageLocuteurs.test.ts`, `test/nommageLocuteursRenderer.test.ts` : création
+  sans exclusions, identité avant proposition, refus, retrait, reprise, concurrence,
+  droits et absence de doublons après interruption ;
+- `e2e/locuteurs-creation-nommage.e2e.ts` : validation explicite, homonymes indépendants,
+  réunion sans fiche vide, réponse perdue et réouverture après relecture refusée ;
 - `test/locuteursCorpus.test.ts`, `test/locuteursCorpusRenderer.test.ts` : projection,
   absence de réécriture, sélection, navigation, limites de rendu et fraîcheur ;
 - `e2e/locuteurs-corpus.e2e.ts` : consultation locale réelle, navigation et retour,

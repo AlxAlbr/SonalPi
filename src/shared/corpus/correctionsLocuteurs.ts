@@ -1,13 +1,14 @@
 import type { ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
 import type { CorpusFichier } from "../format"
 import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from './contratsLocuteurs'
-import { creerLocuteur, regrouperLocuteurs, renommerLocuteur } from './identitesLocuteurs'
-import { refuserRapprochementLocuteurs } from './rapprochementsLocuteurs'
+import { creerLocuteur, regrouperLocuteurs, renommerLocuteur, supprimerLocuteurVide } from './identitesLocuteurs'
+import { cleRefusRapprochement, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from './rapprochementsLocuteurs'
 
 export type { CommandeCorrectionLocuteurs } from './contratsLocuteurs'
 
 type CorpusCorrection = Pick<CorpusFichier, 'locuteurs' | 'cas'>
 type ParticipationCorrection = Pick<ParticipationLocuteur, 'id' | 'nom' | 'locuteurRef' | 'associationRetiree' | 'rapprochementsRefuses'>
+  & Partial<Pick<ParticipationLocuteur, 'pseudo' | 'pseudoEtat' | 'interviewer' | 'valeursLoc'>>
 interface EntretienCorrection<T extends ParticipationCorrection> {
   id: string
   titre: string
@@ -38,6 +39,65 @@ export function appliquerCorrectionLocuteurs<T extends ParticipationCorrection>(
   genererId: () => string,
 ): string {
   validerCommandeCorrectionLocuteurs(commande)
+  const tous = entretiens.flatMap((e) => e.data.participations.map((participation) => ({ entretienId: e.id, participation })))
+  const retrouver = (r: ReferenceParticipation) => {
+    const membre = tous.find((m) => m.entretienId === r.entretienId && m.participation.id === r.participationId)
+    if (!membre) throw new Error('Une voix sélectionnée a changé. Actualisez la liste.')
+    return membre
+  }
+  const groupe = (m: typeof tous[number]) => m.participation.locuteurRef && Object.hasOwn(corpus.locuteurs, m.participation.locuteurRef)
+    ? tous.filter((p) => p.participation.locuteurRef === m.participation.locuteurRef) : [m]
+  if (commande.type === 'reprendreInformations') {
+    const a = retrouver(commande.reference), b = retrouver(commande.source)
+    const cible = a.participation, source = b.participation
+    if (a.entretienId === b.entretienId || !cible.locuteurRef || cible.locuteurRef !== source.locuteurRef
+      || !Object.hasOwn(corpus.locuteurs, cible.locuteurRef) || !cible.valeursLoc || !source.valeursLoc) throw new Error('Choisissez deux entretiens du même locuteur pour reprendre ses informations.')
+    const donnees = { ...cible, valeursLoc: cible.valeursLoc }
+    reprendreDonneesParticipation(donnees, { ...source, valeursLoc: source.valeursLoc }, commande.choix)
+    Object.assign(cible, { pseudo: donnees.pseudo, pseudoEtat: donnees.pseudoEtat, interviewer: donnees.interviewer })
+    return cible.locuteurRef
+  }
+  if (commande.type === 'supprimerVide') {
+    supprimerLocuteurVide(corpus, { participations: tous.map((m) => m.participation), indisponibles: [] }, commande.locuteurId)
+    return commande.locuteurId
+  }
+  if (commande.type === 'individualiserSelection') {
+    const ids = new Set<string>()
+    const nouveaux = commande.participations.map((r) => {
+      const membre = retrouver(r), p = membre.participation
+      if (p.locuteurRef && Object.hasOwn(corpus.locuteurs, p.locuteurRef)) throw new Error('Un locuteur est déjà identifié. Actualisez la sélection.')
+      const nom = nomValide(p.nom), id = genererId()
+      if (!id || ids.has(id) || Object.hasOwn(corpus.locuteurs, id)) throw new Error('Un identifiant de locuteur est déjà utilisé ou invalide.')
+      ids.add(id)
+      return { p, nom, id }
+    })
+    for (const { p, nom, id } of nouveaux) { creerLocuteur(corpus, id, nom); p.locuteurRef = id; delete p.associationRetiree }
+    return nouveaux[0].id
+  }
+  if (commande.type === 'ecarterRapprochement') {
+    const a = retrouver(commande.reference), b = retrouver(commande.cible)
+    if (a.entretienId === b.entretienId || groupe(a).includes(b)) throw new Error('Choisissez deux locuteurs distincts dans des entretiens différents.')
+    const cible = (m: typeof a) => ({ ...m, participation: { ...m.participation,
+      locuteurRef: m.participation.locuteurRef && Object.hasOwn(corpus.locuteurs, m.participation.locuteurRef) ? m.participation.locuteurRef : null } })
+    refuserRapprochementLocuteurs(a.participation, cible(b))
+    refuserRapprochementLocuteurs(b.participation, cible(a))
+    return a.participation.locuteurRef ?? ''
+  }
+  if (commande.type === 'retablirRapprochement') {
+    const origine = retrouver(commande.reference), refus = commande.cible
+    if (!origine.participation.rapprochementsRefuses?.some((r) => cleRefusRapprochement(r) === cleRefusRapprochement(refus))) throw new Error('Cette distinction a changé. Actualisez la liste.')
+    const a = groupe(origine)
+    const cible = refus.type === 'locuteur'
+      ? tous.find((m) => m.participation.locuteurRef === refus.locuteurId && Object.hasOwn(corpus.locuteurs, refus.locuteurId))
+      : tous.find((m) => m.entretienId === refus.entretienId && m.participation.id === refus.participationId)
+    const b = cible ? groupe(cible) : []
+    const vise = (r: typeof refus, membres: typeof tous) => r.type === 'locuteur'
+      ? membres.some((m) => m.participation.locuteurRef === r.locuteurId && Object.hasOwn(corpus.locuteurs, r.locuteurId))
+      : membres.some((m) => m.entretienId === r.entretienId && m.participation.id === r.participationId)
+    for (const m of a) if (m.participation.rapprochementsRefuses) m.participation.rapprochementsRefuses = m.participation.rapprochementsRefuses.filter((r) => !vise(r, b) && cleRefusRapprochement(r) !== cleRefusRapprochement(refus))
+    for (const m of b) if (m.participation.rapprochementsRefuses) m.participation.rapprochementsRefuses = m.participation.rapprochementsRefuses.filter((r) => !vise(r, a))
+    return origine.participation.locuteurRef ?? ''
+  }
   if (commande.type === 'renommerGlobal') {
     const nom = nomValide(commande.nom)
     renommer(corpus, entretiens, commande.locuteurId, nom)

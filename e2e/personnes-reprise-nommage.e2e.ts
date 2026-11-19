@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, ouvrirRepertoirePersonnes } from './util'
+import { ouvrir, ouvrirDetailsLocuteurs } from './util'
 
 test('la reprise simplifiée au nommage peut être désactivée', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reprise-nommage-')
@@ -23,19 +23,22 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     await expect(reprise).toBeChecked()
     await reprise.uncheck()
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(avant.locuteurs).toHaveLength(0)
+    expect(avant.locuteurs).toHaveLength(1)
+    expect(avant.participations.find((p: any) => p.entretienId === 'e1' && p.nom === 'Marie Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    await ouvrirRepertoirePersonnes(page)
-    const panneau = page.locator('.personnes-corpus')
-    await expect(panneau.getByRole('button', { name: 'À vérifier 0', exact: true })).toBeVisible()
+    await ouvrirDetailsLocuteurs(page)
+    const panneau = page.locator('.details-locuteurs')
+    await panneau.locator('summary').filter({ hasText: 'Propositions présentées (0)' }).click()
     await expect(panneau.getByRole('region', { name: 'Suggestions à vérifier' })).toContainText('Aucun rapprochement proposé.')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const source = vue.participations.find((l: any) => l.participationId === 'marie-source')
     const cible = vue.participations.find((l: any) => l.nom === 'Marie Dupont' && l.participationId !== 'marie-source')
+    expect(vue.locuteurs).toHaveLength(1)
+    expect(cible.locuteurRef).toBe(avant.locuteurs[0].id)
     expect(cible.locuteurRef).toBe(source.locuteurRef)
     expect(cible.pseudo).not.toBe('Alice')
     expect(cible.interviewer).toBe(false)

@@ -2,120 +2,96 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
+import { entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
 
-test('Personnes : refus révocable et reprise depuis une source choisie', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-rapprochements-e2e-'))
-  const app = await lancer(dir)
+test('propositions secondaires : distinction révocable, regroupement explicite puis reprise depuis la source choisie', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-propositions-')), app = await lancer(dir)
   try {
-    const page = await app.firstWindow()
-    await entrerCorpus(page)
+    const page = await app.firstWindow(); await entrerCorpus(page)
     await page.evaluate(async () => {
-      const api = (window as any).sonal.corpus
-      const ids: string[] = []
-      for (const [titre, nom, pseudo, interviewer] of [
-        ['Source A', 'Marie Dupont', 'Alice', true],
-        ['Source B', 'Mme Dupont', 'Lou', false],
-        ['Cible', 'Marie Dupont', '', false],
-      ]) {
-        const { id } = await api.creerEntretienVide(titre)
-        ids.push(id)
-        const { data } = await api.lireEntretien(id)
-        const { formatVersion, lastModified, ...payload } = data
-        payload.participations = [{ id: `loc-${id}`, index: 0, nom, pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
-        await api.ecrireEntretien(id, payload)
+      const api = window.sonal.corpus, ids: string[] = []
+      for (const [titre, nom, pseudo, interviewer] of [['Source A', 'Marie Dupont', 'Alice', true], ['Source B', 'Mme Dupont', 'Lou', false], ['Cible', 'Marie Dupont', '', false]] as const) {
+        const { id } = await api.creerEntretienVide(titre), r = await api.lireEntretien(id)
+        if (!r.ok) throw new Error('Fixture absente')
+        const { formatVersion: _v, lastModified: _d, ...payload } = r.data
+        payload.participations = [{ id: 'local', index: 0, nom, pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
+        await api.ecrireEntretien(id, payload); ids.push(id)
       }
-      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], participationId: `loc-${ids[0]}`, nom: 'Marie Dupont' })
-      await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: `loc-${ids[1]}`, locuteurId: personneId })
+      const id = await api.personnesCommander({ type: 'creer', entretienId: ids[0], participationId: 'local', nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: 'local', locuteurId: id })
     })
-    await ouvrirRepertoirePersonnes(page)
-    const panneau = page.locator('.personnes-corpus')
-    const aVerifier = panneau.getByRole('region', { name: 'Suggestions à vérifier' })
-    await expect(aVerifier.getByRole('button')).toHaveCount(1)
-    await expect(aVerifier).toContainText('2 entretiens (Source A, Source B)')
-    await aVerifier.getByRole('button', { name: /Cible/ }).click()
-    const suggestions = panneau.getByRole('region', { name: 'Rapprochements proposés' })
-    const accesEntretiens = suggestions.locator('.acces-entretiens')
-    await expect(accesEntretiens.getByRole('button')).toHaveCount(3)
-    await expect(accesEntretiens.getByRole('button', { name: 'Source A', exact: true })).toBeVisible()
-    await expect(accesEntretiens.getByRole('button', { name: 'Source B', exact: true })).toBeVisible()
-    await expect(accesEntretiens.getByRole('button', { name: 'Cible', exact: true })).toBeVisible()
-    await expect(panneau.getByLabel('Associer à')).toHaveCount(0)
-    await suggestions.getByRole('button', { name: 'Personne différente', exact: true }).click()
-    await expect(panneau).toHaveAttribute('aria-busy', 'false')
-    await expect(suggestions).toHaveCount(0)
-    await expect(panneau.getByRole('button', { name: /Écartées 1/ })).toHaveAttribute('aria-pressed', 'true')
-    await expect(panneau.getByLabel('Associer à')).toBeVisible()
-    await panneau.getByRole('region', { name: 'Locuteurs avec décisions écartées' }).getByRole('button', { name: 'Marie Dupont · Cible' }).click()
-    await panneau.getByRole('button', { name: 'Annuler le refus', exact: true }).click()
-    await expect(panneau).toHaveAttribute('aria-busy', 'false')
-    await panneau.getByRole('button', { name: 'Toutes', exact: true }).click()
-    await suggestions.getByRole('button', { name: 'C’est la même personne…', exact: true }).click()
-    const dialogue = panneau.getByRole('dialog')
-    await expect(dialogue.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
-    await expect(dialogue).toContainText('Les 3 entretiens seront réunis')
-    await expect(dialogue.getByLabel('Nom de référence à conserver')).toHaveCount(0)
-    await dialogue.getByRole('checkbox', { name: /Reprendre toutes les informations disponibles/ }).check()
-    const sources = dialogue.getByRole('group', { name: 'Choisir l’entretien source' })
-    await expect(sources.getByRole('radio', { name: /Source A.*Alice.*interviewer/ })).toBeVisible()
-    await expect(sources.getByRole('radio', { name: /Source B.*Lou/ })).toBeVisible()
-    await sources.getByRole('radio', { name: /Source B/ }).check()
-    await dialogue.getByRole('button', { name: 'Réunir', exact: true }).click()
-    await expect(dialogue).toHaveCount(0)
-    await expect(panneau).toHaveAttribute('aria-busy', 'false')
-    await expect(panneau.getByRole('alert')).toHaveCount(0)
-    const resultat = await page.evaluate(async () => {
-      const vue = await (window as any).sonal.corpus.personnesInventaire()
-      return { cible: vue.participations.find((l: any) => l.entretienTitre === 'Cible'), locuteurs: vue.locuteurs }
-    })
-    expect(resultat.cible).toMatchObject({ nom: 'Marie Dupont', pseudo: 'Lou', pseudoEtat: 'confirme', interviewer: false })
-    expect(resultat.cible.locuteurRef).toBeTruthy()
-    expect(resultat.locuteurs).toHaveLength(1)
-    await expect(panneau.locator('.liens li')).toHaveCount(3)
-  } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-  }
+    await ouvrirDetailsLocuteurs(page)
+    const panneau = page.locator('.locuteurs-corpus'), details = panneau.locator('.details-locuteurs')
+    await details.locator('summary').filter({ hasText: 'Propositions présentées' }).click()
+    const suggestions = details.getByRole('region', { name: 'Suggestions à vérifier', exact: true })
+    await expect(suggestions.locator('article')).toHaveCount(1)
+    await expect(suggestions).toContainText('Source A, Source B')
+    await suggestions.getByRole('button', { name: 'Garder distincts…' }).click()
+    const distincts = page.getByRole('dialog', { name: 'Garder ces locuteurs distincts', exact: true })
+    await expect(distincts.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
+    await distincts.getByRole('button', { name: 'Garder distincts', exact: true }).click(); await expect(distincts).toHaveCount(0)
+    await expect(suggestions.locator('article')).toHaveCount(0)
+    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toHaveLength(1)
+    await details.locator('summary').filter({ hasText: 'Distinctions enregistrées (1)' }).click()
+    await details.getByRole('button', { name: 'Réexaminer cette distinction…' }).click()
+    const revoir = page.getByRole('dialog', { name: 'Réexaminer cette distinction' })
+    await expect(revoir).toContainText('aucun regroupement')
+    await revoir.getByRole('button', { name: 'Réexaminer la distinction' }).click(); await expect(revoir).toHaveCount(0)
+    await expect(suggestions.locator('article')).toHaveCount(1)
+    await suggestions.getByRole('button', { name: 'Comparer ces locuteurs' }).click()
+    await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
+    const conserver = page.getByRole('dialog', { name: 'Conserver ces locuteurs séparément' })
+    await conserver.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(conserver).toHaveCount(0)
+    await panneau.getByRole('button', { name: 'C’est le même locuteur…' }).click()
+    const reunir = page.getByRole('dialog', { name: 'Réunir les locuteurs sélectionnés' })
+    await expect(reunir).toContainText('3 entretiens')
+    await reunir.getByLabel('Nom commun', { exact: true }).fill('Marie Dupont')
+    await reunir.getByRole('radio', { name: 'Conserver les noms actuels', exact: true }).check()
+    await reunir.getByRole('button', { name: 'Réunir les locuteurs', exact: true }).click(); await expect(reunir).toHaveCount(0)
+    const avant = await page.evaluate(() => window.sonal.corpus.personnesInventaire()), cible = avant.participations.find((p) => p.entretienTitre === 'Cible')!
+    expect(avant.locuteurs).toHaveLength(1); expect(cible.pseudo).toBe(''); expect(cible.interviewer).toBe(false)
+    const article = details.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Marie Dupont · Cible', exact: true }) })
+    await article.getByRole('button', { name: 'Reprendre des informations…' }).click()
+    const reprise = page.getByRole('dialog', { name: 'Reprendre des informations locales' }), select = reprise.getByLabel('Entretien source', { exact: true })
+    await expect(select.locator('option').filter({ hasText: /Source A.*Alice.*pose les questions/ })).toHaveCount(1)
+    const option = select.locator('option').filter({ hasText: /Source B.*Lou.*répond aux questions/ })
+    await expect(option).toHaveCount(1)
+    await expect(reprise.getByRole('button', { name: 'Reprendre les informations' })).toBeDisabled()
+    await select.selectOption((await option.getAttribute('value'))!)
+    await reprise.getByRole('button', { name: 'Reprendre les informations' }).click(); await expect(reprise).toHaveCount(0)
+    const apres = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    expect(apres.participations.find((p) => p.entretienTitre === 'Cible')).toMatchObject({ nom: 'Marie Dupont', pseudo: 'Lou', pseudoEtat: 'confirme', interviewer: false, locuteurRef: cible.locuteurRef })
+    expect(apres.participations.filter((p) => p.entretienTitre.startsWith('Source'))).toEqual(avant.participations.filter((p) => p.entretienTitre.startsWith('Source')))
+    expect(apres.locuteurs).toHaveLength(1)
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('Personnes : refuser une paire conserve les suggestions vers un troisième locuteur indépendant', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-rapprochements-trois-e2e-'))
-  const app = await lancer(dir)
+test('écarter une paire sans créer de fiche conserve les propositions avec le troisième locuteur', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-propositions-trois-')), app = await lancer(dir)
   try {
-    const page = await app.firstWindow()
-    await entrerCorpus(page)
+    const page = await app.firstWindow(); await entrerCorpus(page)
     await page.evaluate(async () => {
-      const api = (window as any).sonal.corpus
+      const api = window.sonal.corpus
       for (const titre of ['Entretien A', 'Entretien B', 'Entretien C']) {
-        const { id } = await api.creerEntretienVide(titre)
-        const { data } = await api.lireEntretien(id)
-        const { formatVersion, lastModified, ...payload } = data
-        payload.participations = [{ id: `marie-${titre}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
+        const { id } = await api.creerEntretienVide(titre), r = await api.lireEntretien(id)
+        if (!r.ok) throw new Error('Fixture absente')
+        const { formatVersion: _v, lastModified: _d, ...payload } = r.data
+        payload.participations = [{ id: 'local', index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
       }
     })
-    await ouvrirRepertoirePersonnes(page)
-    const panneau = page.locator('.personnes-corpus')
-    const aVerifier = panneau.getByRole('region', { name: 'Suggestions à vérifier' })
-    await expect(aVerifier.getByRole('button')).toHaveCount(3)
-    await aVerifier.getByRole('button').filter({ hasText: /Entretien A.*Entretien B/ }).click()
-    const propositions = panneau.getByRole('region', { name: 'Rapprochements proposés' })
-    await expect(propositions.locator('li')).toHaveCount(1)
-    await expect(propositions).toContainText('Entretien B')
-    await expect(propositions.locator('.acces-entretiens').getByRole('button')).toHaveCount(2)
-    await propositions.getByRole('button', { name: 'C’est la même personne…', exact: true }).click()
-    const dialogue = panneau.getByRole('dialog')
-    await expect(dialogue.getByRole('checkbox', { name: /Reprendre toutes les informations disponibles/ })).toHaveCount(0)
-    await dialogue.getByRole('button', { name: 'Annuler', exact: true }).click()
-    await propositions.getByRole('button', { name: 'Personne différente', exact: true }).click()
-    await expect(panneau).toHaveAttribute('aria-busy', 'false')
-    await expect(panneau.getByRole('button', { name: /Écartées 1/ })).toHaveAttribute('aria-pressed', 'true')
-    await panneau.getByRole('button', { name: 'Toutes', exact: true }).click()
-    await expect(aVerifier.getByRole('button')).toHaveCount(2)
-    await expect(propositions.locator('li')).toHaveCount(1)
-    await expect(propositions).toContainText('Entretien C')
-  } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-  }
+    await ouvrirDetailsLocuteurs(page)
+    const details = page.locator('.details-locuteurs')
+    await details.locator('summary').filter({ hasText: 'Propositions présentées (3)' }).click()
+    const suggestions = details.getByRole('region', { name: 'Suggestions à vérifier', exact: true })
+    await expect(suggestions.locator('article')).toHaveCount(3)
+    const ab = suggestions.locator('article').filter({ hasText: /Entretien A.*Entretien B/ })
+    await ab.getByRole('button', { name: 'Garder distincts…' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Garder distincts', exact: true }).click()
+    await expect(suggestions.locator('article')).toHaveCount(2)
+    await expect(suggestions).toContainText('Entretien C')
+    const inv = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    expect(inv.locuteurs).toHaveLength(0)
+    expect(inv.participations.filter((p) => p.rapprochementsRefuses?.length)).toHaveLength(2)
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

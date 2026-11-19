@@ -62,7 +62,7 @@ import type {
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
 import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
-import type { CommandeLocuteurs, CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import type { CommandeLocuteurs, CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
@@ -359,6 +359,10 @@ contextBridge.exposeInMainWorld('sonal', {
     notesCommander: (commande: CommandeNotes): Promise<string | null> =>
       invoquer('corpus:notesCommander', commande),
     personnesInventaire: (): Promise<InventaireIdentitesLocuteurs> => invoquer('corpus:personnesInventaire'),
+    identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur): Promise<EntretienFichier> =>
+      invoquer('corpus:identifierParticipationAuNommage', demande),
+    rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage): Promise<EntretienFichier> =>
+      invoquer('corpus:rapprocherLocuteurDepuisEntretien', demande),
     renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): Promise<EntretienFichier> =>
       invoquer('corpus:renommerLocuteurDepuisEntretien', reference, commande),
     locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),

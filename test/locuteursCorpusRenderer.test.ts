@@ -7,7 +7,8 @@ import type { VueLocuteursCorpus } from '../src/shared/corpus/repertoireLocuteur
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
-vi.mock('../src/renderer/components/traiter/corpus/PersonnesCorpus.vue', () => ({ default: { template: '<div class="personnes-corpus">Détails existants</div>' } }))
+vi.mock('../src/renderer/components/traiter/corpus/PersonnesCorpus.vue', () => ({ default: { template: '<div class="personnes-corpus">Détails distants</div>' } }))
+vi.mock('../src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue', () => ({ default: { emits: ['fermer'], template: '<section class="details-locuteurs"><button @click="$emit(\'fermer\')">Fermer les détails</button></section>' } }))
 const apps: App[] = []
 afterEach(() => {
   apps.splice(0).forEach((app) => app.unmount())
@@ -167,16 +168,18 @@ test('un échec d’actualisation laisse le dernier résultat lisible avec un av
   expect(b.host.querySelector('[role=alert]')?.textContent).toContain('dernier état lisible')
 })
 
-test('pas de chargement inactif ou distant ; les détails existants restent accessibles', async () => {
+test('détails secondaires sans remplacer les interventions ; répertoire historique réservé au distant', async () => {
   const b = await monter({ actif: false })
   expect(b.lire).not.toHaveBeenCalled()
   b.actif.value = true
   await nextTick()
   await nextTick()
-  bouton(b.host, 'Détails et associations…').click()
+  bouton(b.host, 'Détails et vérifications…').click()
   await nextTick()
-  expect(b.host.querySelector('.personnes-corpus')).not.toBeNull()
-  bouton(b.host, '← Revenir aux interventions').click()
+  expect(b.host.querySelector('.details-locuteurs')).not.toBeNull()
+  expect(b.host.querySelector('.personnes-corpus')).toBeNull()
+  expect(liste(b.host)).toHaveLength(4)
+  bouton(b.host, 'Fermer les détails').click()
   await nextTick()
   await nextTick()
   expect(liste(b.host)).toHaveLength(4)

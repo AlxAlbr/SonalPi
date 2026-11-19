@@ -10,13 +10,13 @@ import type { Inverse } from '../../../shared/entretien/journal'
 import { participationParId, renommerParticipation as renommerNomParticipation, supprimerParticipation } from '../../../shared/entretien/participations'
 import type { ReferenceParticipation } from '../../../shared/locuteurs'
 import type { ParticipationLocuteur } from '../../../shared/format'
-import type { VueParticipationLocuteur } from '../../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../shared/corpus/personnes'
+import type { DemandeRapprochementNommage } from '../../../shared/corpus/contratsLocuteurs'
 import {
   type ChoixRepriseLocuteur,
   natureNomLocuteur,
   peutCreerLocuteurAuNommage,
   refuserRapprochementLocuteurs,
-  reprendreDonneesParticipation,
   suggestionsLocuteurs,
 } from "../../../shared/corpus/rapprochementsLocuteurs"
 
@@ -35,18 +35,21 @@ type RapprochementNommage = {
   locuteurId: string
   nom: string
   personneRef: string | null
-  lienActuel: string
+  attendu: string
   cible: ParticipationLocuteur
   sources: VueParticipationLocuteur[]
   candidats: VueParticipationLocuteur[]
 }
 
-/** Gère les gestes sur les locuteurs et leur rapprochement avec les personnes. */
+/** Gère l'attribution, le nommage et les choix de rapprochement des locuteurs. */
 export function useLocuteursEntretien(deps: {
   locuteurs: Ref<ParticipationLocuteur[]>
   ouvertId: Readonly<Ref<string | null>>
   lireEditeur: () => Editor | null
   lectureSeule?: () => boolean
+  identificationPossible?: () => boolean
+  identifier?: (reference: ReferenceParticipation, nom: string) => Promise<void>
+  rapprocher?: (demande: DemandeRapprochementNommage, inventaire: InventaireIdentitesLocuteurs) => Promise<void>
   renommageGlobalPossible?: () => boolean
   demanderRenommageGlobal?: (reference: ReferenceParticipation, nom: string) => void
   effets: EffetsLocuteurs
@@ -57,12 +60,17 @@ export function useLocuteursEntretien(deps: {
   const rapprochementOccupe = ref(false)
   const locuteurASupprimer = ref<{ reference: ReferenceParticipation; nom: string; nbBlocs: number } | null>(null)
   let nommagesPersonnes = Promise.resolve()
+  let generation = 0
+  let revisionPropositions = 0
 
   function mettreAJourSelection(vide: boolean) {
     selectionVide.value = vide
   }
 
   function reinitialiser() {
+    generation++
+    nommagesPersonnes = Promise.resolve()
+    rapprochementOccupe.value = false
     selectionVide.value = true
     messagePersonnes.value = ''
     rapprochementNommage.value = null
@@ -75,6 +83,7 @@ export function useLocuteursEntretien(deps: {
   }
 
   function attribuerLoc(loc: number | null) {
+    if (!deps.ouvertId.value || deps.lectureSeule?.()) return
     const editeur = deps.lireEditeur()
     if (!editeur) return
     const libelle = `Locuteur attribué : ${nomDeLocuteur(deps.locuteurs.value, loc) || 'aucun'}`
@@ -114,7 +123,9 @@ export function useLocuteursEntretien(deps: {
   }
 
   function reporterRapprochement() {
-    if (!rapprochementOccupe.value) rapprochementNommage.value = null
+    if (rapprochementOccupe.value) return
+    revisionPropositions++
+    rapprochementNommage.value = null
   }
 
   async function deciderRapprochement(
@@ -124,9 +135,10 @@ export function useLocuteursEntretien(deps: {
     reprise?: ChoixRepriseLocuteur,
   ) {
     const demande = rapprochementNommage.value
-    if (!demande || rapprochementOccupe.value) return
+    if (!demande || rapprochementOccupe.value || deps.lectureSeule?.()) return
+    const jeton = generation
     const courant = () =>
-      deps.ouvertId.value === demande.entretienId
+      generation === jeton && deps.ouvertId.value === demande.entretienId
         ? deps.locuteurs.value.find(
             (locuteur) =>
               locuteur.id === demande.locuteurId &&
@@ -146,6 +158,7 @@ export function useLocuteursEntretien(deps: {
     try {
       await deps.effets.viderSauvegarde()
       const inventaire = await window.sonal.corpus.personnesInventaire()
+      if (inventaire.indisponibles.length || JSON.stringify(inventaire) !== demande.attendu) throw new Error('Les propositions ou leurs données ont changé. Rouvrez le dialogue avant de confirmer.')
       const source = inventaire.participations.find(
         (locuteur) =>
           locuteur.participationId === sourceId && locuteur.entretienId === sourceEntretienId,
@@ -190,49 +203,20 @@ export function useLocuteursEntretien(deps: {
           refuserRapprochementLocuteurs(cible, { entretienId: refuse.entretienId, participation: { ...refuse, id: refuse.participationId } })
         }
         deps.effets.planifierSauvegarde()
-        if (peutCreerLocuteurAuNommage(cible)) {
-          const id = await window.sonal.corpus.personnesCommander({
-            type: 'creerDefinition',
-            nom: cible.nom,
-          })
-          if (courant() !== cible || !peutCreerLocuteurAuNommage(cible) || !id) {
-            throw new Error('La personne créée est conservée. Le locuteur a changé : reprenez depuis Personnes.')
-          }
-          cible.locuteurRef = id
-        }
         messagePersonnes.value =
           natureNomLocuteur(demande.nom) === 'role'
             ? 'Propositions écartées. Vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer ces locuteurs.'
             : 'Propositions écartées. Vous pourrez revenir sur ce choix dans Personnes.'
       } else {
-        let id = source.locuteurRef
-        if (!id) {
-          id = await window.sonal.corpus.personnesCommander({
-            type: 'creer',
-            entretienId: source.entretienId,
-            participationId: source.participationId,
-            nom: source.nom,
-          })
-        }
-        const cible = courant()
-        if (!cible || cible !== cibleInitiale || !id) {
-          throw new Error('La personne source est conservée. Le locuteur cible a changé : reprenez depuis Personnes.')
-        }
-        if (deps.locuteurs.value.some((locuteur) => locuteur.id !== cible.id && locuteur.locuteurRef === id)) {
-          throw new Error('Cette personne est déjà représentée dans cet entretien.')
-        }
-        if (
-          reprise &&
-          (cible !== cibleInitiale || signatureDonnees(cible) !== signatureDonnees(demande.cible))
-        ) {
-          throw new Error('Les données locales ont changé. La personne source est conservée ; rouvrez le dialogue pour vérifier la reprise.')
-        }
-        if (reprise) reprendreDonneesParticipation(cible, source, reprise)
-        cible.locuteurRef = id
-        delete cible.associationRetiree
+        if (!deps.rapprocher || !deps.identificationPossible?.()) throw new Error('Ce rapprochement est disponible uniquement en local.')
+        if (reprise && signatureDonnees(cibleInitiale) !== signatureDonnees(demande.cible)) throw new Error('Les données locales ont changé. Rouvrez le dialogue avant de confirmer leur reprise.')
+        await deps.rapprocher({ entretienId: demande.entretienId, participationId: demande.locuteurId,
+          source: { entretienId: source.entretienId, participationId: source.participationId },
+          attendu: JSON.stringify(inventaire), ...(reprise ? { reprise } : {}) }, inventaire)
+        if (generation !== jeton || deps.ouvertId.value !== demande.entretienId || !deps.locuteurs.value.includes(cibleInitiale)) return
         messagePersonnes.value = reprise
-          ? 'Liaison appliquée avec reprise des informations disponibles.'
-          : `Locuteur lié à « ${inventaire.locuteurs.find((personne) => personne.id === id)?.nom ?? source.nom} ». Les données locales sont conservées.`
+          ? 'Locuteurs réunis avec reprise des informations disponibles.'
+          : 'Locuteurs réunis. Les noms et les données locales sont conservés.'
       }
       if (
         deps.ouvertId.value === demande.entretienId &&
@@ -243,37 +227,39 @@ export function useLocuteursEntretien(deps: {
         deps.effets.planifierSauvegarde()
         await deps.effets.viderSauvegarde()
       }
-      rapprochementNommage.value = null
+      if (generation === jeton) rapprochementNommage.value = null
     } catch (erreur) {
-      messagePersonnes.value = `Rapprochement non terminé : ${erreur instanceof Error ? erreur.message : String(erreur)}`
+      if (generation === jeton && deps.ouvertId.value === demande.entretienId) messagePersonnes.value = `Rapprochement non terminé : ${erreur instanceof Error ? erreur.message : String(erreur)}`
     } finally {
-      rapprochementOccupe.value = false
+      if (generation === jeton) rapprochementOccupe.value = false
     }
   }
 
-  function proposerIdentite(index: number, nom: string) {
-    const idEntretien = deps.ouvertId.value
-    const locuteur = deps.locuteurs.value.find((candidat) => candidat.index === index)
-    if (!idEntretien || !locuteur?.id || deps.lectureSeule?.() || natureNomLocuteur(nom) === 'ignore') return
-    const idLocuteur = locuteur.id
+  function proposerIdentite(reference: ReferenceParticipation, nom: string) {
+    const idEntretien = reference.entretienId, locuteur = participationCourante(reference)
+    if (!locuteur || !deps.identificationPossible?.() || !deps.identifier || !peutCreerLocuteurAuNommage(locuteur)) return
+    const idLocuteur = locuteur.id, jeton = generation, proposition = revisionPropositions
     nommagesPersonnes = nommagesPersonnes.then(async () => {
       const courant = () =>
-        deps.ouvertId.value === idEntretien
+        generation === jeton && deps.ouvertId.value === idEntretien
           ? deps.locuteurs.value.find(
-              (candidat) => candidat.id === idLocuteur && candidat.nom === nom,
+              (candidat) => candidat === locuteur && candidat.id === idLocuteur && candidat.nom === nom,
             )
           : undefined
-      if (!courant()) return
+      if (!courant() || !peutCreerLocuteurAuNommage(courant()!)) return
       messagePersonnes.value = ''
       try {
-        await deps.effets.viderSauvegarde()
-        const inventaire = await window.sonal.corpus.personnesInventaire()
+        if (!courant()!.locuteurRef) await deps.identifier!({ entretienId: idEntretien, participationId: idLocuteur }, nom)
         if (!courant()) return
+        if (!courant()!.locuteurRef) throw new Error('L’identité distincte n’a pas pu être vérifiée.')
+        const inventaire = await window.sonal.corpus.personnesInventaire()
+        if (!courant() || proposition !== revisionPropositions) return
+        messagePersonnes.value = `Locuteur « ${nom} » créé au niveau du corpus.`
+        if (inventaire.indisponibles.length) {
+          messagePersonnes.value += ' Les propositions sont différées : certains entretiens sont indisponibles.'
+          return
+        }
         const personneRef = courant()!.locuteurRef
-        const lienActuel = personneRef
-          ? inventaire.locuteurs.find((personne) => personne.id === personneRef)?.nom ??
-            'Personne absente'
-          : ''
         const candidats = suggestionsLocuteurs(
           { entretienId: idEntretien, participation: courant()! },
           inventaire.participations.map((source) => ({
@@ -287,7 +273,7 @@ export function useLocuteursEntretien(deps: {
             locuteurId: idLocuteur,
             nom,
             personneRef,
-            lienActuel,
+            attendu: JSON.stringify(inventaire),
             cible: JSON.parse(JSON.stringify(courant()!)),
             sources: inventaire.participations,
             candidats: inventaire.participations.filter((source) =>
@@ -301,44 +287,27 @@ export function useLocuteursEntretien(deps: {
           messagePersonnes.value = `Un rapprochement est proposé pour « ${nom} ». Il reste aussi disponible dans Personnes.`
           return
         }
-        if (!peutCreerLocuteurAuNommage(courant()!)) return
-        if (inventaire.indisponibles.length) {
-          messagePersonnes.value = 'Création de personne différée : certains entretiens sont indisponibles. Vérifiez le répertoire Personnes.'
-          return
-        }
-        const personneId = await window.sonal.corpus.personnesCommander({
-          type: 'creerDefinition',
-          nom,
-        })
-        const cible = courant()
-        if (!cible || !peutCreerLocuteurAuNommage(cible) || !personneId) {
-          if (deps.ouvertId.value === idEntretien) {
-            messagePersonnes.value = 'Une personne a été créée, mais le locuteur a changé. Vérifiez le répertoire Personnes.'
-          }
-          return
-        }
-        cible.locuteurRef = personneId
-        deps.effets.planifierSauvegarde()
-        await deps.effets.viderSauvegarde()
-        if (deps.ouvertId.value === idEntretien) {
-          messagePersonnes.value = `Personne « ${nom} » créée au niveau du corpus.`
-        }
       } catch (erreur) {
-        if (deps.ouvertId.value === idEntretien) {
-          messagePersonnes.value = `Identification non terminée : ${erreur instanceof Error ? erreur.message : String(erreur)}. Vérifiez le répertoire Personnes avant de réessayer.`
+        if (courant()) {
+          messagePersonnes.value = `Identification non terminée : ${erreur instanceof Error ? erreur.message : String(erreur)}`
         }
       }
     })
   }
 
-  function renommerParticipation(reference: ReferenceParticipation, event: Event) {
+  function renommerParticipation(reference: ReferenceParticipation, event: Event | string) {
     const cible = participationCourante(reference)
     if (!cible) return
-    const champ = event.target as HTMLInputElement
-    const nouveau = champ.value
+    const champ = typeof event === 'string' ? null : event.target as HTMLInputElement
+    const nouveau = typeof event === 'string' ? event : champ!.value
     const ancien = cible.nom
+    if (!nouveau.trim()) {
+      if (champ) champ.value = ancien
+      messagePersonnes.value = 'Le nom ne peut pas être vide.'
+      return
+    }
     if (cible.locuteurRef && deps.renommageGlobalPossible?.() && deps.demanderRenommageGlobal && ancien !== nouveau) {
-      champ.value = ancien
+      if (champ) champ.value = ancien
       deps.demanderRenommageGlobal(reference, nouveau)
       return
     }
@@ -352,7 +321,7 @@ export function useLocuteursEntretien(deps: {
     }
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
-    if (ancien !== nouveau) proposerIdentite(cible.index, nouveau)
+    proposerIdentite(reference, nouveau)
   }
 
   function nouveauLocuteur() {

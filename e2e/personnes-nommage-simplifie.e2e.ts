@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { entrerCorpus, entrerEntretien, ouvrir } from './util'
+import { ouvrir } from './util'
 
 test('le nommage affiche les informations divergentes et reprend la source choisie', async () => {
   const { app, page } = await ouvrir('sonal-nommage-donnees-')
@@ -20,6 +20,7 @@ test('le nommage affiche les informations divergentes et reprend la source chois
       }
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -32,10 +33,12 @@ test('le nommage affiche les informations divergentes et reprend la source chois
     await sources.getByRole('radio', { name: /Source A/ }).check()
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const cible = vue.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
+    expect(vue.locuteurs).toHaveLength(1)
     expect(cible.pseudo).toBe('Alice')
     expect(cible.pseudoEtat).toBe('confirme')
     expect(cible.interviewer).toBe(true)
@@ -55,6 +58,7 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
       }
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -62,20 +66,22 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await expect(dialogue).toContainText('Des personnes portent déjà ce nom.')
     await expect(dialogue.getByRole('radio')).toHaveCount(2)
     await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toHaveCount(0)
-    await page.keyboard.press('Escape')
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(avant.locuteurs).toHaveLength(0)
-    await nom.fill('MARIE DUPONT')
-    await nom.press('Tab')
+    expect(avant.locuteurs).toHaveLength(1)
+    expect(avant.participations.find((p: any) => p.entretienId === 'e1' && p.nom === 'Marie Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
     await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = apres.participations.find((l: any) => l.nom === 'MARIE DUPONT')
+    const cible = apres.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
     expect(cible.rapprochementsRefuses).toHaveLength(2)
     expect(apres.locuteurs).toHaveLength(1)
-    await nom.fill('Marie Dupont')
-    await nom.press('Tab')
+    await nom.fill('MARIE DUPONT')
+    await nom.press('Enter')
+    const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
+    await renommage.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(renommage).toHaveCount(0)
     await expect(dialogue).toHaveCount(0)
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const persiste = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ecrireSeedDemo, entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
+import { ecrireSeedDemo, entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
 
 test('les projections gardent leur dernier résultat et replient les entretiens indisponibles', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-fraicheur-'))
@@ -63,10 +63,10 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     }
     writeFileSync(cheminCorpus, JSON.stringify(corpus, null, 2), 'utf8')
 
-    await ouvrirRepertoirePersonnes(page)
-    const personnes = page.locator('.personnes-corpus')
-    const detailPersonnes = personnes.locator('details.inventaire-incomplet')
-    await expect(detailPersonnes.getByText('1 entretien indisponible', { exact: true })).toBeVisible()
+    await ouvrirDetailsLocuteurs(page)
+    const personnes = page.locator('.locuteurs-corpus')
+    const detailPersonnes = personnes.locator('details.sources-indisponibles')
+    await expect(detailPersonnes.locator('summary')).toContainText('1 entretien indisponible')
     await expect(detailPersonnes).not.toHaveAttribute('open', '')
     await detailPersonnes.locator('summary').click()
     await expect(detailPersonnes).toContainText('Entretien indisponible')

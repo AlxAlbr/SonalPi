@@ -8,6 +8,7 @@ import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import BarreInterventionsLocuteurs from './BarreInterventionsLocuteurs.vue'
 import PersonnesCorpus from './PersonnesCorpus.vue'
+import DetailsLocuteursCorpus from './DetailsLocuteursCorpus.vue'
 import CorrectionsLocuteursCorpus from './CorrectionsLocuteursCorpus.vue'
 import type { ReferenceParticipation } from '../../../../shared/locuteurs'
 import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCorrectionsLocuteurs'
@@ -32,7 +33,7 @@ const limiteEntretiens = ref(20)
 const limiteStatistiques = ref(200)
 const indices = ref<Record<string, number>>({})
 let generation = 0
-const visible = computed(() => props.actif && vue.value === 'corpus' && !details.value && !idDistantCourant.value)
+const visible = computed(() => props.actif && vue.value === 'corpus' && !idDistantCourant.value)
 const normaliser = (texte: string) => texte.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr')
 const filtres = computed(() => {
   const texte = normaliser(recherche.value.trim())
@@ -85,6 +86,13 @@ async function apresCorrection(participations: ReferenceParticipation[]) {
   const references = new Set(participations.map(cleParticipationCorrection))
   const cles = donnees.value.locuteurs.filter((l) => l.participations.some((p) => references.has(cleParticipationCorrection(p))))
     .map((l) => l.cle)
+  selection.value = { cles, ancre: cles[0] ?? null }
+  if (cles[0]) await focaliser(cles[0])
+}
+async function choisirReferences(participations: ReferenceParticipation[]) {
+  recherche.value = ''
+  const references = new Set(participations.map(cleParticipationCorrection))
+  const cles = donnees.value.locuteurs.filter((l) => l.participations.some((p) => references.has(cleParticipationCorrection(p)))).map((l) => l.cle)
   selection.value = { cles, ancre: cles[0] ?? null }
   if (cles[0]) await focaliser(cles[0])
 }
@@ -174,14 +182,13 @@ onBeforeUnmount(() => { generation++ })
 
 <template>
   <section class="locuteurs-corpus" aria-label="Locuteurs du corpus" :aria-busy="occupe">
-    <template v-if="details || idDistantCourant">
-      <button v-if="!idDistantCourant" type="button" class="retour-interventions" @click="details = false">← Revenir aux interventions</button>
+    <template v-if="idDistantCourant">
       <PersonnesCorpus :actif="actif" />
     </template>
     <template v-else>
       <BarreOngletCorpus titre="Locuteurs" aide="Sélectionnez un ou plusieurs locuteurs pour retrouver leurs interventions dans les entretiens.">
         <button type="button" :disabled="occupe" @click="actualiser">Actualiser</button>
-        <button type="button" @click="details = true">Détails et associations…</button>
+        <button type="button" :aria-expanded="details" @click="details = !details">Détails et vérifications…</button>
       </BarreOngletCorpus>
       <BandeauRetourCorpus v-if="erreur" type="erreur" @fermer="erreur = ''">
         {{ erreur }}<template v-if="charge"> La liste affichée est le dernier état lisible.</template>
@@ -217,12 +224,13 @@ onBeforeUnmount(() => { generation++ })
               <label><input v-model="tousEntretiens" type="checkbox" /> Tous les entretiens</label>
             </div>
             <CorrectionsLocuteursCorpus v-if="visible" :key="dossierCourantDir ?? ''" :selection="selectionnes" :indisponible="occupe || !!erreur || !!donnees.indisponibles.length"
-              @termine="apresCorrection" @details="details = true" @ouvrir="ouvrirConflit" />
+              @termine="apresCorrection" @ouvrir="ouvrirConflit" />
             <ul v-if="selectionnes.length" class="legende-locuteurs">
               <li v-for="locuteur in selectionnes.slice(0, 20)" :key="locuteur.cle"><span class="pastille" :style="{ background: couleurs[locuteur.cle] }"></span>{{ locuteur.nom }}</li>
               <li v-if="selectionnes.length > 20">Et {{ selectionnes.length - 20 }} autres locuteurs.</li>
             </ul>
           </header>
+          <DetailsLocuteursCorpus v-if="details" :actif="visible" :selection="selectionnes" @fermer="details = false" @selectionner="choisirReferences" @termine="apresCorrection" />
           <section v-if="statistiques && selectionnes.length" class="statistiques-selection" aria-label="Statistiques de la sélection">
             <p><strong>{{ totalMots }} mots · {{ totalTours }} interventions</strong> dans les entretiens associés à la sélection.</p>
             <p v-if="donnees.indisponibles.length">Bilan incomplet : certains entretiens sont indisponibles.</p>
@@ -276,6 +284,5 @@ onBeforeUnmount(() => { generation++ })
 button:not([role=option]) { padding: .4rem .6rem; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid #356ac3; outline-offset: 2px; }
 button:disabled { cursor: default; opacity: .6; }
-.retour-interventions { margin: .5rem 0; }
 @media (max-width: 720px) { .vue-locuteurs { grid-template-columns: 1fr; } .liste-locuteurs { max-height: 35vh; } }
 </style>

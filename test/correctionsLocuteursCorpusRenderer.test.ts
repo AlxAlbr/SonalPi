@@ -29,13 +29,13 @@ async function monter(options: { nombre?: number; inventaire?: InventaireIdentit
   const lire = options.lire ?? vi.fn(async () => structuredClone(inventaire))
   const corriger = options.corriger ?? vi.fn(async () => 'p1')
   const lectureSeule = ref(false), distant = ref<string | null>(null), indisponible = ref(false)
-  const termine = vi.fn(), details = vi.fn(), ouvrir = vi.fn()
+  const termine = vi.fn(), ouvrir = vi.fn()
   injection.contexte = { lirePersonnes: lire, corrigerLocuteurs: corriger, lectureSeule, idDistantCourant: distant }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(CorrectionsLocuteursCorpus, { selection: selection.value, indisponible: indisponible.value,
-    onTermine: termine, onDetails: details, onOuvrir: ouvrir }) })
+    onTermine: termine, onOuvrir: ouvrir }) })
   apps.push(app); app.mount(host); await attendre()
-  return { host, selection, lire, corriger, lectureSeule, distant, indisponible, termine, details, ouvrir, app }
+  return { host, selection, lire, corriger, lectureSeule, distant, indisponible, termine, ouvrir, app }
 }
 
 test('renommage : aperçu frais, entretiens masqués inclus, annulation par Échap et retour du focus', async () => {
@@ -157,9 +157,23 @@ test('les participations sans association ne sont pas silencieusement transform�
   const b = await monter()
   b.selection.value[0].locuteurId = null; await attendre()
   expect(bouton(b.host, 'Renommer…').disabled).toBe(true)
-  bouton(b.host, 'Ouvrir les associations').click()
-  expect(b.details).toHaveBeenCalledOnce()
+  bouton(b.host, 'Ouvrir l’entretien').click()
+  expect(b.ouvrir).toHaveBeenCalledExactlyOnceWith('A')
   expect(b.lire).not.toHaveBeenCalled()
+})
+
+test('régularisation explicite : aucune création dans l’aperçu, seule la voix sans identité est corrigée', async () => {
+  const inventaire = inventaireCorrections(); inventaire.participations[2].locuteurRef = null
+  const b = await monter({ inventaire })
+  b.selection.value = [b.selection.value[0], { cle: 'solo', nom: 'Bob local', locuteurId: null, participations: [{ entretienId: 'C', entretienTitre: 'Entretien C', participationId: 'local', nom: 'Bob local' }], mots: 0, interventions: 0 }]
+  await attendre()
+  expect(b.corriger).not.toHaveBeenCalled()
+  bouton(b.host, 'Conserver séparément…').click(); await attendre()
+  expect(b.corriger).not.toHaveBeenCalled()
+  expect(b.host.querySelector('input[type=text]')).toBeNull()
+  bouton(b.host, 'Conserver séparément').click(); await attendre()
+  expect(b.corriger).toHaveBeenCalledExactlyOnceWith({ type: 'individualiserSelection', participations: [{ entretienId: 'C', participationId: 'local' }], attendu: JSON.stringify(inventaire) })
+  expect(b.termine.mock.calls[0][0]).toHaveLength(3)
 })
 
 test('une source devenue indisponible pendant la préparation ne produit pas de confirmation', async () => {

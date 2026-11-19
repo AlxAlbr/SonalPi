@@ -4,7 +4,7 @@ import type { LigneRepertoireLocuteurs } from './repertoireLocuteurs'
 import type { CommandeCorrectionLocuteurs } from './contratsLocuteurs'
 
 export interface ApercuCorrectionLocuteurs {
-  type: CommandeCorrectionLocuteurs['type']
+  type: Extract<CommandeCorrectionLocuteurs, { type: 'renommerGlobal' | 'regrouperSelection' | 'dissocierSelection' | 'individualiserSelection' }>['type']
   attendu: string
   locuteurs: Locuteur[]
   participations: Array<ReferenceParticipation & { nom: string; entretienTitre: string }>
@@ -20,11 +20,26 @@ export function preparerApercuCorrectionLocuteurs(
   inventaire: InventaireIdentitesLocuteurs,
 ): ApercuCorrectionLocuteurs {
   if (inventaire.indisponibles.length) throw new Error('Certains entretiens sont indisponibles. Rétablissez leur accès avant de corriger les locuteurs.')
-  if (!selection.length || (type === 'regrouperSelection' ? selection.length < 2 : selection.length !== 1)) {
+  if (!selection.length || (type === 'regrouperSelection' ? selection.length < 2 : type === 'individualiserSelection' ? false : selection.length !== 1)) {
     throw new Error('Vérifiez le nombre de locuteurs sélectionnés.')
   }
+  if (type === 'individualiserSelection') {
+    for (const l of selection.filter((l) => l.locuteurId)) preparerApercuCorrectionLocuteurs('renommerGlobal', [l], inventaire)
+    const lignes = selection.filter((l) => !l.locuteurId)
+    if (!lignes.length) throw new Error('Aucune entrée sans identité dans cette sélection.')
+    const participations = lignes.map((l) => {
+      const r = l.participations[0]
+      const p = r && inventaire.participations.find((p) => cleParticipationCorrection(p) === cleParticipationCorrection(r))
+      if (l.participations.length !== 1 || !p || (p.locuteurRef && inventaire.locuteurs.some((i) => i.id === p.locuteurRef))
+        || p.nom !== r.nom || p.entretienTitre !== r.entretienTitre || (p.nom.trim() || 'Locuteur sans nom') !== l.nom) throw new Error('La sélection a changé. Actualisez la liste.')
+      if (!p.nom.trim()) throw new Error('Ouvrez cet entretien pour donner un nom au locuteur avant de le conserver séparément.')
+      return { entretienId: p.entretienId, participationId: p.participationId, nom: p.nom, entretienTitre: p.entretienTitre }
+    })
+    if (new Set(participations.map(cleParticipationCorrection)).size !== participations.length) throw new Error('La sélection contient plusieurs fois la même voix.')
+    return { type, attendu: JSON.stringify(inventaire), locuteurs: [], participations, conflits: [] }
+  }
   const ids = selection.map((ligne) => ligne.locuteurId)
-  if (ids.some((id) => !id)) throw new Error('Associez d’abord ces locuteurs depuis « Détails et associations… » avant de les corriger ici.')
+  if (ids.some((id) => !id)) throw new Error('Conservez d’abord séparément les entrées sans identité avant de les corriger ensemble.')
   if (new Set(ids).size !== ids.length) throw new Error('La sélection contient plusieurs fois le même locuteur. Actualisez la liste.')
   const locuteurs = selection.map((ligne) => {
     const locuteur = inventaire.locuteurs.find((l) => l.id === ligne.locuteurId)

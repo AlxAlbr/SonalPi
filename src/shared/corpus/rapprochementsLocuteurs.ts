@@ -17,7 +17,7 @@ export function natureNomLocuteur(nom: string): 'specifique' | 'role' | 'ignore'
 
 /** Respecte le retrait volontaire du lien, même après un nouveau nom. */
 export function peutCreerLocuteurAuNommage(participation: Pick<ParticipationLocuteur, 'nom' | 'locuteurRef' | 'associationRetiree'>): boolean {
-  return !participation.locuteurRef && !participation.associationRetiree && natureNomLocuteur(participation.nom) === 'specifique'
+  return !participation.locuteurRef && !participation.associationRetiree && participation.nom.trim().length > 0
 }
 
 export interface CandidatRapprochementLocuteur {
@@ -113,15 +113,22 @@ export function calculerSuggestionsLocuteurs(
 ): CandidatRapprochementLocuteur[] {
   const a = source.participation
   if (natureNomLocuteur(a.nom) === 'ignore') return []
+  const groupes = new Map<string, CandidatRapprochementLocuteur[]>()
+  for (const c of candidats) if (c.participation.locuteurRef) {
+    const id = c.participation.locuteurRef
+    if (!groupes.has(id)) groupes.set(id, [])
+    groupes.get(id)!.push(c)
+  }
   const membres = (c: CandidatRapprochementLocuteur) => c.participation.locuteurRef
-    ? [c, ...candidats.filter((autre) => autre.participation.locuteurRef === c.participation.locuteurRef)] : [c]
+    ? [c, ...(groupes.get(c.participation.locuteurRef) ?? [])] : [c]
+  const membresSource = membres(source)
   const eligibles = candidats.map((c, ordre) => ({ c, ordre, analyse: accepter(a.nom, c.participation.nom) }))
     .filter(({ c, analyse }) => {
       const b = c.participation
       if (!analyse || c.entretienId === source.entretienId || !b.id) return false
       if (a.locuteurRef && a.locuteurRef === b.locuteurRef) return false
-      if (membres(source).some((x) => membres(c).some((y) => refuse(x, y)))) return false
-      return !(b.locuteurRef && candidats.some((x) => x.entretienId === source.entretienId
+      if (membresSource.some((x) => membres(c).some((y) => refuse(x, y)))) return false
+      return !(b.locuteurRef && (groupes.get(b.locuteurRef) ?? []).some((x) => x.entretienId === source.entretienId
         && x.participation.locuteurRef === b.locuteurRef && x.participation.id !== a.id))
     })
     .sort((x, y) => (y.analyse?.score ?? 0) - (x.analyse?.score ?? 0) || x.ordre - y.ordre)

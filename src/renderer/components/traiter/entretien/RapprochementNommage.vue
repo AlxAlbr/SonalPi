@@ -4,7 +4,7 @@ import type { VueParticipationLocuteur } from '../../../../shared/corpus/personn
 import type { ParticipationLocuteur } from '../../../../shared/format'
 import { analyserRapprochementLocuteur, type ChoixRepriseLocuteur, natureNomLocuteur } from "../../../../shared/corpus/rapprochementsLocuteurs"
 
-const props = defineProps<{ nom: string; lienActuel: string; cible: ParticipationLocuteur; sources: VueParticipationLocuteur[]; candidats: VueParticipationLocuteur[]; occupe: boolean; message: string }>()
+const props = defineProps<{ entretienId: string; nom: string; cible: ParticipationLocuteur; sources: VueParticipationLocuteur[]; candidats: VueParticipationLocuteur[]; occupe: boolean; message: string }>()
 const emit = defineEmits<{
   reporter: []
   decider: [locuteurId: string, entretienId: string, decision: 'lier' | 'refuser' | 'refuserTous', reprise?: ChoixRepriseLocuteur]
@@ -24,7 +24,7 @@ const contientNomProche = computed(() => props.candidats.some((l) => {
   const raison = analyserRapprochementLocuteur(props.nom, l.nom)?.raison
   return raison === 'une-lettre' || raison === 'memes-mots'
 }))
-const sourcesDisponibles = computed(() => candidat.value ? props.sources.filter(l => l.entretienId !== props.sources.find(s => s.participationId === props.cible.id)?.entretienId && (candidat.value?.locuteurRef ? l.locuteurRef === candidat.value.locuteurRef : cle(l) === selection.value)) : [])
+const sourcesDisponibles = computed(() => candidat.value ? props.sources.filter(l => l.entretienId !== props.entretienId && (candidat.value?.locuteurRef ? l.locuteurRef === candidat.value.locuteurRef : cle(l) === selection.value)) : [])
 const signatureInformations = (l: VueParticipationLocuteur) => JSON.stringify([l.pseudo?.trim() ?? '', l.interviewer])
 const informationsSourcesDifferentes = computed(() => new Set(sourcesDisponibles.value.map(signatureInformations)).size > 1)
 const source = computed(() => sourcesDisponibles.value.find(l => cle(l) === sourceCle.value))
@@ -58,9 +58,10 @@ onBeforeUnmount(() => { dialogue.value?.close(); retour?.focus() })
 </script>
 
 <template>
-  <dialog ref="dialogue" aria-labelledby="titre-rapprochement-nommage" :aria-busy="occupe" @cancel.prevent="!occupe && emit('reporter')">
+  <dialog ref="dialogue" aria-labelledby="titre-rapprochement-nommage" :aria-busy="occupe" @keydown.esc.stop @cancel.prevent="!occupe && emit('reporter')">
     <h2 id="titre-rapprochement-nommage">Une personne déjà rencontrée ?</h2>
-    <p>Vous avez nommé ce locuteur <strong>« {{ nom }} »</strong>.</p>
+    <p>Vous avez nommé ce locuteur <strong>« {{ nom }} »</strong>. Il est déjà enregistré comme locuteur distinct dans le corpus.</p>
+    <p>« Plus tard » conserve cette identité indépendante, sans réunir les locuteurs.</p>
     <p v-if="natureNomLocuteur(nom) === 'role'">{{ candidats.length === 1 ? 'Un locuteur a le même rôle dans un autre entretien.' : 'Des locuteurs ont le même rôle dans d’autres entretiens.' }} Ce n’est pas nécessairement la même personne.</p>
     <p v-else-if="contientNomProche">Une ou plusieurs graphies proches ont été trouvées. Vérifiez les noms et les entretiens avant de décider.</p>
     <p v-else>{{ candidats.length === 1 ? 'Une personne porte déjà ce nom.' : 'Des personnes portent déjà ce nom.' }}</p>
@@ -78,7 +79,7 @@ onBeforeUnmount(() => { dialogue.value?.close(); retour?.focus() })
       </label>
     </fieldset>
     <section v-if="candidat" aria-label="Informations à reprendre">
-      <p v-if="lienActuel">Ce locuteur sera rattaché à la personne sélectionnée, à la place de « {{ lienActuel }} ». Les autres entretiens ne changeront pas.</p>
+      <p>Confirmer réunit ces locuteurs dans le corpus. Les noms, notes et données de chaque entretien sont conservés, sauf les informations que vous choisissez de reprendre ci-dessous.</p>
       <label>
         <input v-model="reprendreInformations" type="checkbox" :disabled="occupe" />
         Reprendre les informations disponibles de ce locuteur : pseudonyme et statut (interviewer/interviewé·e).

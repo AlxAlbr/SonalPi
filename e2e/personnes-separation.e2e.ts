@@ -2,73 +2,49 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer, ouvrirRepertoirePersonnes } from './util'
+import { entrerCorpus, lancer } from './util'
 
-test('séparer une personne laisse au moins un locuteur sur la fiche d’origine', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-personnes-separation-e2e-'))
-  const app = await lancer(dir)
+test('dissocier rend chaque voix cochée indépendante, sans nouveau nom ni ancien formulaire de séparation', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-separation-e2e-')), app = await lancer(dir)
   try {
-    const page = await app.firstWindow()
-    await entrerCorpus(page)
-    await page.evaluate(async () => {
-      const api = (window as any).sonal.corpus
-      const inventaire = await api.personnesInventaire()
-      const karine = inventaire.participations.find((locuteur: any) => locuteur.nom === 'Karine')
-      const personneId = await api.personnesCommander({
-        type: 'creer',
-        entretienId: karine.entretienId,
-        participationId: karine.participationId,
-        nom: 'Karine Dupont',
-      })
-      for (const [titre, id, nom] of [
-        ['Entretien B', 'loc-b', 'Mme Dupont'],
-        ['Entretien C', 'loc-c', 'K. Dupont'],
-      ]) {
-        const creation = await api.creerEntretienVide(titre)
-        const lecture = await api.lireEntretien(creation.id)
-        const { formatVersion, lastModified, ...payload } = lecture.data
-        payload.participations = [{ id, index: 0, nom, valeursLoc: {}, locuteurRef: null }]
+    const page = await app.firstWindow(); await entrerCorpus(page)
+    const id = await page.evaluate(async () => {
+      const api = window.sonal.corpus, inv = await api.personnesInventaire(), karine = inv.participations.find((p) => p.nom === 'Karine')!
+      const id = (await api.personnesCommander({ type: 'creer', entretienId: karine.entretienId, participationId: karine.participationId, nom: 'Karine Dupont' }))!
+      for (const [titre, nom] of [['Entretien B', 'Mme Dupont'], ['Entretien C', 'K. Dupont']]) {
+        const creation = await api.creerEntretienVide(titre), lecture = await api.lireEntretien(creation.id)
+        if (!lecture.ok) throw new Error('Fixture absente')
+        const { formatVersion: _v, lastModified: _d, ...payload } = lecture.data
+        payload.participations = [{ id: 'local', index: 0, nom, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(creation.id, payload)
-        await api.personnesCommander({ type: 'lier', entretienId: creation.id, participationId: id, locuteurId: personneId })
+        await api.personnesCommander({ type: 'lier', entretienId: creation.id, participationId: 'local', locuteurId: id })
       }
+      return id
     })
-
-    await ouvrirRepertoirePersonnes(page)
-    const panneau = page.locator('.personnes-corpus')
-    await panneau.locator('.repertoire').getByRole('button', { name: /Karine Dupont/ }).click()
-    await expect(panneau.locator('.liens li')).toHaveCount(3)
-    await panneau.locator('summary').filter({ hasText: 'Séparer…' }).click()
-    const formulaire = panneau.locator('.separer-personne form')
-    await formulaire.getByRole('checkbox', { name: 'Entretien Karine · Karine' }).check()
-    await formulaire.getByRole('checkbox', { name: 'Entretien B · Mme Dupont' }).check()
-    await formulaire.getByRole('checkbox', { name: 'Entretien C · K. Dupont' }).check()
-    await formulaire.getByLabel('Nom de la nouvelle personne').fill('Deuxième identité')
-    await expect(formulaire).toContainText('Laissez au moins un locuteur')
-    await expect(formulaire.getByRole('button', { name: 'Continuer…' })).toBeDisabled()
-
-    await formulaire.getByRole('checkbox', { name: 'Entretien Karine · Karine' }).uncheck()
-    const continuer = formulaire.getByRole('button', { name: 'Continuer…' })
-    await continuer.click()
-    const dialogue = panneau.getByRole('dialog', { name: 'Séparer cette personne' })
-    await expect(dialogue).toContainText('avec 2 locuteurs')
-    await expect(dialogue).toContainText('conservera 1 locuteur')
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+    const panneau = page.locator('.locuteurs-corpus')
+    await panneau.getByRole('option').filter({ has: page.getByText('Karine Dupont', { exact: true }) }).click()
+    await panneau.getByRole('button', { name: 'Dissocier…', exact: true }).click()
+    const dialogue = page.getByRole('dialog', { name: 'Dissocier ce locuteur', exact: true })
+    await expect(dialogue.locator('input[type=text]')).toHaveCount(0)
+    for (const c of await dialogue.getByRole('checkbox').all()) await c.check()
+    await expect(dialogue).toContainText('Laissez au moins un entretien')
+    await expect(dialogue.getByRole('button', { name: 'Dissocier les entretiens cochés' })).toBeDisabled()
+    await dialogue.getByRole('checkbox', { name: 'Entretien Karine · Karine', exact: true }).uncheck()
+    await expect(dialogue).toContainText('2 entretiens à dissocier ; 1 resteront associés')
     await dialogue.getByRole('button', { name: 'Annuler', exact: true }).click()
-    await expect(continuer).toBeFocused()
-    await continuer.click()
-    await dialogue.getByRole('button', { name: 'Séparer', exact: true }).click()
-
-    await expect(panneau).toHaveAttribute('aria-busy', 'false')
-    await expect(panneau.getByRole('heading', { name: 'Personne · Deuxième identité' })).toBeVisible()
-    await expect(panneau.locator('.liens li')).toHaveCount(2)
-    await panneau.locator('.repertoire').getByRole('button', { name: /Karine Dupont/ }).click()
-    await expect(panneau.locator('.liens li')).toHaveCount(1)
-    const inventaire = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(inventaire.participations.map((locuteur: any) => locuteur.nom)).toEqual(expect.arrayContaining(['Karine', 'Mme Dupont', 'K. Dupont']))
-
-    // Le niveau corpus ne propose plus d'annulation des modifications de Personnes.
+    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toHaveLength(1)
+    await panneau.getByRole('button', { name: 'Dissocier…', exact: true }).click()
+    await dialogue.getByRole('checkbox', { name: 'Entretien B · Mme Dupont', exact: true }).check()
+    await dialogue.getByRole('checkbox', { name: 'Entretien C · K. Dupont', exact: true }).check()
+    await dialogue.getByRole('button', { name: 'Dissocier les entretiens cochés' }).click(); await expect(dialogue).toHaveCount(0)
+    const inv = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    expect(inv.locuteurs).toHaveLength(3)
+    expect(inv.participations.find((p) => p.nom === 'Karine')?.locuteurRef).toBe(id)
+    const b = inv.participations.find((p) => p.nom === 'Mme Dupont')!, c = inv.participations.find((p) => p.nom === 'K. Dupont')!
+    expect(b.locuteurRef).toBeTruthy(); expect(c.locuteurRef).toBeTruthy()
+    expect(new Set([id, b.locuteurRef, c.locuteurRef]).size).toBe(3)
+    await expect(panneau.locator('.separer-personne')).toHaveCount(0)
     await expect(panneau.getByRole('button', { name: 'Annuler une modification…' })).toHaveCount(0)
-  } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-  }
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

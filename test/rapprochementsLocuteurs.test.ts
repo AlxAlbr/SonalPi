@@ -106,7 +106,7 @@ describe('rapprochements des identités et participations', () => {
     const participation = { nom: 'Marie', locuteurRef: null, associationRetiree: true }
     expect(peutCreerLocuteurAuNommage(participation)).toBe(false)
     expect(peutCreerLocuteurAuNommage({ ...participation, associationRetiree: false })).toBe(true)
-    expect(peutCreerLocuteurAuNommage({ ...participation, associationRetiree: false, nom: 'Enquêteur' })).toBe(false)
+    expect(peutCreerLocuteurAuNommage({ ...participation, associationRetiree: false, nom: 'Enquêteur' })).toBe(true)
   })
 
   test('la reprise de données ne touche ni les références, ni les notes, ni les paragraphes', () => {

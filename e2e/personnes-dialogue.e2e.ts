@@ -13,6 +13,7 @@ test('un nom proche est proposé avec une raison distincte', async () => {
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -44,6 +45,7 @@ test('une identité déjà rapprochée est présentée sur une seule ligne avec 
       await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: `marie-${ids[1]}`, locuteurId: personneId })
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -70,14 +72,16 @@ test('une référence de Personne absente est diagnostiquée dans l’éditeur',
       const api = (window as any).sonal.corpus
       const corpus = await api.ouvrir()
       const id = Object.keys(corpus.membership)[0]
-      const { data } = await api.lireEntretien(id)
+      const { data } = await api.ouvrirEntretienPourEdition(id)
       const { formatVersion, lastModified, ...payload } = data
       payload.participations[0].locuteurRef = 'pers-absente'
       await api.ecrireEntretien(id, payload)
+      await api.fermerEntretien(id)
     })
     const carte = page.locator('.carte-ent', { hasText: 'Entretien Karine' })
-    await carte.getByRole('button').click()
+    await carte.locator('.crayon').click()
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await expect(page.getByText(/Référence de personne absente.*pers-absente/)).toBeVisible()
     await expect(page.getByText(/Corrigez cette association dans Personnes/)).toBeVisible()
   } finally {
@@ -89,6 +93,7 @@ test('deux renommages immédiats ne créent que la Personne du nom final', async
   const { app, page } = await ouvrir('sonal-personnes-renommage-rapide-')
   try {
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.evaluate((element) => {
       const input = element as HTMLInputElement
@@ -97,7 +102,8 @@ test('deux renommages immédiats ne créent que la Personne du nom final', async
       input.value = 'Paul Final'
       input.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    await expect(page.getByRole('status')).toContainText('Personne « Paul Final » créée')
+    await expect(page.getByRole('status').filter({ hasText: 'Locuteur « Paul Final » créé' })).toBeVisible()
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
@@ -121,6 +127,7 @@ test('le nommage propose une identité et lie sans écraser la session', async (
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
@@ -134,12 +141,17 @@ test('le nommage propose une identité et lie sans écraser la session', async (
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     await nom.fill('Mme Dupont')
-    await nom.press('Tab')
+    await nom.press('Enter')
+    const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
+    await renommage.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(renommage).toHaveCount(0)
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const source = vue.participations.find((l: any) => l.participationId === 'marie-source')
-    const cible = vue.participations.find((l: any) => l.nom === 'Mme Dupont')
+    const cible = vue.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Mme Dupont')
+    expect(source.nom).toBe('Mme Dupont')
     expect(cible.locuteurRef).toBeTruthy()
     expect(cible.locuteurRef).toBe(source.locuteurRef)
     expect(cible.pseudo).toBe('Alice')

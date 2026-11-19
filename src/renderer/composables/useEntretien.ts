@@ -25,7 +25,10 @@ import { useValeursEntretien } from './entretien/useValeursEntretien'
 import { useNotesEntretien } from './entretien/useNotesEntretien'
 import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
 import { useRenommageLocuteurOuvert } from './entretien/useRenommageLocuteurOuvert'
-import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
+import { verifierRelectureRenommage, signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
+import { payloadApresRapprochement, verifierPayloadRelecture, verifierRelectureIdentification } from '../../shared/entretien/identificationLocuteurs'
+import type { DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/personnes'
 import type { PayloadEntretien, ReferenceParticipation } from '../../shared/format'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'
@@ -303,8 +306,8 @@ export function useEntretien(deps: {
   const renommageOuvert = useRenommageLocuteurOuvert({
     participations: locuteurs, ouvertId,
     disponible: () => !!deps.renommageGlobalPossible?.() && !deps.lectureSeule?.(),
-    sauver: viderSauvegarde,
-    suspendre: suspendrePourRenommage,
+    sauver: async () => { await locuteursEntretien.attendreNommages(); await viderSauvegarde() },
+    suspendre: () => suspendrePourCorrectionLocuteurs(true),
     appliquer: appliquerNomsRenommes,
     terminer: terminerRenommage,
     apresCorrection: () => deps.apresRenommageGlobal?.(),
@@ -313,7 +316,12 @@ export function useEntretien(deps: {
     locuteurs,
     ouvertId,
     lireEditeur: () => editor.value ?? null,
-    lectureSeule: () => editionNomsSuspendue.value || !!deps.lectureSeule?.(),
+    lectureSeule: () => editionNomsSuspendue.value || renommageEnCours.value || !!deps.lectureSeule?.(),
+    identificationPossible: deps.renommageGlobalPossible,
+    identifier: (reference, nom) => corrigerAssociationAuNommage(reference,
+      () => window.sonal.corpus.identifierParticipationAuNommage({ ...reference, nom }),
+      (avant, apres, relecture) => verifierRelectureIdentification(avant, apres, reference, relecture), false),
+    rapprocher: (demande, inventaire) => rapprocherAuNommage(demande, inventaire),
     renommageGlobalPossible: deps.renommageGlobalPossible,
     demanderRenommageGlobal: (reference, nom) => { void demanderRenommageGlobal(reference, nom) },
     effets: {
@@ -586,7 +594,7 @@ export function useEntretien(deps: {
   /** Termine les saisies en cours, puis attend leur sauvegarde. */
   async function viderSauvegarde(): Promise<void> {
     if (editionNomsSuspendue.value) {
-      if (renommageEnCours.value) throw new Error('Le renommage est en cours. Attendez sa fin avant de changer d’entretien ou de corpus.')
+      if (renommageEnCours.value) throw new Error('Une mise à jour des locuteurs est en cours. Attendez sa fin avant de changer d’entretien ou de corpus.')
       await sauvegardes
       return
     }
@@ -613,16 +621,17 @@ export function useEntretien(deps: {
     await sauvegardes
   }
   function demanderRenommageGlobal(reference: ReferenceParticipation, nom?: string) {
+    locuteursEntretien.reporterRapprochement()
     locuteursEntretien.messagePersonnes.value = ''
     return renommageOuvert.preparer(reference, nom)
   }
-  async function suspendrePourRenommage(): Promise<PayloadEntretien> {
+  async function suspendrePourCorrectionLocuteurs(attendreNommages: boolean): Promise<PayloadEntretien> {
     const id = ouvertId.value, editeur = editor.value
     if (!id || !editeur || editionNomsSuspendue.value) throw new Error('Rouvrez cet entretien avant de renommer le locuteur.')
     renommageEnCours.value = true
     editeur.setEditable(false)
     try {
-      await locuteursEntretien.attendreNommages()
+      if (attendreNommages) await locuteursEntretien.attendreNommages()
       await viderSauvegarde()
       if (ouvertId.value !== id || editor.value !== editeur) throw new Error('L’entretien a changé pendant la préparation du renommage.')
       clearTimeout(tid); tid = undefined
@@ -649,6 +658,73 @@ export function useEntretien(deps: {
     etatSauvegarde.value = 'à jour'
     rafraichir(); rafraichirDecorations(); rafraichirGouttiere()
   }
+  async function rapprocherAuNommage(demande: DemandeRapprochementNommage, inventaire: InventaireIdentitesLocuteurs) {
+    const requete = JSON.parse(JSON.stringify(demande)) as DemandeRapprochementNommage
+    const sources = JSON.parse(JSON.stringify(inventaire)) as InventaireIdentitesLocuteurs
+    return corrigerAssociationAuNommage(requete,
+      () => window.sonal.corpus.rapprocherLocuteurDepuisEntretien(requete),
+      (avant, apres, relecture) => {
+        if (relecture) {
+          const { formatVersion: _v, lastModified: _d, ...payload } = apres
+          if (signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) return
+        }
+        verifierPayloadRelecture(payloadApresRapprochement(avant, requete, sources), apres)
+      }, true)
+  }
+
+  async function corrigerAssociationAuNommage(
+    reference: ReferenceParticipation,
+    executer: () => Promise<EntretienFichier>,
+    verifier: (avant: PayloadEntretien, apres: EntretienFichier, relecture: boolean) => void,
+    attendreNommages: boolean,
+  ) {
+    const cible = locuteurs.value.find((p) => p.id === reference.participationId), editeur = editor.value
+    const courant = () => ouvertId.value === reference.entretienId && editor.value === editeur
+      && locuteurs.value.find((p) => p.id === reference.participationId) === cible
+    if (!cible || !courant() || !deps.renommageGlobalPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage automatique est disponible uniquement dans un entretien local modifiable.')
+    let avant: PayloadEntretien | undefined
+    try {
+      avant = await suspendrePourCorrectionLocuteurs(attendreNommages)
+      if (!courant()) throw new Error('L’entretien a changé. Rouvrez le corpus pour vérifier les locuteurs.')
+      let apres: EntretienFichier, erreurInitiale: unknown
+      try { apres = await executer() }
+      catch (e) {
+        erreurInitiale = e
+        const relu = await window.sonal.corpus.ouvrirEntretienPourEdition(reference.entretienId)
+        if (!relu.ok || relu.acces !== 'edition') throw new Error('Les locuteurs ne peuvent pas être vérifiés. Rouvrez le corpus avant de poursuivre les modifications.')
+        apres = relu.data
+      }
+      if (!courant()) return
+      verifierPayloadRelecture(avant, { formatVersion: FORMAT_VERSION, lastModified: '', ...payloadCourant() })
+      verifier(avant, apres, erreurInitiale !== undefined)
+      for (const p of locuteurs.value) {
+        const frais = apres.participations.find((a) => a.id === p.id)!
+        p.locuteurRef = frais.locuteurRef
+        for (const cle of ['associationRetiree', 'rapprochementsRefuses', 'pseudo', 'pseudoEtat', 'interviewer'] as const) {
+          if (signaturePayloadEntretien(p[cle]) === signaturePayloadEntretien(frais[cle])) continue
+          if (frais[cle] === undefined) delete p[cle]
+          else Object.assign(p, { [cle]: structuredClone(frais[cle]) })
+        }
+        if (signaturePayloadEntretien(p.valeursLoc) !== signaturePayloadEntretien(frais.valeursLoc)) {
+          for (const id of Object.keys(p.valeursLoc)) delete p.valeursLoc[id]
+          Object.assign(p.valeursLoc, frais.valeursLoc)
+        }
+      }
+      if (cible.locuteurRef) journal.entrees = journal.entrees.filter((e) => e.inverse.type !== 'renommerParticipation' || e.inverse.reference.participationId !== reference.participationId)
+      editionNomsSuspendue.value = false
+      etatSauvegarde.value = 'à jour'
+      rafraichir(); rafraichirDecorations(); rafraichirGouttiere()
+      deps.apresRenommageGlobal?.()
+      const { formatVersion: _v, lastModified: _d, ...payload } = apres
+      if (erreurInitiale !== undefined && signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) throw erreurInitiale
+    } catch (e) {
+      if (courant() && editionNomsSuspendue.value) throw new Error(`Les locuteurs ne peuvent pas être vérifiés. Rouvrez le corpus avant de poursuivre les modifications. ${e instanceof Error ? e.message : String(e)}`)
+      throw e
+    } finally {
+      if (courant()) terminerRenommage()
+    }
+  }
+
   function terminerRenommage() {
     renommageEnCours.value = false
     editor.value?.setEditable(!editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()))

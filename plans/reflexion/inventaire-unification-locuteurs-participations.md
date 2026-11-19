@@ -33,7 +33,7 @@ ou remplacés depuis ce relevé sont indiqués en section 6.
 | Parseur de transcription | `src/renderer/formatSonal/sas.ts`, `importSonal.ts`, `eav.ts` | Parse noms, rôles, pseudonymes, attributions et valeurs locales. Le réutiliser, sans lui attribuer la création d’identités corpus. |
 | Import V1 local | `src/renderer/composables/corpus/useOperationsCorpus.ts`, `src/main/migrationV1.ts` | Conversion renderer, puis `MigrationV1.ajouterEntretien()` appelle `CorpusStore.importerEntretien()`. |
 | Import V1 GitLab | `src/renderer/formatSonal/migrationGitLab.ts`, `src/main/gitlab/documentsMigration.ts` | `DocumentsMigrationGitLab.ajouter()` appelle `CorpusStore.preparerImportEntretien()`. Partager la création d’identités distinctes avec l’import local. |
-| Commandes métier | `src/shared/corpus/personnes.ts`, `correctionsLocuteurs.ts`, `rapprochementsPersonnes.ts` | Identités, liens, refus, fusion et séparation. Sortir les contrats de la dépendance circulaire de types ; conserver les comportements historiques au lot A. |
+| Commandes métier | `src/shared/corpus/personnes.ts`, `correctionsLocuteurs.ts`, `rapprochementsLocuteurs.ts` | Identités, liens, refus, fusion et séparation. Sortir les contrats de la dépendance circulaire de types ; conserver les comportements historiques au lot A. |
 | Orchestration et IPC | `src/main/corpusStore.ts`, `src/main/index.ts`, `src/preload/index.ts` | Migrer les contrats et leurs deux extrémités ensemble, en gardant les droits et transactions existants. |
 | Répertoire calculé | `src/shared/corpus/locuteursCorpus.ts` | Volumes, tours et lignes par identité ou participation isolée. Renommer la projection, pas en faire une identité persistée. |
 | Cas et attributs | `src/shared/corpus/cas.ts`, `observationsAttributs.ts`, `src/renderer/editor/cas.ts`, `associationsPassage.ts` | Les règles référencent des identités communes ; rôles, valeurs et observations restent locaux. Conserver les passages résolus et attributs dérivés. |
@@ -238,9 +238,12 @@ préfixes historiques, ne sont pas régénérés.
 
 La bascule et le retrait des adaptateurs 9 sont effectués. Les contrôles des anciens
 noms dans les validateurs sont des refus, pas des chemins de compatibilité.
-Le panneau historique Personnes et ses canaux encore appelés transportent le modèle
-natif. Leur remplacement, les nouvelles règles de nommage et la qualification du
-lot B restent distincts. Les corrections distantes ne sont pas activées.
+Le panneau historique Personnes est désormais réservé aux corpus distants et ses
+canaux encore utilisés transportent le modèle natif. Les raccords locaux B1 à B4
+utilisent la sélection, le nommage sans exclusions et les détails secondaires.
+La régularisation des entrées sans identité est explicite, sans changement à la
+consultation. La qualification complète B5 reste distincte. Les nouvelles corrections
+distantes ne sont pas activées.
 
 La suite locale/simulée passe sur 280 fichiers (4 078 tests), ainsi que les périmètres
 réels GitLab et Nextcloud ciblés. Le bilan du plan précise les commandes couvertes,

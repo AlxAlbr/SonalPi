@@ -1702,7 +1702,7 @@ export function creerSonal() {
     voirParcours,
     naviguerGuide,
     enregistrerNavigationParcours,
-    entretienEditable: computed(() => entretienEditable.value && !ent.editionNomsSuspendue.value),
+    entretienEditable: computed(() => entretienEditable.value && !ent.editionNomsSuspendue.value && !ent.renommageEnCours.value),
     renommageGlobalDisponible: computed(() => !idDistantCourant.value && !lectureSeule.value),
     divergenceProposee,
     confirmerFusion,
