@@ -89,14 +89,13 @@ test('manuel : choisir les entretiens, vérifier le rapport et exporter un lot',
     await expect(espace.locator('.ligne-entretien')).toHaveCount(2)
     await expect(espace.getByLabel('Tous les entretiens')).toBeChecked()
     await espace.locator('.ligne-entretien', { hasText: 'Entretien deux' }).locator('input').uncheck()
-    await expect(espace.locator('.recapitulatif-export')).toContainText('1 entretien sélectionné sur 2')
+    await expect(espace.locator('.choix-entretiens')).toContainText('1 entretien sélectionné sur 2')
     await espace.getByLabel('Tous les entretiens').check()
 
     await espace.getByLabel('Page web autonome (.html)', { exact: false }).check()
     await espace.getByLabel('Document combiné (.docx)', { exact: false }).check()
-    await expect(espace.locator('.resultats-export')).toContainText('Page web autonome (.html)')
-    await expect(espace.locator('.resultats-export')).toContainText('Un index récapitulatif accompagnera les fichiers.')
-    await expect(espace.locator('.resultats-export')).toContainText('Les médias accessibles seront copiés')
+    await expect(espace.locator('.resultats-export .ligne-entretien')).toHaveCount(2)
+    await expect(espace.locator('.reglages-export')).toContainText('Copier les médias accessibles')
     if (process.env.SONAL_DOC_CAPTURES === '1') {
       await page.locator('.export-corpus').screenshot({ path: 'docs/user/medias/export-corpus-reglages.png' })
     }

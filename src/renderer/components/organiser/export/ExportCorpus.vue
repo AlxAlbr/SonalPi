@@ -36,6 +36,14 @@ const casSelectionnes = ref<Set<string>>(new Set(listeCas.value.map((cas) => cas
 
 /** Entretiens cochés (tous par défaut). */
 const selectionnes = ref<Set<string>>(new Set(entretiens.value.map((e) => e.id)))
+/** Filtre d'affichage de la liste, utile pour un corpus avec beaucoup d'entretiens. */
+const filtreEntretiens = ref('')
+const SEUIL_FILTRE = 8
+const entretiensAffiches = computed(() => {
+  const requete = filtreEntretiens.value.trim().toLocaleLowerCase('fr')
+  if (!requete) return entretiens.value
+  return entretiens.value.filter((e) => e.titre.toLocaleLowerCase('fr').includes(requete))
+})
 const tous = computed({
   get: () => entretiens.value.length > 0 && selectionnes.value.size === entretiens.value.length,
   set: (v: boolean) => {
@@ -277,27 +285,11 @@ function demanderArret(): void {
   <section class="export-corpus">
     <aside class="panneau reglages-export" data-tour="reglages-export-guide">
       <div class="corpus-tete"><h3>Exporter le corpus</h3></div>
-      <p class="accueil-intro">Choisissez les entretiens et leur présentation. Vérifiez le récapitulatif à droite avant d’exporter.</p>
+      <p class="accueil-intro">Choisissez le type d’export et ses options. Les entretiens à exporter se cochent à droite.</p>
       <fieldset class="champs-export" :disabled="occupe">
         <div>
-          <h4>Entretiens à exporter</h4>
           <p v-if="entretiens.length === 0" class="vide">Aucun entretien dans le corpus.</p>
           <template v-else>
-            <label class="option tous-option">
-              <input type="checkbox" v-model="tous" />
-              Tous les entretiens ({{ entretiens.length }})
-            </label>
-            <div class="grille-selection">
-              <label v-for="e in entretiens" :key="e.id" class="ligne-entretien">
-                <input
-                  type="checkbox"
-                  :checked="selectionnes.has(e.id)"
-                  @change="selectionnes.has(e.id) ? selectionnes.delete(e.id) : selectionnes.add(e.id)"
-                />
-                <span class="titre">{{ e.titre }}</span>
-                <span v-if="e.date" class="date">{{ e.date }}</span>
-              </label>
-            </div>
             <fieldset class="mode-export">
               <legend>Type d’export</legend>
               <label class="option">
@@ -382,34 +374,55 @@ function demanderArret(): void {
     </aside>
 
     <section class="resultats-export" aria-label="Vérifications et résultat de l’export" :aria-busy="occupe">
-      <div v-if="etape === 'options'" class="corps recapitulatif-export">
-        <h2>Préparer l’export</h2>
-        <p class="etape">{{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }} sélectionné{{ selectionnes.size > 1 ? 's' : '' }} sur {{ entretiens.length }}</p>
-        <template v-if="selectionnes.size > 0">
-          <p v-if="modeExport === 'qualcoder'">Un projet QualCoder (.qda), avec {{ casSelectionnes.size }} cas. Le texte source sera exporté sans pseudonymisation.</p>
-          <template v-else>
-            <h3>Fichiers prévus</h3>
-            <ul><li v-for="format in FORMATS_LOT.filter(f => formats.has(f))" :key="format">{{ libellesFormats[format] }}</li></ul>
-            <p>Un index récapitulatif accompagnera les fichiers.</p>
-            <h3>Éléments à intégrer</h3>
-            <ul><li v-for="option in LIBELLES_OPTIONS.filter(o => o.cle !== 'anon' && options[o.cle])" :key="option.cle">{{ option.label }}</li></ul>
-            <p v-if="copierMediasVisible && copierMedias">Les médias accessibles seront copiés avec les pages HTML.</p>
-            <p v-if="options.anon" class="avertissement-anon">Les pseudonymes configurés seront appliqués. Vérifiez les informations restantes avant de partager les fichiers.</p>
+      <!-- Choix des entretiens : la liste occupe la place, le lancement reste en bas. -->
+      <div v-if="etape === 'options'" class="corps choix-entretiens">
+        <div class="entete-choix">
+          <h2>Entretiens à exporter</h2>
+          <span class="compte">{{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }} sélectionné{{ selectionnes.size > 1 ? 's' : '' }} sur {{ entretiens.length }}</span>
+        </div>
+        <p v-if="entretiens.length === 0" class="vide">Aucun entretien dans le corpus.</p>
+        <fieldset v-else class="liste-entretiens" :disabled="occupe">
+          <div class="outils-liste">
+            <label class="option tous-option">
+              <input type="checkbox" v-model="tous" />
+              Tous les entretiens ({{ entretiens.length }})
+            </label>
+            <input
+              v-if="entretiens.length > SEUIL_FILTRE"
+              v-model="filtreEntretiens"
+              type="search"
+              class="filtre-entretiens"
+              placeholder="Filtrer par titre…"
+              aria-label="Filtrer les entretiens par titre"
+            />
+          </div>
+          <div class="grille-selection">
+            <label v-for="e in entretiensAffiches" :key="e.id" class="ligne-entretien">
+              <input
+                type="checkbox"
+                :checked="selectionnes.has(e.id)"
+                @change="selectionnes.has(e.id) ? selectionnes.delete(e.id) : selectionnes.add(e.id)"
+              />
+              <span class="titre" :title="e.titre">{{ e.titre }}</span>
+              <span v-if="e.date" class="date">{{ e.date }}</span>
+            </label>
+            <p v-if="entretiensAffiches.length === 0" class="vide">Aucun entretien ne correspond à ce filtre.</p>
+          </div>
+        </fieldset>
+        <div class="pied-export">
+          <p v-if="entretiens.length > 0 && selectionnes.size === 0" class="vide">Cochez au moins un entretien.</p>
+          <template v-else-if="selectionnes.size > 0">
+            <p v-if="modeExport === 'qualcoder'" class="avertissement-anon">Un projet QualCoder (.qda), avec {{ casSelectionnes.size }} cas. Le texte source sera exporté sans pseudonymisation.</p>
+            <p v-else-if="options.anon" class="avertissement-anon">Les pseudonymes configurés seront appliqués. Vérifiez les informations restantes avant de partager les fichiers.</p>
             <p v-else class="avertissement-anon">Les transcriptions seront exportées sans pseudonymisation.</p>
-            <p v-if="options.anon && rapportDemande">Le rapport s’affichera ici pour vérification avant de lancer l’export.</p>
           </template>
-          <details class="entretiens-recap">
-            <summary>Voir les entretiens sélectionnés</summary>
-            <ul><li v-for="e in entretiens.filter(e => selectionnes.has(e.id))" :key="e.id">{{ e.titre }}</li></ul>
-          </details>
-        </template>
-        <p v-else class="vide">Cochez au moins un entretien dans le panneau de gauche.</p>
-        <p class="destination-export">Le dossier de destination vous sera demandé au lancement. Les entretiens du corpus ne seront pas modifiés.</p>
-        <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
-        <div class="actions">
-          <button class="exporter" :disabled="occupe || selectionnes.size === 0" @click="lancerExport">
-            {{ occupe ? 'Préparation…' : options.anon && rapportDemande && modeExport === 'lecture' ? 'Vérifier le rapport avant l’export' : `Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
-          </button>
+          <p class="destination-export">Le dossier de destination vous sera demandé au lancement. Les entretiens du corpus ne seront pas modifiés.</p>
+          <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
+          <div class="actions">
+            <button class="exporter" :disabled="occupe || selectionnes.size === 0" @click="lancerExport">
+              {{ occupe ? 'Préparation…' : options.anon && rapportDemande && modeExport === 'lecture' ? 'Vérifier le rapport avant l’export' : `Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -545,28 +558,36 @@ h4 { margin: 1rem 0 .5rem; font-size: .85rem; }
 .resultats-export { border: 1px solid #ddd; border-radius: 8px; background: #fff; }
 h2 { margin: 0; font-size: 1.1rem; }
 .corps { padding: 1rem 1.2rem; }
-.recapitulatif-export { max-width: 52rem; line-height: 1.45; }
-.recapitulatif-export h3 { font-size: .95rem; }
-.entretiens-recap { margin-top: 1rem; }
-.entretiens-recap summary { cursor: pointer; }
-.destination-export { color: #666; font-size: .85rem; }
+.choix-entretiens { display: flex; flex-direction: column; gap: .6rem; height: 100%; box-sizing: border-box; line-height: 1.45; }
+.entete-choix { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.compte { color: #555; font-size: .9rem; }
+.liste-entretiens { display: flex; flex-direction: column; gap: .4rem; flex: 1; min-height: 8rem; min-width: 0; border: 0; padding: 0; margin: 0; }
+.outils-liste { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid #ddd; padding-bottom: .4rem; }
+.outils-liste .tous-option { border: 0; padding: 0; margin: 0; font-weight: 600; }
+.filtre-entretiens { width: min(18rem, 100%); padding: .3rem .5rem; border: 1px solid #c9d0da; border-radius: 5px; font: inherit; font-size: .85rem; }
+.pied-export { flex: none; border-top: 1px solid #eee; padding-top: .4rem; }
+.pied-export .actions { margin-top: .6rem; }
+.destination-export { color: #666; font-size: .85rem; margin: .4rem 0 0; }
 @media (max-width: 780px) {
   .export-corpus { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .choix-entretiens { height: auto; }
+  .grille-selection { max-height: 50vh; }
   .reglages-export, .resultats-export { overflow: visible; }
 }
 .etape { font-size: .95rem; margin: 1rem 0 .8rem; color: #333; }
 .vide { color: #777; }
 .grille-selection {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: .15rem 1rem;
-  max-height: 28vh;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  align-content: start;
+  gap: .15rem 1.2rem;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: .5rem;
+  padding: .2rem 0;
   box-sizing: border-box;
 }
+.grille-selection .vide { grid-column: 1 / -1; margin: .3rem 0; }
 .ligne-entretien { display: flex; align-items: baseline; gap: .5rem; padding: .2rem 0; cursor: pointer; }
 .ligne-entretien .titre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ligne-entretien .date { color: #999; font-size: .8rem; }

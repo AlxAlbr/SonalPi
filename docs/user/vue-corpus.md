@@ -29,8 +29,8 @@ La barre supérieure propose quatre espaces de travail :
   Cas rassemble les matériaux d’une unité étudiée ; Recueils compose des documents
   à partir de citations et de textes de liaison. Le répertoire reste à gauche,
   sur un panneau gris violet clair, et le document de travail à droite.
-  Pour l’export, les entretiens, formats et options se choisissent à gauche ;
-  le récapitulatif, le rapport éventuel et le bilan s’affichent à droite,
+  Pour l’export, le type, les formats et les options se choisissent à gauche ;
+  les entretiens se cochent à droite, où s’affichent ensuite le rapport éventuel et le bilan,
   sans succession de fenêtres. Les choix sont conservés entre les onglets.
   Le dossier de destination est demandé au lancement de l’export.
   Pendant la préparation et l’écriture, la navigation est suspendue pour ne pas
