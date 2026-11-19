@@ -212,14 +212,14 @@ describe('installation et reprise des corpus exemples', () => {
     const modele = readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynthAnnot/corpus.crp'))
     const corpus = installer(dir, 'synth-annote', 'libre')
     const identites = new Set<string | null>()
-    expect(Object.keys(corpus.personnes)).toHaveLength(9)
+    expect(Object.keys(corpus.locuteurs)).toHaveLength(9)
     let nombre = 0
     for (const id of Object.keys(corpus.membership)) {
       const entretien = JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')) as EntretienFichier
       nombre += entretien.annotations.length
-      for (const participation of entretien.locuteurs) {
-        identites.add(participation.personneRef)
-        expect(corpus.personnes[participation.personneRef!]?.nom).toBe(participation.nom)
+      for (const participation of entretien.participations) {
+        identites.add(participation.locuteurRef)
+        expect(corpus.locuteurs[participation.locuteurRef!]?.nom).toBe(participation.nom)
       }
       expect(entretien.meta.audioRef?.startsWith(join(sources, 'audio'))).toBe(true)
       expect(existsSync(entretien.meta.audioRef!)).toBe(true)
@@ -266,7 +266,7 @@ describe('installation et reprise des corpus exemples', () => {
       parcours: { preparation: { validees: ['organiser-suivi'] } },
     })
     store.importerEntretien('Ajout personnel', {
-      corpsTexte: null, meta: { audioRef: null }, annotations: [], ancres: [], locuteurs: [],
+      corpsTexte: null, meta: { valeursGen: {}, audioRef: null }, annotations: [], ancres: [], participations: [],
     }, [], [])
     const reset = service.preparerInstallation(dir, 'Préparer et suivre', {
       exemple: 'synth', usage: 'apprentissage', parcoursApprentissage: 'preparation', recommencer: true,
@@ -314,12 +314,32 @@ describe('installation et reprise des corpus exemples', () => {
     expect(service.etat().travaux).toHaveLength(1)
     expect(service.etat().travaux[0].dir).toBe(dir)
   })
-  test('refuse une version de corpus inconnue sans perdre son accès', () => {
+  test.each([9, 999])('refuse une version de corpus %i sans perdre son accès ni remplacer ses fichiers', (formatVersion) => {
     const dir = join(racine, 'exercice')
     const corpus = installer(dir)
-    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify({ ...corpus, formatVersion: 999 }))
+    const avant = JSON.stringify({ ...corpus, formatVersion })
+    writeFileSync(join(dir, 'corpus.crp'), avant)
     expect(service.etat().travaux[0].etat).toBe('illisible')
     expect(service.etat().travaux[0].dir).toBe(dir)
+    expect(() => service.preparerInstallation(dir, 'Exercice', {
+      exemple: 'synth', usage: 'apprentissage', parcoursApprentissage: 'preparation', recommencer: true,
+    })).toThrow()
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
+  })
+  test('un journal actif bloque la remise à zéro de l’exemple sans modifier ses données', () => {
+    const dir = join(racine, 'exercice')
+    installer(dir, 'synth-annote', 'apprentissage', 'analyse')
+    const fichierJournal = join(dir, '.transaction-fichiers.json')
+    writeFileSync(fichierJournal, JSON.stringify({ formatVersion: 5, operation: 'ajout' }))
+    const fichiers = [join(dir, 'corpus.crp'), fichierJournal,
+      ...readdirSync(join(dir, 'entretiens')).map((nom) => join(dir, 'entretiens', nom))]
+    const avant = fichiers.map((chemin) => readFileSync(chemin, 'utf8'))
+    const acces = structuredClone(memoire)
+    expect(() => service.preparerInstallation(dir, 'Exercice', {
+      exemple: 'synth-annote', usage: 'apprentissage', parcoursApprentissage: 'analyse', recommencer: true,
+    })).toThrow('Une modification de ce corpus est encore en cours')
+    expect(fichiers.map((chemin) => readFileSync(chemin, 'utf8'))).toEqual(avant)
+    expect(memoire).toEqual(acces)
   })
   test('la restauration des sources ne traverse pas un lien vers un autre travail', () => {
     service.etat()

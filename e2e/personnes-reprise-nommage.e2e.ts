@@ -9,7 +9,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
       const { id } = await api.creerEntretienVide('Source Marie')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -23,7 +23,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     await expect(reprise).toBeChecked()
     await reprise.uncheck()
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(avant.personnes).toHaveLength(0)
+    expect(avant.locuteurs).toHaveLength(0)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
@@ -34,9 +34,9 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     await expect(panneau.getByRole('button', { name: 'À vérifier 0', exact: true })).toBeVisible()
     await expect(panneau.getByRole('region', { name: 'Suggestions à vérifier' })).toContainText('Aucun rapprochement proposé.')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const source = vue.locuteurs.find((l: any) => l.locuteurId === 'marie-source')
-    const cible = vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont' && l.locuteurId !== 'marie-source')
-    expect(cible.personneRef).toBe(source.personneRef)
+    const source = vue.participations.find((l: any) => l.participationId === 'marie-source')
+    const cible = vue.participations.find((l: any) => l.nom === 'Marie Dupont' && l.participationId !== 'marie-source')
+    expect(cible.locuteurRef).toBe(source.locuteurRef)
     expect(cible.pseudo).not.toBe('Alice')
     expect(cible.interviewer).toBe(false)
   } finally { await app.close() }

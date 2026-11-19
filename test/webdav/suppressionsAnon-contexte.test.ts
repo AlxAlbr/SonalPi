@@ -24,7 +24,7 @@ function attente() {
 }
 async function banc(natif: boolean) {
   const f = fixtureSuppressionAnon()
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }); serveur.creerDossierRelatif('verrous')
   serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
@@ -218,7 +218,7 @@ for (const natif of [false, true]) describe(`assemblage suppression WebDAV : ${n
   test('miroir final incomplet : réouverture conserve le suivi et Actualiser ne rejoue aucun PUT', async () => {
     const b = await banc(natif), original = b.contexte.miroir.noterEtagPublie.bind(b.contexte.miroir)
     b.contexte.miroir.noterEtagPublie = (p, tag) => {
-      if (p === 'corpus.crp' && !JSON.parse(serveurTexte(b, 'e1')!).annotations.some((a: { regle?: string }) => a.regle === 'personne')
+      if (p === 'corpus.crp' && !JSON.parse(serveurTexte(b, 'e1')!).annotations.some((a: { regle?: string }) => a.regle === "personne")
         && !JSON.parse(b.serveur.contenuDe('corpus.crp')!).suppressionAnon) throw new Error('installation interrompue')
       original(p, tag)
     }

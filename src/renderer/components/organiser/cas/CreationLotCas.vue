@@ -4,7 +4,7 @@ import { utiliserSonal } from '../../../composables/sonal'
 import { normaliserNomCas } from '../../../../shared/corpus/cas'
 import type { ApercuLotCas } from '../../../composables/corpus/useCasCorpus'
 
-const props = defineProps<{ type: 'personnes' | 'entretiens' }>()
+const props = defineProps<{ type: "locuteurs" | 'entretiens' }>()
 const emit = defineEmits<{ cree: []; annuler: [] }>()
 const {
   inventairePersonnesCas, entretiensCas, listeCas, lectureSeule,
@@ -18,8 +18,8 @@ const apercu = ref<ApercuLotCas[] | null>(null)
 const occupe = ref(false)
 const erreur = ref<string | null>(null)
 
-const candidats = computed(() => props.type === 'personnes'
-  ? inventairePersonnesCas.value?.personnes ?? []
+const candidats = computed(() => props.type === "locuteurs"
+  ? inventairePersonnesCas.value?.locuteurs ?? []
   : entretiensCas.value)
 const visibles = computed(() => candidats.value.filter((candidat) =>
   candidat.nom.toLocaleLowerCase('fr').includes(recherche.value.trim().toLocaleLowerCase('fr'))))
@@ -39,8 +39,8 @@ async function previsualiser() {
   erreur.value = null
   occupe.value = true
   try {
-    apercu.value = await preparerLotCas(props.type === 'personnes'
-      ? { type: 'personnes', ids: [...ids.value], inclureEnqueteurs: inclureEnqueteurs.value }
+    apercu.value = await preparerLotCas(props.type === "locuteurs"
+      ? { type: "locuteurs", ids: [...ids.value], inclureEnqueteurs: inclureEnqueteurs.value }
       : { type: 'entretiens', ids: [...ids.value] }, regroupement.value)
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : String(e)
@@ -72,13 +72,13 @@ function annuler() {
 
 <template>
   <section class="creation-lot-cas">
-    <h2>{{ type === 'personnes' ? 'Créer depuis des personnes' : 'Créer depuis des entretiens' }}</h2>
-    <p v-if="type === 'personnes'">Les règles réuniront les interventions des personnes choisies, sans fusionner leurs identités.</p>
+    <h2>{{ type === 'locuteurs' ? 'Créer depuis des personnes' : 'Créer depuis des entretiens' }}</h2>
+    <p v-if="type === 'locuteurs'">Les règles réuniront les interventions des personnes choisies, sans fusionner leurs identités.</p>
     <p v-else>Les règles incluront les entretiens entiers : questions, réponses et futurs ajouts au texte.</p>
     <p>Chaque cas pourra aussi recevoir des passages ajoutés manuellement.</p>
 
     <fieldset v-if="!apercu && !creationCasEnAttente" :disabled="occupe || lectureSeule">
-      <legend>{{ type === 'personnes' ? 'Personnes à inclure' : 'Entretiens à inclure' }}</legend>
+      <legend>{{ type === 'locuteurs' ? 'Personnes à inclure' : 'Entretiens à inclure' }}</legend>
       <input v-model="recherche" type="search" aria-label="Rechercher une source de cas" placeholder="Rechercher…" />
       <div class="actions-selection">
         <button type="button" @click="ids = candidats.map((candidat) => candidat.id)">Tout sélectionner</button>
@@ -92,9 +92,9 @@ function annuler() {
         </label>
         <p v-if="!visibles.length">Aucune source correspondante.</p>
       </div>
-      <label><input v-model="regroupement" type="radio" value="individuel" /> {{ type === 'personnes' ? 'Un cas par personne' : 'Un cas par entretien' }}</label>
+      <label><input v-model="regroupement" type="radio" value="individuel" /> {{ type === 'locuteurs' ? 'Un cas par personne' : 'Un cas par entretien' }}</label>
       <label><input v-model="regroupement" type="radio" value="collectif" /> Un cas collectif</label>
-      <label v-if="type === 'personnes'">
+      <label v-if="type === 'locuteurs'">
         <input v-model="inclureEnqueteurs" type="checkbox" /> Inclure les interventions où le locuteur est enquêteur
       </label>
       <button data-tour="previsualiser-cas" class="primaire" :disabled="!ids.length" @click="previsualiser">Prévisualiser les cas</button>
@@ -107,8 +107,8 @@ function annuler() {
         <article v-for="(item, index) in apercu" :key="item.cas.id" class="apercu-cas">
           <label>Nom du cas {{ index + 1 }}<input v-model="item.cas.nom" required /></label>
           <label>Mémo du cas {{ index + 1 }}<textarea v-model="item.cas.memo" rows="2"></textarea></label>
-          <p>{{ item.membres }} {{ type === 'personnes' ? 'personne(s)' : 'entretien(s)' }} sélectionné(s) · {{ item.sources }} source(s) · {{ item.passages }} passage(s) de texte</p>
-          <p v-if="type === 'personnes'">
+          <p>{{ item.membres }} {{ type === 'locuteurs' ? 'personne(s)' : 'entretien(s)' }} sélectionné(s) · {{ item.sources }} source(s) · {{ item.passages }} passage(s) de texte</p>
+          <p v-if="type === 'locuteurs'">
             Enquêteurs {{ inclureEnqueteurs ? 'inclus' : 'exclus' }} ; {{ item.enqueteursExclus }} participation(s) locale(s) exclue(s).
           </p>
           <p v-if="!item.passages && !item.problemes">La règle ne produit actuellement aucun texte ; le cas sera néanmoins créé.</p>

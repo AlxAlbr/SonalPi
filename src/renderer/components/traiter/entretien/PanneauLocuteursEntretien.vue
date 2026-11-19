@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import type { Locuteur } from '../../../../shared/format'
+import type { ParticipationLocuteur } from '../../../../shared/format'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
@@ -33,7 +33,7 @@ const {
   vue,
 } = utiliserSonal()
 
-function detailsLocuteur(locuteur: Locuteur): string {
+function detailsLocuteur(locuteur: ParticipationLocuteur): string {
   const pseudo = locuteur.pseudo?.trim()
   const role = locuteur.interviewer ? 'Pose les questions' : 'Répond aux questions'
   return pseudo && pseudo !== locuteur.nom.trim() ? `${pseudo} · ${role}` : role
@@ -94,10 +94,10 @@ watch(
 
 // Ne relit les personnes que si les liens changent, pas à chaque ajout de locuteur.
 watch(
-  () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.personneRef).filter(Boolean)]),
+  () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.locuteurRef).filter(Boolean)]),
   async () => {
     const lecture = ++lectureLiensPersonnes
-    const references = locuteurs.value.flatMap((locuteur) => locuteur.personneRef ?? [])
+    const references = locuteurs.value.flatMap((locuteur) => locuteur.locuteurRef ?? [])
     erreurLiensPersonnes.value = ''
     // Les noms déjà connus restent affichés pendant la relecture, pour éviter un clignotement.
     if (!references.every((reference) => nomsPersonnesLiees.value[reference])) {
@@ -109,7 +109,7 @@ watch(
       const inventaire = await lirePersonnes()
       if (lecture !== lectureLiensPersonnes) return
       nomsPersonnesLiees.value = Object.fromEntries(
-        inventaire.personnes.map((personne) => [personne.id, personne.nom]),
+        inventaire.locuteurs.map((personne) => [personne.id, personne.nom]),
       )
       liensPersonnesCharges.value = true
     } catch {
@@ -265,11 +265,11 @@ watch(
                   title="Supprimer ce locuteur"
                   @click="demanderSuppressionLocuteur({ entretienId: ouvertId ?? '', participationId: l.id ?? '' })"
                 >✕</button>
-                <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
-                  Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
+                <span v-if="l.locuteurRef && liensPersonnesCharges && !nomsPersonnesLiees[l.locuteurRef]" class="lien-personne-loc reference-personne-absente">
+                  Référence de personne absente : « {{ l.locuteurRef }} ». Corrigez cette association dans Personnes.
                 </span>
-                <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
-                  Association à « {{ l.personneRef }} » en cours de vérification.
+                <span v-else-if="l.locuteurRef && !liensPersonnesCharges" class="lien-personne-loc">
+                  Association à « {{ l.locuteurRef }} » en cours de vérification.
                 </span>
               </li>
             </ul>

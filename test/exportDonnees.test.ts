@@ -6,9 +6,9 @@ function donnees(): OptionsExportDonnees {
   return {
     variables: [
       { id: 'v1', lib: 'Lieu', portee: 'entretien', priv: false, ordre: 0, vExport: 1, modalites: [{ id: 'm1', lib: 'À Lyon', mExport: 1 }] },
-      { id: 'v2', lib: 'Ancienneté', portee: 'locuteur', priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
+      { id: 'v2', lib: 'Ancienneté', portee: "participation", priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
       { id: 'v3', lib: 'Contact privé', portee: 'entretien', priv: true, ordre: 2, vExport: 3, modalites: [{ id: 'm3', lib: 'confidentiel', mExport: 1 }] },
-      { id: 'v4', lib: 'Note privée', portee: 'locuteur', priv: true, ordre: 3, vExport: 4, modalites: [{ id: 'm4', lib: 'personnel', mExport: 1 }] },
+      { id: 'v4', lib: 'Note privée', portee: "participation", priv: true, ordre: 3, vExport: 4, modalites: [{ id: 'm4', lib: 'personnel', mExport: 1 }] },
     ],
     matrice: [
       { entretienId: 'e1', titre: 'Coordinatrice', valeursGen: { v1: 'm1', v3: 'm3' }, participations: [{ participationId: 'local', index: 0, nom: 'Fatima', valeursLoc: { v2: 'm2', v4: 'm4' } }] },

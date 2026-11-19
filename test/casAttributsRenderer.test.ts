@@ -14,7 +14,7 @@ import {
 
 function variableTaille(): Variable {
   return {
-    id: 'taille', lib: 'Taille', portee: 'locuteur', priv: true, ordre: 1, vExport: 2,
+    id: 'taille', lib: 'Taille', portee: "participation", priv: true, ordre: 1, vExport: 2,
     modalites: [
       { id: 'petit', lib: 'Moins de 10', mExport: 1 },
       { id: 'grand', lib: '10 à 100', mExport: 2 },
@@ -27,7 +27,7 @@ function poserTailles(
   valeurs: Record<number, string>,
 ): EntretienFichier {
   for (const [index, valeur] of Object.entries(valeurs)) {
-    const locuteur = source.locuteurs.find((candidat) => candidat.index === Number(index))
+    const locuteur = source.participations.find((candidat) => candidat.index === Number(index))
     if (locuteur) locuteur.valeursLoc.taille = valeur
   }
   return source
@@ -65,7 +65,7 @@ function outil() {
   const casCommander = vi.fn(async (commande: CommandeCas) => {
     disque.cas = appliquerCommandeCas(disque.cas, structuredClone(commande), {
       maintenant: () => dateFamille,
-      personneExiste: () => true,
+      locuteurExiste: () => true,
       entretienExiste: (entretienId) => Boolean(disque.membership[entretienId]),
       familles: disque.famillesCas,
       attributs: disque.attributsCas,
@@ -90,7 +90,7 @@ function outil() {
     sourceOuverte: () => null,
     selectionCourante: () => null,
     enregistrerRepereSelection: vi.fn(),
-    lirePersonnes: vi.fn(async () => ({ personnes: [], locuteurs: [] })),
+    lirePersonnes: vi.fn(async () => ({ locuteurs: [], participations: [] })),
     ouvrirSource: vi.fn(),
     fermerRecueils: vi.fn(),
     definitionsAvecSources: () => true,
@@ -145,7 +145,7 @@ test('une recette familiale fraîche devient suspendue partout après un conflit
     statut: 'coherent', valeur: 'petit', valeurLibelle: 'Moins de 10',
   })
 
-  const locuteurA = sources.e1.locuteurs.find((locuteur) => locuteur.index === 3)!
+  const locuteurA = sources.e1.participations.find((locuteur) => locuteur.index === 3)!
   locuteurA.valeursLoc.taille = 'grand'
   await api.rafraichirProjectionsCas()
   expect(api.attributsProjeteCas.value['cas-f-a'][0].diagnostic).toMatchObject({
@@ -164,6 +164,6 @@ test('une recette familiale fraîche devient suspendue partout après un conflit
   })
   expect(api.attributsProjeteCas.value['cas-f-b'][0].diagnostic?.suspensionFamille).toBeUndefined()
   expect(toRaw(api.famillesCas.value.f.derivationsAttributs)).toEqual([
-    { attributId, variableSourceId: 'taille', porteeSource: 'locuteur' },
+    { attributId, variableSourceId: 'taille', porteeSource: "participation" },
   ])
 })

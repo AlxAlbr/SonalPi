@@ -14,7 +14,7 @@ import { DepotMemoire } from '../gitlab/depotMemoire'
 export function fixtureSuppressionAnonGitLab(dossiers: string[], nombre = 3) {
   const f = fixtureDissociationAnon(Array.from({ length: nombre }, (_, i) => `e${i + 1}`))
   f.sources.slice(2).forEach((s) => { s.data.annotations = [] })
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const dir = mkdtempSync(join(tmpdir(), 'suppression-gitlab-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
   const miroir = structuredClone(f.corpus); miroir.reglesAnon.personne.pseudos = ['Miroir périmé']
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(miroir))

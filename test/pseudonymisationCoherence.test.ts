@@ -56,13 +56,13 @@ describe('cohérence de la pseudonymisation textuelle', () => {
 
   test('un retrait seul ne pose pas les occurrences libres et ne touche pas les locuteurs', () => {
     const s = preparer()
-    const locuteurs = structuredClone(s.entretien.data.locuteurs)
+    const locuteurs = structuredClone(s.entretien.data.participations)
     s.cochees[s.entretien.id]['1:5'] = false
     const cible = construireDiff(s.regle.id, s.details, s.cochees, s.exceptions).cibles[0]
     expect(cible.plages).toEqual([])
     expect(appliquerRegleAnonEntretien(s.entretien.data, s.regle, cible)).toBe(1)
     expect(s.entretien.data.annotations.some((a) => a.from === 1)).toBe(false)
-    expect(s.entretien.data.locuteurs).toEqual(locuteurs)
+    expect(s.entretien.data.participations).toEqual(locuteurs)
   })
 
   test('exception retirée puis anonymisée dans la même validation', () => {

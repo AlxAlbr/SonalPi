@@ -29,7 +29,7 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
-import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { ExemplesLocaux } from './exemples'
@@ -106,6 +106,7 @@ import type {
   OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  PayloadImportEntretien,
   TranscriptionEntretien,
   RegleAnon,
   ResultatArchiveCorpus,
@@ -263,7 +264,7 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   }
   if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
   if (n.vue === 'corpus') {
-    return ['accueil', 'themes', 'personnes', 'notes', 'donnees', 'anon'].includes(String(n.onglet))
+    return ['accueil', 'themes', "locuteurs", 'notes', 'donnees', 'anon'].includes(String(n.onglet))
   }
   return false
 }
@@ -1211,7 +1212,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle(
     'corpus:importer',
-    (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
+    (_e, titre: string, payload: PayloadImportEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
       executerSelonFournisseur(
         (contexte) => contexte.transactions.importerEntretien(
           titre,
@@ -1462,7 +1463,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
   ipcMain.handle('corpus:personnesCommander', async (
     _e,
-    commande: CommandePersonnes,
+    commande: CommandeLocuteurs,
     depuisRepertoire = false,
   ) => {
     const magasin = store
@@ -1491,12 +1492,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       if (commande.type === 'creer') {
         return transactions.creerPersonneDepuisLocuteur(
           commande.entretienId,
-          commande.locuteurId,
+          commande.participationId,
           commande.nom,
         )
       }
       if (commande.type === 'supprimer') {
-        return transactions.supprimerPersonneVide(commande.personneId)
+        return transactions.supprimerPersonneVide(commande.locuteurId)
       }
       if (commande.type === 'fusionner') {
         return transactions.fusionnerPersonnes(commande)
@@ -1794,7 +1795,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
 
   // Variables & modalités (EAV) — définitions : sous transaction distant.
-  ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
+  ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'participation') =>
     executerDefinitions('variable.creer', (cible) => cible.ajouterVariable(lib, portee)),
   )
   ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) =>
@@ -1917,10 +1918,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
           data.annotations = transcription.annotations
           data.ancres = transcription.ancres
           data.reperesPassages = rendreReperesOrphelins(data.reperesPassages)
-          data.locuteurs = completerIdsLocuteurs(
+          data.participations = completerIdsLocuteurs(
             id,
-            transcription.locuteurs,
-            data.locuteurs,
+            transcription.participations,
+            data.participations,
           )
           return true
         })
@@ -2744,7 +2745,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
   })
   ipcMain.handle('migrer:lireEntretien', (e, index: number) => obtenirMigration(e).lireEntretien(index))
-  ipcMain.handle('migrer:ajouterEntretien', (e, index: number, payload: PayloadEntretien, regles: RegleAnon[]) => {
+  ipcMain.handle('migrer:ajouterEntretien', (e, index: number, payload: PayloadImportEntretien, regles: RegleAnon[]) => {
     obtenirMigration(e).ajouterEntretien(index, payload, regles)
   })
   ipcMain.handle('migrer:annuler', async (e) => {

@@ -11,11 +11,11 @@ dans chaque entretien.
 `locuteursInventaire()` renvoie une projection compacte : liste unifiée,
 participations, nombres de mots et de tours, positions des tours en pourcentage
 du texte et positions d’ouverture dans l’éditeur. Aucune transcription ni corps
-de note n’est transmis. Les identifiants manquants sont complétés en mémoire,
-sans réécriture des fichiers. Les définitions sans participation restent dans
+de note n’est transmis. Les ids natifs sont obligatoires ; aucune consultation
+ne les complète. Les définitions sans participation restent dans
 les détails, pas dans la liste principale.
 
-`locuteursCorpus.ts` réunit les identités connues et conserve chaque locuteur
+`repertoireLocuteurs.ts` réunit les identités connues et conserve chaque locuteur
 non lié comme une entrée distincte, sans filtrer son nom. Les homonymes et les
 références absentes ne sont jamais fusionnés implicitement. Les noms locaux et
 les titres d’entretien restent disponibles pour la recherche. Une source
@@ -41,8 +41,8 @@ activée sur les corpus distants : ils conservent le répertoire existant.
 
 ## Inventaire et liens
 
-`personnesInventaire()` rassemble les définitions du corpus, les locuteurs et
-les notes qui visent des locuteurs. Il ne transmet pas les transcriptions et
+`personnesInventaire()` rassemble les identités dans `locuteurs`, les présences
+locales dans `participations` et les notes qui visent ces participations. Il ne transmet pas les transcriptions et
 signale les entretiens indisponibles. La vue peut ainsi montrer les locuteurs
 non liés, les références invalides, les doublons dans un même entretien et les
 propositions à vérifier.
@@ -56,7 +56,7 @@ Les commandes distinguent :
 
 Une création liée écrit la définition avant son association. Si la seconde
 écriture échoue, la fiche vide reste retrouvable et l’erreur est explicite.
-Délier pose `personneDeliee` pour empêcher une recréation automatique au nommage ;
+Délier pose `associationRetiree` pour empêcher une recréation automatique au nommage ;
 une liaison explicite retire ce marqueur.
 
 ## Suggestions et décisions

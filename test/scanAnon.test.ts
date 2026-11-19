@@ -6,12 +6,12 @@ import type { Annotation } from '../src/shared/entretien/annotation'
 /** Construit un entretien mono-paragraphe (PM : contenu démarrant à 1). */
 function entretien(texte: string, annotations: Annotation[] = [], id = 'e1'): EntretienScan {
   const data: EntretienFichier = {
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: '',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: texte }] }] },
     annotations,
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
   return { id, data }
@@ -111,7 +111,7 @@ describe('scannerRegleDetaille — vue vérification (contexte par occurrence)',
       corpsTexte,
       annotations,
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {} },
     }
   }

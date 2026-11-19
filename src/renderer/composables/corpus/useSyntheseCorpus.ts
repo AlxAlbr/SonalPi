@@ -1,7 +1,6 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
 import type { Categorie, EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
 import type { Locuteur } from '../../../shared/locuteurs'
-import { lireEntretienCasFormat9 } from '../../../shared/natif/lectureCasFormat9'
 import type { Cas } from '../../../shared/corpus/cas'
 import { calculerExtraitsSynthese } from '../../../shared/synthese/moteur'
 import { nombreCriteresSynthese, resumerFiltresSynthese } from '../../../shared/synthese/resume'
@@ -11,7 +10,7 @@ import {
   type ExtraitSyntheseBrut,
   type FiltresSynthese,
 } from '../../../shared/synthese/types'
-import { projeterCasDepuisSourcesPreparees } from '../../editor/casFormat9'
+import { projeterCasDepuisSourcesPreparees } from "../../editor/cas"
 import { type ModeTextePassage, type SourcePassagePreparee } from '../../editor/passages'
 import { diagnosticsValeursSynthese, projeterExtraitsSynthese, sourceMoteurSynthese } from '../../editor/synthese'
 import type { SourcesAnalyseCorpus } from './useSourcesAnalyseCorpus'
@@ -76,7 +75,7 @@ export function useSyntheseCorpus(deps: {
   const entretiensAvecExtraitsSynthese = computed(() => new Set(extraitsBrutsSynthese.value.map((item) => item.entretienId)).size)
   const volumeTexteSynthese = computed(() => extraitsBrutsSynthese.value.reduce((total, item) => total + item.to - item.from, 0))
   const variablesSynthese = computed(() => deps.variables.value.map((variable) => ({
-    ...variable, portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee,
+    ...variable, portee: variable.portee === "participation" ? 'participation' as const : variable.portee,
   })))
   const contexteResume = computed(() => ({
     entretiens: Object.entries(deps.membership.value).map(([id, item]) => ({ id, nom: item.titre })),
@@ -100,7 +99,7 @@ export function useSyntheseCorpus(deps: {
       const diagnostics: DiagnosticSynthese[] = []
       let locuteurs: Locuteur[] = []
       try {
-        locuteurs = (await window.sonal.corpus.personnesInventaire()).personnes
+        locuteurs = (await window.sonal.corpus.personnesInventaire()).locuteurs
       } catch (erreur) {
         diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }
@@ -120,7 +119,7 @@ export function useSyntheseCorpus(deps: {
           diagnostics.push({ entretienId: id, titre: reference.titre, message: source?.raison ?? 'Source indisponible.' })
           continue
         }
-        const lectureSynthese = { doc: source.doc, data: lireEntretienCasFormat9(source.data) }
+        const lectureSynthese = { doc: source.doc, data: source.data }
         sources.push(sourceMoteurSynthese(id, reference, lectureSynthese, ordre))
         const erreurs = diagnosticsValeursSynthese(lectureSynthese, variablesSynthese.value)
         if (erreurs.length) diagnostics.push({ entretienId: id, titre: reference.titre, message: `Valeur(s) de variable invalide(s) : ${erreurs.join(', ')}.` })
@@ -136,7 +135,7 @@ export function useSyntheseCorpus(deps: {
           continue
         }
         const copieCas = JSON.parse(JSON.stringify(cas)) as Cas
-        const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, personnes: locuteursParId, variables: variablesParId }, copieCas, preparees, 'pseudonymise')
+        const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, locuteurs: locuteursParId, variables: variablesParId }, copieCas, preparees, 'pseudonymise')
         plagesCas[id] = projection.passages.flatMap((passage) => {
           if (passage.etat !== 'disponible' || passage.from === null || passage.to === null) {
             diagnostics.push({ titre: cas.nom, message: passage.diagnostic ?? 'Un matériau du cas est indisponible.' })

@@ -34,7 +34,7 @@ export function useJournalCorpus(
     const resultat = await window.sonal.corpus.journalAnnuler(id)
     if (attendue !== generation) return { ok: false, raison: 'Le corpus a changé.', temporaire: false }
     if (resultat.ok) {
-      if (resultat.impact.projections.includes('personnes')) revisionPersonnesCorpus.value++
+      if (resultat.impact.projections.includes("locuteurs")) revisionPersonnesCorpus.value++
       if (resultat.impact.projections.includes('notes')) revisionNotesCorpus.value++
       if (resultat.impact.projections.includes('matrice')) await effets.rafraichirMatrice()
       if (resultat.impact.projections.includes('scanAnon')) effets.perimerScanAnon()

@@ -344,7 +344,7 @@ function allerOccurrence(id: string, pos: number) {
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
   { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: 'personnes', libelle: 'Locuteurs', icone: icoPersonnes },
+  { id: "locuteurs", libelle: 'Locuteurs', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
@@ -422,7 +422,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'locuteurs' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
         <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
         <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
           <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
@@ -765,7 +765,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </section>
       </div>
 
-      <LocuteursCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
+      <LocuteursCorpus v-show="ongletCorpus === 'locuteurs'" :actif="ongletCorpus === 'locuteurs'" />
       <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />

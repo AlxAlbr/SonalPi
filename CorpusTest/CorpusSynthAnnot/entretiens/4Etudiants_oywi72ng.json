@@ -1,5 +1,5 @@
 {
-  "formatVersion": 9,
+  "formatVersion": 10,
   "lastModified": "2026-10-26T18:22:46.801Z",
   "corpsTexte": {
     "type": "doc",
@@ -1294,40 +1294,6 @@
       "t": 214.46
     }
   ],
-  "locuteurs": [
-    {
-      "index": 1,
-      "nom": "Répondant 1",
-      "interviewer": false,
-      "valeursLoc": {
-        "v3": "v3m3",
-        "v5": "v5m0",
-        "v4": "v4m0"
-      },
-      "personneRef": "pers-demo-07",
-      "id": "loc-ktpSKWrStLLEf7OqffA6sw6XHzZ-pEHjJyIkJHsTKB8"
-    },
-    {
-      "index": 2,
-      "nom": "Question",
-      "interviewer": true,
-      "valeursLoc": {},
-      "personneRef": "pers-demo-08",
-      "id": "loc-jjm6b3fcBwXcNeoxKhaZPGS88sd1K0DiKZxAE2TqQ4E"
-    },
-    {
-      "index": 3,
-      "nom": "Répondant 2",
-      "interviewer": false,
-      "valeursLoc": {
-        "v3": "v3m3",
-        "v5": "v5m0",
-        "v4": "v4m4"
-      },
-      "personneRef": "pers-demo-09",
-      "id": "loc-dflA-lYEOCaNkoFFQov3qfRhZujmtEBbBvBErUCDC_s"
-    }
-  ],
   "meta": {
     "valeursGen": {},
     "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/4Etudiants.mp3"
@@ -1346,5 +1312,39 @@
       "modifieLe": null
     }
   ],
-  "reperesPassages": []
+  "reperesPassages": [],
+  "participations": [
+    {
+      "index": 1,
+      "nom": "Répondant 1",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v5": "v5m0",
+        "v4": "v4m0"
+      },
+      "id": "loc-ktpSKWrStLLEf7OqffA6sw6XHzZ-pEHjJyIkJHsTKB8",
+      "locuteurRef": "pers-demo-07"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "id": "loc-jjm6b3fcBwXcNeoxKhaZPGS88sd1K0DiKZxAE2TqQ4E",
+      "locuteurRef": "pers-demo-08"
+    },
+    {
+      "index": 3,
+      "nom": "Répondant 2",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v5": "v5m0",
+        "v4": "v4m4"
+      },
+      "id": "loc-dflA-lYEOCaNkoFFQov3qfRhZujmtEBbBvBErUCDC_s",
+      "locuteurRef": "pers-demo-09"
+    }
+  ]
 }

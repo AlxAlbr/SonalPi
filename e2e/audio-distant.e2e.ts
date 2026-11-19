@@ -57,7 +57,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       [ID]: { titre: 'Entretien partagé', date: null, lastModified: '2026-01-01T00:00:00Z' },
       [ID_SANS_SON]: { titre: 'Entretien sans son', date: null, lastModified: '2026-01-01T00:00:00Z' },
@@ -76,7 +76,7 @@ function entretienInitial(designation?: { chemin: string }): string {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null, ...(designation ? { audioDistant: designation } : {}) },
   })

@@ -11,12 +11,12 @@ describe('définitions natives et stockage actif', () => {
     try {
       const store = new CorpusStore(dir)
       store.ouvrir()
-      const { id } = store.ajouterVariable('Locale', 'locuteur')
+      const { id } = store.ajouterVariable('Locale', 'participation')
       const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
       const lecture = vi.spyOn(store, 'ouvrir')
       const patch = { id: 'remplacement', modalites: [], vExport: 99 }
       expect(() => store.modifierVariable(id, patch as unknown as Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>)).toThrow('invalides')
-      expect(() => store.ajouterVariable('Mélange', 'participation' as 'locuteur')).toThrow('portée')
+      expect(() => store.ajouterVariable('Mélange', 'locuteur' as 'participation')).toThrow('portée')
       expect(lecture).not.toHaveBeenCalled()
       expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
     } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }) }

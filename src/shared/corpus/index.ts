@@ -12,7 +12,7 @@
  */
 export * from './categories'
 export * from './themes'
-export * from './variablesFormat9'
+export * from './variables'
 export * from './requetes'
 export * from './import'
 export * from './scanAnon'

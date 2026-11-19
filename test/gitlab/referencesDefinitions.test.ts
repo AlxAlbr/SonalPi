@@ -8,12 +8,12 @@ import type { EntretienFichier } from '../../src/shared/format'
 
 function entretien(): EntretienFichier {
   return {
-    formatVersion: 8,
+    formatVersion: 10,
     lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -70,15 +70,15 @@ describe('références des entretiens vers les définitions', () => {
   test('refuse une modalité supprimée chez un locuteur', () => {
     const corpus = squeletteCorpus()
     corpus.variables.variable = {
-      id: 'variable', lib: 'Variable', ordre: 0, vExport: 1, portee: 'locuteur', priv: false,
+      id: 'variable', lib: 'Variable', ordre: 0, vExport: 1, portee: "participation", priv: false,
       modalites: [],
     }
     const candidat = entretien()
-    candidat.locuteurs.push({
+    candidat.participations.push({ id: "loc-0",
       index: 0,
       nom: 'Alice',
       valeursLoc: { variable: 'modalite-supprimee' },
-      personneRef: null,
+      locuteurRef: null,
     })
 
     expect(() => verifierReferencesDefinitions(candidat, corpus)).toThrow(/modalité/)

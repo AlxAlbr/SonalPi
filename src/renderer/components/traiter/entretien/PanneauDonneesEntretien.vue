@@ -174,7 +174,7 @@ function focaliserLibre(el: unknown, cle: string) {
     </template>
 
     <Teleport to="body">
-      <EditionVariables v-if="editerVariables" :portee="sousOnglet" @fermer="editerVariables = false" />
+      <EditionVariables v-if="editerVariables" :portee="sousOnglet === 'locuteur' ? 'participation' : 'entretien'" @fermer="editerVariables = false" />
     </Teleport>
   </aside>
 </template>

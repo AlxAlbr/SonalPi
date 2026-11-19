@@ -1,5 +1,5 @@
 import type { Locuteur, ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
-import type { CorpusFichier, MembreLocuteurCas, RegleCas } from '../natif/format'
+import type { CorpusFichier, MembreLocuteurCas, RegleCas } from "../format"
 import { membresLocuteursRegle } from '../natif/lectureCas'
 import { cleRefusRapprochement } from './rapprochementsLocuteurs'
 import { participationParId } from '../entretien/participations'

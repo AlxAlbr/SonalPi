@@ -30,13 +30,13 @@ describe('préparation privée des imports V1 au format natif cible', () => {
     const corpus = preparerCorpusImportV1('Mon terrain', source, definitions.codebook, definitions.variables, regles, params)
     validerCorpusNatif(corpus)
     expect(corpus.formatVersion).toBe(10)
-    expect(corpus).not.toHaveProperty('personnes')
+    expect(corpus).not.toHaveProperty("personnes")
     expect(corpus.locuteurs).toEqual({})
     expect(corpus.meta?.sourceV1).toEqual(source)
     expect(Object.keys(corpus.codebook)).toEqual(definitions.codebook.map((c) => c.id))
     for (const variable of definitions.variables) {
       const cible = corpus.variables[variable.id]
-      expect(cible.portee).toBe(variable.portee === 'locuteur' ? 'participation' : 'entretien')
+      expect(cible.portee).toBe(variable.portee === "participation" ? 'participation' : 'entretien')
       const { portee: _portee, ...champs } = variable
       const { portee: _ciblePortee, ...cibleChamps } = cible
       expect(cibleChamps).toEqual(champs)
@@ -48,7 +48,7 @@ describe('préparation privée des imports V1 au format natif cible', () => {
   test.each(['entretien1.sonal', 'entretien2.sonal', 'entretien3.sonal'])(
     '%s : conserve le contenu et les propriétaires en produisant directement les champs cibles', (nom) => {
       const conversion = lire(nom)
-      const source = { ...conversion.payload, locuteurs: completerIdsLocuteurs(`ent-${nom}`, conversion.payload.locuteurs) }
+      const source = { ...conversion.payload, participations: completerIdsLocuteurs(`ent-${nom}`, conversion.payload.participations) }
       const avant = structuredClone(source)
       let numero = 0
       const preparation = preparerEntretienImportV1({}, source, date, () => `identite-${++numero}`)
@@ -57,22 +57,22 @@ describe('préparation privée des imports V1 au format natif cible', () => {
       expect(entretien.formatVersion).toBe(10)
       expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.lastModified).toBe(date)
-      expect(preparation.locuteurs).toHaveLength(source.locuteurs.length)
-      expect(new Set(entretien.participations.map((p) => p.locuteurRef)).size).toBe(source.locuteurs.length)
+      expect(preparation.locuteurs).toHaveLength(source.participations.length)
+      expect(new Set(entretien.participations.map((p) => p.locuteurRef)).size).toBe(source.participations.length)
       expect(entretien.participations.map(({ locuteurRef: _ref, ...local }) => local))
-        .toEqual(source.locuteurs.map(({ personneRef: _ref, ...local }) => local))
+        .toEqual(source.participations.map(({ locuteurRef: _ref, ...local }) => local))
       expect(entretien.corpsTexte).toEqual(source.corpsTexte)
       expect(entretien.annotations).toEqual(source.annotations)
       expect(entretien.ancres).toEqual(source.ancres)
       expect(entretien.meta).toEqual(source.meta)
       expect(entretien.legacy).toEqual(source.legacy)
       expect(entretien.notes?.map(({ participationIds: _ids, ...note }) => note))
-        .toEqual(source.notes?.map(({ locuteurIds: _ids, ...note }) => note))
+        .toEqual(source.notes?.map(({ participationIds: _ids, ...note }) => note))
       for (const [index, note] of (source.notes ?? []).entries()) {
-        expect(entretien.notes![index].participationIds).toEqual(note.locuteurIds)
+        expect(entretien.notes![index].participationIds).toEqual(note.participationIds)
       }
       expect(source).toEqual(avant)
-      expect(numero).toBe(source.locuteurs.length)
+      expect(numero).toBe(source.participations.length)
       if (entretien.participations[0]) entretien.participations[0].valeursLoc.test = 'sans effet sur la source'
       expect(source).toEqual(avant)
     },
@@ -82,16 +82,16 @@ describe('préparation privée des imports V1 au format natif cible', () => {
     const payload: PayloadEntretien = {
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 3 }, content: [{ type: 'text', text: 'Second Alex.' }] }] },
       annotations: [], ancres: [], meta: { valeursGen: {}, audioRef: null },
-      locuteurs: [
-        { id: 'local-conserve', index: 1, nom: 'Alex', interviewer: true, pseudo: 'Pseudo', couleur: '#123456', valeursLoc: { age: 'adulte' }, personneRef: null },
-        { index: 3, nom: 'Alex', interviewer: false, valeursLoc: { age: 'jeune' }, personneRef: null },
-        { index: 4, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-        { index: 7, nom: 'X', valeursLoc: {}, personneRef: null },
+      participations: [
+        { id: 'local-conserve', index: 1, nom: 'Alex', interviewer: true, pseudo: 'Pseudo', couleur: '#123456', valeursLoc: { age: 'adulte' }, locuteurRef: null },
+        { id: "loc-3", index: 3, nom: 'Alex', interviewer: false, valeursLoc: { age: 'jeune' }, locuteurRef: null },
+        { id: "loc-4", index: 4, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+        { id: "loc-7", index: 7, nom: 'X', valeursLoc: {}, locuteurRef: null },
       ],
       notes: [{ id: 'note', categorieId: 'generale', titre: '', date: null, statut: 'prive', corps: 'Note locale',
-        locuteurIds: ['local-conserve'], rang: 0, creeLe: '', modifieLe: null }],
+        participationIds: ['local-conserve'], rang: 0, creeLe: '', modifieLe: null }],
     }
-    const source = { ...payload, locuteurs: completerIdsLocuteurs('entretien', payload.locuteurs) }
+    const source = { ...payload, participations: completerIdsLocuteurs('entretien', payload.participations) }
     const avant = structuredClone(source)
     let numero = 0
     const a = preparerEntretienImportV1({}, source, date, () => `commun-${++numero}`)
@@ -108,7 +108,7 @@ describe('préparation privée des imports V1 au format natif cible', () => {
   test('une importation vide ne crée ni identité ni participation fictive', () => {
     const generer = vi.fn()
     const resultat = preparerEntretienImportV1({}, {
-      corpsTexte: {}, annotations: [], ancres: [], locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+      corpsTexte: {}, annotations: [], ancres: [], participations: [], meta: { valeursGen: {}, audioRef: null },
     }, date, generer)
     expect(resultat.locuteurs).toEqual([])
     expect(resultat.entretien.participations).toEqual([])
@@ -118,12 +118,12 @@ describe('préparation privée des imports V1 au format natif cible', () => {
 
   test('ne réinterprète pas une association historique en import V1', () => {
     const conversion = lire('entretien1.sonal')
-    const source = { ...conversion.payload, locuteurs: completerIdsLocuteurs('entretien', conversion.payload.locuteurs) }
-    expect(source.locuteurs.length).toBeGreaterThan(0)
-    source.locuteurs[0].personneDeliee = true
+    const source = { ...conversion.payload, participations: completerIdsLocuteurs('entretien', conversion.payload.participations) }
+    expect(source.participations.length).toBeGreaterThan(0)
+    source.participations[0].associationRetiree = true
     const avant = structuredClone(source)
     const generer = vi.fn()
-    expect(() => preparerEntretienImportV1({}, source, date, generer)).toThrow('associations historiques')
+    expect(() => preparerEntretienImportV1({}, source, date, generer)).toThrow('associations d’un entretien natif')
     expect(source).toEqual(avant)
     expect(generer).not.toHaveBeenCalled()
   })

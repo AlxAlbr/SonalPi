@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { verifierVersionNative } from '../../shared/versionsNatives'
 import type { PlanSuppressionEntretien } from '../transactionsFichiers'
 import {
   MAX_ACTIONS_JOURNAL_HISTORIQUE,
@@ -511,6 +512,8 @@ function validerSuppression(
   ) {
     throw new Error('Journal de suppression GitLab invalide.')
   }
+  verifierVersionNative(suppression.planLocal.corpusAvant, 'corpus avant suppression GitLab')
+  verifierVersionNative(suppression.planLocal.corpusApres, 'corpus après suppression GitLab')
 }
 
 function validerEntree(
@@ -641,7 +644,16 @@ function validerActions(actions: ActionCommitGitLab[]): void {
   if (actions.length === 0 || actions.length > MAX_ACTIONS_PUBLICATION) {
     throw new Error('Actions de publication GitLab invalides.')
   }
-  for (const action of actions) validerAction(action)
+  for (const action of actions) {
+    validerAction(action)
+    if (typeof action.content !== 'string' || !/(?:^|\/)(?:corpus\.crp|entretiens\/[^/]+\.json)$/.test(action.file_path)) continue
+    const contenu = action.encoding === 'base64' ? Buffer.from(action.content, 'base64').toString('utf8') : action.content
+    let document: unknown
+    try { document = JSON.parse(contenu) } catch { continue }
+    if (document && typeof document === 'object' && Object.hasOwn(document, 'formatVersion')) {
+      verifierVersionNative(document, `candidat GitLab ${action.file_path}`)
+    }
+  }
 }
 
 function validerActionJournal(valeur: unknown): asserts valeur is ActionJournalGitLab {

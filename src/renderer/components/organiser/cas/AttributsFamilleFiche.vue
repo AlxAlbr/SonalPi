@@ -151,7 +151,7 @@ async function retirer(attributId: string) {
       <div>
         <h2>Famille « {{ famille.nom }} »</h2>
         <p>
-          Regroupement : {{ variableOrigine?.lib ?? 'Variable absente' }} ({{ famille.origine.portee }}<template v-if="famille.origine.portee === 'locuteur'"> ; enquêteurs {{ famille.origine.inclureEnqueteurs ? 'inclus' : 'exclus' }}</template>)
+          Regroupement : {{ variableOrigine?.lib ?? 'Variable absente' }} ({{ famille.origine.portee }}<template v-if="famille.origine.portee === 'participation'"> ; enquêteurs {{ famille.origine.inclureEnqueteurs ? 'inclus' : 'exclus' }}</template>)
           · {{ membres.length }} cas
         </p>
       </div>

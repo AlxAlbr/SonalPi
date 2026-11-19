@@ -12,12 +12,12 @@ import {
 } from '../src/shared/entretien/locuteurs'
 import { renommerParticipation } from '../src/shared/entretien/participations'
 import { construireLibelleGouttiere } from '../src/renderer/editor/locuteursGutter'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
-function locs(): Locuteur[] {
+function locs(): ParticipationLocuteur[] {
   return [
-    { index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
-    { index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
+    { id: "loc-1", index: 1, nom: 'Enquêteur', valeursLoc: {}, locuteurRef: null },
+    { id: "loc-2", index: 2, nom: 'Karine', valeursLoc: {}, locuteurRef: null },
   ]
 }
 

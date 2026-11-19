@@ -2,10 +2,11 @@
 
 Complément technique du
 [plan d’unification](plan-unification-locuteurs-participations.md).
-Les contrats décrivent la cible 10, pas le format actif, qui reste 9.
-Le lot A est en cours : les noyaux et usages déjà adaptés sont récapitulés en
-section 6. Le [bilan du plan](plan-unification-locuteurs-participations.md#9-avancement-de-limplémentation)
-distingue les réalisations, la bascule encore nécessaire et les limites des tests.
+Les contrats décrivent le **format natif 10 désormais actif**. Les propriétaires,
+lecteurs et écrivains sont alignés ; les adaptateurs de stockage 9 sont retirés.
+La section 2 conserve le relevé initial, la section 6 décrit l’état actuel.
+Le [bilan du plan](plan-unification-locuteurs-participations.md#9-avancement-de-limplémentation)
+distingue la bascule effectuée, les limites de qualification et le lot B restant.
 
 ## 1. Périmètre simplifié
 
@@ -60,9 +61,9 @@ pas dans ce chantier.
 
 ### Format et compatibilité
 
-La cible est le **format natif 10**, après le format 9 constaté dans le dépôt.
+Le format actif est le **format natif 10**, qui remplace le format 9 de développement.
 Ce numéro ne change pas la version applicative. Les nouveaux corpus, imports V1
-et exemples adaptés produiront ce format pour le corpus et les entretiens.
+et exemples produisent ce format pour le corpus et les entretiens.
 
 Les testeurs pourront recréer leurs anciens corpus V2 : il n’est pas demandé de
 migration générale des formats natifs de développement 1 à 9. Les refuser sans
@@ -132,8 +133,9 @@ Au premier inventaire, `CorpusTest/CorpusSynthAnnot/corpus.crp` était au format
 avec `personnes: {}`. Ses quatre entretiens comportaient neuf participations avec
 ids stables et sans identité commune. Neuf identités distinctes sont maintenant
 ajoutées au modèle livré, sans fusion des libellés récurrents comme « Question ».
-Les fichiers restent au format 9 ; leur préparation native en mémoire est testée,
-mais l’installation en format 10 reste à raccorder lors de la bascule.
+Les fichiers livrés, les nouvelles copies et leur installation sont au format 10.
+Le modèle est validé avant copie, pas converti à l’installation. Une ancienne copie
+incompatible n’est pas écrasée ; une transaction active bloque sa remise à zéro.
 
 Conserver les neuf ids locaux et index, les textes, annotations, ancres, notes,
 trente thèmes, trois variables et valeurs locales. Les références audio restent
@@ -178,26 +180,28 @@ passait et le parseur restait inchangé. Ce bilan historique précède l’impl�
 Les derniers résultats plus larges figurent dans la section 9 du plan.
 
 Avant les tests GitLab ou Nextcloud réels, utiliser `preparer_bancs_docker`, sans
-téléchargement d’images ni reprovisionnement. La dernière tentative de préparation
-est bloquée : configuration GitLab absente et Docker inaccessible sous WSL. Les tests
-unitaires et simulés ne constituent donc pas une qualification distante réelle.
+téléchargement d’images ni reprovisionnement. Les trois bancs sont désormais
+opérationnels. La dernière qualification ciblée comprend les écritures d’entretien
+GitLab réelles et les publications Nextcloud A/B ; les comptes et limites figurent
+dans le bilan du plan. Les dernières commandes ciblées ont été rejouées après la
+bascule en format 10 ; elles ne remplacent pas une campagne exhaustive des fournisseurs.
 
 ## 6. Noyaux et frontières désormais adaptés
 
-| Périmètre | Implémentation introduite ou adaptée | Limite encore active |
+| Périmètre | Implémentation active | Contrat |
 |---|---|---|
-| Types et validations cibles | `src/shared/locuteurs.ts`, `src/shared/natif/format.ts`, `validation.ts`, `validationCommune.ts`. | Types et contrôles 10 disponibles ; `src/shared/format.ts` conserve `FORMAT_VERSION = 9`. |
-| Compatibilité et reprise | `src/shared/versionsNatives.ts`, `src/main/transactionsFichiers.ts`, `src/main/gitlab/suiviMigration.ts`. | Vérifier les versions embarquées, pas seulement le numéro du journal ; acceptation privée de l’ajout 10, pas des écritures natives générales. |
-| Import V1 | `src/shared/corpus/importIdentitesV1.ts`, `src/shared/natif/importV1.ts`, préparations du store et chemins local/GitLab. | Identités distinctes et ids conservés ; retour vers le stockage actif 9 jusqu’à la bascule. |
-| Préparations natives | `src/main/preparationsNatives.ts`, `src/main/modeleExempleNatif.ts`. | Création et ajout préparés sans écriture ; réutilisation du moteur de transactions existant. |
-| Répertoire | `src/shared/corpus/repertoireLocuteurs.ts`. | Projection calculée renommée ; l’ancien `locuteursCorpus.ts` est retiré. |
-| Identités et rapprochements | `identitesLocuteurs.ts`, `rapprochementsLocuteurs.ts`, `contratsLocuteurs.ts`, `correctionsLocuteurs.ts` dans `src/shared/corpus/`. | Ponts temporaires vers les propriétaires 9 ; les anciennes chaînes de refus restent interprétées sans inventer leur contexte manquant. |
-| Cas, attributs et analyses | Lecteurs `src/shared/natif/lectureCas.ts`, projections de cas, observations, Synthèse et Lexico. | Adaptateurs `lectureCasFormat9.ts`, `casFormat9.ts` et `observationsAttributsFormat9.ts` à retirer après migration des propriétaires. |
-| Notes et variables | Noyaux `notes.ts`, `variables.ts`, `lectureVariables.ts`, `valeursVariables.ts` et validations des commandes. | Ponts de notes et variables 9, instantanés et propriétaires historiques encore présents ; ne pas confondre contrats cibles et fichiers déjà convertis. |
-| Table et écritures de valeurs | `CibleValeur` désigne l’entretien ou `{ type: 'participation', participationId }` ; `ItemLotValeur` apporte l’entretien. Matrice, navigation, CSV, store, IPC et chemins GitLab/WebDAV adaptés. | Aucun id créé par consultation ; une ligne sans id n’est pas éditable. Écriture d’un lot en une fois par entretien ; les autres entretiens peuvent réussir indépendamment. |
-| Éditeur et journal | `src/shared/entretien/participations.ts`, `journal.ts`, `useValeursEntretien.ts`, `useLocuteursEntretien.ts` et panneaux d’entretien. | Valeurs, noms locaux, rôles, pseudos, couleurs et suppressions ciblés par ids existants. Inverses de valeurs et noms contextualisés ; notes du journal encore liées au stockage 9. |
-| Saisies différées | Attente des réponses de modalités avant sauvegarde ; invalidation lors de changement de session, perte de droits ou saisie plus récente. | Une réponse tardive ne doit pas modifier un nouvel entretien, même si son id local est identique. |
-| Exemple annoté | Neuf identités distinctes et préparation native privée, sans changer les ids et index des participations. | Sources et installation actuelles en 9 ; convertir ensemble modèles, constructions vierges/SRT et parcours d’installation/réinitialisation. |
+| Types et validation | `src/shared/format.ts`, `locuteurs.ts`, `natif/validation.ts`, `validationCommune.ts`. | `FORMAT_VERSION = 10`, un seul modèle ; `natif/format.ts` supprimé. Champs anciens ou mélangés refusés. |
+| Ouverture et persistance | `ouvertureFichier.ts`, `versionsNatives.ts`, `corpusStore.ts`. | Formats natifs 1–9 refusés sans repli V1 ni écriture ; plus de migration audio/PNG ou de complétion d’ids à la consultation. |
+| Transactions et reprise | `transactionsFichiers.ts`, `gitlab/suiviMigration.ts`, journaux de publication et de thématiques GitLab/WebDAV. | Validation des documents capturés, indépendamment du numéro de l’enveloppe ; moteur natif normal, sans mode privé parallèle. |
+| Import V1 | `corpus/importIdentitesV1.ts`, `natif/importV1.ts`, préparations du store et chemins local/GitLab. | Sortie directement native ; une identité distincte par participation, ids fournis conservés et ids absents attribués avant persistance. |
+| Préparations | `src/main/preparationsNatives.ts`, `modeleExempleNatif.ts`. | Création utilisée par le store et validation des modèles livrés avant installation. |
+| Répertoire | `src/shared/corpus/repertoireLocuteurs.ts`. | Projection calculée ; l’ancien `locuteursCorpus.ts` est retiré. |
+| Identités et rapprochements | `identitesLocuteurs.ts`, `rapprochementsLocuteurs.ts`, `contratsLocuteurs.ts`, `correctionsLocuteurs.ts`. | Identités et participations natives ; refus structurés avec contexte, jamais anciennes chaînes réinterprétées. |
+| Cas, attributs et analyses | `src/shared/natif/lectureCas.ts`, projections, observations, Synthèse et Lexico. | Règles en `locuteur/locuteurs`, valeurs locales en portée `participation` ; adaptateurs 9 supprimés. |
+| Notes et variables | Noyaux, sessions, brouillons, commandes, exports et instantanés d’annulation. | Liens `participationIds` du même entretien, sans traduction de stockage ni déplacement des valeurs locales. |
+| Table et écritures de valeurs | Matrice, navigation, CSV, store, IPC et chemins GitLab/WebDAV. | Références `{ entretienId, participationId }` ; documents natifs invalides refusés. Lot sans modification partielle dans un entretien. |
+| Éditeur et saisies différées | `entretien/participations.ts`, journaux, composables et panneaux. | Index pour le texte, ids pour les commandes ; attente des modalités avant fermeture et invalidation des réponses tardives. |
+| Exemples | Modèle annoté livré, créations vierges/SRT, installation et remise à zéro. | Format 10, neuf identités distinctes sans changement des ids locaux ; copie incompatible ou transaction active jamais écrasée. |
 
 Les nouvelles commandes n’utilisent pas les index comme ids de participation.
 L’index reste nécessaire à la résolution des paragraphes, à l’attribution de parole
@@ -208,7 +212,8 @@ préfixes historiques, ne sont pas régénérés.
 
 - Modèle, versions et reprise : `formatNatifLocuteurs.test.ts`,
   `versionsNatives.test.ts`, `transactionsFichiersVersions.test.ts`,
-  `transactionsNatives.test.ts`, `gitlab/suiviMigrationVersions.test.ts`.
+  `transactionsNatives.test.ts`, `gitlab/suiviMigrationVersions.test.ts`,
+  `refusJournauxFormatsNatifs.test.ts` et refus sans réécriture dans `corpusStore.test.ts`.
 - Import et exemple : `importIdentitesV1.test.ts`, `importV1Natif.test.ts`,
   `migrationV1-identites.test.ts`, `modeleExempleNatif.test.ts` et tests existants
   du corpus annoté, des imports et des exemples.
@@ -217,20 +222,27 @@ préfixes historiques, ne sont pas régénérés.
   `correctionsLocuteursNatives.test.ts`, `notesParticipations.test.ts`,
   `variablesParticipations.test.ts`, `ecrituresVariablesNatives.test.ts`.
 - Lectures et analyses : `casLecturesNatives.test.ts`, `casAttributsNatifs.test.ts`,
-  `lectureCasFormat9.test.ts`, tests natifs et renderer de Synthèse/Lexico.
+  tests natifs et renderer de Synthèse/Lexico ; tests d’adaptateurs 9 retirés.
 - Écritures locales et éditeur : `variablesStoreNatif.test.ts`,
   `tableParticipationsStore.test.ts`, `valeursEntretienParticipations.test.ts`,
-  `journalParticipations.test.ts`, `gestesParticipationsEntretien.test.ts` et
-  renforcement des transactions simulées GitLab/WebDAV.
+  `journalParticipations.test.ts`, `gestesParticipationsEntretien.test.ts`,
+  `notesEntretienParticipations.test.ts`, `journalNotes.test.ts` et
+  renforcement des transactions simulées GitLab/WebDAV. `journalCorpus.test.ts`
+  contrôle les instantanés natifs et le refus de restauration d’un lien disparu.
 - Electron : `corrections-locuteurs.e2e.ts`, `notes-participations.e2e.ts`,
   `variables-definitions.e2e.ts`, `table-participations.e2e.ts`,
   `valeurs-participations.e2e.ts`, plus les parcours existants de données,
   journal, locuteurs, analyses, exemples et exports déjà qualifiés.
 
-### Prochaine frontière
+### Suite et limites
 
-Finir les modèles et propriétaires encore historiques, puis basculer ensemble
-lecture, écriture, import, reprise et exemples vers 10. Retirer alors tous les
-ponts temporaires 9 et appliquer le refus explicite des formats V2 de développement
-non pris en charge. Le lot B et l’ouverture des corrections distantes ne sont pas
-activés par cette préparation.
+La bascule et le retrait des adaptateurs 9 sont effectués. Les contrôles des anciens
+noms dans les validateurs sont des refus, pas des chemins de compatibilité.
+Le panneau historique Personnes et ses canaux encore appelés transportent le modèle
+natif. Leur remplacement, les nouvelles règles de nommage et la qualification du
+lot B restent distincts. Les corrections distantes ne sont pas activées.
+
+La suite locale/simulée passe sur 280 fichiers (4 078 tests), ainsi que les périmètres
+réels GitLab et Nextcloud ciblés. Le bilan du plan précise les commandes couvertes,
+les tests sautés et les limites Electron : deux accès d’export déjà absents du commit
+initial, en plus des deux défauts de présentation antérieurement documentés.

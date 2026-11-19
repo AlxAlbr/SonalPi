@@ -79,7 +79,7 @@ function modaliteCochee(variableId: string, modaliteId: string): boolean {
 function modifierModalite(variableId: string, modaliteId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
-  const courant = filtreVariable(variableId) ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
+  const courant = filtreVariable(variableId) ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   const ids = [...courant.modaliteIds]
   const index = ids.indexOf(modaliteId)
   if (index >= 0) ids.splice(index, 1)
@@ -92,7 +92,7 @@ function modifierModalite(variableId: string, modaliteId: string) {
 function modifierNonRenseigne(variableId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
-  const courant = filtreVariable(variableId) ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
+  const courant = filtreVariable(variableId) ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   filtresLexico.value = {
     ...filtresLexico.value,
     variables: { ...filtresLexico.value.variables, [variableId]: { ...courant, nonRenseigne: !courant.nonRenseigne } },
@@ -194,7 +194,7 @@ function basculerEnqueteurs() {
       </p>
       <p v-if="!variables.length" class="vide">Aucune variable dans ce corpus.</p>
       <article v-for="variable in variables" :key="variable.id" class="groupe-variable">
-        <header><strong>{{ variable.lib }}</strong><small>{{ variable.portee === 'locuteur' ? 'Paroles du locuteur' : 'Entretien entier' }}</small><button v-if="filtreVariable(variable.id)" @click="retirerVariable(variable.id)">Retirer ce filtre</button></header>
+        <header><strong>{{ variable.lib }}</strong><small>{{ variable.portee === 'participation' ? 'Paroles du locuteur' : 'Entretien entier' }}</small><button v-if="filtreVariable(variable.id)" @click="retirerVariable(variable.id)">Retirer ce filtre</button></header>
         <label v-for="modalite in variable.modalites" :key="modalite.id" class="choix"><input type="checkbox" :checked="modaliteCochee(variable.id, modalite.id)" @change="modifierModalite(variable.id, modalite.id)"> {{ modalite.lib }}</label>
         <label class="choix"><input type="checkbox" :checked="filtreVariable(variable.id)?.nonRenseigne ?? false" @change="modifierNonRenseigne(variable.id)"> Non renseigné</label>
       </article>

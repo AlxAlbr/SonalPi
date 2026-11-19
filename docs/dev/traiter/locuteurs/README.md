@@ -1,69 +1,74 @@
 # Locuteurs — vue d’ensemble
 
-Un locuteur appartient à un entretien. Il porte les informations locales d’un
-participant et reçoit les tours de parole de la transcription. Une personne est
-une identité transverse facultative, définie au corpus, qui rapproche des
-locuteurs de plusieurs entretiens sans absorber leurs données.
+Le modèle natif distingue l’identité commune du corpus (`Locuteur`) et ses données
+locales dans un entretien (`ParticipationLocuteur`). Le répertoire affiché est une
+projection calculée de ces objets, pas une troisième identité persistée.
 
 ## Trois identifiants, trois usages
 
 | Identifiant | Portée | Usage |
 |---|---|---|
-| `Locuteur.index` | Un entretien | Référence numérique `loc` des paragraphes et cible des valeurs de locuteur. |
-| `Locuteur.id` | Identité stable du locuteur | Liaisons de notes, rapprochements et réconciliation des versions. |
-| `Personne.id` | Corpus | Référence `Locuteur.personneRef` vers une fiche transverse. |
+| `ParticipationLocuteur.index` | Un entretien | Référence numérique `loc` des paragraphes. |
+| `ParticipationLocuteur.id` | Un entretien | Notes et commandes avec `{ entretienId, participationId }`. |
+| `Locuteur.id` | Corpus | Association par `ParticipationLocuteur.locuteurRef`. |
 
-Un index identique dans deux entretiens ne désigne pas la même personne. Un nom
-identique non plus. Les homonymes restent possibles ; un rapprochement ne doit
-jamais se déduire de la seule égalité des libellés.
+Les ids natifs sont obligatoires et stables. Les importateurs peuvent recevoir des
+participations sans id (`ParticipationImport`) ; ils les complètent avant toute
+persistance. Une consultation ne fabrique jamais d’id.
 
-Les nouveaux locuteurs reçoivent un identifiant opaque. Les anciens fichiers
-peuvent ne pas en avoir : les lectures complètent les identités en mémoire sans
-réécrire les fichiers pour une simple consultation.
+Un index identique dans deux entretiens ne désigne pas une même identité. Un nom
+identique non plus. À l’import V1, chaque participation reçoit sa propre identité
+corpus, même pour deux noms égaux ou deux libellés de rôle comme « Enquêteur ».
 
-## Ce qui appartient au locuteur
+## Propriétaires des données
 
-`Locuteur` conserve son nom local, son rôle d’interviewer, son pseudonyme et son
-éventuel état de refus importé, sa couleur, ses `valeursLoc` et son lien de
-personne. Les marqueurs `personneDeliee` et `rapprochementsRefuses` mémorisent les
-choix qui empêchent certaines propositions automatiques.
+`ParticipationLocuteur` conserve son nom local, son rôle, son pseudonyme et sa
+décision éventuelle, sa couleur, ses `valeursLoc` et son `locuteurRef`. Une absence
+d’association explicite reste `null`. `associationRetiree` conserve un retrait
+volontaire ; `rapprochementsRefuses` contient des références structurées :
 
-`Personne`, au contraire, ne contient que `id` et `nom`. Relier deux locuteurs à
-une fiche ne synchronise ni leurs noms, ni leurs pseudonymes, ni leurs valeurs.
-Une reprise ponctuelle d’informations est un choix séparé du rapprochement.
+- `{ type: 'locuteur', locuteurId }` ;
+- `{ type: 'participation', entretienId, participationId }`.
 
-Les notes restent également dans leurs entretiens. La fiche Personne affiche
-celles qui visent ses locuteurs par `locuteurIds`, sans les déplacer ni les copier.
+`Locuteur` ne contient que `id` et `nom`. Relier deux participations ne synchronise
+ni leurs noms, ni leurs pseudonymes, ni leurs valeurs. Une reprise ponctuelle de
+données est un choix séparé du rapprochement.
 
-## Invariants
+Les notes restent dans leurs entretiens, avec des `participationIds` locaux.
+Les variables locales ont la portée `participation` et leurs valeurs restent dans
+`valeursLoc`, jamais dans le répertoire commun.
 
-1. Un tour de parole référence un index de locuteur du même entretien.
-2. Renommer une entrée ne réécrit pas les paragraphes qui la référencent.
-3. Une personne ne peut pas représenter deux locuteurs du même entretien dans
-   les commandes de liaison ou de regroupement.
-4. Délier une personne ne supprime ni le locuteur ni ses données.
-5. Les pseudonymes de locuteur sont indépendants des règles textuelles.
-6. Les suggestions de rapprochement sont recalculées ; seuls les liens et les
-   refus décidés sont persistés.
+## Invariants et compatibilité
+
+1. Les paragraphes référencent des index, les commandes des ids stables.
+2. Une identité ne représente pas deux participations du même entretien.
+3. Un regroupement ou une séparation ne déplace ni les notes ni les valeurs.
+4. Les pseudonymes de participation restent indépendants des règles textuelles.
+5. Seuls les liens et les refus décidés sont persistés ; les suggestions sont calculées.
+6. Seul le format natif 10 est accepté. Les formats V2 de développement 1 à 9 sont
+   refusés sans conversion ni réécriture ; les imports de fichiers V1 restent disponibles.
 
 ## Carte du code
 
 | Responsabilité | Emplacement |
 |---|---|
-| Types | `src/shared/format.ts` |
-| CRUD local, libellés et couleurs | `src/shared/entretien/locuteurs.ts` |
-| Attribution de texte | `src/renderer/editor/attribution.ts` |
-| Gouttière | `src/renderer/editor/locuteursGutter.ts` |
-| Gestes dans l’entretien | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
-| Inventaire et commandes de personnes | `src/shared/corpus/personnes.ts` |
-| Suggestions, refus et reprise de données | `src/shared/corpus/rapprochementsPersonnes.ts` |
+| Types et validation | `src/shared/format.ts`, `src/shared/locuteurs.ts`, `src/shared/natif/validation.ts` |
+| Opérations d’identité | `src/shared/corpus/identitesLocuteurs.ts` |
+| Inventaire et contrats | `src/shared/corpus/personnes.ts`, `contratsLocuteurs.ts` |
+| Suggestions et reprise | `src/shared/corpus/rapprochementsLocuteurs.ts` |
+| Répertoire calculé | `src/shared/corpus/repertoireLocuteurs.ts` |
+| Attribution et gouttière | `src/renderer/editor/attribution.ts`, `locuteursGutter.ts` |
+| Gestes d’entretien | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
 | Stockage et dispatch | `src/main/corpusStore.ts`, `src/main/index.ts` |
+
+Les noms de certains composants et canaux IPC du panneau historique Personnes
+subsistent pour ses parcours actuels. Ils transportent les types natifs, sans
+adaptation du stockage 9. Leur remplacement visuel est un chantier distinct.
 
 ## Parcours de lecture
 
 - [entretien.md](entretien.md) : attribution, suppression, rôle et pseudonyme.
-- [personnes.md](personnes.md) : répertoire, rapprochements, regroupements,
-  séparations et disponibilité distante.
-- [variables.md](../variables.md) : valeurs portées par chaque locuteur.
-- [Notes](../notes/README.md) : liens vers les locuteurs et agrégation.
-- [Modèle objet](../../modele-objet.md#locuteurs-et-personnes) : vue d’ensemble du format.
+- [personnes.md](personnes.md) : parcours historiques de correction et droits distants.
+- [variables.md](../variables.md) : valeurs portées par chaque participation.
+- [Notes](../notes/README.md) : liens locaux et agrégation.
+- [Modèle objet](../../modele-objet.md#locuteurs-et-participations) : relations du format.

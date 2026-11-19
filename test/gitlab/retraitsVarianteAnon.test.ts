@@ -28,7 +28,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     expect(b.cp().reglesAnon.personne.pseudos).toEqual(['Rebecca']); expect(b.cp().retraitVarianteAnon).toBeUndefined()
     for (const s of b.sources.slice(0, 2)) {
       const attendu = structuredClone(s.data)
-      for (const a of attendu.annotations) if (a.type === 'anon' && a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
+      for (const a of attendu.annotations) if (a.type === 'anon' && a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
       attendu.lastModified = b.lire(s.id).lastModified; expect(b.lire(s.id)).toEqual(attendu)
     }
     expect(b.lire('e3')).toEqual(b.sources[2].data); expect(commits(b).flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
@@ -41,7 +41,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     expect(commits(b)).toHaveLength(4); expect(commits(b).flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
   })
   test('variante inutilisée : deux commits corpus, aucun entretien touché', async () => {
-    const b = banc(); for (const id of ['e1', 'e2']) b.changer(id, (e) => { for (const a of e.annotations) if (a.regle === 'personne') a.pseudo = 'Rebecca' })
+    const b = banc(); for (const id of ['e1', 'e2']) b.changer(id, (e) => { for (const a of e.annotations) if (a.regle === "personne") a.pseudo = 'Rebecca' })
     const avant = b.lire('e1'); expect(await appliquer(b)).toMatchObject({ statut: 'termine', entretiens: 0, annotations: 0 })
     expect(commits(b)).toHaveLength(2); expect(b.lire('e1')).toEqual(avant)
   })
@@ -86,9 +86,9 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     if (bail.ok) await bob.liberer(bail.droit); expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 })
   })
   test('cible changée différée, réexamen préserve la modification indépendante', async () => {
-    const b = banc(), p = await b.preparer(); b.changer('e2', (e) => { e.locuteurs[0].pseudo = 'Plus récent' })
+    const b = banc(), p = await b.preparer(); b.changer('e2', (e) => { e.participations[0].pseudo = 'Plus récent' })
     expect(await b.service.appliquer(p.token, true)).toMatchObject({ statut: 'partiel', entretiens: 1 })
-    expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 }); expect(b.lire('e2').locuteurs[0].pseudo).toBe('Plus récent')
+    expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 }); expect(b.lire('e2').participations[0].pseudo).toBe('Plus récent')
   })
   test('nouveau choix à la fin, nouvel accord sans rejouer les acquis', async () => {
     const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/e2.json'))) b.changer('e3', (e) => { e.annotations[0].pseudo = 'Claire' }) }
@@ -177,9 +177,9 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
   test('échec miroir : acquis durable, source actuelle installée, aucun candidat historique', async () => {
     const b = banc(), installer = vi.spyOn(b.store, 'installerEntretienDistant').mockImplementation(() => { throw new Error('Disque') })
     const r = await appliquer(b); expect(r).toMatchObject({ statut: 'partiel', entretiens: 1, miroirIncomplet: true })
-    b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Actuel' }); installer.mockRestore()
+    b.changer('e1', (e) => { e.participations[0].pseudo = 'Actuel' }); installer.mockRestore()
     const s = new RetraitsVarianteAnonGitLab(b.options, () => []); await s.relireSuivi(r.operationId)
-    expect(JSON.parse(readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8')).locuteurs[0].pseudo).toBe('Actuel'); expect(await reprendre(b, s)).toMatchObject({ statut: 'termine' })
+    expect(JSON.parse(readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8')).participations[0].pseudo).toBe('Actuel'); expect(await reprendre(b, s)).toMatchObject({ statut: 'termine' })
   })
   test('finalisation acquise, miroir incomplet persistant : uniquement relecture', async () => {
     const b = banc(), installer = b.store.appliquerTransactionFichiers.bind(b.store)
@@ -200,9 +200,9 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     writeFileSync(fichier(b), JSON.stringify(j)); expect(() => new RetraitsVarianteAnonGitLab(b.options, () => [])).toThrow('invalide')
   })
   test('course sur acquis à la finalisation : garde rejette, reprise garde la version indépendante actuelle', async () => {
-    const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/corpus.crp') && JSON.parse(a.content!).reglesAnon.personne.pseudos.length === 1)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' }) }
+    const b = banc(); b.depot.avantCommit = (actions) => { if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/corpus.crp') && JSON.parse(a.content!).reglesAnon.personne.pseudos.length === 1)) b.changer('e1', (e) => { e.participations[0].pseudo = 'Concurrent' }) }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', varianteRetiree: false, annotations: 6 }); b.depot.avantCommit = () => {}
-    expect(await reprendre(b)).toMatchObject({ statut: 'termine' }); expect(b.lire('e1').locuteurs[0].pseudo).toBe('Concurrent')
+    expect(await reprendre(b)).toMatchObject({ statut: 'termine' }); expect(b.lire('e1').participations[0].pseudo).toBe('Concurrent')
   })
   test('249 cibles finales refusées avant protection, pas un plafond de membres', async () => {
     const b = banc(249)

@@ -80,17 +80,17 @@ function entreeTeste(): EntreeExport {
       { pos: 34, t: 25 },
       { pos: 54, t: 30 },
     ],
-    locuteurs: [
-      {
+    participations: [
+      { id: "loc-1",
         index: 1,
         nom: 'Karine',
         interviewer: false,
         pseudo: 'Claire',
         pseudoEtat: 'confirme',
         valeursLoc: { v2: 'v2m1' },
-        personneRef: null,
+        locuteurRef: null,
       },
-      { index: 2, nom: 'Marc', interviewer: true, valeursLoc: { v2: 'v2m2' }, personneRef: null },
+      { id: "loc-2", index: 2, nom: 'Marc', interviewer: true, valeursLoc: { v2: 'v2m2' }, locuteurRef: null },
     ],
     codebook: [
       {
@@ -117,7 +117,7 @@ function entreeTeste(): EntreeExport {
       {
         id: 'v2',
         lib: 'sexe',
-        portee: 'locuteur',
+        portee: "participation",
         priv: false,
         ordre: 1,
         vExport: 2,
@@ -190,7 +190,7 @@ describe('confidentialité des variables selon le format', () => {
     const entree = entreeTeste()
     entree.variables.find((variable) => variable.id === 'v3')!.portee = portee
     if (portee === 'entretien') entree.meta.valeursGen.v3 = 'v3m1'
-    else entree.locuteurs[0].valeursLoc.v3 = 'v3m1'
+    else entree.participations[0].valeursLoc.v3 = 'v3m1'
     const avant = JSON.stringify(entree)
     const complet = exporterSonal(entree)
     expect(complet).toContain('Confidentiel')
@@ -306,7 +306,7 @@ describe('mise en page par bloc (retours à la ligne de l éditeur)', () => {
       },
       annotations: [],
       ancres: [{ pos: 1, t: 1 }, { pos: 14, t: 3 }],
-      locuteurs: [{ index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null }],
+      participations: [{ id: "loc-1", index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, locuteurRef: null }],
     }
   }
 
@@ -449,7 +449,7 @@ describe('variables publiques', () => {
       [1, 'Karine'],
       [2, 'Marc'],
     ])
-    const out = texteVariablesPubliques(e.variables, {}, e.locuteurs, noms)
+    const out = texteVariablesPubliques(e.variables, {}, e.participations, noms)
     expect(out).toContain('Lieu : ---')
     expect(out).toContain('sexe : Karine : F, Marc : H')
     expect(out).not.toContain('Confidentiel')
@@ -472,9 +472,9 @@ describe('sonalPseudonymise', () => {
     const doc = new DOMParser().parseFromString(out, 'text/html')
     const r = importerSonal(doc)
     // Le réimport voit les pseudos à la place des vrais noms.
-    expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Claire')
-    expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Karine')
-    expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Marc')
+    expect(r.payload.participations.map((l) => l.nom)).toContain('Claire')
+    expect(r.payload.participations.map((l) => l.nom)).not.toContain('Karine')
+    expect(r.payload.participations.map((l) => l.nom)).toContain('Marc')
   })
 })
 
@@ -498,7 +498,7 @@ function entreeHostile(): EntreeExport {
     },
     annotations: [],
     ancres: [{ pos: 1, t: 59.9999 }, { pos: 1 + TEXTE_HOSTILE.length, t: 61 }],
-    locuteurs: [{ index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, locuteurRef: null }],
   }
 }
 
@@ -544,7 +544,7 @@ describe('temps des cues (SRT/VTT)', () => {
 describe('échappement WebVTT', () => {
   test('balises et séparateurs de cue neutralisés dans le texte et le nom', () => {
     const base = entreeHostile()
-    base.locuteurs = [{ index: 1, nom: 'Karine<1>', interviewer: false, valeursLoc: {}, personneRef: null }]
+    base.participations = [{ id: "loc-1", index: 1, nom: 'Karine<1>', interviewer: false, valeursLoc: {}, locuteurRef: null }]
     const out = genererVtt(contexte(base), { ...OPTIONS_TOUT, loc: true })
     expect(out).toContain('&lt;b&gt;balise&lt;/b&gt;')
     expect(out).toContain('--&gt;')

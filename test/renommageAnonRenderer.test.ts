@@ -35,7 +35,7 @@ test('saisie transmise au bilan ; un slash ne peut pas devenir un pseudonyme lit
   const b = await monter(true, 'local', 'Nouvelle')
   expect(document.querySelector('textarea')!.value).toBe('Nouvelle')
   bouton('Préparer l’inventaire').click(); await rendu()
-  expect(b.api.apercuRenommageAnon).toHaveBeenCalledExactlyOnceWith({ regleId: 'personne', ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' })
+  expect(b.api.apercuRenommageAnon).toHaveBeenCalledExactlyOnceWith({ regleId: "personne", ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' })
   nouveau('Claire / Rebecca'); await rendu(); bouton('Préparer l’inventaire').click(); await rendu()
   expect(b.api.apercuRenommageAnon).toHaveBeenCalledTimes(1)
   expect(document.querySelector('[role=alert]')!.textContent).toContain('champ Pseudonymes')
@@ -54,7 +54,7 @@ test('les refus IPC restent lisibles sans le préfixe technique Electron', async
 })
 test('inventaire explicite, seules les cibles liées ; confirmation obligatoire et double envoi refusé', async () => {
   const b = await monter(); await preparer()
-  expect(b.api.apercuRenommageAnon).toHaveBeenCalledWith({ regleId: 'personne', ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' })
+  expect(b.api.apercuRenommageAnon).toHaveBeenCalledWith({ regleId: "personne", ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' })
   expect(document.body.textContent).toContain('4 annotation(s) à renommer, dont 2 masquée(s)')
   expect(document.body.textContent).toContain('aucune fusion')
   expect(bouton('Confirmer le renommage global').disabled).toBe(true)
@@ -119,7 +119,7 @@ test('suivi indisponible : aucun aperçu ni reprise avant une nouvelle lecture',
 test('succès partiel : pas de fermeture ni annonce de fin ; reprise fraîche avec nouveau consentement', async () => {
   const b = await monter(); await preparer(); await confirmer()
   b.api.renommerVarianteAnon.mockResolvedValue({ annotations: 2, incluses: 1, entretiens: 1, definitionModifiee: true, statut: 'partiel', operationId: 'lot' })
-  b.api.suiviRenommageAnon.mockResolvedValue({ operationId: 'lot', demande: { regleId: 'personne', ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' },
+  b.api.suiviRenommageAnon.mockResolvedValue({ operationId: 'lot', demande: { regleId: "personne", ancienPseudo: 'Claire', nouveauPseudo: 'Nouvelle' },
     bilan: { annotations: 2, incluses: 1, entretiens: 1, definitionModifiee: true, statut: 'partiel' }, indeterminee: false,
     cibles: [{ id: 'e2', etat: 'a-faire', motif: 'Tenue par un autre poste' }] })
   bouton('Confirmer le renommage global').click(); await rendu()

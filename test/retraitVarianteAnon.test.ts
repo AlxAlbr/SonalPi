@@ -11,9 +11,9 @@ describe('retrait de variante : remplacement lié et explicite', () => {
     const attendu = structuredClone(f.corpus); attendu.reglesAnon.personne.pseudos = ['Rebecca']; expect(r.corpusApres).toEqual(attendu)
     for (const e of r.entretiens) {
       const d = structuredClone(e.avant)
-      for (const a of d.annotations) if (a.type === 'anon' && a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
+      for (const a of d.annotations) if (a.type === 'anon' && a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
       expect(e.apres).toEqual(d); expect(e.apres.corpsTexte).toEqual(e.avant.corpsTexte)
-      expect(e.apres.locuteurs).toEqual(e.avant.locuteurs); expect(e.apres.definitionsAnonLocales).toEqual(e.avant.definitionsAnonLocales)
+      expect(e.apres.participations).toEqual(e.avant.participations); expect(e.apres.definitionsAnonLocales).toEqual(e.avant.definitionsAnonLocales)
     }
     expect(r.entretiens.map((e) => e.id)).toEqual(['e1', 'e2']); expect(f).toEqual(avant)
     expect(r.inventaire.entretiens[0].usages.find((u) => u.annotationId === 'a5')).toMatchObject({ etat: 'exception', incluse: true, pseudo: 'Claire' })
@@ -24,7 +24,7 @@ describe('retrait de variante : remplacement lié et explicite', () => {
     expect(r.entretiens[0].apres.annotations.find((a) => a.id === 'a2')).toEqual(f.sources[0].data.annotations.find((a) => a.id === 'a2'))
   })
   test('variante sans usage : définition seule, aucun placement ni création de mémoire', () => {
-    const f = fixtureRetraitVarianteAnon(); for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === 'personne') a.pseudo = 'Rebecca'
+    const f = fixtureRetraitVarianteAnon(); for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === "personne") a.pseudo = 'Rebecca'
     const r = preparerRetraitVarianteAnon(f.corpus, f.sources, f.demande)
     expect(r.entretiens).toEqual([]); expect(r.bilan.annotations).toBe(0); expect(r.corpusApres.membership).toEqual(f.corpus.membership)
   })
@@ -53,7 +53,7 @@ describe('retrait de variante : remplacement lié et explicite', () => {
   test('NFC et casse des choix historiques accentués, sans normaliser les données indépendantes', () => {
     const f = fixtureRetraitVarianteAnon(); f.corpus.reglesAnon.personne.pseudos[0] = 'Amélie'
     f.demande.regleAvant = structuredClone(f.corpus.reglesAnon.personne); f.demande.pseudoRetire = 'Amélie'
-    for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'AME\u0301LIE'
+    for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'AME\u0301LIE'
     const r = preparerRetraitVarianteAnon(f.corpus, f.sources, f.demande)
     expect(r.bilan.annotations).toBe(6); expect(r.entretiens[0].apres.annotations[0].pseudo).toBe('Rebecca')
     expect(r.entretiens[0].apres.annotations.find((a) => a.id === 'a3')!.pseudo).toBe('Claire')
@@ -73,8 +73,8 @@ describe('retrait de variante : remplacement lié et explicite', () => {
     if (cause === 'unique') f.corpus.reglesAnon.personne.pseudos = ['Claire']
     if (cause === 'alias') f.corpus.reglesAnon.personne.entite.push('Autre')
     if (cause === 'format') f.corpus.formatVersion--
-    if (cause === 'suppression') f.corpus.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: 'personne' }
-    if (cause === 'dissociation') f.corpus.dissociationAnon = { operationId: 'dissociation-fixture', regleId: 'personne' }
+    if (cause === 'suppression') f.corpus.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: "personne" }
+    if (cause === 'dissociation') f.corpus.dissociationAnon = { operationId: 'dissociation-fixture', regleId: "personne" }
     expect(() => preparerRetraitVarianteAnon(f.corpus, f.sources, f.demande)).toThrow()
   })
   test.each(['absence', 'ancien', 'pseudo-invalide', 'plage', 'id-vide', 'doublon', 'non-texte', 'recouvrement', 'memoire', 'reference'])('source invalide bloquée : %s', (cause) => {

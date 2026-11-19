@@ -5,16 +5,16 @@ import StarterKit from '@tiptap/starter-kit'
 import { ref } from 'vue'
 import { BlocAttributs } from '../src/renderer/editor/schema'
 import { useLocuteursEntretien } from '../src/renderer/composables/entretien/useLocuteursEntretien'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
 const editeurs: Editor[] = []
 afterEach(() => { for (const ed of editeurs.splice(0)) ed.destroy() })
 const reference = { entretienId: 'e1', participationId: '7' }
 
 function banc() {
-  const locuteurs = ref<Locuteur[]>([
-    { id: '7', index: 11, nom: 'Question', personneRef: 'identite-a', valeursLoc: { age: 'a' } },
-    { id: 'historique', index: 7, nom: 'Réponse', personneRef: 'identite-b', valeursLoc: {} },
+  const locuteurs = ref<ParticipationLocuteur[]>([
+    { id: '7', index: 11, nom: 'Question', locuteurRef: 'identite-a', valeursLoc: { age: 'a' } },
+    { id: 'historique', index: 7, nom: 'Réponse', locuteurRef: 'identite-b', valeursLoc: {} },
   ])
   const ouvertId = ref<string | null>('e1'), lectureSeule = ref(false)
   const editor = new Editor({ extensions: [StarterKit, BlocAttributs], content: '<p data-loc="11">Question.</p><p data-loc="7">Réponse.</p>' })
@@ -101,7 +101,7 @@ describe('gestes locaux sur les participations de l’entretien', () => {
 
   test('la suppression d’une participation silencieuse ne renumérote pas celles qui restent', () => {
     const b = banc()
-    b.locuteurs.value.push({ id: 'silencieuse', index: 20, nom: 'Question', personneRef: null, valeursLoc: {} })
+    b.locuteurs.value.push({ id: 'silencieuse', index: 20, nom: 'Question', locuteurRef: null, valeursLoc: {} })
     const avant = b.editor.getJSON()
     b.demanderSuppressionLocuteur({ entretienId: 'e1', participationId: 'silencieuse' })
     expect(b.locuteurs.value.map((p) => [p.id, p.index])).toEqual([['7', 11], ['historique', 7]])

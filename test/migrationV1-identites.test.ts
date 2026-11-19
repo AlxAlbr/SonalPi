@@ -44,9 +44,9 @@ test('la migration locale des fichiers V1 conserve les données et crée une ide
     job.promouvoir()
     const store = new CorpusStore(dossier, true)
     const corpus = store.ouvrir()
-    const nombre = imports.reduce((total, payload) => total + payload.locuteurs.length, 0)
+    const nombre = imports.reduce((total, payload) => total + payload.participations.length, 0)
     expect(nombre).toBeGreaterThan(0)
-    expect(Object.keys(corpus.personnes)).toHaveLength(nombre)
+    expect(Object.keys(corpus.locuteurs)).toHaveLength(nombre)
     const identites = new Set<string>()
     for (const [index, id] of corpus.ordreEntretiens!.entries()) {
       const lecture = store.lireEntretien(id)
@@ -60,14 +60,14 @@ test('la migration locale des fichiers V1 conserve les données et crée une ide
       expect(entretien.legacy).toEqual(payload.legacy)
       expect(entretien.meta.valeursGen).toEqual(payload.meta.valeursGen)
       expect(entretien.meta.sourceV1).toEqual({ rtrPath: noms[index] })
-      const sansAssociation = ({ id: _id, personneRef: _ref, ...local }: PayloadEntretien['locuteurs'][number]) => local
-      expect(entretien.locuteurs.map(sansAssociation)).toEqual(payload.locuteurs.map(sansAssociation))
-      for (const participation of entretien.locuteurs) {
+      const sansAssociation = ({ id: _id, locuteurRef: _ref, ...local }: PayloadEntretien['participations'][number]) => local
+      expect(entretien.participations.map(sansAssociation)).toEqual(payload.participations.map(sansAssociation))
+      for (const participation of entretien.participations) {
         expect(participation.id).toBeTruthy()
-        expect(participation.personneRef).toBeTruthy()
-        expect(identites.has(participation.personneRef!)).toBe(false)
-        identites.add(participation.personneRef!)
-        expect(corpus.personnes[participation.personneRef!]).toEqual({ id: participation.personneRef, nom: participation.nom })
+        expect(participation.locuteurRef).toBeTruthy()
+        expect(identites.has(participation.locuteurRef!)).toBe(false)
+        identites.add(participation.locuteurRef!)
+        expect(corpus.locuteurs[participation.locuteurRef!]).toEqual({ id: participation.locuteurRef, nom: participation.nom })
       }
     }
     job.marquerOuverte()

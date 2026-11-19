@@ -14,7 +14,7 @@ import { lireReglagesLexicoV1 } from './migrationLexicoV1'
 import { ConservationMigrationLocale } from './conservationMigrationLocale'
 import { mapperDefinitions, mapperEntretiensV1, mapperParamsAnon, mapperTabAnon, type ApercuCrp } from '../shared/corpus/migrationCrp'
 import { MIGRATION_ANNULEE, type DemandePreparationMigration, type EntretienSourceMigration } from '../shared/migrationV1'
-import type { PayloadEntretien, RegleAnon } from '../shared/format'
+import type { PayloadImportEntretien, RegleAnon } from '../shared/format'
 
 interface Source {
   acces: string
@@ -260,7 +260,7 @@ export class MigrationV1 {
     return { nom: basename(s.chemin), contenu: decoderCrp(contenu) }
   }
 
-  ajouterEntretien(index: number, payload: PayloadEntretien, regles: RegleAnon[]): void {
+  ajouterEntretien(index: number, payload: PayloadImportEntretien, regles: RegleAnon[]): void {
     this.verifierPreparation(index)
     const e = this.entretiens[index]
     const meta = { ...payload.meta, audioRef: e.audioRef, sourceV1: { rtrPath: e.rtrPath } }

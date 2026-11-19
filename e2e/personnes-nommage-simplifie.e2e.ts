@@ -13,10 +13,10 @@ test('le nommage affiche les informations divergentes et reprend la source chois
       ] as const) {
         const { id } = await api.creerEntretienVide(titre)
         const { data } = await api.lireEntretien(id)
-        data.locuteurs = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', pseudo, interviewer, valeursLoc: {}, personneRef: null }]
+        data.participations = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, data)
-        if (!personneId) personneId = await api.personnesCommander({ type: 'creer', entretienId: id, locuteurId: `loc-${id}`, nom: 'Marie Dupont' })
-        else await api.personnesCommander({ type: 'lier', entretienId: id, locuteurId: `loc-${id}`, personneId })
+        if (!personneId) personneId = await api.personnesCommander({ type: 'creer', entretienId: id, participationId: `loc-${id}`, nom: 'Marie Dupont' })
+        else await api.personnesCommander({ type: 'lier', entretienId: id, participationId: `loc-${id}`, locuteurId: personneId })
       }
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -35,7 +35,7 @@ test('le nommage affiche les informations divergentes et reprend la source chois
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = vue.locuteurs.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
+    const cible = vue.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
     expect(cible.pseudo).toBe('Alice')
     expect(cible.pseudoEtat).toBe('confirme')
     expect(cible.interviewer).toBe(true)
@@ -50,7 +50,7 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
       for (const titre of ['Homonyme A', 'Homonyme B']) {
         const { id } = await api.creerEntretienVide(titre)
         const { data } = await api.lireEntretien(id)
-        data.locuteurs = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+        data.participations = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, data)
       }
     })
@@ -64,21 +64,21 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(avant.personnes).toHaveLength(0)
+    expect(avant.locuteurs).toHaveLength(0)
     await nom.fill('MARIE DUPONT')
     await nom.press('Tab')
     await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = apres.locuteurs.find((l: any) => l.nom === 'MARIE DUPONT')
+    const cible = apres.participations.find((l: any) => l.nom === 'MARIE DUPONT')
     expect(cible.rapprochementsRefuses).toHaveLength(2)
-    expect(apres.personnes).toHaveLength(1)
+    expect(apres.locuteurs).toHaveLength(1)
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
     await expect(dialogue).toHaveCount(0)
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const persiste = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(persiste.locuteurs.find((l: any) => l.locuteurId === cible.locuteurId).rapprochementsRefuses).toHaveLength(2)
+    expect(persiste.participations.find((l: any) => l.participationId === cible.participationId).rapprochementsRefuses).toHaveLength(2)
   } finally { await app.close() }
 })

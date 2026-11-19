@@ -43,7 +43,7 @@ async function monter(suiviInitial: SuiviOperationTheme | null) {
     reconcilierOperationTheme: vi.fn(async () => {
       suivi!.indeterminee = false
       return { statut: 'partielle', operationId: suivi!.operationId,
-        corpus: { formatVersion: FORMAT_VERSION, codebook, membership: {}, variables: {}, reglesAnon: {}, personnes: {} }, bilan: suivi!.bilan }
+        corpus: { formatVersion: FORMAT_VERSION, codebook, membership: {}, variables: {}, reglesAnon: {}, locuteurs: {} }, bilan: suivi!.bilan }
     }),
     abandonnerOperationTheme: vi.fn(async () => { suivi = null }),
   }

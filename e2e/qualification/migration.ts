@@ -48,9 +48,9 @@ export async function fixture(nombreEntretiens = 4) {
   execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=120', '-c:a', 'pcm_s16le', audio])
   execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=64x64:rate=10:duration=8', '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-an', video])
   const synthese = fixturePseudonymisation(), donnees = synthese.entretiens[0].data
-  donnees.locuteurs = [
-    { index: 1, nom: 'Voix synthétique', valeursLoc: {}, personneRef: null },
-    { index: 2, nom: 'Locuteur sans tour', valeursLoc: { v2: 'v2m1' }, personneRef: null },
+  donnees.participations = [
+    { id: "loc-1", index: 1, nom: 'Voix synthétique', valeursLoc: {}, locuteurRef: null },
+    { id: "loc-2", index: 2, nom: 'Locuteur sans tour', valeursLoc: { v2: 'v2m1' }, locuteurRef: null },
   ]
   ;(donnees.corpsTexte as { content: Array<{ attrs?: Record<string, unknown> }> }).content[0].attrs = { loc: 1 }
   donnees.ancres = [{ pos: 1, t: 0 }, { pos: 60, t: 8 }]
@@ -70,7 +70,7 @@ export async function fixture(nombreEntretiens = 4) {
     ],
     variables: [{ id: 'v1', lib: 'Contexte', portee: 'entretien', priv: false, ordre: 0, vExport: 1,
       modalites: [{ id: 'v1m1', lib: 'Synthétique', mExport: 1 }] },
-      { id: 'v2', lib: 'Variable locale', portee: 'locuteur', priv: false, ordre: 1, vExport: 2,
+      { id: 'v2', lib: 'Variable locale', portee: "participation", priv: false, ordre: 1, vExport: 2,
         modalites: [{ id: 'v2m1', lib: 'Sans prise de parole', mExport: 1 }] },
     ],
     meta: { valeursGen: { v1: 'v1m1' } }, legacy: { notes: 'Note synthétique conservée.', tabAnon: null },

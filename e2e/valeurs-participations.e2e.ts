@@ -13,21 +13,20 @@ test('saisir, annuler et fermer une saisie libre conserve les participations et 
   ecrireSeedDemo(racine)
   const lire = () => JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
   const data = lire()
-  data.formatVersion = 9
-  data.locuteurs[0] = { ...data.locuteurs[0], id: '7', index: 11, nom: 'Question', interviewer: true,
+  data.participations[0] = { ...data.participations[0], id: '7', index: 11, nom: 'Question', interviewer: true,
     pseudo: 'Q1', couleur: '#123456', valeursLoc: { locale: 'a' } }
-  data.locuteurs[1] = { ...data.locuteurs[1], id: 'import-historique', index: 7, nom: 'Réponse', valeursLoc: {} }
+  data.participations[1] = { ...data.participations[1], id: 'import-historique', index: 7, nom: 'Réponse', valeursLoc: {} }
   for (const bloc of (data.corpsTexte as JSONContent).content ?? []) {
     if (bloc.attrs?.loc === 1) bloc.attrs.loc = 11
     else if (bloc.attrs?.loc === 2) bloc.attrs.loc = 7
   }
   const date = new Date().toISOString()
   data.notes = [{ id: 'memo-local', categorieId: 'ncat_generale', titre: 'À garder', corps: 'Mémo local', date: null,
-    statut: 'prive', rang: 0, creeLe: date, modifieLe: date, locuteurIds: ['7'] }]
+    statut: 'prive', rang: 0, creeLe: date, modifieLe: date, participationIds: ['7'] }]
   writeFileSync(fichier, JSON.stringify(data))
   const cheminCorpus = join(racine, 'corpus.crp')
   const corpus = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
-  corpus.variables.locale = { id: 'locale', lib: 'Réponse locale', portee: 'locuteur', priv: false, ordre: 0, vExport: 1,
+  corpus.variables.locale = { id: 'locale', lib: 'Réponse locale', portee: "participation", priv: false, ordre: 0, vExport: 1,
     modalites: [{ id: 'a', lib: 'A', mExport: 1 }, { id: 'b', lib: 'B', mExport: 2 }] }
   writeFileSync(cheminCorpus, JSON.stringify(corpus))
 
@@ -56,8 +55,8 @@ test('saisir, annuler et fermer une saisie libre conserve les participations et 
     const definitions = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
     const modalite = definitions.variables.locale.modalites.find((m) => m.lib === 'Réponse libre')!
     expect(modalite).toBeDefined()
-    expect(apres.locuteurs).toEqual([
-      { ...data.locuteurs[0], valeursLoc: { locale: modalite.id } }, data.locuteurs[1],
+    expect(apres.participations).toEqual([
+      { ...data.participations[0], valeursLoc: { locale: modalite.id } }, data.participations[1],
     ])
     expect(apres.notes).toEqual(data.notes)
     expect(apres.corpsTexte).toEqual(data.corpsTexte)

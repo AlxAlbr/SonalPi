@@ -82,7 +82,7 @@ for (const natif of [false, true]) describe(`garde des nouveaux choix WebDAV —
     let a = d.annotations[0]
     if (cas === 'nouvelle') { a = { ...a, id: 'nouvelle' }; d.annotations.push(a) }
     if (cas === 'reactivee') { a = d.annotations.find((a) => a.id === 'a2')!; a.etat = 'anonymise' }
-    if (cas === 'rattachee') { a = d.annotations.find((a) => a.id === 'a3')!; a.regle = 'personne' }
+    if (cas === 'rattachee') { a = d.annotations.find((a) => a.id === 'a3')!; a.regle = "personne" }
     if (cas === 'modifiee') { a = d.annotations.find((a) => a.id === 'a1')!; a.pseudo = 'Claire' }
     b.ecrire(d)
     await expect(b.sessions.publier('e1')).rejects.toThrow('variante choisie n’est plus déclarée')

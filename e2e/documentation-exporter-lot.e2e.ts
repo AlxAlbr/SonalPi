@@ -13,7 +13,7 @@ function ajouterEntretien(dossier: string, id: string, titre: string, texte: str
   corpus.membership[id] = { titre, date: null, lastModified: new Date().toISOString() }
   writeFileSync(chemin, JSON.stringify(corpus, null, 2), 'utf8')
   const entretien: EntretienFichier = {
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: new Date().toISOString(),
     corpsTexte: {
       type: 'doc',
@@ -21,7 +21,7 @@ function ajouterEntretien(dossier: string, id: string, titre: string, texte: str
     },
     annotations: [],
     ancres: [],
-    locuteurs: [{ index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Enquêteur', valeursLoc: {}, locuteurRef: null }],
     meta: { valeursGen: {}, audioRef: null },
   }
   mkdirSync(join(dossier, 'entretiens'), { recursive: true })
@@ -31,8 +31,8 @@ function ajouterEntretien(dossier: string, id: string, titre: string, texte: str
 function pseudonymiserKarine(dossier: string) {
   const chemin = join(dossier, 'entretiens', 'e1.json')
   const entretien = JSON.parse(readFileSync(chemin, 'utf8')) as EntretienFichier
-  entretien.locuteurs[1].pseudo = 'Nadia'
-  entretien.locuteurs[1].pseudoEtat = 'confirme'
+  entretien.participations[1].pseudo = 'Nadia'
+  entretien.participations[1].pseudoEtat = 'confirme'
   entretien.annotations = [
     { id: 'anon-karine', type: 'anon', from: 1, to: 7, auteur: 'Documentation', etat: 'anonymise', pseudo: 'Nadia' },
   ]

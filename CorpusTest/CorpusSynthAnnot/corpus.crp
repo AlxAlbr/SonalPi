@@ -1,5 +1,5 @@
 {
-  "formatVersion": 9,
+  "formatVersion": 10,
   "codebook": {
     "cat_001": {
       "id": "cat_001",
@@ -276,7 +276,7 @@
     "v3": {
       "id": "v3",
       "lib": "Sexe",
-      "portee": "locuteur",
+      "portee": "participation",
       "priv": false,
       "ordre": 0,
       "vExport": 3,
@@ -301,7 +301,7 @@
     "v5": {
       "id": "v5",
       "lib": "age",
-      "portee": "locuteur",
+      "portee": "participation",
       "priv": false,
       "ordre": 1,
       "vExport": 5,
@@ -371,7 +371,7 @@
     "v4": {
       "id": "v4",
       "lib": "Ancienneté ",
-      "portee": "locuteur",
+      "portee": "participation",
       "priv": false,
       "ordre": 2,
       "vExport": 4,
@@ -405,17 +405,6 @@
     }
   },
   "reglesAnon": {},
-  "personnes": {
-    "pers-demo-01": { "id": "pers-demo-01", "nom": "Réponse" },
-    "pers-demo-02": { "id": "pers-demo-02", "nom": "Question" },
-    "pers-demo-03": { "id": "pers-demo-03", "nom": "Réponse" },
-    "pers-demo-04": { "id": "pers-demo-04", "nom": "Question" },
-    "pers-demo-05": { "id": "pers-demo-05", "nom": "Réponse" },
-    "pers-demo-06": { "id": "pers-demo-06", "nom": "Question" },
-    "pers-demo-07": { "id": "pers-demo-07", "nom": "Répondant 1" },
-    "pers-demo-08": { "id": "pers-demo-08", "nom": "Question" },
-    "pers-demo-09": { "id": "pers-demo-09", "nom": "Répondant 2" }
-  },
   "membership": {
     "1Coordinatrice_uw22m0yv": {
       "titre": "1Coordinatrice",
@@ -460,5 +449,43 @@
   "nom": "CorpusSynthAnnot",
   "paramsAnon": {
     "prioriteValidation": "corpus"
+  },
+  "locuteurs": {
+    "pers-demo-01": {
+      "id": "pers-demo-01",
+      "nom": "Réponse"
+    },
+    "pers-demo-02": {
+      "id": "pers-demo-02",
+      "nom": "Question"
+    },
+    "pers-demo-03": {
+      "id": "pers-demo-03",
+      "nom": "Réponse"
+    },
+    "pers-demo-04": {
+      "id": "pers-demo-04",
+      "nom": "Question"
+    },
+    "pers-demo-05": {
+      "id": "pers-demo-05",
+      "nom": "Réponse"
+    },
+    "pers-demo-06": {
+      "id": "pers-demo-06",
+      "nom": "Question"
+    },
+    "pers-demo-07": {
+      "id": "pers-demo-07",
+      "nom": "Répondant 1"
+    },
+    "pers-demo-08": {
+      "id": "pers-demo-08",
+      "nom": "Question"
+    },
+    "pers-demo-09": {
+      "id": "pers-demo-09",
+      "nom": "Répondant 2"
+    }
   }
 }

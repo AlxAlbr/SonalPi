@@ -19,7 +19,7 @@ const OPTIONS: OptionsExport = {
 /** Corpus minimal : codebook et variables DÉSORDONNÉS pour vérifier le tri. */
 function corpusFichier(): CorpusFichier {
   return {
-    formatVersion: 7,
+    formatVersion: 10,
     codebook: {
       c2: { id: 'c2', nom: 'B', couleur: '#00ff00', ordre: 1, parent: null, actif: true, codeExport: 'B' },
       c1: { id: 'c1', nom: 'A', couleur: '#ff0000', ordre: 0, parent: null, actif: true, codeExport: 'A' },
@@ -29,7 +29,7 @@ function corpusFichier(): CorpusFichier {
       v1: { id: 'v1', lib: 'A', portee: 'entretien', priv: false, ordre: 0, vExport: 1, modalites: [] },
     },
     reglesAnon: { r1: { id: 'r1', type: 'PER', nom: 'Règle', pseudo: 'P', etat: 'corpus' } as never },
-    personnes: {},
+    locuteurs: {},
     membership: {
       e1: { titre: 'Entretien un', date: '2024-05-01', lastModified: '2024-06-01T10:00:00Z' },
     },
@@ -40,13 +40,13 @@ function corpusFichier(): CorpusFichier {
 /** Fichier entretien minimal, sans champs optionnels (défauts attendus). */
 function fichierEntretien(corps?: unknown): EntretienFichier {
   return {
-    formatVersion: 7,
+    formatVersion: 10,
     lastModified: '2024-06-01T10:00:00Z',
     corpsTexte:
       corps ?? { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: { v1: 'm1' }, audioRef: null },
   }
 }

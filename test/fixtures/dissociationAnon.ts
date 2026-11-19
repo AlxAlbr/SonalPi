@@ -10,5 +10,5 @@ export function fixtureDissociationAnon(ids = ['e1', 'e2', 'e3']) {
     a.from = texte.indexOf('Local') + 1; a.to = a.from + 5; a.pseudo = 'Mémoire indépendante'
     if (s.id === 'e3') s.data.annotations = []
   }
-  return { ...f, demande: { regleId: 'personne' } }
+  return { ...f, demande: { regleId: "personne" } }
 }

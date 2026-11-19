@@ -196,7 +196,7 @@ describe('contexte GitLab en lecture seule', () => {
     expect(session.fermer).toHaveBeenCalledTimes(1)
   })
 
-  test.each(['entretien', 'locuteur'] as const)('réutilise une session locale sans second bail, portée=%s', async (portee) => {
+  test.each(['entretien', 'participation'] as const)('réutilise une session locale sans second bail, portée=%s', async (portee) => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-gitlab-session-valeur-'))
     mkdirSync(join(dir, 'entretiens'), { recursive: true })
     const corpus = squeletteCorpus('Corpus')
@@ -211,14 +211,14 @@ describe('contexte GitLab en lecture seule', () => {
       modalites: [{ id: 'm1', lib: 'Oui', mExport: 1 }],
     }
     const entretien: EntretienFichier = {
-      formatVersion: 8,
+      formatVersion: 10,
       lastModified: '2026-01-01T00:00:00.000Z',
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],
       ancres: [],
-      locuteurs: [
-        { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, personneRef: null },
-        { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, personneRef: null },
+      participations: [
+        { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
+        { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
       ],
       meta: { valeursGen: {}, audioRef: null },
     }
@@ -245,7 +245,7 @@ describe('contexte GitLab en lecture seule', () => {
 
     const item = { entretienId: 'e1', idVar: 'v1', idMod: 'm1', cible: portee === 'entretien'
       ? { type: 'entretien' as const } : { type: 'participation' as const, participationId: '7' } }
-    if (portee === 'locuteur') {
+    if (portee === "participation") {
       const avant = readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')
       const refuse = await avecEcrituresEntretienGitLab(() => contexte.poserValeurLot([
         item, { ...item, cible: { type: 'participation', participationId: 'disparue' } },
@@ -261,9 +261,9 @@ describe('contexte GitLab en lecture seule', () => {
 
     const local = JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
     expect(local.meta.valeursGen).toEqual(portee === 'entretien' ? { v1: 'm1' } : {})
-    expect(local.locuteurs.map((p) => p.id)).toEqual(['autre', '7'])
-    expect(local.locuteurs[0]).toEqual(entretien.locuteurs[0])
-    expect(local.locuteurs[1].valeursLoc).toEqual(portee === 'locuteur' ? { v1: 'm1' } : {})
+    expect(local.participations.map((p) => p.id)).toEqual(['autre', '7'])
+    expect(local.participations[0]).toEqual(entretien.participations[0])
+    expect(local.participations[1].valeursLoc).toEqual(portee === "participation" ? { v1: 'm1' } : {})
     expect(transactions.poserValeursEntretien).not.toHaveBeenCalled()
     expect(session.marquerSale).toHaveBeenCalledOnce()
     expect(session.publier).toHaveBeenCalledOnce()

@@ -7,7 +7,7 @@ import { pluginRemap } from '../src/renderer/editor/remap'
 import { pluginRemapJournal } from '../src/renderer/editor/journalRemap'
 import { attribuerSelectionTr } from '../src/renderer/editor/attribution'
 import { ajouterCodage, retirerAnnotation, type Entretien } from '../src/shared/entretien/entretien'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 import {
   CAP_JOURNAL,
   enregistrer,
@@ -40,8 +40,8 @@ function ctxPur(over: Partial<CtxInverse> = {}): CtxInverse {
   }
 }
 
-function locuteur(index: number, nom: string): Locuteur {
-  return { id: `participation-${index}`, index, nom, valeursLoc: {}, personneRef: null }
+function locuteur(index: number, nom: string): ParticipationLocuteur {
+  return { id: `participation-${index}`, index, nom, valeursLoc: {}, locuteurRef: null }
 }
 
 describe('journal — enregistrer (cap, ordre)', () => {

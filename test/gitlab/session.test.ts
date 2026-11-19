@@ -33,7 +33,7 @@ class DepotSession implements DepotCommitsGitLab {
 
   constructor() {
     this.fichiers.set('entretiens/e1.json', {
-      contenu: '{"formatVersion":8}',
+      contenu: '{"formatVersion":10}',
       commitId: '1'.repeat(40),
       executable: false,
     })
@@ -168,8 +168,8 @@ describe('session GitLab', () => {
     const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage)
 
     await expect(session.ouvrir()).resolves.toEqual({ etat: 'edition', revision: 0, revisionPubliee: 0 })
-    expect(stockage.valeur).toBe('{"formatVersion":8}')
-    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    expect(stockage.valeur).toBe('{"formatVersion":10}')
+    stockage.valeur = '{"formatVersion":10,"modifie":true}'
     await session.marquerSale()
     await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
     expect(session.etat()).toEqual({ etat: 'edition', revision: 1, revisionPubliee: 1 })
@@ -180,7 +180,7 @@ describe('session GitLab', () => {
   test('publie l’entretien avec une garde inchangée de corpus.crp', async () => {
     const depot = new DepotSession()
     depot.fichiers.set('corpus.crp', {
-      contenu: '{"formatVersion":8}',
+      contenu: '{"formatVersion":10}',
       commitId: '2'.repeat(40),
     })
     const stockage = new StockageMemoire('')
@@ -206,7 +206,7 @@ describe('session GitLab', () => {
     )
 
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    stockage.valeur = '{"formatVersion":10,"modifie":true}'
     await session.marquerSale()
     await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
 
@@ -218,7 +218,7 @@ describe('session GitLab', () => {
   test('une suppression concurrente de définition refuse atomiquement la publication', async () => {
     const depot = new DepotSession()
     depot.fichiers.set('corpus.crp', {
-      contenu: '{"formatVersion":8,"codebook":{"theme":{}}}',
+      contenu: '{"formatVersion":10,"codebook":{"theme":{}}}',
       commitId: '2'.repeat(40),
     })
     const stockage = new StockageMemoire('')
@@ -240,7 +240,7 @@ describe('session GitLab', () => {
         }
         const corpus = await depot.lireFichier('corpus.crp')
         depot.fichiers.set('corpus.crp', {
-          contenu: '{"formatVersion":8,"codebook":{}}',
+          contenu: '{"formatVersion":10,"codebook":{}}',
           commitId: '3'.repeat(40),
         })
         return {
@@ -253,7 +253,7 @@ describe('session GitLab', () => {
     )
 
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"theme":"theme"}'
+    stockage.valeur = '{"formatVersion":10,"theme":"theme"}'
     await session.marquerSale()
     await expect(session.publier()).resolves.toEqual({
       statut: 'refuse',
@@ -261,13 +261,13 @@ describe('session GitLab', () => {
       message: 'Le thème a été supprimé.',
     })
     expect(session.etat()).toMatchObject({ etat: 'edition' })
-    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":8}')
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":10}')
   })
 
   test('revalide une modification indépendante du corpus avant de republier', async () => {
     const depot = new DepotSession()
     depot.fichiers.set('corpus.crp', {
-      contenu: '{"formatVersion":8,"nom":"avant"}',
+      contenu: '{"formatVersion":10,"nom":"avant"}',
       commitId: '2'.repeat(40),
     })
     const stockage = new StockageMemoire('')
@@ -287,7 +287,7 @@ describe('session GitLab', () => {
         const corpus = await depot.lireFichier('corpus.crp')
         if (validations === 1) {
           depot.fichiers.set('corpus.crp', {
-            contenu: '{"formatVersion":8,"nom":"après"}',
+            contenu: '{"formatVersion":10,"nom":"après"}',
             commitId: '3'.repeat(40),
           })
         }
@@ -301,7 +301,7 @@ describe('session GitLab', () => {
     )
 
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    stockage.valeur = '{"formatVersion":10,"modifie":true}'
     await session.marquerSale()
     await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
     expect(validations).toBe(2)
@@ -329,7 +329,7 @@ describe('session GitLab', () => {
     )
 
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"theme":"supprimé"}'
+    stockage.valeur = '{"formatVersion":10,"theme":"supprimé"}'
     await session.marquerSale()
     await expect(session.publier()).resolves.toEqual({
       statut: 'refuse',
@@ -337,7 +337,7 @@ describe('session GitLab', () => {
       message: 'Le thème « supprimé » doit être retiré avant publication.',
     })
     expect(session.etat()).toEqual({ etat: 'edition', revision: 1, revisionPubliee: 0 })
-    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":8}')
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":10}')
   })
 
   test('sérialise renouvellement et publication dans la même file', async () => {
@@ -345,7 +345,7 @@ describe('session GitLab', () => {
     const stockage = new StockageMemoire('')
     const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage)
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    stockage.valeur = '{"formatVersion":10,"modifie":true}'
     await session.marquerSale()
 
     let liberer!: () => void
@@ -390,7 +390,7 @@ describe('session GitLab', () => {
     await expect(session.renouvelerSiNecessaire()).resolves.toBe(false)
     expect(depot.commits.at(-1)?.title).not.toBe('[Sonal] Renouvellement du bail')
 
-    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    stockage.valeur = '{"formatVersion":10,"modifie":true}'
     await session.marquerSale()
     maintenant += 30_000
     await expect(session.publierPeriodique()).resolves.toBeNull()
@@ -424,7 +424,7 @@ describe('session GitLab', () => {
     maintenant += 60_000
 
     await expect(second.ouvrir()).resolves.toMatchObject({ etat: 'edition', revision: 0, revisionPubliee: 0 })
-    stockagePremier.valeur = '{"formatVersion":8,"ancien":true}'
+    stockagePremier.valeur = '{"formatVersion":10,"ancien":true}'
     await premier.marquerSale()
     await expect(premier.publier()).resolves.toMatchObject({ statut: 'refuse', raison: 'droit-perdu' })
     expect(premier.etat()).toMatchObject({ etat: 'degrade', raison: 'droit-perdu' })
@@ -436,7 +436,7 @@ describe('session GitLab', () => {
     const stockage = new StockageMemoire('')
     const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage)
     await session.ouvrir()
-    stockage.valeur = '{"formatVersion":8,"revision":1}'
+    stockage.valeur = '{"formatVersion":10,"revision":1}'
     await session.marquerSale()
 
     let liberer!: () => void
@@ -452,7 +452,7 @@ describe('session GitLab', () => {
 
     const publication = session.publier()
     await publicationCommencee
-    stockage.valeur = '{"formatVersion":8,"revision":2}'
+    stockage.valeur = '{"formatVersion":10,"revision":2}'
     await session.marquerSale()
     liberer()
 
@@ -506,7 +506,7 @@ describe('session GitLab', () => {
         journalAvant,
       )
       await premier.ouvrir()
-      const candidat = '{"formatVersion":8,"modifie":"autosave locale"}'
+      const candidat = '{"formatVersion":10,"modifie":"autosave locale"}'
       writeFileSync(join(racine, 'entretiens', 'e1.json'), candidat, 'utf8')
       await premier.marquerSale()
       expect(journalAvant.lister()).toHaveLength(1)
@@ -552,7 +552,7 @@ describe('session GitLab', () => {
         journal,
       )
       await premier.ouvrir()
-      const candidat = '{"formatVersion":8,"modifie":"avant-crash"}'
+      const candidat = '{"formatVersion":10,"modifie":"avant-crash"}'
       writeFileSync(cheminLocal, candidat, 'utf8')
       await premier.marquerSale()
       depot.perdreLaProchaineReponse()
@@ -597,7 +597,7 @@ describe('session GitLab', () => {
       const stockage = new StockageMemoire('')
       const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage, journal)
       await session.ouvrir()
-      stockage.valeur = '{"formatVersion":8,"perdu":true}'
+      stockage.valeur = '{"formatVersion":10,"perdu":true}'
       await session.marquerSale()
       depot.perdreLaProchaineReponse()
       depot.rendreCommitsIllisibles(true)

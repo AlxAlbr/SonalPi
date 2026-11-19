@@ -1,7 +1,6 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
 import type { Categorie, EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
 import type { Locuteur } from '../../../shared/locuteurs'
-import { lireEntretienCasFormat9 } from '../../../shared/natif/lectureCasFormat9'
 import type { Cas } from '../../../shared/corpus/cas'
 import { agregerOccurrencesLexico, selectionnerOccurrencesLexico } from '../../../shared/lexico/moteur'
 import { filtresLexicoParDefaut, type DiagnosticLexico, type FiltresLexico, type OccurrenceLexico, type PlageLexico, type TraitementsLexico } from '../../../shared/lexico/types'
@@ -9,7 +8,7 @@ import { appliquerTraitementsLexico, LISTES_MOTS_OUTILS, normaliserFormeLexico, 
 import { nombreCriteresLexico, resumerFiltresLexico } from '../../../shared/lexico/resume'
 import { extraireOccurrencesLexico } from '../../editor/lexico'
 import { preparerSourcesPassages, type SourcePassageChargee } from '../../editor/passages'
-import { projeterCasDepuisSourcesPreparees } from '../../editor/casFormat9'
+import { projeterCasDepuisSourcesPreparees } from "../../editor/cas"
 
 interface SourceLexico {
   id: string
@@ -60,7 +59,7 @@ export function useLexicoCorpus(deps: {
   let generation = 0
 
   const variablesLexico = computed(() => deps.variables.value.map((variable) => ({
-    ...variable, portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee,
+    ...variable, portee: variable.portee === "participation" ? 'participation' as const : variable.portee,
   })))
   const contexteSelection = computed(() => ({
     variables: variablesLexico.value,
@@ -149,7 +148,7 @@ export function useLexicoCorpus(deps: {
       try {
         // L'inventaire ne force pas la publication de l'entretien ouvert.
         // Ses locuteurs seront relus depuis l'instantané en mémoire ci-dessous.
-        locuteurs = (await window.sonal.corpus.personnesInventaire()).personnes
+        locuteurs = (await window.sonal.corpus.personnesInventaire()).locuteurs
       } catch (erreur) {
         diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }
@@ -164,7 +163,7 @@ export function useLexicoCorpus(deps: {
           continue
         }
         try {
-          index.push(...extraireOccurrencesLexico(source.id, source.reference, lireEntretienCasFormat9(source.lecture.data)))
+          index.push(...extraireOccurrencesLexico(source.id, source.reference, source.lecture.data))
           const erreursValeurs: string[] = []
           for (const [variableId, modaliteId] of Object.entries(source.lecture.data.meta?.valeursGen ?? {})) {
             const variable = deps.variables.value.find((candidate) => candidate.id === variableId)
@@ -172,10 +171,10 @@ export function useLexicoCorpus(deps: {
               erreursValeurs.push(variable?.lib ?? variableId)
             }
           }
-          for (const locuteur of source.lecture.data.locuteurs) {
+          for (const locuteur of source.lecture.data.participations) {
             for (const [variableId, modaliteId] of Object.entries(locuteur.valeursLoc ?? {})) {
               const variable = deps.variables.value.find((candidate) => candidate.id === variableId)
-              if (!variable || variable.portee !== 'locuteur' || !variable.modalites.some((modalite) => modalite.id === modaliteId)) {
+              if (!variable || variable.portee !== "participation" || !variable.modalites.some((modalite) => modalite.id === modaliteId)) {
                 erreursValeurs.push(`${variable?.lib ?? variableId} (${locuteur.nom})`)
               }
             }
@@ -198,7 +197,7 @@ export function useLexicoCorpus(deps: {
       for (const cas of Object.values(deps.cas.value)) {
         const projection = projeterCasDepuisSourcesPreparees({
           membership: deps.membership.value,
-          personnes: locuteursParId,
+          locuteurs: locuteursParId,
           variables: variablesParId,
         }, structuredClone(toRaw(cas)), preparees, 'pseudonymise')
         plagesCas[cas.id] = projection.passages.flatMap((passage) => {

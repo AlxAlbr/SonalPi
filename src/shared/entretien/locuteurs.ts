@@ -1,17 +1,17 @@
-import type { Locuteur } from '../format'
+import type { ParticipationLocuteur } from '../format'
 
 /** Helpers d'attribution de parole et d'affichage dans un entretien.
  *  Les paragraphes référencent l'index local ; les commandes de participation utilisent l'id stable.
  */
 
 /** Nom d'un locuteur par index (fallback lisible si inconnu / non attribué). */
-export function nomDeLocuteur(locuteurs: Locuteur[], index: number | null): string {
+export function nomDeLocuteur(locuteurs: ParticipationLocuteur[], index: number | null): string {
   if (index == null) return ''
   return locuteurs.find((l) => l.index === index)?.nom ?? `loc ${index}`
 }
 
 /** Prochain index libre (max + 1 ; 1 si vide). */
-export function prochainIndex(locuteurs: Locuteur[]): number {
+export function prochainIndex(locuteurs: ParticipationLocuteur[]): number {
   return locuteurs.reduce((m, l) => Math.max(m, l.index), 0) + 1
 }
 
@@ -22,16 +22,16 @@ export function genIdLocuteur(): string {
 
 /** Ajoute une participation avec son id stable et le prochain index libre. */
 export function ajouterLocuteur(
-  locuteurs: Locuteur[],
+  locuteurs: ParticipationLocuteur[],
   nom: string,
   genId: () => string = genIdLocuteur,
-): Locuteur {
-  const l: Locuteur = {
+): ParticipationLocuteur {
+  const l: ParticipationLocuteur = {
     id: genId(),
     index: prochainIndex(locuteurs),
     nom,
     valeursLoc: {},
-    personneRef: null,
+    locuteurRef: null,
   }
   locuteurs.push(l)
   return l
@@ -104,7 +104,7 @@ export function nomDeCouleur(couleur: string): string {
 }
 
 export function libelleGouttiere(
-  locuteurs: Locuteur[],
+  locuteurs: ParticipationLocuteur[],
   index: number | null,
   interviewer: boolean,
 ): LibelleGouttiere {

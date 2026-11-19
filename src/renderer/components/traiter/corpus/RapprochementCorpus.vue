@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Variable } from '../../../../shared/format'
-import type { InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
-import type { CommandePersonnes } from '../../../../shared/corpus/contratsLocuteurs'
-import type { ChoixRepriseLocuteur } from '../../../../shared/corpus/rapprochementsPersonnes'
+import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../../shared/corpus/personnes'
+import type { CommandeLocuteurs } from '../../../../shared/corpus/contratsLocuteurs'
+import type { ChoixRepriseLocuteur } from "../../../../shared/corpus/rapprochementsLocuteurs"
 
-const props = defineProps<{ inventaire: InventairePersonnes; cible: VueLocuteurPersonne; candidat: VueLocuteurPersonne; variables: Variable[] }>()
-const emit = defineEmits<{ annuler: []; valider: [commande: CommandePersonnes] }>()
+const props = defineProps<{ inventaire: InventaireIdentitesLocuteurs; cible: VueParticipationLocuteur; candidat: VueParticipationLocuteur; variables: Variable[] }>()
+const emit = defineEmits<{ annuler: []; valider: [commande: CommandeLocuteurs] }>()
 const dialogue = ref<HTMLDialogElement | null>(null)
 const annuler = ref<HTMLButtonElement | null>(null)
 const retour = document.activeElement as HTMLElement | null
-const cle = (l: VueLocuteurPersonne) => JSON.stringify([l.entretienId, l.locuteurId])
-const fiches = computed(() => props.inventaire.personnes.filter(p => p.id === props.cible.personneRef || p.id === props.candidat.personneRef))
+const cle = (l: VueParticipationLocuteur) => JSON.stringify([l.entretienId, l.participationId])
+const fiches = computed(() => props.inventaire.locuteurs.filter(p => p.id === props.cible.locuteurRef || p.id === props.candidat.locuteurRef))
 const fusion = computed(() => fiches.value.length === 2)
-const conserverId = ref(props.candidat.personneRef ?? '')
-const membres = (id: string) => props.inventaire.locuteurs.filter(l => l.personneRef === id)
+const conserverId = ref(props.candidat.locuteurRef ?? '')
+const membres = (id: string) => props.inventaire.participations.filter(l => l.locuteurRef === id)
 const conflits = computed(() => {
   if (!fusion.value) return []
   const tous = fiches.value.flatMap(p => membres(p.id))
@@ -22,11 +22,11 @@ const conflits = computed(() => {
 })
 const total = computed(() => new Set(fiches.value.flatMap(p => membres(p.id)).map(l => l.entretienId)).size)
 const nomsDifferents = computed(() => new Set(fiches.value.map((p) => p.nom.trim())).size > 1)
-const sources = computed(() => props.candidat.personneRef
-  ? membres(props.candidat.personneRef).filter(l => l.entretienId !== props.cible.entretienId)
+const sources = computed(() => props.candidat.locuteurRef
+  ? membres(props.candidat.locuteurRef).filter(l => l.entretienId !== props.cible.entretienId)
   : [props.candidat])
-const valeur = (l: VueLocuteurPersonne, v: Variable) => v.modalites.find(m => m.id === l.valeursLoc[v.id])?.lib ?? l.valeursLoc[v.id] ?? 'Vide'
-const changements = (l: VueLocuteurPersonne) => {
+const valeur = (l: VueParticipationLocuteur, v: Variable) => v.modalites.find(m => m.id === l.valeursLoc[v.id])?.lib ?? l.valeursLoc[v.id] ?? 'Vide'
+const changements = (l: VueParticipationLocuteur) => {
   const lignes: string[] = []
   if (l.pseudo?.trim() && l.pseudo.trim() !== props.cible.pseudo?.trim()) lignes.push(`pseudonyme : ${props.cible.pseudo?.trim() || 'Vide'} → ${l.pseudo.trim()}`)
   if (l.interviewer !== props.cible.interviewer) lignes.push(`statut : ${props.cible.interviewer ? 'interviewer' : 'interviewé·e'} → ${l.interviewer ? 'interviewer' : 'interviewé·e'}`)
@@ -36,7 +36,7 @@ const changements = (l: VueLocuteurPersonne) => {
   return lignes
 }
 const sourcesUtiles = computed(() => sources.value.filter((l) => changements(l).length))
-const signatureInformations = (l: VueLocuteurPersonne) => JSON.stringify([
+const signatureInformations = (l: VueParticipationLocuteur) => JSON.stringify([
   l.pseudo?.trim() ?? '', l.interviewer,
   props.variables.map((v) => [v.id, l.valeursLoc[v.id] ?? '']),
 ])
@@ -58,12 +58,12 @@ function confirmer() {
     emit('valider', { type: 'fusionner', conserverId: conserverId.value,
       absorberId: fiches.value.find(p => p.id !== conserverId.value)!.id,
       attendu: JSON.stringify(props.inventaire),
-      reprise: reprise && source.value ? { entretienId: props.cible.entretienId, locuteurId: props.cible.locuteurId,
-        sourceEntretienId: source.value.entretienId, sourceLocuteurId: source.value.locuteurId, choix: reprise } : undefined })
+      reprise: reprise && source.value ? { entretienId: props.cible.entretienId, participationId: props.cible.participationId,
+        sourceEntretienId: source.value.entretienId, sourceParticipationId: source.value.participationId, choix: reprise } : undefined })
   } else {
     const sourceRapprochement = source.value ?? props.candidat
-    emit('valider', { type: 'rapprocher', entretienId: props.cible.entretienId, locuteurId: props.cible.locuteurId,
-      sourceEntretienId: sourceRapprochement.entretienId, sourceLocuteurId: sourceRapprochement.locuteurId, attendu: JSON.stringify(props.inventaire), reprise })
+    emit('valider', { type: 'rapprocher', entretienId: props.cible.entretienId, participationId: props.cible.participationId,
+      sourceEntretienId: sourceRapprochement.entretienId, sourceParticipationId: sourceRapprochement.participationId, attendu: JSON.stringify(props.inventaire), reprise })
   }
 }
 onMounted(async () => { dialogue.value?.showModal(); await nextTick(); annuler.value?.focus() })

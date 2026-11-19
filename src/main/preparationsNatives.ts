@@ -1,5 +1,5 @@
 import type { Locuteur } from '../shared/locuteurs'
-import { FORMAT_NATIF_LOCUTEURS, type CorpusFichier, type EntretienFichier } from '../shared/natif/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from "../shared/format"
 import { validerCorpusNatif } from '../shared/natif/validation'
 import { ajouterEntretienOrdre } from '../shared/corpus/ordreEntretiens'
 import { validerAjoutEntretienNatif, type PlanAjoutEntretienNatif } from './transactionsFichiers'
@@ -32,7 +32,7 @@ export function preparerAjoutEntretienNatif(
 /** Un entretien vide n'introduit aucune identité ni participation fictive. */
 export function preparerCreationEntretienNatif(corpus: CorpusFichier, id: string, titre: string, date: string): PlanAjoutEntretienNatif {
   return preparerAjoutEntretienNatif(corpus, id, titre, {
-    formatVersion: FORMAT_NATIF_LOCUTEURS, lastModified: date,
+    formatVersion: FORMAT_VERSION, lastModified: date,
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
     annotations: [], ancres: [], participations: [], brouillonsAnon: [], reperesPassages: [],
     meta: { valeursGen: {}, audioRef: null },

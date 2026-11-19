@@ -21,7 +21,7 @@ function source(repereId = 'repere-1'): EntretienFichier {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: [{ id: repereId, from: 1, to: 20 }],
   }
@@ -33,13 +33,13 @@ function outilLot(panneauActif = ref(false)) {
   const personnes = Array.from({ length: 30 }, (_, index) => ({ id: `p${index}`, nom: index < 2 ? 'Homonyme' : `Personne ${index}` }))
   let disque: Record<string, Cas> = {}
   const dictionnaire = ref<Record<string, Cas>>({})
-  const lirePersonnes = vi.fn(async () => ({ personnes, locuteurs: [], notes: [], indisponibles: [] }))
+  const lirePersonnes = vi.fn(async () => ({ locuteurs: personnes, participations: [], notes: [], indisponibles: [] }))
   const lireEntretien = vi.fn(async () => ({ ok: true as const, data: source() }))
   const enregistrerRepereSelection = vi.fn()
   const casCommander = vi.fn(async (commande: CommandeCas) => {
     disque = appliquerCommandeCas(structuredClone(disque), commande, {
       maintenant: () => maintenant,
-      personneExiste: (id) => personnes.some((personne) => personne.id === id),
+      locuteurExiste: (id) => personnes.some((personne) => personne.id === id),
       entretienExiste: (id) => id === 'e1' || id === 'e2',
     })
     return { cas: structuredClone(disque) }
@@ -56,7 +56,7 @@ function outilLot(panneauActif = ref(false)) {
     enregistrerRepereSelection, lirePersonnes, ouvrirSource: vi.fn(), fermerRecueils: vi.fn(),
     definitionsAvecSources: () => true,
   })
-  return { cas, dictionnaire, personnes, lirePersonnes, lireEntretien, enregistrerRepereSelection, casCommander }
+  return { cas, dictionnaire, locuteurs: personnes, lirePersonnes, lireEntretien, enregistrerRepereSelection, casCommander }
 }
 
 afterEach(() => {
@@ -115,7 +115,7 @@ describe('orchestration renderer des cas', () => {
     outil.lirePersonnes.mockImplementationOnce(() => new Promise((resolve) => { terminer = resolve }))
     const lecture = outil.cas.actualiserCas()
     outil.cas.reinitialiserCas()
-    terminer({ personnes: outil.personnes, locuteurs: [], notes: [], indisponibles: [] })
+    terminer({ locuteurs: outil.locuteurs, participations: [], notes: [], indisponibles: [] })
     await lecture
     expect(outil.cas.inventairePersonnesCas.value).toBeNull()
     expect(outil.cas.messageCas.value).toBeNull()
@@ -124,7 +124,7 @@ describe('orchestration renderer des cas', () => {
 
   test('prévisualise 30 personnes avec noms distincts et une seule lecture de chaque source', async () => {
     const outil = outilLot()
-    const apercu = await outil.cas.preparerLotCas({ type: 'personnes', ids: outil.personnes.map((personne) => personne.id), inclureEnqueteurs: false }, 'individuel')
+    const apercu = await outil.cas.preparerLotCas({ type: "locuteurs", ids: outil.locuteurs.map((personne) => personne.id), inclureEnqueteurs: false }, 'individuel')
     expect(apercu).toHaveLength(30)
     expect(new Set(apercu.map((item) => item.cas.id)).size).toBe(30)
     expect(apercu.slice(0, 2).map((item) => item.cas.nom)).toEqual(['Homonyme', 'Homonyme (2)'])
@@ -135,12 +135,12 @@ describe('orchestration renderer des cas', () => {
     await outil.cas.creerLotCas(ref(apercu).value.map((item) => item.cas))
     expect(Object.keys(outil.dictionnaire.value)).toHaveLength(30)
     expect(outil.casCommander).toHaveBeenCalledOnce()
-    const suivants = await outil.cas.preparerLotCas({ type: 'personnes', ids: ['p0', 'p1'], inclureEnqueteurs: false }, 'collectif')
+    const suivants = await outil.cas.preparerLotCas({ type: "locuteurs", ids: ['p0', 'p1'], inclureEnqueteurs: false }, 'collectif')
     expect(suivants).toHaveLength(1)
-    expect(suivants[0].cas.regles).toEqual([{ type: 'personnes', membres: [
-      { personneId: 'p0', inclureEnqueteurs: false }, { personneId: 'p1', inclureEnqueteurs: false },
+    expect(suivants[0].cas.regles).toEqual([{ type: "locuteurs", membres: [
+      { locuteurId: 'p0', inclureEnqueteurs: false }, { locuteurId: 'p1', inclureEnqueteurs: false },
     ] }])
-    const doublon = await outil.cas.preparerLotCas({ type: 'personnes', ids: ['p0'], inclureEnqueteurs: false }, 'individuel')
+    const doublon = await outil.cas.preparerLotCas({ type: "locuteurs", ids: ['p0'], inclureEnqueteurs: false }, 'individuel')
     expect(doublon[0].casExistants).toEqual(['Homonyme'])
     expect(doublon[0].cas.nom).toBe('Homonyme (3)')
   })
@@ -200,7 +200,7 @@ describe('orchestration renderer des cas', () => {
     const lireEntretien = vi.fn()
     const casCommander = vi.fn(async (commande: CommandeCas) => ({
       cas: appliquerCommandeCas(structuredClone(toRaw(dictionnaire.value)), commande, {
-        maintenant: () => maintenant, personneExiste: () => false, entretienExiste: () => true,
+        maintenant: () => maintenant, locuteurExiste: () => false, entretienExiste: () => true,
       }),
     }))
     ;(window as any).sonal = { corpus: { lireEntretien, casCommander } }
@@ -263,7 +263,7 @@ describe('orchestration renderer des cas', () => {
         entretienId: 'e1', from: 1, to: 20, texte: 'Passage sélectionné.',
       }),
       enregistrerRepereSelection: enregistrer,
-      lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
+      lirePersonnes: async () => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] }),
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
       definitionsAvecSources: () => true,
@@ -288,7 +288,7 @@ describe('orchestration renderer des cas', () => {
         codebook: {},
         variables: {},
         reglesAnon: {},
-        personnes: {},
+        locuteurs: {},
         membership: { e1: { titre: 'Entretien 1', date: null, lastModified: maintenant } },
         recueils: {},
         cas: { [commande.nouveauCas.id]: commande.nouveauCas },
@@ -308,7 +308,7 @@ describe('orchestration renderer des cas', () => {
         entretienId: 'e1', from: 1, to: 20, texte: 'Passage sélectionné.',
       }),
       enregistrerRepereSelection: enregistrer,
-      lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
+      lirePersonnes: async () => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] }),
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
       definitionsAvecSources: () => true,
@@ -350,7 +350,7 @@ describe('orchestration renderer des cas', () => {
         entretienId: 'e1', from: 1, to: 20, texte: 'Passage sélectionné.',
       }),
       enregistrerRepereSelection: enregistrer,
-      lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
+      lirePersonnes: async () => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] }),
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
       definitionsAvecSources: () => false,

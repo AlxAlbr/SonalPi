@@ -29,7 +29,7 @@ afterEach(() => {
 
 function preparer() {
   const corpus = preparerCorpusImportV1('Corpus cible', { cheminCrp: '/V1/Mon terrain.crp', dateCreation: null }, [], [{
-    id: 'age', lib: 'Âge', portee: 'locuteur', priv: false, ordre: 0, vExport: 1,
+    id: 'age', lib: 'Âge', portee: "participation", priv: false, ordre: 0, vExport: 1,
     modalites: [{ id: 'adulte', lib: 'Adulte', mExport: 1 }],
   }])
   const payload: PayloadEntretien = {
@@ -38,17 +38,17 @@ function preparer() {
       { type: 'paragraph', attrs: { loc: 3 }, content: [{ type: 'text', text: 'Second Alex.' }] },
     ] },
     annotations: [], ancres: [], meta: { valeursGen: {}, audioRef: null },
-    locuteurs: [
-      { id: 'local-conserve', index: 1, nom: 'Alex', personneRef: null, valeursLoc: { age: 'adulte' } },
-      { index: 3, nom: 'Alex', personneRef: null, interviewer: true, valeursLoc: {} },
+    participations: [
+      { id: 'local-conserve', index: 1, nom: 'Alex', locuteurRef: null, valeursLoc: { age: 'adulte' } },
+      { id: "loc-3", index: 3, nom: 'Alex', locuteurRef: null, interviewer: true, valeursLoc: {} },
     ],
     notes: [{ id: 'note', categorieId: 'generale', titre: '', date: null, statut: 'prive', corps: 'Note locale',
-      locuteurIds: ['local-conserve'], rang: 0, creeLe: '', modifieLe: null }],
+      participationIds: ['local-conserve'], rang: 0, creeLe: '', modifieLe: null }],
   }
   let numero = 0
   const generer = vi.fn(() => `identite-${++numero}`)
   const cible = preparerEntretienImportV1(corpus.locuteurs, {
-    ...payload, locuteurs: completerIdsLocuteurs('e1', payload.locuteurs),
+    ...payload, participations: completerIdsLocuteurs('e1', payload.participations),
   }, '2026-01-01T10:00:00.000Z', generer)
   const plan = preparerAjoutEntretienNatif(corpus, 'e1', 'Entretien importé', cible.entretien, cible.locuteurs)
   const dir = mkdtempSync(join(tmpdir(), 'sonal-transaction-native-'))
@@ -58,7 +58,7 @@ function preparer() {
     .filter((f) => f.isFile()).map((f) => join(f.parentPath, f.name)).sort()
     .map((chemin) => [chemin, readFileSync(chemin)])
   return { dir, corpus, payload, cible, plan, generer, fichiers,
-    transactions: () => new TransactionsFichiersCorpus(dir, { formatNatif: 10 }),
+    transactions: () => new TransactionsFichiersCorpus(dir),
     lire: (relatif: string) => JSON.parse(readFileSync(join(dir, relatif), 'utf8')) }
 }
 
@@ -72,7 +72,7 @@ describe('écriture native par le journal de transactions existant', () => {
     validerCorpusNatif(corpus); validerEntretienNatif(entretien)
     expect(corpus).toEqual(b.plan.corpusApres)
     expect(entretien).toEqual(b.plan.entretien)
-    expect(corpus).not.toHaveProperty('personnes')
+    expect(corpus).not.toHaveProperty("personnes")
     expect(corpus.variables.age.portee).toBe('participation')
     expect(entretien).not.toHaveProperty('locuteurs')
     expect(entretien.participations.map((p) => p.index)).toEqual([1, 3])
@@ -96,9 +96,6 @@ describe('écriture native par le journal de transactions existant', () => {
     expect(journal.formatVersion).toBe(1)
     expect(journal.plan.corpusAvant.formatVersion).toBe(10)
     expect(journal.plan.entretien.formatVersion).toBe(10)
-    const avantReprise = b.fichiers()
-    expect(() => new TransactionsFichiersCorpus(b.dir).reprendre()).toThrow('Version native non supportée')
-    expect(b.fichiers()).toEqual(avantReprise)
     expect(b.transactions().reprendre()).toBe(true)
     expect(b.transactions().reprendre()).toBe(false)
     expect(b.lire('corpus.crp')).toEqual(b.plan.corpusApres)
@@ -136,7 +133,7 @@ describe('écriture native par le journal de transactions existant', () => {
       entretien: { formatVersion: 9, locuteurs: [] } }
     writeFileSync(join(b.dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan: ancien }))
     const avant = b.fichiers()
-    expect(() => b.transactions().reprendre()).toThrow('format natif 10 attendu')
+    expect(() => b.transactions().reprendre()).toThrow('Version native non supportée')
     expect(b.fichiers()).toEqual(avant)
   })
 

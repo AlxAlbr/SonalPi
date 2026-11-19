@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { resoudreDerivationCas, evaluerDerivationFamille, projeterAttributsCas, variablesDisponiblesFamille, type LectureSourceAttributs } from '../src/shared/corpus/observationsAttributs'
-import type { DerivationAttributCas, FamilleCas } from '../src/shared/natif/format'
+import type { DerivationAttributCas, FamilleCas } from "../src/shared/format"
 import { corpusCasNatif, entretienCasNatif, casNatif, dateCasNatif, idParticipationNative } from './fixtures/casNatifs'
 
 const recette: DerivationAttributCas = { attributId: 'attr-age', variableSourceId: 'age', porteeSource: 'participation' }

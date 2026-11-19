@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EntretienRef } from '../src/shared/format'
-import { FORMAT_NATIF_LOCUTEURS, type EntretienFichier, type Variable } from '../src/shared/natif/format'
+import { FORMAT_VERSION, type EntretienFichier, type Variable } from "../src/shared/format"
 import { extraireOccurrencesLexico } from '../src/renderer/editor/lexico'
 import { agregerOccurrencesLexico, selectionnerOccurrencesLexico } from '../src/shared/lexico/moteur'
 import { exporterTableauLexico } from '../src/shared/lexico/export'
@@ -10,7 +10,7 @@ import { appliquerCommandeTraitementsLexico, appliquerTraitementsLexico, compter
 
 const reference: EntretienRef = { titre: 'Entretien A', date: null, lastModified: '' }
 const source: EntretienFichier = {
-  formatVersion: FORMAT_NATIF_LOCUTEURS,
+  formatVersion: FORMAT_VERSION,
   lastModified: '',
   corpsTexte: {
     type: 'doc',

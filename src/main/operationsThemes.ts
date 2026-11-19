@@ -145,7 +145,7 @@ export function decoderCorpusTheme(contenu: string): CorpusFichier {
 
 /** Vérifie les données adaptées avant de compter les codages ou produire leurs extraits. */
 export function validerEntretienTheme(data: EntretienFichier): void {
-  if (!Array.isArray(data.annotations) || !Array.isArray(data.ancres) || !Array.isArray(data.locuteurs)
+  if (!Array.isArray(data.annotations) || !Array.isArray(data.ancres) || !Array.isArray(data.participations)
     || !data.meta || !dictionnaire(data.meta.valeursGen)
     || !Object.hasOwn(data, 'corpsTexte')
     || data.annotations.some((a) => !a || typeof a.id !== 'string' || !a.id

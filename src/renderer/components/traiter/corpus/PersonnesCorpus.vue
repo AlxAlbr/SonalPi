@@ -5,15 +5,15 @@ import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import { utiliserSonal } from '../../../composables/sonal'
-import { analyserRapprochementPersonne, natureNomPersonne, suggestionsPersonnes } from '../../../../shared/corpus/rapprochementsPersonnes'
-import type { InventairePersonnes, VueLocuteurPersonne } from '../../../../shared/corpus/personnes'
-import type { CommandePersonnes } from '../../../../shared/corpus/contratsLocuteurs'
+import { analyserRapprochementLocuteur, natureNomLocuteur, suggestionsLocuteurs, cleRefusRapprochement } from "../../../../shared/corpus/rapprochementsLocuteurs"
+import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../../shared/corpus/personnes'
+import type { CommandeLocuteurs } from '../../../../shared/corpus/contratsLocuteurs'
 
 const props = defineProps<{ actif: boolean }>()
 const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables, badgeVerrou,
   nomCategorieNote, idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue,
   revisionPersonnesCorpus } = utiliserSonal()
-const inventaire = ref<InventairePersonnes>({ personnes: [], locuteurs: [], notes: [], indisponibles: [] })
+const inventaire = ref<InventaireIdentitesLocuteurs>({ locuteurs: [], participations: [], notes: [], indisponibles: [] })
 const selection = ref('')
 const titreFiche = ref<HTMLHeadingElement | null>(null)
 const recherche = ref('')
@@ -22,7 +22,7 @@ const erreur = ref('')
 const erreurLecture = ref(false)
 const message = ref('')
 const ficheVideId = ref('')
-const ficheVide = computed(() => inventaire.value.personnes.find(p => p.id === ficheVideId.value && !inventaire.value.locuteurs.some(l => l.personneRef === p.id)))
+const ficheVide = computed(() => inventaire.value.locuteurs.find(p => p.id === ficheVideId.value && !inventaire.value.participations.some(l => l.locuteurRef === p.id)))
 const occupe = ref(false)
 const charge = ref(false)
 let generation = 0
@@ -31,33 +31,33 @@ const corpusDistant = computed(() => !!idDistantCourant.value)
 const lectureUniquement = computed(() => lectureSeule.value)
 const desactive = computed(() => occupe.value || lectureUniquement.value)
 const desactiveComposite = computed(() => desactive.value)
-const refusComposite = (l: VueLocuteurPersonne) =>
-  !l.personneRef && !l.personneDeliee && natureNomPersonne(l.nom) === 'specifique'
-const rapprochementDesactive = (_cible: VueLocuteurPersonne, _source: VueLocuteurPersonne) =>
+const refusComposite = (l: VueParticipationLocuteur) =>
+  !l.locuteurRef && !l.associationRetiree && natureNomLocuteur(l.nom) === 'specifique'
+const rapprochementDesactive = (_cible: VueParticipationLocuteur, _source: VueParticipationLocuteur) =>
   desactive.value
-const personne = computed(() => inventaire.value.personnes.find((p) => `p:${p.id}` === selection.value))
-const cleLocuteur = (l: VueLocuteurPersonne) => JSON.stringify([l.entretienId, l.locuteurId])
+const personne = computed(() => inventaire.value.locuteurs.find((p) => `p:${p.id}` === selection.value))
+const cleLocuteur = (l: VueParticipationLocuteur) => JSON.stringify([l.entretienId, l.participationId])
 const rapprochementSelectionne = ref('')
 function selectionner(valeur: string, cleRapprochement = '') {
   selection.value = valeur
   rapprochementSelectionne.value = cleRapprochement
 }
-const locuteur = computed(() => inventaire.value.locuteurs.find((l) => `l:${cleLocuteur(l)}` === selection.value))
-const idsPersonnes = computed(() => new Set(inventaire.value.personnes.map((p) => p.id)))
-const nombreEntretiensPersonne = (personneId: string) => new Set(inventaire.value.locuteurs
-  .filter((l) => l.personneRef === personneId)
+const locuteur = computed(() => inventaire.value.participations.find((l) => `l:${cleLocuteur(l)}` === selection.value))
+const idsPersonnes = computed(() => new Set(inventaire.value.locuteurs.map((p) => p.id)))
+const nombreEntretiensPersonne = (personneId: string) => new Set(inventaire.value.participations
+  .filter((l) => l.locuteurRef === personneId)
   .map((l) => l.entretienId)).size
 const libelleEntretiensPersonne = (personneId: string) => {
   const nombre = nombreEntretiensPersonne(personneId)
   return `${nombre} entretien${nombre > 1 ? 's' : ''}`
 }
-const lies = computed(() => inventaire.value.locuteurs.filter((l) => l.personneRef === personne.value?.id))
+const lies = computed(() => inventaire.value.participations.filter((l) => l.locuteurRef === personne.value?.id))
 const notesLiees = computed(() => {
-  const ids = new Set(lies.value.map((l) => l.locuteurId))
-  return inventaire.value.notes.filter((note) => note.locuteurIds.some((id) => ids.has(id)))
+  const ids = new Set(lies.value.map((l) => l.participationId))
+  return inventaire.value.notes.filter((note) => note.participationIds.some((id) => ids.has(id)))
 })
 const groupesNotesLiees = computed(() => {
-  const groupes = new Map<string, { titre: string; notes: InventairePersonnes['notes'] }>()
+  const groupes = new Map<string, { titre: string; notes: InventaireIdentitesLocuteurs['notes'] }>()
   for (const note of notesLiees.value) {
     if (!groupes.has(note.entretienId)) groupes.set(note.entretienId, { titre: note.entretienTitre, notes: [] })
     groupes.get(note.entretienId)!.notes.push(note)
@@ -73,22 +73,22 @@ const texteNote = (corps: string) => {
 const dateNote = (date: string | null) => date
   ? new Date(`${date}T00:00`).toLocaleDateString('fr-FR')
   : 'sans date'
-const nonLies = computed(() => inventaire.value.locuteurs.filter((l) => !l.personneRef || !idsPersonnes.value.has(l.personneRef)))
-const liensInvalides = computed(() => inventaire.value.locuteurs.filter((l) => l.personneRef && !idsPersonnes.value.has(l.personneRef)))
-const doublons = computed(() => inventaire.value.personnes.filter((p) => {
-  const ls = inventaire.value.locuteurs.filter((l) => l.personneRef === p.id)
+const nonLies = computed(() => inventaire.value.participations.filter((l) => !l.locuteurRef || !idsPersonnes.value.has(l.locuteurRef)))
+const liensInvalides = computed(() => inventaire.value.participations.filter((l) => l.locuteurRef && !idsPersonnes.value.has(l.locuteurRef)))
+const doublons = computed(() => inventaire.value.locuteurs.filter((p) => {
+  const ls = inventaire.value.participations.filter((l) => l.locuteurRef === p.id)
   return new Set(ls.map((l) => l.entretienId)).size !== ls.length
 }))
 const cleRecherche = (texte: string) => texte.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr')
 const correspond = (texte: string) => cleRecherche(texte).includes(cleRecherche(recherche.value.trim()))
-const personnesVisibles = computed(() => inventaire.value.personnes.filter((p) =>
+const personnesVisibles = computed(() => inventaire.value.locuteurs.filter((p) =>
   (filtre.value === 'tous' || (filtre.value === 'problemes' && doublons.value.some((d) => d.id === p.id))) &&
-  correspond([p.nom, ...inventaire.value.locuteurs.filter((l) => l.personneRef === p.id).map((l) => `${l.nom} ${l.entretienTitre}`)].join(' ')),
+  correspond([p.nom, ...inventaire.value.participations.filter((l) => l.locuteurRef === p.id).map((l) => `${l.nom} ${l.entretienTitre}`)].join(' ')),
 ))
 const groupesNonLies = computed(() => {
-  const groupes = new Map<string, { titre: string; locuteurs: VueLocuteurPersonne[] }>()
+  const groupes = new Map<string, { titre: string; locuteurs: VueParticipationLocuteur[] }>()
   for (const l of nonLies.value) {
-    if (filtre.value === 'refus' || (filtre.value === 'problemes' && !l.personneRef)) continue
+    if (filtre.value === 'refus' || (filtre.value === 'problemes' && !l.locuteurRef)) continue
     if (!correspond(`${l.nom} ${l.entretienTitre}`)) continue
     if (!groupes.has(l.entretienId)) groupes.set(l.entretienId, { titre: l.entretienTitre, locuteurs: [] })
     groupes.get(l.entretienId)!.locuteurs.push(l)
@@ -96,23 +96,23 @@ const groupesNonLies = computed(() => {
   return [...groupes.entries()]
 })
 const suggestionsParLocuteur = computed(() => {
-  const convertir = (l: VueLocuteurPersonne) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })
-  const tous = inventaire.value.locuteurs.map(convertir)
-  return new Map(inventaire.value.locuteurs.map((l) => {
-    const suggestions = suggestionsPersonnes(convertir(l), tous)
-    return [cleLocuteur(l), inventaire.value.locuteurs.filter((c) => suggestions.some((s) => s.entretienId === c.entretienId && s.locuteur.id === c.locuteurId))]
+  const convertir = (l: VueParticipationLocuteur) => ({ entretienId: l.entretienId, participation: { ...l, id: l.participationId } })
+  const tous = inventaire.value.participations.map(convertir)
+  return new Map(inventaire.value.participations.map((l) => {
+    const suggestions = suggestionsLocuteurs(convertir(l), tous)
+    return [cleLocuteur(l), inventaire.value.participations.filter((c) => suggestions.some((s) => s.entretienId === c.entretienId && s.participation.id === c.participationId))]
   }))
 })
-const cleIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
-  ? `p:${l.personneRef}`
+const cleIdentite = (l: VueParticipationLocuteur) => l.locuteurRef && idsPersonnes.value.has(l.locuteurRef)
+  ? `p:${l.locuteurRef}`
   : `l:${cleLocuteur(l)}`
-const membresIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
-  ? inventaire.value.locuteurs.filter((membre) => membre.personneRef === l.personneRef)
+const membresIdentite = (l: VueParticipationLocuteur) => l.locuteurRef && idsPersonnes.value.has(l.locuteurRef)
+  ? inventaire.value.participations.filter((membre) => membre.locuteurRef === l.locuteurRef)
   : [l]
-const nomIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
-  ? inventaire.value.personnes.find((p) => p.id === l.personneRef)?.nom ?? l.nom
+const nomIdentite = (l: VueParticipationLocuteur) => l.locuteurRef && idsPersonnes.value.has(l.locuteurRef)
+  ? inventaire.value.locuteurs.find((p) => p.id === l.locuteurRef)?.nom ?? l.nom
   : l.nom
-const libelleIdentite = (l: VueLocuteurPersonne) => {
+const libelleIdentite = (l: VueParticipationLocuteur) => {
   const membres = membresIdentite(l)
   return membres.length > 1
     ? `${nomIdentite(l)} · ${membres.length} entretiens (${membres.map((membre) => membre.entretienTitre).join(', ')})`
@@ -120,7 +120,7 @@ const libelleIdentite = (l: VueLocuteurPersonne) => {
 }
 const rapprochementsAVerifier = computed(() => {
   const vus = new Set<string>()
-  return inventaire.value.locuteurs.flatMap((cible) =>
+  return inventaire.value.participations.flatMap((cible) =>
     (suggestionsParLocuteur.value.get(cleLocuteur(cible)) ?? []).flatMap((candidat) => {
       const cle = [cleIdentite(cible), cleIdentite(candidat)].sort().join('\n')
       if (vus.has(cle)) return []
@@ -134,7 +134,7 @@ const rapprochementsAVerifier = computed(() => {
   )
 })
 const rapprochementActif = computed(() => rapprochementsAVerifier.value.find((r) => r.cle === rapprochementSelectionne.value))
-const decisionsEcartees = computed(() => inventaire.value.locuteurs.filter((l) => l.rapprochementsRefuses?.length))
+const decisionsEcartees = computed(() => inventaire.value.participations.filter((l) => l.rapprochementsRefuses?.length))
 const resumeIndisponibles = computed(() => {
   const nombre = inventaire.value.indisponibles.length
   return `${nombre} entretien${nombre > 1 ? 's' : ''} indisponible${nombre > 1 ? 's' : ''}`
@@ -143,7 +143,7 @@ const candidats = computed(() => locuteur.value ? suggestionsParLocuteur.value.g
 const candidatsAffiches = computed(() => rapprochementActif.value
   ? [rapprochementActif.value.candidat]
   : candidats.value)
-function entretiensRapprochement(a: VueLocuteurPersonne, b: VueLocuteurPersonne) {
+function entretiensRapprochement(a: VueParticipationLocuteur, b: VueParticipationLocuteur) {
   const vus = new Set<string>()
   return [...membresIdentite(a), ...membresIdentite(b)].filter((l) => {
     if (vus.has(l.entretienId)) return false
@@ -151,18 +151,18 @@ function entretiensRapprochement(a: VueLocuteurPersonne, b: VueLocuteurPersonne)
     return true
   })
 }
-function libelleRefus(r: string) {
-  if (r.startsWith('personne:')) return inventaire.value.personnes.find((p) => p.id === r.slice(9))?.nom ?? 'Personne absente'
-  const l = inventaire.value.locuteurs.find((l) => l.locuteurId === r.slice(9))
-  return l ? `${l.nom} · ${l.entretienTitre}` : 'Locuteur absent'
+function libelleRefus(r: import('../../../../shared/locuteurs').RefusRapprochementLocuteur) {
+  if (r.type === 'locuteur') return inventaire.value.locuteurs.find((p) => p.id === r.locuteurId)?.nom ?? 'Locuteur absent'
+  const p = inventaire.value.participations.find((p) => p.entretienId === r.entretienId && p.participationId === r.participationId)
+  return p ? `${p.nom} · ${p.entretienTitre}` : 'Participation absente'
 }
-const sourceReprise = ref<VueLocuteurPersonne | null>(null)
+const sourceReprise = ref<VueParticipationLocuteur | null>(null)
 const autreFiche = ref('')
 const cibleRapprochement = computed(() => locuteur.value ?? lies.value[0])
 function verifierAutreFiche() {
-  sourceReprise.value = inventaire.value.locuteurs.find(l => l.personneRef === autreFiche.value) ?? null
+  sourceReprise.value = inventaire.value.participations.find(l => l.locuteurRef === autreFiche.value) ?? null
 }
-function validerRapprochement(commande: CommandePersonnes) {
+function validerRapprochement(commande: CommandeLocuteurs) {
   sourceReprise.value = null
   void executer(commande)
 }
@@ -179,8 +179,8 @@ watch([selection, inventaire], () => {
   locuteursSeparation.value = []
   nomSeparation.value = ''
 })
-const variablesLoc = computed(() => variables.value.filter((v) => v.portee === 'locuteur'))
-function valeur(l: VueLocuteurPersonne, idVar: string) {
+const variablesLoc = computed(() => variables.value.filter((v) => v.portee === "participation"))
+function valeur(l: VueParticipationLocuteur, idVar: string) {
   const idMod = l.valeursLoc[idVar]
   if (!idMod) return '—'
   return variablesLoc.value.find((v) => v.id === idVar)?.modalites.find((m) => m.id === idMod)?.lib ?? 'Modalité absente'
@@ -212,7 +212,7 @@ async function actualiser() {
   chargementPersonnes = requete
   return requete
 }
-async function executer(commande: CommandePersonnes) {
+async function executer(commande: CommandeLocuteurs) {
   if (desactive.value) return
   occupe.value = true
   erreur.value = ''
@@ -221,7 +221,7 @@ async function executer(commande: CommandePersonnes) {
   const jeton = generation
   try {
     const ancienLien = commande.type === 'lier'
-      ? inventaire.value.locuteurs.find(l => l.entretienId === commande.entretienId && l.locuteurId === commande.locuteurId)?.personneRef : null
+      ? inventaire.value.participations.find(l => l.entretienId === commande.entretienId && l.participationId === commande.participationId)?.locuteurRef : null
     const id = await commanderPersonnes(commande)
     if (jeton !== generation) return
     if (['creer', 'fusionner', 'rapprocher', 'separer'].includes(commande.type) && id) selection.value = `p:${id}`
@@ -258,7 +258,7 @@ function enregistrerNom() {
   }
   nom.value = valeur
   if (valeur === fiche.nom) return
-  void executer({ type: 'modifier', personneId: fiche.id, nom: valeur })
+  void executer({ type: 'modifier', locuteurId: fiche.id, nom: valeur })
 }
 
 const dialogueAide = ref<HTMLDialogElement | null>(null)
@@ -273,10 +273,10 @@ function fermerAide() {
   retourFocusAide?.focus()
 }
 
-const confirmation = ref<{ texte: string; commande: CommandePersonnes } | null>(null)
+const confirmation = ref<{ texte: string; commande: CommandeLocuteurs } | null>(null)
 const dialogue = ref<HTMLDialogElement | null>(null)
 let retourFocus: HTMLElement | null = null
-async function demander(texte: string, commande: CommandePersonnes) {
+async function demander(texte: string, commande: CommandeLocuteurs) {
   retourFocus = document.activeElement as HTMLElement | null
   confirmation.value = { texte, commande }
   await nextTick()
@@ -293,8 +293,8 @@ async function confirmer() {
   if (commande) await executer(commande)
 }
 
-type CommandeSeparation = Extract<CommandePersonnes, { type: 'separer' }>
-const separation = ref<{ commande: CommandeSeparation; locuteurs: VueLocuteurPersonne[]; restants: number } | null>(null)
+type CommandeSeparation = Extract<CommandeLocuteurs, { type: 'separer' }>
+const separation = ref<{ commande: CommandeSeparation; locuteurs: VueParticipationLocuteur[]; restants: number } | null>(null)
 const dialogueSeparation = ref<HTMLDialogElement | null>(null)
 let retourFocusSeparation: HTMLElement | null = null
 async function demanderSeparation() {
@@ -306,9 +306,9 @@ async function demanderSeparation() {
   separation.value = {
     commande: {
       type: 'separer',
-      personneId: fiche.id,
+      locuteurId: fiche.id,
       nom: nouveauNom,
-      locuteurs: selectionnees.map((lie) => ({ entretienId: lie.entretienId, locuteurId: lie.locuteurId })),
+      participations: selectionnees.map((lie) => ({ entretienId: lie.entretienId, participationId: lie.participationId })),
       attendu: JSON.stringify(inventaire.value),
     },
     locuteurs: selectionnees,
@@ -327,15 +327,15 @@ async function confirmerSeparation() {
   annulerSeparation()
   if (commande) await executer(commande)
 }
-function lier(l: VueLocuteurPersonne, personneId: string | null) {
-  const nomCible = inventaire.value.personnes.find((p) => p.id === personneId)?.nom
-  const nomSource = inventaire.value.personnes.find((p) => p.id === l.personneRef)?.nom ?? l.personneRef
+function lier(l: VueParticipationLocuteur, personneId: string | null) {
+  const nomCible = inventaire.value.locuteurs.find((p) => p.id === personneId)?.nom
+  const nomSource = inventaire.value.locuteurs.find((p) => p.id === l.locuteurRef)?.nom ?? l.locuteurRef
   const texte = personneId === null
     ? `Ne plus associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomSource} » ? Le nom local et ses valeurs seront conservés.`
-    : `Associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomCible} » ?${l.personneRef ? ` L’association avec « ${nomSource} » sera remplacée.` : ''}`
-  void demander(texte, { type: 'lier', entretienId: l.entretienId, locuteurId: l.locuteurId, personneId })
+    : `Associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomCible} » ?${l.locuteurRef ? ` L’association avec « ${nomSource} » sera remplacée.` : ''}`
+  void demander(texte, { type: 'lier', entretienId: l.entretienId, participationId: l.participationId, locuteurId: personneId })
 }
-async function ouvrir(l: VueLocuteurPersonne) {
+async function ouvrir(l: VueParticipationLocuteur) {
   try { await allerLocuteurs(l.entretienId) }
   catch (e) {
     erreurLecture.value = false
@@ -393,7 +393,7 @@ onBeforeUnmount(() => { generation++; observateur?.disconnect() })
 watch(dossierCourantDir, () => {
   generation++
   chargementPersonnes = null
-  inventaire.value = { personnes: [], locuteurs: [], notes: [], indisponibles: [] }
+  inventaire.value = { locuteurs: [], participations: [], notes: [], indisponibles: [] }
   selection.value = ''; recherche.value = ''; filtre.value = 'tous'; charge.value = false
   erreur.value = ''; erreurLecture.value = false; message.value = ''; occupe.value = false
   annuler()
@@ -435,7 +435,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
       « {{ ficheVide.nom }} » n’est plus associée à aucun entretien.
       <template #actions>
         <button type="button" :disabled="desactive" @click="selectionner(`p:${ficheVide.id}`)">Examiner cette personne</button>
-        <button type="button" class="danger" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
+        <button type="button" class="danger" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', locuteurId: ficheVide.id })">Supprimer cette personne…</button>
       </template>
     </BandeauRetourCorpus>
     <div v-if="occupe && !charge" class="etat-projection" role="status">Chargement…</div>
@@ -454,7 +454,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
         <header>
           <div class="corpus-tete"><h2 class="titre-panneau">Répertoire</h2></div>
           <p class="accueil-intro">
-            {{ inventaire.personnes.length }} personne{{ inventaire.personnes.length > 1 ? 's' : '' }} ·
+            {{ inventaire.locuteurs.length }} personne{{ inventaire.locuteurs.length > 1 ? 's' : '' }} ·
             {{ nonLies.length }} locuteur{{ nonLies.length > 1 ? 's' : '' }} à associer
           </p>
         </header>
@@ -493,7 +493,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
             <h4>{{ groupe.titre }}</h4>
             <ul><li v-for="l in groupe.locuteurs" :key="cleLocuteur(l)">
               <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selectionner(`l:${cleLocuteur(l)}`)">
-                {{ l.nom || 'Locuteur sans nom' }} <span v-if="l.personneRef">— référence absente</span>
+                {{ l.nom || 'Locuteur sans nom' }} <span v-if="l.locuteurRef">— référence absente</span>
               </button>
             </li></ul>
           </section>
@@ -521,17 +521,17 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           <h3>Rapprochements proposés</h3>
           <p>Chaque proposition compare deux identités. Lorsqu’une identité réunit déjà plusieurs entretiens, la décision vaut pour tout le groupe.</p>
           <p v-if="refusComposite(locuteur)">« Personne différente » crée une personne distincte pour ce locuteur et mémorise le refus.</p>
-          <p v-if="natureNomPersonne(locuteur.nom) === 'role'">Même rôle ne signifie pas même personne. En cas d’homonymie, vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer les locuteurs.</p>
+          <p v-if="natureNomLocuteur(locuteur.nom) === 'role'">Même rôle ne signifie pas même personne. En cas d’homonymie, vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer les locuteurs.</p>
           <ul class="propositions-rapprochements"><li v-for="s in candidatsAffiches" :key="cleLocuteur(s)">
             <div class="comparaison-identites">
               <strong>{{ libelleIdentite(locuteur) }}</strong>
               <span aria-hidden="true">↔</span>
               <strong>{{ libelleIdentite(s) }}</strong>
             </div>
-            <p>{{ analyserRapprochementPersonne(locuteur.nom, s.nom)?.libelle }}</p>
+            <p>{{ analyserRapprochementLocuteur(locuteur.nom, s.nom)?.libelle }}</p>
             <div class="actions">
               <button :disabled="rapprochementDesactive(locuteur, s)" @click="sourceReprise = s">C’est la même personne…</button>
-              <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, sourceEntretienId: s.entretienId, sourceLocuteurId: s.locuteurId })">Personne différente</button>
+              <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, participationId: locuteur.participationId, sourceEntretienId: s.entretienId, sourceParticipationId: s.participationId })">Personne différente</button>
             </div>
             <div v-if="rapprochementActif" class="acces-entretiens">
               <strong>Aller à l’entretien</strong>
@@ -545,8 +545,8 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           @annuler="sourceReprise = null" @valider="validerRapprochement" />
         <section v-if="!rapprochementActif && locuteur?.rapprochementsRefuses?.length" aria-label="Décisions écartées">
           <h3>Décisions écartées</h3>
-          <ul><li v-for="r in locuteur.rapprochementsRefuses" :key="r">{{ libelleRefus(r) }}
-            <button :disabled="desactive" @click="executer({ type: 'annulerRefus', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, cible: r })">Annuler le refus</button>
+          <ul><li v-for="r in locuteur.rapprochementsRefuses" :key="cleRefusRapprochement(r)">{{ libelleRefus(r) }}
+            <button :disabled="desactive" @click="executer({ type: 'annulerRefus', entretienId: locuteur.entretienId, participationId: locuteur.participationId, cible: r })">Annuler le refus</button>
           </li></ul>
         </section>
         <template v-if="personne">
@@ -563,7 +563,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
             <form class="reunir-personne" @submit.prevent="verifierAutreFiche">
               <label><span>Avec</span><select v-model="autreFiche" :disabled="desactiveComposite">
                 <option value="">Choisir une personne…</option>
-                <option v-for="p in inventaire.personnes.filter(p => p.id !== personne?.id && inventaire.locuteurs.some(l => l.personneRef === p.id))" :key="p.id" :value="p.id">{{ p.nom }} · {{ inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
+                <option v-for="p in inventaire.locuteurs.filter(p => p.id !== personne?.id && inventaire.participations.some(l => l.locuteurRef === p.id))" :key="p.id" :value="p.id">{{ p.nom }} · {{ inventaire.participations.filter(l => l.locuteurRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
               </select></label>
               <button :disabled="desactiveComposite || !autreFiche">Continuer…</button>
             </form>
@@ -616,31 +616,31 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
               <tbody><tr v-for="l in lies" :key="cleLocuteur(l)"><th scope="row">{{ l.entretienTitre }} · {{ l.nom }}</th><td v-for="v in variablesLoc" :key="v.id">{{ valeur(l, v.id) }}</td></tr></tbody>
             </table>
           </div>
-          <button v-if="!lies.length" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${personne.nom} » ?`, { type: 'supprimer', personneId: personne.id })">Supprimer cette personne</button>
+          <button v-if="!lies.length" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${personne.nom} » ?`, { type: 'supprimer', locuteurId: personne.id })">Supprimer cette personne</button>
         </template>
         <template v-else-if="locuteur && !rapprochementActif">
           <h3>{{ locuteur.nom || 'Locuteur sans nom' }}</h3>
           <p>{{ locuteur.entretienTitre }} <span v-if="locuteur.interviewer">· Enquêteur</span></p>
           <p v-if="badgeVerrou(locuteur.entretienId)">Verrou tenu par {{ badgeVerrou(locuteur.entretienId)?.userId }}</p>
-          <p v-if="locuteur.personneRef && !idsPersonnes.has(locuteur.personneRef)" class="erreur">Référence absente : {{ locuteur.personneRef }}. Associez ce locuteur à une autre personne ou supprimez cette association.</p>
+          <p v-if="locuteur.locuteurRef && !idsPersonnes.has(locuteur.locuteurRef)" class="erreur">Référence absente : {{ locuteur.locuteurRef }}. Associez ce locuteur à une autre personne ou supprimez cette association.</p>
           <button :disabled="occupe" @click="ouvrir(locuteur)">Ouvrir l’entretien</button>
-          <form v-if="!locuteur.personneRef" class="action-personne" @submit.prevent="executer({ type: 'creer', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, nom })">
+          <form v-if="!locuteur.locuteurRef" class="action-personne" @submit.prevent="executer({ type: 'creer', entretienId: locuteur.entretienId, participationId: locuteur.participationId, nom })">
             <label><span>Nouvelle personne</span><input v-model="nom" :disabled="desactive" required /></label>
             <button :disabled="desactive || !nom.trim()">Créer</button>
           </form>
-          <p v-if="!locuteur.personneRef" class="separateur-action">ou</p>
+          <p v-if="!locuteur.locuteurRef" class="separateur-action">ou</p>
           <form class="action-personne" @submit.prevent="lier(locuteur, cible)">
             <label><span>Associer à</span><select v-model="cible" :disabled="desactive">
               <option value="">Choisir une personne…</option>
-              <option v-for="p in inventaire.personnes" :key="p.id" :value="p.id" :disabled="inventaire.locuteurs.some(l => l.entretienId === locuteur?.entretienId && l.personneRef === p.id)">{{ p.nom }} · {{ inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
+              <option v-for="p in inventaire.locuteurs" :key="p.id" :value="p.id" :disabled="inventaire.participations.some(l => l.entretienId === locuteur?.entretienId && l.locuteurRef === p.id)">{{ p.nom }} · {{ inventaire.participations.filter(l => l.locuteurRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
             </select></label>
-            <button :disabled="desactive || !cible">{{ locuteur.personneRef ? 'Changer' : 'Associer' }}</button>
+            <button :disabled="desactive || !cible">{{ locuteur.locuteurRef ? 'Changer' : 'Associer' }}</button>
           </form>
-          <button v-if="locuteur.personneRef" :disabled="desactive" @click="lier(locuteur, null)">Ne plus associer</button>
+          <button v-if="locuteur.locuteurRef" :disabled="desactive" @click="lier(locuteur, null)">Ne plus associer</button>
         </template>
         <template v-else-if="!rapprochementActif">
           <h3>Personne</h3>
-          <p v-if="charge && !inventaire.personnes.length">Aucune personne n’est encore identifiée. Choisissez un locuteur non lié pour créer une personne.</p>
+          <p v-if="charge && !inventaire.locuteurs.length">Aucune personne n’est encore identifiée. Choisissez un locuteur non lié pour créer une personne.</p>
           <p v-else>Sélectionnez une personne ou un locuteur dans le répertoire.</p>
           <p>Une personne relie les locuteurs d’entretiens différents, sans changer leurs noms ni leurs données. Les homonymes peuvent rester distincts.</p>
         </template>

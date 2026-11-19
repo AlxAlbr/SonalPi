@@ -1,5 +1,5 @@
 import type { ParticipationLocuteur } from '../locuteurs'
-import type { Cas, EntretienFichier, MembreLocuteurCas, RegleCas } from './format'
+import type { Cas, EntretienFichier, MembreLocuteurCas, RegleCas } from '../format'
 
 /** Informations locales nécessaires aux lectures de cas, sans inventer les ids absents. */
 export type ParticipationLectureCas = Pick<ParticipationLocuteur,

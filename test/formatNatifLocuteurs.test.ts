@@ -1,18 +1,18 @@
 import { describe, expect, expectTypeOf, test } from 'vitest'
-import { FORMAT_NATIF_LOCUTEURS, type CorpusFichier, type EntretienFichier, type Note, type Variable } from '../src/shared/natif/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type Note, type Variable } from "../src/shared/format"
 import { validerCorpusNatif, validerEntretienNatif } from '../src/shared/natif/validation'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import type { Locuteur, ParticipationLocuteur, ReferenceParticipation } from '../src/shared/locuteurs'
 
 function corpus(): CorpusFichier {
   return {
-    formatVersion: FORMAT_NATIF_LOCUTEURS, codebook: {}, variables: {}, reglesAnon: {}, membership: {},
+    formatVersion: FORMAT_VERSION, codebook: {}, variables: {}, reglesAnon: {}, membership: {},
     locuteurs: { commun: { id: 'commun', nom: 'Nom de référence' } },
   }
 }
 function entretien(): EntretienFichier {
   return {
-    formatVersion: FORMAT_NATIF_LOCUTEURS, lastModified: '', annotations: [], ancres: [],
+    formatVersion: FORMAT_VERSION, lastModified: '', annotations: [], ancres: [],
     meta: { valeursGen: {}, audioRef: null },
     corpsTexte: { type: 'doc', content: [
       { type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: 'Paroles attribuées.' }] },
@@ -63,7 +63,8 @@ describe('contrat du format natif des locuteurs', () => {
   })
 
   test('changer uniquement le numéro d’un corpus de développement ne suffit pas', () => {
-    const ancien = { ...squeletteCorpus(), formatVersion: FORMAT_NATIF_LOCUTEURS }
+    const { locuteurs, ...commun } = squeletteCorpus()
+    const ancien = { ...commun, formatVersion: FORMAT_VERSION, personnes: locuteurs }
     expect(() => validerCorpusNatif(ancien)).toThrow('Répertoire de locuteurs invalide')
   })
 
@@ -153,7 +154,7 @@ describe('contrat du format natif des locuteurs', () => {
     Object.assign(c.variables.age, { portee: 'locuteur' })
     expect(() => validerCorpusNatif(c)).toThrow('Définition de variable invalide')
     c.variables.age.portee = 'participation'
-    Object.assign(c.cas.cas.regles[0], { type: 'personne', personneId: 'commun' })
+    Object.assign(c.cas.cas.regles[0], { type: "locuteur", personneId: 'commun' })
     expect(() => validerCorpusNatif(c)).toThrow('Règle de cas invalide')
   })
 })

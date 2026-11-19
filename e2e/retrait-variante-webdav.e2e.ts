@@ -116,7 +116,7 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
       expect(await b.client.getTexte('entretiens/e1.json')).toBe(acquis)
       expect(await app.evaluate(() => (globalThis as unknown as { sondeRetrait: Sonde }).sondeRetrait.publies)).toEqual(['barriere', 'e1.json', 'e2.json', 'e3.json', 'retrait'])
       const attendu = structuredClone(b.f.sources[0].data), actuel = JSON.parse(acquis)
-      for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
+      for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
       attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
     } finally { if (rendre) await rendre(); if (app) await app.close(); await b.nettoyer() }
   })
@@ -145,7 +145,7 @@ for (const port of [8080, 8081]) test.describe(`Retrait variante WebDAV :${port}
       await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
       modal = await preparer(page); await confirmer(modal); await expect(modal).toBeHidden({ timeout: 90_000 })
       const actuel = JSON.parse(await b.client.getTexte('entretiens/e1.json')), attendu = JSON.parse(source)
-      for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
+      for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
       attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
     } finally { if (app) await app.close(); await b.nettoyer() }
   })

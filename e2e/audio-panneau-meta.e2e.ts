@@ -57,12 +57,12 @@ function ecrireEntretienVide(dir: string, id: string): void {
     join(dir, 'corpus', 'entretiens', `${id}.json`),
     JSON.stringify(
       {
-        formatVersion: 3,
+        formatVersion: 10,
         lastModified: now,
         corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
         annotations: [],
         ancres: [],
-        locuteurs: [],
+        participations: [],
         meta: { valeursGen: {}, audioRef: null },
       },
       null,

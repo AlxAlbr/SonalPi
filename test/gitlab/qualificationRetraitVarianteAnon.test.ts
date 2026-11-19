@@ -52,7 +52,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
         const apres = await b.lire(source.id), attendu = structuredClone(source.data)
         if (source.id !== 'e3') {
           attendu.lastModified = apres.lastModified
-          for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
+          for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
         }
         expect(apres).toEqual(attendu)
       }
@@ -66,7 +66,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
       expect((await session.ouvrir()).etat).toBe('edition')
       expect(await b.s.appliquer(b.a.token, true)).toMatchObject({ statut: 'partiel', annotations: 3, varianteRetiree: false })
       expect((await b.corpus()).reglesAnon.personne.pseudos).toEqual(['Claire', 'Rebecca'])
-      const candidat = structuredClone(b.f.sources[1].data); candidat.locuteurs[0].pseudo = 'Concurrent'
+      const candidat = structuredClone(b.f.sources[1].data); candidat.participations[0].pseudo = 'Concurrent'
       await session.ecrire(JSON.stringify(candidat)); await session.marquerSale()
       expect(await session.publier()).toMatchObject({ statut: 'refuse', raison: 'references' }); expect(await session.fermer()).toMatchObject({ fermee: false })
       // Le banc abandonne sa propre édition synthétique, sans libérer de droit tiers.
@@ -80,7 +80,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
     try {
       expect((await session.ouvrir()).etat).toBe('edition'); expect((await cible.ouvrir()).etat).toBe('edition')
       expect(await b.s.appliquer(b.a.token, true)).toMatchObject({ statut: 'partiel' })
-      const candidat = structuredClone(b.f.sources[2].data); candidat.locuteurs[0].pseudo = 'Indépendant'
+      const candidat = structuredClone(b.f.sources[2].data); candidat.participations[0].pseudo = 'Indépendant'
       await session.ecrire(JSON.stringify(candidat)); await session.marquerSale(); expect((await session.publier()).statut).toBe('confirme')
       const importe = structuredClone(candidat); importe.annotations = [structuredClone(b.f.sources[0].data.annotations[2])]
       await expect(b.p.transactions.importerEntretien('Import périmé', importe, [], [], [])).rejects.toThrow('retrait')

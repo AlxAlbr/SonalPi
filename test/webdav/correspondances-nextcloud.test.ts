@@ -78,7 +78,7 @@ for (const port of [8080, 8081]) {
         await expect(b.service.appliquer(b.preparation)).rejects.toThrow('incomplet')
         const suivi = b.service.lireSuivi()!
         expect(suivi).toMatchObject({ confirmes: 1, restants: 1, indeterminee: true })
-        expect(JSON.parse(await b.origin.getTexte('entretiens/e1.json')).locuteurs[0]).toMatchObject({ personneRef: 'personne-synthetique', pseudo: 'Claire' })
+        expect(JSON.parse(await b.origin.getTexte('entretiens/e1.json')).participations[0]).toMatchObject({ locuteurRef: 'personne-synthetique', pseudo: 'Claire' })
         expect(await b.origin.getTexte('entretiens/e2.json')).toBe(entretienImportWebDAV())
         b.panne.avantE2 = false
         expect((await b.creer().reprendre(suivi.operationId, true)).entretiens.entretiens).toBe(2)
@@ -147,7 +147,7 @@ for (const port of [8080, 8081]) {
         await expect(contexte.importerCorrespondances(preparation)).rejects.toThrow('incomplet')
         const suivi = contexte.lireSuiviImportCorrespondances()!
         expect(suivi).toMatchObject({ confirmes: 1, restants: 1 })
-        expect(contexte.store.lireEntretien('e1')).toMatchObject({ ok: true, data: { locuteurs: [{ pseudo: 'Claire' }] } })
+        expect(contexte.store.lireEntretien('e1')).toMatchObject({ ok: true, data: { participations: [{ pseudo: 'Claire' }] } })
         await contexte.fermer()
         b.panne.avantE2 = false
         contexte = await ouvrir()

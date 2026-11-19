@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { appliquerCommandeCas, normaliserCas, normaliserFamillesCas, compterUsagesCasVariable, type CommandeCas } from '../src/shared/corpus/cas'
-import { retirerVariable, retirerModalite, modifierVariable, modifierModalite } from '../src/shared/corpus/variablesFormat9'
-import { projeterCas, type SourceCasChargee } from '../src/renderer/editor/casFormat9'
+import { retirerVariable, retirerModalite, modifierVariable, modifierModalite } from "../src/shared/corpus/variables"
+import { projeterCas, type SourceCasChargee } from "../src/renderer/editor/cas"
 import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION } from '../src/shared/format'
 import { casModalite, familleCas, corpusFamille, sourceFamille, dateFamille } from './fixtures/casFamilles'
@@ -13,7 +13,7 @@ function modele() {
   const corpus = corpusFamille()
   const commande = (commande: CommandeCas) => {
     corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
-      maintenant: () => dateFamille, personneExiste: () => true, entretienExiste: () => true,
+      maintenant: () => dateFamille, locuteurExiste: () => true, entretienExiste: () => true,
       familles: corpus.famillesCas, variables: corpus.variables,
     })
   }
@@ -21,7 +21,7 @@ function modele() {
 }
 
 describe('cas — familles de modalités', () => {
-  test.each(['locuteur', 'entretien'] as const)('normalise et persiste les identités de portée %s', (portee) => {
+  test.each(['participation', 'entretien'] as const)('normalise et persiste les identités de portée %s', (portee) => {
     const famille = familleCas(portee)
     const cas = casModalite('a', famille)
     expect(normaliserCas({ [cas.id]: cas })).toEqual({ [cas.id]: cas })
@@ -50,12 +50,12 @@ describe('cas — familles de modalités', () => {
   test('une nouvelle famille de la même variable reste un choix distinct, noms et identités ne se fusionnent pas', () => {
     const { corpus, commande } = modele()
     commande({ type: 'creer-famille', famille: familleCas(), cas: [casModalite()] })
-    const autre = familleCas('locuteur', 'autre')
+    const autre = familleCas('participation', 'autre')
     commande({ type: 'creer-famille', famille: autre, cas: [casModalite('a', autre)] })
     expect(Object.keys(corpus.famillesCas!)).toHaveLength(2)
     expect(Object.keys(corpus.cas!)).toHaveLength(2)
     const avant = structuredClone(corpus)
-    expect(() => commande({ type: 'creer-famille', famille: { ...familleCas('locuteur', 'collision'), nom: ' ÉTABLISSEMENT F ' }, cas: [casModalite('c')] })).toThrow(/nom/)
+    expect(() => commande({ type: 'creer-famille', famille: { ...familleCas('participation', 'collision'), nom: ' ÉTABLISSEMENT F ' }, cas: [casModalite('c')] })).toThrow(/nom/)
     expect(() => commande({ type: 'completer-famille', famille: familleCas(), cas: [{ ...casModalite('c'), nom: casModalite().nom }] })).toThrow(/nom/)
     expect(() => commande({ type: 'completer-famille', famille: familleCas(), cas: [casModalite('b', familleCas(), casModalite().id)] })).toThrow(/identité/)
     expect(corpus).toEqual(avant)
@@ -64,7 +64,7 @@ describe('cas — familles de modalités', () => {
   test('références, portées et filtres revalidés sans mutation partielle', () => {
     const { corpus, commande } = modele()
     for (const cas of [casModalite('absente'), casModalite('a', familleCas('entretien')),
-      { ...casModalite(), regles: [{ type: 'modalite' as const, variableId: 'v', modaliteId: 'a', portee: 'locuteur' as const, inclureEnqueteurs: true }] }]) {
+      { ...casModalite(), regles: [{ type: 'modalite' as const, variableId: 'v', modaliteId: 'a', portee: "participation" as const, inclureEnqueteurs: true }] }]) {
       expect(() => commande({ type: 'creer-famille', famille: familleCas(), cas: [casModalite('b'), cas] })).toThrow()
       expect(corpus.cas).toEqual({})
       expect(corpus.famillesCas).toEqual({})
@@ -136,7 +136,7 @@ describe('projection des règles de modalités', () => {
     const b = projeterCas(corpus, casModalite('b'), lectures, 'original')
     expect(b.passages.map((p) => p.texte)).toEqual(['Autre établissement', 'Réponse locale', 'Autre établissement'])
     const famille = familleCas()
-    if (famille.origine.portee === 'locuteur') famille.origine.inclureEnqueteurs = true
+    if (famille.origine.portee === "participation") famille.origine.inclureEnqueteurs = true
     expect(projeterCas(corpus, casModalite('a', famille), lectures).observationsModalite.membres).toBe(7)
     expect(projeterCas(corpus, casModalite('a', famille), lectures).passages).toHaveLength(5)
   })
@@ -167,7 +167,7 @@ describe('projection des règles de modalités', () => {
     expect(vide.observationsModalite.membres).toBe(0)
     expect(vide.observationsModalite.valeursAbsentes).toBe(2)
     const invalide = sourceFamille()
-    invalide.locuteurs[1].valeursLoc.v = 'supprimee'
+    invalide.participations[1].valeursLoc.v = 'supprimee'
     lectures.set('e1', { ok: true, data: invalide })
     lectures.set('e2', { ok: false, raison: 'hors ligne' })
     const incomplet = projeterCas(corpus, cas, lectures)
@@ -203,21 +203,21 @@ describe('projection des règles de modalités', () => {
 
 const dossiers: string[] = []
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
-describe('CorpusStore — familles et migration v6', () => {
-  test('migration sans perte, commande atomique, suppression protégée et réouverture', () => {
+describe('CorpusStore — familles natives', () => {
+  test('conservation des données, commande atomique, suppression protégée et réouverture', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cas-familles-'))
     dossiers.push(dir)
     mkdirSync(join(dir, 'entretiens'))
     const corpus = corpusFamille()
-    corpus.formatVersion = 6
-    delete corpus.famillesCas
+    corpus.formatVersion = FORMAT_VERSION
+    corpus.famillesCas = {}
     corpus.cas = { ancien: { ...casModalite(), id: 'ancien', nom: 'Ancien', familleId: undefined,
-      regles: [{ type: 'personne', personneId: 'p1', inclureEnqueteurs: false }, { type: 'personne', personneId: 'p2', inclureEnqueteurs: true }],
+      regles: [{ type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false }, { type: "locuteur", locuteurId: 'p2', inclureEnqueteurs: true }],
       rattachements: [{ id: 'm', source: { entretienId: 'e1', repereId: 'r' }, provenance: 'manuel', creeLe: dateFamille }] } }
     delete corpus.cas.ancien.familleId
     corpus.recueils = { r: { id: 'r', nom: 'Recueil', creeLe: dateFamille, modifieLe: dateFamille, modeTexte: 'original', items: [] } }
     const data = sourceFamille()
-    data.formatVersion = 6
+    data.formatVersion = FORMAT_VERSION
     const fichier = join(dir, 'corpus.crp')
     writeFileSync(fichier, JSON.stringify(corpus))
     for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))

@@ -56,7 +56,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       'ent-deux-postes': {
         titre: 'Entretien scénario',
@@ -75,7 +75,7 @@ function entretienInitial(): string {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null },
   })

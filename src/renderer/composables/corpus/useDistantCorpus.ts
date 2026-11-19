@@ -34,7 +34,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   fusionThemes: true,
   suppressionSourceThemes: true,
   notes: true,
-  personnes: true,
+  locuteurs: true,
   annulationJournal: true,
   designationMedia: true,
   televersementMedia: false,

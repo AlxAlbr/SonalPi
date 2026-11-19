@@ -1,4 +1,4 @@
-import type { Categorie, MarqueurDemo, ParcoursId, PayloadEntretien, Variable } from './format'
+import type { Categorie, MarqueurDemo, ParcoursId, PayloadImportEntretien, Variable } from './format'
 
 export type ExempleId = 'synth' | 'synth-annote'
 export type UsageExemple = 'apprentissage' | 'libre'
@@ -46,7 +46,7 @@ export interface InstallationExemple {
   usage: UsageExemple
   parcoursApprentissage?: ParcoursId
   recommencer?: boolean
-  entretiens?: Array<{ cle: string; payload: PayloadEntretien; codebook: Categorie[]; variables: Variable[] }>
+  entretiens?: Array<{ cle: string; payload: PayloadImportEntretien; codebook: Categorie[]; variables: Variable[] }>
 }
 
 /** Vérifie l'identité d'un exemple sans se fier au nom du dossier. */

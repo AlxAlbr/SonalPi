@@ -16,7 +16,7 @@ import {
   type ItemLotValeur,
   type ModeTriEntretiens,
   type OuvertureEntretienEdition,
-  type PayloadEntretien,
+  type PayloadImportEntretien,
   type RegleAnon,
   type ResultatLotAnon,
   type ResultatMutationAnon,
@@ -569,7 +569,7 @@ export class ContexteGitLab {
 
   importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[],
     variables: Variable[],
     reglesAnon: RegleAnon[],
@@ -650,13 +650,13 @@ export class ContexteGitLab {
           if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
             throw new Error(`La modalité « ${item.idMod} » n’existe plus.`)
           }
-          if ((variable.portee === 'locuteur' ? 'participation' : variable.portee) !== item.cible.type) {
+          if ((variable.portee === "participation" ? 'participation' : variable.portee) !== item.cible.type) {
             throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
           }
         }
         if (item.cible.type === 'participation') {
           const participationId = item.cible.participationId
-          if (lecture.data.locuteurs.filter((p) => p.id === participationId).length !== 1) {
+          if (lecture.data.participations.filter((p) => p.id === participationId).length !== 1) {
             throw new Error('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
           }
         }

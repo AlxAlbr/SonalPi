@@ -554,7 +554,7 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', text: 'debounce récent' }] },
       annotations: [],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {}, audioRef: null },
     } satisfies PayloadEntretien
 

@@ -12,21 +12,21 @@ export interface RattachementCas {
   creeLe: string
 }
 
-export interface MembrePersonneCas {
-  personneId: string
+export interface MembreLocuteurCas {
+  locuteurId: string
   inclureEnqueteurs: boolean
 }
 
 export type RegleModaliteCas =
   | { type: 'modalite'; variableId: string; modaliteId: string; portee: 'entretien' }
-  | { type: 'modalite'; variableId: string; modaliteId: string; portee: 'locuteur'; inclureEnqueteurs: boolean }
+  | { type: 'modalite'; variableId: string; modaliteId: string; portee: "participation"; inclureEnqueteurs: boolean }
 
 export interface FamilleCas {
   id: string
   nom: string
   creeLe: string
   origine: { variableId: string; portee: 'entretien' }
-    | { variableId: string; portee: 'locuteur'; inclureEnqueteurs: boolean }
+    | { variableId: string; portee: "participation"; inclureEnqueteurs: boolean }
   /** Recettes d'attributs dérivés partagées par tous les cas de la famille. */
   derivationsAttributs?: DerivationAttributCas[]
 }
@@ -54,7 +54,7 @@ export interface DefinitionAttributCas {
 export interface DerivationAttributCas {
   attributId: string
   variableSourceId: string
-  porteeSource: 'entretien' | 'locuteur'
+  porteeSource: 'entretien' | "participation"
 }
 
 export type CommandeFamilleCas =
@@ -64,14 +64,14 @@ export type CommandeFamilleCas =
 
 export type RegleCas =
   | RegleModaliteCas
-  | ({ type: 'personne' } & MembrePersonneCas)
-  | { type: 'personnes'; membres: MembrePersonneCas[] }
+  | ({ type: "locuteur" } & MembreLocuteurCas)
+  | { type: "locuteurs"; membres: MembreLocuteurCas[] }
   | { type: 'entretiens'; entretienIds: string[] }
 
 /** Les règles individuelles existantes conservent leur identité et leur filtre. */
-export function membresPersonnesRegle(regle: RegleCas): MembrePersonneCas[] {
-  if (regle.type === 'personne') return [regle]
-  return regle.type === 'personnes' ? regle.membres : []
+export function membresPersonnesRegle(regle: RegleCas): MembreLocuteurCas[] {
+  if (regle.type === "locuteur") return [regle]
+  return regle.type === "locuteurs" ? regle.membres : []
 }
 
 export interface Cas {
@@ -156,7 +156,7 @@ export interface DependancesCas {
   attributs?: Record<string, DefinitionAttributCas>
   variables?: Record<string, Variable>
   maintenant: () => string
-  personneExiste: (personneId: string) => boolean
+  locuteurExiste: (personneId: string) => boolean
   entretienExiste: (entretienId: string) => boolean
 }
 
@@ -227,14 +227,14 @@ function validerRegle(regle: unknown): asserts regle is RegleCas {
   const candidate = regle as Partial<RegleCas>
   if (candidate.type === 'modalite' && identifiantValide(candidate.variableId)
     && identifiantValide(candidate.modaliteId)
-    && (candidate.portee === 'entretien' || (candidate.portee === 'locuteur'
+    && (candidate.portee === 'entretien' || (candidate.portee === "participation"
       && typeof candidate.inclureEnqueteurs === 'boolean'))) return
   if (candidate.type === 'entretiens' && Array.isArray(candidate.entretienIds)
     && candidate.entretienIds.length > 0 && candidate.entretienIds.every(identifiantValide)) return
-  const membres = candidate.type === 'personne' ? [candidate]
-    : candidate.type === 'personnes' && Array.isArray(candidate.membres) ? candidate.membres : []
+  const membres = candidate.type === "locuteur" ? [candidate]
+    : candidate.type === "locuteurs" && Array.isArray(candidate.membres) ? candidate.membres : []
   if (!membres.length || membres.some((membre) => !membre || typeof membre !== 'object'
-    || !identifiantValide(membre.personneId) || typeof membre.inclureEnqueteurs !== 'boolean')) {
+    || !identifiantValide(membre.locuteurId) || typeof membre.inclureEnqueteurs !== 'boolean')) {
     throw new Error('La règle du cas est invalide.')
   }
 }
@@ -256,7 +256,7 @@ function validerDerivation(valeur: unknown): asserts valeur is DerivationAttribu
   const derivation = valeur as DerivationAttributCas | null
   if (!derivation || typeof derivation !== 'object' || !identifiantValide(derivation.attributId)
     || !identifiantValide(derivation.variableSourceId)
-    || (derivation.porteeSource !== 'entretien' && derivation.porteeSource !== 'locuteur')) {
+    || (derivation.porteeSource !== 'entretien' && derivation.porteeSource !== "participation")) {
     throw new Error('La recette d’attribut dérivé est invalide.')
   }
 }
@@ -330,8 +330,8 @@ function validerCas(cas: unknown): asserts cas is Cas {
   for (const regle of candidate.regles) {
     validerRegle(regle)
     for (const membre of membresPersonnesRegle(regle)) {
-      if (personnes.has(membre.personneId)) throw new Error('La règle de personne est présente plusieurs fois.')
-      personnes.add(membre.personneId)
+      if (personnes.has(membre.locuteurId)) throw new Error('La règle de personne est présente plusieurs fois.')
+      personnes.add(membre.locuteurId)
     }
     if (regle.type === 'entretiens') {
       for (const id of regle.entretienIds) {
@@ -364,12 +364,12 @@ function exigerCas(cas: Record<string, Cas>, id: string): Cas {
 }
 
 /** Portée des observations d'un cas avec règle ; null pour un cas manuel. */
-export function porteeObservationsCas(cas: Pick<Cas, 'regles'>): 'entretien' | 'locuteur' | null {
+export function porteeObservationsCas(cas: Pick<Cas, 'regles'>): 'entretien' | 'participation' | null {
   for (const regle of cas.regles) {
     if (regle.type === 'entretiens'
       || (regle.type === 'modalite' && regle.portee === 'entretien')) return 'entretien'
-    if ((regle.type === 'personne' || regle.type === 'personnes')
-      || (regle.type === 'modalite' && regle.portee === 'locuteur')) return 'locuteur'
+    if ((regle.type === "locuteur" || regle.type === "locuteurs")
+      || (regle.type === 'modalite' && regle.portee === "participation")) return 'participation'
   }
   return null
 }
@@ -468,7 +468,7 @@ export function appliquerCommandeCas(
       ids.add(nouveau.id)
       if (nouveau.familleId !== famille.id || nouveau.regles.length !== 1 || regle.type !== 'modalite'
         || regle.variableId !== variable.id || regle.portee !== variable.portee
-        || (regle.portee === 'locuteur' && famille.origine.portee === 'locuteur'
+        || (regle.portee === "participation" && famille.origine.portee === "participation"
           && regle.inclureEnqueteurs !== famille.origine.inclureEnqueteurs)) throw new Error('Les critères du cas ne correspondent pas à la famille.')
       const occupant = modalites.get(regle.modaliteId)
       if (occupant && occupant !== nouveau.id) throw new Error('Cette modalité possède déjà un cas dans la famille.')
@@ -629,12 +629,12 @@ export function appliquerCommandeCas(
         }
         const famille = nouveau.familleId ? deps.familles?.[nouveau.familleId] : undefined
         if (famille && (famille.origine.variableId !== regle.variableId || famille.origine.portee !== regle.portee
-          || (famille.origine.portee === 'locuteur' && regle.portee === 'locuteur'
+          || (famille.origine.portee === "participation" && regle.portee === "participation"
             && famille.origine.inclureEnqueteurs !== regle.inclureEnqueteurs))) throw new Error('Les critères ne correspondent pas à la famille.')
       }
 
       for (const membre of membresPersonnesRegle(regle)) {
-        if (!deps.personneExiste(membre.personneId)) throw new Error("Cette personne n'existe plus.")
+        if (!deps.locuteurExiste(membre.locuteurId)) throw new Error("Cette personne n'existe plus.")
       }
       if (regle.type === 'entretiens' && regle.entretienIds.some((id) => !deps.entretienExiste(id))) {
         throw new Error('Cet entretien ne fait plus partie du corpus.')
@@ -843,7 +843,7 @@ function validerFamille(valeur: unknown): asserts valeur is FamilleCas {
   if (!famille || !identifiantValide(famille.id) || typeof famille.nom !== 'string'
     || !normaliserNomCas(famille.nom) || !dateValide(famille.creeLe) || !famille.origine
     || !identifiantValide(famille.origine.variableId)
-    || !(famille.origine.portee === 'entretien' || (famille.origine.portee === 'locuteur'
+    || !(famille.origine.portee === 'entretien' || (famille.origine.portee === "participation"
       && typeof famille.origine.inclureEnqueteurs === 'boolean'))) throw new Error('La famille est invalide.')
   if (famille.derivationsAttributs !== undefined) {
     if (!Array.isArray(famille.derivationsAttributs)) throw new Error('La famille est invalide.')

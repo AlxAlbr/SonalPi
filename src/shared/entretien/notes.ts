@@ -1,5 +1,5 @@
 import type { NoteCategory } from '../format'
-import type { Note } from '../natif/format'
+import type { Note } from "../format"
 
 /**
  *  Notes d'entretien : typologie des catégories (définitions CORPUS, nom +

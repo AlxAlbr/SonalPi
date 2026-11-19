@@ -817,7 +817,7 @@ export function creerSonal() {
     const generationCourante = ++generationAssociations
     etatAssociationsPassage.value = 'chargement'
     const utilisePersonnes = Object.values(corpus.cas.value).some((courant) =>
-      courant.regles.some((regle) => regle.type === 'personne' || regle.type === 'personnes'))
+      courant.regles.some((regle) => regle.type === "locuteur" || regle.type === "locuteurs"))
     let personnesConnues: Set<string> | null = new Set<string>()
     if (utilisePersonnes) {
       const cle = `${revisionCorpus.value}:${corpus.revisionPersonnesCorpus.value}:${dernierTirage.value ?? ''}`
@@ -825,7 +825,7 @@ export function creerSonal() {
       else {
         try {
           const inventaire = await window.sonal.corpus.personnesInventaire()
-          personnesConnues = new Set(inventaire.personnes.map((personne) => personne.id))
+          personnesConnues = new Set(inventaire.locuteurs.map((personne) => personne.id))
           cachePersonnes = { cle, ids: personnesConnues }
         } catch {
           if (generationCourante !== generationAssociations) return
@@ -1085,7 +1085,7 @@ export function creerSonal() {
   }
 
   // --- Suppression d'une variable ou d'une modalité (même logique que les thèmes) ---
-  const valeursOuvertes = () => ({ meta: ent.meta, locuteurs: ent.locuteurs.value })
+  const valeursOuvertes = () => ({ meta: ent.meta, participations: ent.locuteurs.value })
   /** Compte les valeurs et vérifie que l'entretien concerné n'est plus en édition. */
   async function demanderSuppressionDonnee(idVar: string, idMod?: string) {
     corpus.messageVar.value = null

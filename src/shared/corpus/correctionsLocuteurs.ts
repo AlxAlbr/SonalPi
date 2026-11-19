@@ -1,5 +1,5 @@
 import type { ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
-import type { CorpusFichier } from '../natif/format'
+import type { CorpusFichier } from "../format"
 import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from './contratsLocuteurs'
 import { creerLocuteur, regrouperLocuteurs, renommerLocuteur } from './identitesLocuteurs'
 import { refuserRapprochementLocuteurs } from './rapprochementsLocuteurs'

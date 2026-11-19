@@ -3,9 +3,9 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { appliquerCorrectionLocuteursFormat9 } from '../src/shared/corpus/correctionsLocuteursFormat9'
+import { appliquerCorrectionLocuteurs } from "../src/shared/corpus/correctionsLocuteurs"
 import type { CommandeCorrectionLocuteurs } from '../src/shared/corpus/contratsLocuteurs'
-import { suggestionsPersonnes } from '../src/shared/corpus/rapprochementsPersonnes'
+import { suggestionsLocuteurs } from "../src/shared/corpus/rapprochementsLocuteurs"
 import type { EntretienFichier } from '../src/shared/format'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import { preparerFermetureEntretien } from '../src/renderer/couturesApplication'
@@ -27,15 +27,15 @@ function preparer() {
     const ref = store.creerEntretienVide(`Entretien ${i + 1}`)
     const locuteurId = `loc-${i}`
     const data: EntretienFichier = {
-      formatVersion: 3, lastModified: '',
+      formatVersion: 10, lastModified: '',
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: `Paroles ${i}` }] }] },
       ancres: [{ pos: 1, t: 0 }], annotations: [],
       meta: { valeursGen: {}, audioRef: null },
-      locuteurs: [{ id: locuteurId, index: 0, nom, pseudo: `Pseudo ${i}`, couleur: '#123456', interviewer: i === 1, valeursLoc: {}, personneRef: null }],
-      notes: [{ id: `n-${i}`, categorieId: 'ncat_generale', titre: 'Note', date: null, statut: 'prive', corps: 'À conserver', locuteurIds: [locuteurId], rang: 0, creeLe: '', modifieLe: null }],
+      participations: [{ id: locuteurId, index: 0, nom, pseudo: `Pseudo ${i}`, couleur: '#123456', interviewer: i === 1, valeursLoc: {}, locuteurRef: null }],
+      notes: [{ id: `n-${i}`, categorieId: 'ncat_generale', titre: 'Note', date: null, statut: 'prive', corps: 'À conserver', participationIds: [locuteurId], rang: 0, creeLe: '', modifieLe: null }],
     }
     store.ecrireEntretien(ref.id, data)
-    const personneId = store.personnesCommander({ type: 'creer', entretienId: ref.id, locuteurId, nom })!
+    const personneId = store.personnesCommander({ type: 'creer', entretienId: ref.id, participationId: locuteurId, nom })!
     return { entretienId: ref.id, locuteurId, personneId, nom }
   })
   const attendu = () => JSON.stringify(store.personnesInventaire())
@@ -56,7 +56,7 @@ function preparer() {
 function horsIdentite(data: EntretienFichier) {
   return {
     ...data, lastModified: '',
-    locuteurs: data.locuteurs.map(({ nom: _nom, personneRef: _ref, rapprochementsRefuses: _refus, ...reste }) => reste),
+    participations: data.participations.map(({ nom: _nom, locuteurRef: _ref, rapprochementsRefuses: _refus, ...reste }) => reste),
   }
 }
 
@@ -68,10 +68,10 @@ describe('Corrections des locuteurs — stockage local', () => {
     const nonCible = b.fichiers()[4]
     expect(b.store.personnesCommander({ type: 'renommerGlobal', locuteurId: personneId, nom: '  Jean Dupont  ', attendu: b.attendu() })).toBe(personneId)
     const relu = new CorpusStore(b.dir)
-    expect(relu.personnesInventaire().personnes.find((p) => p.id === personneId)?.nom).toBe('Jean Dupont')
+    expect(relu.personnesInventaire().locuteurs.find((p) => p.id === personneId)?.nom).toBe('Jean Dupont')
     for (const [i, p] of b.participations.entries()) {
       const apres = b.lire(p.entretienId)
-      expect(apres.locuteurs[0].nom).toBe(i < 3 ? 'Jean Dupont' : p.nom)
+      expect(apres.participations[0].nom).toBe(i < 3 ? 'Jean Dupont' : p.nom)
       expect(horsIdentite(apres)).toEqual(horsIdentite(avant[i]))
     }
     expect(b.fichiers()[4]).toBe(nonCible)
@@ -82,11 +82,11 @@ describe('Corrections des locuteurs — stockage local', () => {
     const avant = b.participations.map((p) => b.lire(p.entretienId))
     const personneId = b.regrouper(3, uniformiserNoms)
     const inventaire = b.store.personnesInventaire()
-    expect(inventaire.personnes).toHaveLength(2)
-    expect(inventaire.locuteurs.filter((l) => l.personneRef === personneId)).toHaveLength(3)
+    expect(inventaire.locuteurs).toHaveLength(2)
+    expect(inventaire.participations.filter((l) => l.locuteurRef === personneId)).toHaveLength(3)
     for (const [i, p] of b.participations.entries()) {
       const apres = b.lire(p.entretienId)
-      expect(apres.locuteurs[0].nom).toBe(uniformiserNoms && i < 3 ? 'Jean Martin' : p.nom)
+      expect(apres.participations[0].nom).toBe(uniformiserNoms && i < 3 ? 'Jean Martin' : p.nom)
       expect(horsIdentite(apres)).toEqual(horsIdentite(avant[i]))
     }
   })
@@ -96,20 +96,20 @@ describe('Corrections des locuteurs — stockage local', () => {
     const date = '2026-09-01T10:00:00.000Z'
     b.store.casCommander({ type: 'creer', cas: {
       id: 'cas', nom: 'Suivi', memo: 'Mémo', creeLe: date, modifieLe: date, rattachements: [],
-      regles: [{ type: 'personnes', membres: b.participations.slice(0, 3).map((p, i) => ({ personneId: p.personneId, inclureEnqueteurs: i === 1 })) }],
+      regles: [{ type: "locuteurs", membres: b.participations.slice(0, 3).map((p, i) => ({ locuteurId: p.personneId, inclureEnqueteurs: i === 1 })) }],
     } })
     const autre = b.lire(b.participations[3].entretienId)
-    autre.locuteurs[0].rapprochementsRefuses = [`personne:${b.participations[2].personneId}`]
+    autre.participations[0].rapprochementsRefuses = [{ type: 'locuteur', locuteurId: b.participations[2].personneId }]
     b.store.ecrireEntretien(b.participations[3].entretienId, autre)
     const personneId = b.regrouper()
-    expect(b.store.ouvrir().cas?.cas.regles).toEqual([{ type: 'personnes', membres: [{ personneId, inclureEnqueteurs: true }] }])
-    expect(b.lire(b.participations[3].entretienId).locuteurs[0].rapprochementsRefuses).toEqual([`personne:${personneId}`])
+    expect(b.store.ouvrir().cas?.cas.regles).toEqual([{ type: "locuteurs", membres: [{ locuteurId: personneId, inclureEnqueteurs: true }] }])
+    expect(b.lire(b.participations[3].entretienId).participations[0].rapprochementsRefuses).toEqual([{ type: 'locuteur', locuteurId: personneId }])
   })
 
   test('vérifie tous les conflits avant de commencer un regroupement', () => {
     const b = preparer()
     const premiere = b.lire(b.participations[0].entretienId)
-    premiere.locuteurs.push({ id: 'doublon', index: 1, nom: 'Doublon', valeursLoc: {}, personneRef: b.participations[2].personneId })
+    premiere.participations.push({ id: 'doublon', index: 1, nom: 'Doublon', valeursLoc: {}, locuteurRef: b.participations[2].personneId })
     b.store.ecrireEntretien(b.participations[0].entretienId, premiere)
     const avant = b.fichiers()
     expect(() => b.regrouper()).toThrow('Réunion impossible')
@@ -125,19 +125,19 @@ describe('Corrections des locuteurs — stockage local', () => {
       participations: b.participations.slice(2).map(reference),
     })
     const inventaire = new CorpusStore(b.dir).personnesInventaire()
-    expect(inventaire.personnes).toHaveLength(3)
-    const refs = b.participations.map((p) => inventaire.locuteurs.find((l) => l.locuteurId === p.locuteurId)!.personneRef)
+    expect(inventaire.locuteurs).toHaveLength(3)
+    const refs = b.participations.map((p) => inventaire.participations.find((l) => l.participationId === p.locuteurId)!.locuteurRef)
     expect(refs[0]).toBe(personneId)
     expect(refs[1]).toBe(personneId)
     expect(new Set(refs)).toHaveProperty('size', 3)
     for (const [i, p] of b.participations.entries()) {
       const apres = b.lire(p.entretienId)
-      expect(apres.locuteurs[0].nom).toBe('Jean Martin')
+      expect(apres.participations[0].nom).toBe('Jean Martin')
       expect(horsIdentite(apres)).toEqual(horsIdentite(avant[i]))
-      const cible = inventaire.locuteurs.find((l) => l.locuteurId === p.locuteurId)!
-      expect(suggestionsPersonnes(
-        { entretienId: p.entretienId, locuteur: { ...cible, id: cible.locuteurId } },
-        inventaire.locuteurs.map((l) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })),
+      const cible = inventaire.participations.find((l) => l.participationId === p.locuteurId)!
+      expect(suggestionsLocuteurs(
+        { entretienId: p.entretienId, participation: { ...cible, id: cible.participationId } },
+        inventaire.participations.map((l) => ({ entretienId: l.entretienId, participation: { ...l, id: l.participationId } })),
       )).toEqual([])
     }
   })
@@ -148,7 +148,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     const date = '2026-09-01T10:00:00.000Z'
     b.store.casCommander({ type: 'creer', cas: {
       id: 'cas', nom: 'Suivi', memo: '', creeLe: date, modifieLe: date, rattachements: [],
-      regles: [{ type: 'personne', personneId, inclureEnqueteurs: true }],
+      regles: [{ type: "locuteur", locuteurId: personneId, inclureEnqueteurs: true }],
     } })
     const avant = b.store.ouvrir().cas
     b.store.personnesCommander({ type: 'dissocierSelection', locuteurId: personneId, participations: [reference(b.participations[1])], attendu: b.attendu() })
@@ -197,7 +197,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     const b = preparer()
     const commande: CommandeCorrectionLocuteurs = { type: 'renommerGlobal', locuteurId: b.participations[0].personneId, nom: 'Nom commun', attendu: b.attendu() }
     const autre = b.lire(b.participations[0].entretienId)
-    autre.locuteurs[0].pseudo = 'Pseudo modifié'
+    autre.participations[0].pseudo = 'Pseudo modifié'
     b.store.ecrireEntretien(b.participations[0].entretienId, autre)
     const avant = b.fichiers()
     expect(() => b.store.personnesCommander(commande)).toThrow('ont changé')
@@ -231,7 +231,7 @@ describe('Corrections des locuteurs — stockage local', () => {
     b.store.personnesCommander({ type: 'renommerGlobal', locuteurId: personneId, nom: 'Nom corrigé au corpus', attendu: b.attendu() })
     const reouverture = b.store.ouvrirEntretienPourEdition(entretienId)
     if (!reouverture.ok) throw new Error('Réouverture impossible')
-    expect(reouverture.data.locuteurs[0].nom).toBe('Nom corrigé au corpus')
+    expect(reouverture.data.participations[0].nom).toBe('Nom corrigé au corpus')
     expect(reouverture.data.corpsTexte).toEqual(ouverture.data.corpsTexte)
     expect(() => b.store.exigerSessionLocaleEcriture(entretienId)).not.toThrow()
   })
@@ -266,21 +266,21 @@ describe('Corrections des locuteurs — stockage local', () => {
         writeFileSync(join(b.dir, 'entretiens', `${premier.id}.json`), JSON.stringify(premier.apres))
       }
       cible = {
-        personnes: Object.values(plan.corpusApres.personnes).sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.id.localeCompare(b.id)),
-        locuteurs: [], notes: [], indisponibles: [],
+        locuteurs: Object.values(plan.corpusApres.locuteurs).sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.id.localeCompare(b.id)),
+        participations: [], notes: [], indisponibles: [],
       }
       throw new Error('Arrêt simulé')
     })
     expect(() => b.store.personnesCommander(commande)).toThrow('Arrêt simulé')
     const relu = new CorpusStore(b.dir)
     const apres = relu.personnesInventaire()
-    expect(apres.personnes).toEqual(cible!.personnes)
+    expect(apres.locuteurs).toEqual(cible!.locuteurs)
     for (const p of b.participations.slice(0, 3)) {
-      const locuteur = apres.locuteurs.find((l) => l.locuteurId === p.locuteurId)!
+      const locuteur = apres.participations.find((l) => l.participationId === p.locuteurId)!
       if (type === 'dissocierSelection') {
-        expect(apres.personnes.some((personne) => personne.id === locuteur.personneRef)).toBe(true)
+        expect(apres.locuteurs.some((personne) => personne.id === locuteur.locuteurRef)).toBe(true)
       } else {
-        expect(locuteur).toMatchObject({ personneRef: personneId, nom: 'Nom corrigé' })
+        expect(locuteur).toMatchObject({ locuteurRef: personneId, nom: 'Nom corrigé' })
       }
     }
     expect(new CorpusStore(b.dir).personnesInventaire()).toEqual(apres)
@@ -289,17 +289,17 @@ describe('Corrections des locuteurs — stockage local', () => {
 
 test('la dissociation vérifie tous les identifiants générés avant de modifier les copies', () => {
   const corpus = squeletteCorpus()
-  corpus.personnes.p = { id: 'p', nom: 'Même nom' }
+  corpus.locuteurs.p = { id: 'p', nom: 'Même nom' }
   const entretiens = ['a', 'b', 'c'].map((id) => ({
     id, titre: id,
     data: {
-      formatVersion: 3, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
+      formatVersion: 10, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
       meta: { valeursGen: {}, audioRef: null },
-      locuteurs: [{ id, index: 0, nom: 'Même nom', personneRef: 'p', valeursLoc: {} }],
+      participations: [{ id: "loc-0", id, index: 0, nom: 'Même nom', locuteurRef: 'p', valeursLoc: {} }],
     } satisfies EntretienFichier,
   }))
   const avant = JSON.stringify([corpus, entretiens])
-  expect(() => appliquerCorrectionLocuteursFormat9(corpus, entretiens, {
+  expect(() => appliquerCorrectionLocuteurs(corpus, entretiens, {
     type: 'dissocierSelection', locuteurId: 'p',
     participations: [{ entretienId: 'b', participationId: 'b' }, { entretienId: 'c', participationId: 'c' }], attendu: 'initial',
   }, () => 'meme-identifiant')).toThrow('identifiant')

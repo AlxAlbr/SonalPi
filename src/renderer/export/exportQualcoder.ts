@@ -1,4 +1,4 @@
-import type { CorpusFichier, EntretienFichier, Personne, Variable } from '../../shared/format'
+import type { CorpusFichier, EntretienFichier, Locuteur, Variable } from '../../shared/format'
 import type { Cas, DefinitionAttributCas } from '../../shared/corpus/cas'
 import type { AttributCasProjete } from '../../shared/corpus/observationsAttributs'
 import type { InstantaneEntretienExport } from '../../shared/export/types'
@@ -11,8 +11,8 @@ import type {
   QualcoderSourceExport,
 } from '../../shared/export/qualcoder/modele'
 import { projeterTexteQualcoder, plageTexteQualcoder } from '../../shared/export/qualcoder/projection'
-import { projeterCasDepuisSourcesPreparees } from '../editor/casFormat9'
-import { projeterAttributsCas } from '../../shared/corpus/observationsAttributsFormat9'
+import { projeterCasDepuisSourcesPreparees } from "../editor/cas"
+import { projeterAttributsCas } from "../../shared/corpus/observationsAttributs"
 import { preparerSourcesPassages } from '../editor/passages'
 
 export interface DemandeModeleQualcoder {
@@ -21,19 +21,19 @@ export interface DemandeModeleQualcoder {
   corpus: Pick<CorpusFichier, 'membership' | 'variables' | 'famillesCas' | 'attributsCas' | 'codebook'> & {
     cas: Record<string, Cas>
   }
-  personnes: Record<string, Personne>
+  locuteurs: Record<string, Locuteur>
   casSelectionnes: string[]
   owner: string
 }
 
 function sourceNative(instantane: InstantaneEntretienExport): EntretienFichier {
   return {
-    formatVersion: 8,
+    formatVersion: 10,
     lastModified: new Date().toISOString(),
     corpsTexte: instantane.entretien.corpsTexte,
     annotations: instantane.entretien.annotations,
     ancres: instantane.entretien.ancres,
-    locuteurs: instantane.entretien.locuteurs,
+    participations: instantane.entretien.participations,
     meta: {
       valeursGen: instantane.entretien.meta.valeursGen,
       audioRef: null,
@@ -53,7 +53,7 @@ function sourceIdsCas(cas: Cas, membership: Record<string, unknown>): string[] {
   const ids = new Set<string>()
   for (const regle of cas.regles) {
     if (regle.type === 'entretiens') for (const id of regle.entretienIds) ids.add(id)
-    else if (regle.type === 'modalite' || regle.type === 'personne' || regle.type === 'personnes') {
+    else if (regle.type === 'modalite' || regle.type === "locuteur" || regle.type === "locuteurs") {
       for (const id of Object.keys(membership)) ids.add(id)
     }
   }
@@ -177,7 +177,7 @@ function casExport(
 ): QualcoderCaseExport {
   const corpus = {
     membership: demande.corpus.membership,
-    personnes: demande.personnes,
+    locuteurs: demande.locuteurs,
     variables: demande.corpus.variables,
     famillesCas: demande.corpus.famillesCas,
     attributsCas: demande.corpus.attributsCas,

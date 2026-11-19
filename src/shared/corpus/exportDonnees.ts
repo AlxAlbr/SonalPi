@@ -35,7 +35,7 @@ export function exporterDonneesCsv(options: OptionsExportDonnees): string {
   const entetes = ['Entretien', 'Type de ligne', 'Locuteur']
   const utilisees = new Set(entetes)
   for (const variable of colonnes) {
-    const base = `${variable.lib} (${variable.portee})`
+    const base = `${variable.lib} (${variable.portee === 'participation' ? 'locuteur' : 'entretien'})`
     let titre = base
     for (let n = 2; utilisees.has(titre); n++) titre = `${base} [${n}]`
     utilisees.add(titre)
@@ -51,7 +51,7 @@ export function exporterDonneesCsv(options: OptionsExportDonnees): string {
       for (const participation of entretien.participations) {
         lignes.push([
           entretien.titre, 'Locuteur', participation.nom,
-          ...colonnes.map((v, i) => v.portee === 'locuteur' ? libelle(participation.valeursLoc, i) : ''),
+          ...colonnes.map((v, i) => v.portee === "participation" ? libelle(participation.valeursLoc, i) : ''),
         ])
       }
     }

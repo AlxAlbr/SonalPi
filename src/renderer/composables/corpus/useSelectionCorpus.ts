@@ -5,7 +5,6 @@ import {
   type BlocParticipation,
   type LigneValeur,
 } from '../../../shared/corpus/lectureVariables'
-import { lireVariableFormat9 } from '../../../shared/natif/lectureCasFormat9'
 
 export interface DetailsSelectionCorpus {
   nbParticipations: number
@@ -25,12 +24,12 @@ export function useSelectionCorpus(deps: {
   const corpusSelMeta = ref<DetailsSelectionCorpus | null>(null)
 
   function detailsDepuisLecture(data: EntretienFichier): DetailsSelectionCorpus {
-    const details = detailsVariablesEntretien(deps.variables.value.map(lireVariableFormat9), { meta: data.meta, participations: data.locuteurs })
+    const details = detailsVariablesEntretien(deps.variables.value, { meta: data.meta, participations: data.participations })
     const nbValeurs =
       Object.keys(data.meta.valeursGen).length +
-      data.locuteurs.reduce((somme, locuteur) => somme + Object.keys(locuteur.valeursLoc).length, 0)
+      data.participations.reduce((somme, locuteur) => somme + Object.keys(locuteur.valeursLoc).length, 0)
     return {
-      nbParticipations: data.locuteurs.length,
+      nbParticipations: data.participations.length,
       nbValeurs,
       audio: data.meta.audioRef != null,
       srt: (data.ancres?.length ?? 0) > 0,

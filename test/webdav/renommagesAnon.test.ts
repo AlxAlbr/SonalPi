@@ -59,7 +59,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     expect(b.miroirs).toEqual(b.puts)
     const avant = b.f.sources[0].data
     const apres = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!)
-    expect(apres.locuteurs).toEqual(avant.locuteurs)
+    expect(apres.participations).toEqual(avant.participations)
     expect(apres.definitionsAnonLocales).toEqual(avant.definitionsAnonLocales)
     expect(apres.annotations.filter((a: { id: string }) => !['a0', 'a5'].includes(a.id))).toEqual(avant.annotations.filter((a) => !['a0', 'a5'].includes(a.id)))
     expect(b.pistes.filter((p) => /^(PUT verrous\/e|LOCK entretiens\/e)/.test(p)).every((p) => /\/e[124](?:\.|\/)/.test(p))).toBe(true)

@@ -94,7 +94,7 @@ describe('renommage global local avec inventaire privé', () => {
     const s = b.store.instantaneCorrespondances(true, budget)
     expect(s.entretiens[0].ok).toBe(true); expect(s.entretiens[1].ok).toBe(false)
     expect(() => b.store.instantaneCorrespondances(true, 1)).toThrow('limite de lecture')
-    expect(() => b.cache.preparer({ regleId: 'personne', ancienPseudo: 'Claire', nouveauPseudo: 'N'.repeat(8 * 1024 * 1024) })).toThrow('8 Mio')
+    expect(() => b.cache.preparer({ regleId: "personne", ancienPseudo: 'Claire', nouveauPseudo: 'N'.repeat(8 * 1024 * 1024) })).toThrow('8 Mio')
     expect(b.lire()).toEqual(avant)
   })
   test('lecture seule et store de préparation n’obtiennent aucune autorité d’écriture', () => {

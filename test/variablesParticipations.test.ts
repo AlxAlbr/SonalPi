@@ -50,13 +50,13 @@ describe('lecture des variables de participation', () => {
   })
 
   test('le panneau de sélection actif emploie les blocs de participation sans réécrire sa source', async () => {
-    const definitions: Variable[] = [{ id: 'v', lib: 'Groupe', portee: 'locuteur', priv: false, ordre: 0, vExport: 1,
+    const definitions: Variable[] = [{ id: 'v', lib: 'Groupe', portee: "participation", priv: false, ordre: 0, vExport: 1,
       modalites: [{ id: 'a', lib: 'A', mExport: 1 }, { id: 'b', lib: 'B', mExport: 2 }] }]
     const data: EntretienFichier = {
-      formatVersion: 9, lastModified: '2026-01-01T00:00:00.000Z', corpsTexte: {}, annotations: [], ancres: [],
-      meta: { valeursGen: {}, audioRef: null }, locuteurs: [
-        { id: 'local-a', index: 7, nom: 'Même nom', personneRef: null, valeursLoc: { v: 'a' } },
-        { id: 'local-b', index: 11, nom: 'Même nom', personneRef: null, valeursLoc: { v: 'b' } },
+      formatVersion: 10, lastModified: '2026-01-01T00:00:00.000Z', corpsTexte: {}, annotations: [], ancres: [],
+      meta: { valeursGen: {}, audioRef: null }, participations: [
+        { id: 'local-a', index: 7, nom: 'Même nom', locuteurRef: null, valeursLoc: { v: 'a' } },
+        { id: 'local-b', index: 11, nom: 'Même nom', locuteurRef: null, valeursLoc: { v: 'b' } },
       ],
     }
     const avant = structuredClone(data)

@@ -93,12 +93,12 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
       const api = (window as any).sonal.corpus
       const personneId = await api.personnesCommander({ type: 'creerDefinition', nom: 'Karine Dupont' }, true)
       const inventaire = await api.personnesInventaire()
-      const locuteur = inventaire.locuteurs.find((courant: any) => courant.nom === 'Karine')
+      const locuteur = inventaire.participations.find((courant: any) => courant.nom === 'Karine')
       await api.personnesCommander({
         type: 'lier',
         entretienId: locuteur.entretienId,
-        locuteurId: locuteur.locuteurId,
-        personneId,
+        participationId: locuteur.participationId,
+        locuteurId: personneId,
       }, true)
     })
 

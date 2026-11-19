@@ -17,7 +17,6 @@ import { preparerSuppressionAnon } from '../shared/corpus/suppressionAnon'
 import { preparerRetraitVarianteAnon, type DemandeRetraitVarianteAnon } from '../shared/corpus/retraitVarianteAnon'
 import { normaliserOrdreEntretiens } from '../shared/corpus/ordreEntretiens'
 import { verifierVersionNative } from '../shared/versionsNatives'
-import { FORMAT_NATIF_LOCUTEURS, type CorpusFichier as CorpusNatif, type EntretienFichier as EntretienNatif } from '../shared/natif/format'
 import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
 import { objet } from '../shared/natif/validationCommune'
 
@@ -29,7 +28,7 @@ export interface PlanAjoutEntretien<C = CorpusFichier, E = EntretienFichier> {
   readonly entretien: E
 }
 
-export type PlanAjoutEntretienNatif = PlanAjoutEntretien<CorpusNatif, EntretienNatif>
+export type PlanAjoutEntretienNatif = PlanAjoutEntretien
 
 /** Vérifie les références avant de publier un nouvel entretien natif. */
 export function validerAjoutEntretienNatif(plan: unknown): asserts plan is PlanAjoutEntretienNatif {
@@ -102,7 +101,7 @@ export function planSuppressionLocal(
   }
 }
 
-type PlanFichiersAccepte = PlanTransactionFichiers | PlanAjoutEntretienNatif
+type PlanFichiersAccepte = PlanTransactionFichiers
 
 interface JournalTransactionFichiers {
   readonly formatVersion: 1 | 2 | 3 | 4 | 5
@@ -309,17 +308,22 @@ export class TransactionsFichiersCorpus {
   private readonly journal: string
   private enCours = false
 
-  constructor(private readonly dir: string, private readonly options?: { formatNatif: typeof FORMAT_NATIF_LOCUTEURS }) {
-    if (options && options.formatNatif !== FORMAT_NATIF_LOCUTEURS) throw new Error('Format de préparation non supporté.')
+  constructor(private readonly dir: string) {
     this.journal = join(dir, NOM_JOURNAL)
   }
 
   private verifierPlan(plan: PlanFichiersAccepte): void {
-    if (!this.options) {
-      verifierVersionsPlan(plan)
-      return
+    verifierVersionsPlan(plan)
+    validerCorpusNatif(plan.corpusAvant)
+    validerCorpusNatif(plan.corpusApres)
+    if (plan.operation === 'ajout') validerAjoutEntretienNatif(plan)
+    if (plan.operation === 'remplacement') {
+      if (plan.corpusIntermediaire !== undefined) validerCorpusNatif(plan.corpusIntermediaire)
+      for (const entretien of plan.entretiens) {
+        validerEntretienNatif(entretien.avant)
+        validerEntretienNatif(entretien.apres)
+      }
     }
-    validerAjoutEntretienNatif(plan)
   }
 
   journalPresent(): boolean {
@@ -503,11 +507,6 @@ export class TransactionsFichiersCorpus {
     const journal = valeur as Partial<JournalTransactionFichiers>
     if ((journal.formatVersion !== 1 && journal.formatVersion !== 2 && journal.formatVersion !== 3 && journal.formatVersion !== 4 && journal.formatVersion !== 5) || !journal.plan) {
       throw new Error('Version inconnue du journal de transaction multi-fichiers.')
-    }
-    if (this.options) {
-      if (journal.formatVersion !== 1) throw new Error('Ce journal ne peut pas être repris dans la préparation native.')
-      this.verifierPlan(journal.plan)
-      return journal as JournalTransactionFichiers
     }
     const plan = journal.plan as Partial<PlanTransactionFichiers>
     if (

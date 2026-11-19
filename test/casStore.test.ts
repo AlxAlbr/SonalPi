@@ -11,11 +11,12 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
   const maintenant = '2026-09-01T10:00:00.000Z'
   const repere = { id: 'repere-1', from: 1, to: 8 }
   const corpus: CorpusFichier = {
-    formatVersion: 4,
+    formatVersion: 10,
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
+    cas: {},
     membership: {
       'entretien-1': { titre: 'Entretien 1', date: null, lastModified: maintenant },
     },
@@ -36,7 +37,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
     },
   }
   const entretien: EntretienFichier = {
-    formatVersion: 4,
+    formatVersion: 10,
     lastModified: maintenant,
     corpsTexte: {
       type: 'doc',
@@ -48,7 +49,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: [repere],
   }
@@ -58,47 +59,47 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
   return { dir, repere }
 }
 
-describe('CorpusStore — migration des cas', () => {
-  test('migre la v5 sans réécrire les règles individuelles, filtres, identités et rattachements', () => {
+describe('CorpusStore — ouverture des cas natifs', () => {
+  test('conserve les règles individuelles, filtres, identités et rattachements sans réécriture', () => {
     const { dir, repere } = ecrireCorpusV4()
     const cheminCorpus = join(dir, 'corpus.crp')
     const cheminEntretien = join(dir, 'entretiens', 'entretien-1.json')
     const corpus = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
-    corpus.formatVersion = 5
-    corpus.personnes = { 'personne-1': { id: 'personne-1', nom: 'Marie' }, 'personne-2': { id: 'personne-2', nom: 'Paul' } }
+    corpus.formatVersion = FORMAT_VERSION
+    corpus.locuteurs = { 'personne-1': { id: 'personne-1', nom: 'Marie' }, 'personne-2': { id: 'personne-2', nom: 'Paul' } }
     corpus.cas = { c1: {
       ...casPersonne('c1', 'Collectif existant'),
       regles: [
-        { type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false },
-        { type: 'personne', personneId: 'personne-2', inclureEnqueteurs: true },
+        { type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs: false },
+        { type: "locuteur", locuteurId: 'personne-2', inclureEnqueteurs: true },
       ],
       rattachements: [{ id: 'r1', provenance: 'manuel', creeLe: dateCas, source: { entretienId: 'entretien-1', repereId: repere.id } }],
     } }
     const entretien = JSON.parse(readFileSync(cheminEntretien, 'utf8')) as EntretienFichier
-    entretien.formatVersion = 5
-    entretien.locuteurs = [{ id: 'loc-stable', index: 1, nom: 'Marie', personneRef: 'personne-1', interviewer: true, valeursLoc: {} }]
+    entretien.formatVersion = FORMAT_VERSION
+    entretien.participations = [{ id: 'loc-stable', index: 1, nom: 'Marie', locuteurRef: 'personne-1', interviewer: true, valeursLoc: {} }]
     writeFileSync(cheminCorpus, JSON.stringify(corpus))
     writeFileSync(cheminEntretien, JSON.stringify(entretien))
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture()
-    expect(preparation.versionInitiale).toBe(5)
-    expect(JSON.parse(readFileSync(cheminCorpus, 'utf8')).formatVersion).toBe(5)
+    expect(preparation.corpus.formatVersion).toBe(FORMAT_VERSION)
+    expect(JSON.parse(readFileSync(cheminCorpus, 'utf8')).formatVersion).toBe(FORMAT_VERSION)
     const apres = store.finaliserOuverture(preparation)
     expect(apres.cas).toEqual(corpus.cas)
-    expect(apres.personnes).toEqual(corpus.personnes)
+    expect(apres.locuteurs).toEqual(corpus.locuteurs)
     expect(apres.recueils).toEqual(corpus.recueils)
     const source = JSON.parse(readFileSync(cheminEntretien, 'utf8'))
     expect(source).toEqual({ ...entretien, formatVersion: FORMAT_VERSION })
   })
 
-  test('migre atomiquement le corpus et les entretiens v4 vers le format courant sans perdre les recueils', () => {
+  test('ouvre le corpus natif sans perdre les recueils ni les repères', () => {
     const { dir, repere } = ecrireCorpusV4()
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture()
 
-    expect(preparation.versionInitiale).toBe(4)
+    expect(preparation.corpus.formatVersion).toBe(FORMAT_VERSION)
     expect(preparation.corpus).toMatchObject({ formatVersion: FORMAT_VERSION, cas: {} })
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).formatVersion).toBe(4)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
 
     const corpus = store.finaliserOuverture(preparation)
     const corpusDisque = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')) as CorpusFichier
@@ -124,7 +125,7 @@ function casPersonne(id: string, nom: string): Cas {
     memo: '',
     creeLe: dateCas,
     modifieLe: dateCas,
-    regles: [{ type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false }],
+    regles: [{ type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs: false }],
     rattachements: [],
   }
 }
@@ -133,7 +134,7 @@ function storePret(): { dir: string; store: CorpusStore } {
   const { dir } = ecrireCorpusV4()
   const store = new CorpusStore(dir)
   const corpus = store.ouvrir()
-  corpus.personnes['personne-1'] = { id: 'personne-1', nom: 'Marie' }
+  corpus.locuteurs['personne-1'] = { id: 'personne-1', nom: 'Marie' }
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
   return { dir, store }
 }
@@ -197,13 +198,13 @@ describe('CorpusStore — commandes et suppression des cas', () => {
   test('relit sans conversion les règles multiples, leurs filtres et les ajouts manuels', () => {
     const { dir, store } = storePret()
     const courant = store.ouvrir()
-    courant.personnes['personne-2'] = { id: 'personne-2', nom: 'Paul' }
+    courant.locuteurs['personne-2'] = { id: 'personne-2', nom: 'Paul' }
     writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(courant), 'utf8')
     const mixte: Cas = {
       ...casPersonne('mixte', 'Collectif'),
       regles: [
-        { type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false },
-        { type: 'personne', personneId: 'personne-2', inclureEnqueteurs: true },
+        { type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs: false },
+        { type: "locuteur", locuteurId: 'personne-2', inclureEnqueteurs: true },
       ],
       rattachements: [{
         id: 'r1', source: { entretienId: 'entretien-1', repereId: 'repere-1' },
@@ -241,7 +242,7 @@ describe('CorpusStore — commandes et suppression des cas', () => {
     expect(() => store.casCommander({
       type: 'creer',
       cas: { ...casPersonne('cas-1', 'Absente'), regles: [{
-        type: 'personne', personneId: 'personne-absente', inclureEnqueteurs: false,
+        type: "locuteur", locuteurId: 'personne-absente', inclureEnqueteurs: false,
       }] },
     })).toThrow(/personne n'existe plus/)
     expect(readFileSync(fichier, 'utf8')).toBe(avant)

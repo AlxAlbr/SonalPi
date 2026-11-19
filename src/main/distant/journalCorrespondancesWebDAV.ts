@@ -1,7 +1,6 @@
 import { chmodSync, closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { FORMAT_VERSION } from '../../shared/format'
-import { validerMemoireLocale } from '../../shared/entretien/anon/definitionsLocales'
+import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { BilanImportCorrespondance } from '../../shared/corpus/importCorrespondances'
 
 export interface FichierImportWebDAV {
@@ -71,13 +70,8 @@ export class JournalCorrespondancesWebDAV {
       try {
         for (const contenu of [f.avant, f.apres]) {
           const data = JSON.parse(contenu)
-          if (!data || data.formatVersion !== FORMAT_VERSION) throw new Error()
-          if (index === 0) {
-            if (!data.membership || typeof data.membership !== 'object' || Array.isArray(data.membership)) throw new Error()
-          } else {
-            if (!data.corpsTexte || !Array.isArray(data.annotations) || !Array.isArray(data.locuteurs) || !data.meta) throw new Error()
-            if (data.definitionsAnonLocales !== undefined) validerMemoireLocale(data.definitionsAnonLocales)
-          }
+          if (index === 0) validerCorpusNatif(data)
+          else validerEntretienNatif(data)
         }
       } catch { throw new Error('Une copie du journal des correspondances est illisible.') }
       if (f.etat === 'envoi') envois++

@@ -44,7 +44,7 @@ describe('conversion et documents natifs de migration GitLab', () => {
         : annotation,
     )
     expect(annotations(conversion)).toEqual(annotations(importCommun))
-    expect(conversion.payload.locuteurs).toEqual(importCommun.payload.locuteurs)
+    expect(conversion.payload.participations).toEqual(importCommun.payload.participations)
     expect(conversion.payload.ancres).toEqual(importCommun.payload.ancres)
     expect(conversion.payload.notes).toEqual(importCommun.payload.notes)
     expect(conversion.payload.pseudosDeclares).toEqual(importCommun.payload.pseudosDeclares)
@@ -68,9 +68,9 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.meta.audioDistant).toEqual({ chemin: bilan.medias[0].cheminDestination, fournisseur })
     expect(entretien.meta.sourceV1?.rtrPath).toBe(analyse.apercu.raw.tabEnt![0].rtrPath)
     expect(entretien.corpsTexte).toEqual(conversion.payload.corpsTexte)
-    const sansAssociation = ({ id: _id, personneRef: _ref, ...locuteur }: EntretienFichier['locuteurs'][number]) => locuteur
-    expect(entretien.locuteurs.map(sansAssociation)).toEqual(conversion.payload.locuteurs.map(sansAssociation))
-    expect(new Set(entretien.locuteurs.map((locuteur) => locuteur.id)).size).toBe(entretien.locuteurs.length)
+    const sansAssociation = ({ id: _id, locuteurRef: _ref, ...locuteur }: EntretienFichier['participations'][number]) => locuteur
+    expect(entretien.participations.map(sansAssociation)).toEqual(conversion.payload.participations.map(sansAssociation))
+    expect(new Set(entretien.participations.map((locuteur) => locuteur.id)).size).toBe(entretien.participations.length)
     const annotations = (valeurs: typeof entretien.annotations) => valeurs.map((annotation) =>
       annotation.type === 'anon' ? { ...annotation, regle: undefined } : annotation,
     )
@@ -78,9 +78,9 @@ describe('conversion et documents natifs de migration GitLab', () => {
     expect(entretien.legacy).toEqual(conversion.payload.legacy)
     const corpus = JSON.parse(documents.find((d) => d.chemin === 'corpus.crp')!.contenu)
     expect(corpus.ordreEntretiens).toEqual([id])
-    expect(Object.keys(corpus.personnes)).toHaveLength(entretien.locuteurs.length)
-    for (const locuteur of entretien.locuteurs) {
-      expect(corpus.personnes[locuteur.personneRef!]).toEqual({ id: locuteur.personneRef, nom: locuteur.nom })
+    expect(Object.keys(corpus.locuteurs)).toHaveLength(entretien.participations.length)
+    for (const locuteur of entretien.participations) {
+      expect(corpus.locuteurs[locuteur.locuteurRef!]).toEqual({ id: locuteur.locuteurRef, nom: locuteur.nom })
     }
     for (const definition of conversion.codebook ?? []) expect(corpus.codebook[definition.id]).toBeDefined()
     for (const definition of conversion.variables ?? []) expect(corpus.variables[definition.id]).toBeDefined()
@@ -180,14 +180,14 @@ describe('conversion et documents natifs de migration GitLab', () => {
     const corpus = JSON.parse(documents.at(-1)!.contenu) as CorpusFichier
     const entretiens = documents.filter((d) => d.chemin.startsWith('entretiens/'))
       .map((d) => JSON.parse(d.contenu) as EntretienFichier)
-    const nombre = conversion.payload.locuteurs.length
+    const nombre = conversion.payload.participations.length
     expect(nombre).toBeGreaterThan(0)
-    expect(Object.keys(corpus.personnes)).toHaveLength(nombre * 2)
-    expect(new Set(entretiens.flatMap((e) => e.locuteurs.map((l) => l.personneRef))).size).toBe(nombre * 2)
+    expect(Object.keys(corpus.locuteurs)).toHaveLength(nombre * 2)
+    expect(new Set(entretiens.flatMap((e) => e.participations.map((l) => l.locuteurRef))).size).toBe(nombre * 2)
     for (const entretien of entretiens) {
       expect(entretien.notes).toEqual(conversion.payload.notes)
       expect(entretien.corpsTexte).toEqual(conversion.payload.corpsTexte)
-      expect(entretien.locuteurs.map((l) => l.nom)).toEqual(conversion.payload.locuteurs.map((l) => l.nom))
+      expect(entretien.participations.map((l) => l.nom)).toEqual(conversion.payload.participations.map((l) => l.nom))
     }
     expect([...new DocumentsMigrationGitLab(dir, cible, true).documents([])]).toEqual(documents)
     expect(conversion).toEqual(avant)

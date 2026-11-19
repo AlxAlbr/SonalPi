@@ -1,6 +1,6 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EntretienRef } from '../../shared/format'
-import type { EntretienFichier, Variable } from '../../shared/natif/format'
+import type { EntretienFichier, Variable } from "../../shared/format"
 import type { ParticipationLocuteur } from '../../shared/locuteurs'
 import type { ExtraitSynthese, ExtraitSyntheseBrut, SourceMoteurSynthese, TourSynthese } from '../../shared/synthese/types'
 import {
@@ -78,7 +78,7 @@ export function projeterExtraitsSynthese(
       texte: textePassage(source.doc, source.data, extrait.from, extrait.to, mode),
       avant: textePassage(source.doc, source.data, avantFrom, extrait.from, mode).trim(),
       apres: textePassage(source.doc, source.data, extrait.to, apresTo, mode).trim(),
-      locuteurs: locuteursPassage(source.doc, source.data.locuteurs, extrait.from, extrait.to, mode),
+      locuteurs: locuteursPassage(source.doc, source.data.participations, extrait.from, extrait.to, mode),
     }]
   })
 }

@@ -40,7 +40,7 @@ describe('assemblage de session GitLab', () => {
       )) {
         return new Response(JSON.stringify({
           file_path: 'donnees/entretiens/e1.json',
-          content: Buffer.from('{"formatVersion":8}').toString('base64'),
+          content: Buffer.from('{"formatVersion":10}').toString('base64'),
           encoding: 'base64',
           last_commit_id: '2'.repeat(40),
           execute_filemode: false,
@@ -78,7 +78,7 @@ describe('assemblage de session GitLab', () => {
     expect(requetes.some((requete) => requete.includes('donnees%2Fentretiens%2Fe1.json')))
       .toBe(true)
     expect(readFileSync(join(racine, 'entretiens', 'e1.json'), 'utf8'))
-      .toBe('{"formatVersion":8}')
+      .toBe('{"formatVersion":10}')
     const actionBail = corps
       .flatMap((corps) => corps.actions as Array<{ file_path: string }> | undefined)
       .find(({ file_path: chemin }) => chemin.startsWith('.sonal/verrous/'))

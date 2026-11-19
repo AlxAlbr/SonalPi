@@ -212,7 +212,7 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
   try {
     const fixture = fixtureRenommageAnon()
     fixture.corpus.reglesAnon.personne.pseudos = ['Claire']
-    for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === 'personne' && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
+    for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === "personne" && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
     const ids = await page.evaluate(async ({ corpus, sources }) => {
       const ids: string[] = []
       for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
@@ -227,12 +227,12 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
     await expect(page.locator('.pseudo-table')).not.toContainText('+ Variante')
     await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
     await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
-    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!.pseudos).toEqual(['Claire'])
+    expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === "locuteur")!.pseudos).toEqual(['Claire'])
     await ouvrirAjout(); await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / claire')
     await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
     await expect(modal.getByRole('alert')).toContainText('différents')
     await modal.getByLabel('Pseudonymes', { exact: true }).fill('Claire / Rebecca')
-    await page.evaluate(() => window.sonal.corpus.regleAnonCategoriser('personne', 'Catégorie concurrente'))
+    await page.evaluate(() => window.sonal.corpus.regleAnonCategoriser("locuteur", 'Catégorie concurrente'))
     await modal.getByRole('button', { name: 'Enregistrer', exact: true }).click()
     await expect(modal.getByRole('alert')).toContainText('n’a pas pu être confirmé')
     await expect(modal.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled()
@@ -253,7 +253,7 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
     await expect(retrait).toBeVisible()
     await expect(retrait.getByRole('button', { name: 'Remplacer les choix et retirer la variante', exact: true })).toBeDisabled()
     await retrait.getByRole('button', { name: 'Annuler', exact: true }).click()
-    const regle = (await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === 'personne')!
+    const regle = (await page.evaluate(() => window.sonal.corpus.reglesAnon())).find((r) => r.id === "locuteur")!
     expect(regle).toMatchObject({ pseudos: ['Claire', 'Rebecca'], categorie: 'Catégorie concurrente' })
     expect(await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)).toEqual(avant)
   } finally { await app.close() }
@@ -369,7 +369,7 @@ test('import ciblé local : confirmation, identité du locuteur et mémoire sans
     await modal.getByLabel('Fichiers JSON').setInputFiles({ name: 'cibles-locales.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'sonalpi-correspondances', version: 2, correspondances: [
       { nature: 'texte', portee: 'texte-local', entite: ['Alias sans occurrence', 'Autre graphie'], pseudos: ['Ville témoin'], categorie: 'LOC', etatLocal: 'declaration', entretienId: 'id-etranger' },
       { nature: 'texte', portee: 'texte-local', entite: ['Nom sans occurrence'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etatLocal: 'declaration' },
-      { nature: 'locuteur', nom: 'Karine', pseudo: 'Voix témoin', origines: [{ entretienId: 'id-etranger', locuteurIndex: 99, personneRef: 'identite-etrangere', pseudoEtat: 'confirme' }] },
+      { nature: 'locuteur', nom: 'Karine', pseudo: 'Voix témoin', origines: [{ entretienId: 'id-etranger', locuteurIndex: 99, locuteurRef: 'identite-etrangere', pseudoEtat: 'confirme' }] },
     ] })) })
     const cibles = modal.locator('table').nth(1).locator('tbody tr')
     await expect(cibles).toHaveCount(3)
@@ -395,7 +395,7 @@ test('import ciblé local : confirmation, identité du locuteur et mémoire sans
     if (!avant.ok || !apres.ok) throw new Error('Fixture illisible.')
     expect(apres.data.corpsTexte).toEqual(avant.data.corpsTexte)
     expect(apres.data.annotations).toEqual(avant.data.annotations)
-    expect(apres.data.locuteurs[1]).toEqual({ ...avant.data.locuteurs[1], pseudo: 'Voix témoin', pseudoEtat: 'confirme' })
+    expect(apres.data.participations[1]).toEqual({ ...avant.data.participations[1], pseudo: 'Voix témoin', pseudoEtat: 'confirme' })
     expect(apres.data.definitionsAnonLocales).toHaveLength(2)
     expect(apres.data.definitionsAnonLocales![1].pseudos).toEqual(['Claire', 'Rebecca'])
     expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])

@@ -22,7 +22,7 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
   let derniereErreurMatrice: string | null = null
 
   const varsGen = () => variables.value.filter((variable) => variable.portee === 'entretien')
-  const varsLoc = () => variables.value.filter((variable) => variable.portee === 'locuteur')
+  const varsLoc = () => variables.value.filter((variable) => variable.portee === "participation")
 
   function modalitesDe(idVar: string) {
     return variables.value.find((variable) => variable.id === idVar)?.modalites ?? []
@@ -80,7 +80,7 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     reinitialiserMatrice()
   }
 
-  async function ajouterVariable(portee: 'entretien' | 'locuteur'): Promise<string> {
+  async function ajouterVariable(portee: 'entretien' | 'participation'): Promise<string> {
     const resultat = await window.sonal.corpus.ajouterVariable('Nouvelle variable', portee)
     majVariables(resultat.corpus.variables)
     return resultat.id

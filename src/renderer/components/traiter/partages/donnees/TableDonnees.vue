@@ -59,7 +59,7 @@ async function chargerExport() {
 }
 
 // Le panneau pilote les colonnes sans toucher aux définitions du corpus.
-const filtrePortee = ref<'toutes' | 'entretien' | 'locuteur'>('toutes')
+const filtrePortee = ref<'toutes' | 'entretien' | 'participation'>('toutes')
 const rechercheVariable = ref('')
 const colonnesCochees = ref<Set<string>>(new Set())
 let idsConnus = new Set<string>()
@@ -76,7 +76,7 @@ watch(
 )
 const variablesGroupees = computed(() => [
   ...variables.value.filter((v) => v.portee === 'entretien'),
-  ...variables.value.filter((v) => v.portee === 'locuteur'),
+  ...variables.value.filter((v) => v.portee === "participation"),
 ])
 const variablesDePortee = computed(() =>
   filtrePortee.value === 'toutes'
@@ -93,7 +93,7 @@ const variablesEntretienListe = computed(() =>
   variablesListe.value.filter((v) => v.portee === 'entretien'),
 )
 const variablesLocuteurListe = computed(() =>
-  variablesListe.value.filter((v) => v.portee === 'locuteur'),
+  variablesListe.value.filter((v) => v.portee === "participation"),
 )
 const variablesVisibles = computed(() =>
   variablesDePortee.value.filter((v) => colonnesCochees.value.has(v.id)),
@@ -308,7 +308,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
       <div class="filtre-portee" title="Filtrer les colonnes par portée">
         <button :class="{ actif: filtrePortee === 'toutes' }" @click="filtrePortee = 'toutes'">toutes</button>
         <button :class="{ actif: filtrePortee === 'entretien' }" @click="filtrePortee = 'entretien'">entretien</button>
-        <button :class="{ actif: filtrePortee === 'locuteur' }" @click="filtrePortee = 'locuteur'">locuteurs</button>
+        <button :class="{ actif: filtrePortee === 'participation' }" @click="filtrePortee = 'participation'">locuteurs</button>
       </div>
 
       <div class="actions-colonnes">
@@ -485,7 +485,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
                 <tr v-for="l in e.participations" :key="l.participationId !== null ? `id:${l.participationId}` : `index:${l.index}`" class="ligne-loc">
                   <td>👤 {{ l.nom }}<small v-if="l.participationId === null">Enregistrez cet entretien pour pouvoir modifier les réponses de ce locuteur.</small></td>
                   <td v-for="v in variablesVisibles" :key="v.id" class="cell-val">
-                    <template v-if="v.portee === 'locuteur'">
+                    <template v-if="v.portee === 'participation'">
                       <input
                         v-if="modalitesDe(v.id).length === 0 || celluleLibre === cleParticipation(e.entretienId, l.participationId, v.id)"
                         class="cell-libre"

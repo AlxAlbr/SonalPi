@@ -36,9 +36,9 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
         .replace(/<link\b[^>]*>/gi, '')
         .replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, '')
       const payload = importerSonal(new DOMParser().parseFromString(html, 'text/html')).payload
-      const indices = new Set(payload.locuteurs.map((locuteur) => locuteur.index))
-      expect(payload.locuteurs.length).toBeGreaterThan(0)
-      expect(indices.size).toBe(payload.locuteurs.length)
+      const indices = new Set(payload.participations.map((locuteur) => locuteur.index))
+      expect(payload.participations.length).toBeGreaterThan(0)
+      expect(indices.size).toBe(payload.participations.length)
       for (const bloc of blocs(payload)) {
         if (bloc.loc !== null) expect(indices.has(bloc.loc)).toBe(true)
       }
@@ -47,7 +47,7 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
 
   test('l’index zéro et une attribution absente ne créent aucun locuteur', () => {
     const payload = importer([''], [0, null])
-    expect(payload.locuteurs).toEqual([])
+    expect(payload.participations).toEqual([])
     expect(blocs(payload)).toEqual([
       { loc: null, texte: 'Passage 1.' },
       { loc: null, texte: 'Passage 2.' },
@@ -59,11 +59,11 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
       { v: 1, l: 3, m: 2 },
       { v: 2, l: 'all', m: 1 },
     ])
-    expect(payload.locuteurs.map(({ index, nom }) => ({ index, nom }))).toEqual([
+    expect(payload.participations.map(({ index, nom }) => ({ index, nom }))).toEqual([
       { index: 1, nom: 'Alice' },
       { index: 3, nom: 'Bob' },
     ])
-    expect(payload.locuteurs[1].valeursLoc).toEqual({ v1: 'v1m2' })
+    expect(payload.participations[1].valeursLoc).toEqual({ v1: 'v1m2' })
     expect(payload.meta.valeursGen).toEqual({ v2: 'v2m1' })
     expect(blocs(payload)).toEqual([
       { loc: 1, texte: 'Passage 1.' },
@@ -73,7 +73,7 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
 
   test('deux homonymes du même entretien restent deux entrées distinctes', () => {
     const payload = importer(['', 'Alex', 'Alex'], [1, 2])
-    expect(payload.locuteurs.map(({ index, nom }) => ({ index, nom }))).toEqual([
+    expect(payload.participations.map(({ index, nom }) => ({ index, nom }))).toEqual([
       { index: 1, nom: 'Alex' },
       { index: 2, nom: 'Alex' },
     ])
@@ -82,25 +82,25 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
 
   test('les noms de rôle ou génériques et un nom d’un caractère sont importés', () => {
     const payload = importer(['', '?Enquêteur', 'Question', 'Inconnu', 'X'], [1, 2, 3, 4])
-    expect(payload.locuteurs.map(({ index, nom, interviewer }) => ({ index, nom, interviewer }))).toEqual([
+    expect(payload.participations.map(({ index, nom, interviewer }) => ({ index, nom, interviewer }))).toEqual([
       { index: 1, nom: 'Enquêteur', interviewer: true },
       { index: 2, nom: 'Question', interviewer: false },
       { index: 3, nom: 'Inconnu', interviewer: false },
       { index: 4, nom: 'X', interviewer: false },
     ])
-    expect(payload.locuteurs.every((locuteur) => locuteur.personneRef === null)).toBe(true)
+    expect(payload.participations.every((locuteur) => locuteur.locuteurRef === null)).toBe(true)
   })
 
   test('un locuteur sans intervention reste présent avec ses valeurs locales', () => {
     const payload = importer(['', 'Alice', 'Bob'], [1], [{ v: 1, l: 2, m: 3 }])
-    expect(payload.locuteurs.map((locuteur) => locuteur.nom)).toEqual(['Alice', 'Bob'])
-    expect(payload.locuteurs[1].valeursLoc).toEqual({ v1: 'v1m3' })
+    expect(payload.participations.map((locuteur) => locuteur.nom)).toEqual(['Alice', 'Bob'])
+    expect(payload.participations[1].valeursLoc).toEqual({ v1: 'v1m3' })
     expect(blocs(payload).map((bloc) => bloc.loc)).toEqual([1])
   })
 
   test('les index numériques écrits en chaînes retrouvent les mêmes propriétaires', () => {
     const payload = importer(['', 'Alice', '', 'Bob'], ['3'], [{ v: 1, l: '3', m: 2 }])
-    expect(payload.locuteurs[1]).toMatchObject({ index: 3, nom: 'Bob', valeursLoc: { v1: 'v1m2' } })
+    expect(payload.participations[1]).toMatchObject({ index: 3, nom: 'Bob', valeursLoc: { v1: 'v1m2' } })
     expect(blocs(payload)).toEqual([{ loc: 3, texte: 'Passage 1.' }])
   })
 
@@ -109,7 +109,7 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
       { v: 1, l: 1, m: 2 },
       { v: 1, l: 2, m: 3 },
     ])
-    expect(payload.locuteurs.map(({ index, nom, interviewer, valeursLoc }) => ({
+    expect(payload.participations.map(({ index, nom, interviewer, valeursLoc }) => ({
       index, nom, interviewer, valeursLoc,
     }))).toEqual([
       { index: 1, nom: 'Alex', interviewer: true, valeursLoc: { v1: 'v1m2' } },

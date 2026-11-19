@@ -37,7 +37,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
     const b = banc(), avant = b.lire(), tiers = readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8'), p = b.preparer()
     p.demande.pseudoConserve = 'Faux'; p.regle.pseudos = []; p.entretiens = []; p.bilan.annotations = 0
     expect(b.cache.appliquer(p.token, true)).toMatchObject({ annotations: 6, exceptions: 3, incluses: 2, entretiens: 2 })
-    const attendu = structuredClone(avant); for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
+    const attendu = structuredClone(avant); for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
     attendu.lastModified = '2026-10-11T00:00:00.000Z'
     expect(b.lire()).toEqual(attendu); expect(b.corpus().reglesAnon.personne.pseudos).toEqual(['Rebecca'])
     expect(b.corpus().membership.e1.lastModified).toBe(attendu.lastModified)
@@ -46,7 +46,7 @@ describe('retrait de variante local, aperçu privé et journal version 5', () =>
   test('variante inutilisée : seul corpus.crp change, même avec des liens vers la variante restante', () => {
     const b = banc()
     for (const id of ['e1', 'e2']) {
-      const d = b.lire(id); for (const a of d.annotations) if (a.regle === 'personne') a.pseudo = 'Rebecca'
+      const d = b.lire(id); for (const a of d.annotations) if (a.regle === "personne") a.pseudo = 'Rebecca'
       writeFileSync(join(b.dir, `entretiens/${id}.json`), JSON.stringify(d))
     }
     const avant = ['e1', 'e2', 'e3'].map((id) => ({ chemin: join(b.dir, `entretiens/${id}.json`), data: readFileSync(join(b.dir, `entretiens/${id}.json`), 'utf8'), date: statSync(join(b.dir, `entretiens/${id}.json`)).mtimeMs }))

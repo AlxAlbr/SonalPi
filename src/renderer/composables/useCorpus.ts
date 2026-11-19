@@ -8,7 +8,7 @@ import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
 import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
-import type { CommandePersonnes } from '../../shared/corpus/contratsLocuteurs'
+import type { CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
@@ -60,7 +60,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     return window.sonal.corpus.locuteursInventaire()
   }
 
-  async function commanderPersonnes(commande: CommandePersonnes) {
+  async function commanderPersonnes(commande: CommandeLocuteurs) {
     await opts.flush()
     return window.sonal.corpus.personnesCommander(toRaw(commande), true)
   }

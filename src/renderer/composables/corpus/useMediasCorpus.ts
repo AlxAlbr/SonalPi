@@ -265,7 +265,7 @@ export function useMediasCorpus(deps: {
           corpsTexte: importe.payload.corpsTexte,
           annotations: importe.payload.annotations,
           ancres: importe.payload.ancres,
-          locuteurs: importe.payload.locuteurs,
+          participations: importe.payload.participations,
         })
         deps.perimerScanAnon()
       } catch (erreur) {

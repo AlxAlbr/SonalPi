@@ -13,11 +13,11 @@ test('séparer une personne laisse au moins un locuteur sur la fiche d’origine
     await page.evaluate(async () => {
       const api = (window as any).sonal.corpus
       const inventaire = await api.personnesInventaire()
-      const karine = inventaire.locuteurs.find((locuteur: any) => locuteur.nom === 'Karine')
+      const karine = inventaire.participations.find((locuteur: any) => locuteur.nom === 'Karine')
       const personneId = await api.personnesCommander({
         type: 'creer',
         entretienId: karine.entretienId,
-        locuteurId: karine.locuteurId,
+        participationId: karine.participationId,
         nom: 'Karine Dupont',
       })
       for (const [titre, id, nom] of [
@@ -27,9 +27,9 @@ test('séparer une personne laisse au moins un locuteur sur la fiche d’origine
         const creation = await api.creerEntretienVide(titre)
         const lecture = await api.lireEntretien(creation.id)
         const { formatVersion, lastModified, ...payload } = lecture.data
-        payload.locuteurs = [{ id, index: 0, nom, valeursLoc: {}, personneRef: null }]
+        payload.participations = [{ id, index: 0, nom, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(creation.id, payload)
-        await api.personnesCommander({ type: 'lier', entretienId: creation.id, locuteurId: id, personneId })
+        await api.personnesCommander({ type: 'lier', entretienId: creation.id, participationId: id, locuteurId: personneId })
       }
     })
 
@@ -63,7 +63,7 @@ test('séparer une personne laisse au moins un locuteur sur la fiche d’origine
     await panneau.locator('.repertoire').getByRole('button', { name: /Karine Dupont/ }).click()
     await expect(panneau.locator('.liens li')).toHaveCount(1)
     const inventaire = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(inventaire.locuteurs.map((locuteur: any) => locuteur.nom)).toEqual(expect.arrayContaining(['Karine', 'Mme Dupont', 'K. Dupont']))
+    expect(inventaire.participations.map((locuteur: any) => locuteur.nom)).toEqual(expect.arrayContaining(['Karine', 'Mme Dupont', 'K. Dupont']))
 
     // Le niveau corpus ne propose plus d'annulation des modifications de Personnes.
     await expect(panneau.getByRole('button', { name: 'Annuler une modification…' })).toHaveCount(0)

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { debutBloc } from '../src/shared/entretien/positions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 import type { Cas } from '../src/shared/corpus/cas'
-import { projeterCas, type SourceCasChargee } from '../src/renderer/editor/casFormat9'
+import { projeterCas, type SourceCasChargee } from "../src/renderer/editor/cas"
 import { projeterRecueil } from '../src/renderer/editor/recueils'
 
 const maintenant = '2026-09-01T10:00:00.000Z'
@@ -46,13 +46,13 @@ function sourceE1(): EntretienFichier {
       },
     ],
     ancres: [],
-    locuteurs: [
-      { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-      {
+    participations: [
+      { id: "loc-1", index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2",
         index: 2, nom: 'Alice', pseudo: 'Locutrice A', pseudoEtat: 'confirme',
-        valeursLoc: {}, personneRef: 'personne-1',
+        valeursLoc: {}, locuteurRef: 'personne-1',
       },
-      { index: 3, nom: 'Paul', valeursLoc: {}, personneRef: 'personne-2' },
+      { id: "loc-3", index: 3, nom: 'Paul', valeursLoc: {}, locuteurRef: 'personne-2' },
     ],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: [{ id: 'repere-1', from: debutAlice, to: debutAlice + 7 }],
@@ -66,21 +66,21 @@ function sourceE2(): EntretienFichier {
     corpsTexte: document(['Question de la personne.'], [1]),
     annotations: [],
     ancres: [],
-    locuteurs: [{
+    participations: [{ id: "loc-1",
       index: 1,
       nom: 'Alice enquêtrice',
       interviewer: true,
       valeursLoc: {},
-      personneRef: 'personne-1',
+      locuteurRef: 'personne-1',
     }],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: [],
   }
 }
 
-function corpus(): Pick<CorpusFichier, 'membership' | 'personnes'> {
+function corpus(): Pick<CorpusFichier, 'membership' | "locuteurs"> {
   return {
-    personnes: {
+    locuteurs: {
       'personne-1': { id: 'personne-1', nom: 'Alice' },
       'personne-2': { id: 'personne-2', nom: 'Paul' },
     },
@@ -98,7 +98,7 @@ function casPersonne(inclureEnqueteurs = false): Cas {
     memo: 'Trajectoire.',
     creeLe: maintenant,
     modifieLe: maintenant,
-    regles: [{ type: 'personne', personneId: 'personne-1', inclureEnqueteurs }],
+    regles: [{ type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs }],
     rattachements: [{
       id: 'rattachement-1',
       source: { entretienId: 'e1', repereId: 'repere-1' },
@@ -117,16 +117,16 @@ function sources(): Map<string, SourceCasChargee> {
 
 describe('cas — résolution et projection', () => {
   test('réunit plusieurs personnes en respectant leur filtre local et sans compter deux fois les ajouts', () => {
-    const cas: Cas = { ...casPersonne(), regles: [{ type: 'personnes', membres: [
-      { personneId: 'personne-1', inclureEnqueteurs: false },
-      { personneId: 'personne-2', inclureEnqueteurs: true },
+    const cas: Cas = { ...casPersonne(), regles: [{ type: "locuteurs", membres: [
+      { locuteurId: 'personne-1', inclureEnqueteurs: false },
+      { locuteurId: 'personne-2', inclureEnqueteurs: true },
     ] }] }
     const projection = projeterCas(corpus(), cas, sources())
     expect(projection.vues.regles.passages.map((passage) => passage.texte))
       .toEqual(['Bonjour Personne A à Ville B. Je continue.', 'Paul répond.', 'Retour Alice.'])
     expect(projection.metriques.caracteresSansDoubleCompte).toBe(projection.vues.regles.metriques.caracteresSansDoubleCompte)
     const regle = cas.regles[0]
-    if (regle.type !== 'personnes') throw new Error('Règle attendue')
+    if (regle.type !== "locuteurs") throw new Error('Règle attendue')
     regle.membres[0].inclureEnqueteurs = true
     expect(projeterCas(corpus(), cas, sources()).vues.regles.passages.map((passage) => passage.texte))
       .toContain('Question de la personne.')
@@ -332,7 +332,7 @@ describe('cas — résolution et projection', () => {
 
   test('diagnostique une personne supprimée et les sources non résolues', () => {
     const sansPersonne = corpus()
-    delete sansPersonne.personnes['personne-1']
+    delete sansPersonne.locuteurs['personne-1']
     let projection = projeterCas(sansPersonne, casPersonne(), sources())
     expect(projection.diagnosticsRegles).toEqual([expect.objectContaining({
       type: 'locuteur-introuvable', locuteurId: 'personne-1', entretienId: null,

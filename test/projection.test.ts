@@ -13,7 +13,7 @@ function entree(partiel: Partial<EntreeExport>): EntreeExport {
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     codebook: [],
     variables: [],
     meta: { valeursGen: {} },
@@ -40,7 +40,7 @@ describe('projeterSegments — un segment par intervalle d\u2019ancres', () => {
           { pos: 10, t: 3 },
           { pos: 23, t: 5 },
         ],
-        locuteurs: [{ index: 1, nom: 'Speaker 3', valeursLoc: {}, personneRef: null }],
+        participations: [{ id: "loc-1", index: 1, nom: 'Speaker 3', valeursLoc: {}, locuteurRef: null }],
       }),
     )
     expect(segments.map((s) => [s.deb, s.fin, s.loc])).toEqual([
@@ -92,7 +92,7 @@ describe('projeterSegments — codages, anon et commentaires', () => {
       type: 'doc',
       content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: TEXTE }] }],
     },
-    locuteurs: [{ index: 1, nom: 'Karine', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: null }],
   }
 
   test('codage : le fragment porte le code de la catégorie couvrante', () => {
@@ -156,9 +156,9 @@ describe('projeterSegments — tours de parole', () => {
             { type: 'paragraph', attrs: { loc: 2 }, content: [{ type: 'text', text: 'Réponse.' }] },
           ],
         },
-        locuteurs: [
-          { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-          { index: 2, nom: 'Karine', pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, personneRef: null },
+        participations: [
+          { id: "loc-1", index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+          { id: "loc-2", index: 2, nom: 'Karine', pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null },
         ],
       }),
     )
@@ -175,8 +175,8 @@ describe('projeterSegments — tours de parole', () => {
           type: 'doc',
           content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Un mot.' }] }],
         },
-        locuteurs: [
-          { index: 1, nom: 'Karine', pseudo: 'Chercheur', pseudoEtat: 'refuse', valeursLoc: {}, personneRef: null },
+        participations: [
+          { id: "loc-1", index: 1, nom: 'Karine', pseudo: 'Chercheur', pseudoEtat: 'refuse', valeursLoc: {}, locuteurRef: null },
         ],
       }),
     )
@@ -190,7 +190,7 @@ describe('projeterSegments — tours de parole', () => {
           type: 'doc',
           content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Un mot.' }] }],
         },
-        locuteurs: [{ index: 1, nom: '', valeursLoc: {}, personneRef: null }],
+        participations: [{ id: "loc-1", index: 1, nom: '', valeursLoc: {}, locuteurRef: null }],
       }),
     )
     expect(segments[0].libelle).toBeNull()
@@ -212,7 +212,7 @@ describe('projeterSegments — sauts de ligne du modèle (hardBreak)', () => {
           ] }],
         },
         ancres: [{ pos: 1, t: 1 }, { pos: 8, t: 2 }, { pos: 14, t: 3 }],
-        locuteurs: [{ index: 1, nom: 'Karine', valeursLoc: {}, personneRef: null }],
+        participations: [{ id: "loc-1", index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: null }],
       }),
     )
     // l'ancre interne (plat 6) reste une COUPE de cue : 2 segments, mais le
@@ -256,8 +256,8 @@ describe('appliquerAnonymisation', () => {
           { type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Karine habite Lyon.' }] },
         ],
       },
-      locuteurs: [
-        { index: 1, nom: 'Karine', pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, personneRef: null },
+      participations: [
+        { id: "loc-1", index: 1, nom: 'Karine', pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null },
       ],
       annotations: [
         { id: 'a1', type: 'anon', from: 1, to: 7, auteur: 'Ana', etat: 'anonymise', pseudo: 'Marie' },

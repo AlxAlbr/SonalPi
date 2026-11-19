@@ -4,7 +4,7 @@ import { fixtureRenommageAnon } from '../fixtures/renommageAnon'
 
 function banc() {
   const f = fixtureRenommageAnon(['e1'])
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   f.corpus.reglesAnon.personne.pseudos = ['Nouvelle', 'Rebecca']
   const avant = f.sources[0].data, candidat = structuredClone(avant)
   return { corpus: f.corpus, avant, candidat }
@@ -43,7 +43,7 @@ describe('choix liés validés contre le corpus publié', () => {
     expect(() => verifierReferencesDefinitions(b.candidat, b.corpus, b.avant)).not.toThrow()
   })
   test('rattachement nouveau à une règle : vérifie le choix, pas seulement l’identité', () => {
-    const b = banc(); b.candidat.annotations[3].regle = 'personne'
+    const b = banc(); b.candidat.annotations[3].regle = "personne"
     expect(() => verifierReferencesDefinitions(b.candidat, b.corpus, b.avant)).toThrow('variante choisie')
   })
   test('renommage de casse : l’ancien libellé ne redevient pas un nouveau choix déclaré', () => {

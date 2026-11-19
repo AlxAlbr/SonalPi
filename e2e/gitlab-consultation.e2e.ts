@@ -403,7 +403,7 @@ async function bancDissociation(suffixe: string) {
   test.skip(!configuration.token2, 'second compte GitLab du harnais absent')
   const projet = await api<{ id: number }>('/projects', configuration.token1 as string, { method: 'POST', body: JSON.stringify({ name: `Sonal dissociation ${suffixe} ${idExecution}`, path: `sonal-dissociation-${suffixe}-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }) })
   const f = fixtureDissociationAnon()
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : dissociation synthétique', actions: [
     { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
@@ -452,7 +452,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
       expect(await app.evaluate(() => (globalThis as unknown as { sondeDissociation: SondeDissociation }).sondeDissociation.publies)).toEqual([])
       const consommation = await page.evaluate(async () => {
-        const a = await window.sonal.corpus.apercuDissociationAnon({ regleId: 'personne' })
+        const a = await window.sonal.corpus.apercuDissociationAnon({ regleId: "personne" })
         a.definitionLocale.pseudos = ['Forgerie']
         let premier = '', second = ''
         try { await window.sonal.corpus.dissocierRegleAnon(a.token, false) } catch (e) { premier = String(e) }
@@ -477,7 +477,7 @@ test.describe('Consultation GitLab à deux profils', () => {
         const actuel = JSON.parse((await b.depot.lireFichier(`entretiens/${source.id}.json`, 'main'))!.contenu)
         const attendu = structuredClone(source.data); attendu.lastModified = actuel.lastModified
         attendu.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
-        for (const a of attendu.annotations) if (a.regle === 'personne') delete a.regle
+        for (const a of attendu.annotations) if (a.regle === "personne") delete a.regle
         expect(actuel).toEqual(attendu)
       }
       expect(await app.evaluate(() => (globalThis as unknown as { sondeDissociation: SondeDissociation }).sondeDissociation.publies)).toEqual(['barriere', 'e1', 'e2', 'e3', 'retrait'])
@@ -502,7 +502,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       page.once('dialog', (d) => d.accept()); await bouton.click()
       const modal = page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true }); await expect(modal).toBeVisible({ timeout: 30_000 })
       const avant = (await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu
-      expect(avant).toContain('Ajout GitLab avant dissociation.'); expect(JSON.parse(avant).annotations.some((a: { regle?: string }) => a.regle === 'personne')).toBe(true)
+      expect(avant).toContain('Ajout GitLab avant dissociation.'); expect(JSON.parse(avant).annotations.some((a: { regle?: string }) => a.regle === "personne")).toBe(true)
       const libre = await b.bob.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/e1.json')); expect(libre.ok).toBe(true)
       if (!libre.ok) throw new Error('Session synthétique non fermée')
       await b.bob.liberer(libre.droit)
@@ -511,7 +511,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       const frais = await ouvrirDissociation(page); await frais.getByRole('checkbox').check(); await frais.getByRole('button', { name: 'Confirmer la dissociation globale' }).click(); await expect(frais).toHaveCount(0, { timeout: 30_000 })
       await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click(); await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click(); await page.locator('[data-onglet="anon"]').click()
       await expect(page.locator('.ligne-anon.etat-entretien', { hasText: 'Karine' }).first().locator('.pseudo-anon')).toHaveValue('Claire / Rebecca')
-      const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu); expect(actuel).toMatchObject({ corpsTexte: JSON.parse(avant).corpsTexte, locuteurs: b.f.sources[0].data.locuteurs })
+      const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu); expect(actuel).toMatchObject({ corpsTexte: JSON.parse(avant).corpsTexte, locuteurs: b.f.sources[0].data.participations })
     } finally { await app.close(); await session.fermer(); shim.nettoyer(); rmSync(profil, { recursive: true, force: true }) }
   })
   test('dissociation GitLab OAuth : retrait accepté, réponse perdue et suivi sans rejeu', async ({ browser }, info) => {
@@ -583,7 +583,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       method: 'POST', body: JSON.stringify({ name: `Sonal renommage E2E ${idExecution}`, path: `sonal-renommage-e2e-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }),
     })
     const f = fixtureRenommageAnon(['e1', 'e2', 'e3']); f.sources[2].data.annotations = []
-    f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0,
+    f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: "participation", priv: false, ordre: 0, vExport: 0,
       modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
     await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : corpus synthétique du renommage', actions: [
       { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
@@ -657,7 +657,7 @@ test.describe('Consultation GitLab à deux profils', () => {
         const fichier = await api<{ content: string }>(`/projects/${projet.id}/repository/files/${encodeURIComponent(`entretiens/${s.id}.json`)}?ref=main`, configuration.token1 as string)
         const apres = JSON.parse(Buffer.from(fichier.content, 'base64').toString('utf8'))
         const attendu = structuredClone(s.data)
-        if (s.id !== 'e3') { attendu.lastModified = apres.lastModified; for (const a of attendu.annotations) if (a.regle === 'personne' && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle' }
+        if (s.id !== 'e3') { attendu.lastModified = apres.lastModified; for (const a of attendu.annotations) if (a.regle === "personne" && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle' }
         expect(apres).toEqual(attendu)
       }
       commits = await api<Array<{ title: string }>>(`/projects/${projet.id}/repository/commits?ref_name=main&per_page=100`, configuration.token1 as string)

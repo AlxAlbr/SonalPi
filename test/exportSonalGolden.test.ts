@@ -54,17 +54,17 @@ function entreeRiche(): EntreeExport {
       { pos: 34, t: 25 },
       { pos: 54, t: 30 },
     ],
-    locuteurs: [
-      {
+    participations: [
+      { id: "loc-1",
         index: 1,
         nom: 'Karine',
         interviewer: false,
         pseudo: 'Claire',
         pseudoEtat: 'confirme',
         valeursLoc: {},
-        personneRef: null,
+        locuteurRef: null,
       },
-      { index: 2, nom: 'Marc', interviewer: true, valeursLoc: {}, personneRef: null },
+      { id: "loc-2", index: 2, nom: 'Marc', interviewer: true, valeursLoc: {}, locuteurRef: null },
     ],
     codebook: [
       {
@@ -101,7 +101,7 @@ function entreeTourFusionne(): EntreeExport {
       { pos: 10, t: 3 },
       { pos: 23, t: 5 },
     ],
-    locuteurs: [{ index: 1, nom: 'Speaker 3', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Speaker 3', valeursLoc: {}, locuteurRef: null }],
     codebook: [],
     variables: [],
     meta: { valeursGen: {} },
@@ -125,9 +125,9 @@ function entreeEchappements(): EntreeExport {
       { id: 'a1', type: 'codage', from: 8, to: 33, auteur: 'Ana', code: 'cat_001' },
     ],
     ancres: [],
-    locuteurs: [
-      { index: 1, nom: 'Lui & Elle', valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Autre', interviewer: true, valeursLoc: {}, personneRef: null },
+    participations: [
+      { id: "loc-1", index: 1, nom: 'Lui & Elle', valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2", index: 2, nom: 'Autre', interviewer: true, valeursLoc: {}, locuteurRef: null },
     ],
     codebook: [
       { id: 'c1', nom: 'Récit', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
@@ -164,7 +164,7 @@ function entreeSauts(): EntreeExport {
       { pos: 8, t: 2 },
       { pos: 14, t: 3 },
     ],
-    locuteurs: [{ index: 1, nom: 'Karine', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: null }],
     codebook: [],
     variables: [],
     meta: { valeursGen: {} },

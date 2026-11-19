@@ -27,6 +27,7 @@ import type {
   OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  PayloadImportEntretien,
   TranscriptionEntretien,
   RegleAnon,
   ResultatArchiveCorpus,
@@ -59,8 +60,8 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { InventairePersonnes } from '../shared/corpus/personnes'
-import type { CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
+import type { CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -275,7 +276,7 @@ contextBridge.exposeInMainWorld('sonal', {
     ): Promise<CorpusFichier> => invoquer('corpus:supprimerEntretien', id, impactAttendu),
     importer: (
       titre: string,
-      payload: PayloadEntretien,
+      payload: PayloadImportEntretien,
       codebook: Categorie[],
       variables: Variable[],
       reglesAnon?: RegleAnon[],
@@ -355,9 +356,9 @@ contextBridge.exposeInMainWorld('sonal', {
     notesInventaire: (): Promise<InventaireNotes> => invoquer('corpus:notesInventaire'),
     notesCommander: (commande: CommandeNotes): Promise<string | null> =>
       invoquer('corpus:notesCommander', commande),
-    personnesInventaire: (): Promise<InventairePersonnes> => invoquer('corpus:personnesInventaire'),
+    personnesInventaire: (): Promise<InventaireIdentitesLocuteurs> => invoquer('corpus:personnesInventaire'),
     locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),
-    personnesCommander: (commande: CommandePersonnes, depuisRepertoire = false): Promise<string | null> =>
+    personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire = false): Promise<string | null> =>
       invoquer('corpus:personnesCommander', commande, depuisRepertoire),
     journalLister: (): Promise<EntreeJournalCorpusVue[]> => invoquer('corpus:journalLister'),
     journalAnnuler: (id: string): Promise<ResultatAnnulationCorpus> => invoquer('corpus:journalAnnuler', id),
@@ -408,7 +409,7 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:compterUsagesCategorie', code, exceptId),
     ajouterVariable: (
       lib: string,
-      portee: 'entretien' | 'locuteur',
+      portee: 'entretien' | 'participation',
     ): Promise<{ id: string; corpus: CorpusFichier }> =>
       invoquer('corpus:ajouterVariable', lib, portee),
     modifierVariable: (id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>): Promise<CorpusFichier> =>
@@ -627,7 +628,7 @@ contextBridge.exposeInMainWorld('sonal', {
     destination: (chemin: string, nomDossier: string, emplacement?: string) => ipcRenderer.invoke('migrer:destination', chemin, nomDossier, emplacement),
     preparer: (req: DemandePreparationMigration) => ipcRenderer.invoke('migrer:preparer', req),
     lireEntretien: (index: number) => ipcRenderer.invoke('migrer:lireEntretien', index),
-    ajouterEntretien: (index: number, payload: PayloadEntretien, regles: RegleAnon[]) => ipcRenderer.invoke('migrer:ajouterEntretien', index, payload, regles),
+    ajouterEntretien: (index: number, payload: PayloadImportEntretien, regles: RegleAnon[]) => ipcRenderer.invoke('migrer:ajouterEntretien', index, payload, regles),
     finaliser: () => ipcRenderer.invoke('migrer:finaliser'),
     terminer: () => ipcRenderer.invoke('migrer:terminer'),
     annuler: () => ipcRenderer.invoke('migrer:annuler'),

@@ -1,4 +1,4 @@
-import type { Variable } from '../natif/format'
+import type { Variable } from "../format"
 
 /** Une liste sans restriction se distingue d'une sélection explicite, même vide. */
 export type SelectionLexico =

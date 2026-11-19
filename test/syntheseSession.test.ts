@@ -15,7 +15,7 @@ function entretien(): EntretienFichier {
     formatVersion: FORMAT_VERSION, lastModified: '', ancres: [],
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: 'Paroles conservées.' }] }] },
     annotations: [{ id: 'codage', type: 'codage', code: 'theme', from: 1, to: 20 }],
-    locuteurs: [{ id: 'participation-stable', index: 7, nom: 'Nom local', personneRef: 'identite-corpus', valeursLoc: { age: 'adulte' } }],
+    participations: [{ id: 'participation-stable', index: 7, nom: 'Nom local', locuteurRef: 'identite-corpus', valeursLoc: { age: 'adulte' } }],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -25,11 +25,11 @@ function banc() {
   const lire = vi.fn(async (_id: string) => ({ ok: true as const, data: structuredClone(data) }))
   vi.stubGlobal('window', { sonal: { corpus: {
     lireEntretien: lire,
-    personnesInventaire: async () => ({ personnes: structuredClone(personnes) }),
+    personnesInventaire: async () => ({ locuteurs: structuredClone(personnes) }),
   } } })
   const deps = {
     membership: ref({ e1: { titre: 'Entretien', date: null, lastModified: '' } }),
-    variables: ref<Variable[]>([{ id: 'age', lib: 'Âge', portee: 'locuteur', priv: false, ordre: 0, vExport: 1,
+    variables: ref<Variable[]>([{ id: 'age', lib: 'Âge', portee: "participation", priv: false, ordre: 0, vExport: 1,
       modalites: [{ id: 'adulte', lib: 'Adulte', mExport: 1 }] }]),
     codebook: ref<Categorie[]>([{ id: 'theme', nom: 'Thème', ordre: 0, parent: null, actif: true, codeExport: 'theme' }]),
     cas: ref<Record<string, Cas>>({}), ouvertId: ref<string | null>(null),
@@ -40,7 +40,7 @@ function banc() {
   const sources = scope.run(() => useSourcesAnalyseCorpus(deps))!
   const synthese = scope.run(() => useSyntheseCorpus({ ...deps, sources }))!
   synthese.filtresSynthese.value.themes = { mode: 'choix', ids: ['theme'] }
-  return { data, personnes, lire, deps, sources, synthese }
+  return { data, locuteurs: personnes, lire, deps, sources, synthese }
 }
 
 describe('Synthèse — session raccordée aux références cibles', () => {
@@ -54,7 +54,7 @@ describe('Synthèse — session raccordée aux références cibles', () => {
     expect(b.synthese.extraitsSynthese.value[0]).toMatchObject({
       entretienId: 'e1', texte: 'Paroles conservées.', participationIds: ['participation-stable'], locuteurIds: ['identite-corpus'],
     })
-    expect(b.synthese.locuteursSynthese.value).toEqual(b.personnes)
+    expect(b.synthese.locuteursSynthese.value).toEqual(b.locuteurs)
     expect(b.data).toEqual(avant)
     expect(b.synthese.exportSynthesePossible.value).toBe(true)
   })
@@ -83,7 +83,7 @@ describe('Synthèse — session raccordée aux références cibles', () => {
     expect(b.synthese.diagnosticsSynthese.value).toContainEqual({ entretienId: 'e1', titre: 'Entretien', message: 'Source momentanément indisponible' })
     expect(b.synthese.exportSynthesePossible.value).toBe(false)
     expect(Object.keys(b.deps.membership.value)).toEqual(['e1'])
-    expect(b.synthese.locuteursSynthese.value).toEqual(b.personnes)
+    expect(b.synthese.locuteursSynthese.value).toEqual(b.locuteurs)
     expect(b.synthese.entretiensCalculSynthese.value).toEqual([{ id: 'e1', titre: 'Entretien', longueurSource: null }])
   })
 })

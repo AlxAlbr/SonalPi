@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { statistiquesLocuteurs, type BlocParole } from '../src/shared/entretien/statistiquesLocuteurs'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 import type { Ancre } from '../src/shared/entretien/audio'
 
-const locuteurs: Locuteur[] = [
-  { index: 0, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-  { index: 7, nom: 'Fatima', valeursLoc: {}, personneRef: null },
+const locuteurs: ParticipationLocuteur[] = [
+  { id: "loc-0", index: 0, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+  { id: "loc-7", index: 7, nom: 'Fatima', valeursLoc: {}, locuteurRef: null },
 ]
 function blocs(lignes: Array<[string, number | null]>): BlocParole[] {
   let pos = 1

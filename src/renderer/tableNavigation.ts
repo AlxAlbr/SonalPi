@@ -50,7 +50,7 @@ export function grilleCellules(o: SourceGrille): Grille {
       for (const p of e.participations)
         g.push(
           o.variables.map((v) =>
-            v.portee === 'locuteur' && editable && p.participationId !== null ? cleParticipation(e.entretienId, p.participationId, v.id) : null,
+            v.portee === "participation" && editable && p.participationId !== null ? cleParticipation(e.entretienId, p.participationId, v.id) : null,
           ),
         )
   }

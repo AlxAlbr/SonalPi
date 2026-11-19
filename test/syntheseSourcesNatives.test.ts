@@ -3,7 +3,7 @@ import { Schema } from '@tiptap/pm/model'
 import { sourceMoteurSynthese, diagnosticsValeursSynthese } from '../src/renderer/editor/synthese'
 import { calculerExtraitsSynthese } from '../src/shared/synthese/moteur'
 import { filtresSyntheseParDefaut } from '../src/shared/synthese/types'
-import { FORMAT_NATIF_LOCUTEURS, type EntretienFichier, type Variable } from '../src/shared/natif/format'
+import { FORMAT_VERSION, type EntretienFichier, type Variable } from "../src/shared/format"
 
 const schema = new Schema({ nodes: {
   doc: { content: 'block*' },
@@ -13,7 +13,7 @@ const schema = new Schema({ nodes: {
 const reference = { titre: 'Entretien', date: null, lastModified: '' }
 function entretien(): EntretienFichier {
   return {
-    formatVersion: FORMAT_NATIF_LOCUTEURS, lastModified: '', annotations: [], ancres: [],
+    formatVersion: FORMAT_VERSION, lastModified: '', annotations: [], ancres: [],
     meta: { valeursGen: { lieu: 'ici' }, audioRef: null },
     participations: [
       { id: 'participation-stable-a', index: 7, nom: 'Nom local A', locuteurRef: 'identite-commune-a', valeursLoc: { age: 'adulte' } },

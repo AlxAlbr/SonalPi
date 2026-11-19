@@ -1,114 +1,100 @@
 import { describe, expect, test } from 'vitest'
-import type { Locuteur } from '../src/shared/format'
-import { analyserRapprochementPersonne, annulerRefusRapprochement, cleNomPersonne, natureNomPersonne, refuserRapprochement, reprendreDonneesLocuteur, scoreRapprochement, suggestionsExactesPersonnes, suggestionsPersonnes } from '../src/shared/corpus/rapprochementsPersonnes'
+import type { ParticipationLocuteur } from '../src/shared/format'
+import { analyserRapprochementLocuteur, annulerRefusRapprochementLocuteurs, cleNomLocuteur, natureNomLocuteur, refuserRapprochementLocuteurs, reprendreDonneesParticipation, scoreRapprochement, suggestionsExactesLocuteurs, suggestionsLocuteurs } from '../src/shared/corpus/rapprochementsLocuteurs'
 
-const loc = (id: string, nom: string): Locuteur => ({ id, nom, index: 0, personneRef: null, valeursLoc: {} })
+const loc = (id: string, nom: string): ParticipationLocuteur => ({ id, nom, index: 0, locuteurRef: null, valeursLoc: {} })
+const candidat = (entretienId: string, participation: ParticipationLocuteur) => ({ entretienId, participation })
 
 describe('Rapprochements et reprise sélective', () => {
   test('normalise les noms et distingue rôles et noms d’attente', () => {
-    expect(cleNomPersonne('  Émilie—D’Arc. ')).toBe('emilie d arc')
-    for (const nom of ['Interviewer', 'Intervieweur', 'Enquêteur']) expect(natureNomPersonne(nom)).toBe('role')
-    for (const nom of ['', 'A', 'Speaker 2', 'Nouveau locuteur', 'Inconnu']) expect(natureNomPersonne(nom)).toBe('ignore')
-    expect(natureNomPersonne('Enquêteur A')).toBe('specifique')
+    expect(cleNomLocuteur('  Émilie—D’Arc. ')).toBe('emilie d arc')
+    for (const nom of ['Interviewer', 'Intervieweur', 'Enquêteur']) expect(natureNomLocuteur(nom)).toBe('role')
+    for (const nom of ['', 'A', 'Speaker 2', 'Nouveau locuteur', 'Inconnu']) expect(natureNomLocuteur(nom)).toBe('ignore')
+    expect(natureNomLocuteur('Enquêteur A')).toBe('specifique')
   })
 
   test('calibre les noms proches sur des variantes explicables', () => {
-    expect(analyserRapprochementPersonne('Marie Dupont', 'Maria Dupont')).toMatchObject({
-      raison: 'une-lettre', libelle: 'une lettre différente',
-    })
-    expect(analyserRapprochementPersonne('Dupont Marie', 'Marie Dupont')).toMatchObject({
-      raison: 'memes-mots', libelle: 'mêmes mots dans un ordre différent',
-    })
+    expect(analyserRapprochementLocuteur('Marie Dupont', 'Maria Dupont')).toMatchObject({ raison: 'une-lettre', libelle: 'une lettre différente' })
+    expect(analyserRapprochementLocuteur('Dupont Marie', 'Marie Dupont')).toMatchObject({ raison: 'memes-mots', libelle: 'mêmes mots dans un ordre différent' })
     expect(scoreRapprochement('Émilie D’Arc', 'emilie-d arc')).toBe(1)
     expect(scoreRapprochement('Marie Dupont', 'Maria Dupont')).toBeLessThan(1)
     expect(scoreRapprochement('Marie Dupont', 'Maria Dupont')).toBeGreaterThan(0.9)
   })
 
   test('écarte les variantes trop faibles et les prénoms seuls', () => {
-    for (const [a, b] of [
-      ['Marie', 'Maria'],
-      ['Jean Dupont', 'Jean Durand'],
-      ['Li Ma', 'Lu Ma'],
-      ['Paul Martin', 'Pauline Martin'],
-      ['Inconnu', 'Inconnue'],
-    ]) expect(analyserRapprochementPersonne(a, b)).toBeNull()
+    for (const [a, b] of [['Marie', 'Maria'], ['Jean Dupont', 'Jean Durand'], ['Li Ma', 'Lu Ma'], ['Paul Martin', 'Pauline Martin'], ['Inconnu', 'Inconnue']]) {
+      expect(analyserRapprochementLocuteur(a, b)).toBeNull()
+    }
   })
 
   test('propose les noms proches sans les mélanger aux suggestions exactes', () => {
-    const source = { entretienId: '1', locuteur: loc('a', 'Marie Dupont') }
-    const proche = { entretienId: '2', locuteur: loc('b', 'Maria Dupont') }
-    expect(suggestionsExactesPersonnes(source, [proche])).toEqual([])
-    expect(suggestionsPersonnes(source, [proche])).toEqual([proche])
+    const source = candidat('1', loc('a', 'Marie Dupont')), proche = candidat('2', loc('b', 'Maria Dupont'))
+    expect(suggestionsExactesLocuteurs(source, [proche])).toEqual([])
+    expect(suggestionsLocuteurs(source, [proche])).toEqual([proche])
   })
 
-  test('retient la meilleure graphie pour une personne représentée plusieurs fois', () => {
-    const source = { entretienId: '1', locuteur: loc('a', 'Marie Dupont') }
-    const proche = { entretienId: '2', locuteur: { ...loc('b', 'Maria Dupont'), personneRef: 'p' } }
-    const exacte = { entretienId: '3', locuteur: { ...loc('c', 'Marie Dupont'), personneRef: 'p' } }
-    expect(suggestionsPersonnes(source, [proche, exacte])).toEqual([exacte])
+  test('retient la meilleure graphie pour une identité représentée plusieurs fois', () => {
+    const source = candidat('1', loc('a', 'Marie Dupont'))
+    const proche = candidat('2', { ...loc('b', 'Maria Dupont'), locuteurRef: 'p' })
+    const exacte = candidat('3', { ...loc('c', 'Marie Dupont'), locuteurRef: 'p' })
+    expect(suggestionsLocuteurs(source, [proche, exacte])).toEqual([exacte])
   })
 
-  test('ne rapproche pas deux locuteurs du même entretien ni deux identités déjà liées', () => {
-    const a = loc('a', 'Marie'); const b = loc('b', 'MARIE')
-    const source = { entretienId: '1', locuteur: a }
-    const candidat = { entretienId: '2', locuteur: b }
-    expect(suggestionsExactesPersonnes(source, [candidat])).toEqual([candidat])
-    expect(suggestionsExactesPersonnes(source, [{ ...candidat, entretienId: '1' }])).toEqual([])
-    a.personneRef = b.personneRef = 'p'
-    expect(suggestionsExactesPersonnes(source, [candidat])).toEqual([])
+  test('ne rapproche pas deux participations du même entretien ni deux identités déjà liées', () => {
+    const a = loc('a', 'Marie'), b = loc('b', 'MARIE')
+    const source = candidat('1', a), cible = candidat('2', b)
+    expect(suggestionsExactesLocuteurs(source, [cible])).toEqual([cible])
+    expect(suggestionsExactesLocuteurs(source, [{ ...cible, entretienId: '1' }])).toEqual([])
+    a.locuteurRef = b.locuteurRef = 'p'
+    expect(suggestionsExactesLocuteurs(source, [cible])).toEqual([])
   })
 
   test('propose les rôles équivalents et respecte les refus symétriques révocables', () => {
-    const a = loc('a', 'Interviewer'); const b = loc('b', 'Enquêteur')
-    const source = { entretienId: '1', locuteur: a }; const candidat = { entretienId: '2', locuteur: b }
-    expect(suggestionsExactesPersonnes(source, [candidat])).toHaveLength(1)
-    refuserRapprochement(b, a)
-    refuserRapprochement(b, a)
-    expect(b.rapprochementsRefuses).toEqual(['locuteur:a'])
-    expect(suggestionsExactesPersonnes(source, [candidat])).toEqual([])
-    annulerRefusRapprochement(b, 'locuteur:a')
-    expect(suggestionsExactesPersonnes(source, [candidat])).toHaveLength(1)
+    const a = loc('a', 'Interviewer'), b = loc('b', 'Enquêteur')
+    const source = candidat('1', a), cible = candidat('2', b)
+    expect(suggestionsExactesLocuteurs(source, [cible])).toHaveLength(1)
+    for (let i = 0; i < 2; i++) refuserRapprochementLocuteurs(b, source)
+    const refus = { type: 'participation' as const, entretienId: '1', participationId: 'a' }
+    expect(b.rapprochementsRefuses).toEqual([refus])
+    expect(suggestionsExactesLocuteurs(source, [cible])).toEqual([])
+    annulerRefusRapprochementLocuteurs(b, refus)
+    expect(suggestionsExactesLocuteurs(source, [cible])).toHaveLength(1)
   })
 
-  test('regroupe une personne et applique les refus vers tous ses membres', () => {
-    const a = loc('a', 'Marie'); const b = loc('b', 'Marie'); const c = loc('c', 'Marie')
-    b.personneRef = c.personneRef = 'p'
-    const source = { entretienId: '1', locuteur: a }
-    const candidats = [{ entretienId: '2', locuteur: b }, { entretienId: '3', locuteur: c }]
-    expect(suggestionsExactesPersonnes(source, candidats)).toHaveLength(1)
-    a.rapprochementsRefuses = ['locuteur:c']
-    expect(suggestionsExactesPersonnes(source, candidats)).toEqual([])
+  test('regroupe une identité et applique les refus vers tous ses membres', () => {
+    const a = loc('a', 'Marie'), b = loc('b', 'Marie'), c = loc('c', 'Marie')
+    b.locuteurRef = c.locuteurRef = 'p'
+    const source = candidat('1', a), candidats = [candidat('2', b), candidat('3', c)]
+    expect(suggestionsExactesLocuteurs(source, candidats)).toHaveLength(1)
+    refuserRapprochementLocuteurs(a, candidats[1])
+    expect(suggestionsExactesLocuteurs(source, candidats)).toEqual([])
     a.rapprochementsRefuses = []
-    c.rapprochementsRefuses = ['locuteur:a']
-    expect(suggestionsExactesPersonnes(source, candidats)).toEqual([])
+    refuserRapprochementLocuteurs(c, source)
+    expect(suggestionsExactesLocuteurs(source, candidats)).toEqual([])
   })
 
-  test('exclut une personne déjà représentée dans l’entretien source', () => {
-    const a = loc('a', 'Marie'); const b = loc('b', 'Marie'); const c = loc('c', 'Autre nom')
-    b.personneRef = c.personneRef = 'p'
-    expect(suggestionsExactesPersonnes({ entretienId: '1', locuteur: a }, [
-      { entretienId: '2', locuteur: b }, { entretienId: '1', locuteur: c },
-    ])).toEqual([])
+  test('exclut une identité déjà représentée dans l’entretien source', () => {
+    const a = loc('a', 'Marie'), b = loc('b', 'Marie'), c = loc('c', 'Autre nom')
+    b.locuteurRef = c.locuteurRef = 'p'
+    expect(suggestionsExactesLocuteurs(candidat('1', a), [candidat('2', b), candidat('1', c)])).toEqual([])
   })
 
-  test('le pont conserve la portée historique des chaînes locales et les ids sans contexte', () => {
-    const source = { entretienId: 'source', locuteur: loc('source-local', 'Marie') }
-    const a = { entretienId: 'e1', locuteur: loc('local-partage', 'Marie') }
-    const b = { entretienId: 'e2', locuteur: loc('local-partage', 'Marie') }
-    expect(suggestionsPersonnes(source, [a, b])).toEqual([a])
-    source.locuteur.rapprochementsRefuses = ['locuteur:local-partage']
+  test('les refus de participations distinguent les entretiens, même à id local identique', () => {
+    const source = candidat('source', loc('source-local', 'Marie'))
+    const a = candidat('e1', loc('local-partage', 'Marie')), b = candidat('e2', loc('local-partage', 'Marie'))
+    expect(suggestionsLocuteurs(source, [a, b])).toEqual([a, b])
+    refuserRapprochementLocuteurs(source.participation, a)
     const avant = structuredClone([source, a, b])
-    expect(suggestionsPersonnes(source, [a, b])).toEqual([])
+    expect(suggestionsLocuteurs(source, [a, b])).toEqual([b])
     expect([source, a, b]).toEqual(avant)
-    expect(source.locuteur.rapprochementsRefuses).toEqual(['locuteur:local-partage'])
   })
 
   test('la reprise ne modifie que les champs sélectionnés et protège les valeurs existantes', () => {
     const source = { ...loc('a', 'Marie'), pseudo: 'Alice', interviewer: true, valeursLoc: { age: '40', ville: 'Paris' } }
     const cible = { ...loc('b', 'Mme Dupont'), pseudo: 'Lou', interviewer: false, valeursLoc: { age: '30' } }
-    reprendreDonneesLocuteur(cible, source, { variables: ['age', 'ville'] })
-    expect(cible).toMatchObject({ nom: 'Mme Dupont', pseudo: 'Lou', interviewer: false, personneRef: null, valeursLoc: { age: '30', ville: 'Paris' } })
-    reprendreDonneesLocuteur(cible, source, { pseudo: true, interviewer: true, variables: ['age'], remplacer: true })
+    reprendreDonneesParticipation(cible, source, { variables: ['age', 'ville'] })
+    expect(cible).toMatchObject({ nom: 'Mme Dupont', pseudo: 'Lou', interviewer: false, locuteurRef: null, valeursLoc: { age: '30', ville: 'Paris' } })
+    reprendreDonneesParticipation(cible, source, { pseudo: true, interviewer: true, variables: ['age'], remplacer: true })
     expect(cible).toMatchObject({ pseudo: 'Alice', pseudoEtat: 'confirme', interviewer: true, valeursLoc: { age: '40' } })
     source.valeursLoc.age = '50'
     expect(cible.valeursLoc.age).toBe('40')

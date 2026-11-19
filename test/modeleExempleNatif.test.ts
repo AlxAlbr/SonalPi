@@ -31,7 +31,7 @@ describe('modèle exemple et préparation native', () => {
     const modele = preparerModeleExempleNatif(ressources)
     validerCorpusNatif(modele.corpus)
     expect(modele.corpus.formatVersion).toBe(10)
-    expect(modele.corpus.locuteurs).toEqual(source.personnes)
+    expect(modele.corpus.locuteurs).toEqual(source.locuteurs)
     expect(Object.keys(modele.corpus.locuteurs)).toHaveLength(9)
     expect(modele.corpus.codebook).toEqual(source.codebook)
     for (const [id, entretien] of Object.entries(modele.entretiens)) {
@@ -40,14 +40,14 @@ describe('modèle exemple et préparation native', () => {
       expect(entretien.formatVersion).toBe(10)
       expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.participations.map(({ locuteurRef: _ref, ...local }) => local))
-        .toEqual(ancien.locuteurs.map(({ personneRef: _ref, ...local }) => local))
-      expect(entretien.participations.map((p) => p.locuteurRef)).toEqual(ancien.locuteurs.map((p) => p.personneRef))
+        .toEqual(ancien.participations.map(({ locuteurRef: _ref, ...local }) => local))
+      expect(entretien.participations.map((p) => p.locuteurRef)).toEqual(ancien.participations.map((p) => p.locuteurRef))
       expect(entretien.corpsTexte).toEqual(ancien.corpsTexte)
       expect(entretien.annotations).toEqual(ancien.annotations)
       expect(entretien.ancres).toEqual(ancien.ancres)
       expect(entretien.meta).toEqual(ancien.meta)
       expect(entretien.notes?.map(({ participationIds: _ids, ...note }) => note))
-        .toEqual(ancien.notes?.map(({ locuteurIds: _ids, ...note }) => note))
+        .toEqual(ancien.notes?.map(({ participationIds: _ids, ...note }) => note))
     }
     expect(fichiers(racine)).toEqual(avant)
   })
@@ -57,7 +57,7 @@ describe('modèle exemple et préparation native', () => {
     const dir = temporaire()
     let corpus: typeof modele.corpus = { ...structuredClone(modele.corpus), membership: {}, ordreEntretiens: [] }
     writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
-    const transactions = new TransactionsFichiersCorpus(dir, { formatNatif: 10 })
+    const transactions = new TransactionsFichiersCorpus(dir)
     for (const id of modele.corpus.ordreEntretiens!) {
       const plan = preparerAjoutEntretienNatif(corpus, id, modele.corpus.membership[id].titre, modele.entretiens[id])
       transactions.executer(plan)
@@ -86,17 +86,17 @@ describe('modèle exemple et préparation native', () => {
     const id = corpus.ordreEntretiens![1]
     const chemin = join(racine, 'entretiens', `${id}.json`)
     const entretien = lire<EntretienFormat9>(chemin)
-    entretien.locuteurs[0].personneRef = 'pers-demo-01'
-    entretien.locuteurs[1].personneRef = null
-    entretien.locuteurs[1].personneDeliee = true
-    delete corpus.personnes['pers-demo-03']
+    entretien.participations[0].locuteurRef = 'pers-demo-01'
+    entretien.participations[1].locuteurRef = null
+    entretien.participations[1].associationRetiree = true
+    delete corpus.locuteurs['pers-demo-03']
     writeFileSync(join(racine, 'corpus.crp'), JSON.stringify(corpus))
     writeFileSync(chemin, JSON.stringify(entretien))
     const avant = fichiers(racine)
     const modele = preparerModeleExempleNatif(dir)
     expect(modele.entretiens[id].participations[0].locuteurRef).toBe('pers-demo-01')
     expect(modele.entretiens[id].participations[1]).toMatchObject({ locuteurRef: null, associationRetiree: true })
-    expect(modele.corpus.locuteurs).toEqual(corpus.personnes)
+    expect(modele.corpus.locuteurs).toEqual(corpus.locuteurs)
     expect(Object.keys(modele.corpus.locuteurs)).toHaveLength(8)
     expect(fichiers(racine)).toEqual(avant)
   })

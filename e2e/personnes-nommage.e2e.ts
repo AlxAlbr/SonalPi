@@ -13,17 +13,17 @@ test('un nom spécifique crée une personne sans recopier le rôle ni renommer s
     await expect(confirmationCreation).toHaveCSS('font-size', '12px')
     const avant = await page.evaluate(async () => {
       const vue = await (window as any).sonal.corpus.personnesInventaire()
-      return { personnes: vue.personnes, locuteur: vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont') }
+      return { locuteurs: vue.locuteurs, locuteur: vue.participations.find((l: any) => l.nom === 'Marie Dupont') }
     })
-    expect(avant.personnes).toHaveLength(1)
-    expect(avant.locuteur.personneRef).toBe(avant.personnes[0].id)
+    expect(avant.locuteurs).toHaveLength(1)
+    expect(avant.locuteur.locuteurRef).toBe(avant.locuteurs[0].id)
     await nom.fill('Mme Dupont')
     await nom.press('Tab')
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(apres.personnes).toEqual(avant.personnes)
-    expect(apres.locuteurs.find((l: any) => l.nom === 'Mme Dupont').personneRef).toBe(avant.personnes[0].id)
+    expect(apres.locuteurs).toEqual(avant.locuteurs)
+    expect(apres.participations.find((l: any) => l.nom === 'Mme Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
   } finally {
     await app.close()
   }

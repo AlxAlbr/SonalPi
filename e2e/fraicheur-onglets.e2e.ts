@@ -19,7 +19,7 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     date: null,
     statut: 'public',
     corps: 'Contenu conservé',
-    locuteurIds: [],
+    participationIds: [],
     rang: 0,
     creeLe: '2025-01-01T10:00:00.000Z',
     modifieLe: null,

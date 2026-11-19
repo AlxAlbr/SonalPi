@@ -18,7 +18,7 @@ export interface CorrespondanceLocuteur {
 }
 
 export interface DivergenceLocuteurs {
-  nature: 'personne' | 'nom'
+  nature: "locuteur" | 'nom'
   cle: string
   pseudos: string[]
   entretiens: string[]
@@ -32,9 +32,9 @@ export interface InventaireCorrespondancesLocuteurs {
 /** Inventorie les libellés, même sans tour de parole ; ne crée ni règle ni synchronisation. */
 export function inventorierCorrespondancesLocuteurs(entretiens: EntretienScan[]): InventaireCorrespondancesLocuteurs {
   const couples = new Map<string, CorrespondanceLocuteur>()
-  const groupes = new Map<string, { nature: 'personne' | 'nom'; cle: string; pseudos: Set<string>; entretiens: Set<string> }>()
+  const groupes = new Map<string, { nature: "locuteur" | 'nom'; cle: string; pseudos: Set<string>; entretiens: Set<string> }>()
   for (const { id, data } of entretiens) {
-    for (const locuteur of data.locuteurs) {
+    for (const locuteur of data.participations) {
       const nom = locuteur.nom.trim()
       const pseudo = locuteur.pseudo?.trim() ?? ''
       if (!nom || !pseudo) continue
@@ -42,11 +42,11 @@ export function inventorierCorrespondancesLocuteurs(entretiens: EntretienScan[])
       const couple = couples.get(cle) ?? { nom, pseudo, utilisee: false, origines: [] }
       couple.utilisee ||= pseudoUtilisable(locuteur)
       if (!couple.origines.some((o) => o.entretienId === id && o.index === locuteur.index)) {
-        couple.origines.push({ entretienId: id, index: locuteur.index, locuteurId: locuteur.id, personneRef: locuteur.personneRef ?? null, pseudoEtat: locuteur.pseudoEtat, utilisee: pseudoUtilisable(locuteur) })
+        couple.origines.push({ entretienId: id, index: locuteur.index, locuteurId: locuteur.id, personneRef: locuteur.locuteurRef ?? null, pseudoEtat: locuteur.pseudoEtat, utilisee: pseudoUtilisable(locuteur) })
       }
       couples.set(cle, couple)
-      const identites: ['personne' | 'nom', string][] = [['nom', nom.normalize('NFC').toLocaleLowerCase('fr')]]
-      if (locuteur.personneRef) identites.push(['personne', locuteur.personneRef])
+      const identites: ["locuteur" | 'nom', string][] = [['nom', nom.normalize('NFC').toLocaleLowerCase('fr')]]
+      if (locuteur.locuteurRef) identites.push(["locuteur", locuteur.locuteurRef])
       for (const [nature, identite] of identites) {
         const groupeId = JSON.stringify([nature, identite])
         const groupe = groupes.get(groupeId) ?? { nature, cle: identite, pseudos: new Set<string>(), entretiens: new Set<string>() }
@@ -60,6 +60,6 @@ export function inventorierCorrespondancesLocuteurs(entretiens: EntretienScan[])
   for (const couple of correspondances) couple.origines.sort((a, b) => a.entretienId.localeCompare(b.entretienId) || a.index - b.index)
   const divergences = [...groupes.values()].filter((g) => g.pseudos.size > 1 && g.entretiens.size > 1)
     .map((g) => ({ nature: g.nature, cle: g.cle, pseudos: [...g.pseudos].sort((a, b) => a.localeCompare(b, 'fr')), entretiens: [...g.entretiens].sort() }))
-    .sort((a, b) => a.nature.localeCompare(b.nature) || a.cle.localeCompare(b.cle, 'fr'))
+    .sort((a, b) => Number(a.nature !== 'nom') - Number(b.nature !== 'nom') || a.cle.localeCompare(b.cle, 'fr'))
   return { correspondances, divergences }
 }

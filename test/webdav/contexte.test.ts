@@ -21,7 +21,7 @@ function corpus(): CorpusFichier {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       [ID]: {
         titre: 'Entretien un',
@@ -39,7 +39,7 @@ function entretien(texte: string): EntretienFichier {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', text: texte }] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }

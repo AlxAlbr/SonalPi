@@ -25,7 +25,7 @@ function corpus(membership: CorpusFichier['membership'] = {}): CorpusFichier {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership,
   }
 }
@@ -37,7 +37,7 @@ function entretien(): EntretienFichier {
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -125,9 +125,9 @@ describe('TransactionsFichiersCorpus', () => {
   it.each(['avant', 'premier entretien', 'corpus'])('reprend un remplacement interrompu au stade %s', (stade) => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-remplacement-'))
     const avant = corpus()
-    avant.personnes = { p1: { id: 'p1', nom: 'Marie' }, p2: { id: 'p2', nom: 'Marie D.' } }
+    avant.locuteurs = { p1: { id: 'p1', nom: 'Marie' }, p2: { id: 'p2', nom: 'Marie D.' } }
     const apres = structuredClone(avant)
-    delete apres.personnes.p2
+    delete apres.locuteurs.p2
     const fichiers = ['e1', 'e2'].map(id => {
       const avant = entretien()
       const apres = { ...avant, lastModified: '2026-02-01T00:00:00.000Z' }

@@ -17,9 +17,9 @@ test('nommage lié : Plus tard conserve le lien, déplacer change seulement l’
       const { id } = await api.creerEntretienVide('Autre identité')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'paul-source', index: 0, nom: 'Paul Martin', valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'paul-source', index: 0, nom: 'Paul Martin', valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
-      return api.personnesCommander({ type: 'creer', entretienId: id, locuteurId: 'paul-source', nom: 'Paul Martin' })
+      return api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'paul-source', nom: 'Paul Martin' })
     })
     await nom.fill('Paul Martin')
     await nom.press('Tab')
@@ -27,7 +27,7 @@ test('nommage lié : Plus tard conserve le lien, déplacer change seulement l’
     await expect(dialogue).toBeVisible()
     await dialogue.getByRole('button', { name: 'Plus tard' }).click()
     const apresReport = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(apresReport.locuteurs.find((l: any) => l.nom === 'Paul Martin' && l.locuteurId !== 'paul-source').personneRef).not.toBe(sourceId)
+    expect(apresReport.participations.find((l: any) => l.nom === 'Paul Martin' && l.participationId !== 'paul-source').locuteurRef).not.toBe(sourceId)
     await nom.fill('PAUL MARTIN')
     await nom.press('Tab')
     await expect(dialogue).toBeVisible()
@@ -38,7 +38,7 @@ test('nommage lié : Plus tard conserve le lien, déplacer change seulement l’
     await gestion.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     await retourCorpus(page)
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(apres.locuteurs.find((l: any) => l.nom === 'PAUL MARTIN').personneRef).toBe(sourceId)
-    expect(apres.personnes.map((p: any) => p.nom).sort()).toEqual(['Marie Dupont', 'Paul Martin'])
+    expect(apres.participations.find((l: any) => l.nom === 'PAUL MARTIN').locuteurRef).toBe(sourceId)
+    expect(apres.locuteurs.map((p: any) => p.nom).sort()).toEqual(['Marie Dupont', 'Paul Martin'])
   } finally { await app.close() }
 })

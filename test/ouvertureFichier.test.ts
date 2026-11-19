@@ -20,14 +20,14 @@ function dossier() {
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 
 describe('classification pure des CRP', () => {
-  test.each([1, 2, 3, 8, 9])('reconnaît V2 formatVersion %i sans perdre les champs optionnels', (formatVersion) => {
+  test.each([10])('reconnaît V2 formatVersion %i sans perdre les champs optionnels', (formatVersion) => {
     const c = { ...squeletteCorpus(), formatVersion, nom: 'Été', meta: { libre: true } }
     expect(classifierCorpus(JSON.stringify(c))).toEqual({ type: 'v2', corpus: c })
   })
-  test('accepte un ancien corpus sans registre de personnes, normalisé ensuite par le store', () => {
-    const { personnes: _personnes, ...ancien } = squeletteCorpus()
+  test('refuse un ancien corpus sans registre natif de locuteurs', () => {
+    const { locuteurs: _personnes, ...ancien } = squeletteCorpus()
     const corpus = { ...ancien, formatVersion: 3 }
-    expect(classifierCorpus(JSON.stringify(corpus))).toEqual({ type: 'v2', corpus })
+    expect(() => classifierCorpus(JSON.stringify(corpus))).toThrow('non supportée')
   })
   test('préserve les options absentes, nulles ou partielles normalisées par le store', () => {
     const c = { ...squeletteCorpus(), categoriesNote: null, demo: null, paramsAnon: { motsLiaison: { actif: false } } }
@@ -46,7 +46,7 @@ describe('classification pure des CRP', () => {
     '{cassé', 'null', '[]', '{}', '{"formatVersion":99,"tabEnt":[]}',
     JSON.stringify({ ...squeletteCorpus(), tabEnt: [] }),
     JSON.stringify({ ...squeletteCorpus(), formatVersion: 99 }),
-    JSON.stringify({ formatVersion: 3, corpsTexte: {}, annotations: [] }),
+    JSON.stringify({ formatVersion: 10, corpsTexte: {}, annotations: [] }),
     JSON.stringify({ ...squeletteCorpus(), membership: [] }),
     JSON.stringify({ ...squeletteCorpus(), membership: { '../secret': { titre: 'X', date: null, lastModified: '' } } }),
     JSON.stringify({ ...squeletteCorpus(), variables: { x: { modalites: null } } }),

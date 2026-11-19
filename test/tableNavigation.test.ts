@@ -5,7 +5,7 @@ const entrees = [
   { entretienId: 'e1', participations: [{ participationId: 'p0' }, { participationId: 'p1' }] },
   { entretienId: 'e2', participations: [{ participationId: 'p0' }] },
 ]
-const variables = [{ id: 'ville', portee: 'entretien' as const }, { id: 'age', portee: 'locuteur' as const }]
+const variables = [{ id: 'ville', portee: 'entretien' as const }, { id: 'age', portee: "participation" as const }]
 
 describe('grilleCellules', () => {
   it('garde l’ordre visuel : entretien, participations, entretien suivant', () => {

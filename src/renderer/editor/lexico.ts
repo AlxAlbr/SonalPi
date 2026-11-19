@@ -1,6 +1,6 @@
 import { Schema } from '@tiptap/pm/model'
 import type { EntretienRef } from '../../shared/format'
-import type { EntretienFichier } from '../../shared/natif/format'
+import type { EntretienFichier } from "../../shared/format"
 import type { ParticipationLocuteur } from '../../shared/locuteurs'
 import type { Annotation } from '../../shared/entretien/annotation'
 import { projeterPortionsAnon } from '../../shared/entretien/anon/projectionTexte'

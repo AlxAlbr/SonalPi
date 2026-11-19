@@ -1,6 +1,6 @@
 import type { Categorie } from '../format'
 import type { Locuteur } from '../locuteurs'
-import type { Cas, Variable } from '../natif/format'
+import type { Cas, Variable } from "../format"
 import type { FiltresSynthese, SelectionSynthese } from './types'
 
 interface ElementNomme { id: string; nom: string }

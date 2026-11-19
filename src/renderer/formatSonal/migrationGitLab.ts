@@ -9,7 +9,7 @@ export function convertirEntretienMigrationGitLab(
   if (!lecture) return {
     payload: {
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
-      annotations: [], ancres: [], locuteurs: [], brouillonsAnon: [],
+      annotations: [], ancres: [], participations: [], brouillonsAnon: [],
       meta: { valeursGen: {}, audioRef: null },
     },
     reglesAnon: [], codebook: [], variables: [],

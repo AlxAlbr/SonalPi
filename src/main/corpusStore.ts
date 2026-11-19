@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
 import { verifierVersionNative } from '../shared/versionsNatives'
+import { preparerCreationEntretienNatif } from './preparationsNatives'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { validerCorpusV2 } from '../shared/ouvertureFichier'
 import { ajouterVarianteAnon, type DemandeAjoutVarianteAnon, type ResultatAjoutVarianteAnon } from '../shared/corpus/variantesAnon'
@@ -29,10 +30,10 @@ import type {
   ProgressionOperationTheme,
 } from '../shared/corpus/themes'
 import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
-import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
-import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes } from '../shared/corpus/personnes'
-import { appliquerCorrectionLocuteursFormat9 } from '../shared/corpus/correctionsLocuteursFormat9'
-import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import { annulerRefusRapprochementLocuteurs, natureNomLocuteur, peutCreerLocuteurAuNommage, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from "../shared/corpus/rapprochementsLocuteurs"
+import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
+import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocuteurs"
+import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
 import {
@@ -43,13 +44,13 @@ import {
   type CommandeNotes,
   type InventaireNotes,
 } from '../shared/corpus/notes'
-import { etatNoteJournalFormat9 as etatNoteJournal, inventorierNotesFormat9 as inventorierNotes } from '../shared/corpus/notesFormat9'
-import { normaliserNotesFormat9 as normaliserNotes } from '../shared/entretien/notesFormat9'
+import { etatNoteJournal, inventorierNotes } from '../shared/corpus/notes'
+import { normaliserNotes } from '../shared/entretien/notes'
+import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import { appliquerCommandeTraitementsLexico, normaliserTraitementsLexico, type CommandeTraitementsLexico } from '../shared/lexico/traitements'
 import type { TraitementsLexico } from '../shared/lexico/types'
 import { aplatir, appliquerRegleAnonEntretienAvecBilan, bilanAnonVide } from '../shared/entretien/anon'
-import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import {
   ajouterEntretienOrdre,
@@ -83,7 +84,7 @@ import {
   evaluerDerivationFamille,
   resoudreDerivationCas,
   type LectureSourceAttributs,
-} from '../shared/corpus/observationsAttributsFormat9'
+} from "../shared/corpus/observationsAttributs"
 import {
   TransactionsFichiersCorpus,
   DOSSIER_ARCHIVE_LOCAL,
@@ -100,19 +101,7 @@ import {
   type InverseJournalCorpus,
 } from './journalCorpus'
 
-/** Pourquoi des numéros de version ?
- *  Chaque évolution du format de fichier est migrée EXPLICITEMENT à la lecture.
- *  Le fichier est ensuite réécrit aussitôt, sans jamais lire une version inconnue
- *  partiellement.
- *  - formatVersion 1 → 2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
- *    pour devenir des ancres `{pos, t}` positionnées dans le texte.
- *  - formatVersion 2 → 3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
- *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
- *  - formatVersion 3 → 4 : recueils partagés et repères autonomes de passages.
- *  - formatVersion 4 → 5 : cas analytiques partageant les repères de passages.
- *  - formatVersion 8 → 9 : réglages Lexico persistés au niveau du corpus.
- *  Voir shared/entretien/migration.ts pour la mécanique de migration.
- */
+/** Les documents sont validés avant écriture ; l'ouverture ne convertit aucun ancien format natif. */
 
 import {
   FORMAT_VERSION,
@@ -124,7 +113,7 @@ import {
   type EntretienFichier,
   type ResultatMutationAnon,
   type LectureEntretien,
-  type Locuteur,
+  type ParticipationLocuteur,
   type MarqueurDemo,
   type MatriceCorpus,
   type ModeTriEntretiens,
@@ -138,6 +127,8 @@ import {
   type Variable,
   type ParamsAnon,
   type Note,
+  type ParticipationImport,
+  type PayloadImportEntretien,
   type NoteCategory,
   paramsAnonDefaut,
   CORPUS_SUPPRIME,
@@ -148,13 +139,8 @@ import {
   renumeroterRangs,
   genIdCategorieNote,
   compterUsagesCategorieNote,
+  referencesNoteDisponibles,
 } from '../shared/entretien/notes'
-
-/** Un entretien vide est un document ProseMirror minimal (paragraphe vide).
- *  Il sert aussi quand l'utilisateur télécharge seulement un audio,
- *  qu'il transcrit ensuite manuellement. */
-const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
-
 
 /** Génère un id unique pour un entretien, une variable, une modalité ou une catégorie.
  *  Le préfixe indique le type (ent/var/mod/cat) ;
@@ -193,12 +179,12 @@ function idLocuteurHistorique(entretienId: string, index: number): string {
 /** Complète les ids sur des copies, sans modifier les sources ni leurs index. */
 export function completerIdsLocuteurs(
   entretienId: string,
-  locuteurs: Locuteur[],
-  existants: Locuteur[] = [],
-): (Locuteur & { id: string })[] {
+  locuteurs: ParticipationImport[],
+  existants: ParticipationLocuteur[] = [],
+): (ParticipationLocuteur & { id: string })[] {
   const idsParIndex = new Map(
     existants
-      .filter((locuteur): locuteur is Locuteur & { id: string } => Boolean(locuteur.id))
+      .filter((locuteur): locuteur is ParticipationLocuteur & { id: string } => Boolean(locuteur.id))
       .map((locuteur) => [locuteur.index, locuteur.id] as const),
   )
   return locuteurs.map((locuteur) => {
@@ -216,18 +202,6 @@ export function normaliserCheminAudio(source: string): string {
   let p = source
   if (p.startsWith('file:')) p = fileURLToPath(p)
   return normalize(p)
-}
-
-interface EntretienV2Prepare {
-  readonly fichier: string
-  readonly contenuInitial: string
-  readonly data: EntretienFichier
-}
-
-interface DeplacementPngPrepare {
-  readonly source: string
-  readonly destination: string
-  readonly contenuSourceInitial: Buffer
 }
 
 /** Un store de préparation ne connaît que `corpus.crp` et les sources qu'on
@@ -260,9 +234,6 @@ export interface PreparationOuvertureCorpus {
   readonly corpus: CorpusFichier
   readonly nouveau: boolean
   readonly contenuCorpusInitial: string | null
-  readonly versionInitiale: number | null
-  readonly entretiensV2: EntretienV2Prepare[]
-  readonly deplacementsPng: DeplacementPngPrepare[]
 }
 
 /** Les RÈGLES du corpus vivent dans `shared/corpus/` (pures) ;
@@ -432,14 +403,9 @@ export class CorpusStore {
     return join(this.dir, 'png')
   }
 
-  /** Ancien dossier audio (formatVersion 2) : reliquat pour les corpus migrés.
-   *  Les mp3 legacy y sont référencés en absolu vers leur emplacement existant ;
-   *  les nouveaux corpus v3 n'ont pas de dossier `audio/`. */
-  private get audioDirLegacy() {
-    return join(this.dir, 'audio')
-  }
-
   private ecrireJsonAtomique(fichier: string, obj: unknown): void {
+    if (fichier === this.corpusFile) validerCorpusNatif(obj)
+    else validerEntretienNatif(obj)
     const tmp = fichier + '.tmp'
     writeFileSync(tmp, JSON.stringify(obj, null, 2), 'utf8')
     renameSync(tmp, fichier) // rename atomique : un crash laisse l'ancien fichier intact
@@ -473,85 +439,23 @@ export class CorpusStore {
         corpus,
         nouveau: true,
         contenuCorpusInitial: null,
-        versionInitiale: null,
-        entretiensV2: [],
-        deplacementsPng: [],
       }
     }
 
     const contenuCorpusInitial = readFileSync(this.corpusFile, 'utf8')
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     validerCorpusV2(corpus)
-    corpus.personnes ??= {}
+    corpus.locuteurs ??= {}
     corpusModel.normaliserDescriptionsThemes(corpus.codebook)
-    const versionInitiale = corpus.formatVersion as number
-    if (versionInitiale >= 1 && versionInitiale <= 8) {
-      corpus.recueils = normaliserRecueils(corpus.recueils)
-      corpus.cas = normaliserCas(corpus.cas)
-    } else if (versionInitiale === FORMAT_VERSION && corpus.cas !== undefined) {
-      corpus.cas = normaliserCas(corpus.cas)
-    }
-    if (versionInitiale < FORMAT_VERSION || corpus.famillesCas !== undefined) {
-      corpus.famillesCas = normaliserFamillesCas(corpus.famillesCas)
-    }
-    if (versionInitiale < FORMAT_VERSION || corpus.attributsCas !== undefined) {
-      corpus.attributsCas = normaliserAttributsCas(corpus.attributsCas)
-    }
-    if (versionInitiale < FORMAT_VERSION || corpus.lexico !== undefined) {
-      corpus.lexico = normaliserTraitementsLexico(corpus.lexico)
-    }
-    const entretiensV2: EntretienV2Prepare[] = []
-    const deplacementsPng: DeplacementPngPrepare[] = []
-
-    if (versionInitiale === 1) {
-      corpus.formatVersion = FORMAT_VERSION
-    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6 || versionInitiale === 7 || versionInitiale === 8) {
-      for (const id of Object.keys(corpus.membership)) {
-        const fichier = this.entretienFile(id)
-        if (!existsSync(fichier)) continue
-        const contenuInitial = readFileSync(fichier, 'utf8')
-        const data = JSON.parse(contenuInitial) as EntretienFichier
-        const versionEntretien = data.formatVersion as number
-        if (versionEntretien === 2) {
-          const ref = data.meta?.audioRef
-          if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
-            data.meta.audioRef = resolve(this.dir, ref)
-          }
-        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6 && versionEntretien !== 7 && versionEntretien !== 8) {
-          continue
-        }
-        data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
-        data.formatVersion = FORMAT_VERSION
-        entretiensV2.push({ fichier, contenuInitial, data })
-      }
-      if (versionInitiale === 2 && existsSync(this.audioDirLegacy)) {
-        for (const nom of readdirSync(this.audioDirLegacy)) {
-          if (extname(nom).slice(1).toLowerCase() !== 'png') continue
-          const source = join(this.audioDirLegacy, nom)
-          const destination = join(this.pngDir, nom)
-          if (!existsSync(destination)) {
-            deplacementsPng.push({
-              source,
-              destination,
-              contenuSourceInitial: readFileSync(source),
-            })
-          }
-        }
-      }
-      corpus.formatVersion = FORMAT_VERSION
-    }
-
-    if (!versionSupportee(corpus.formatVersion)) {
-      throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
-    }
+    if (corpus.cas !== undefined) corpus.cas = normaliserCas(corpus.cas)
+    if (corpus.famillesCas !== undefined) corpus.famillesCas = normaliserFamillesCas(corpus.famillesCas)
+    if (corpus.attributsCas !== undefined) corpus.attributsCas = normaliserAttributsCas(corpus.attributsCas)
+    if (corpus.lexico !== undefined) corpus.lexico = normaliserTraitementsLexico(corpus.lexico)
     normaliserOrdreEntretiens(corpus)
     return {
       corpus,
       nouveau: false,
       contenuCorpusInitial,
-      versionInitiale,
-      entretiensV2,
-      deplacementsPng,
     }
   }
 
@@ -569,37 +473,10 @@ export class CorpusStore {
     if (contenuActuel !== cible.contenuCorpusInitial) {
       throw new Error('Le corpus cible a changé pendant la préparation de son ouverture.')
     }
-    for (const entretien of cible.entretiensV2) {
-      if (!existsSync(entretien.fichier)
-        || readFileSync(entretien.fichier, 'utf8') !== entretien.contenuInitial) {
-        throw new Error('Un entretien cible a changé pendant la préparation de son ouverture.')
-      }
-    }
-    for (const deplacement of cible.deplacementsPng) {
-      if (!existsSync(deplacement.source)
-        || existsSync(deplacement.destination)
-        || !readFileSync(deplacement.source).equals(deplacement.contenuSourceInitial)) {
-        throw new Error('Une forme d’onde cible a changé pendant la préparation de son ouverture.')
-      }
-    }
-
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
 
-    if (cible.versionInitiale === 2 && cible.deplacementsPng.length) {
-      if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
-      for (const deplacement of cible.deplacementsPng) {
-        renameSync(deplacement.source, deplacement.destination)
-      }
-    }
-    for (const entretien of cible.entretiensV2) {
-      this.ecrireJsonAtomique(entretien.fichier, entretien.data)
-    }
-    if (cible.nouveau || cible.versionInitiale === 1
-      || cible.versionInitiale === 2 || cible.versionInitiale === 3
-      || cible.versionInitiale === 4 || cible.versionInitiale === 5
-      || cible.versionInitiale === 6 || cible.versionInitiale === 7
-      || cible.versionInitiale === 8) {
+    if (cible.nouveau) {
       this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
       this.invaliderRefsAudio()
     }
@@ -673,7 +550,7 @@ export class CorpusStore {
     corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
       familles: corpus.famillesCas, attributs: corpus.attributsCas, variables: corpus.variables,
       maintenant: () => new Date().toISOString(),
-      personneExiste: (personneId) => Object.hasOwn(corpus.personnes, personneId),
+      locuteurExiste: (personneId) => Object.hasOwn(corpus.locuteurs, personneId),
       entretienExiste: (entretienId) => Object.hasOwn(corpus.membership, entretienId),
     })
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -740,25 +617,13 @@ export class CorpusStore {
     if (existsSync(this.corpusFile)) {
       throw new Error('Le dossier contient déjà un corpus — la garde a été contournée.')
     }
-    const { locuteurs, variables: variablesNatives, ...commun } = preparerCorpusImportV1(
+    const corpus = preparerCorpusImportV1(
       nom, sourceV1, codebook, variables, reglesAnonV1, paramsAnon, traitementsLexico,
     )
-    // L'écriture au format 9 reste isolée de la préparation native des imports.
-    const corpus: CorpusFichier = {
-      ...commun,
-      formatVersion: FORMAT_VERSION,
-      personnes: locuteurs,
-      variables: Object.fromEntries(Object.entries(variablesNatives).map(([id, variable]) => [id, {
-        ...variable, portee: variable.portee === 'participation' ? 'locuteur' : variable.portee,
-      }])),
-    }
     return {
       corpus,
       nouveau: true,
       contenuCorpusInitial: null,
-      versionInitiale: null,
-      entretiensV2: [],
-      deplacementsPng: [],
     }
   }
 
@@ -783,9 +648,7 @@ export class CorpusStore {
     return this.finaliserOuverture(preparation)
   }
 
-  /** Lit un entretien sans modifier le disque ni l'état des sauvegardes.
-   *  Les anciens formats supportés sont adaptés en mémoire ; ils seront
-   *  persistés seulement lors d'une véritable édition. */
+  /** Lit et valide un entretien natif, sans conversion ni écriture. */
   lireEntretien(id: string): LectureEntretien {
     this.verifierEntretienLisible(id)
     const fichier = this.entretienFile(id)
@@ -795,31 +658,9 @@ export class CorpusStore {
   }
 
   private adapterEntretienLu(entretien: EntretienFichier): LectureEntretien {
-    try {
-      if (entretien.definitionsAnonLocales !== undefined) validerMemoireLocale(entretien.definitionsAnonLocales)
-      if (entretien.pseudosDeclares !== undefined) normaliserPseudosDeclares(entretien.pseudosDeclares)
-    } catch { return { ok: false, raison: 'version' } }
-    let data = entretien
-    if ((data.formatVersion as number) === 1) {
-      data = migrerEntretienFormatV1(
-        data as unknown as Record<string, unknown>,
-      ) as unknown as EntretienFichier
-    }
-    if ((data.formatVersion as number) === 2) {
-      const ref = data.meta?.audioRef
-      if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
-        data.meta.audioRef = resolve(this.dir, ref)
-      }
-      data.formatVersion = FORMAT_VERSION
-    }
-    if ((data.formatVersion as number) === 3 || (data.formatVersion as number) === 4
-      || (data.formatVersion as number) === 5 || (data.formatVersion as number) === 6
-      || (data.formatVersion as number) === 7 || (data.formatVersion as number) === 8) {
-      data.formatVersion = FORMAT_VERSION
-    }
-    if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
-    data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
-    return { ok: true, data }
+    try { validerEntretienNatif(entretien) }
+    catch { return { ok: false, raison: 'version' } }
+    return { ok: true, data: entretien }
   }
 
   /** Ouvre explicitement une session d'édition locale.
@@ -828,7 +669,6 @@ export class CorpusStore {
     if (!this.lectureSeule && this.transactionsFichiers.journalPresent()) throw new Error('Une transaction reste à reprendre. Rouvrez le corpus avant d’éditer un entretien.')
     const lecture = this.lireEntretien(id)
     if (lecture.ok) {
-      lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
       this.rotationEnAttente.add(id)
       if (!this.lectureSeule) this.autoriserEcritureEntretien(id)
     }
@@ -852,6 +692,7 @@ export class CorpusStore {
       reperesPassages: normaliserReperesPassages(payload.reperesPassages),
     }
 
+    validerEntretienNatif(fichier)
     if (this.rotationEnAttente.has(id)) {
       this.tournerBak(id)
       this.rotationEnAttente.delete(id)
@@ -874,8 +715,8 @@ export class CorpusStore {
   remplacerTranscription(
     id: string,
     transcription: Pick<
-      PayloadEntretien,
-      'corpsTexte' | 'annotations' | 'ancres' | 'locuteurs'
+      PayloadImportEntretien,
+      'corpsTexte' | 'annotations' | 'ancres' | "participations"
     >,
   ): string | null {
     this.verifierEcritureEntretien(id)
@@ -886,7 +727,7 @@ export class CorpusStore {
       corpsTexte: transcription.corpsTexte,
       annotations: transcription.annotations,
       ancres: transcription.ancres,
-      locuteurs: completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs),
+      participations: completerIdsLocuteurs(id, transcription.participations, data.participations),
       meta: data.meta,
       notes: data.notes,
       reperesPassages: rendreReperesOrphelins(data.reperesPassages),
@@ -910,23 +751,7 @@ export class CorpusStore {
 
   /** Prépare sans écriture la création d'un entretien vide. */
   preparerCreationEntretienVide(titre: string): PlanAjoutEntretien {
-    const corpusAvant = this.ouvrir()
-    const corpusApres = structuredClone(corpusAvant)
-    const id = genIdEntretien(titre)
-    const now = new Date().toISOString()
-    const entretien: EntretienFichier = {
-      formatVersion: FORMAT_VERSION,
-      lastModified: now,
-      corpsTexte: DOC_VIDE,
-      annotations: [],
-      ancres: [],
-      locuteurs: [],
-      brouillonsAnon: [],
-      reperesPassages: [],
-      meta: { valeursGen: {}, audioRef: null },
-    }
-    ajouterEntretienOrdre(corpusApres, id, { titre, date: null, lastModified: now })
-    return { operation: 'ajout', id, corpusAvant, corpusApres, entretien }
+    return preparerCreationEntretienNatif(this.ouvrir(), genIdEntretien(titre), titre, new Date().toISOString())
   }
 
   /** Crée un entretien vide dans une transaction locale reprise au prochain démarrage. */
@@ -940,7 +765,7 @@ export class CorpusStore {
   /** Prépare un import et ses identités V1 éventuelles dans une seule transaction. */
   preparerImportEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -956,14 +781,12 @@ export class CorpusStore {
       ...payload,
       ...(definitionsLocales !== undefined ? { definitionsAnonLocales: definitionsLocales } : {}),
       reperesPassages: normaliserReperesPassages(payload.reperesPassages),
-      locuteurs: completerIdsLocuteurs(id, payload.locuteurs),
+      participations: completerIdsLocuteurs(id, payload.participations),
     }
     if (origine === 'v1') {
-      const preparation = preparerEntretienImportV1(corpusApres.personnes, importe, now, () => genId('pers'))
-      for (const identite of preparation.locuteurs) corpusApres.personnes[identite.id] = identite
-      const associations = new Map(preparation.entretien.participations.map((p) => [p.id, p.locuteurRef]))
-      // Le format 9 enregistre encore le lien sous son nom historique.
-      for (const participation of importe.locuteurs) participation.personneRef = associations.get(participation.id)!
+      const preparation = preparerEntretienImportV1(corpusApres.locuteurs, importe, now, () => genId('pers'))
+      for (const identite of preparation.locuteurs) corpusApres.locuteurs[identite.id] = identite
+      importe.participations = preparation.entretien.participations
     }
     const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...importe }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)
@@ -976,7 +799,7 @@ export class CorpusStore {
    *  ici, on crée l'entretien et fusionne ses métadonnées sous transaction. */
   importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -1243,7 +1066,9 @@ export class CorpusStore {
     for (const [id, ref] of Object.entries(corpus.membership)) {
       const f = this.entretienFile(id)
       if (!existsSync(f)) continue
-      out.push({ id, titre: ref.titre, data: JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier })
+      const data: unknown = JSON.parse(readFileSync(f, 'utf8'))
+      validerEntretienNatif(data)
+      out.push({ id, titre: ref.titre, data })
     }
     return out
   }
@@ -1270,7 +1095,7 @@ export class CorpusStore {
         })
       }
     }
-    return { ...inventorierNotes(corpus, entretiens), indisponibles }
+    return { ...inventorierNotes(entretiens), indisponibles }
   }
 
   /** Lit les participations sans modifier les fichiers et signale les sources indisponibles. */
@@ -1278,12 +1103,11 @@ export class CorpusStore {
     this.verifierEntretienLisible()
     const corpus = this.ouvrir()
     const entretiens: corpusModel.EntreeMatrice[] = []
-    const indisponibles: InventairePersonnes['indisponibles'] = []
+    const indisponibles: InventaireIdentitesLocuteurs['indisponibles'] = []
     for (const [id, ref] of Object.entries(corpus.membership)) {
       try {
         const lecture = this.lireEntretien(id)
         if (!lecture.ok) throw new Error(lecture.raison === 'absent' ? 'Fichier absent' : 'Version non supportée')
-        lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
         entretiens.push({ id, titre: ref.titre, data: lecture.data })
       } catch (erreur) {
         indisponibles.push({ id, titre: ref.titre, raison: erreur instanceof Error ? erreur.message : String(erreur) })
@@ -1293,7 +1117,7 @@ export class CorpusStore {
   }
 
   /** Inventaire tolérant : les entretiens illisibles restent signalés. */
-  personnesInventaire(): InventairePersonnes {
+  personnesInventaire(): InventaireIdentitesLocuteurs {
     const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
     return { ...inventorierPersonnes(corpus, entretiens), indisponibles }
   }
@@ -1301,26 +1125,26 @@ export class CorpusStore {
   /** Projette la liste et les interventions sans transmettre les textes à l’interface. */
   locuteursInventaire(): VueLocuteursCorpus {
     const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
-    const projection = projeterRepertoireLocuteurs(corpus.personnes, entretiens.map((entretien) => ({
+    const projection = projeterRepertoireLocuteurs(corpus.locuteurs, entretiens.map((entretien) => ({
       id: entretien.id,
       titre: entretien.titre,
       corpsTexte: entretien.data.corpsTexte,
-      participations: entretien.data.locuteurs.map((participation) => ({
+      participations: entretien.data.participations.map((participation) => ({
         id: participation.id!, index: participation.index, nom: participation.nom,
-        locuteurRef: participation.personneRef, interviewer: participation.interviewer,
+        locuteurRef: participation.locuteurRef, interviewer: participation.interviewer,
       })),
     })))
     return { ...projection, indisponibles: [...indisponibles, ...projection.indisponibles] }
   }
 
-  private etatLienJournal(locuteur: Locuteur): EtatLienJournalCorpus {
+  private etatLienJournal(locuteur: ParticipationLocuteur): EtatLienJournalCorpus {
     return {
-      personneRef: locuteur.personneRef ?? null,
-      ...(locuteur.personneDeliee === undefined ? {} : { personneDeliee: locuteur.personneDeliee }),
+      locuteurRef: locuteur.locuteurRef,
+      ...(locuteur.associationRetiree === undefined ? {} : { associationRetiree: locuteur.associationRetiree }),
     }
   }
 
-  private etatRefusJournal(locuteur: Locuteur): EtatRefusJournalCorpus {
+  private etatRefusJournal(locuteur: ParticipationLocuteur): EtatRefusJournalCorpus {
     return locuteur.rapprochementsRefuses === undefined
       ? {}
       : { rapprochementsRefuses: [...locuteur.rapprochementsRefuses] }
@@ -1331,12 +1155,11 @@ export class CorpusStore {
   }
 
   private lireLocuteurJournal(entretienId: string, locuteurId: string):
-    | { ok: true; data: EntretienFichier; locuteur: Locuteur }
+    | { ok: true; data: EntretienFichier; locuteur: ParticipationLocuteur }
     | { ok: false; raison: 'entretien' | 'locuteur' } {
     const lecture = this.lireEntretien(entretienId)
     if (!lecture.ok) return { ok: false, raison: 'entretien' }
-    lecture.data.locuteurs = completerIdsLocuteurs(entretienId, lecture.data.locuteurs)
-    const locuteur = lecture.data.locuteurs.find((candidat) => candidat.id === locuteurId)
+    const locuteur = lecture.data.participations.find((candidat) => candidat.id === locuteurId)
     return locuteur
       ? { ok: true, data: lecture.data, locuteur }
       : { ok: false, raison: 'locuteur' }
@@ -1359,7 +1182,7 @@ export class CorpusStore {
       return { etat: 'bloquee', raison: 'Une transaction de fichiers doit d’abord être terminée.' }
     }
     if (inverse.type === 'personneRenommer') {
-      const personne = this.ouvrir().personnes[inverse.personneId]
+      const personne = this.ouvrir().locuteurs[inverse.personneId]
       return personne?.nom === inverse.apres
         ? { etat: 'annulable' }
         : { etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' }
@@ -1381,6 +1204,9 @@ export class CorpusStore {
         return !this.ouvrir().membership[inverse.entretienId]
           ? { etat: 'inapplicable', raison: 'L’entretien n’existe plus.' }
           : { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
+      }
+      if (!referencesNoteDisponibles(inverse.note, lecture.data.participations)) {
+        return { etat: 'inapplicable', raison: 'Un locuteur concerné par la note n’existe plus dans cet entretien.' }
       }
       const ordreCourant = notesParRang(normaliserNotes(lecture.data.notes)).map((note) => note.id)
       if (ordreCourant.includes(inverse.note.id)) {
@@ -1440,9 +1266,9 @@ export class CorpusStore {
         const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
         if (!lecture.ok) return { ok: false, raison: 'L’entretien ou le locuteur n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
         if (inverse.type === 'personneLier') {
-          lecture.locuteur.personneRef = inverse.avant.personneRef
-          if (inverse.avant.personneDeliee === undefined) delete lecture.locuteur.personneDeliee
-          else lecture.locuteur.personneDeliee = inverse.avant.personneDeliee
+          lecture.locuteur.locuteurRef = inverse.avant.locuteurRef
+          if (inverse.avant.associationRetiree === undefined) delete lecture.locuteur.associationRetiree
+          else lecture.locuteur.associationRetiree = inverse.avant.associationRetiree
         } else if (inverse.avant.rapprochementsRefuses === undefined) {
           delete lecture.locuteur.rapprochementsRefuses
         } else {
@@ -1516,7 +1342,7 @@ export class CorpusStore {
           `Note modifiée : « ${note.titre || '(sans titre)'} »`,
           'notes',
           { type: 'noteModifier', entretienId: commande.entretienId, noteId: note.id, avant, apres },
-          { corpus: false, entretiens: [commande.entretienId], projections: ['notes', 'personnes'] },
+          { corpus: false, entretiens: [commande.entretienId], projections: ['notes', "locuteurs"] },
         )
       }
       return note.id
@@ -1534,7 +1360,7 @@ export class CorpusStore {
         `Note supprimée : « ${note.titre || '(sans titre)'} »`,
         'notes',
         { type: 'noteSupprimer', entretienId: commande.entretienId, note: noteSupprimee, ordreApres },
-        { corpus: false, entretiens: [commande.entretienId], projections: ['notes', 'personnes'] },
+        { corpus: false, entretiens: [commande.entretienId], projections: ['notes', "locuteurs"] },
       )
     }
     return null
@@ -1566,10 +1392,9 @@ export class CorpusStore {
       const lecture = this.lireEntretien(id)
       if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
       const apres = lecture.data
-      apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
       return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
     })
-    const locuteurId = appliquerCorrectionLocuteursFormat9(
+    const locuteurId = appliquerCorrectionLocuteurs(
       corpus,
       fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres })),
       commande,
@@ -1594,7 +1419,7 @@ export class CorpusStore {
 
   /** Applique les corrections locales des identités et des associations. */
   personnesCommander(
-    commande: CommandePersonnes,
+    commande: CommandeLocuteurs,
     journaliser = false,
     autoriserRefusComposite = true,
     autoriserRapprochementComposite = true,
@@ -1614,7 +1439,6 @@ export class CorpusStore {
         const lecture = this.lireEntretien(id)
         if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
         const apres = lecture.data
-        apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
         return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
       })
       const entretiens = fichiers.map(e => ({ id: e.id, titre: e.titre, data: e.apres }))
@@ -1623,12 +1447,12 @@ export class CorpusStore {
         const cibleData = entretiens.find(e => e.id === r.entretienId)?.data
         const sourceData = entretiens.find(e => e.id === r.sourceEntretienId)?.data
         if (!cibleData || !sourceData || r.entretienId === r.sourceEntretienId) throw new Error('Source de reprise invalide.')
-        const cible = trouverLocuteur(cibleData, r.locuteurId)
-        const source = trouverLocuteur(sourceData, r.sourceLocuteurId)
-        if (![commande.conserverId, commande.absorberId].includes(cible.personneRef ?? '')
-          || ![commande.conserverId, commande.absorberId].includes(source.personneRef ?? '')
-          || cible.personneRef === source.personneRef) throw new Error('Les associations de la reprise ont changé.')
-        reprendreDonneesLocuteur(cible, source, r.choix)
+        const cible = trouverLocuteur(cibleData, r.participationId)
+        const source = trouverLocuteur(sourceData, r.sourceParticipationId)
+        if (![commande.conserverId, commande.absorberId].includes(cible.locuteurRef ?? '')
+          || ![commande.conserverId, commande.absorberId].includes(source.locuteurRef ?? '')
+          || cible.locuteurRef === source.locuteurRef) throw new Error('Les associations de la reprise ont changé.')
+        reprendreDonneesParticipation(cible, source, r.choix)
       }
       fusionnerPersonnes(corpus, entretiens, commande.conserverId, commande.absorberId)
       const now = new Date().toISOString()
@@ -1650,12 +1474,11 @@ export class CorpusStore {
         const lecture = this.lireEntretien(id)
         if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
         const apres = lecture.data
-        apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
         return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
       })
       const entretiens = fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres }))
       const personneId = genId('pers')
-      separerPersonne(corpus, entretiens, commande.personneId, personneId, commande.nom, commande.locuteurs)
+      separerPersonne(corpus, entretiens, commande.locuteurId, personneId, commande.nom, commande.participations)
       const now = new Date().toISOString()
       const modifies = fichiers
         .filter((fichier) => fichier.initial !== JSON.stringify(fichier.apres))
@@ -1678,22 +1501,22 @@ export class CorpusStore {
       return this.creerDefinitionPersonne(commande.nom, true)
     }
     if (commande.type === 'modifier') {
-      const avant = corpus.personnes[commande.personneId]?.nom
-      modifierPersonne(corpus, commande.personneId, commande.nom)
-      const apres = corpus.personnes[commande.personneId].nom
+      const avant = corpus.locuteurs[commande.locuteurId]?.nom
+      modifierPersonne(corpus, commande.locuteurId, commande.nom)
+      const apres = corpus.locuteurs[commande.locuteurId].nom
       this.ecrireJsonAtomique(this.corpusFile, corpus)
       if (journaliser && avant !== undefined && avant !== apres) {
         this.journalCorpus.enregistrer(
           `Personne renommée : ${avant} → ${apres}`,
-          'personnes',
-          { type: 'personneRenommer', personneId: commande.personneId, avant, apres },
-          { corpus: true, entretiens: [], projections: ['personnes'] },
+          "locuteurs",
+          { type: 'personneRenommer', personneId: commande.locuteurId, avant, apres },
+          { corpus: true, entretiens: [], projections: ["locuteurs"] },
         )
       }
-      return commande.personneId
+      return commande.locuteurId
     }
     if (commande.type === 'supprimer') {
-      supprimerPersonneVide(corpus, this.personnesInventaire(), commande.personneId)
+      supprimerPersonneVide(corpus, this.personnesInventaire(), commande.locuteurId)
       this.ecrireJsonAtomique(this.corpusFile, corpus)
       return null
     }
@@ -1705,7 +1528,6 @@ export class CorpusStore {
         if (!corpus.membership[id]) throw new Error('Cet entretien ne fait plus partie du corpus.')
         const lecture = this.lireEntretien(id)
         if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
-        lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
         return lecture.data
       }
       const enregistrer = (id: string, data: EntretienFichier) => {
@@ -1713,40 +1535,40 @@ export class CorpusStore {
         this.ecrireEntretien(id, payload)
       }
       const data = charger(commande.entretienId)
-      const cible = trouverLocuteur(data, commande.locuteurId)
+      const cible = trouverLocuteur(data, commande.participationId)
       if (commande.type === 'annulerRefus') {
         const avant = this.etatRefusJournal(cible)
-        annulerRefusRapprochement(cible, commande.cible)
+        annulerRefusRapprochementLocuteurs(cible, commande.cible)
         const apres = this.etatRefusJournal(cible)
         enregistrer(commande.entretienId, data)
         if (journaliser && !this.memeEtatJournal(avant, apres)) {
           this.journalCorpus.enregistrer(
             `Décision de rapprochement rétablie pour « ${cible.nom} »`,
-            'personnes',
-            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant, apres },
-            { corpus: false, entretiens: [commande.entretienId], projections: ['personnes'] },
+            "locuteurs",
+            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.participationId, avant, apres },
+            { corpus: false, entretiens: [commande.entretienId], projections: ["locuteurs"] },
           )
         }
-        return cible.personneRef
+        return cible.locuteurRef
       }
       if (commande.sourceEntretienId === commande.entretienId) throw new Error('Choisissez un autre entretien.')
       const sourceData = charger(commande.sourceEntretienId)
-      const source = trouverLocuteur(sourceData, commande.sourceLocuteurId)
+      const source = trouverLocuteur(sourceData, commande.sourceParticipationId)
       if (commande.type === 'rapprocher' && !autoriserRapprochementComposite
-        && (!source.personneRef || cible.personneRef)) {
+        && (!source.locuteurRef || cible.locuteurRef)) {
         throw new Error('Ce rapprochement doit créer ou modifier plusieurs associations. Cette correction composite n’est pas encore disponible dans les corpus distants.')
       }
       if (commande.type === 'refuser') {
-        const creerIdentite = peutCreerPersonneAuNommage(cible)
+        const creerIdentite = peutCreerLocuteurAuNommage(cible)
         if (creerIdentite && !autoriserRefusComposite) {
           throw new Error('Cette décision doit aussi créer une personne distincte. Cette correction composite n’est pas encore disponible dans les corpus distants.')
         }
         const avant = this.etatRefusJournal(cible)
-        refuserRapprochement(cible, source)
+        refuserRapprochementLocuteurs(cible, { entretienId: commande.sourceEntretienId, participation: source })
         const apres = this.etatRefusJournal(cible)
         if (creerIdentite) {
           const id = creerPersonne(corpus, genId('pers'), cible.nom).id
-          lierLocuteur(corpus, data, commande.locuteurId, id)
+          lierLocuteur(corpus, data, commande.participationId, id)
           this.ecrireJsonAtomique(this.corpusFile, corpus)
         }
         try { enregistrer(commande.entretienId, data) }
@@ -1757,22 +1579,22 @@ export class CorpusStore {
         if (journaliser && !creerIdentite && !this.memeEtatJournal(avant, apres)) {
           this.journalCorpus.enregistrer(
             `Rapprochement écarté pour « ${cible.nom} »`,
-            'personnes',
-            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant, apres },
-            { corpus: false, entretiens: [commande.entretienId], projections: ['personnes'] },
+            "locuteurs",
+            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.participationId, avant, apres },
+            { corpus: false, entretiens: [commande.entretienId], projections: ["locuteurs"] },
           )
         }
-        return cible.personneRef
+        return cible.locuteurRef
       }
-      if (source.personneRef && cible.personneRef && source.personneRef !== cible.personneRef) {
+      if (source.locuteurRef && cible.locuteurRef && source.locuteurRef !== cible.locuteurRef) {
         throw new Error('Ces locuteurs sont associés à deux personnes distinctes. Réunissez-les, ou modifiez uniquement l’association du locuteur concerné.')
       }
-      const id = source.personneRef ?? cible.personneRef ?? genId('pers')
-      if (!corpus.personnes[id]) creerPersonne(corpus, id, source.nom)
-      lierLocuteur(corpus, data, commande.locuteurId, id)
-      if (commande.reprise) reprendreDonneesLocuteur(cible, source, commande.reprise)
-      if (!source.personneRef) {
-        lierLocuteur(corpus, sourceData, commande.sourceLocuteurId, id)
+      const id = source.locuteurRef ?? cible.locuteurRef ?? genId('pers')
+      if (!corpus.locuteurs[id]) creerPersonne(corpus, id, source.nom)
+      lierLocuteur(corpus, data, commande.participationId, id)
+      if (commande.reprise) reprendreDonneesParticipation(cible, source, commande.reprise)
+      if (!source.locuteurRef) {
+        lierLocuteur(corpus, sourceData, commande.sourceParticipationId, id)
         this.ecrireJsonAtomique(this.corpusFile, corpus)
         try { enregistrer(commande.sourceEntretienId, sourceData) }
         catch (e) { throw new Error(`Personne créée, mais association avec l’entretien source échouée. Reprenez depuis le répertoire. ${String(e)}`) }
@@ -1786,17 +1608,16 @@ export class CorpusStore {
     const lecture = this.lireEntretien(commande.entretienId)
     if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
     const data = lecture.data
-    data.locuteurs = completerIdsLocuteurs(commande.entretienId, data.locuteurs)
-    const locuteur = trouverLocuteur(data, commande.locuteurId)
+    const locuteur = trouverLocuteur(data, commande.participationId)
     const avantLien = this.etatLienJournal(locuteur)
     let personneId: string | null
     if (commande.type === 'creer') {
-      if (locuteur.personneRef) throw new Error('Déliez ce locuteur avant de créer une nouvelle personne.')
+      if (locuteur.locuteurRef) throw new Error('Déliez ce locuteur avant de créer une nouvelle personne.')
       personneId = creerPersonne(corpus, genId('pers'), commande.nom).id
     } else {
-      personneId = commande.personneId
+      personneId = commande.locuteurId
     }
-    lierLocuteur(corpus, data, commande.locuteurId, personneId)
+    lierLocuteur(corpus, data, commande.participationId, personneId)
     // La définition précède son lien : un échec ne laisse jamais une référence pendante.
     if (commande.type === 'creer') this.ecrireJsonAtomique(this.corpusFile, corpus)
     const { formatVersion: _version, lastModified: _date, ...payload } = data
@@ -1811,11 +1632,11 @@ export class CorpusStore {
     if (journaliser && commande.type === 'lier') {
       const apresLien = this.etatLienJournal(locuteur)
       if (!this.memeEtatJournal(avantLien, apresLien)) {
-        const nomAvant = avantLien.personneRef
-          ? corpus.personnes[avantLien.personneRef]?.nom ?? 'une personne absente'
+        const nomAvant = avantLien.locuteurRef
+          ? corpus.locuteurs[avantLien.locuteurRef]?.nom ?? 'un locuteur absent'
           : null
-        const nomApres = apresLien.personneRef
-          ? corpus.personnes[apresLien.personneRef]?.nom ?? 'une personne absente'
+        const nomApres = apresLien.locuteurRef
+          ? corpus.locuteurs[apresLien.locuteurRef]?.nom ?? 'un locuteur absent'
           : null
         const libelle = nomAvant && nomApres
           ? `Association déplacée : ${nomAvant} → ${nomApres}`
@@ -1824,9 +1645,9 @@ export class CorpusStore {
             : `Locuteur dissocié de ${nomAvant ?? 'sa personne'}`
         this.journalCorpus.enregistrer(
           libelle,
-          'personnes',
-          { type: 'personneLier', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant: avantLien, apres: apresLien },
-          { corpus: false, entretiens: [commande.entretienId], projections: ['personnes', 'notes'] },
+          "locuteurs",
+          { type: 'personneLier', entretienId: commande.entretienId, locuteurId: commande.participationId, avant: avantLien, apres: apresLien },
+          { corpus: false, entretiens: [commande.entretienId], projections: ["locuteurs", 'notes'] },
         )
       }
     }
@@ -1834,20 +1655,20 @@ export class CorpusStore {
   }
 
   refuserRapprochementSimple(
-    commande: Extract<CommandePersonnes, { type: 'refuser' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'refuser' }>,
   ): string | null {
     return this.personnesCommander(commande, false, false)
   }
 
   rapprocherPersonneSimple(
-    commande: Extract<CommandePersonnes, { type: 'rapprocher' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'rapprocher' }>,
   ): string | null {
     return this.personnesCommander(commande, false, true, false)
   }
 
   creerDefinitionPersonne(nom: string, automatique = false): string {
     this.verifierEcriture()
-    if (automatique && natureNomPersonne(nom) !== 'specifique') {
+    if (automatique && natureNomLocuteur(nom) !== 'specifique') {
       throw new Error('Un nom spécifique est nécessaire pour créer automatiquement une personne.')
     }
     const corpus = this.ouvrir()
@@ -2306,9 +2127,9 @@ export class CorpusStore {
 
   // ── Variables & modalités (EAV) — lire → appliquer → écrire ─────────────────
 
-  ajouterVariable(lib: string, portee: 'entretien' | 'locuteur'): { id: string; corpus: CorpusFichier } {
+  ajouterVariable(lib: string, portee: 'entretien' | 'participation'): { id: string; corpus: CorpusFichier } {
     this.verifierEcriture()
-    corpusModel.validerCreationVariableFormat9(lib, portee)
+    corpusModel.validerCreationVariable(lib, portee)
     const corpus = this.ouvrir()
     const id = corpusModel.ajouterVariable(corpus, lib, portee, () => genId('var'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2317,7 +2138,7 @@ export class CorpusStore {
 
   modifierVariable(id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>): CorpusFichier {
     this.verifierEcriture()
-    corpusModel.validerPatchVariableFormat9(patch)
+    corpusModel.validerPatchVariable(patch)
     const corpus = this.ouvrir()
     corpusModel.modifierVariable(corpus, id, patch)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -2422,6 +2243,7 @@ export class CorpusStore {
     if (!existsSync(f)) return false
     const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
     verifierVersionNative(data, `entretien ${entretienId}`)
+    try { validerEntretienNatif(data) } catch { return false }
     for (const item of items) {
       if (!corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)) return false
     }

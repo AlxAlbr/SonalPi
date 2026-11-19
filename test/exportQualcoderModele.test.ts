@@ -16,7 +16,7 @@ function instantane(): InstantaneEntretienExport {
         { id: 'a1', type: 'codage', from: 1, to: 7, auteur: 'A', code: 'cat1' },
         { id: 'a2', type: 'commentaire', from: 9, to: 17, auteur: 'A', texte: ' remarquant' },
       ],
-      ancres: [], locuteurs: [
+      ancres: [], participations: [
         { index: 0, nom: 'A', interviewer: false, valeursLoc: {} },
         { index: 1, nom: 'B', interviewer: false, valeursLoc: {} },
       ], codebook: [], variables: [], meta: { valeursGen: { v1: 'm1' } },
@@ -56,7 +56,7 @@ describe('modèle QualCoder', () => {
           cat1: { id: 'cat1', nom: 'Thème', couleur: '#112233', ordre: 1, parent: null, actif: true, codeExport: 'cat_001' },
         }, cas: { cas1: cas() },
       },
-      personnes: {}, casSelectionnes: ['cas1'], owner: 'SonalPi',
+      locuteurs: {}, casSelectionnes: ['cas1'], owner: 'SonalPi',
     })
     expect(modele.sources[0].fulltext).toBe('Bonjour\n\nle monde')
     expect(modele.sources[0].annotations[0]).toMatchObject({ from: 0, to: 6, type: 'codage' })

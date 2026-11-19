@@ -13,8 +13,8 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
     await page.evaluate(async () => {
       const api = window.sonal.corpus
       const inventaire = await api.personnesInventaire()
-      const karine = inventaire.locuteurs.find((l) => l.nom === 'Karine')!
-      const personneId = await api.personnesCommander({ type: 'creer', entretienId: karine.entretienId, locuteurId: karine.locuteurId, nom: 'Karine' })
+      const karine = inventaire.participations.find((l) => l.nom === 'Karine')!
+      const personneId = await api.personnesCommander({ type: 'creer', entretienId: karine.entretienId, participationId: karine.participationId, nom: 'Karine' })
       for (const [titre, nom, lien] of [
         ['Deuxième entretien', 'Mme Dupont', personneId],
         ['Homonyme indépendant', 'Karine', null],
@@ -23,7 +23,7 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
         const lecture = await api.lireEntretien(id)
         if (!lecture.ok) throw new Error('Lecture impossible')
         const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
-        payload.locuteurs = [{ id: `loc-${id}`, index: 0, nom, personneRef: lien, valeursLoc: {} }]
+        payload.participations = [{ id: `loc-${id}`, index: 0, nom, locuteurRef: lien, valeursLoc: {} }]
         payload.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'Une intervention dans cet entretien.' }] }] }
         await api.ecrireEntretien(id, payload)
       }

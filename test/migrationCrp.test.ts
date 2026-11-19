@@ -47,7 +47,7 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     if (!analyse.ok) return
     const { variables } = analyse.apercu
     expect(variables).toHaveLength(3)
-    expect(variables[0]).toEqual({ lib: 'sexe', portee: 'locuteur', priv: false })
+    expect(variables[0]).toEqual({ lib: 'sexe', portee: "participation", priv: false })
     expect(variables[1]).toEqual({ lib: 'PCS', portee: 'entretien', priv: false })
     expect(variables[2]).toEqual({ lib: 'diplôme', portee: 'entretien', priv: true })
   })
@@ -267,7 +267,7 @@ describe('mapperVariables (tabVar/tabDic → Variable[], champ gen/loc + priv st
   })
 
   test('champ : loc → portee locuteur, gen → portee entretien', () => {
-    expect(variables[0]).toMatchObject({ lib: 'sexe', portee: 'locuteur', priv: false })
+    expect(variables[0]).toMatchObject({ lib: 'sexe', portee: "participation", priv: false })
     expect(variables[1]).toMatchObject({ lib: 'PCS', portee: 'entretien', priv: false })
     expect(variables[2]).toMatchObject({ lib: 'diplôme', portee: 'entretien', priv: true }) // priv 'true' string
   })
@@ -298,11 +298,11 @@ describe('mapperDefinitions + fusionnerImport', () => {
     expect(variables).toHaveLength(3)
 
     const corpus: CorpusFichier = {
-      formatVersion: 3,
+      formatVersion: 10,
       codebook: {},
       variables: {},
       reglesAnon: {},
-      personnes: {},
+      locuteurs: {},
       membership: {},
     }
     fusionnerImport(corpus, codebook, variables)

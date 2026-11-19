@@ -1,4 +1,4 @@
-import type { ReferenceParticipation } from '../locuteurs'
+import type { ReferenceParticipation, RefusRapprochementLocuteur } from '../locuteurs'
 import { objet } from '../natif/validationCommune'
 
 export interface ChoixRepriseParticipation {
@@ -10,9 +10,9 @@ export interface ChoixRepriseParticipation {
 
 export type ChoixRepriseLocuteur = ChoixRepriseParticipation
 
-export interface LocuteurASeparer {
+export interface ParticipationASeparer {
   entretienId: string
-  locuteurId: string
+  participationId: string
 }
 
 export type CommandeCorrectionLocuteurs =
@@ -51,15 +51,15 @@ export function validerCommandeCorrectionLocuteurs(v: unknown): asserts v is Com
   }
 }
 
-export type CommandePersonnes =
+export type CommandeLocuteurs =
   | CommandeCorrectionLocuteurs
-  | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; choix: ChoixRepriseLocuteur } }
-  | { type: 'separer'; personneId: string; nom: string; locuteurs: LocuteurASeparer[]; attendu: string }
+  | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string; choix: ChoixRepriseLocuteur } }
+  | { type: 'separer'; locuteurId: string; nom: string; participations: ParticipationASeparer[]; attendu: string }
   | { type: 'creerDefinition'; nom: string }
-  | { type: 'refuser'; entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string }
-  | { type: 'annulerRefus'; entretienId: string; locuteurId: string; cible: string }
-  | { type: 'rapprocher'; entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; attendu?: string; reprise?: ChoixRepriseLocuteur }
-  | { type: 'creer'; entretienId: string; locuteurId: string; nom: string }
-  | { type: 'lier'; entretienId: string; locuteurId: string; personneId: string | null }
-  | { type: 'modifier'; personneId: string; nom: string }
-  | { type: 'supprimer'; personneId: string }
+  | { type: 'refuser'; entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string }
+  | { type: 'annulerRefus'; entretienId: string; participationId: string; cible: RefusRapprochementLocuteur }
+  | { type: 'rapprocher'; entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string; attendu?: string; reprise?: ChoixRepriseLocuteur }
+  | { type: 'creer'; entretienId: string; participationId: string; nom: string }
+  | { type: 'lier'; entretienId: string; participationId: string; locuteurId: string | null }
+  | { type: 'modifier'; locuteurId: string; nom: string }
+  | { type: 'supprimer'; locuteurId: string }

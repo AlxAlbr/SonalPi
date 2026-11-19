@@ -19,12 +19,12 @@ const DOC = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }
 
 function entretien(partiel: Partial<EntretienFichier>): EntretienFichier {
   return {
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: '2026-01-01T00:00:00Z',
     corpsTexte: DOC,
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     ...partiel,
   }
@@ -58,7 +58,7 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
         { id: 'a-1', type: 'anon', from: 0, to: 4, auteur: 'moi', etat: 'anonymise', pseudo: 'Claire' },
       ],
       ancres: [{ pos: 10, t: 1.5 }],
-      locuteurs: [{ index: 0, nom: 'Enquêteur', valeursLoc: {} }],
+      participations: [{ index: 0, nom: 'Enquêteur', valeursLoc: {} }],
       meta: { valeursGen: { v1: 'm1' }, audioRef: null },
     })
     const copie = entretien({
@@ -72,7 +72,7 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
         { pos: 10, t: 99 }, // même position : courant gagne
         { pos: 20, t: 3.2 }, // apport
       ],
-      locuteurs: [{ index: 0, nom: 'Piraté', valeursLoc: {} }],
+      participations: [{ index: 0, nom: 'Piraté', valeursLoc: {} }],
       meta: { valeursGen: { v1: 'PIRATE', v2: 'm2' }, audioRef: null },
     })
 
@@ -80,21 +80,21 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
     expect(fusion.annotations.map((a) => a.id)).toEqual(['a-1', 'a-2'])
     expect(fusion.annotations[0].auteur).toBe('moi') // courant gagne
     expect(fusion.ancres.map((a) => a.t)).toEqual([1.5, 3.2]) // pos triés, courant gagne
-    expect(fusion.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur'])
+    expect(fusion.participations.map((l) => l.nom)).toEqual(['Enquêteur'])
     expect(fusion.meta.valeursGen).toEqual({ v1: 'm1', v2: 'm2' }) // v1 inchangé
     expect(ajouts).toEqual({ annotations: 1, ancres: 1, reperesPassages: 0, locuteurs: 0, valeurs: 1 })
   })
 
   it('valeursLoc complétées PAR INDEX de locuteur ; brouillons unifiés par entité', () => {
     const courant = entretien({
-      locuteurs: [
+      participations: [
         { index: 0, nom: 'E', valeursLoc: { v1: 'm1' } },
         { index: 1, nom: 'R', valeursLoc: {} },
       ],
       brouillonsAnon: [{ entite: 'Hopital Saint-Anne', pseudo: undefined }],
     })
     const copie = entretien({
-      locuteurs: [{ index: 1, nom: 'R', valeursLoc: { v1: 'm1', v2: 'm2' } }],
+      participations: [{ index: 1, nom: 'R', valeursLoc: { v1: 'm1', v2: 'm2' } }],
       brouillonsAnon: [
         { entite: 'hopital saint-anne', pseudo: 'X' }, // même entité (casse) : ignoré
         { entite: 'Marie Durand', pseudo: 'MD' }, // apport
@@ -105,7 +105,7 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
     const { fusion, ajouts } = fusionnerEntretiens(courant, copie)
     expect(courant).toEqual(courantAvant)
     expect(copie).toEqual(copieAvant)
-    expect(fusion.locuteurs[1].valeursLoc).toEqual({ v1: 'm1', v2: 'm2' })
+    expect(fusion.participations[1].valeursLoc).toEqual({ v1: 'm1', v2: 'm2' })
     expect(fusion.brouillonsAnon?.map((b) => b.entite)).toEqual([
       'Hopital Saint-Anne',
       'Marie Durand',

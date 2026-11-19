@@ -126,7 +126,7 @@ test('manuel : créer, retrouver, modifier, exporter, supprimer et rétablir un 
     const apres = lire()
     expect(apres.corpsTexte).toEqual(avant.corpsTexte)
     expect(apres.ancres).toEqual(avant.ancres)
-    expect(apres.locuteurs).toEqual(avant.locuteurs)
+    expect(apres.participations).toEqual(avant.participations)
     expect(apres.annotations.filter((annotation) => annotation.type === 'commentaire')).toEqual([
       expect.objectContaining({ auteur, texte: commentaireCorrige }),
     ])

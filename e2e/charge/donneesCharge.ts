@@ -101,7 +101,7 @@ export function ecrireProfilCharge(
     },
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       charge: { titre: `Entretien ${tailleVisee} caractères`, date: null, lastModified: maintenant, rangAjout: 1 },
     },
@@ -113,9 +113,9 @@ export function ecrireProfilCharge(
     corpsTexte: { type: 'doc', content: contenu },
     annotations,
     ancres: [],
-    locuteurs: [
-      { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Personne interrogée', valeursLoc: {}, personneRef: null },
+    participations: [
+      { id: "loc-1", index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2", index: 2, nom: 'Personne interrogée', valeursLoc: {}, locuteurRef: null },
     ],
     meta: { valeursGen: {}, audioRef: null },
     brouillonsAnon: [],

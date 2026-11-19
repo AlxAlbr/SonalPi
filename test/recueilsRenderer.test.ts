@@ -22,7 +22,7 @@ function creer() {
   const source: EntretienFichier = {
     formatVersion: FORMAT_VERSION, lastModified: date,
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Terrain.' }] }] },
-    annotations: [], ancres: [], locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+    annotations: [], ancres: [], participations: [], meta: { valeursGen: {}, audioRef: null },
     reperesPassages: [{ id: 'p1', from: 1, to: 9 }],
   }
   const recueils = ref<Record<string, Recueil>>({ r1: recueil })

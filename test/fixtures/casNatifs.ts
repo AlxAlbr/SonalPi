@@ -1,4 +1,4 @@
-import { FORMAT_NATIF_LOCUTEURS, type Cas, type CorpusFichier, type EntretienFichier } from '../../src/shared/natif/format'
+import { FORMAT_VERSION, type Cas, type CorpusFichier, type EntretienFichier } from "../../src/shared/format"
 
 export const dateCasNatif = '2026-01-01T10:00:00.000Z'
 export const idLocuteurNatif = 'personne-conservee'
@@ -6,7 +6,7 @@ export const idParticipationNative = 'loc-conserve'
 
 export function corpusCasNatif(): CorpusFichier {
   return {
-    formatVersion: FORMAT_NATIF_LOCUTEURS,
+    formatVersion: FORMAT_VERSION,
     codebook: {}, reglesAnon: {},
     locuteurs: { [idLocuteurNatif]: { id: idLocuteurNatif, nom: 'Alice' }, autre: { id: 'autre', nom: 'Alice' } },
     membership: { e1: { titre: 'Entretien A', date: null, lastModified: dateCasNatif } },
@@ -25,7 +25,7 @@ export function corpusCasNatif(): CorpusFichier {
 
 export function entretienCasNatif(): EntretienFichier {
   return {
-    formatVersion: FORMAT_NATIF_LOCUTEURS, lastModified: dateCasNatif,
+    formatVersion: FORMAT_VERSION, lastModified: dateCasNatif,
     corpsTexte: { type: 'doc', content: [
       { type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: 'Bonjour Alice.' }] },
     ] },

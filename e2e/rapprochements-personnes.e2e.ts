@@ -22,11 +22,11 @@ test('Personnes : refus révocable et reprise depuis une source choisie', async 
         ids.push(id)
         const { data } = await api.lireEntretien(id)
         const { formatVersion, lastModified, ...payload } = data
-        payload.locuteurs = [{ id: `loc-${id}`, index: 0, nom, pseudo, interviewer, valeursLoc: {}, personneRef: null }]
+        payload.participations = [{ id: `loc-${id}`, index: 0, nom, pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
       }
-      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], locuteurId: `loc-${ids[0]}`, nom: 'Marie Dupont' })
-      await api.personnesCommander({ type: 'lier', entretienId: ids[1], locuteurId: `loc-${ids[1]}`, personneId })
+      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], participationId: `loc-${ids[0]}`, nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: `loc-${ids[1]}`, locuteurId: personneId })
     })
     await ouvrirRepertoirePersonnes(page)
     const panneau = page.locator('.personnes-corpus')
@@ -66,11 +66,11 @@ test('Personnes : refus révocable et reprise depuis une source choisie', async 
     await expect(panneau.getByRole('alert')).toHaveCount(0)
     const resultat = await page.evaluate(async () => {
       const vue = await (window as any).sonal.corpus.personnesInventaire()
-      return { cible: vue.locuteurs.find((l: any) => l.entretienTitre === 'Cible'), personnes: vue.personnes }
+      return { cible: vue.participations.find((l: any) => l.entretienTitre === 'Cible'), locuteurs: vue.locuteurs }
     })
     expect(resultat.cible).toMatchObject({ nom: 'Marie Dupont', pseudo: 'Lou', pseudoEtat: 'confirme', interviewer: false })
-    expect(resultat.cible.personneRef).toBeTruthy()
-    expect(resultat.personnes).toHaveLength(1)
+    expect(resultat.cible.locuteurRef).toBeTruthy()
+    expect(resultat.locuteurs).toHaveLength(1)
     await expect(panneau.locator('.liens li')).toHaveCount(3)
   } finally {
     await app.close()
@@ -90,7 +90,7 @@ test('Personnes : refuser une paire conserve les suggestions vers un troisième 
         const { id } = await api.creerEntretienVide(titre)
         const { data } = await api.lireEntretien(id)
         const { formatVersion, lastModified, ...payload } = data
-        payload.locuteurs = [{ id: `marie-${titre}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+        payload.participations = [{ id: `marie-${titre}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
       }
     })

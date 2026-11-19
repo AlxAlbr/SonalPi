@@ -1,4 +1,4 @@
-import type { CorpusFichier, Variable, Cas, DerivationAttributCas, FamilleCas } from '../natif/format'
+import type { CorpusFichier, Variable, Cas, DerivationAttributCas, FamilleCas } from "../format"
 import { porteeObservationsCas, type EntretienLectureCas } from '../natif/lectureCas'
 import type { DefinitionAttributCas } from './cas'
 

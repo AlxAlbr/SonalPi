@@ -56,7 +56,7 @@ function nomDuTheme(corpus: CorpusFichier): string {
 
 function entretien(texte = 'Alice'): EntretienFichier {
   return {
-    formatVersion: 8,
+    formatVersion: 10,
     lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: {
       type: 'doc',
@@ -68,7 +68,7 @@ function entretien(texte = 'Alice'): EntretienFichier {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -106,7 +106,7 @@ function payload(texte: string): PayloadEntretien {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -638,21 +638,21 @@ describe('écritures courtes d’entretien GitLab', () => {
 
   test('résout les ids locaux sur la source fraîche et refuse un lot incomplet sans publication', async () => {
     const serveur = corpusAvecValeurs()
-    serveur.variables.v1.portee = 'locuteur'
+    serveur.variables.v1.portee = "participation"
     const b = banc({ serveur, local: structuredClone(serveur) })
     const data = entretien()
     data.formatVersion = FORMAT_VERSION
-    data.locuteurs = [
-      { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, personneRef: null },
-      { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, personneRef: null },
+    data.participations = [
+      { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
+      { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
     ]
     const chemin = `${RACINE}/entretiens/e1.json`
     const brut = JSON.stringify(data)
     b.depot.deposerHorsProtocole(chemin, brut)
     const fichierLocal = join(b.dirLocal, 'entretiens/e1.json')
     const perime = structuredClone(data)
-    perime.locuteurs[0].index = 11
-    perime.locuteurs[1].index = 7
+    perime.participations[0].index = 11
+    perime.participations[1].index = 7
     const avantLocal = JSON.stringify(perime)
     writeFileSync(fichierLocal, avantLocal)
     const item = { entretienId: 'e1', cible: { type: 'participation' as const, participationId: '7' }, idVar: 'v1', idMod: 'm1' }
@@ -665,9 +665,9 @@ describe('écritures courtes d’entretien GitLab', () => {
 
     await b.transactions.poserValeursEntretien('e1', [item])
     const publie = JSON.parse(b.depot.fichiers.get(chemin)!.contenu) as EntretienFichier
-    expect(publie.locuteurs.map((p) => [p.id, p.index])).toEqual([['autre', 7], ['7', 11]])
-    expect(publie.locuteurs[0]).toEqual(data.locuteurs[0])
-    expect(publie.locuteurs[1].valeursLoc).toEqual({ v1: 'm1' })
+    expect(publie.participations.map((p) => [p.id, p.index])).toEqual([['autre', 7], ['7', 11]])
+    expect(publie.participations[0]).toEqual(data.participations[0])
+    expect(publie.participations[1].valeursLoc).toEqual({ v1: 'm1' })
     expect(JSON.parse(readFileSync(fichierLocal, 'utf8'))).toEqual(publie)
     expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
     expect(b.journal.lister()).toEqual([])

@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { etatNoteJournal, inventorierNotes, memeEtatNote, validerCommandeNotes } from '../src/shared/corpus/notes'
 import { normaliserNotes, noteCreationInchangee, referencesNoteDisponibles, renumeroterRangs } from '../src/shared/entretien/notes'
-import { lireNoteFormat9, normaliserNotesFormat9 } from '../src/shared/entretien/notesFormat9'
-import type { Note } from '../src/shared/natif/format'
+import type { Note } from "../src/shared/format"
 import { entretienCasNatif, idParticipationNative } from './fixtures/casNatifs'
 
 const note = (): Note => entretienCasNatif().notes![0]
@@ -48,16 +47,13 @@ describe('notes et références de participations', () => {
     expect(referencesNoteDisponibles(source, [{ id: 'identite-corpus' }])).toBe(false)
   })
 
-  test('le pont conserve les champs du format 9, sans rechercher une identité commune', () => {
-    const { participationIds, ...commun } = note()
-    const ancienne = { ...commun, locuteurIds: participationIds }
-    const avant = structuredClone(ancienne)
-    expect(lireNoteFormat9(ancienne)).toEqual(note())
-    expect(normaliserNotesFormat9([ancienne])[0]).toEqual(ancienne)
-    expect(ancienne).toEqual(avant)
-    expect(() => normaliserNotes([ancienne as unknown as Note])).toThrow('participations locales')
-    expect(() => etatNoteJournal(ancienne as unknown as Note)).toThrow('participations locales')
-    expect(() => lireNoteFormat9({ ...ancienne, participationIds } as typeof ancienne)).toThrow('compatible')
+  test('les anciens champs et les notes mixtes sont refusés sans traduction', () => {
+    for (const source of [{ ...note(), locuteurIds: [idParticipationNative] }, { ...note(), participationIds: undefined, locuteurIds: [idParticipationNative] }]) {
+      const avant = structuredClone(source)
+      expect(() => normaliserNotes([source as Note])).toThrow('participations locales')
+      expect(() => etatNoteJournal(source as Note)).toThrow('participations locales')
+      expect(source).toEqual(avant)
+    }
   })
 
   test('les instantanés sont indépendants des tableaux de la note', () => {

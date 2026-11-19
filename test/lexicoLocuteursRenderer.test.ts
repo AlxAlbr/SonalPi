@@ -20,7 +20,7 @@ async function banc() {
     ongletsFiltresLexico: ref<OngletFiltresLexico[]>(['entretiens', 'variables', 'locuteurs', 'themes']),
     locuteursLexico: ref([{ id: 'corpus-alice', nom: 'Alice' }, { id: 'corpus-bob', nom: 'Bob' }]),
     membership: ref({}), codebook: ref([]), cas: ref({}), famillesCas: ref({}),
-    variables: ref([{ id: 'age', lib: 'Âge', portee: 'locuteur', modalites: [{ id: 'adulte', lib: 'Adulte' }] }]),
+    variables: ref([{ id: 'age', lib: 'Âge', portee: "participation", modalites: [{ id: 'adulte', lib: 'Adulte' }] }]),
   }
   injection.sonal = sonal
   const racine = document.createElement('div')
@@ -60,7 +60,7 @@ describe('Lexico — sélection des locuteurs et des participations', () => {
     expect(b.sonal.filtresLexico.value.locuteurs.sansParticipation).toBe(true)
     await b.bouton('Retirer ce filtre')
     expect(b.sonal.filtresLexico.value.locuteurs).toEqual(filtresLexicoParDefaut().locuteurs)
-    expect(b.sonal.filtresLexico.value).not.toHaveProperty('personnes')
+    expect(b.sonal.filtresLexico.value).not.toHaveProperty("personnes")
   })
 
   test('tout cocher ne sélectionne que les identités connues, sans inclure les absences', async () => {

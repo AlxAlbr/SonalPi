@@ -31,7 +31,7 @@ export function verifierReferencesDefinitions(
   }
   if (
     !Array.isArray(entretien.annotations) ||
-    !Array.isArray(entretien.locuteurs) ||
+    !Array.isArray(entretien.participations) ||
     !entretien.meta ||
     typeof entretien.meta.valeursGen !== 'object'
   ) {
@@ -99,7 +99,7 @@ export function verifierReferencesDefinitions(
   }
 
   verifierValeurs(entretien.meta?.valeursGen ?? {}, corpus)
-  for (const locuteur of entretien.locuteurs) {
+  for (const locuteur of entretien.participations) {
     verifierValeurs(locuteur.valeursLoc ?? {}, corpus)
   }
 }

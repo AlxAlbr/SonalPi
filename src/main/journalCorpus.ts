@@ -1,4 +1,4 @@
-import type { Note } from '../shared/format'
+import type { Note, RefusRapprochementLocuteur } from "../shared/format"
 import type { EtatNoteJournal } from '../shared/corpus/notes'
 import type {
   EntreeJournalCorpusVue,
@@ -8,12 +8,12 @@ import type {
 } from '../shared/corpus/journal'
 
 export interface EtatLienJournalCorpus {
-  personneRef: string | null
-  personneDeliee?: boolean
+  locuteurRef: string | null
+  associationRetiree?: boolean
 }
 
 export interface EtatRefusJournalCorpus {
-  rapprochementsRefuses?: string[]
+  rapprochementsRefuses?: RefusRapprochementLocuteur[]
 }
 
 export type InverseJournalCorpus =

@@ -3,7 +3,6 @@ import {
   ajouterVariable, modifierVariable, retirerVariable, ajouterModalite, modifierModalite, retirerModalite,
   validerCreationVariable, validerPatchVariable,
 } from '../src/shared/corpus/variables'
-import * as format9 from '../src/shared/corpus/variablesFormat9'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import { compterUsagesCasVariable } from '../src/shared/corpus/cas'
 import {
@@ -85,25 +84,22 @@ describe('écriture des définitions de variables natives', () => {
     expect(generer).not.toHaveBeenCalled()
   })
 
-  test('le pont du stockage 9 conserve ses portées et les objets de modalités', () => {
+  test('le modèle actif conserve les modalités et enregistre la portée native sans traduction', () => {
     const corpus = squeletteCorpus()
-    format9.ajouterVariable(corpus, 'Locale', 'locuteur', () => 'v')
+    ajouterVariable(corpus, 'Locale', 'participation', () => 'v')
     const variable = corpus.variables.v
-    format9.ajouterModalite(corpus, 'v', 'A', () => 'a')
-    format9.ajouterModalite(corpus, 'v', 'B', () => 'b')
+    ajouterModalite(corpus, 'v', 'A', () => 'a')
+    ajouterModalite(corpus, 'v', 'B', () => 'b')
     const modalite = variable.modalites[0]
-    format9.modifierModalite(corpus, 'v', 'a', 'A renommée')
+    modifierModalite(corpus, 'v', 'a', 'A renommée')
     expect(modalite.lib).toBe('A renommée')
-    format9.retirerModalite(corpus, 'v', 'b')
+    retirerModalite(corpus, 'v', 'b')
     expect(corpus.variables.v).toBe(variable)
     expect(variable.modalites).toEqual([{ id: 'a', lib: 'A renommée', mExport: 1 }])
-    format9.modifierVariable(corpus, 'v', { lib: 'Locale renommée', priv: true })
-    expect(corpus.variables.v.portee).toBe('locuteur')
-    expect(corpus.formatVersion).toBe(9)
-    const avant = structuredClone(corpus)
-    expect(() => format9.validerPatchVariableFormat9({ modalites: [] })).toThrow('invalides')
-    expect(() => format9.validerCreationVariableFormat9('Nom', 'participation')).toThrow('portée')
-    expect(corpus).toEqual(avant)
+    modifierVariable(corpus, 'v', { lib: 'Locale renommée', priv: true })
+    expect(corpus.variables.v.portee).toBe('participation')
+    expect(corpus.formatVersion).toBe(10)
+    validerCorpusNatif(corpus)
   })
 })
 

@@ -9,7 +9,7 @@ test('un nom proche est proposé avec une raison distincte', async () => {
       const { id } = await api.creerEntretienVide('Source Maria')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'maria-source', index: 0, nom: 'Maria Dupont', interviewer: false, valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'maria-source', index: 0, nom: 'Maria Dupont', interviewer: false, valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -37,11 +37,11 @@ test('une identité déjà rapprochée est présentée sur une seule ligne avec 
         ids.push(id)
         const { data } = await api.lireEntretien(id)
         const { formatVersion, lastModified, ...payload } = data
-        payload.locuteurs = [{ id: `marie-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+        payload.participations = [{ id: `marie-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
       }
-      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], locuteurId: `marie-${ids[0]}`, nom: 'Marie Dupont' })
-      await api.personnesCommander({ type: 'lier', entretienId: ids[1], locuteurId: `marie-${ids[1]}`, personneId })
+      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], participationId: `marie-${ids[0]}`, nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: `marie-${ids[1]}`, locuteurId: personneId })
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     const nom = page.locator('.nom-loc').first()
@@ -72,7 +72,7 @@ test('une référence de Personne absente est diagnostiquée dans l’éditeur',
       const id = Object.keys(corpus.membership)[0]
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs[0].personneRef = 'pers-absente'
+      payload.participations[0].locuteurRef = 'pers-absente'
       await api.ecrireEntretien(id, payload)
     })
     const carte = page.locator('.carte-ent', { hasText: 'Entretien Karine' })
@@ -101,9 +101,9 @@ test('deux renommages immédiats ne créent que la Personne du nom final', async
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    expect(vue.personnes.map((personne: any) => personne.nom)).toEqual(['Paul Final'])
-    expect(vue.locuteurs.find((locuteur: any) => locuteur.nom === 'Paul Final')?.personneRef)
-      .toBe(vue.personnes[0].id)
+    expect(vue.locuteurs.map((personne: any) => personne.nom)).toEqual(['Paul Final'])
+    expect(vue.participations.find((locuteur: any) => locuteur.nom === 'Paul Final')?.locuteurRef)
+      .toBe(vue.locuteurs[0].id)
   } finally {
     await app.close()
   }
@@ -117,7 +117,7 @@ test('le nommage propose une identité et lie sans écraser la session', async (
       const { id } = await api.creerEntretienVide('Source Marie')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
     })
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -138,13 +138,13 @@ test('le nommage propose une identité et lie sans écraser la session', async (
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const source = vue.locuteurs.find((l: any) => l.locuteurId === 'marie-source')
-    const cible = vue.locuteurs.find((l: any) => l.nom === 'Mme Dupont')
-    expect(cible.personneRef).toBeTruthy()
-    expect(cible.personneRef).toBe(source.personneRef)
+    const source = vue.participations.find((l: any) => l.participationId === 'marie-source')
+    const cible = vue.participations.find((l: any) => l.nom === 'Mme Dupont')
+    expect(cible.locuteurRef).toBeTruthy()
+    expect(cible.locuteurRef).toBe(source.locuteurRef)
     expect(cible.pseudo).toBe('Alice')
     expect(cible.pseudoEtat).toBe('confirme')
     expect(cible.interviewer).toBe(true)
-    expect(vue.personnes).toHaveLength(1)
+    expect(vue.locuteurs).toHaveLength(1)
   } finally { await app.close() }
 })

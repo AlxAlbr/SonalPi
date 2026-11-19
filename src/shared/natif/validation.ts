@@ -1,4 +1,4 @@
-import { FORMAT_NATIF_LOCUTEURS, type CorpusFichier, type EntretienFichier } from './format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../format'
 import { objet, validerBlocsCorpus } from './validationCommune'
 import { validerMemoireLocale, normaliserPseudosDeclares, type DefinitionAnonLocale } from '../entretien/anon/definitionsLocales'
 
@@ -8,8 +8,8 @@ const valeurs = (v: unknown): boolean => objet(v) && Object.values(v).every((s) 
 const propriete = (v: Record<string, unknown>, nom: string) => Object.hasOwn(v, nom)
 
 function verifierVersion(v: unknown, document: string): asserts v is Record<string, unknown> {
-  if (!objet(v) || v.formatVersion !== FORMAT_NATIF_LOCUTEURS) {
-    throw new Error(`Version de ${document} non supportée : format natif ${FORMAT_NATIF_LOCUTEURS} attendu.`)
+  if (!objet(v) || v.formatVersion !== FORMAT_VERSION) {
+    throw new Error(`Version de ${document} non supportée : format natif ${FORMAT_VERSION} attendu.`)
   }
 }
 

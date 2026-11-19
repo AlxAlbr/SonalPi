@@ -12,7 +12,7 @@ test.each(['local', 'gitlab', 'webdav'] as const)('icônes V1 et noms accessible
     const capacites = matriceCapacites(fournisseur), dissocier = vi.fn(), supprimer = vi.fn(), modifier = vi.fn()
     const host = document.createElement('div'); document.body.append(host)
     const app = createApp({ render: () => h(TableReglesAnon, {
-      lignes: [{ regle: { id: 'personne', entite: ['Karine'], pseudos: ['Claire'] } }],
+      lignes: [{ regle: { id: "personne", entite: ['Karine'], pseudos: ['Claire'] } }],
       selection: null, tri: 'entite', descendant: false, frais: true,
       collisions: new Set<string>(), categories: [], lectureSeule,
       dissociationDisponible: capacites.dissociationGlobale,

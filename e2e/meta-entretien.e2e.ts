@@ -35,14 +35,14 @@ test('le panneau méta affiche les variables résolues et porte la suppression',
   fc.variables = {
     v1: { id: 'v1', lib: 'Lieu', portee: 'entretien', priv: false, ordre: 0, vExport: 1,
       modalites: [{ id: 'v1m1', lib: 'Lyon', mExport: 1 }, { id: 'v1m2', lib: 'Paris', mExport: 2 }] },
-    v2: { id: 'v2', lib: 'Sexe', portee: 'locuteur', priv: false, ordre: 1, vExport: 2,
+    v2: { id: 'v2', lib: 'Sexe', portee: "participation", priv: false, ordre: 1, vExport: 2,
       modalites: [{ id: 'v2m1', lib: 'H', mExport: 1 }, { id: 'v2m2', lib: 'F', mExport: 2 }] },
   }
   writeFileSync(fichierCorpus(dir), JSON.stringify(fc), 'utf8')
 
   const fe = JSON.parse(readFileSync(fichierEntretien(dir, 'e1'), 'utf8'))
   fe.meta.valeursGen = { v1: 'v1m2' }
-  const karine = fe.locuteurs.find((l: { nom: string }) => l.nom === 'Karine')
+  const karine = fe.participations.find((l: { nom: string }) => l.nom === 'Karine')
   karine.valeursLoc = { v2: 'v2m2' }
   writeFileSync(fichierEntretien(dir, 'e1'), JSON.stringify(fe), 'utf8')
 

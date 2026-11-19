@@ -82,7 +82,7 @@ async function banc(port: number) {
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureSuppressionAnon()
   f.corpus.nom = 'Suppression synthétique'
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-suppression-'))
@@ -139,9 +139,9 @@ for (const port of [8080, 8081]) test.describe(`suppression WebDAV :${port}`, ()
       expect(await b.client.getTexte('entretiens/e1.json')).toBe(acquis)
       const e1 = JSON.parse(acquis)
       expect(e1.definitionsAnonLocales).toEqual(b.f.sources[0].data.definitionsAnonLocales)
-      const attendu = structuredClone(b.f.sources[0].data); attendu.annotations = attendu.annotations.filter((a) => a.regle !== 'personne'); attendu.lastModified = e1.lastModified
+      const attendu = structuredClone(b.f.sources[0].data); attendu.annotations = attendu.annotations.filter((a) => a.regle !== "personne"); attendu.lastModified = e1.lastModified
       expect(e1).toEqual(attendu)
-      expect(e1.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
+      expect(e1.participations).toEqual(b.f.sources[0].data.participations)
       expect(await app.evaluate(() => (globalThis as unknown as { sondeSuppression: Sonde }).sondeSuppression.publies)).toEqual(['barriere', 'e1.json', 'e2.json', 'e3.json', 'retrait'])
     } finally { if (rendre) await rendre(); if (app) await app.close(); await b.nettoyer() }
   })
@@ -166,7 +166,7 @@ for (const port of [8080, 8081]) test.describe(`suppression WebDAV :${port}`, ()
       await consentement.getByRole('checkbox').check(); await consentement.getByRole('button', { name: 'Confirmer la suppression globale', exact: true }).click()
       await expect(consentement).toBeHidden({ timeout: 90_000 })
       const actuel = JSON.parse(await b.client.getTexte('entretiens/e1.json')), attendu = JSON.parse(publie)
-      attendu.annotations = attendu.annotations.filter((a: { regle?: string }) => a.regle !== 'personne'); attendu.lastModified = actuel.lastModified
+      attendu.annotations = attendu.annotations.filter((a: { regle?: string }) => a.regle !== "personne"); attendu.lastModified = actuel.lastModified
       expect(actuel).toEqual(attendu)
     } finally { if (app) await app.close(); await b.nettoyer() }
   })

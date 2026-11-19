@@ -37,6 +37,7 @@ import type {
   OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  PayloadImportEntretien,
   TranscriptionEntretien,
   RegleAnon,
   ResultatArchiveCorpus,
@@ -59,8 +60,8 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { InventairePersonnes } from '../shared/corpus/personnes'
-import type { CommandePersonnes } from '../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
+import type { CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -148,7 +149,7 @@ declare global {
         ) => Promise<CorpusFichier>
         importer: (
           titre: string,
-          p: PayloadEntretien,
+          p: PayloadImportEntretien,
           codebook: Categorie[],
           variables: Variable[],
           reglesAnon?: RegleAnon[],
@@ -202,9 +203,9 @@ declare global {
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>
         notesCommander: (commande: CommandeNotes) => Promise<string | null>
-        personnesInventaire: () => Promise<InventairePersonnes>
+        personnesInventaire: () => Promise<InventaireIdentitesLocuteurs>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>
-        personnesCommander: (commande: CommandePersonnes, depuisRepertoire?: boolean) => Promise<string | null>
+        personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
@@ -245,7 +246,7 @@ declare global {
         compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,
-          portee: 'entretien' | 'locuteur',
+          portee: 'entretien' | 'participation',
         ) => Promise<{ id: string; corpus: CorpusFichier }>
         modifierVariable: (id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) => Promise<CorpusFichier>
         usagesDonnee: (idVar: string, idMod?: string, exceptId?: string) => Promise<{ valeurs: number; cas: number }>

@@ -12,7 +12,7 @@ test('les définitions passent par le noyau commun sans contourner les usages de
     await entrerCorpus(page)
     const resultat = await page.evaluate(async () => {
       const api = window.sonal.corpus
-      const { id } = await api.ajouterVariable('Locale', 'locuteur')
+      const { id } = await api.ajouterVariable('Locale', 'participation')
       const corpus = await api.ajouterModalite(id, 'Adulte')
       const initiale = corpus.variables[id]
       let remplacementRefuse = false
@@ -23,7 +23,7 @@ test('les définitions passent par le noyau commun sans contourner les usages de
       const date = new Date().toISOString()
       await api.casCommander({ type: 'creer', cas: {
         id: 'cas-variable', nom: 'Cas Adulte', memo: '', creeLe: date, modifieLe: date,
-        regles: [{ type: 'modalite', variableId: id, modaliteId: initiale.modalites[0].id, portee: 'locuteur', inclureEnqueteurs: false }], rattachements: [],
+        regles: [{ type: 'modalite', variableId: id, modaliteId: initiale.modalites[0].id, portee: "participation", inclureEnqueteurs: false }], rattachements: [],
       } })
       let porteeRefusee = false
       try { await api.modifierVariable(id, { portee: 'entretien' }) }
@@ -34,7 +34,7 @@ test('les définitions passent par le noyau commun sans contourner les usages de
     })
     expect(resultat.remplacementRefuse).toBe(true)
     expect(resultat.renommee).toEqual({ ...resultat.initiale, lib: 'Locale renommée', priv: true })
-    expect(resultat.renommee.portee).toBe('locuteur')
+    expect(resultat.renommee.portee).toBe('participation')
     expect(resultat.porteeRefusee).toBe(true)
     expect(resultat.suppressionVariable).toEqual({ ok: false, usages: 1 })
     expect(resultat.suppressionModalite).toEqual({ ok: false, usages: 1 })

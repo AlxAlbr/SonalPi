@@ -118,7 +118,7 @@ function modalite(variableId: string, modaliteId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
   const filtres = { ...filtresSynthese.value.variables }
-  const actuel = filtres[variableId] ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
+  const actuel = filtres[variableId] ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   const modaliteIds = actuel.modaliteIds.includes(modaliteId)
     ? actuel.modaliteIds.filter((item) => item !== modaliteId)
     : [...actuel.modaliteIds, modaliteId]
@@ -131,7 +131,7 @@ function nonRenseigne(variableId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
   const filtres = { ...filtresSynthese.value.variables }
-  const actuel = filtres[variableId] ?? { portee: variable.portee === 'locuteur' ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
+  const actuel = filtres[variableId] ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   if (actuel.nonRenseigne && !actuel.modaliteIds.length) delete filtres[variableId]
   else filtres[variableId] = { ...actuel, nonRenseigne: !actuel.nonRenseigne }
   filtresSynthese.value = { ...filtresSynthese.value, variables: filtres }

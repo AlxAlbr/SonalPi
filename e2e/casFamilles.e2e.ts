@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { entrerCorpus, lancer, ouvrirOrganisation } from './util'
 import { corpusFamille, sourceFamille, dateFamille } from '../test/fixtures/casFamilles'
 
-for (const portee of ['locuteur', 'entretien'] as const) {
+for (const portee of ['participation', 'entretien'] as const) {
   test(`famille de variable ${portee} : aperçu, opt-in, complément explicite, réouverture et dissolution`, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-familles-e2e-'))
     let app = await lancer(dir)
@@ -24,26 +24,26 @@ for (const portee of ['locuteur', 'entretien'] as const) {
       let modale = page.locator('#contenu-cas-organisation')
       const avant = readFileSync(fichier, 'utf8')
       await modale.getByRole('button', { name: 'Nouveau cas' }).click()
-      await modale.getByRole('radio', { name: portee === 'locuteur' ? 'Variable de locuteur' : 'Variable d’entretien', exact: true }).check()
+      await modale.getByRole('radio', { name: portee === "participation" ? 'Variable de locuteur' : 'Variable d’entretien', exact: true }).check()
       await modale.getByLabel('Variable de regroupement').selectOption('v')
       await modale.getByRole('button', { name: 'Prévisualiser la famille' }).click()
       await expect(modale.locator('.modalite-famille')).toHaveCount(3)
       await expect(modale.locator('.modalite-famille').nth(2).getByRole('checkbox')).not.toBeChecked()
-      if (portee === 'locuteur') {
+      if (portee === "participation") {
         await expect(modale.locator('.creation-famille-cas')).toContainText('2 valeur(s) absente(s)')
         await expect(modale.locator('.creation-famille-cas')).toContainText('2 enquêteur(s) exclu(s)')
       }
       await modale.getByRole('button', { name: 'Annuler', exact: true }).click()
       expect(readFileSync(fichier, 'utf8')).toBe(avant)
       await modale.getByRole('button', { name: 'Nouveau cas' }).click()
-      await modale.getByRole('radio', { name: portee === 'locuteur' ? 'Variable de locuteur' : 'Variable d’entretien', exact: true }).check()
+      await modale.getByRole('radio', { name: portee === "participation" ? 'Variable de locuteur' : 'Variable d’entretien', exact: true }).check()
       await modale.getByLabel('Variable de regroupement').selectOption('v')
       await modale.getByRole('button', { name: 'Prévisualiser la famille' }).click()
       await modale.getByRole('button', { name: 'Créer la famille', exact: true }).click()
       await expect(modale.locator('.carte-cas')).toHaveCount(2)
       await modale.locator('.carte-cas').filter({ has: page.locator('.nom-carte b').filter({ hasText: /^A$/ }) }).click()
       const textes = modale.locator('.passage-cas blockquote')
-      if (portee === 'locuteur') {
+      if (portee === "participation") {
         await expect(textes).toHaveCount(3)
         await expect(modale.locator('.fiche-cas')).not.toContainText('Question')
         await expect(modale.locator('.fiche-cas')).toContainText('5 membre(s) observé(s)')

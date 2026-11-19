@@ -46,13 +46,13 @@ import type {
   ResultatLotAnon,
   ResultatMutationAnon,
   RegleAnon,
-  PayloadEntretien,
+  PayloadImportEntretien,
   Categorie,
   Variable,
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
-import type { CommandePersonnes } from '../../shared/corpus/contratsLocuteurs'
+import type { CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { verifierVersionNative } from '../../shared/versionsNatives'
 import type { SourcePassageCas } from '../../shared/corpus/cas'
@@ -645,20 +645,9 @@ export class TransactionsCorpus {
     }
   }
 
-  /** Migre corpus et entretiens sous leurs verrous avant de rendre le miroir éditable. */
-  async migrerFormatSiNecessaire(): Promise<CorpusFichier> {
-    const brut = JSON.parse(
-      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
-    ) as { formatVersion?: number }
-    if (brut.formatVersion === FORMAT_VERSION) return this.getStore().ouvrir()
-    const ids = () => Object.keys((JSON.parse(
-      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
-    ) as CorpusFichier).membership ?? {})
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: ids, ordreCorpus: 'avant' },
-      ids,
-      () => this.getStore().ouvrir(),
-    )
+  /** Valide le format du miroir sans publier de conversion sur le serveur. */
+  async ouvrirCorpusNatif(): Promise<CorpusFichier> {
+    return this.getStore().ouvrir()
   }
 
   /* ── Création et import — entretien puis corpus ───────────────────────────*/
@@ -669,7 +658,7 @@ export class TransactionsCorpus {
 
   async importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -873,7 +862,7 @@ export class TransactionsCorpus {
 
   /** Publie une création éventuelle, puis le refus sur sa cible. */
   async refuserRapprochement(
-    commande: Extract<CommandePersonnes, { type: 'refuser' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'refuser' }>,
   ): Promise<string | null> {
     if (commande.entretienId === commande.sourceEntretienId) {
       throw new ErreurTransaction('Choisissez un autre entretien comme source.')
@@ -887,7 +876,7 @@ export class TransactionsCorpus {
 
   /** Publie une création éventuelle, puis les associations source et cible. */
   async rapprocherPersonnes(
-    commande: Extract<CommandePersonnes, { type: 'rapprocher' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'rapprocher' }>,
   ): Promise<string | null> {
     if (commande.entretienId === commande.sourceEntretienId) {
       throw new ErreurTransaction('Choisissez un autre entretien comme source.')
@@ -904,7 +893,7 @@ export class TransactionsCorpus {
 
   /** Réunit les liens avant de retirer la définition absorbée. */
   async fusionnerPersonnes(
-    commande: Extract<CommandePersonnes, { type: 'fusionner' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'fusionner' }>,
   ): Promise<string | null> {
     return this.executerCorrectionEntretiens(
       {
@@ -919,7 +908,7 @@ export class TransactionsCorpus {
 
   /** Crée la définition séparée avant de déplacer ses locuteurs. */
   async separerPersonne(
-    commande: Extract<CommandePersonnes, { type: 'separer' }>,
+    commande: Extract<CommandeLocuteurs, { type: 'separer' }>,
   ): Promise<string | null> {
     return this.executerCorrectionEntretiens(
       {
@@ -938,7 +927,7 @@ export class TransactionsCorpus {
       { corpus: true, entretiens: [] },
       () => Object.keys(this.getStore().ouvrir().membership),
       () => {
-        this.getStore().personnesCommander({ type: 'supprimer', personneId }, false)
+        this.getStore().personnesCommander({ type: 'supprimer', locuteurId: personneId }, false)
         return null
       },
     )
@@ -1167,7 +1156,7 @@ export class TransactionsCorpus {
     const personneId = await this.executer(() => this.getStore().creerDefinitionPersonne(nom))
     try {
       await this.executerEntretien(entretienId, () => this.getStore().personnesCommander({
-        type: 'lier', entretienId, locuteurId, personneId,
+        type: 'lier', entretienId, participationId: locuteurId, locuteurId: personneId,
       }, false))
       return personneId
     } catch (e) {

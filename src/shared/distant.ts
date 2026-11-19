@@ -57,7 +57,7 @@ export interface CapacitesCorpus {
   /** Notes du corpus, par entretien. */
   notes: boolean
   /** Corrections de personnes. */
-  personnes: boolean
+  locuteurs: boolean
   /** Annulation d'une action du journal du corpus. */
   annulationJournal: boolean
   /** Désignation d'un média déjà présent dans un stockage partagé. */

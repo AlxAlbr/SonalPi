@@ -2,11 +2,11 @@ import { exporterSonal, sonalPseudonymise } from '../formatSonal/exportSonal'
 import type { DemandeExportDocx, DemandeExportPdf } from '../../shared/format'
 import type {
   Categorie,
-  Note,
   NoteCategory,
   RegleAnon,
   Variable,
 } from '../../shared/format'
+import type { Note } from "../../shared/format"
 import type { ReperePassage } from '../../shared/entretien/reperesPassages'
 import type {
   ContexteExport,

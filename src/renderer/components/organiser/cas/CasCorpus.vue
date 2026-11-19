@@ -44,7 +44,7 @@ const recherche = ref('')
 const creationOuverte = ref(false)
 const registreAttributsOuvert = ref(false)
 const familleFicheId = ref<string | null>(null)
-const modeCreation = ref<'personne' | 'vide' | 'personnes' | 'entretiens' | 'variable-locuteur' | 'variable-entretien'>('personne')
+const modeCreation = ref<"locuteur" | 'vide' | "locuteurs" | 'entretiens' | 'variable-locuteur' | 'variable-entretien'>("locuteur")
 const familleCompletionId = ref<string | undefined>()
 const filtreFamille = ref('')
 const creationEnCours = ref(false)
@@ -63,7 +63,7 @@ onBeforeUnmount(enregistrerContextePanneau('organiser-cas', () => {
   return () => { recherche.value = etat.recherche; filtreFamille.value = etat.famille }
 }))
 
-const personnes = computed(() => inventairePersonnesCas.value?.personnes ?? [])
+const personnes = computed(() => inventairePersonnesCas.value?.locuteurs ?? [])
 const casFiltres = computed(() => {
   const cle = recherche.value.trim().toLocaleLowerCase('fr')
   const candidats = listeCas.value.filter((cas) => !filtreFamille.value || cas.familleId === filtreFamille.value)
@@ -92,14 +92,14 @@ const groupesPassages = computed(() => {
 function libelleRegle(regle: RegleCas): string {
   if (regle.type === 'modalite') {
     const variable = variablesCas.value.find((v) => v.id === regle.variableId)
-    return `${variable?.lib ?? 'Variable absente'} [${regle.variableId}] = ${variable?.modalites.find((m) => m.id === regle.modaliteId)?.lib ?? 'Modalité absente'} [${regle.modaliteId}] — ${regle.portee}${regle.portee === 'locuteur' ? ` ; enquêteurs ${regle.inclureEnqueteurs ? 'inclus' : 'exclus'}` : ' ; sources entières'}`
+    return `${variable?.lib ?? 'Variable absente'} [${regle.variableId}] = ${variable?.modalites.find((m) => m.id === regle.modaliteId)?.lib ?? 'Modalité absente'} [${regle.modaliteId}] — ${regle.portee}${regle.portee === "participation" ? ` ; enquêteurs ${regle.inclureEnqueteurs ? 'inclus' : 'exclus'}` : ' ; sources entières'}`
   }
   if (regle.type === 'entretiens') {
     return `Entretiens entiers : ${regle.entretienIds.map((id) => `${entretiensCas.value.find((source) => source.id === id)?.nom ?? 'Source retirée'} [${id}]`).join(', ')}`
   }
   return membresPersonnesRegle(regle).map((membre) => {
-    const nom = personnes.value.find((personne) => personne.id === membre.personneId)?.nom ?? 'Personne absente'
-    return `${nom} [${membre.personneId}] — enquêteurs ${membre.inclureEnqueteurs ? 'inclus' : 'exclus'}`
+    const nom = personnes.value.find((personne) => personne.id === membre.locuteurId)?.nom ?? 'Personne absente'
+    return `${nom} [${membre.locuteurId}] — enquêteurs ${membre.inclureEnqueteurs ? 'inclus' : 'exclus'}`
   }).join(' ; ')
 }
 
@@ -124,7 +124,7 @@ watch([personneId, inclureEnqueteurs, modeCreation], async ([id, inclure, mode])
   const maGeneration = ++generationApercu
   apercu.value = null
   erreurCreation.value = null
-  if (!id || mode !== 'personne') {
+  if (!id || mode !== "locuteur") {
     chargementApercu.value = false
     return
   }
@@ -147,11 +147,11 @@ function commencerCreation() {
   familleCompletionId.value = undefined
   creationOuverte.value = true
   modeCreation.value = creationCasEnAttente.value
-    ? creationCasEnAttente.value.cas[0].regles[0]?.type === 'entretiens' ? 'entretiens' : 'personnes'
-    : 'personne'
+    ? creationCasEnAttente.value.cas[0].regles[0]?.type === 'entretiens' ? 'entretiens' : "locuteurs"
+    : "locuteur"
   if (creationFamilleEnAttente.value) {
     const commande = creationFamilleEnAttente.value
-    modeCreation.value = commande.famille.origine.portee === 'locuteur' ? 'variable-locuteur' : 'variable-entretien'
+    modeCreation.value = commande.famille.origine.portee === "participation" ? 'variable-locuteur' : 'variable-entretien'
     familleCompletionId.value = commande.type === 'completer-famille' ? commande.famille.id : undefined
   }
   personneId.value = ''
@@ -182,7 +182,7 @@ function completerFamille(id: string) {
   const famille = famillesCas.value[id]
   if (!famille) return
   familleCompletionId.value = id
-  modeCreation.value = famille.origine.portee === 'locuteur' ? 'variable-locuteur' : 'variable-entretien'
+  modeCreation.value = famille.origine.portee === "participation" ? 'variable-locuteur' : 'variable-entretien'
   creationOuverte.value = true
   casOuvertId.value = null
 }
@@ -314,19 +314,19 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         <fieldset class="choix-creation" :disabled="creationEnCours || lectureSeule || Boolean(creationCasEnAttente) || Boolean(creationFamilleEnAttente) || Boolean(familleCompletionId)">
           <legend>Créer un cas</legend>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="vide" /> Cas manuel vide</label>
-          <label class="case-cocher"><input v-model="modeCreation" type="radio" value="personne" /> Depuis une personne</label>
-          <label class="case-cocher"><input v-model="modeCreation" type="radio" value="personnes" /> Plusieurs personnes</label>
+          <label class="case-cocher"><input v-model="modeCreation" type="radio" value="locuteur" /> Depuis une personne</label>
+          <label class="case-cocher"><input v-model="modeCreation" type="radio" value="locuteurs" /> Plusieurs personnes</label>
           <label class="case-cocher"><input data-tour="cas-depuis-entretiens" v-model="modeCreation" type="radio" value="entretiens" /> Depuis des entretiens</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="variable-locuteur" /> Variable de locuteur</label>
           <label class="case-cocher"><input v-model="modeCreation" type="radio" value="variable-entretien" /> Variable d’entretien</label>
         </fieldset>
         <CreationFamilleCas
           v-if="modeCreation === 'variable-locuteur' || modeCreation === 'variable-entretien'"
-          :key="`${modeCreation}-${familleCompletionId ?? ''}`" :portee="modeCreation === 'variable-locuteur' ? 'locuteur' : 'entretien'" :famille-id="familleCompletionId"
+          :key="`${modeCreation}-${familleCompletionId ?? ''}`" :portee="modeCreation === 'variable-locuteur' ? 'participation' : 'entretien'" :famille-id="familleCompletionId"
           @cree="creationOuverte = false" @annuler="annulerCreation"
         />
         <CreationLotCas
-          v-else-if="modeCreation === 'personnes' || modeCreation === 'entretiens'"
+          v-else-if="modeCreation === 'locuteurs' || modeCreation === 'entretiens'"
           :key="modeCreation" :type="modeCreation"
           @cree="creationOuverte = false" @annuler="annulerCreation"
         />
@@ -339,10 +339,10 @@ function clePassage(passage: PassageCasProjete, index: number): string {
             </div>
             <button :disabled="creationEnCours" @click="annulerCreation">Annuler</button>
           </header>
-          <p v-if="modeCreation === 'personne' && !personnes.length" class="vide">Aucune personne n’est disponible. Créez d’abord une personne dans le répertoire Personnes, ou choisissez un cas manuel vide.</p>
+          <p v-if="modeCreation === 'locuteur' && !personnes.length" class="vide">Aucune personne n’est disponible. Créez d’abord une personne dans le répertoire Personnes, ou choisissez un cas manuel vide.</p>
           <form v-else @submit.prevent="creer">
             <fieldset class="champs-creation" :disabled="creationEnCours || lectureSeule">
-              <label v-if="modeCreation === 'personne'">
+              <label v-if="modeCreation === 'locuteur'">
                 Personne *
                 <select v-model="personneId" required>
                   <option value="" disabled>Choisir une personne…</option>
@@ -353,11 +353,11 @@ function clePassage(passage: PassageCasProjete, index: number): string {
                 Nom du cas *
                 <input v-model="nomNouveau" required placeholder="Nom du cas" />
               </label>
-              <label v-if="modeCreation === 'personne'" class="case-cocher">
+              <label v-if="modeCreation === 'locuteur'" class="case-cocher">
                 <input v-model="inclureEnqueteurs" type="checkbox" />
                 Inclure les interventions où le locuteur est enquêteur.
               </label>
-              <div v-if="modeCreation === 'personne'" class="apercu">
+              <div v-if="modeCreation === 'locuteur'" class="apercu">
                 <span v-if="chargementApercu">Calcul de l’aperçu…</span>
                 <template v-else-if="apercu">
                   <b>Aperçu :</b> {{ apercu.entretiens }} entretien(s) · {{ apercu.passages }} intervention(s)
@@ -372,7 +372,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
             <p v-if="erreurCreation" class="erreur">{{ erreurCreation }}</p>
             <div class="actions-creation">
               <button type="button" @click="annulerCreation">Annuler</button>
-              <button class="primaire" :disabled="!nomNouveau.trim() || (modeCreation === 'personne' && (!personneId || chargementApercu))">{{ creationEnCours ? 'Création…' : 'Créer le cas' }}</button>
+              <button class="primaire" :disabled="!nomNouveau.trim() || (modeCreation === 'locuteur' && (!personneId || chargementApercu))">{{ creationEnCours ? 'Création…' : 'Créer le cas' }}</button>
             </div>
           </fieldset>
         </form>

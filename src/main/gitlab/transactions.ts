@@ -11,7 +11,7 @@ import type {
   EntretienFichier,
   ItemLotValeur,
   ModeTriEntretiens,
-  PayloadEntretien,
+  PayloadImportEntretien,
   RegleAnon,
   Variable,
 } from '../../shared/format'
@@ -518,7 +518,7 @@ export class TransactionsGitLab {
 
   importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -547,7 +547,7 @@ export class TransactionsGitLab {
           if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
             throw new Error(`La modalité « ${item.idMod} » n’existe plus sur GitLab.`)
           }
-          if ((variable.portee === 'locuteur' ? 'participation' : variable.portee) !== item.cible.type) {
+          if ((variable.portee === "participation" ? 'participation' : variable.portee) !== item.cible.type) {
             throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
           }
         }

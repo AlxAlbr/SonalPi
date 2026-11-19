@@ -89,8 +89,8 @@ test.each(['alias', 'troisieme', 'suppression', 'dissociation'])('limites et op√
   const b = banc(), corpus = structuredClone(b.f.corpus)
   if (cas === 'alias') corpus.reglesAnon.personne.entite.push('Karin')
   if (cas === 'troisieme') { corpus.reglesAnon.personne.pseudos.push('Marie'); b.demande.pseudo = 'Autre' }
-  if (cas === 'suppression') corpus.suppressionAnon = { operationId: 'suppression-anon-test', regleId: 'personne' }
-  if (cas === 'dissociation') corpus.dissociationAnon = { operationId: 'dissociation-test', regleId: 'personne' }
+  if (cas === 'suppression') corpus.suppressionAnon = { operationId: 'suppression-anon-test', regleId: "personne" }
+  if (cas === 'dissociation') corpus.dissociationAnon = { operationId: 'dissociation-test', regleId: "personne" }
   b.demande.regleAvant = structuredClone(corpus.reglesAnon.personne)
   b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(corpus))
   await expect(b.ajouter()).rejects.toThrow(); expect(b.commits()).toEqual([]); expect(b.corpus()).toEqual(corpus)

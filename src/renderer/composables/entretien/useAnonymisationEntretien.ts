@@ -22,14 +22,14 @@ import { estOrpheline, type Annotation } from '../../../shared/entretien/annotat
 import { retirerAnnotation, type Entretien } from '../../../shared/entretien/entretien'
 import { detecterDivergencesPortee } from '../../../shared/entretien/anon/reconciliation'
 import { suggestionCoeur } from '../../../shared/entretien/anon/motsLiaison'
-import type { BrouillonAnon, RegleAnon, MotsLiaisonParams, Locuteur } from '../../../shared/format'
+import type { BrouillonAnon, RegleAnon, MotsLiaisonParams, ParticipationLocuteur } from '../../../shared/format'
 import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
 type LireEditeur = () => Editor | null
 
 export function useAnonymisationEntretien(deps: {
   entretien: Entretien
-  locuteurs: Ref<Locuteur[]>
+  locuteurs: Ref<ParticipationLocuteur[]>
   ouvertId: Ref<string | null>
   ongletDroite: Ref<string>
   lireEditeur: LireEditeur

@@ -13,11 +13,11 @@ const variable = (page: Page, nom: string) => page.locator('.liste-var > li')
   .filter({ has: page.getByTitle(nom, { exact: true }) })
 
 /** Bascule le panneau Données de l’entretien sur le sous-onglet demandé. */
-async function sousOngletDonnees(page: Page, portee: 'entretien' | 'locuteur') {
+async function sousOngletDonnees(page: Page, portee: 'entretien' | 'participation') {
   await page.locator('.panneau.donnees .sous-onglet-bouton', { hasText: portee === 'entretien' ? 'Entretien' : 'Locuteur' }).click()
 }
 
-async function creerVariable(page: Page, nom: string, portee: 'entretien' | 'locuteur', modalites: string[] = []) {
+async function creerVariable(page: Page, nom: string, portee: 'entretien' | 'participation', modalites: string[] = []) {
   await page.locator('.modale-vars').getByRole('button', {
     name: portee === 'entretien' ? "+ var. d'entretien" : '+ var. de locuteur', exact: true,
   }).click()
@@ -59,7 +59,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     await entrerDonnees(page)
     await ouvrirEditionVariables(page)
     await creerVariable(page, 'Lieu de rencontre', 'entretien', ['En association', 'À domicile'])
-    await creerVariable(page, 'Ancienneté', 'locuteur')
+    await creerVariable(page, 'Ancienneté', 'participation')
     if (process.env.SONAL_DOC_CAPTURES === '1') {
       await page.locator('.modale-vars').screenshot({ path: 'docs/user/medias/edition-variables.png' })
     }
@@ -67,7 +67,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     const lieu = Object.values(lireCorpus().variables).find((v) => v.lib === 'Lieu de rencontre')!
     const anciennete = Object.values(lireCorpus().variables).find((v) => v.lib === 'Ancienneté')!
     expect(lireEntretien().meta.valeursGen[lieu.id]).toBeUndefined()
-    expect(lireEntretien().locuteurs.every((l) => !l.valeursLoc[anciennete.id])).toBe(true)
+    expect(lireEntretien().participations.every((l) => !l.valeursLoc[anciennete.id])).toBe(true)
     await retourCorpus(page)
     const carte = page.locator('.carte-ent').filter({ hasText: '1Coordinatrice' })
     await carte.locator('.crayon').click()
@@ -75,7 +75,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     await sousOngletDonnees(page, 'entretien')
     const site = page.locator('.panneau.donnees > .saisie-eav').filter({ hasText: 'Lieu de rencontre' })
     await site.locator('select').selectOption({ label: 'En association' })
-    await sousOngletDonnees(page, 'locuteur')
+    await sousOngletDonnees(page, 'participation')
     const fatima = page.locator('.fiche-loc').filter({ has: page.locator('.fiche-loc-nom', { hasText: 'Speaker 0' }) })
     await fatima.locator('.saisie-eav-libre').fill('Depuis 2012')
     await fatima.locator('.saisie-eav-libre').press('Enter')
@@ -92,7 +92,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     expect(Object.values(lireCorpus().variables).find((v) => v.id === anciennete.id)!.modalites.map((m) => m.lib))
       .toEqual(['Depuis 2012', 'Depuis 2013'])
     expect(lireEntretien().meta.valeursGen[anciennete.id]).toBeUndefined()
-    expect(lireEntretien().locuteurs.find((l) => l.nom === 'Speaker 0')!.valeursLoc[anciennete.id]).toBeTruthy()
+    expect(lireEntretien().participations.find((l) => l.nom === 'Speaker 0')!.valeursLoc[anciennete.id]).toBeTruthy()
 
     await retourCorpus(page)
     await entrerDonnees(page)
@@ -144,7 +144,7 @@ test('manuel : saisir les deux portées, retrouver les mêmes valeurs et protég
     await sousOngletDonnees(page, 'entretien')
     await expect(page.locator('.panneau.donnees > .saisie-eav').filter({ hasText: 'Lieu' }).locator('select option:checked'))
       .toHaveText('Dans l’association')
-    await sousOngletDonnees(page, 'locuteur')
+    await sousOngletDonnees(page, 'participation')
     await expect(fatima.locator('select option:checked')).toHaveText('Depuis 2012')
     const apres = lireEntretien()
     expect(apres.corpsTexte).toEqual(avant.corpsTexte)
@@ -184,7 +184,7 @@ test('manuel : modèles sans réponses, lot limité aux lignes vides et suppress
     await page.locator('.modale-vars').getByRole('button', { name: /Importer un modèle/ }).click()
     await expect(page.locator('.modale-vars .msg-thm')).toContainText('Modèle « Relecture » importé')
     await expect(page.locator('.liste-var > li')).toHaveCount(1)
-    await creerVariable(page, 'Essai de modèle', 'locuteur')
+    await creerVariable(page, 'Essai de modèle', 'participation')
     await variable(page, 'Essai de modèle').locator('.modeles').selectOption('user:Relecture')
     await expect(variable(page, 'Essai de modèle').locator('.lib-mod')).toHaveCount(2)
     await variable(page, 'Essai de modèle').locator('.var-tete > .x').click()

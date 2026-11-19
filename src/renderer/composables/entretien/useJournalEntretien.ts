@@ -10,7 +10,7 @@ import {
   type Journal,
   type ParticipationJournal,
 } from '../../../shared/entretien/journal'
-import type { Note } from '../../../shared/format'
+import type { Note } from "../../../shared/format"
 
 interface EffetsAnnulation {
   rafraichirProjections: () => void

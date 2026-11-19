@@ -206,7 +206,7 @@ describe('orchestration distante du renderer', () => {
 
     expect(contexte.distant.lectureSeule.value).toBe(false)
     expect(contexte.distant.gesteDisponible('definitionsAvecSources')).toBe(true)
-    expect(contexte.distant.gesteDisponible('personnes')).toBe(true)
+    expect(contexte.distant.gesteDisponible("locuteurs")).toBe(true)
     expect(contexte.distant.gesteDisponible('notes')).toBe(false)
     expect(contexte.distant.tableLigneEditable('e1')).toBe(true)
     expect(contexte.distant.metaEditables('e1')).toBe(true)

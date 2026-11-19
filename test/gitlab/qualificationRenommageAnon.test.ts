@@ -14,7 +14,7 @@ const operation = (p: Pile) => `renommage-anon-${createHash('sha256').update(p.r
 const donnees = (p: Pile) => p.commitsEnvoyes.filter((c) => c.message.startsWith(`Sonal ${operation(p)}-`))
 async function banc(suffixe: string, nombre = 3, fetchImpl?: typeof fetch) {
   const f = fixtureRenommageAnon(Array.from({ length: nombre }, (_, i) => `e${i + 1}`)); f.sources.slice(2).forEach((s) => { s.data.annotations = [] })
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const racine = await creerRacine(suffixe, { corpus: f.corpus })
   const p = pile({ racine, jeton: configuration.token1!, userId: 'user1', sessionId: `renommage-${suffixe}`, destinationId: 'qualification', corpusLocal: f.corpus, fetchImpl })
   await p.depot.publierCommit('main', 'qualification ciblée : sources synthétiques', f.sources.map((s) => ({ action: 'create', file_path: `${racine}/entretiens/${s.id}.json`, content: JSON.stringify(s.data) })))

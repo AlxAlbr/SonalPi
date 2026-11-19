@@ -1,4 +1,4 @@
-import type { EntretienFichier, Note } from '../natif/format'
+import type { EntretienFichier, Note } from "../format"
 import { objet } from '../natif/validationCommune'
 import { projeterAncres, tempsAuPoint } from '../entretien/audio'
 import { normaliserNotes, notesParRang } from '../entretien/notes'

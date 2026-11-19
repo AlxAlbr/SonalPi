@@ -3,13 +3,13 @@ import { describe, test, expect } from 'vitest'
 import {
   CATEGORIES_NOTE_DEFAUT,
   normaliserCategoriesNote,
+  normaliserNotes,
   prochainRang,
   renumeroterRangs,
   genIdNote,
   genIdCategorieNote,
   compterUsagesCategorieNote,
 } from '../src/shared/entretien/notes'
-import { normaliserNotesFormat9 as normaliserNotes } from '../src/shared/entretien/notesFormat9'
 import {
   sanitiserCorpsNote,
   normaliserNotesLues,
@@ -25,7 +25,7 @@ import {
   ATTR_LIENS_NOTE,
 } from '../src/renderer/notes/sanitiser'
 import { importerSonal } from '../src/renderer/formatSonal/importSonal'
-import type { Note } from '../src/shared/format'
+import type { Note } from "../src/shared/format"
 
 function doc(): Document {
   return new DOMParser().parseFromString('<!DOCTYPE html><html><body></body></html>', 'text/html')
@@ -61,15 +61,15 @@ describe('notes — normalisation', () => {
     expect(n.date).toBeNull()
     expect(n.statut).toBe('public')
     expect(n.corps).toBe('')
-    expect(n.locuteurIds).toEqual([])
+    expect(n.participationIds).toEqual([])
     expect(n.rang).toBe(0)
   })
   test('normalise les locuteurs concernés', () => {
     const [n] = normaliserNotes([
       { id: 'n1', categorieId: 'a', titre: '', date: null, statut: 'prive', corps: '',
-        locuteurIds: ['l1', '', 'l1', 'l2'], rang: 0, creeLe: '', modifieLe: null },
+        participationIds: ['l1', '', 'l1', 'l2'], rang: 0, creeLe: '', modifieLe: null },
     ])
-    expect(n.locuteurIds).toEqual(['l1', 'l2'])
+    expect(n.participationIds).toEqual(['l1', 'l2'])
   })
 
   test('compterUsagesCategorieNote compte les notes de TOUS les entretiens', () => {

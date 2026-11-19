@@ -21,7 +21,7 @@ async function banc() {
     casDisponiblesSynthese: ref(false),
     locuteursSynthese: ref([{ id: 'corpus-alice', nom: 'Alice' }, { id: 'corpus-bob', nom: 'Bob' }]),
     membership: ref({}), codebook: ref([]), cas: ref({}),
-    variables: ref([{ id: 'age', lib: 'Âge', portee: 'locuteur', modalites: [{ id: 'adulte', lib: 'Adulte' }] }]),
+    variables: ref([{ id: 'age', lib: 'Âge', portee: "participation", modalites: [{ id: 'adulte', lib: 'Adulte' }] }]),
   }
   injection.sonal = sonal
   const racine = document.createElement('div')
@@ -58,7 +58,7 @@ describe('Synthèse — sélection des locuteurs et des participations', () => {
     effacer.click()
     await nextTick()
     expect(b.sonal.filtresSynthese.value.locuteurs).toEqual(filtresSyntheseParDefaut().locuteurs)
-    expect(b.sonal.filtresSynthese.value).not.toHaveProperty('personnes')
+    expect(b.sonal.filtresSynthese.value).not.toHaveProperty("personnes")
   })
 
   test('décocher le dernier choix retire le filtre selon le comportement existant', async () => {

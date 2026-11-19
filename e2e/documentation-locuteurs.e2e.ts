@@ -100,7 +100,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.getByRole('status').filter({ hasText: 'Personne « Autre bénévole » créée' })).toBeVisible()
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     const personneAvant = await page.evaluate(async () =>
-      (await window.sonal.corpus.personnesInventaire()).personnes.find((p) => p.nom === 'Autre bénévole')?.id)
+      (await window.sonal.corpus.personnesInventaire()).locuteurs.find((p) => p.nom === 'Autre bénévole')?.id)
     expect(personneAvant).toBeTruthy()
 
     const phrase = "surtout pour l'aide aux devoirs"
@@ -142,7 +142,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await retourCorpus(page)
     expect(await page.evaluate(async (id) =>
-      (await window.sonal.corpus.personnesInventaire()).personnes.some((p) => p.id === id), personneAvant)).toBe(true)
+      (await window.sonal.corpus.personnesInventaire()).locuteurs.some((p) => p.id === id), personneAvant)).toBe(true)
     await carte.locator('.crayon').click()
     await page.locator('[data-onglet="locuteurs"]').click()
     await expect(liste).toHaveCount(2)

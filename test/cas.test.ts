@@ -16,7 +16,7 @@ const apres = '2026-09-01T12:00:00.000Z'
 
 const deps: DependancesCas = {
   maintenant: () => apres,
-  personneExiste: (id) => id === 'personne-1' || id === 'personne-2',
+  locuteurExiste: (id) => id === 'personne-1' || id === 'personne-2',
   entretienExiste: (id) => id === 'entretien-1' || id === 'entretien-2',
 }
 
@@ -40,7 +40,7 @@ function casPersonne(id: string, nom: string, personneId = 'personne-1'): Cas {
     memo: '',
     creeLe,
     modifieLe,
-    regles: [{ type: 'personne', personneId, inclureEnqueteurs: false }],
+    regles: [{ type: "locuteur", locuteurId: personneId, inclureEnqueteurs: false }],
     rattachements: [],
   }
 }
@@ -52,9 +52,9 @@ function creer(cas: Cas, dictionnaire: Record<string, Cas> = {}): Record<string,
 describe('cas — modèle analytique pur', () => {
   test('crée atomiquement un lot de cas et le rejoue sans changer les identités', () => {
     const nouveaux: Cas[] = [
-      { ...casPersonne('c1', 'Marie'), regles: [{ type: 'personnes', membres: [
-        { personneId: 'personne-1', inclureEnqueteurs: false },
-        { personneId: 'personne-2', inclureEnqueteurs: true },
+      { ...casPersonne('c1', 'Marie'), regles: [{ type: "locuteurs", membres: [
+        { locuteurId: 'personne-1', inclureEnqueteurs: false },
+        { locuteurId: 'personne-2', inclureEnqueteurs: true },
       ] }] },
       { ...casPersonne('c2', 'Dossier'), regles: [{ type: 'entretiens', entretienIds: ['entretien-1', 'entretien-2'] }] },
     ]
@@ -86,12 +86,12 @@ describe('cas — modèle analytique pur', () => {
 
   test('valide les unions homogènes sans accepter de règle vide ou dupliquée', () => {
     const invalides: unknown[] = [
-      { type: 'personnes', membres: [] },
-      { type: 'personnes', membres: [{ personneId: 'personne-1' }] },
+      { type: "locuteurs", membres: [] },
+      { type: "locuteurs", membres: [{ personneId: 'personne-1' }] },
       { type: 'entretiens', entretienIds: [] },
       { type: 'entretiens', entretienIds: ['entretien-1', 'entretien-1'] },
       { type: 'entretiens', entretienIds: [null] },
-      { type: 'personnes', membres: [
+      { type: "locuteurs", membres: [
         { personneId: 'personne-1', inclureEnqueteurs: false },
         { personneId: 'personne-1', inclureEnqueteurs: true },
       ] },
@@ -100,7 +100,7 @@ describe('cas — modèle analytique pur', () => {
       expect(() => creer({ ...casPersonne('c1', 'Invalide'), regles: [regle] } as Cas)).toThrow()
     }
     expect(() => creer({ ...casPersonne('c1', 'Mixte de règles'), regles: [
-      { type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false },
+      { type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs: false },
       { type: 'entretiens', entretienIds: ['entretien-1'] },
     ] })).toThrow(/sans les mélanger/)
   })
@@ -129,7 +129,7 @@ describe('cas — modèle analytique pur', () => {
     }
     creer(manuel, dictionnaire)
 
-    expect(dictionnaire['cas-1'].regles[0]).toMatchObject({ personneId: 'personne-1' })
+    expect(dictionnaire['cas-1'].regles[0]).toMatchObject({ locuteurId: 'personne-1' })
     expect(dictionnaire['cas-2'].rattachements[0].source).toEqual({
       entretienId: 'entretien-1',
       repereId: 'repere-1',

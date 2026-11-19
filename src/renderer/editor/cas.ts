@@ -1,5 +1,5 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import type { CorpusFichier, Cas } from '../../shared/natif/format'
+import type { CorpusFichier, Cas } from "../../shared/format"
 import type { SourcePassageCas } from '../../shared/corpus/cas'
 import { membresLocuteursRegle, type EntretienLectureCas, type RegleModaliteCas } from '../../shared/natif/lectureCas'
 import {

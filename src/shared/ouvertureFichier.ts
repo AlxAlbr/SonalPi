@@ -1,7 +1,7 @@
 import type { CorpusFichier, OuvertureCorpus } from './format'
 import { analyserCrp, type ApercuCrp } from './corpus/migrationCrp'
-import { versionNativeReconnue } from './versionsNatives'
-import { objet, validerBlocsCorpus } from './natif/validationCommune'
+import { objet } from './natif/validationCommune'
+import { validerCorpusNatif } from './natif/validation'
 
 export type ClassificationCorpus =
   | { type: 'v2'; corpus: CorpusFichier }
@@ -9,11 +9,7 @@ export type ClassificationCorpus =
 
 /** Valide les blocs nécessaires au store, sans retirer les champs optionnels. */
 export function validerCorpusV2(v: unknown): asserts v is CorpusFichier {
-  if (!objet(v) || !versionNativeReconnue(v.formatVersion)) {
-    throw new Error('Version de corpus V2 non supportée.')
-  }
-  validerBlocsCorpus(v, ['entretien', 'locuteur'])
-  if (v.personnes !== undefined && !objet(v.personnes)) throw new Error('Structure de corpus invalide : personnes.')
+  validerCorpusNatif(v)
 }
 
 /** Reconnaît le contenu, jamais l'extension seule. Un marqueur V2 interdit le repli V1. */

@@ -8,7 +8,7 @@ import {
   evaluerDerivationFamille, projeterAttributsCas, resoudreDerivationCas,
   variablesDisponiblesFamille, libelleValeurSaisie,
   type LectureSourceAttributs,
-} from '../src/shared/corpus/observationsAttributsFormat9'
+} from "../src/shared/corpus/observationsAttributs"
 import type { Cas, DefinitionAttributCas, DerivationAttributCas } from '../src/shared/corpus/cas'
 import { casModalite, corpusFamille, dateFamille, familleCas, sourceFamille } from './fixtures/casFamilles'
 
@@ -22,7 +22,7 @@ function definition(id: string, type: DefinitionAttributCas['type'] = 'modalites
     modalites: type === 'modalites' ? [{ id: 'x', lib: 'Choix' }] : [] }
 }
 
-function derivation(variableSourceId: string, porteeSource: DerivationAttributCas['porteeSource'] = 'locuteur',
+function derivation(variableSourceId: string, porteeSource: DerivationAttributCas['porteeSource'] = 'participation',
   attributId = 'attr'): DerivationAttributCas {
   return { attributId, variableSourceId, porteeSource }
 }
@@ -33,7 +33,7 @@ function sources(...datas: EntretienFichier[]): Map<string, LectureSourceAttribu
 
 function avecTaille(data: EntretienFichier, valeurs: Record<number, string>): EntretienFichier {
   for (const [index, valeur] of Object.entries(valeurs)) {
-    const locuteur = data.locuteurs.find((l) => l.index === Number(index))
+    const locuteur = data.participations.find((l) => l.index === Number(index))
     if (locuteur) locuteur.valeursLoc.taille = valeur
   }
   return data
@@ -41,7 +41,7 @@ function avecTaille(data: EntretienFichier, valeurs: Record<number, string>): En
 
 function corpusAvecFamille() {
   const corpus = corpusFamille()
-  corpus.variables.taille = variable('taille', 'Taille de l’établissement', 'locuteur',
+  corpus.variables.taille = variable('taille', 'Taille de l’établissement', 'participation',
     ['moins de 10 personnes', 'entre 10 et 100 personnes'])
   corpus.famillesCas = { f: familleCas() }
   corpus.cas = { 'cas-f-a': casModalite('a'), 'cas-f-b': casModalite('b') }
@@ -98,7 +98,7 @@ describe('résolution d’une dérivation — famille Établissement (portée lo
     corpus.variables.v.modalites.push({ id: 'c', lib: 'C', mExport: 3 })
     corpus.cas!['cas-f-c'] = casModalite('c')
     const premier = sourceFamille()
-    premier.locuteurs.find((locuteur) => locuteur.index === 5)!.valeursLoc.v = 'c'
+    premier.participations.find((locuteur) => locuteur.index === 5)!.valeursLoc.v = 'c'
     const second = sourceFamille(true)
     avecTaille(premier, { 2: 'taille1', 3: 'taille1', 4: 'taille2', 6: 'taille1' })
     avecTaille(second, { 2: 'taille2', 3: 'taille2', 4: 'taille2', 6: 'taille1' })
@@ -113,7 +113,7 @@ describe('résolution d’une dérivation — famille Établissement (portée lo
       ['cas-f-c', 'absent'],
     ])
 
-    second.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'taille1'
+    second.participations.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'taille1'
     const corrige = evaluerDerivationFamille(corpus, familleCas(), recette, lectures)
     expect(corrige.disponible).toBe(true)
     expect(corrige.parCas.map((entree) => [entree.nomCas, entree.diagnostic.statut])).toEqual([
@@ -125,7 +125,7 @@ describe('résolution d’une dérivation — famille Établissement (portée lo
 
   test('les identités de modalités sont comparées, pas leurs libellés', () => {
     const corpus = corpusAvecFamille()
-    corpus.variables.taille = variable('taille', 'Taille', 'locuteur', ['petit', 'petit'])
+    corpus.variables.taille = variable('taille', 'Taille', 'participation', ['petit', 'petit'])
     const lectures = sources(
       avecTaille(sourceFamille(), { 2: 'taille1', 3: 'taille2', 6: 'taille1' }),
       sourceFamille(true),
@@ -181,14 +181,14 @@ describe('résolution d’une dérivation — famille Établissement (portée lo
 describe('résolution d’une dérivation — personnes et sources entières', () => {
   test('personne multi-entretiens : âge variable annoncé, enquêteurs exclus, non erronée', () => {
     const corpus = corpusFamille()
-    corpus.variables.age = variable('age', 'Âge', 'locuteur', ['29 ans', '31 ans'])
+    corpus.variables.age = variable('age', 'Âge', 'participation', ['29 ans', '31 ans'])
     const cas: Cas = { id: 'p', nom: 'Marie', memo: '', creeLe: dateFamille, modifieLe: dateFamille,
-      regles: [{ type: 'personne', personneId: 'p', inclureEnqueteurs: false }], rattachements: [] }
+      regles: [{ type: "locuteur", locuteurId: 'p', inclureEnqueteurs: false }], rattachements: [] }
     const e1 = sourceFamille()
-    e1.locuteurs[0].valeursLoc.age = '29ans'
-    e1.locuteurs[1].valeursLoc.age = 'age1'
+    e1.participations[0].valeursLoc.age = '29ans'
+    e1.participations[1].valeursLoc.age = 'age1'
     const e2 = sourceFamille(true)
-    e2.locuteurs[1].valeursLoc.age = 'age2'
+    e2.participations[1].valeursLoc.age = 'age2'
     const diagnostic = resoudreDerivationCas(corpus, cas, derivation('age'), sources(e1, e2))
     expect(diagnostic.statut).toBe('incoherent')
     expect(diagnostic.observations.map((o) => o.valeur)).toEqual(['age1', 'age2'])
@@ -239,7 +239,7 @@ describe('projection des attributs d’un cas', () => {
 
     const autonome = casModalite('a')
     delete autonome.familleId
-    autonome.derivationsPropres = [derivation('v', 'locuteur', 'attr2')]
+    autonome.derivationsPropres = [derivation('v', 'participation', 'attr2')]
     expect(projeterAttributsCas(corpus, autonome, lectures).map((a) => [a.attributId, a.origine]))
       .toEqual([['attr2', 'derivation-propre']])
     expect(libelleValeurSaisie(corpus.attributsCas!.statut, 'à revoir')).toBe('à revoir')
@@ -288,7 +288,7 @@ describe('CorpusStore — recontrôle des recettes à l’enregistrement', () =>
     mkdirSync(join(dir, 'entretiens'))
     const corpus = corpusAvecFamille()
     corpus.attributsCas = {}
-    corpus.personnes = { p: { id: 'p', nom: 'Marie' } }
+    corpus.locuteurs = { p: { id: 'p', nom: 'Marie' } }
     writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     return dir
   }
@@ -317,7 +317,7 @@ describe('CorpusStore — recontrôle des recettes à l’enregistrement', () =>
     const store = new CorpusStore(dir)
     store.ouvrir()
     store.casCommander({ type: 'creer', cas: { id: 'p', nom: 'Cas personne', memo: '', creeLe: dateFamille,
-      modifieLe: dateFamille, regles: [{ type: 'personne', personneId: 'p', inclureEnqueteurs: false }], rattachements: [] } })
+      modifieLe: dateFamille, regles: [{ type: "locuteur", locuteurId: 'p', inclureEnqueteurs: false }], rattachements: [] } })
     expect(() => store.casCommander({ type: 'ajouter-derivation-cas', casId: 'p',
       derivation: derivation('taille'), definition: definition('attr') })).toThrow(/ne peut pas être enregistrée/)
     rmSync(join(dir, 'entretiens/e1.json'))

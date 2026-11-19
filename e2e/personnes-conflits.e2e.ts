@@ -15,7 +15,7 @@ test('des données source modifiées pendant le dialogue bloquent la reprise san
       const { id } = await api.creerEntretienVide('Source Marie')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', pseudo: 'Alice', interviewer: true, valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
       return id
     })
@@ -32,18 +32,18 @@ test('des données source modifiées pendant le dialogue bloquent la reprise san
       const api = (window as any).sonal.corpus
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs[0].pseudo = 'Alice modifiée'
+      payload.participations[0].pseudo = 'Alice modifiée'
       await api.ecrireEntretien(id, payload)
     }, sourceId)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('Les données source ont changé')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
+    const cible = vue.participations.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
     expect(cible).toBeDefined()
-    expect(cible.personneRef).toBeNull()
+    expect(cible.locuteurRef).toBeNull()
     expect(cible.pseudo).toBeFalsy()
-    const source = vue.locuteurs.find((l: any) => l.locuteurId === 'marie-source')
-    expect(source.personneRef).toBeNull()
+    const source = vue.participations.find((l: any) => l.participationId === 'marie-source')
+    expect(source.locuteurRef).toBeNull()
     expect(source.pseudo).toBe('Alice modifiée')
   } finally { await app.close() }
 })
@@ -56,7 +56,7 @@ test('une source liée pendant le dialogue bloque une association devenue périm
       const { id } = await api.creerEntretienVide('Source Marie')
       const { data } = await api.lireEntretien(id)
       const { formatVersion, lastModified, ...payload } = data
-      payload.locuteurs = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+      payload.participations = [{ id: 'marie-source', index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
       return id
     })
@@ -70,14 +70,14 @@ test('une source liée pendant le dialogue bloque une association devenue périm
     // Changement en coulisse : la source est rattachée à une Personne pendant le dialogue.
     await page.evaluate(async (id) => {
       const api = (window as any).sonal.corpus
-      await api.personnesCommander({ type: 'creer', entretienId: id, locuteurId: 'marie-source', nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'marie-source', nom: 'Marie Dupont' })
     }, sourceId)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('La personne sélectionnée a changé')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
+    const cible = vue.participations.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
     expect(cible).toBeDefined()
-    expect(cible.personneRef).toBeNull()
+    expect(cible.locuteurRef).toBeNull()
   } finally { await app.close() }
 })
 
@@ -91,7 +91,7 @@ test('des propositions modifiées pendant le dialogue empêchent un refus en mas
         const { id } = await api.creerEntretienVide(titre)
         const { data } = await api.lireEntretien(id)
         const { formatVersion, lastModified, ...payload } = data
-        payload.locuteurs = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+        payload.participations = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
         sortie.push(id)
       }
@@ -107,14 +107,14 @@ test('des propositions modifiées pendant le dialogue empêchent un refus en mas
     // Changement en coulisse : le premier candidat est rattaché à une Personne pendant le dialogue.
     await page.evaluate(async (id) => {
       const api = (window as any).sonal.corpus
-      await api.personnesCommander({ type: 'creer', entretienId: id, locuteurId: `loc-${id}`, nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'creer', entretienId: id, participationId: `loc-${id}`, nom: 'Marie Dupont' })
     }, ids[0])
     await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('Les propositions ont changé')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
-    const cible = vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
+    const cible = vue.participations.find((l: any) => l.nom === 'Marie Dupont' && l.entretienId === 'e1')
     expect(cible).toBeDefined()
-    expect(cible.personneRef).toBeNull()
+    expect(cible.locuteurRef).toBeNull()
     expect(cible.rapprochementsRefuses ?? []).toHaveLength(0)
   } finally { await app.close() }
 })

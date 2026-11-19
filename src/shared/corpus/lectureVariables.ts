@@ -1,5 +1,5 @@
 import type { ParticipationLocuteur } from '../locuteurs'
-import type { Variable } from '../natif/format'
+import type { Variable } from "../format"
 
 export interface LigneValeur {
   id: string

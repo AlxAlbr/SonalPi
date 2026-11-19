@@ -21,7 +21,7 @@ function note(titre: string, corps: string): Note {
     date: null,
     statut: 'public',
     corps,
-    locuteurIds: [],
+    participationIds: [],
     rang: 0,
     creeLe: '2025-01-01T10:00:00.000Z',
     modifieLe: null,
@@ -35,7 +35,7 @@ function entretien(noteCourante: Note): EntretienFichier {
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     notes: [noteCourante],
   }
@@ -50,7 +50,7 @@ describe('Notes du corpus — consultation distante', () => {
       codebook: {},
       variables: {},
       reglesAnon: {},
-      personnes: {},
+      locuteurs: {},
       membership: {
         e1: { titre: 'Entretien distant', date: null, lastModified: '2025-01-01T10:00:00.000Z' },
       },

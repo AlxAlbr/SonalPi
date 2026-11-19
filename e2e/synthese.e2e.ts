@@ -13,10 +13,10 @@ test('calcule les extraits après une sélection modifiée dans l’espace d’a
 
     await page.evaluate(async () => {
       const inventaire = await window.sonal.corpus.personnesInventaire()
-      const participation = inventaire.locuteurs.find((p) => p.nom === 'Karine')
+      const participation = inventaire.participations.find((p) => p.nom === 'Karine')
       if (!participation) throw new Error('Participation de Karine absente du corpus de test.')
       await window.sonal.corpus.personnesCommander({
-        type: 'creer', entretienId: participation.entretienId, locuteurId: participation.locuteurId,
+        type: 'creer', entretienId: participation.entretienId, participationId: participation.participationId,
         nom: 'Identité corpus de Karine',
       })
     })

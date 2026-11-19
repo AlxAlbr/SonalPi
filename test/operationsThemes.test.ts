@@ -35,7 +35,7 @@ function corpus(): CorpusFichier {
       resultat: { id: 'resultat', nom: 'Résultat', ordre: 2, parent: null, actif: true, codeExport: 'cat_003' },
       enfant: { id: 'enfant', nom: 'Enfant', ordre: 3, parent: 'source', actif: true, codeExport: 'cat_004' },
     },
-    variables: {}, reglesAnon: {}, personnes: {},
+    variables: {}, reglesAnon: {}, locuteurs: {},
     membership: {
       e1: { titre: 'Premier', date: null, lastModified: 'hier' },
       e2: { titre: 'Second', date: null, lastModified: 'hier' },
@@ -54,7 +54,7 @@ function entretien(): EntretienFichier {
       { id: 'anon', type: 'anon', from: 1, to: 8, auteur: 'auteur', pseudo: 'Martin' },
       { id: 'commentaire', type: 'commentaire', from: 1, to: 8, auteur: 'auteur', texte: 'mémo' },
     ],
-    ancres: [], locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+    ancres: [], participations: [], meta: { valeursGen: {}, audioRef: null },
   }
 }
 
@@ -359,16 +359,16 @@ describe('parcours local du store', () => {
     expect(banc.lire('corpus.crp').codebook.source).toBeDefined()
   })
 
-  test('un ancien entretien supporté est adapté en mémoire, sans écriture d’aperçu', () => {
+  test('un entretien d’un ancien format bloque l’opération sans être converti', () => {
     const banc = bancDisque()
     const ancien = { ...entretien(), formatVersion: 2 }
     banc.ecrire('entretiens/e1.json', ancien)
     const avant = readFileSync(join(banc.dir, 'entretiens/e1.json'), 'utf8')
     const apercu = banc.store.analyserOperationTheme(transfert)
-    expect(apercu.faisable).toBe(true)
+    expect(apercu.faisable).toBe(false)
     expect(readFileSync(join(banc.dir, 'entretiens/e1.json'), 'utf8')).toBe(avant)
-    expect(banc.store.executerOperationTheme(apercu.operationId, transfert, options).statut).toBe('appliquee')
-    expect(banc.lire('entretiens/e1.json').formatVersion).toBe(FORMAT_VERSION)
+    expect(banc.store.executerOperationTheme(apercu.operationId, transfert, options).statut).toBe('non-appliquee')
+    expect(readFileSync(join(banc.dir, 'entretiens/e1.json'), 'utf8')).toBe(avant)
   })
 
   test('la transaction garde les entretiens inchangés contre une nouvelle référence après préparation', () => {

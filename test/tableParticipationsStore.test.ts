@@ -19,15 +19,15 @@ function banc(avecIds = true) {
   if (avecIds) {
     const data = lire()
     data.formatVersion = FORMAT_VERSION
-    data.locuteurs[0].id = 'loc-V1-conserve'
-    data.locuteurs[1].id = '7'
+    data.participations[0].id = 'loc-V1-conserve'
+    data.participations[1].id = '7'
     data.notes = [{ id: 'note-conservee', categorieId: 'ncat_generale', titre: 'Note locale', corps: '<p>Note</p>', date: null, statut: 'prive',
-      creeLe: '2025-01-01T00:00:00.000Z', modifieLe: '2025-01-01T00:00:00.000Z', rang: 0, locuteurIds: ['7'] }]
+      creeLe: '2025-01-01T00:00:00.000Z', modifieLe: '2025-01-01T00:00:00.000Z', rang: 0, participationIds: ['7'] }]
     writeFileSync(fichier, JSON.stringify(data))
   }
   const store = new CorpusStore(dir)
   store.ouvrir()
-  const { id: idVar } = store.ajouterVariable('Réponse locale', 'locuteur')
+  const { id: idVar } = store.ajouterVariable('Réponse locale', 'participation')
   const idMod = store.ajouterModalite(idVar, 'Oui').variables[idVar].modalites[0].id
   const item = (entretienId = 'e1', participationId = '7'): ItemLotValeur => ({
     entretienId, cible: { type: 'participation', participationId }, idVar, idMod,
@@ -55,29 +55,32 @@ describe('table et écritures locales par participation', () => {
     expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(corpusAvant)
   })
 
-  test('la consultation historique ne complète pas les ids et une cible absente ne peut pas écrire', () => {
+  test('une participation sans id rend le document incompatible, sans correction à la lecture', () => {
     const b = banc(false)
+    const data = b.lire()
+    writeFileSync(b.fichier, JSON.stringify({ ...data, participations: data.participations.map(({ id: _id, ...p }) => p) }))
     const avant = readFileSync(b.fichier, 'utf8')
-    expect(b.store.matriceCorpus()[0].participations.map((p) => p.participationId)).toEqual([null, null])
+    expect(b.store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
+    expect(() => b.store.matriceCorpus()).toThrow('Participation de locuteur invalide')
     expect(b.store.poserValeur('e1', b.item().cible, b.idVar, b.idMod)).toBe(false)
     expect(readFileSync(b.fichier, 'utf8')).toBe(avant)
-    expect(b.lire().locuteurs.every((p) => !p.id)).toBe(true)
+    expect(b.lire().participations.every((p) => !p.id)).toBe(true)
   })
 
   test('un changement extérieur des index ne change pas la destination ni les ids', () => {
     const b = banc()
     const data = b.lire()
-    data.locuteurs[0].index = 2
-    data.locuteurs[1].index = 1
+    data.participations[0].index = 2
+    data.participations[1].index = 1
     writeFileSync(b.fichier, JSON.stringify(data))
     const corpusAvant = readFileSync(join(b.dir, 'corpus.crp'), 'utf8')
     expect(b.store.poserValeur('e1', b.item().cible, b.idVar, b.idMod)).toBe(true)
     const apres = b.lire()
-    expect(apres).toEqual({ ...data, lastModified: apres.lastModified, locuteurs: [data.locuteurs[0],
-      { ...data.locuteurs[1], valeursLoc: { [b.idVar]: b.idMod } }] })
+    expect(apres).toEqual({ ...data, lastModified: apres.lastModified, participations: [data.participations[0],
+      { ...data.participations[1], valeursLoc: { [b.idVar]: b.idMod } }] })
     expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(corpusAvant)
     expect(b.store.poserValeur('e1', b.item().cible, b.idVar, '')).toBe(true)
-    expect(b.lire().locuteurs[1].valeursLoc).toEqual({})
+    expect(b.lire().participations[1].valeursLoc).toEqual({})
   })
 
   test('le même id local dans deux entretiens reste deux destinations distinctes', async () => {
@@ -85,10 +88,10 @@ describe('table et écritures locales par participation', () => {
     const autreModalite = b.store.ajouterModalite(b.idVar, 'Non').variables[b.idVar].modalites.find((m) => m.lib === 'Non')!.id
     const resultat = await poserValeurLotLocal(b.store, [b.item(), { ...b.item(second), idMod: autreModalite }])
     expect(resultat).toEqual({ succes: ['e1', second], echecs: [] })
-    expect(b.lire().locuteurs[1].valeursLoc[b.idVar]).toBe(b.idMod)
+    expect(b.lire().participations[1].valeursLoc[b.idVar]).toBe(b.idMod)
     const autre = b.store.lireEntretien(second)
-    expect(autre.ok && autre.data.locuteurs[1].valeursLoc[b.idVar]).toBe(autreModalite)
-    expect(autre.ok && autre.data.locuteurs.map((p) => p.id)).toEqual(['loc-V1-conserve', '7'])
+    expect(autre.ok && autre.data.participations[1].valeursLoc[b.idVar]).toBe(autreModalite)
+    expect(autre.ok && autre.data.participations.map((p) => p.id)).toEqual(['loc-V1-conserve', '7'])
   })
 
   test('une cible disparue refuse tout le fichier mais pas les autres entretiens du lot', async () => {
@@ -99,12 +102,12 @@ describe('table et écritures locales par participation', () => {
     expect(resultat.echecs).toEqual([{ id: 'e1', raison: expect.stringContaining('Actualisez') }])
     expect(readFileSync(b.fichier, 'utf8')).toBe(avant)
     const autre = b.store.lireEntretien(second)
-    expect(autre.ok && autre.data.locuteurs[1].valeursLoc[b.idVar]).toBe(b.idMod)
+    expect(autre.ok && autre.data.participations[1].valeursLoc[b.idVar]).toBe(b.idMod)
   })
 
   test('une destination ambiguë ne choisit pas arbitrairement une participation', () => {
     const b = banc(), data = b.lire()
-    data.locuteurs[0].id = '7'
+    data.participations[0].id = '7'
     writeFileSync(b.fichier, JSON.stringify(data))
     const avant = readFileSync(b.fichier, 'utf8')
     expect(b.store.poserValeur('e1', b.item().cible, b.idVar, b.idMod)).toBe(false)
@@ -126,8 +129,8 @@ describe('table et écritures locales par participation', () => {
     expect(readFileSync(b.fichier, 'utf8')).toBe(avant)
   })
 
-  test('la table active ne publie pas un document de format encore inactif', () => {
-    const b = banc(), data = { ...b.lire(), formatVersion: 10 }
+  test('la table ne publie pas un document d’un ancien format de développement', () => {
+    const b = banc(), data = { ...b.lire(), formatVersion: 9 }
     writeFileSync(b.fichier, JSON.stringify(data))
     const avant = readFileSync(b.fichier, 'utf8')
     expect(() => b.store.poserValeur('e1', b.item().cible, b.idVar, b.idMod)).toThrow('Version native non supportée')

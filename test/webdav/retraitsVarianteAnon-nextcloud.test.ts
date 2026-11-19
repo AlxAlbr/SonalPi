@@ -58,7 +58,7 @@ for (const port of [8080, 8081]) {
         expect(await b.origin.getTexte('entretiens/e3.json')).toBe(nonCible)
         for (const s of b.f.sources.slice(0, 2)) {
           const actuel = JSON.parse(await b.origin.getTexte(`entretiens/${s.id}.json`)), attendu = structuredClone(s.data)
-          for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
+          for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
           attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
         }
         expect(JSON.parse(await b.origin.getTexte('corpus.crp')).reglesAnon.personne.pseudos).toEqual(['Rebecca'])

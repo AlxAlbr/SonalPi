@@ -27,7 +27,8 @@ import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note, ReferenceMediaDistant } from '../../shared/format'
+import type { EntretienFichier, ParticipationLocuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, ReferenceMediaDistant } from '../../shared/format'
+import type { Note } from "../../shared/format"
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { creerReperePassage } from '../../shared/entretien/reperesPassages'
@@ -127,11 +128,11 @@ export function useEntretien(deps: {
 
   // --- Modèle en session (LA vérité ; éditeur et disque = projections) ---
   const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
-  const locuteurs = ref<Locuteur[]>([])
+  const locuteurs = ref<ParticipationLocuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
   const notesEntretien = useNotesEntretien({
     entretien,
-    locuteurs,
+    participations: locuteurs,
     lireEditeur: () => editor.value ?? null,
     nomCategorieNote: deps.nomCategorieNote,
     categorieNoteDefaut: deps.categorieNoteDefaut,
@@ -304,7 +305,7 @@ export function useEntretien(deps: {
       rafraichirGouttiere,
       planifierSauvegarde,
       viderSauvegarde,
-      retirerLocuteurDesNotes: notesEntretien.retirerLocuteur,
+      retirerLocuteurDesNotes: notesEntretien.retirerParticipation,
     },
   })
   const {
@@ -597,7 +598,7 @@ export function useEntretien(deps: {
       reperesPassages: entretien.reperesPassages.map((repere) => ({ ...repere })),
       // Clone PLAT : locuteurs.value est un proxy réactif Vue, non clonable par l'IPC
       // Electron (structured clone) → on l'aplatit avant l'envoi.
-      locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
+      participations: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: JSON.parse(JSON.stringify(meta)),
       // Même raison : brouillonsAnon.value est un proxy réactif → aplatir.
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
@@ -637,7 +638,7 @@ export function useEntretien(deps: {
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
     entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
-    locuteurs.value = res.data.locuteurs
+    locuteurs.value = res.data.participations
     locuteursEntretien.reinitialiser()
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
     for (const a of res.data.annotations) entretien.annotations.push(a)
@@ -724,7 +725,7 @@ export function useEntretien(deps: {
       annotations: JSON.parse(JSON.stringify(entretien.annotations)),
       ancres: [...entretien.ancres],
       reperesPassages: JSON.parse(JSON.stringify(entretien.reperesPassages)),
-      locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
+      participations: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: {
         valeursGen: { ...meta.valeursGen },
         audioRef: meta.audioRef,
@@ -738,7 +739,7 @@ export function useEntretien(deps: {
     entretien.annotations = fusion.annotations
     entretien.ancres = fusion.ancres
     entretien.reperesPassages = fusion.reperesPassages ?? []
-    locuteurs.value = fusion.locuteurs
+    locuteurs.value = fusion.participations
     Object.assign(meta.valeursGen, fusion.meta.valeursGen)
     brouillonsAnon.value = fusion.brouillonsAnon ?? []
     pseudosDeclares.value = fusion.pseudosDeclares ?? {}
@@ -812,7 +813,7 @@ export function useEntretien(deps: {
     corpsTexte: unknown
     annotations: Annotation[]
     ancres: Ancre[]
-    locuteurs: Locuteur[]
+    participations: ParticipationLocuteur[]
     meta: { valeursGen: Record<string, string>; audioRef: string | null }
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
@@ -824,7 +825,7 @@ export function useEntretien(deps: {
       corpsTexte: editor.value!.getJSON(),
       annotations: entretien.annotations.map((a) => ({ ...a })),
       ancres: entretien.ancres.map((a) => ({ ...a })),
-      locuteurs: locuteurs.value,
+      participations: locuteurs.value,
       meta: { valeursGen: meta.valeursGen, audioRef: meta.audioRef },
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,

@@ -13,7 +13,7 @@ import type { EntretienFichier, Variable } from '../src/shared/format'
 
 function variableTaille(): Variable {
   return {
-    id: 'taille', lib: 'Taille de l’établissement', portee: 'locuteur', priv: true,
+    id: 'taille', lib: 'Taille de l’établissement', portee: "participation", priv: true,
     ordre: 1, vExport: 2,
     modalites: [
       { id: 'petit', lib: 'Moins de 10', mExport: 1 },
@@ -24,7 +24,7 @@ function variableTaille(): Variable {
 
 function poserTailles(source: EntretienFichier, valeurs: Record<number, string>): EntretienFichier {
   for (const [index, valeur] of Object.entries(valeurs)) {
-    const locuteur = source.locuteurs.find((candidat) => candidat.index === Number(index))
+    const locuteur = source.participations.find((candidat) => candidat.index === Number(index))
     if (locuteur) locuteur.valeursLoc.taille = valeur
   }
   return source
@@ -97,7 +97,7 @@ test('attributs saisis et dérivés : confidentialité, suspension familiale et 
     await expect(ligneStatut.getByLabel('Valeur saisie')).toHaveValue('À revoir')
 
     const conflit = JSON.parse(readFileSync(entretienFile('e1'), 'utf8')) as EntretienFichier
-    conflit.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'grand'
+    conflit.participations.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'grand'
     writeFileSync(entretienFile('e1'), JSON.stringify(conflit))
     await ficheCas.getByRole('button', { name: /Actualiser/ }).click()
     await expect(ficheCas.locator('.table-attributs')).toContainText('Incohérent')
@@ -109,7 +109,7 @@ test('attributs saisis et dérivés : confidentialité, suspension familiale et 
     await expect(ligneTailleB).toContainText('Suspendu pour toute la famille')
     await expect(ligneTailleB.locator('td').nth(2)).toHaveText('—')
 
-    conflit.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'petit'
+    conflit.participations.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'petit'
     writeFileSync(entretienFile('e1'), JSON.stringify(conflit))
     await ficheCas.getByRole('button', { name: /Actualiser/ }).click()
     await expect(ficheCas.locator('.table-attributs')).toContainText('10 à 100')

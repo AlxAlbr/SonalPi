@@ -3,16 +3,16 @@ import {
   memeEtatNote,
   memesChampsEditables,
 } from '../src/shared/corpus/notes'
-import { etatNoteJournalFormat9 as etatNoteJournal, inventorierNotesFormat9 as inventorierNotes } from '../src/shared/corpus/notesFormat9'
+import { etatNoteJournal, inventorierNotes } from '../src/shared/corpus/notes'
 import type { CorpusFichier, EntretienFichier, Note } from '../src/shared/format'
 
 const corpus: CorpusFichier = {
-  formatVersion: 3,
+  formatVersion: 10,
   nom: 'Corpus',
   codebook: {},
   variables: {},
   reglesAnon: {},
-  personnes: {},
+  locuteurs: {},
   membership: {},
 }
 
@@ -24,7 +24,7 @@ function note(patch: Partial<Note> = {}): Note {
     date: '2025-01-02',
     statut: 'public',
     corps: 'Un <mark data-liens="c1 c1 absent">passage</mark>.',
-    locuteurIds: ['l1'],
+    participationIds: ['l1'],
     rang: 1,
     creeLe: '2025-01-01T10:00:00.000Z',
     modifieLe: null,
@@ -34,7 +34,7 @@ function note(patch: Partial<Note> = {}): Note {
 
 function entretien(notes: Note[], commentaireId = 'c1'): EntretienFichier {
   return {
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: '2025-01-01T10:00:00.000Z',
     corpsTexte: {
       type: 'doc',
@@ -49,7 +49,7 @@ function entretien(notes: Note[], commentaireId = 'c1'): EntretienFichier {
       texte: 'Commentaire local',
     }],
     ancres: [{ pos: 1, t: 10 }, { pos: 11, t: 20 }],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     notes,
   }
@@ -57,7 +57,7 @@ function entretien(notes: Note[], commentaireId = 'c1'): EntretienFichier {
 
 describe('inventaire des notes du corpus', () => {
   test('projette par entretien, trie par rang et résout les commentaires locaux', () => {
-    const resultat = inventorierNotes(corpus, [
+    const resultat = inventorierNotes([
       {
         id: 'e1',
         titre: 'Entretien A',
@@ -90,7 +90,7 @@ describe('inventaire des notes du corpus', () => {
   test('conserve un timecode nul quand la transcription n’a pas d’ancres', () => {
     const data = entretien([note()])
     data.ancres = []
-    expect(inventorierNotes(corpus, [{ id: 'e1', titre: 'A', data }])
+    expect(inventorierNotes([{ id: 'e1', titre: 'A', data }])
       .notes[0].liensCommentaires[0].timecodeSecondes).toBeNull()
   })
 })

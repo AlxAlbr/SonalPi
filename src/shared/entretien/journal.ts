@@ -4,8 +4,7 @@ import { participationParId, renommerParticipation } from './participations'
 import { poserValeurProprietaire, valeursCible, validerLotValeur, type CibleValeur } from '../corpus/valeursVariables'
 import type { ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
 import { noteCreationInchangee, notesParRang, referencesNoteDisponibles, renumeroterRangs } from './notes'
-import { lireNoteFormat9 } from './notesFormat9'
-import type { Note } from '../format'
+import type { Note } from "../format"
 
 /**
  *  Journal d'actions annulables. Seules les actions de MODÈLE y entrent
@@ -102,10 +101,6 @@ export function enregistrer(
   return entree
 }
 
-function noteInchangee(note: Note, initiale: Note): boolean {
-  return noteCreationInchangee(lireNoteFormat9(note), lireNoteFormat9(initiale))
-}
-
 /** L'inverse est-il encore applicable (sa cible existe toujours) ?
  *  Sinon l'entrée est grisée « non annulable » — jamais appliquée à moitié. */
 export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
@@ -137,13 +132,13 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
       } catch { return false }
     }
     case 'retirerNote':
-      return !!ctx.notes?.some((note) => noteInchangee(note, inverse.note))
+      return !!ctx.notes?.some((note) => noteCreationInchangee(note, inverse.note))
     case 'restaurerNote': {
       if (!ctx.notes || ctx.notes.some((note) => note.id === inverse.note.id)) return false
       const ordre = notesParRang(ctx.notes).map((note) => note.id)
       return ordre.length === inverse.ordreApres.length &&
         ordre.every((id, index) => id === inverse.ordreApres[index]) &&
-        referencesNoteDisponibles(lireNoteFormat9(inverse.note), ctx.participations)
+        referencesNoteDisponibles(inverse.note, ctx.participations)
     }
     default: return false
   }
@@ -184,7 +179,7 @@ export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
     }
     case 'restaurerNote': {
       const notes = notesParRang(ctx.notes!)
-      const note = { ...inverse.note, locuteurIds: [...(inverse.note.locuteurIds ?? [])] }
+      const note = { ...inverse.note, participationIds: [...(inverse.note.participationIds ?? [])] }
       notes.splice(inverse.position, 0, note)
       ctx.notes!.splice(0, ctx.notes!.length, ...renumeroterRangs(notes))
       return true

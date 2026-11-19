@@ -28,10 +28,10 @@ function source(): EntretienFichier {
       { id: 'large', from: debuts[1], to: debuts[2] + textes[2].length },
       { id: 'partiel', from: debuts[1] + 7, to: debuts[1] + 18 },
     ],
-    locuteurs: [
-      { index: 1, nom: 'Enquêtrice', interviewer: true, valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Karine', valeursLoc: { statut: 'salariee' }, personneRef: 'p1' },
-      { index: 3, nom: 'Paul', valeursLoc: {}, personneRef: 'p2' },
+    participations: [
+      { id: "loc-1", index: 1, nom: 'Enquêtrice', interviewer: true, valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2", index: 2, nom: 'Karine', valeursLoc: { statut: 'salariee' }, locuteurRef: 'p1' },
+      { id: "loc-3", index: 3, nom: 'Paul', valeursLoc: {}, locuteurRef: 'p2' },
     ],
     meta: { valeursGen: { site: 'lyon' }, audioRef: null },
   }
@@ -48,8 +48,8 @@ function cas(): Record<string, Cas> {
       }],
     },
     personne: {
-      id: 'personne', nom: 'Karine', memo: '', creeLe: date, modifieLe: date,
-      regles: [{ type: 'personne', personneId: 'p1', inclureEnqueteurs: false }],
+      id: "personne", nom: 'Karine', memo: '', creeLe: date, modifieLe: date,
+      regles: [{ type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false }],
       rattachements: [],
     },
     entretien: {
@@ -61,7 +61,7 @@ function cas(): Record<string, Cas> {
       id: 'modalite', nom: 'Salariées', memo: '', creeLe: date, modifieLe: date,
       regles: [{
         type: 'modalite', variableId: 'statut', modaliteId: 'salariee',
-        portee: 'locuteur', inclureEnqueteurs: false,
+        portee: "participation", inclureEnqueteurs: false,
       }],
       rattachements: [],
     },
@@ -69,7 +69,7 @@ function cas(): Record<string, Cas> {
 }
 
 const variables: Variable[] = [{
-  id: 'statut', lib: 'Statut', portee: 'locuteur', privee: false,
+  id: 'statut', lib: 'Statut', portee: "participation", privee: false,
   modalites: [{ id: 'salariee', lib: 'Salariée' }],
 }]
 

@@ -136,7 +136,7 @@ export function construireTableCorrespondance(regles: RegleAnon[], entretiens: E
     }
     if (options.perimetre === 'corpus-entretiens') textes.push(...locaux)
   }
-  const pourLocuteurs = options.nature === 'texte' ? [] : entretiens.map((e) => ({ ...e, data: { ...e.data, locuteurs: e.data.locuteurs.filter((l) => {
+  const pourLocuteurs = options.nature === 'texte' ? [] : entretiens.map((e) => ({ ...e, data: { ...e.data, participations: e.data.participations.filter((l) => {
     const valide = !!l && typeof l.nom === 'string' && (l.pseudo == null || typeof l.pseudo === 'string') &&
       (l.pseudoEtat === undefined || l.pseudoEtat === 'confirme' || l.pseudoEtat === 'refuse') && Number.isInteger(l.index)
     if (!valide) diagnostics.push({ code: 'libelle-locuteur-invalide', entretienId: e.id })

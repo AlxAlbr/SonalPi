@@ -42,19 +42,19 @@ function payload(): PayloadEntretien {
     ] },
     ancres: [{ pos: 1, t: 0 }], annotations: [],
     meta: { valeursGen: { lieu: 'ici' }, audioRef: null },
-    locuteurs: [
-      { id: 'loc-conserve', index: 1, nom: 'Alex', pseudo: 'A', pseudoEtat: 'confirme', couleur: '#123456', interviewer: true, valeursLoc: { age: 'jeune' }, personneRef: null },
-      { index: 3, nom: 'Alex', interviewer: false, valeursLoc: { age: 'adulte' }, personneRef: null },
-      { index: 4, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-      { index: 5, nom: 'X', valeursLoc: {}, personneRef: null },
-      { index: 8, nom: 'Inconnu', valeursLoc: { age: 'adulte' }, personneRef: null },
+    participations: [
+      { id: 'loc-conserve', index: 1, nom: 'Alex', pseudo: 'A', pseudoEtat: 'confirme', couleur: '#123456', interviewer: true, valeursLoc: { age: 'jeune' }, locuteurRef: null },
+      { id: "loc-3", index: 3, nom: 'Alex', interviewer: false, valeursLoc: { age: 'adulte' }, locuteurRef: null },
+      { id: "loc-4", index: 4, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+      { id: "loc-5", index: 5, nom: 'X', valeursLoc: {}, locuteurRef: null },
+      { id: "loc-8", index: 8, nom: 'Inconnu', valeursLoc: { age: 'adulte' }, locuteurRef: null },
     ],
-    notes: [{ id: 'note', categorieId: 'ncat_generale', titre: 'Note locale', date: null, statut: 'prive', corps: 'À conserver', locuteurIds: ['loc-conserve'], rang: 0, creeLe: '', modifieLe: null }],
+    notes: [{ id: 'note', categorieId: 'ncat_generale', titre: 'Note locale', date: null, statut: 'prive', corps: 'À conserver', participationIds: ['loc-conserve'], rang: 0, creeLe: '', modifieLe: null }],
   }
 }
 
-function horsAssociation(locuteur: PayloadEntretien['locuteurs'][number]) {
-  const { id: _id, personneRef: _ref, ...local } = locuteur
+function horsAssociation(locuteur: PayloadEntretien['participations'][number]) {
+  const { id: _id, locuteurRef: _ref, ...local } = locuteur
   return local
 }
 
@@ -69,7 +69,7 @@ describe('contrats des identités et participations', () => {
   })
 
   test('complète les ids locaux sans dépendre des noms ni de l’ordre du tableau', () => {
-    const source = payload().locuteurs
+    const source = payload().participations.map((p, i) => i ? { ...p, id: undefined } : p)
     const avant = structuredClone(source)
     const premier = completerIdsLocuteurs('entretien-a', source)
     const renommes = source.toReversed().map((locuteur) => ({ ...locuteur, nom: 'Autre nom' }))
@@ -82,7 +82,7 @@ describe('contrats des identités et participations', () => {
   })
 
   test('reprend un id local existant par index, mais ne remplace jamais un id fourni', () => {
-    const source = payload().locuteurs
+    const source = payload().participations.map((p, i) => i ? { ...p, id: undefined } : p)
     const existants = source.map((locuteur) => ({ ...locuteur, id: `historique-${locuteur.index}` }))
     const completes = completerIdsLocuteurs('entretien', source, existants)
     expect(completes.map((l) => l.id)).toEqual(['loc-conserve', 'historique-3', 'historique-4', 'historique-5', 'historique-8'])
@@ -90,7 +90,7 @@ describe('contrats des identités et participations', () => {
 
   test('la préparation ne rapproche ni les homonymes ni les noms de rôle', () => {
     const existants = { ancien: { id: 'ancien', nom: 'Alex' } }
-    const participations = completerIdsLocuteurs('entretien', payload().locuteurs)
+    const participations = completerIdsLocuteurs('entretien', payload().participations)
     const avant = structuredClone([existants, participations])
     let numero = 0
     const resultat = preparerIdentitesImportV1(existants, participations, () => `identite-${++numero}`)
@@ -102,7 +102,7 @@ describe('contrats des identités et participations', () => {
 
   test.each(['ancien', 'doublon', ''])('un id d’identité invalide ne modifie pas les entrées : %s', (id) => {
     const existants = { ancien: { id: 'ancien', nom: 'Alex' } }
-    const participations = completerIdsLocuteurs('entretien', payload().locuteurs)
+    const participations = completerIdsLocuteurs('entretien', payload().participations)
     const avant = structuredClone([existants, participations])
     expect(() => preparerIdentitesImportV1(existants, participations, () => id)).toThrow('Identifiant')
     expect([existants, participations]).toEqual(avant)
@@ -127,15 +127,15 @@ describe('préparation commune des imports V1', () => {
     expect(readFileSync(fichierCorpus, 'utf8')).toBe(contenuAvant)
     expect(existsSync(join(dir, 'entretiens', `${plan.id}.json`))).toBe(false)
     expect(plan.corpusAvant).toEqual(JSON.parse(contenuAvant))
-    expect(Object.values(plan.corpusApres.personnes)).toHaveLength(6)
-    expect(plan.entretien.locuteurs.map(horsAssociation)).toEqual(source.locuteurs.map(horsAssociation))
-    expect(plan.entretien.locuteurs[0].id).toBe('loc-conserve')
-    expect(new Set(plan.entretien.locuteurs.map((l) => l.personneRef)).size).toBe(5)
-    for (const locuteur of plan.entretien.locuteurs) {
-      expect(plan.corpusApres.personnes[locuteur.personneRef!]).toEqual({ id: locuteur.personneRef, nom: locuteur.nom })
+    expect(Object.values(plan.corpusApres.locuteurs)).toHaveLength(6)
+    expect(plan.entretien.participations.map(horsAssociation)).toEqual(source.participations.map(horsAssociation))
+    expect(plan.entretien.participations[0].id).toBe('loc-conserve')
+    expect(new Set(plan.entretien.participations.map((l) => l.locuteurRef)).size).toBe(5)
+    for (const locuteur of plan.entretien.participations) {
+      expect(plan.corpusApres.locuteurs[locuteur.locuteurRef!]).toEqual({ id: locuteur.locuteurRef, nom: locuteur.nom })
     }
-    const { locuteurs: _locuteurs, formatVersion: _version, lastModified: _date, reperesPassages: _reperes, ...reste } = plan.entretien
-    const { locuteurs: _sourceLocuteurs, ...sourceReste } = source
+    const { participations: _locuteurs, formatVersion: _version, lastModified: _date, reperesPassages: _reperes, ...reste } = plan.entretien
+    const { participations: _sourceLocuteurs, ...sourceReste } = source
     expect(reste).toEqual(sourceReste)
     expect(source).toEqual(avant)
   })
@@ -145,21 +145,21 @@ describe('préparation commune des imports V1', () => {
     const a = store.importerEntretien('Premier', payload(), [], [], [], 'v1')
     const b = store.importerEntretien('Second', payload(), [], [], [], 'v1')
     const inventaire = store.personnesInventaire()
-    expect(inventaire.personnes).toHaveLength(10)
-    expect(new Set(inventaire.locuteurs.map((l) => l.personneRef)).size).toBe(10)
-    expect(inventaire.locuteurs.filter((l) => l.locuteurId === 'loc-conserve').map((l) => l.entretienId).sort()).toEqual([a.id, b.id].sort())
+    expect(inventaire.locuteurs).toHaveLength(10)
+    expect(new Set(inventaire.participations.map((l) => l.locuteurRef)).size).toBe(10)
+    expect(inventaire.participations.filter((l) => l.participationId === 'loc-conserve').map((l) => l.entretienId).sort()).toEqual([a.id, b.id].sort())
   })
 
   test('hors import V1, conserve les associations absentes ou volontairement retirées', () => {
     const { store } = banc()
     const source = payload()
-    source.locuteurs[0].personneDeliee = true
-    source.locuteurs[0].rapprochementsRefuses = ['personne:historique', 'locuteur:autre']
+    source.participations[0].associationRetiree = true
+    source.participations[0].rapprochementsRefuses = ['personne:historique', 'locuteur:autre']
     const avant = structuredClone(source)
     const plan = store.preparerImportEntretien('Autre import', source)
-    expect(plan.corpusApres.personnes).toEqual({})
-    expect(plan.entretien.locuteurs[0]).toEqual(source.locuteurs[0])
-    expect(plan.entretien.locuteurs.every((l) => l.personneRef === null)).toBe(true)
+    expect(plan.corpusApres.locuteurs).toEqual({})
+    expect(plan.entretien.participations[0]).toEqual(source.participations[0])
+    expect(plan.entretien.participations.every((l) => l.locuteurRef === null)).toBe(true)
     expect(source).toEqual(avant)
   })
 
@@ -177,7 +177,7 @@ describe('préparation commune des imports V1', () => {
     expect(relu.ouvrir()).toEqual(plan.corpusApres)
     const lecture = relu.lireEntretien(plan.id)
     expect(lecture.ok && lecture.data).toEqual(plan.entretien)
-    expect(relu.personnesInventaire().personnes).toHaveLength(5)
+    expect(relu.personnesInventaire().locuteurs).toHaveLength(5)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(false)
     expect(new CorpusStore(dir).personnesInventaire()).toEqual(relu.personnesInventaire())
   })

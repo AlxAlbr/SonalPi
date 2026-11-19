@@ -7,7 +7,7 @@ import {
   compterUsagesAttributCas, compterUsagesCasVariable, porteeObservationsCas,
   type CommandeCas, type DefinitionAttributCas, type DerivationAttributCas,
 } from '../src/shared/corpus/cas'
-import { retirerVariable, modifierVariable, type Variable } from '../src/shared/corpus/variablesFormat9'
+import { retirerVariable, modifierVariable, type Variable } from "../src/shared/corpus/variables"
 import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION } from '../src/shared/format'
 import { casModalite, corpusFamille, dateFamille, familleCas, sourceFamille, variableFamille } from './fixtures/casFamilles'
@@ -17,13 +17,13 @@ function definitionAttribut(id = 'attr', lib = 'Taille de l’établissement'): 
     modalites: [{ id: 't1', lib: 'moins de 10 personnes' }, { id: 't2', lib: 'entre 10 et 100 personnes' }] }
 }
 
-function variableTaille(portee: Variable['portee'] = 'locuteur'): Variable {
+function variableTaille(portee: Variable['portee'] = 'participation'): Variable {
   return { id: 'taille', lib: 'Taille', portee, priv: false, ordre: 1, vExport: 2,
     modalites: [{ id: 't1', lib: 'petite', mExport: 1 }, { id: 't2', lib: 'grande', mExport: 2 }] }
 }
 
 function derivation(attributId = 'attr', variableSourceId = 'taille',
-  porteeSource: DerivationAttributCas['porteeSource'] = 'locuteur'): DerivationAttributCas {
+  porteeSource: DerivationAttributCas['porteeSource'] = 'participation'): DerivationAttributCas {
   return { attributId, variableSourceId, porteeSource }
 }
 
@@ -40,7 +40,7 @@ function modele() {
   const commande = (commande: CommandeCas) => {
     corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
       maintenant: () => `${dateFamille.slice(0, -5)}${String(horloge++).padStart(2, '0')}Z`,
-      personneExiste: () => true, entretienExiste: () => true,
+      locuteurExiste: () => true, entretienExiste: () => true,
       familles: corpus.famillesCas, attributs: corpus.attributsCas, variables: corpus.variables,
     })
   }
@@ -64,7 +64,7 @@ describe('cas — attributs : définitions', () => {
     expect(() => commande({ type: 'creer-attribut', definition: definitionAttribut('autre', '  taille ') })).toThrow(/libellé/)
     expect(() => commande({ type: 'creer-attribut', definition: definitionAttribut('attr', 'Autre') })).toThrow(/identité/)
     expect(() => appliquerCommandeCas(corpus.cas, { type: 'creer-attribut', definition: definitionAttribut('x') },
-      { maintenant: () => dateFamille, personneExiste: () => true, entretienExiste: () => true })).toThrow(/disponibles/)
+      { maintenant: () => dateFamille, locuteurExiste: () => true, entretienExiste: () => true })).toThrow(/disponibles/)
   })
 
   test('modification protégée par la valeur attendue, modalités utilisées conservées', () => {
@@ -138,7 +138,7 @@ describe('cas — saisie de valeurs d’attribut', () => {
     commande({ type: 'creer-attribut', definition: definitionAttribut() })
     commande({ type: 'ajouter-derivation-famille', familleId: famille.id, membresAttendus: [casModalite('a').id, casModalite('b').id], derivation: derivation() })
     expect(() => commande({ type: 'definir-valeur-attribut', casId: casModalite('a').id, attributId: 'attr', attendu: null, valeur: 't1' })).toThrow(/dérivé/)
-    commande({ type: 'creer', cas: { ...casManuel('avecRegle'), regles: [{ type: 'personne', personneId: 'p1', inclureEnqueteurs: false }] } })
+    commande({ type: 'creer', cas: { ...casManuel('avecRegle'), regles: [{ type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false }] } })
     commande({ type: 'ajouter-derivation-cas', casId: 'avecRegle', derivation: derivation() })
     expect(() => commande({ type: 'definir-valeur-attribut', casId: 'avecRegle', attributId: 'attr', attendu: null, valeur: 't1' })).toThrow(/dérivé/)
     expect(corpus.cas!.avecRegle.valeursAttributsSaisis).toBeUndefined()
@@ -202,8 +202,8 @@ describe('cas — dérivations propres', () => {
     commande({ type: 'creer', cas: casManuel() })
     commande({ type: 'creer-attribut', definition: definitionAttribut() })
     expect(() => commande({ type: 'ajouter-derivation-cas', casId: 'manuel', derivation: derivation() })).toThrow(/manuel/)
-    commande({ type: 'creer', cas: { ...casManuel('p'), nom: 'Cas personne', regles: [{ type: 'personne', personneId: 'p1', inclureEnqueteurs: false }] } })
-    expect(porteeObservationsCas(corpus.cas!.p)).toBe('locuteur')
+    commande({ type: 'creer', cas: { ...casManuel('p'), nom: 'Cas personne', regles: [{ type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false }] } })
+    expect(porteeObservationsCas(corpus.cas!.p)).toBe('participation')
     expect(() => commande({ type: 'ajouter-derivation-cas', casId: 'p', derivation: derivation('attr', 'taille', 'entretien') })).toThrow(/portée/)
     commande({ type: 'ajouter-derivation-cas', casId: 'p', derivation: derivation() })
     expect(corpus.cas!.p.derivationsPropres).toEqual([derivation()])
@@ -219,7 +219,7 @@ describe('cas — dérivations propres', () => {
     corpus.variables.gen = variableTaille('entretien')
     commande({ type: 'creer', cas: { ...casManuel('e'), nom: 'Cas entretiens', regles: [{ type: 'entretiens', entretienIds: ['e1'] }] } })
     commande({ type: 'creer-attribut', definition: definitionAttribut('attrE', 'Taille E') })
-    expect(() => commande({ type: 'ajouter-derivation-cas', casId: 'e', derivation: derivation('attrE', 'taille', 'locuteur') })).toThrow(/portée/)
+    expect(() => commande({ type: 'ajouter-derivation-cas', casId: 'e', derivation: derivation('attrE', 'taille', 'participation') })).toThrow(/portée/)
     commande({ type: 'ajouter-derivation-cas', casId: 'e', derivation: derivation('attrE', 'gen', 'entretien') })
     expect(corpus.cas!.e.derivationsPropres).toHaveLength(1)
 
@@ -238,7 +238,7 @@ describe('cas — usages des attributs et des variables', () => {
   test('comptage des usages et variables protégées par les recettes', () => {
     const { corpus, commande } = modele()
     const famille = familleAvecCas(commande, ['a'])
-    commande({ type: 'creer', cas: { ...casManuel('p'), regles: [{ type: 'personne', personneId: 'p1', inclureEnqueteurs: false }] } })
+    commande({ type: 'creer', cas: { ...casManuel('p'), regles: [{ type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false }] } })
     commande({ type: 'creer-attribut', definition: definitionAttribut() })
     expect(compterUsagesAttributCas(corpus, 'attr')).toEqual({ valeursSaisies: 0, derivationsFamilles: 0, derivationsCas: 0 })
     commande({ type: 'ajouter-derivation-famille', familleId: famille.id, membresAttendus: [casModalite('a').id], derivation: derivation() })
@@ -286,13 +286,13 @@ describe('cas — usages des attributs et des variables', () => {
 
 const dossiers: string[] = []
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
-describe('CorpusStore — migration v7 → v8 et attributs persistés', () => {
-  test('corpus v7 avec attributs rouvre en v8 sans perte', () => {
+describe('CorpusStore — attributs persistés au format natif', () => {
+  test('les attributs natifs se rouvrent sans perte ni conversion', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cas-attributs-'))
     dossiers.push(dir)
     mkdirSync(join(dir, 'entretiens'))
     const corpus = corpusFamille()
-    corpus.formatVersion = 7
+    corpus.formatVersion = FORMAT_VERSION
     const cas = casModalite()
     cas.valeursAttributsSaisis = { attr: 't1' }
     const famille = familleCas()
@@ -302,7 +302,7 @@ describe('CorpusStore — migration v7 → v8 et attributs persistés', () => {
     corpus.famillesCas = { f: famille }
     corpus.attributsCas = { attr: definitionAttribut() }
     const data = sourceFamille()
-    data.formatVersion = 7
+    data.formatVersion = FORMAT_VERSION
     writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
     for (const id of ['e1', 'e2']) writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))
     const store = new CorpusStore(dir)

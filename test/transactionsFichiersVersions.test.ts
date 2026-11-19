@@ -16,7 +16,7 @@ function banc() {
   const avant = squeletteCorpus()
   const entretien: EntretienFichier = {
     formatVersion: FORMAT_VERSION, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
-    locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+    participations: [], meta: { valeursGen: {}, audioRef: null },
   }
   avant.membership.e1 = { titre: 'Entretien', date: null, lastModified: '' }
   const plan: PlanRemplacementEntretiens = {

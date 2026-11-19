@@ -1,4 +1,4 @@
-import type { Variable } from '../natif/format'
+import type { Variable } from "../format"
 
 /** Une sélection explicite vide ne signifie jamais « tout inclure ». */
 export type SelectionSynthese =

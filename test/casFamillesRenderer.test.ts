@@ -16,7 +16,7 @@ function outil() {
   const lireEntretien = vi.fn(async (id: string) => ({ ok: true as const, data: sourceFamille(id === 'e2') }))
   const casCommander = vi.fn(async (commande: CommandeCas) => {
     disque.cas = appliquerCommandeCas(disque.cas, structuredClone(commande), {
-      maintenant: () => dateFamille, personneExiste: () => false, entretienExiste: () => true,
+      maintenant: () => dateFamille, locuteurExiste: () => false, entretienExiste: () => true,
       familles: disque.famillesCas, variables: disque.variables,
     })
     return structuredClone(disque)

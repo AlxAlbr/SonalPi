@@ -2,12 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 
 const props = defineProps<{
-  locuteurs: { id?: string; nom: string }[]
+  participations: { id?: string; nom: string }[]
   modelValue?: string[]
 }>()
 const emit = defineEmits<{ 'update:modelValue': [ids: string[]] }>()
-const personnes = computed(() => props.locuteurs.filter(
-  (personne): personne is { id: string; nom: string } => !!personne.id,
+const participationsAvecId = computed(() => props.participations.filter(
+  (participation): participation is { id: string; nom: string } => !!participation.id,
 ))
 const position = ref<{ left: number; top: number } | null>(null)
 const bouton = ref<HTMLButtonElement | null>(null)
@@ -47,32 +47,32 @@ onBeforeUnmount(() => window.removeEventListener('keydown', surTouche, true))
 
 <template>
   <button ref="bouton" type="button" class="mini" aria-haspopup="dialog"
-    :aria-expanded="!!position" title="Associer cette note à une ou plusieurs personnes"
-    @click="ouvrir">🔗 Lier à une personne</button>
+    :aria-expanded="!!position" title="Associer cette note à un ou plusieurs locuteurs de cet entretien"
+    @click="ouvrir">🔗 Lier à un locuteur</button>
   <Teleport to="body">
-    <div v-if="position" class="menu-personnes-couche" @mousedown.self.prevent="fermer"
+    <div v-if="position" class="menu-participations-couche" @mousedown.self.prevent="fermer"
       @contextmenu.self.prevent="fermer">
-      <div ref="menu" class="menu-personnes-note" role="dialog" aria-label="Lier à une personne"
+      <div ref="menu" class="menu-participations-note" role="dialog" aria-label="Lier à un locuteur"
         tabindex="-1" :style="{ left: position.left + 'px', top: position.top + 'px' }">
         <span class="menu-titre">Lier cette note…</span>
-        <label v-for="personne in personnes" :key="personne.id" class="menu-action">
-          <input type="checkbox" :checked="modelValue?.includes(personne.id) ?? false"
-            @change="choisir(personne.id, ($event.target as HTMLInputElement).checked)" />
-          {{ personne.nom || 'Locuteur sans nom' }}
+        <label v-for="participation in participationsAvecId" :key="participation.id" class="menu-action">
+          <input type="checkbox" :checked="modelValue?.includes(participation.id) ?? false"
+            @change="choisir(participation.id, ($event.target as HTMLInputElement).checked)" />
+          {{ participation.nom || 'Locuteur sans nom' }}
         </label>
-        <span v-if="!personnes.length" class="menu-vide">Aucun locuteur dans cet entretien.</span>
+        <span v-if="!participationsAvecId.length" class="menu-vide">Aucun locuteur dans cet entretien.</span>
       </div>
     </div>
   </Teleport>
 </template>
 
 <style scoped>
-.menu-personnes-couche {
+.menu-participations-couche {
   position: fixed;
   inset: 0;
   z-index: 1001;
 }
-.menu-personnes-note {
+.menu-participations-note {
   position: fixed;
   min-width: min(15rem, calc(100vw - 2rem));
   max-width: min(22rem, calc(100vw - 2rem));

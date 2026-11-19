@@ -1,4 +1,4 @@
-import type { OuvertureCorpus, PayloadEntretien, RegleAnon } from './format'
+import type { OuvertureCorpus, PayloadImportEntretien, RegleAnon } from './format'
 
 export const MIGRATION_ANNULEE = 'MIGRATION_ANNULEE'
 
@@ -24,7 +24,7 @@ export interface PontMigrationV1 {
   destination: (cheminCrp: string, nomDossier: string, emplacement?: string) => Promise<string>
   preparer: (demande: DemandePreparationMigration) => Promise<{ nbEntretiens: number }>
   lireEntretien: (index: number) => Promise<EntretienSourceMigration | null>
-  ajouterEntretien: (index: number, payload: PayloadEntretien, regles: RegleAnon[]) => Promise<void>
+  ajouterEntretien: (index: number, payload: PayloadImportEntretien, regles: RegleAnon[]) => Promise<void>
   finaliser: () => Promise<OuvertureCorpus>
   terminer: () => Promise<string | null>
   annuler: () => Promise<void>

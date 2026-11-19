@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, reactive, ref, type App } from 'vue'
 import PanneauLocuteursEntretien from '../src/renderer/components/traiter/entretien/PanneauLocuteursEntretien.vue'
 import type { BlocParole } from '../src/shared/entretien/statistiquesLocuteurs'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
@@ -16,9 +16,9 @@ async function monter() {
     { pos: 10, longueur: 5, texte: 'Salut', loc: 2 },
     { pos: 17, longueur: 5, texte: 'Merci', loc: 1 },
   ])
-  const locuteurs = ref<Locuteur[]>([
-    { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-    { index: 2, nom: 'Fatima', valeursLoc: {}, personneRef: null },
+  const locuteurs = ref<ParticipationLocuteur[]>([
+    { id: "loc-1", index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+    { id: "loc-2", index: 2, nom: 'Fatima', valeursLoc: {}, locuteurRef: null },
   ])
   const entretien = reactive({ ancres: [{ pos: 1, t: 0 }, { pos: 22, t: 17 }] })
   const allerAuTexte = vi.fn(), seek = vi.fn()
@@ -27,7 +27,7 @@ async function monter() {
   injection.contexte = {
     blocsParole, locuteurs, entretien, allerAuTexte, tempsAuTexte: () => 4, audio: { url, seek }, ouvertId,
     vue: ref('entretien'), locuteurASupprimer: ref(null), messagePersonnes: ref(''),
-    rapprochementNommage: ref(null), rapprochementOccupe: ref(false), lirePersonnes: async () => ({ personnes: [] }),
+    rapprochementNommage: ref(null), rapprochementOccupe: ref(false), lirePersonnes: async () => ({ locuteurs: [] }),
   }
   const host = document.body.appendChild(document.createElement('div'))
   const ouvert = ref(false)

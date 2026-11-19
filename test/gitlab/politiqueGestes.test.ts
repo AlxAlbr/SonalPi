@@ -268,7 +268,7 @@ describe('portée des gestes du corpus', () => {
       fusionThemes: true,
       suppressionSourceThemes: true,
       notes: false,
-      personnes: false,
+      locuteurs: false,
       annulationJournal: false,
       designationMedia: true,
       televersementMedia: false,
@@ -309,7 +309,7 @@ describe('portée des gestes du corpus', () => {
     expect(() => exigerGeste('gitlab', 'anon.dissocier-globalement')).not.toThrow()
     expect(() => exigerGeste('local', 'anon.dissocier-globalement')).not.toThrow()
     expect(gesteAutorise('webdav', 'anon.renommer-variante')).toBe(true)
-    expect(webdav.personnes).toBe(true)
+    expect(webdav.locuteurs).toBe(true)
     expect(webdav.designationMedia).toBe(true)
     expect(webdav.televersementMedia).toBe(true)
     const local = matriceCapacites('local')
@@ -318,7 +318,7 @@ describe('portée des gestes du corpus', () => {
       definitionsAvecSources: true,
       suppressionEntretien: true,
       notes: true,
-      personnes: true,
+      locuteurs: true,
       annulationJournal: true,
     })
   })

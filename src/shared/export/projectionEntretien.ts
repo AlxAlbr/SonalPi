@@ -115,8 +115,8 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
 
   /** Indexation des LOCUTEURS : un Map préparé une fois (premier homonyme
    *  gagnant, comme le find() qu'il remplace), pas un find() par segment. */
-  const locuteurDe = new Map<number, (typeof e.locuteurs)[number]>()
-  for (const l of e.locuteurs) {
+  const locuteurDe = new Map<number, (typeof e.participations)[number]>()
+  for (const l of e.participations) {
     if (!locuteurDe.has(l.index)) locuteurDe.set(l.index, l)
   }
 

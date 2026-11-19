@@ -31,32 +31,11 @@ export function usagesParCategorie(entretiens: EntretienFichier[]): Record<strin
   return out
 }
 
-type ValeursEntretien = { meta: { valeursGen: Record<string, string> }; locuteurs: Array<{ valeursLoc: Record<string, string> }> }
-
-/** Adapte uniquement le nom du propriétaire local du stockage actif. */
-function valeursFormat9(entretien: ValeursEntretien) {
-  return { meta: entretien.meta, participations: entretien.locuteurs }
-}
-
-export function compterUsagesVariable(entretiens: EntretienFichier[], idVar: string): number {
-  return valeursNatives.compterUsagesVariable(entretiens.map(valeursFormat9), idVar)
-}
-
-export function compterValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
-  return valeursNatives.compterValeursVariable(valeursFormat9(entretien), idVar, idMod)
-}
-
-export function effacerValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
-  return valeursNatives.effacerValeursVariable(valeursFormat9(entretien), idVar, idMod)
-}
-
-export function compterUsagesModalite(entretiens: EntretienFichier[], idVar: string, idMod: string): number {
-  return valeursNatives.compterUsagesModalite(entretiens.map(valeursFormat9), idVar, idMod)
-}
+export { compterUsagesVariable, compterValeursVariable, effacerValeursVariable, compterUsagesModalite } from './valeursVariables'
 
 /** Résout les ids déjà enregistrés, sans compléter ceux qui manquent dans le stockage actif. */
 export function poserValeur(data: EntretienFichier, cible: CibleValeur, idVar: string, idMod: string): boolean {
-  return valeursNatives.poserValeur({ meta: data.meta, participations: data.locuteurs.flatMap((p) =>
+  return valeursNatives.poserValeur({ meta: data.meta, participations: data.participations.flatMap((p) =>
     p.id ? [{ id: p.id, valeursLoc: p.valeursLoc }] : []) }, cible, idVar, idMod)
 }
 
@@ -158,6 +137,6 @@ export function matriceCorpus(entrees: EntreeMatrice[]): MatriceCorpus {
     entretienId: id,
     titre,
     valeursGen: data.meta?.valeursGen ?? {},
-    participations: data.locuteurs.map((p) => ({ participationId: p.id || null, index: p.index, nom: p.nom, valeursLoc: p.valeursLoc ?? {} })),
+    participations: data.participations.map((p) => ({ participationId: p.id || null, index: p.index, nom: p.nom, valeursLoc: p.valeursLoc ?? {} })),
   }))
 }

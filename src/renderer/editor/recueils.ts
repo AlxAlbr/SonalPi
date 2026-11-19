@@ -53,7 +53,7 @@ export function projeterRecueil(
       item.source,
       sourcesPreparees,
       recueil.modeTexte,
-      (data) => data.locuteurs,
+      (data) => data.participations,
     )
     if (resolution.etat !== 'disponible') problemes += 1
     return { ...structuredClone(item), ...resolution }

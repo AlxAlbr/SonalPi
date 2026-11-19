@@ -1,8 +1,8 @@
 import { compterUsagesCasVariable, type SourcesUsagesVariable } from './cas'
-import type { CorpusFichier, Variable } from '../natif/format'
+import type { CorpusFichier, Variable } from "../format"
 import { objet } from '../natif/validationCommune'
 
-export type { Variable } from '../natif/format'
+export type { Variable } from "../format"
 export { detailsVariablesEntretien, type BlocParticipation, type LigneValeur } from './lectureVariables'
 
 export type PatchVariable = Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>

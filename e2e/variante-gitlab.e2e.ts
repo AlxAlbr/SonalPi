@@ -74,7 +74,7 @@ async function instrumenter(app: ElectronApplication, projet: number, mode: Sond
 async function banc(suffixe: string) {
   const id = randomUUID(), projet = await api<{ id: number; path_with_namespace: string }>('/projects', { method: 'POST', body: JSON.stringify({ name: `Sonal variantes ${suffixe} ${id}`, path: `sonal-variantes-${id}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }) })
   const f = fixtureRenommageAnon(); f.corpus.nom = 'Variantes synthétiques'; f.corpus.reglesAnon.personne.pseudos = ['Claire']
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'fixture : variantes synthétiques', actions: [
     { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })

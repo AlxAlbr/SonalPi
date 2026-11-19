@@ -13,8 +13,8 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
     const resultat = await page.evaluate(async () => {
       const api = window.sonal.corpus
       const initial = await api.personnesInventaire()
-      const base = initial.locuteurs.find((p) => p.nom === 'Karine')!
-      const commun = await api.personnesCommander({ type: 'creer', entretienId: base.entretienId, locuteurId: base.locuteurId, nom: 'Karine' })
+      const base = initial.participations.find((p) => p.nom === 'Karine')!
+      const commun = await api.personnesCommander({ type: 'creer', entretienId: base.entretienId, participationId: base.participationId, nom: 'Karine' })
       if (!commun) throw new Error('Identité commune absente')
       const ids = [commun]
       const sources: string[] = []
@@ -23,12 +23,12 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
         const lecture = await api.lireEntretien(id)
         if (!lecture.ok) throw new Error('Source indisponible')
         const data = lecture.data
-        data.locuteurs = [{ id: 'participation-partagee', index: 7, nom, personneRef: null, valeursLoc: {}, interviewer: titre === 'Source B', couleur: '#123456' }]
+        data.participations = [{ id: 'participation-partagee', index: 7, nom, locuteurRef: null, valeursLoc: {}, interviewer: titre === 'Source B', couleur: '#123456' }]
         data.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: `Paroles de ${titre}.` }] }] }
         data.notes = [{ id: 'note-locale', categorieId: 'ncat_generale', titre: '', date: null, statut: 'prive', corps: 'Note de cet entretien',
-          locuteurIds: ['participation-partagee'], rang: 0, creeLe: data.lastModified, modifieLe: null }]
+          participationIds: ['participation-partagee'], rang: 0, creeLe: data.lastModified, modifieLe: null }]
         await api.ecrireEntretien(id, data)
-        const identite = await api.personnesCommander({ type: 'creer', entretienId: id, locuteurId: 'participation-partagee', nom })
+        const identite = await api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'participation-partagee', nom })
         if (!identite) throw new Error('Identité source absente')
         ids.push(identite); sources.push(id)
       }
@@ -56,19 +56,19 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
     })
     expect(resultat.ancienRefuse).toBe(true)
     expect(resultat.intact).toBe(true)
-    expect(resultat.regroupes.map((e) => e.locuteurs[0].personneRef)).toEqual([resultat.commun, resultat.commun])
-    expect(resultat.regroupes.map((e) => e.locuteurs[0].nom)).toEqual(['K. Martin', 'Madame Martin'])
-    expect(resultat.renommes.map((e) => e.locuteurs[0].nom)).toEqual(['Nom aligné', 'Nom aligné'])
-    expect(resultat.dissocies[0].locuteurs[0].personneRef).toBeTruthy()
-    expect(resultat.dissocies[0].locuteurs[0].personneRef).not.toBe(resultat.commun)
-    expect(resultat.dissocies[1].locuteurs[0].personneRef).toBe(resultat.commun)
+    expect(resultat.regroupes.map((e) => e.participations[0].locuteurRef)).toEqual([resultat.commun, resultat.commun])
+    expect(resultat.regroupes.map((e) => e.participations[0].nom)).toEqual(['K. Martin', 'Madame Martin'])
+    expect(resultat.renommes.map((e) => e.participations[0].nom)).toEqual(['Nom aligné', 'Nom aligné'])
+    expect(resultat.dissocies[0].participations[0].locuteurRef).toBeTruthy()
+    expect(resultat.dissocies[0].participations[0].locuteurRef).not.toBe(resultat.commun)
+    expect(resultat.dissocies[1].participations[0].locuteurRef).toBe(resultat.commun)
     for (const [i, entretien] of resultat.dissocies.entries()) {
-      expect(entretien.formatVersion).toBe(9)
-      expect(entretien).not.toHaveProperty('participations')
+      expect(entretien.formatVersion).toBe(10)
+      expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.corpsTexte).toEqual(resultat.avant[i].corpsTexte)
       expect(entretien.notes).toEqual(resultat.avant[i].notes)
-      expect(entretien.locuteurs[0]).toMatchObject({ id: 'participation-partagee', index: 7,
-        couleur: '#123456', interviewer: resultat.avant[i].locuteurs[0].interviewer, valeursLoc: {} })
+      expect(entretien.participations[0]).toMatchObject({ id: 'participation-partagee', index: 7,
+        couleur: '#123456', interviewer: resultat.avant[i].participations[0].interviewer, valeursLoc: {} })
     }
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

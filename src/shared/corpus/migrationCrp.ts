@@ -123,7 +123,7 @@ export interface ApercuTheme {
 
 export interface ApercuVariable {
   lib: string
-  portee: 'entretien' | 'locuteur' // 'gen' → entretien, 'loc' → locuteur
+  portee: 'entretien' | "participation" // 'gen' → entretien, 'loc' → locuteur
   priv: boolean // string 'true'/'false' → booléen
 }
 
@@ -172,8 +172,8 @@ function normaliserTaille(t: unknown): number | null {
   return null
 }
 
-function porteeV1(champ: unknown): 'entretien' | 'locuteur' {
-  return champ === 'loc' ? 'locuteur' : 'entretien'
+function porteeV1(champ: unknown): 'entretien' | 'participation' {
+  return champ === 'loc' ? 'participation' : 'entretien'
 }
 
 function privV1(priv: unknown): boolean {

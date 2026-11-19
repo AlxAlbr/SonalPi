@@ -59,7 +59,7 @@ for (const extension of ['docx', 'pdf']) {
         const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.crp'), 'utf8'))
         const id = Object.keys(corpus.membership).find((id) => corpus.membership[id].titre === 'Entretien')!
         const sauvegarde = JSON.parse(readFileSync(join(profil, 'corpus/entretiens', `${id}.json`), 'utf8'))
-        expect(sauvegarde.locuteurs.map((l: { nom: string }) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])
+        expect(sauvegarde.participations.map((l: { nom: string }) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])
         await retourCorpus(page)
         await expect(page.locator('.carte-ent')).toHaveCount(2)
         await page.locator('.carte-ent').filter({ hasText: 'Entretien' }).nth(1).locator('.crayon').click()

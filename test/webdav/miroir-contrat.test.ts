@@ -193,7 +193,7 @@ describe('miroir distant — protection du travail local', () => {
     corpus.formatVersion = 999
     b.serveur.poser('corpus.crp', JSON.stringify(corpus))
 
-    await expect(b.miroir.tirer()).rejects.toThrow('version non supportée')
+    await expect(b.miroir.tirer()).rejects.toThrow('non supportée')
 
     expect(existsSync(join(b.dir, 'corpus.crp'))).toBe(false)
     expect(existsSync(b.manifeste)).toBe(false)

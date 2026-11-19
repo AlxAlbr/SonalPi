@@ -2,13 +2,13 @@
 
 ## Statut et articulation
 
-**Statut : lot A en cours d’implémentation et de qualification ; format actif 9.**
+**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B non activé.**
 
-Le modèle cible 10, ses noyaux métier et des préparations privées sont présents.
-Les usages migrent progressivement vers les références stables de participation,
-avec des adaptateurs temporaires pour le stockage 9. Le format 10 n’est pas activé,
-la bascule générale et le lot B ne sont pas terminés. Le bilan détaillé figure en
-section 9 ; les décisions et critères de fin ci-dessous restent applicables.
+Corpus, entretiens, sessions, imports, notes, variables, cas, exports et fournisseurs
+utilisent le modèle natif commun. Les formats V2 de développement 1 à 9 sont refusés
+sans conversion ni réécriture. L’import V1 reste disponible et produit directement
+le format 10. La qualification ciblée de cette bascule et ses limites Electron
+figurent en section 9 ; ne pas les confondre avec l’activation des comportements du lot B.
 
 Ce chantier clarifie le modèle interne et ses références. Il est distinct de la
 refonte visuelle décrite dans
@@ -18,7 +18,8 @@ La nouvelle vue de consultation est conservée. Le vocabulaire cible et la
 stratégie de compatibilité sont fixés ci-dessous pour éviter de multiplier les
 chemins Personnes/Locuteurs. L’inventaire des références et les contrats ont
 précédé l’adaptation des usages ; les anciens chemins encore actifs doivent être
-retirés à la bascule coordonnée.
+retirés lorsqu’ils n’ont plus d’appelant. Les noms de composants et canaux IPC du
+panneau historique encore utilisé ne constituent pas un second modèle de stockage.
 
 La V2 n’a pas encore d’utilisateurs hors testeurs. La compatibilité prioritaire
 est la migration des données V1 vers V2, pas celle de toutes les versions
@@ -49,8 +50,7 @@ cartographie les frontières, fixe les contrats de champs et précise les tests 
 compléter. La cible technique est le format natif **10**, distinct de la version
 applicative. Le lot porte sur les identités, la conservation des données V1 et
 les exemples livrés, pas sur un système de réparation des fichiers sources.
-Aucun changement de format, de version applicative ou de politique distante
-n’est effectué par la rédaction de ces documents.
+La bascule du format ne change ni la version applicative ni les droits distants.
 
 ## 1. Objectif et modèle cible
 
@@ -366,89 +366,71 @@ les droits du fournisseur.
 
 ## 9. Avancement de l’implémentation
 
-### État livré : préparation du lot A, sans activation du format 10
+### Bascule technique active
 
-Le détour par la réparation générale des fichiers V1 reste abandonné. Le parseur
-existant et les sources V1 sont conservés ; la création des identités distinctes
-appartient à la préparation de l’import, pas à une correction des noms ou à un
-rapprochement automatique.
+- [x] Activer `FORMAT_VERSION = 10`, avec un seul modèle exporté par `format.ts` :
+  identités `corpus.locuteurs`, présences `entretien.participations`, `locuteurRef`,
+  notes en `participationIds` et variables de portée `participation`.
+- [x] Aligner sessions, payloads, commandes, pseudonymisation, cas, attributs,
+  Synthèse, Lexico, navigation, exports et les deux journaux d’annulation.
+  Les index des paragraphes restent distincts des identifiants stables.
+- [x] Distinguer les entrées de parseur (`ParticipationImport`, id facultatif)
+  des participations natives persistées, dont l’id est obligatoire. Les seuls
+  compléments d’ids se font à l’import ou au remplacement d’une transcription,
+  jamais lors d’une consultation ou d’une correction native.
+- [x] Importer V1 directement en format 10, localement et dans les préparations
+  GitLab, avec une identité distincte par participation, sans rapprochement des
+  homonymes ou des rôles. Conserver le parseur, les données locales et la politique
+  existante de sauvegarde du `.crp` V1 après réussite.
+- [x] Retirer le double modèle `natif/format.ts`, les adaptateurs `Format9`,
+  les migrations automatiques natives 1–9 et leur déclenchement distant sous verrous.
+  L’ouverture valide les documents ; elle ne convertit plus leur structure.
+- [x] Refuser les anciens formats V2 sans repli vers l’import V1 et sans réécriture,
+  rotation de sauvegarde, déplacement d’audio ou de forme d’onde. Refuser aussi les
+  champs anciens ou mélangés portant abusivement le numéro 10.
+- [x] Valider les états natifs des transactions et les publications capturées par
+  les reprises, indépendamment du numéro propre de leur enveloppe. Les suivis de
+  thématiques GitLab/WebDAV refusent les captures anciennes à la lecture et à l’écriture.
+- [x] Livrer l’exemple annoté en format 10 avec neuf identités distinctes, sans changer
+  ses neuf ids locaux, index, textes, notes ou valeurs. Valider le modèle avant copie,
+  installer les corpus vierges/SRT en 10 et bloquer la remise à zéro si une transaction
+  est encore active. Les anciennes copies de test ne sont pas écrasées.
+- [x] Documenter le modèle actif et la recréation des anciens corpus V2 depuis les
+  sources ou par une nouvelle copie des exemples. Ne jamais changer leur seul numéro.
 
-- [x] Définir `Locuteur`, `ParticipationLocuteur`, les références contextualisées,
-  le format cible 10 et ses validations, avec tests des champs anciens ou mélangés.
-- [x] Partager la préparation des imports V1 local et GitLab : une identité distincte
-  par participation, y compris pour les homonymes et les noms de rôle. Préserver les
-  ids fournis ; compléter uniquement les ids absents à la frontière propriétaire.
-  La persistance active de ces imports reste en format 9 jusqu’à la bascule.
-- [x] Remplacer la projection `locuteursCorpus.ts` par `repertoireLocuteurs.ts`,
-  puis adapter les lectures de cas, attributs dérivés, Synthèse et Lexico. Les
-  identités communes, participations et index du texte sont distingués ; les filtres
-  d’absence d’identité commune et d’absence de participation restent séparés.
-- [x] Introduire les opérations communes d’identité, d’association, de regroupement,
-  de séparation et de refus. Migrer les contrats des corrections et leurs messages
-  IPC, sans ouvrir les corrections distantes ni activer les parcours du lot B.
-- [x] Adapter les noyaux et contrats de notes et variables, leurs lectures et les
-  commandes de modification. Les liens de notes et les valeurs restent locaux ;
-  les adaptateurs de stockage 9 sont encore nécessaires à certains appelants.
-- [x] Raccorder la matrice, la table, la navigation et les écritures de valeurs aux
-  ids de participation existants, en local et dans les chemins GitLab/WebDAV
-  autorisés, avec ou sans session ouverte. Ne pas compléter un id par consultation ;
-  une ligne sans id reste lisible mais sa saisie est bloquée. Un lot ne laisse pas
-  de modification partielle dans un entretien si l’une de ses destinations manque.
-- [x] Raccorder dans l’éditeur les valeurs, renommages locaux, rôles, pseudonymes,
-  couleurs et suppressions aux références stables entretien/participation. Adapter
-  les inverses de valeurs et de renommages ; garder les index pour les paragraphes.
-  Attendre les saisies libres avant sauvegarde et fermeture, ou les invalider lors
-  d’un changement de session ou d’une perte de droits. Une confirmation de suppression
-  ne peut pas viser la participation qui réutilise un ancien index.
-- [x] Ajouter les gardes de versions des documents embarqués dans les transactions
-  et suivis de migration, ainsi que des tests d’interruption et de reprise. Préparer
-  en privé l’ajout natif avec le moteur existant ; cela ne constitue pas encore une
-  prise en charge générale des écritures en format 10.
-- [x] Attribuer neuf identités distinctes à l’exemple annoté sans changer ses neuf ids
-  locaux, index, textes, notes ou valeurs. Préparer sa représentation native en mémoire,
-  conserver les regroupements explicites et qualifier les parcours actuels d’exemples.
-  Les fichiers livrés et leur installation restent encore en format 9.
+Les noms de certains canaux IPC et composants du panneau historique Personnes
+subsistent parce que leurs appelants sont encore utilisés. Ils transportent les
+contrats natifs, sans conversion du stockage 9. Leur remplacement et les nouvelles
+règles de création au nommage appartiennent au lot B, toujours non activé. Les
+corrections distantes ne sont pas ouvertes par cette bascule.
 
-Ces travaux conservent les valeurs des identifiants existants, sans renommer leurs
-préfixes ni les remplacer par les index des paragraphes. Les seules allocations
-concernent les nouvelles entrées et les ids historiques effectivement manquants,
-jamais les projections de consultation.
+### Qualification exécutée sur le format 10
 
-### Reste à faire pour terminer le lot A
-
-- [ ] Terminer l’alignement des propriétaires de données encore historiques : modèles
-  de session, payloads, notes locales et leurs instantanés, pseudonymisation, exports,
-  commandes et lecteurs/écrivains des fournisseurs. Ne pas publier de fichiers mixtes.
-- [ ] Effectuer une bascule coordonnée du format actif vers 10 pour corpus, entretiens,
-  créations, imports V1 local et GitLab, transactions, reprises et publications.
-  Activer alors le refus des formats natifs de développement 1 à 9, sans repli V1 ni
-  conversion générale des corpus de test.
-- [ ] Terminer l’adaptation des exemples livrés, des corpus vierges et des imports SRT,
-  de leur installation, ouverture et remise à zéro en format 10. Qualifier les copies
-  incompatibles et les journaux actifs ; documenter la recréation des corpus de test.
-- [ ] Retirer les adaptateurs temporaires `Format9` et les anciennes API sans appelant
-  après migration coordonnée. Ils ne sont pas une seconde interface métier durable.
-- [ ] Qualifier de bout en bout la bascule native, les imports et les reprises, puis
-  compléter la qualification distante réelle dès que les bancs sont disponibles.
-- [ ] Valider séparément le lot A avant d’activer les nouveaux comportements et
-  l’interface finale du lot B. L’écran historique Personnes et ses commandes restantes
-  ne sont pas encore entièrement retirés.
-
-### Qualification exécutée et limites
-
-| Périmètre | Dernier résultat disponible |
+| Périmètre | Résultat |
 |---|---|
-| Tests locaux hors dossiers GitLab/WebDAV | **2 614 tests réussis**, 208 fichiers. |
-| Sous-ensemble GitLab unitaire/simulé | **786 réussis, 85 sautés** ; contrats réels et qualifications sources/définitions exclus de cette commande. |
-| Transactions ciblées GitLab/WebDAV simulées | **140 tests réussis** sur trois fichiers ; recouvrement avec la suite GitLab, ne pas additionner ces comptes. |
-| Electron local | Séries de **27 puis 12 scénarios réussis**, avec recouvrement ; données, journal, locuteurs, notes, table, références stables et sauvegarde. |
-| Typage, fabrication et espaces | `npm run typecheck`, vérification stricte des nouveaux tests sensibles, `npm run build` et `git diff --check` réussis. |
+| Suite locale et fournisseurs simulés | **4 078 tests réussis, 280 fichiers**. Exclusions : fichiers Nextcloud, qualifications GitLab réelles, contrat GitLab et scénarios WebDAV à banc réel. |
+| Journaux natifs | Inclus dans la suite : **30 tests** dédiés aux versions d’enveloppe indépendantes, captures 1–9 refusées, publications anciennes et champs mélangés. |
+| GitLab réel | **19 réussis, 1 indicatif sauté**, dans `qualificationEcrituresEntretien.test.ts` et `qualificationCorrespondances.test.ts` ; écritures, import ciblé, droits, réponses perdues et reprise. |
+| Nextcloud A/B réels | **17 réussis, 1 sauté**, dans `correspondances-nextcloud.test.ts`, `publication-nextcloud.test.ts` et `themes-publication-nextcloud.test.ts`. |
+| Electron local ciblé | **46 réussis, 1 sauté, 2 échecs préexistants** : V1, refus natifs 2/9 sans modification, notes/annulations/réouverture, variables, familles de cas, corrections, regroupement/séparation, Word/PDF, ouvertures et CSV. Les deux échecs sont les entrées d’export d’entretien absentes ; reproduits sur `2c76cf7` dans un worktree séparé, sans les modifications du chantier. |
+| Typage et fabrication | `npm run typecheck` et `npm run build` réussis. |
 
-Les avertissements de fin de tests happy-dom (`AbortError` et chargements CSS
-interrompus) restent présents, sans échec de la suite locale.
+La commande exhaustive regroupant toutes les qualifications Nextcloud a été
+interrompue à sa limite de 900 secondes. Elle n’est pas déclarée réussie ; les
+résultats réels ci-dessus sont ceux des commandes ciblées rejouées ensuite.
+Les bancs ont été préparés avec `preparer_bancs_docker`, sans pull ni reprovisionnement,
+et sont laissés démarrés. Aucun résultat local ne remplace une qualification distante.
 
-La préparation des bancs réels a été demandée avec `preparer_bancs_docker` : le banc
-GitLab est bloqué par l’absence de `qualification.env` ; Nextcloud ne peut pas démarrer
-car Docker est indisponible dans cette distribution WSL. Aucun téléchargement ni
-reprovisionnement n’a été entrepris. Les simulations ne remplacent pas cette
-qualification réelle et ne valident pas la bascule générale, encore non activée.
+### Limites et suite
+
+- [ ] Traiter séparément les deux accès d’export d’entretien manquants, déjà absents
+  du commit initial. Les assertions d’export n’ont pas été assouplies.
+- [ ] Les deux défauts de présentation Electron documentés avant la bascule restent
+  hors de cette série : défilement clavier du journal et écart droit du volet de 2 px.
+  Ils avaient également été reproduits sur `2c76cf7` ; leurs seuils restent inchangés.
+- [ ] Le lot B reste à implémenter et qualifier séparément : création au nommage,
+  interface de corrections finale et retrait des parcours historiques devenus inutiles.
+
+La bascule native est effectuée et qualifiée sur le périmètre indiqué. Ce bilan
+ne prétend ni que toute la suite Electron est verte, ni que l’ensemble du plan
+fonctionnel, notamment le lot B, est terminé.

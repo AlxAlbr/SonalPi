@@ -142,20 +142,20 @@ describe('transition de contexte préparée', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-transition-v2-'))
     const maintenant = '2024-01-01T00:00:00.000Z'
     const corpus: CorpusFichier = {
-      formatVersion: 2,
+      formatVersion: 10,
       codebook: {},
       variables: {},
       reglesAnon: {},
-      personnes: {},
+      locuteurs: {},
       membership: { e1: { titre: 'E1', date: null, lastModified: maintenant } },
     }
     const entretien: EntretienFichier = {
-      formatVersion: 2,
+      formatVersion: 10,
       lastModified: maintenant,
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
     }
     const fichierCorpus = join(dir, 'corpus.crp')
@@ -224,11 +224,11 @@ describe('transition de contexte préparée', () => {
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture('Préparé')
     ecrireJson(join(dir, 'corpus.crp'), {
-      formatVersion: 3,
+      formatVersion: 10,
       codebook: {},
       variables: {},
       reglesAnon: {},
-      personnes: {},
+      locuteurs: {},
       membership: {},
       nom: 'Créé ailleurs',
     })

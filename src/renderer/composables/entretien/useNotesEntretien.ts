@@ -4,7 +4,8 @@ import { estOrpheline } from '../../../shared/entretien/annotation'
 import type { Entretien } from '../../../shared/entretien/entretien'
 import type { Inverse } from '../../../shared/entretien/journal'
 import { genIdNote, notesParRang, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
-import type { Locuteur, Note } from '../../../shared/format'
+import type { ParticipationLocuteur } from '../../../shared/locuteurs'
+import type { Note } from "../../../shared/format"
 import { reperagePluginKey } from '../../editor/reperage'
 import {
   ATTR_LIENS_NOTE,
@@ -22,14 +23,14 @@ interface BrouillonNote {
   date: string | null
   statut: 'prive' | 'public'
   corps: string
-  locuteurIds: string[]
+  participationIds: string[]
   rang: number
 }
 
 /** Gère les notes structurées et leurs interactions avec les commentaires. */
 export function useNotesEntretien(deps: {
   entretien: Entretien
-  locuteurs: Ref<Locuteur[]>
+  participations: Ref<readonly Partial<Pick<ParticipationLocuteur, 'id'>>[]>
   lireEditeur: () => Editor | null
   nomCategorieNote: (id: string) => string
   categorieNoteDefaut: () => string
@@ -68,9 +69,12 @@ export function useNotesEntretien(deps: {
     notes.value = []
   }
 
-  function retirerLocuteur(id: string) {
+  function retirerParticipation(id: string) {
     for (const note of notes.value) {
-      note.locuteurIds = note.locuteurIds?.filter((locuteurId) => locuteurId !== id)
+      note.participationIds = note.participationIds?.filter((participationId) => participationId !== id)
+    }
+    for (const brouillon of [brouillonNote.value, brouillonEditionNote.value]) {
+      if (brouillon) brouillon.participationIds = brouillon.participationIds.filter((participationId) => participationId !== id)
     }
   }
 
@@ -83,7 +87,7 @@ export function useNotesEntretien(deps: {
       date: new Date().toISOString().slice(0, 10),
       statut: 'prive',
       corps: '',
-      locuteurIds: [],
+      participationIds: [],
       rang: prochainRang(notes.value),
     })
   }
@@ -99,7 +103,7 @@ export function useNotesEntretien(deps: {
       date: note.date,
       statut: note.statut,
       corps: note.corps,
-      locuteurIds: [...(note.locuteurIds ?? [])],
+      participationIds: [...(note.participationIds ?? [])],
       rang: note.rang,
     })
   }
@@ -115,10 +119,10 @@ export function useNotesEntretien(deps: {
     const titre = brouillon.titre.trim()
     const corps = sanitiserCorpsNote(brouillon.corps, document)
     const idsExistants = new Set(
-      deps.locuteurs.value.flatMap((locuteur) => (locuteur.id ? [locuteur.id] : [])),
+      deps.participations.value.flatMap((participation) => participation.id ? [participation.id] : []),
     )
-    const locuteurIds = [
-      ...new Set(brouillon.locuteurIds.filter((id) => idsExistants.has(id))),
+    const participationIds = [
+      ...new Set(brouillon.participationIds.filter((id) => idsExistants.has(id))),
     ]
     if (brouillon.id) {
       const cible = notes.value.find((note) => note.id === brouillon.id)
@@ -128,7 +132,7 @@ export function useNotesEntretien(deps: {
         cible.date = brouillon.date
         cible.statut = brouillon.statut
         cible.corps = corps
-        cible.locuteurIds = locuteurIds
+        cible.participationIds = participationIds
         cible.modifieLe = new Date().toISOString()
       }
     } else {
@@ -139,7 +143,7 @@ export function useNotesEntretien(deps: {
         date: brouillon.date,
         statut: brouillon.statut,
         corps,
-        locuteurIds,
+        participationIds,
         rang: brouillon.rang,
         creeLe: new Date().toISOString(),
         modifieLe: null,
@@ -147,7 +151,7 @@ export function useNotesEntretien(deps: {
       notes.value.push(note)
       deps.enregistrerAction(`Note créée : ${titre || '(sans titre)'}`, {
         type: 'retirerNote',
-        note: { ...note, locuteurIds: [...locuteurIds] },
+        note: { ...note, participationIds: [...participationIds] },
       })
     }
     if (brouillonNote.value === brouillon) brouillonNote.value = null
@@ -207,7 +211,7 @@ export function useNotesEntretien(deps: {
     notes.value = renumeroterRangs(ordonnees)
     deps.enregistrerAction(`Note supprimée : ${note.titre || '(sans titre)'}`, {
       type: 'restaurerNote',
-      note: { ...note, locuteurIds: [...(note.locuteurIds ?? [])] },
+      note: { ...note, participationIds: [...(note.participationIds ?? [])] },
       position,
       ordreApres: notes.value.map((candidate) => candidate.id),
     })
@@ -393,7 +397,7 @@ export function useNotesEntretien(deps: {
     menuLiensNote,
     charger,
     reinitialiser,
-    retirerLocuteur,
+    retirerParticipation,
     ajouterNote,
     editerNote,
     validerNote,

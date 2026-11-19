@@ -1,5 +1,5 @@
 {
-  "formatVersion": 9,
+  "formatVersion": 10,
   "lastModified": "2026-10-26T18:22:46.794Z",
   "corpsTexte": {
     "type": "doc",
@@ -1870,28 +1870,6 @@
       "t": 296.72
     }
   ],
-  "locuteurs": [
-    {
-      "index": 1,
-      "nom": "Réponse",
-      "interviewer": false,
-      "valeursLoc": {
-        "v3": "v3m1",
-        "v4": "v4m0",
-        "v5": "v5m9"
-      },
-      "personneRef": "pers-demo-03",
-      "id": "loc-EqzKpY3thYsF8X4PKyfAi65LqeAjz8tE55xnE0sY02g"
-    },
-    {
-      "index": 2,
-      "nom": "Question",
-      "interviewer": true,
-      "valeursLoc": {},
-      "personneRef": "pers-demo-04",
-      "id": "loc-BNW5sC9ghv_IBIS7g6Wj41ZJP1taeka7_9uzMpUE_qw"
-    }
-  ],
   "meta": {
     "valeursGen": {},
     "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/2RetraiteAnticipee.mp3"
@@ -1910,5 +1888,27 @@
       "modifieLe": null
     }
   ],
-  "reperesPassages": []
+  "reperesPassages": [],
+  "participations": [
+    {
+      "index": 1,
+      "nom": "Réponse",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m1",
+        "v4": "v4m0",
+        "v5": "v5m9"
+      },
+      "id": "loc-EqzKpY3thYsF8X4PKyfAi65LqeAjz8tE55xnE0sY02g",
+      "locuteurRef": "pers-demo-03"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "id": "loc-BNW5sC9ghv_IBIS7g6Wj41ZJP1taeka7_9uzMpUE_qw",
+      "locuteurRef": "pers-demo-04"
+    }
+  ]
 }

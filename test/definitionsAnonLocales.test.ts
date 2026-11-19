@@ -94,7 +94,7 @@ describe('mémoire minimale des définitions locales', () => {
       { entite: ['Brouillon A', 'Brouillon B'], pseudos: ['Essai'], categorie: 'LOC', etat: 'brouillon' },
       { entite: ['Brouillon incomplet'], pseudos: [], categorie: 'PER', etat: 'brouillon' },
     ]
-    const entree: EntreeExport = { corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Lyon. Karine. Paris.' }] }] }, annotations: [{ id: 'choix', type: 'anon', from: 7, to: 13, auteur: 'test', pseudo: 'Rebecca', etat: 'anonymise' }, { id: 'partage', type: 'anon', from: 15, to: 20, auteur: 'test', pseudo: 'Capitale', regle: 'r', etat: 'anonymise' }], ancres: [], locuteurs: [], codebook: [], variables: [], meta: { valeursGen: {} }, legacy: { tabAnon: null, notes: '' },
+    const entree: EntreeExport = { corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Lyon. Karine. Paris.' }] }] }, annotations: [{ id: 'choix', type: 'anon', from: 7, to: 13, auteur: 'test', pseudo: 'Rebecca', etat: 'anonymise' }, { id: 'partage', type: 'anon', from: 15, to: 20, auteur: 'test', pseudo: 'Capitale', regle: 'r', etat: 'anonymise' }], ancres: [], participations: [], codebook: [], variables: [], meta: { valeursGen: {} }, legacy: { tabAnon: null, notes: '' },
       reglesAnon: [{ id: 'r', entite: ['Paris', 'Pariss'], pseudos: ['Capitale'], categorie: 'LOC' }], definitionsAnonLocales: definitions,
     }
     const html = exporterSonal(entree).replace(/<link\b[^>]*>/gi, '').replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, '')

@@ -1,3 +1,4 @@
+export type { ChoixRepriseLocuteur } from './contratsLocuteurs'
 import type { ParticipationLocuteur, RefusRapprochementLocuteur } from '../locuteurs'
 import type { ChoixRepriseParticipation } from './contratsLocuteurs'
 export type { ChoixRepriseParticipation } from './contratsLocuteurs'
@@ -103,7 +104,7 @@ export function annulerRefusRapprochementLocuteurs(source: Pick<ParticipationLoc
   source.rapprochementsRefuses = source.rapprochementsRefuses?.filter((r) => cleRefusRapprochement(r) !== cleRefusRapprochement(cible))
 }
 
-/** Le lecteur de refus fourni par un pont de format ne modifie aucune donnée. */
+/** Calcule des suggestions sans modifier les associations ni les refus. */
 export function calculerSuggestionsLocuteurs(
   source: CandidatRapprochementLocuteur,
   candidats: readonly CandidatRapprochementLocuteur[],

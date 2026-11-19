@@ -686,7 +686,7 @@ export async function preparerContexteNextcloud(
   // Une reprise n’autorise ni migration ni archivage automatique des sources.
   if (!retraitEnAttente && !ajoutVariante && !transactions.lireSuiviSuppressionAnon() && !transactions.lireSuiviImportCorrespondances() && !transactions.lireSuiviRenommageAnon() && !transactions.lireSuiviDissociationAnon()
     && !transactions.lirePublicationEntretien() && magasin.ouvrir().dissociationAnon === undefined && magasin.ouvrir().suppressionAnon === undefined && magasin.ouvrir().retraitVarianteAnon === undefined) {
-    await transactions.migrerFormatSiNecessaire()
+    await transactions.ouvrirCorpusNatif()
     await transactions.reconcilierFichiersOrphelins()
   }
   const corpus = magasin.ouvrir()

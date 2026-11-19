@@ -5,12 +5,13 @@ import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import { verifierVersionNative, versionNativeReconnue } from '../src/shared/versionsNatives'
 
 describe('versions natives et classification', () => {
-  test('reconnaît le format actif et les formats encore migrés par l’ouverture', () => {
+  test('ne reconnaît que le format actif, sans promotion des anciens corpus', () => {
     expect(versionNativeReconnue(FORMAT_VERSION)).toBe(true)
-    for (let version = 1; version <= FORMAT_VERSION; version++) {
+    expect(classifierCorpus(JSON.stringify(squeletteCorpus())).type).toBe('v2')
+    for (let version = 1; version < FORMAT_VERSION; version++) {
       const corpus = { ...squeletteCorpus(), formatVersion: version }
-      expect(() => verifierVersionNative(corpus, 'corpus')).not.toThrow()
-      expect(classifierCorpus(JSON.stringify(corpus)).type).toBe('v2')
+      expect(() => verifierVersionNative(corpus, 'corpus')).toThrow('Version native non supportée')
+      expect(() => classifierCorpus(JSON.stringify(corpus))).toThrow('non supportée')
     }
   })
 
