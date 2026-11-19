@@ -209,6 +209,63 @@ describe('Corrections des locuteurs — stockage local', () => {
     expect(b.fichiers()).toEqual(avant)
   })
 
+  test('renomme depuis la seule session ouverte sans assouplir les corrections corpus', () => {
+    const b = preparer(), locuteurId = b.regrouper()
+    const cible = b.participations[0], ref = reference(cible)
+    const lecture = b.store.ouvrirEntretienPourEdition(cible.entretienId)
+    if (!lecture.ok) throw new Error('Fixture illisible')
+    lecture.data.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte tout juste sauvegardé.' }] }] }
+    b.store.ecrireEntretien(cible.entretienId, lecture.data)
+    const commande = { type: 'renommerGlobal' as const, locuteurId, nom: 'Nom global depuis l’entretien', attendu: b.attendu() }
+    expect(() => b.store.personnesCommander(commande)).toThrow('Fermez les entretiens')
+    const apres = b.store.renommerLocuteurDepuisEntretien(ref, commande)
+    expect(apres.corpsTexte).toEqual(lecture.data.corpsTexte)
+    expect(apres.participations[0].nom).toBe(commande.nom)
+    for (const participation of b.participations.slice(0, 3)) expect(b.lire(participation.entretienId).participations[0].nom).toBe(commande.nom)
+    expect(() => b.store.exigerSessionLocaleEcriture(cible.entretienId)).not.toThrow()
+    const enregistres = b.fichiers()
+    expect(() => b.store.ecrireEntretien(cible.entretienId, lecture.data)).toThrow('Les noms ont changé')
+    expect(b.fichiers()).toEqual(enregistres)
+    b.store.ecrireEntretien(cible.entretienId, apres)
+    expect(b.lire(cible.entretienId).participations[0].nom).toBe(commande.nom)
+  })
+
+  test('le renommage depuis l’entretien refuse une autre session, une association périmée et une session absente', () => {
+    const b = preparer(), locuteurId = b.regrouper(), ref = reference(b.participations[0])
+    const commande = { type: 'renommerGlobal' as const, locuteurId, nom: 'Nom refusé', attendu: b.attendu() }
+    const avant = b.fichiers()
+    expect(() => b.store.renommerLocuteurDepuisEntretien(ref, commande)).toThrow('Rouvrez')
+    b.store.ouvrirEntretienPourEdition(ref.entretienId)
+    expect(() => b.store.renommerLocuteurDepuisEntretien({ ...ref, participationId: 'autre' }, commande)).toThrow('association a changé')
+    b.store.ouvrirEntretienPourEdition(b.participations[1].entretienId)
+    expect(() => b.store.renommerLocuteurDepuisEntretien(ref, commande)).toThrow('Fermez les entretiens')
+    expect(b.fichiers()).toEqual(avant)
+  })
+
+  test('le renommage depuis l’entretien garde les refus de lecture seule et d’aperçu périmé', () => {
+    const b = preparer(), locuteurId = b.regrouper(), ref = reference(b.participations[0])
+    b.store.ouvrirEntretienPourEdition(ref.entretienId)
+    const commande = { type: 'renommerGlobal' as const, locuteurId, nom: 'Nom refusé', attendu: b.attendu() }
+    const modifie = b.lire(b.participations[1].entretienId)
+    modifie.participations[0].pseudo = 'Choix plus récent'
+    b.store.ecrireEntretien(b.participations[1].entretienId, modifie)
+    const avant = b.fichiers()
+    expect(() => b.store.renommerLocuteurDepuisEntretien(ref, commande)).toThrow('ont changé')
+    b.store.lectureSeule = true
+    expect(() => b.store.renommerLocuteurDepuisEntretien(ref, { ...commande, attendu: b.attendu() })).toThrow()
+    expect(b.fichiers()).toEqual(avant)
+  })
+
+  test('un renommage interrompu ne permet pas à une autosauvegarde de modifier les états à reprendre', () => {
+    const b = preparer(), ref = reference(b.participations[0])
+    const lecture = b.store.ouvrirEntretienPourEdition(ref.entretienId)
+    if (!lecture.ok) throw new Error('Fixture illisible')
+    writeFileSync(join(b.dir, '.transaction-fichiers.json'), JSON.stringify({ interruption: true }))
+    const avant = b.fichiers()
+    expect(() => b.store.ecrireEntretien(ref.entretienId, lecture.data)).toThrow('Une modification reste à terminer')
+    expect(b.fichiers()).toEqual(avant)
+  })
+
   test('corrige après la sauvegarde et la fermeture locales, puis relit les noms à la réouverture', async () => {
     const b = preparer()
     const personneId = b.regrouper()
@@ -295,7 +352,7 @@ test('la dissociation vérifie tous les identifiants générés avant de modifie
     data: {
       formatVersion: 10, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
       meta: { valeursGen: {}, audioRef: null },
-      participations: [{ id: "loc-0", id, index: 0, nom: 'Même nom', locuteurRef: 'p', valeursLoc: {} }],
+      participations: [{ id, index: 0, nom: 'Même nom', locuteurRef: 'p', valeursLoc: {} }],
     } satisfies EntretienFichier,
   }))
   const avant = JSON.stringify([corpus, entretiens])

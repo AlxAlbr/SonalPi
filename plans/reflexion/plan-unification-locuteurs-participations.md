@@ -2,7 +2,7 @@
 
 ## Statut et articulation
 
-**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B non activé.**
+**Statut : format natif 10 actif ; compatibilité de stockage 9 retirée. Lot B en cours : corrections corpus et renommage depuis l’entretien raccordés.**
 
 Corpus, entretiens, sessions, imports, notes, variables, cas, exports et fournisseurs
 utilisent le modèle natif commun. Les formats V2 de développement 1 à 9 sont refusés
@@ -400,9 +400,9 @@ les droits du fournisseur.
 
 Les noms de certains canaux IPC et composants du panneau historique Personnes
 subsistent parce que leurs appelants sont encore utilisés. Ils transportent les
-contrats natifs, sans conversion du stockage 9. Leur remplacement et les nouvelles
-règles de création au nommage appartiennent au lot B, toujours non activé. Les
-corrections distantes ne sont pas ouvertes par cette bascule.
+contrats natifs, sans conversion du stockage 9. Les nouvelles corrections sont maintenant accessibles depuis la sélection corpus.
+Le remplacement final des détails et les nouvelles règles de création au nommage
+restent à terminer dans le lot B. Les corrections distantes ne sont pas ouvertes.
 
 ### Qualification exécutée sur le format 10
 
@@ -428,9 +428,73 @@ et sont laissés démarrés. Aucun résultat local ne remplace une qualification
 - [ ] Les deux défauts de présentation Electron documentés avant la bascule restent
   hors de cette série : défilement clavier du journal et écart droit du volet de 2 px.
   Ils avaient également été reproduits sur `2c76cf7` ; leurs seuils restent inchangés.
-- [ ] Le lot B reste à implémenter et qualifier séparément : création au nommage,
-  interface de corrections finale et retrait des parcours historiques devenus inutiles.
+- [ ] Terminer le lot B après les raccords corpus et entretien : création au nommage,
+  détails finaux et retrait des anciens parcours.
 
 La bascule native est effectuée et qualifiée sur le périmètre indiqué. Ce bilan
 ne prétend ni que toute la suite Electron est verte, ni que l’ensemble du plan
 fonctionnel, notamment le lot B, est terminé.
+
+## 10. Lot B — premier raccord d’interface
+
+Les actions `Renommer…`, `C’est le même locuteur…` et `Dissocier…` sont accessibles
+sur la sélection de la vue corpus locale. Elles utilisent les commandes natives
+existantes, après lecture d’un inventaire frais. L’aperçu inclut tous les entretiens,
+même masqués ; le store refuse une modification si l’état attendu a changé.
+
+Le regroupement exige un choix explicite de conservation ou d’uniformisation des
+noms. Un conflit dans un même entretien est expliqué avec un accès à cet entretien.
+La dissociation rend chaque participation cochée indépendante, sans saisir de nom,
+en laissant au moins une participation sur l’identité d’origine. Les conséquences
+sur les cas sont expliquées avant confirmation.
+
+Après réussite, les projections sont invalidées, la recherche est effacée et la
+sélection est reconstruite depuis les participations. Une préparation périmée ou
+une réponse reçue après changement de corpus ne s’installe pas dans le nouvel écran.
+
+**Limite volontaire de cette étape :** les entrées sans identité commune passent
+encore par les associations historiques. Préparer un aperçu ne crée aucune identité.
+La création universelle au nommage et le retrait des anciens détails restent à faire.
+Le raccord du renommage depuis l’entretien est décrit en section 11. Aucun droit
+distant n’est ouvert.
+
+Qualification : **29 nouveaux tests** de préparation, interface et orchestration ;
+**2 688 tests locaux réussis dans 212 fichiers**, **9 parcours Electron réussis**,
+typage de l’application et des nouveaux tests ainsi que build réussis. Cette série
+ne rejoue pas les fournisseurs réels, dont les politiques restent inchangées.
+
+## 11. Lot B — renommage global depuis l’entretien ouvert
+
+Une participation déjà associée se renomme maintenant avec confirmation dans tous
+ses entretiens, depuis son champ Nom ou le bouton `Renommer…` de la gestion des
+locuteurs. La préparation ne modifie pas le nom local et inclut les entretiens non
+affichés. Les entrées sans association restent sur leur parcours de nommage actuel.
+
+Avant l’envoi, les identifications et saisies en cours sont attendues, le texte est
+sauvegardé et l’autosauvegarde suspendue. Le main autorise uniquement le renommage
+issu de cette session locale, en vérifiant l’association et l’aperçu. Une autre
+session ouverte reste bloquante ; les corrections corpus ne sont pas assouplies.
+Les écritures utilisent toujours la transaction locale existante.
+
+Seuls les noms sont actualisés en mémoire après comparaison avec le payload sauvé.
+Le document, la sélection, l’historique de frappe, les notes et données ne sont pas
+remplacés. Les inverses de renommage local devenus inadaptés sont retirés du journal.
+Le main empêche une sauvegarde périmée de rétablir les anciens noms et interdit les
+écritures d’entretien pendant une transaction à reprendre.
+
+Une réponse perdue ne rejoue pas le renommage : les noms sont relus et vérifiés.
+Une relecture impossible ou un autre contenu modifié laisse l’entretien en lecture
+seule jusqu’à la réouverture du corpus, sans réenregistrer l’ancien état. Les réponses
+reçues après changement de session sont ignorées. Aucun parcours distant n’est ouvert.
+
+Qualification de cette étape : **25 tests unitaires supplémentaires**, suite locale
+**2 713 tests réussis dans 214 fichiers**, **13 parcours Electron locaux réussis**
+(dont quatre nouveaux pour le renommage ouvert), typage de l’application et des
+nouveaux tests ainsi que build réussis. Les scénarios vérifient annulation, texte
+récent sauvegardé, autosauvegarde après renommage, source absente, réponse perdue,
+relecture refusée et reprise après redémarrage. Les tests B1 restent dans la série.
+**187 tests de fournisseurs simulés** sur six fichiers GitLab/WebDAV passent aussi ;
+les bancs réels n’ont pas été rejoués pour cette étape locale.
+
+Restent la création sans exclusions au nommage (B3), l’interface de détails finale
+et le retrait des anciens parcours (B4), puis la qualification fonctionnelle complète.

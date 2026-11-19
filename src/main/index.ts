@@ -29,7 +29,8 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
-import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
+import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import type { ReferenceParticipation } from '../shared/locuteurs'
 import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { ExemplesLocaux } from './exemples'
@@ -1461,6 +1462,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
   ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
+  ipcMain.handle('corpus:renommerLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => {
+    exigerGeste(fournisseurCourant(), 'personnes.commande')
+    if (contextesDistants.actuel) throw new Error('Le renommage global depuis un entretien est disponible uniquement en local.')
+    return store.renommerLocuteurDepuisEntretien(reference, commande)
+  })
   ipcMain.handle('corpus:personnesCommander', async (
     _e,
     commande: CommandeLocuteurs,

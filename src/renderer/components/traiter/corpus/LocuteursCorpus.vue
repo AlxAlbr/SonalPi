@@ -8,6 +8,9 @@ import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import BarreInterventionsLocuteurs from './BarreInterventionsLocuteurs.vue'
 import PersonnesCorpus from './PersonnesCorpus.vue'
+import CorrectionsLocuteursCorpus from './CorrectionsLocuteursCorpus.vue'
+import type { ReferenceParticipation } from '../../../../shared/locuteurs'
+import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCorrectionsLocuteurs'
 
 const props = defineProps<{ actif: boolean }>()
 const { lireLocuteursCorpus, ouvrirAuSegment, dossierCourantDir, revisionPersonnesCorpus,
@@ -68,11 +71,27 @@ async function actualiser() {
     donnees.value = resultat
     charge.value = true
     erreur.value = ''
+    return true
   } catch (e) {
     if (jeton === generation) erreur.value = e instanceof Error ? e.message : String(e)
   } finally {
     if (jeton === generation) occupe.value = false
   }
+}
+async function apresCorrection(participations: ReferenceParticipation[]) {
+  const dossier = dossierCourantDir.value
+  recherche.value = ''
+  if (!await actualiser() || dossier !== dossierCourantDir.value || !visible.value) return
+  const references = new Set(participations.map(cleParticipationCorrection))
+  const cles = donnees.value.locuteurs.filter((l) => l.participations.some((p) => references.has(cleParticipationCorrection(p))))
+    .map((l) => l.cle)
+  selection.value = { cles, ancre: cles[0] ?? null }
+  if (cles[0]) await focaliser(cles[0])
+}
+async function ouvrirConflit(entretienId: string) {
+  const tour = donnees.value.entretiens.find((e) => e.id === entretienId)?.tours[0]
+  try { await ouvrirAuSegment(entretienId, tour?.pos ?? 1) }
+  catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
 }
 function choisir(cle: string, event: Pick<MouseEvent | KeyboardEvent, 'shiftKey' | 'ctrlKey' | 'metaKey'>) {
   selection.value = selectionnerLocuteurs(selection.value, ordre.value, cle, {
@@ -197,6 +216,8 @@ onBeforeUnmount(() => { generation++ })
               <button v-if="selectionnes.length" type="button" @click="selection = { cles: [], ancre: null }">Effacer la sélection</button>
               <label><input v-model="tousEntretiens" type="checkbox" /> Tous les entretiens</label>
             </div>
+            <CorrectionsLocuteursCorpus v-if="visible" :key="dossierCourantDir ?? ''" :selection="selectionnes" :indisponible="occupe || !!erreur || !!donnees.indisponibles.length"
+              @termine="apresCorrection" @details="details = true" @ouvrir="ouvrirConflit" />
             <ul v-if="selectionnes.length" class="legende-locuteurs">
               <li v-for="locuteur in selectionnes.slice(0, 20)" :key="locuteur.cle"><span class="pastille" :style="{ background: couleurs[locuteur.cle] }"></span>{{ locuteur.nom }}</li>
               <li v-if="selectionnes.length > 20">Et {{ selectionnes.length - 20 }} autres locuteurs.</li>

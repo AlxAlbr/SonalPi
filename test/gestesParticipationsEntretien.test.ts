@@ -11,7 +11,7 @@ const editeurs: Editor[] = []
 afterEach(() => { for (const ed of editeurs.splice(0)) ed.destroy() })
 const reference = { entretienId: 'e1', participationId: '7' }
 
-function banc() {
+function banc(global = false) {
   const locuteurs = ref<ParticipationLocuteur[]>([
     { id: '7', index: 11, nom: 'Question', locuteurRef: 'identite-a', valeursLoc: { age: 'a' } },
     { id: 'historique', index: 7, nom: 'Réponse', locuteurRef: 'identite-b', valeursLoc: {} },
@@ -21,13 +21,28 @@ function banc() {
   editeurs.push(editor)
   const effets = { enregistrerAction: vi.fn(), rafraichirJournal: vi.fn(), rafraichirProjections: vi.fn(), rafraichirGouttiere: vi.fn(),
     planifierSauvegarde: vi.fn(), viderSauvegarde: vi.fn(async () => {}), retirerLocuteurDesNotes: vi.fn() }
+  const demanderRenommageGlobal = vi.fn()
   const outils = useLocuteursEntretien({ locuteurs, ouvertId, lectureSeule: () => lectureSeule.value,
+    renommageGlobalPossible: () => global, demanderRenommageGlobal,
     lireEditeur: () => editor, effets })
   const photo = () => JSON.parse(JSON.stringify({ locuteurs: locuteurs.value, texte: editor.getJSON() }))
-  return { locuteurs, ouvertId, lectureSeule, editor, effets, ...outils, photo }
+  return { locuteurs, ouvertId, lectureSeule, editor, effets, demanderRenommageGlobal, ...outils, photo }
 }
 
 describe('gestes locaux sur les participations de l’entretien', () => {
+  test('valider le nom d’une participation associée prépare le renommage global sans écriture ni inverse local', () => {
+    const b = banc(true), avant = b.photo()
+    const champ = document.createElement('input')
+    champ.value = 'Nom global souhaité'
+    champ.addEventListener('change', (e) => b.renommerParticipation(reference, e))
+    champ.dispatchEvent(new Event('change'))
+    expect(b.demanderRenommageGlobal).toHaveBeenCalledExactlyOnceWith(reference, 'Nom global souhaité')
+    expect(champ.value).toBe('Question')
+    expect(b.photo()).toEqual(avant)
+    expect(b.effets.enregistrerAction).not.toHaveBeenCalled()
+    expect(b.effets.planifierSauvegarde).not.toHaveBeenCalled()
+  })
+
   test('le rôle, le pseudonyme et la couleur suivent l’id existant, pas son index homonyme', () => {
     const b = banc(), avant = b.photo()
     b.setInterviewer(reference, true)

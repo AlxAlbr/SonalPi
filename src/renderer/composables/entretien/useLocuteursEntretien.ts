@@ -47,6 +47,8 @@ export function useLocuteursEntretien(deps: {
   ouvertId: Readonly<Ref<string | null>>
   lireEditeur: () => Editor | null
   lectureSeule?: () => boolean
+  renommageGlobalPossible?: () => boolean
+  demanderRenommageGlobal?: (reference: ReferenceParticipation, nom: string) => void
   effets: EffetsLocuteurs
 }) {
   const selectionVide = ref(true)
@@ -332,8 +334,14 @@ export function useLocuteursEntretien(deps: {
   function renommerParticipation(reference: ReferenceParticipation, event: Event) {
     const cible = participationCourante(reference)
     if (!cible) return
-    const nouveau = (event.target as HTMLInputElement).value
+    const champ = event.target as HTMLInputElement
+    const nouveau = champ.value
     const ancien = cible.nom
+    if (cible.locuteurRef && deps.renommageGlobalPossible?.() && deps.demanderRenommageGlobal && ancien !== nouveau) {
+      champ.value = ancien
+      deps.demanderRenommageGlobal(reference, nouveau)
+      return
+    }
     renommerNomParticipation(deps.locuteurs.value, reference.participationId, nouveau)
     if (ancien !== nouveau) {
       deps.effets.enregistrerAction(
@@ -440,6 +448,7 @@ export function useLocuteursEntretien(deps: {
     locuteurASupprimer,
     mettreAJourSelection,
     reinitialiser,
+    attendreNommages: () => nommagesPersonnes,
     attribuerLoc,
     renommerParticipation,
     reporterRapprochement,

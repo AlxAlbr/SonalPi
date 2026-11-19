@@ -4,6 +4,7 @@ import type { ParticipationLocuteur } from '../../../../shared/format'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
+import RenommageLocuteurOuvert from './RenommageLocuteurOuvert.vue'
 import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
 
 const props = defineProps<{ actif: boolean; lectureSeule: boolean; statistiquesOuvertes: boolean }>()
@@ -18,6 +19,11 @@ const {
   ouvertId,
   attribuerLoc,
   renommerParticipation,
+  demanderRenommageGlobal,
+  demandeRenommageGlobal,
+  renommageGlobalDisponible,
+  editionNomsSuspendue,
+  renommageEnCours,
   messagePersonnes,
   rapprochementNommage,
   rapprochementOccupe,
@@ -138,6 +144,7 @@ watch(
       </div>
     </div>
 
+    <p v-if="editionNomsSuspendue && !renommageEnCours" role="alert">Les dernières paroles sont sauvegardées. Rouvrez le corpus avant de modifier à nouveau cet entretien.</p>
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant<br />ou la sélection :</span>
       <div class="boutons-loc">
@@ -232,6 +239,7 @@ watch(
                   :disabled="lectureSeule"
                   @change="choisirCouleurLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                 />
+                <div class="nom-cell">
                 <input
                   class="nom-loc"
                   :data-tour="i === 0 ? 'nom-locuteur' : undefined"
@@ -239,6 +247,10 @@ watch(
                   :disabled="lectureSeule || !l.id"
                   @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, $event)"
                 />
+                <button v-if="l.locuteurRef && renommageGlobalDisponible" type="button" class="renommer-global"
+                  :disabled="lectureSeule" :aria-label="`Renommer ${l.nom} dans tous ses entretiens`"
+                  @click="demanderRenommageGlobal({ entretienId: ouvertId ?? '', participationId: l.id })">Renommer…</button>
+                </div>
                 <div class="pseudo-cell">
                   <input
                     class="pseudo-loc"
@@ -277,6 +289,7 @@ watch(
         </section>
       </div>
     </Teleport>
+    <RenommageLocuteurOuvert v-if="demandeRenommageGlobal" />
     <details
       class="statistiques-locuteurs"
       :open="statistiquesOuvertes"
@@ -337,6 +350,8 @@ watch(
   color: #a82020;
   font-weight: 600;
 }
+.nom-cell { min-width: 0; }
+.renommer-global { margin-top: .25rem; font-size: .8rem; }
 .nom-loc {
   width: 100%;
   box-sizing: border-box;

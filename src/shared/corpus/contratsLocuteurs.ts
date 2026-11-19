@@ -20,6 +20,8 @@ export type CommandeCorrectionLocuteurs =
   | { type: 'regrouperSelection'; locuteurIds: string[]; conserverId: string; nom: string; uniformiserNoms: boolean; attendu: string }
   | { type: 'dissocierSelection'; locuteurId: string; participations: ReferenceParticipation[]; attendu: string }
 
+export type CommandeRenommageLocuteur = Extract<CommandeCorrectionLocuteurs, { type: 'renommerGlobal' }>
+
 export function estTypeCorrectionLocuteurs(type: unknown): type is CommandeCorrectionLocuteurs['type'] {
   return type === 'renommerGlobal' || type === 'regrouperSelection' || type === 'dissocierSelection'
 }

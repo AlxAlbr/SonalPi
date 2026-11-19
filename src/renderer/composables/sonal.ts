@@ -71,7 +71,7 @@ export function creerSonal() {
   let etatBasePourMedias: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = () => 'sans-objet'
   let actualiserDistantPourMedias: (silencieux?: boolean) => Promise<boolean> = async () => false
   let reinitialiserOutilsCorpus: () => void = () => {}
-  const corpus = useCorpus({ flush: () => sauverEntretien() })
+  const corpus = useCorpus({ flush: () => sauverEntretien(), revision: () => revisionCorpus.value })
 
   // Scope AUDIO : le lecteur de l'entretien ouvert.
   // Les trois consommateurs (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur)
@@ -116,6 +116,8 @@ export function creerSonal() {
     },
     lectureSeule: () => !distant.entretienEditable.value, // aucune écriture d'entretien si la session n'est pas éditable
     entretienEditable: () => distant.entretienEditable.value,
+    renommageGlobalPossible: () => !idDistantCourant.value && !lectureSeule.value,
+    apresRenommageGlobal: () => { corpus.revisionPersonnesCorpus.value++; corpus.reinitialiserMatrice() },
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -1700,7 +1702,8 @@ export function creerSonal() {
     voirParcours,
     naviguerGuide,
     enregistrerNavigationParcours,
-    entretienEditable,
+    entretienEditable: computed(() => entretienEditable.value && !ent.editionNomsSuspendue.value),
+    renommageGlobalDisponible: computed(() => !idDistantCourant.value && !lectureSeule.value),
     divergenceProposee,
     confirmerFusion,
     jeterDivergence,

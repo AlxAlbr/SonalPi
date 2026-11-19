@@ -47,6 +47,7 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
   injection.contexte = {
     lireLocuteursCorpus: lire, ouvrirAuSegment, dossierCourantDir: dossier,
     revisionPersonnesCorpus: revision, dernierTirage: ref(null), vue, idDistantCourant: distant,
+    lectureSeule: ref(false), lirePersonnes: vi.fn(), corrigerLocuteurs: vi.fn(),
   }
   const actif = ref(options.actif ?? true)
   const host = document.body.appendChild(document.createElement('div'))

@@ -24,6 +24,9 @@ import { useJournalEntretien } from './entretien/useJournalEntretien'
 import { useValeursEntretien } from './entretien/useValeursEntretien'
 import { useNotesEntretien } from './entretien/useNotesEntretien'
 import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
+import { useRenommageLocuteurOuvert } from './entretien/useRenommageLocuteurOuvert'
+import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
+import type { PayloadEntretien, ReferenceParticipation } from '../../shared/format'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'
 import { resumeThematique } from '../../shared/corpus'
@@ -122,6 +125,8 @@ export function useEntretien(deps: {
   /** L'entretien ouvert est-il éditable ? (corpus local : toujours ; distant :
    *  seulement si NOUS tenons son verrou — état renvoyé par lireEntretien.) */
   entretienEditable?: () => boolean
+  renommageGlobalPossible?: () => boolean
+  apresRenommageGlobal?: () => void
 }) {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
@@ -182,6 +187,8 @@ export function useEntretien(deps: {
   // stockée — recalculée au moindre déplacement du curseur.
   // --- Recherche / remplacement (Ctrl+F) -------------------------------------
   const ouvertId = ref<string | null>(null)
+  const editionNomsSuspendue = ref(false)
+  const renommageEnCours = ref(false)
   const selectionPassage = ref<{
     entretienId: string
     from: number
@@ -269,7 +276,7 @@ export function useEntretien(deps: {
     entretien,
     ouvertId,
     participations: locuteurs,
-    editable: deps.entretienEditable,
+    editable: () => !editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()),
     notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
@@ -293,11 +300,22 @@ export function useEntretien(deps: {
     reinitialiserJournal,
   } = journalEntretien
 
+  const renommageOuvert = useRenommageLocuteurOuvert({
+    participations: locuteurs, ouvertId,
+    disponible: () => !!deps.renommageGlobalPossible?.() && !deps.lectureSeule?.(),
+    sauver: viderSauvegarde,
+    suspendre: suspendrePourRenommage,
+    appliquer: appliquerNomsRenommes,
+    terminer: terminerRenommage,
+    apresCorrection: () => deps.apresRenommageGlobal?.(),
+  })
   const locuteursEntretien = useLocuteursEntretien({
     locuteurs,
     ouvertId,
     lireEditeur: () => editor.value ?? null,
-    lectureSeule: deps.lectureSeule,
+    lectureSeule: () => editionNomsSuspendue.value || !!deps.lectureSeule?.(),
+    renommageGlobalPossible: deps.renommageGlobalPossible,
+    demanderRenommageGlobal: (reference, nom) => { void demanderRenommageGlobal(reference, nom) },
     effets: {
       enregistrerAction,
       rafraichirJournal,
@@ -324,7 +342,7 @@ export function useEntretien(deps: {
     choisirCouleurLoc,
     demanderSuppressionLocuteur,
     confirmerSuppressionLocuteur,
-  } = locuteursEntretien
+      } = locuteursEntretien
 
   const {
     poserValeurEntretien, poserValeurLibelleEntretien,
@@ -333,7 +351,7 @@ export function useEntretien(deps: {
     ouvertId,
     meta,
     participations: locuteurs,
-    editable: deps.entretienEditable,
+    editable: () => !editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()),
     valeurExiste: deps.valeurExiste,
     libelleValeur: deps.libelleValeur,
     modaliteParLibelle: deps.modaliteParLibelle,
@@ -541,7 +559,7 @@ export function useEntretien(deps: {
   let tid: ReturnType<typeof setTimeout> | undefined
   let sauvegardes = Promise.resolve()
   function planifierSauvegarde() {
-    if (chargement || !ouvertId.value) return
+    if (chargement || !ouvertId.value || editionNomsSuspendue.value) return
     etatSauvegarde.value = 'modifié'
     clearTimeout(tid)
     tid = setTimeout(() => {
@@ -553,7 +571,7 @@ export function useEntretien(deps: {
   function sauver(): Promise<void> {
     clearTimeout(tid)
     tid = undefined
-    if (!ouvertId.value || !editor.value) return sauvegardes
+    if (!ouvertId.value || !editor.value || editionNomsSuspendue.value) return sauvegardes
     const id = ouvertId.value
     const payload = payloadCourant()
     const operation = sauvegardes.then(async () => {
@@ -567,6 +585,11 @@ export function useEntretien(deps: {
   }
   /** Termine les saisies en cours, puis attend leur sauvegarde. */
   async function viderSauvegarde(): Promise<void> {
+    if (editionNomsSuspendue.value) {
+      if (renommageEnCours.value) throw new Error('Le renommage est en cours. Attendez sa fin avant de changer d’entretien ou de corpus.')
+      await sauvegardes
+      return
+    }
     await attendreSaisiesValeurs()
     await sauver()
     await sauvegardes
@@ -588,6 +611,47 @@ export function useEntretien(deps: {
     clearTimeout(tid)
     tid = undefined
     await sauvegardes
+  }
+  function demanderRenommageGlobal(reference: ReferenceParticipation, nom?: string) {
+    locuteursEntretien.messagePersonnes.value = ''
+    return renommageOuvert.preparer(reference, nom)
+  }
+  async function suspendrePourRenommage(): Promise<PayloadEntretien> {
+    const id = ouvertId.value, editeur = editor.value
+    if (!id || !editeur || editionNomsSuspendue.value) throw new Error('Rouvrez cet entretien avant de renommer le locuteur.')
+    renommageEnCours.value = true
+    editeur.setEditable(false)
+    try {
+      await locuteursEntretien.attendreNommages()
+      await viderSauvegarde()
+      if (ouvertId.value !== id || editor.value !== editeur) throw new Error('L’entretien a changé pendant la préparation du renommage.')
+      clearTimeout(tid); tid = undefined
+      editionNomsSuspendue.value = true
+      return payloadCourant()
+    } catch (e) {
+      if (ouvertId.value === id) terminerRenommage()
+      throw e
+    }
+  }
+  function appliquerNomsRenommes(avant: PayloadEntretien, apres: EntretienFichier, locuteurId: string) {
+    verifierRelectureRenommage(avant, apres, locuteurId)
+    verifierRelectureRenommage(avant, { formatVersion: FORMAT_VERSION, lastModified: '', ...payloadCourant() }, locuteurId)
+    const ids = new Set<string>()
+    for (const participation of locuteurs.value) {
+      if (participation.locuteurRef !== locuteurId) continue
+      participation.nom = apres.participations.find((p) => p.id === participation.id)!.nom
+      ids.add(participation.id)
+    }
+    journal.entrees = journal.entrees.filter((e) => e.inverse.type !== 'renommerParticipation' || !ids.has(e.inverse.reference.participationId))
+    editionNomsSuspendue.value = false
+    locuteursEntretien.messagePersonnes.value = ''
+    locuteursEntretien.rapprochementNommage.value = null
+    etatSauvegarde.value = 'à jour'
+    rafraichir(); rafraichirDecorations(); rafraichirGouttiere()
+  }
+  function terminerRenommage() {
+    renommageEnCours.value = false
+    editor.value?.setEditable(!editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()))
   }
   function payloadCourant() {
     const ed = editor.value!
@@ -631,6 +695,8 @@ export function useEntretien(deps: {
     annulerSaisiesValeurs()
     refusFormat.value = null
     chargement = true
+    editionNomsSuspendue.value = false; renommageEnCours.value = false
+    renommageOuvert.reinitialiser()
     recherche.reinitialiser()
     // Ordre : vider le modèle AVANT de remplacer le doc (le remap ne mappe rien),
     // puis recharger le doc, puis reposer les annotations (positions valides par
@@ -681,6 +747,9 @@ export function useEntretien(deps: {
   function reinitialiser() {
     annulerSaisiesValeurs()
     ouvertId.value = null
+    clearTimeout(tid); tid = undefined
+    editionNomsSuspendue.value = false; renommageEnCours.value = false
+    renommageOuvert.reinitialiser()
     selectionPassage.value = null
     recherche.reinitialiser()
     locuteursEntretien.reinitialiser()
@@ -837,6 +906,7 @@ export function useEntretien(deps: {
 
   onBeforeUnmount(() => {
     clearTimeout(tid)
+    renommageOuvert.reinitialiser()
     editor.value?.destroy()
   })
 
@@ -888,6 +958,15 @@ export function useEntretien(deps: {
     retirerCodagesDuCode,
     attribuerLoc,
     renommerParticipation,
+    editionNomsSuspendue,
+    renommageEnCours,
+    demandeRenommageGlobal: renommageOuvert.demande,
+    erreurRenommageGlobal: renommageOuvert.erreur,
+    renommageGlobalOccupe: renommageOuvert.occupe,
+    enregistrementRenommageGlobal: renommageOuvert.enregistrement,
+    demanderRenommageGlobal,
+    confirmerRenommageGlobal: renommageOuvert.confirmer,
+    annulerRenommageGlobal: renommageOuvert.annuler,
     messagePersonnes,
     rapprochementNommage,
     rapprochementOccupe,

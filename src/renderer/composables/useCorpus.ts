@@ -8,7 +8,7 @@ import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
 import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
-import type { CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CommandeCorrectionLocuteurs, CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
@@ -23,7 +23,7 @@ import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
  *  avant un compte d'usages (les codages/valeurs doivent être sur disque) —
  *  dépendance de scope déclarée sans connaître l'éditeur.
  */
-export function useCorpus(opts: { flush: () => Promise<void> }) {
+export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => number }) {
   const membership = ref<Record<string, EntretienRef>>({})
   const recueils = ref<Record<string, Recueil>>({})
   const cas = ref<Record<string, Cas>>({})
@@ -63,6 +63,18 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function commanderPersonnes(commande: CommandeLocuteurs) {
     await opts.flush()
     return window.sonal.corpus.personnesCommander(toRaw(commande), true)
+  }
+
+  async function corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
+    const revision = opts.revision?.()
+    await opts.flush()
+    if (revision !== opts.revision?.()) throw new Error('Le corpus a changé. Vérifiez votre sélection dans le corpus courant.')
+    const id = await window.sonal.corpus.personnesCommander(toRaw(commande), true)
+    if (revision === opts.revision?.()) {
+      journal.revisionPersonnesCorpus.value++
+      variables.reinitialiserMatrice()
+    }
+    return id
   }
 
   return {
@@ -143,6 +155,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     lirePersonnes,
     lireLocuteursCorpus,
     commanderPersonnes,
+    corrigerLocuteurs,
     // variables/modalités
     ajouterVariable: variables.ajouterVariable,
     renommerVariable: variables.renommerVariable,

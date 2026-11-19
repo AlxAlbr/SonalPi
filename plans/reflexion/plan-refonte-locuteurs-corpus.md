@@ -2,17 +2,19 @@
 
 ## Statut et objectif
 
-**Statut : implémentation en cours. Moteur de correction local testé et nouvelle
-vue de consultation livrée ; nouvelles actions de correction encore à raccorder.**
+**Statut : implémentation en cours. Consultation et corrections depuis la sélection
+corpus et renommage depuis l’entretien livrés en local ; création universelle au nommage
+et remplacement final des détails historiques restent à raccorder.**
 
 Remplacer le répertoire technique des personnes et de leurs associations par une
 vue simple des locuteurs du corpus : qui intervient, dans quels entretiens et à
 quels endroits. Permettre de reconnaître un même intervenant ou de corriger un
 regroupement sans exiger de comprendre le modèle Personne/Locuteur.
 
-Le modèle conserve, à ce stade, les personnes du corpus et les locuteurs propres
-aux entretiens. L’interface emploie « locuteur » ; les identifiants, liens et
-contraintes restent internes. Une identité n’est jamais déduite du seul nom.
+Le format natif 10 distingue les identités de locuteurs du corpus et leurs
+participations propres aux entretiens. L’interface emploie « locuteur » ; les
+identifiants et contraintes restent internes. Une identité n’est jamais déduite
+du seul nom.
 
 Ce document fixe une cible fonctionnelle et une démarche. La section « Décisions
 structurantes » consigne les choix validés. Les détails encore ouverts sont
@@ -21,11 +23,10 @@ limitée aux corpus locaux.
 
 L’unification du modèle interne fait l’objet d’un
 [plan séparé Locuteur / ParticipationLocuteur](plan-unification-locuteurs-participations.md).
-Il propose de reprendre le rôle de Personne sous le nom Locuteur, y compris dans
-les règles de cas et les analyses, sans changer leur sens. Ce chantier n’est pas
-un simple renommage de l’écran. Cadrer ses contrats et sa compatibilité avant de
-poursuivre le raccord des commandes, pour ne pas accumuler deux modèles parallèles.
-Les fonctionnalités de consultation déjà réalisées restent conservées.
+Sa bascule en format 10 est effectuée, y compris pour les cas et analyses,
+sans adaptateur de stockage 9. Les corrections d’interface utilisent ce modèle
+commun et les transactions existantes. Les fonctionnalités de consultation déjà
+réalisées restent conservées.
 
 ### Bilan du lot avant cadrage de l’unification
 
@@ -565,21 +566,23 @@ l’outil `preparer_bancs_docker`, sans téléchargement ni reprovisionnement.
 |---|---|
 | Nouvelle vue de consultation et sélection | `src/renderer/components/traiter/corpus/LocuteursCorpus.vue` |
 | Dessin des barres textuelles | `src/renderer/components/traiter/corpus/BarreInterventionsLocuteurs.vue` |
-| Projection compacte de la liste et des tours | `src/shared/corpus/locuteursCorpus.ts` |
+| Projection compacte de la liste et des tours | `src/shared/corpus/repertoireLocuteurs.ts` |
+| Aperçus et corrections de la sélection | `src/shared/corpus/apercusCorrectionsLocuteurs.ts`, `src/renderer/components/traiter/corpus/CorrectionsLocuteursCorpus.vue` |
 | Répertoire de détails et anciennes actions | `src/renderer/components/traiter/corpus/PersonnesCorpus.vue` |
 | Intégration des onglets et mur d’entretiens | `src/renderer/components/traiter/corpus/Corpus.vue` |
 | Création et suggestions au nommage | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
 | Modèle, inventaire, fusion et séparation | `src/shared/corpus/personnes.ts` |
 | Nouvelles corrections globales et dissociation indépendante | `src/shared/corpus/correctionsLocuteurs.ts` |
-| Suggestions et décisions de rapprochement | `src/shared/corpus/rapprochementsPersonnes.ts` |
+| Suggestions et décisions de rapprochement | `src/shared/corpus/rapprochementsLocuteurs.ts` |
 | Persistance et transactions locales | `src/main/corpusStore.ts` |
 | Statistiques et découpage des tours | `src/shared/entretien/statistiquesLocuteurs.ts` |
 | Bilan actuel d’entretien | `src/renderer/components/traiter/entretien/StatistiquesLocuteurs.vue` |
 | Politique distante | `src/main/gitlab/politiqueGestes.ts` |
 | Documentation du fonctionnement actuel | `docs/dev/traiter/locuteurs/personnes.md` |
 
-Aucun changement de format de données n’est décidé à ce stade. Les détails de
-parcours encore ouverts devront être précisés avant leur implémentation.
+L’unification technique a activé le format 10 dans le chantier associé. Les
+corrections d’interface ne créent pas de nouveau format. Les détails de parcours
+encore ouverts devront être précisés avant leur implémentation.
 
 ## 15. Suivi d’implémentation
 
@@ -607,9 +610,9 @@ Docker ni parcours Electron.
 La garde des nouvelles commandes contre les sessions encore en édition ne
 bloque pas le parcours corpus local : le retour au corpus les ferme déjà.
 Aucune resynchronisation générale n’est nécessaire pour raccorder ces actions.
-Le renommage depuis l’entretien reste à raccorder séparément avec actualisation
-de ses noms en mémoire. Les anciennes commandes ne sont pas remplacées
-prématurément.
+À ce stade, le renommage depuis l’entretien restait à raccorder séparément avec
+actualisation de ses noms en mémoire ; ce raccord est maintenant décrit plus bas.
+Les anciennes commandes n’étaient pas remplacées prématurément.
 
 ### Deuxième lot : vue de consultation locale
 
@@ -651,14 +654,71 @@ bilan, elle prend en compte les paragraphes de premier niveau. Le corpus est
 relu à chaque activation ou actualisation ; aucun cache persistant ni préchargement
 des corpus distants n’a été ajouté.
 
+### Corrections depuis la sélection corpus — réalisé après la bascule native
+
+Les trois commandes sont raccordées à la vue locale : renommage global d’une
+sélection simple, regroupement multiple et dissociation des participations cochées.
+Un inventaire frais est comparé à la sélection avant affichage de l’aperçu ; la
+confirmation réutilise cet état attendu et le store le recontrôle avant écriture.
+
+Le regroupement exige de choisir la conservation ou l’uniformisation des noms.
+La dissociation n’exige aucun nom et garde au moins une participation sur l’identité
+d’origine. L’aperçu décrit les conséquences sur les cas ; un conflit dans un même
+entretien bloque la réunion et propose d’ouvrir cet entretien.
+
+Les dialogues prennent le focus sur Annuler, acceptent Échap avant enregistrement
+et ne se ferment pas pendant l’écriture. Après réussite, la recherche est effacée,
+les projections sont invalidées et les locuteurs résultants sont sélectionnés.
+Les réponses de préparation ou de correction devenues obsolètes sont écartées.
+
+**Périmètre restant :** les entrées sans identité commune gardent pour l’instant
+l’accès aux associations historiques. Une préparation ne régularise pas ces entrées
+silencieusement. Leur parcours final dépend de la création au nommage et du
+remplacement des détails. Le renommage depuis l’entretien est désormais global,
+après confirmation, dans le raccord décrit ci-dessous.
+
+Qualification : 29 nouveaux tests ; suite locale de **2 688 tests sur 212 fichiers**
+réussie, **9 parcours Electron locaux réussis**, typage de l’application et des
+nouveaux tests ainsi que build réussis. Aucun fournisseur distant n’est activé.
+
+### Renommage depuis l’entretien — réalisé
+
+Pour une participation déjà associée, valider un nouveau nom ouvre un aperçu sans
+modifier le modèle local. Un bouton `Renommer…` permet aussi d’ouvrir cette confirmation.
+L’aperçu présente tous les entretiens associés, pas seulement l’entretien courant.
+Annuler conserve leurs noms ; confirmer applique le même renommage global que depuis
+le corpus. Les entrées sans association conservent leur nommage actuel en attendant B3.
+
+Les saisies et identifications en cours sont terminées puis le texte sauvegardé,
+avant suspension de l’éditeur et de l’autosauvegarde. Un point d’entrée main dédié
+vérifie la session locale, l’association et l’aperçu. Il tolère uniquement cette
+session pour le renommage, sans autoriser d’autres sessions ni ouvrir les commandes
+distantes. La transaction existante reste propriétaire des écritures.
+
+Les noms sont actualisés en place après vérification que les autres données n’ont
+pas changé. Ni document, ni notes, ni sélection, ni historique de frappe ne sont
+rechargés. Les anciens inverses de renommage local ne peuvent pas défaire un seul
+entretien d’une correction globale. Le main bloque les sauvegardes aux noms périmés
+et les écritures lorsqu’une transaction est encore à reprendre.
+
+Une réponse perdue déclenche une relecture, jamais un rejeu. Si cette relecture
+ne peut pas être validée, l’entretien reste en lecture seule jusqu’à réouverture
+du corpus. Quitter cet état ne réenregistre pas un ancien payload. Les réponses
+d’une session remplacée n’installent pas leurs noms dans la nouvelle session.
+
+Qualification : **25 tests unitaires ajoutés**, **2 713 tests locaux réussis sur
+214 fichiers**, **13 parcours Electron locaux réussis**, dont quatre nouveaux ;
+typage de l’application et des nouveaux tests ainsi que build réussis. Les sources
+absentes, réponses perdues, relectures refusées et sauvegardes après renommage sont
+couvertes, en plus des parcours de sélection corpus déjà livrés. Une qualification
+complémentaire de **187 tests simulés GitLab/WebDAV** passe sur six fichiers ; aucun
+nouveau droit distant n’est ouvert et les bancs réels ne sont pas rejoués.
+
 ### Prochains lots
 
-1. Raccord des nouvelles actions corpus dans la sélection, en réutilisant la
-   fermeture locale existante ; traitement des entrées anciennes sans identité
-   commune au moment d’une correction explicite.
-2. Raccord ciblé du renommage depuis l’entretien avec sauvegarde et actualisation
-   de ses noms en mémoire, sans mécanisme général de resynchronisation.
-3. Création sans noms exclus et identité distincte visible avant décision de
-   rapprochement, avec adaptation du dialogue et des refus.
-4. Remplacement progressif des corrections historiques, intégration des notes et
-   données dans les détails secondaires et recettes Electron des nouveaux gestes.
+1. Création sans noms exclus et identité distincte visible avant décision de
+   rapprochement, avec adaptation du dialogue et des refus ; respecter les retraits
+   volontaires existants sans réassociation automatique.
+2. Remplacement des corrections historiques et traitement explicite des entrées sans
+   association, intégration des notes et données dans les détails secondaires.
+3. Qualification complète des nouveaux gestes et mise à jour des captures et aides.

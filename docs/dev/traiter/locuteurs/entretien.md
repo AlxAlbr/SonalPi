@@ -6,13 +6,22 @@ ni de ProseMirror ; le composable orchestre l’éditeur et la sauvegarde.
 
 ## Ajouter et renommer
 
-Un nouveau locuteur reçoit un `id` opaque, l’index `max + 1`, des valeurs vides
-et aucun lien de personne. Renommer modifie uniquement son entrée : tous les
-paragraphes qui portent cet index retrouvent le nouveau nom par référence.
+Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des valeurs
+vides et `locuteurRef: null`. Tant qu’elle n’est pas associée, son nommage reste
+local et peut proposer un rapprochement ; ce parcours ne transforme pas un nom
+en identifiant.
 
-Le nommage peut ensuite proposer un rapprochement avec les locuteurs d’autres
-entretiens. Ce parcours est distinct du renommage lui-même et ne transforme pas
-un nom en identifiant ; voir [personnes.md](personnes.md).
+Pour une participation déjà associée, en local, valider le champ Nom ou cliquer
+sur `Renommer…` prépare une confirmation globale. Les noms ne changent qu’après
+confirmation dans tous les entretiens associés. Les index et les paragraphes ne
+sont jamais réécrits ; leur affichage retrouve le nouveau nom par référence.
+
+Le raccord attend les saisies et la sauvegarde, suspend l’autosauvegarde pendant
+la transaction, puis actualise uniquement les noms du modèle ouvert. Les autres
+données et l’historique de frappe sont conservés. Une relecture incertaine garde
+l’entretien en lecture seule jusqu’à réouverture du corpus. Les corpus distants
+conservent leur comportement actuel, sans nouveau droit de renommage global.
+Voir [personnes.md](personnes.md#renommage-depuis-lentretien-ouvert).
 
 ## Attribuer un tour de parole
 

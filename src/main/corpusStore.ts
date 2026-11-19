@@ -33,7 +33,8 @@ import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type
 import { annulerRefusRapprochementLocuteurs, natureNomLocuteur, peutCreerLocuteurAuNommage, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from "../shared/corpus/rapprochementsLocuteurs"
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
 import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocuteurs"
-import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandeLocuteurs } from '../shared/corpus/contratsLocuteurs'
+import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import type { ReferenceParticipation } from '../shared/locuteurs'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
 import {
@@ -337,6 +338,8 @@ export class CorpusStore {
    *  En distant, cette inscription correspond également au verrou de session. */
   private readonly ecrituresAutorisees = new Set<string>()
   private readonly sessionsLocalesFermees = new Set<string>()
+  /** Refuse qu'une autosauvegarde retardée rétablisse un nom corrigé dans cette session. */
+  private readonly nomsGlobauxSession = new Map<string, Map<string, { locuteurId: string; nom: string }>>()
 
   exigerSessionLocaleEcriture(id: string): void {
     if (!this.lectureSeule && this.sessionsLocalesFermees.has(id)) throw new Error('La session locale est fermée. Rouvrez l’entretien avant d’enregistrer.')
@@ -349,11 +352,13 @@ export class CorpusStore {
 
   revoquerEcritureEntretien(id: string): void {
     this.ecrituresAutorisees.delete(id)
+    this.nomsGlobauxSession.delete(id)
     if (!this.lectureSeule) this.sessionsLocalesFermees.add(id)
   }
 
   private verifierEcritureEntretien(id: string): void {
     this.verifierEntretienLisible(id)
+    if (this.transactionsFichiers.journalPresent()) throw new Error('Une modification reste à terminer. Rouvrez le corpus avant de modifier un entretien.')
     if (this.sourcesPreparation !== null) {
       // Les sources d'une préparation sont des copies de lecture : jamais des
       // fichiers à modifier, même lorsqu'ils sont prévus.
@@ -693,6 +698,11 @@ export class CorpusStore {
     }
 
     validerEntretienNatif(fichier)
+    const noms = this.nomsGlobauxSession.get(id)
+    if (fichier.participations.some((p) => {
+      const attendu = noms?.get(p.id)
+      return attendu && p.locuteurRef === attendu.locuteurId && p.nom !== attendu.nom
+    })) throw new Error('Les noms ont changé dans les entretiens associés. Rouvrez cet entretien avant de les modifier.')
     if (this.rotationEnAttente.has(id)) {
       this.tournerBak(id)
       this.rotationEnAttente.delete(id)
@@ -1366,8 +1376,8 @@ export class CorpusStore {
     return null
   }
 
-  /** Enregistre ensemble les corrections qui touchent plusieurs entretiens fermés. */
-  private corrigerLocuteurs(commande: CommandeCorrectionLocuteurs): string {
+  /** Enregistre la correction en une transaction ; les autres sessions d’édition restent interdites. */
+  private corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, entretienAutorise?: string): string {
     validerCommandeCorrectionLocuteurs(commande)
     if (this.sourcesPreparation !== null) {
       throw new Error('Ces corrections ne sont pas encore disponibles dans les corpus distants.')
@@ -1375,7 +1385,7 @@ export class CorpusStore {
     if (this.transactionsFichiers.journalPresent()) {
       throw new Error('Une modification reste à terminer. Rouvrez le corpus avant de corriger les locuteurs.')
     }
-    if (this.ecrituresAutorisees.size) {
+    if ([...this.ecrituresAutorisees].some((id) => id !== entretienAutorise)) {
       throw new Error('Fermez les entretiens en édition avant de corriger les locuteurs du corpus.')
     }
     const inventaire = this.personnesInventaire()
@@ -1415,6 +1425,27 @@ export class CorpusStore {
       ordre: commande.type === 'dissocierSelection' ? 'corpus-puis-entretiens' : 'entretiens-puis-corpus',
     })
     return locuteurId
+  }
+
+  /** Renomme depuis la seule session locale ouverte, après sauvegarde et confirmation. */
+  renommerLocuteurDepuisEntretien(reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): EntretienFichier {
+    this.verifierEcriture()
+    validerCommandeCorrectionLocuteurs(commande)
+    if (commande.type !== 'renommerGlobal' || !reference || typeof reference.entretienId !== 'string'
+      || typeof reference.participationId !== 'string' || !this.ecrituresAutorisees.has(reference.entretienId)) {
+      throw new Error('Rouvrez cet entretien avant de renommer le locuteur.')
+    }
+    const lecture = this.lireEntretien(reference.entretienId)
+    if (!lecture.ok || lecture.data.participations.find((p) => p.id === reference.participationId)?.locuteurRef !== commande.locuteurId) {
+      throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+    }
+    this.corrigerLocuteurs(commande, reference.entretienId)
+    const apres = this.lireEntretien(reference.entretienId)
+    if (!apres.ok) throw new Error('Les noms ont été enregistrés mais leur relecture a échoué. Rouvrez le corpus.')
+    const noms = this.nomsGlobauxSession.get(reference.entretienId) ?? new Map<string, { locuteurId: string; nom: string }>()
+    for (const p of apres.data.participations) if (p.locuteurRef === commande.locuteurId) noms.set(p.id, { locuteurId: commande.locuteurId, nom: p.nom })
+    this.nomsGlobauxSession.set(reference.entretienId, noms)
+    return apres.data
   }
 
   /** Applique les corrections locales des identités et des associations. */

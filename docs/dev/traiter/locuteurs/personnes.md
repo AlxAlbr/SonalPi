@@ -107,7 +107,7 @@ modifiés. Une reprise accepte ces états connus, pas une modification extérieu
 divergente. Les écritures de définition sont ordonnées pour ne jamais supprimer
 la fiche absorbée avant le remplacement de ses liens.
 
-## Nouvelles corrections locales : socle non raccordé à l’interface
+## Corrections depuis la sélection corpus
 
 `correctionsLocuteurs.ts` prépare trois nouvelles commandes, intégrées au store :
 
@@ -126,16 +126,55 @@ le journal des transactions locales, avec les définitions avant les liens lors
 d’une dissociation et les liens avant le retrait des définitions absorbées lors
 d’un regroupement. Les identifiants créés sont conservés dans le plan de reprise.
 
-**Le parcours utilisateur existant n’appelle pas encore ces commandes.** Les
-anciennes commandes gardent donc leur comportement. La garde contre une session
-encore en édition protège les appels hors parcours. En local, le retour au corpus
-sauvegarde et ferme déjà l’entretien : aucune fermeture supplémentaire ni
-resynchronisation générale n’est nécessaire pour les corrections depuis le corpus.
-La réouverture relit les données corrigées.
+La vue `LocuteursCorpus.vue` les appelle par `CorrectionsLocuteursCorpus.vue`.
+`apercusCorrectionsLocuteurs.ts` vérifie la sélection contre un inventaire frais,
+présente toutes les participations et repère les conflits dans un même entretien.
+La confirmation utilise cet instantané ; le store le recontrôle avant écriture.
+Les choix de conservation ou d’uniformisation des noms sont explicites.
 
-Le renommage depuis l’entretien lui-même reste un cas distinct : son raccord
-devra sauvegarder le texte courant puis actualiser les noms en mémoire après la
-correction globale, avant de permettre de nouvelles sauvegardes.
+`useCorpus.corrigerLocuteurs()` attend la sauvegarde, refuse un changement de
+contexte avant l’envoi et invalide les projections après réussite. La sélection
+résultante est retrouvée par les références contextualisées des participations ;
+la recherche est effacée pour ne pas masquer les entrées renommées ou dissociées.
+Les dialogues prennent le focus sur Annuler et bloquent leur fermeture pendant
+l’enregistrement. Les réponses tardives ne réinstallent pas un ancien aperçu.
+
+Les participations sans identité commune restent temporairement corrigées par
+l’accès historique « Ouvrir les associations », sans création silencieuse lors
+de la préparation. La création universelle au nommage et le remplacement final
+de ces détails restent à raccorder. Les anciennes commandes gardent leur comportement.
+
+La garde contre une session encore en édition protège les appels hors parcours.
+En local, le retour au corpus sauvegarde et ferme déjà l’entretien : aucune
+fermeture supplémentaire ni resynchronisation générale n’est nécessaire pour les
+corrections depuis le corpus. La réouverture relit les données corrigées.
+
+### Renommage depuis l’entretien ouvert
+
+`useRenommageLocuteurOuvert.ts` prépare le même aperçu pour une participation déjà
+associée. Saisir un autre nom n’altère pas encore le modèle local : le dialogue
+`RenommageLocuteurOuvert.vue` exige une confirmation explicite du périmètre global.
+Les entrées sans association conservent pour l’instant leur parcours de nommage.
+
+Avant l’envoi, `useEntretien` attend les identifications et saisies libres en cours,
+vide la sauvegarde, bloque l’éditeur et suspend le debounce. Le point d’entrée
+`renommerLocuteurDepuisEntretien` autorise seulement cette session locale ouverte ;
+les commandes corpus continuent à refuser toute session ouverte, et une autre session
+ouverte bloque aussi ce point d’entrée. Le même moteur transactionnel est utilisé.
+
+La réponse est comparée au dernier payload sauvegardé : seuls les noms de l’identité
+ciblée peuvent différer. Les objets de participation sont actualisés en place, sans
+remplacer le document, les notes, les données, la sélection ni l’historique de frappe.
+Les inverses de renommage local de ces participations sont retirés du journal ; ils
+ne permettraient pas d’annuler la correction dans tous les autres entretiens.
+
+Le main refuse les noms périmés d’une autosauvegarde de cette session ainsi que toute
+écriture d’entretien en présence d’une transaction de fichiers encore active.
+Une réponse perdue n’entraîne aucun rejeu : une relecture vérifiée des noms permet
+la reprise. Si elle échoue ou révèle un autre changement du contenu, l’éditeur et
+ses panneaux restent en lecture seule jusqu’à la réouverture du corpus. Quitter
+cet état ne réenregistre pas l’ancien payload ; les dernières paroles avaient été
+sauvegardées avant la correction. Les réponses d’une ancienne session sont écartées.
 
 Les nouvelles corrections ne changent pas les droits distants : elles passent
 par le même dispatch protégé que les autres commandes de personnes.
