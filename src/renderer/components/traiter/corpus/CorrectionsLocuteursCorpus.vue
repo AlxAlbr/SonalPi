@@ -9,7 +9,8 @@ import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 
 const props = defineProps<{ selection: LigneRepertoireLocuteurs[]; indisponible: boolean }>()
 const emit = defineEmits<{ termine: [participations: ReferenceParticipation[]]; ouvrir: [entretienId: string] }>()
-const { lireApercuLocuteurs, corrigerLocuteurs, lectureSeule, gesteDisponible } = utiliserSonal()
+const { lireApercuLocuteurs, corrigerLocuteurs, lectureSeule, gesteDisponible, idDistantCourant,
+  suiviLocuteurs, erreurSuiviLocuteurs, suiviLocuteursCharge } = utiliserSonal()
 const apercu = ref<ApercuCorrectionLocuteurs | null>(null)
 const dialogue = ref<HTMLDialogElement | null>(null)
 const annuler = ref<HTMLButtonElement | null>(null)
@@ -24,7 +25,8 @@ let generation = 0
 let retour: HTMLElement | null = null
 let selectionInitiale: ReferenceParticipation[] = []
 const sansAssociation = computed(() => props.selection.some((l) => !l.locuteurId))
-const bloque = computed(() => props.indisponible || lectureSeule.value || !gesteDisponible('correctionsLocuteurs'))
+const bloque = computed(() => props.indisponible || lectureSeule.value || !gesteDisponible('correctionsLocuteurs')
+  || !!suiviLocuteurs.value || !!erreurSuiviLocuteurs.value || (!!idDistantCourant.value && !suiviLocuteursCharge.value))
 const occupe = computed(() => preparation.value || enregistrement.value)
 const titre = computed(() => apercu.value?.type === 'renommerGlobal' ? 'Renommer ce locuteur'
   : apercu.value?.type === 'regrouperSelection' ? 'Réunir les locuteurs sélectionnés'
@@ -107,7 +109,7 @@ function ouvrir(entretienId: string) {
   emit('ouvrir', entretienId)
 }
 watch(() => props.selection, () => { fermer(); erreur.value = '' })
-watch(bloque, (valeur) => { if (valeur) fermer() })
+watch([bloque, enregistrement], ([valeur, enCours]) => { if (valeur && !enCours) fermer() })
 onBeforeUnmount(() => { generation++; dialogue.value?.close() })
 </script>
 

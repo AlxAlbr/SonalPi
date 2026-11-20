@@ -6,7 +6,9 @@ const { demandeRenommageGlobal: demande, renommageGlobalOccupe: occupe, enregist
   erreurRenommageGlobal: erreur, confirmerRenommageGlobal, annulerRenommageGlobal } = utiliserSonal()
 const dialogue = ref<HTMLDialogElement | null>(null)
 const annuler = ref<HTMLButtonElement | null>(null)
-const retour = document.activeElement as HTMLElement | null
+const retour = [...document.querySelectorAll<HTMLInputElement>('.modale-locuteurs .nom-loc')]
+  .find((champ) => champ.dataset.participationId === demande.value?.reference.participationId)
+  ?? document.activeElement as HTMLElement | null
 onMounted(async () => { dialogue.value?.showModal(); await nextTick(); annuler.value?.focus() })
 onBeforeUnmount(() => {
   dialogue.value?.close()

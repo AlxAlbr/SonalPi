@@ -12,6 +12,7 @@ import type { CommandeCorrectionLocuteurs, CommandeLocuteurs } from '../../share
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
+import type { SuiviCorrectionLocuteurs } from '../../shared/corpus/suiviCorrectionsLocuteurs'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -24,6 +25,11 @@ import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
  *  dépendance de scope déclarée sans connaître l'éditeur.
  */
 export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => number }) {
+  const suiviLocuteurs = ref<SuiviCorrectionLocuteurs | null>(null)
+  const erreurSuiviLocuteurs = ref('')
+  const suiviLocuteursCharge = ref(false)
+  const revisionSuiviLocuteurs = ref(0)
+  let lectureSuivi = 0
   const membership = ref<Record<string, EntretienRef>>({})
   const recueils = ref<Record<string, Recueil>>({})
   const cas = ref<Record<string, Cas>>({})
@@ -78,17 +84,49 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     const revision = opts.revision?.()
     await opts.flush()
     if (revision !== opts.revision?.()) throw new Error('Le corpus a changé. Vérifiez votre sélection dans le corpus courant.')
-    const id = await window.sonal.corpus.corrigerLocuteurs(toRaw(commande))
-    if (revision === opts.revision?.()) {
-      journal.revisionPersonnesCorpus.value++
-      variables.reinitialiserMatrice()
+    try {
+      const id = await window.sonal.corpus.corrigerLocuteurs(toRaw(commande))
+      if (revision === opts.revision?.()) {
+        journal.revisionPersonnesCorpus.value++
+        variables.reinitialiserMatrice()
+      }
+      return id
+    } finally { if (revision === opts.revision?.()) revisionSuiviLocuteurs.value++ }
+  }
+
+  async function rafraichirSuiviLocuteurs() {
+    const revision = opts.revision?.(), jeton = ++lectureSuivi
+    try {
+      const resultat = await window.sonal.corpus.suiviCorrectionLocuteurs()
+      if (revision !== opts.revision?.() || jeton !== lectureSuivi) return
+      suiviLocuteurs.value = resultat; erreurSuiviLocuteurs.value = ''; suiviLocuteursCharge.value = true
+    } catch (e) {
+      if (revision === opts.revision?.() && jeton === lectureSuivi) { erreurSuiviLocuteurs.value = e instanceof Error ? e.message : String(e); suiviLocuteursCharge.value = true }
     }
-    return id
+  }
+
+  function oublierSuiviLocuteurs() {
+    lectureSuivi++; suiviLocuteurs.value = null; erreurSuiviLocuteurs.value = ''; suiviLocuteursCharge.value = false
+  }
+
+  async function agirSurCorrectionLocuteurs(id: string, action: 'verifier' | 'reprendre' | 'arreter') {
+    const revision = opts.revision?.()
+    try {
+      const resultat = await (action === 'verifier' ? window.sonal.corpus.verifierCorrectionLocuteurs(id)
+        : action === 'arreter' ? window.sonal.corpus.arreterCorrectionLocuteurs(id) : window.sonal.corpus.reprendreCorrectionLocuteurs(id))
+      if (revision === opts.revision?.()) { journal.revisionPersonnesCorpus.value++; variables.reinitialiserMatrice() }
+      return resultat
+    } finally { if (revision === opts.revision?.()) revisionSuiviLocuteurs.value++ }
   }
 
   return {
     // état
     membership,
+    suiviLocuteurs, erreurSuiviLocuteurs, suiviLocuteursCharge, revisionSuiviLocuteurs,
+    rafraichirSuiviLocuteurs, oublierSuiviLocuteurs,
+    reprendreCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'reprendre'),
+    verifierCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'verifier'),
+    arreterCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'arreter'),
     recueils,
     cas,
     famillesCas,

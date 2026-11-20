@@ -13,7 +13,7 @@ import { corpsNoteEnTexte } from '../../../../shared/export/notesTexte'
 const props = defineProps<{ actif: boolean; selection: LigneRepertoireLocuteurs[] }>()
 const emit = defineEmits<{ fermer: []; selectionner: [references: ReferenceParticipation[]]; termine: [references: ReferenceParticipation[]] }>()
 const { lireDetailsLocuteurs, corrigerLocuteurs, dossierCourantDir, revisionPersonnesCorpus, dernierTirage, vue, idDistantCourant,
-  lectureSeule, gesteDisponible, allerNotes, allerLocuteurs } = utiliserSonal()
+  lectureSeule, gesteDisponible, suiviLocuteurs, erreurSuiviLocuteurs, suiviLocuteursCharge, allerNotes, allerLocuteurs } = utiliserSonal()
 const vide = (): InventaireIdentitesLocuteurs => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] })
 const inventaire = ref(vide()), charge = ref(false), lecture = ref(false), preparation = ref(false), enregistrement = ref(false)
 const erreur = ref(''), message = ref(''), limite = ref(100)
@@ -25,7 +25,8 @@ let contexte = 0, lectures = 0, preparations = 0
 let retour: HTMLElement | null = null
 const retourPanneau = document.activeElement as HTMLElement | null
 const visible = computed(() => props.actif && vue.value === 'corpus')
-const bloque = computed(() => lectureSeule.value || !gesteDisponible('correctionsLocuteurs') || lecture.value || preparation.value || enregistrement.value || !charge.value || !!erreur.value || !!inventaire.value.indisponibles.length)
+const bloque = computed(() => lectureSeule.value || !gesteDisponible('correctionsLocuteurs')
+  || !!suiviLocuteurs.value || !!erreurSuiviLocuteurs.value || (!!idDistantCourant.value && !suiviLocuteursCharge.value) || lecture.value || preparation.value || enregistrement.value || !charge.value || !!erreur.value || !!inventaire.value.indisponibles.length)
 const references = computed(() => props.selection.flatMap((l) => l.participations))
 const cles = computed(() => new Set(references.value.map(cleParticipationCorrection)))
 const participations = computed(() => inventaire.value.participations.filter((p) => cles.value.has(cleParticipationCorrection(p))))
@@ -110,6 +111,9 @@ watch([visible, dossierCourantDir, idDistantCourant], () => {
   if (visible.value) void actualiser()
 }, { immediate: true })
 watch([revisionPersonnesCorpus, dernierTirage], () => { if (visible.value && !enregistrement.value) void actualiser() })
+watch([suiviLocuteurs, erreurSuiviLocuteurs, enregistrement], () => {
+  if ((suiviLocuteurs.value || erreurSuiviLocuteurs.value) && !enregistrement.value) fermerConfirmation()
+})
 onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.close(); if (retourPanneau?.isConnected) retourPanneau.focus() })
 </script>
 

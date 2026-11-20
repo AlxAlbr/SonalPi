@@ -129,6 +129,7 @@ export function useEntretien(deps: {
    *  seulement si NOUS tenons son verrou — état renvoyé par lireEntretien.) */
   entretienEditable?: () => boolean
   renommageGlobalPossible?: () => boolean
+  identificationLocuteursPossible?: () => boolean
   apresRenommageGlobal?: () => void
 }) {
   const auteur = 'moi'
@@ -317,7 +318,7 @@ export function useEntretien(deps: {
     ouvertId,
     lireEditeur: () => editor.value ?? null,
     lectureSeule: () => editionNomsSuspendue.value || renommageEnCours.value || !!deps.lectureSeule?.(),
-    identificationPossible: deps.renommageGlobalPossible,
+    identificationPossible: deps.identificationLocuteursPossible,
     identifier: (reference, nom) => corrigerAssociationAuNommage(reference,
       () => window.sonal.corpus.identifierParticipationAuNommage({ ...reference, nom }),
       (avant, apres, relecture) => verifierRelectureIdentification(avant, apres, reference, relecture), false),
@@ -681,7 +682,7 @@ export function useEntretien(deps: {
     const cible = locuteurs.value.find((p) => p.id === reference.participationId), editeur = editor.value
     const courant = () => ouvertId.value === reference.entretienId && editor.value === editeur
       && locuteurs.value.find((p) => p.id === reference.participationId) === cible
-    if (!cible || !courant() || !deps.renommageGlobalPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage automatique est disponible uniquement dans un entretien local modifiable.')
+    if (!cible || !courant() || !deps.identificationLocuteursPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage automatique est disponible uniquement dans un entretien local modifiable.')
     let avant: PayloadEntretien | undefined
     try {
       avant = await suspendrePourCorrectionLocuteurs(attendreNommages)

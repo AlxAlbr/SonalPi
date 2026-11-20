@@ -76,7 +76,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.editeur .loc-anon .loc-nom').first()).toHaveCSS('color', 'rgb(33, 128, 90)')
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     expect(await texteTranscription(page)).toBe(texteInitial)
-    if (process.env.SONAL_DOC_CAPTURES === '1') {
+    if (['1', 'entretien'].includes(process.env.SONAL_DOC_CAPTURES ?? '')) {
       await page.locator('.modale-locuteurs').screenshot({ path: 'docs/user/medias/locuteurs-entretien.png' })
     }
 

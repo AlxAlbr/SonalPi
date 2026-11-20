@@ -62,7 +62,8 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 | Stockage et dispatch | `src/main/corpusStore.ts`, `src/main/index.ts` |
 
 La consultation utilise désormais la vue commune, y compris en distant. Le nouveau
-parcours de corrections corpus est raccordé sur GitLab ; WebDAV reste en consultation.
+parcours de corrections corpus est raccordé sur GitLab et WebDAV, avec protections
+et reprise propres à chaque fournisseur.
 Les noms et composants historiques encore présents seront traités par le nettoyage
 final, sans adaptation du stockage 9. Voir le bilan courant par fournisseur.
 

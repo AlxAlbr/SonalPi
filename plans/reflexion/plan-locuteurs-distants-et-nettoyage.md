@@ -3,8 +3,10 @@
 ## 1. Point de départ : comparer pour préciser, sans choisir une architecture
 
 **Statut : réalisation en cours. Analyse D0 effectuée ; consultation commune
-raccordée et corrections corpus GitLab implémentées. Écritures WebDAV, entretien
-ouvert et nettoyage final restent à réaliser.** Le lot local B1–B5 est clôturé
+raccordée et corrections corpus GitLab et WebDAV implémentées. Reprise WebDAV et
+interface qualifiées sur les deux bancs. Le renommage depuis une session GitLab
+est raccordé ; création, rapprochement, session WebDAV et nettoyage final restent
+à réaliser.** Le lot local B1–B5 est clôturé
 dans `43a14d8`, sans réouverture de sa qualification générale.
 
 La comparaison avec les thématiques est une **question de départ**, pas une
@@ -51,7 +53,7 @@ Références :
 - [Politique des gestes](../../docs/dev/distant/gestes.md).
 - [GitLab](../../docs/dev/distant/gitlab.md) et [WebDAV](../../docs/dev/distant/webdav.md).
 
-## 2. Ce qui existe réellement
+## 2. État initial avant le raccord
 
 ### Métier et interface
 
@@ -280,35 +282,38 @@ thématiques pour produire cette analyse.
 - [x] Raccorder la liste, les interventions, statistiques et détails aux deux fournisseurs.
 - [x] Distinguer vue miroir consultable et aperçu serveur autorisant une correction.
 - [x] Afficher les indisponibles et l’état incomplet, sans création ni réservation d’écriture.
-- [ ] Fixer les gestes et le contrat commun d’aperçu, résultat et reprise.
+- [x] Fixer les gestes et le contrat commun d’aperçu, résultat et reprise.
 
 **Sortie :** consultation cible qualifiée sur les deux fournisseurs, sans changement
 de données ni ouverture implicite des commandes historiques.
 
 ### D2 — Corrections bornées depuis le corpus
 
-- [ ] Livrer renommage global, individualisation et dissociation.
-- [ ] Livrer suppression d’une définition réellement inutilisée.
-- [ ] Livrer distinctions réciproques et reprise d’informations explicitement choisie.
-- [ ] Réutiliser les mutations locales ; fournir versions, réservations et reprise distantes.
-- [ ] Ouvrir chaque geste seulement après ses tests ciblés, avec refus main et UI cohérents.
+- [x] Livrer renommage global, individualisation et dissociation.
+- [x] Livrer suppression d’une définition réellement inutilisée.
+- [x] Livrer distinctions réciproques et reprise d’informations explicitement choisie.
+- [x] Réutiliser les mutations locales ; fournir versions, réservations et reprise distantes.
+- [x] Ouvrir chaque geste seulement après ses tests ciblés, avec refus main et UI cohérents.
 
 **Sortie :** résultats identiques au local pour ces actions, sessions requises fermées,
 ids stables après interruption et aucune donnée étrangère modifiée.
 
 ### D3 — Réunion complète et finalisation des références
 
-- [ ] Ajouter la réunion multiple, les deux politiques de noms et le refus des conflits.
-- [ ] Rediriger cas et distinctions, y compris ceux hors sélection.
-- [ ] Qualifier la finalisation GitLab sous les bornes du publieur.
-- [ ] Démontrer la protection de finalisation WebDAV avant ouverture de la réunion.
-- [ ] Vérifier coupure avant et après chaque phase, réponse inconnue et modification de tiers.
+- [x] Ajouter la réunion multiple, les deux politiques de noms et le refus des conflits.
+- [x] Rediriger cas et distinctions, y compris ceux hors sélection.
+- [x] Qualifier la finalisation GitLab sous les bornes du publieur.
+- [x] Démontrer la protection de finalisation WebDAV avant ouverture de la réunion.
+- [x] Vérifier coupure avant et après chaque phase, réponse inconnue et modification de tiers.
 
 **Sortie :** aucune identité absorbée retirée prématurément, aucun succès global
 annoncé pour un résultat partiel. Si WebDAV reste bloqué par une garantie manquante,
 le geste demeure indisponible et la limite est explicitement arbitrée.
 
 ### D4 — Nommage et corrections depuis l’entretien ouvert
+
+**Partiel :** renommage GitLab qualifié, en conservant le droit de la session.
+Création et rapprochement GitLab ainsi que le raccord de session WebDAV restent fermés.
 
 - [ ] Raccorder création indépendante au nommage, renommage global et rapprochement confirmé.
 - [ ] Intégrer sauvegarde, publication de session et application sélective du résultat.
@@ -320,7 +325,7 @@ concurrente sur une session déjà détenue.
 
 ### D5 — Retrait historique et nomenclature
 
-- [ ] Retirer la branche distante `PersonnesCorpus.vue` au profit de la vue commune.
+- [x] Retirer la branche distante `PersonnesCorpus.vue` au profit de la vue commune.
 - [ ] Examiner `RapprochementCorpus.vue` et les autres appelants historiques ; supprimer
   seulement ceux devenus inutilisés, y compris les usages de préparation fournisseur.
 - [ ] Renommer ou regrouper `src/shared/corpus/personnes.ts` selon ses responsabilités :
@@ -388,7 +393,7 @@ Les 21 échecs transversaux reproduits avant le lot B et les lenteurs de l’éd
 fortement annoté restent dans leurs chantiers respectifs. Ne pas les reprendre ni
 multiplier les campagnes générales pour clôturer ce raccord distant.
 
-## 10. Premier raccord réalisé
+## 10. Premier raccord GitLab réalisé — historique de `d7ab9d1`
 
 ### Résultat de l’analyse D0
 
@@ -445,3 +450,99 @@ les parcours de D4 et la suppression finale des anciens noms ne sont pas revendi
 Ce premier raccord est livré par son commit dédié. Les étapes restantes restent
 ouvertes. Le [bilan par fournisseur](../../docs/dev/traiter/locuteurs/fournisseurs.md)
 décrit les nouvelles entrées et les limites actuelles.
+
+## 11. Raccord WebDAV réalisé
+
+Les huit corrections corpus sont maintenant ouvertes sur Nextcloud, sans réactiver
+les anciennes commandes. Le protocole propre aux locuteurs utilise les mutations
+communes, les transports et les deux providers de droits existants. Il ne réutilise
+ni le contrat ni le journal métier des thématiques.
+
+La correction réserve le corpus et tous les membres, relit les sources complètes
+avec ETags forts et publie chaque candidat sous `If-Match`. Les droits et les contenus
+sont vérifiés avant la suite. Les nouvelles définitions précèdent les associations ;
+les définitions absorbées restent présentes jusqu’à la finalisation des participations,
+cas et refus. Aucun nouveau format partagé n’est introduit.
+
+Le journal privé est lié à la racine et au compte. Il fixe les ids et candidats
+avant envoi. Un résultat inconnu impose une vérification sans PUT, puis une reprise
+explicite ; une source extérieure modifiée est conservée, jamais écrasée. L’arrêt
+d’un progrès connu demande confirmation et ne compense aucune écriture acceptée.
+Un résultat encore inconnu ne permet pas de clôturer le suivi.
+
+Bornes explicites : 100 entretiens, 32 Mio de sources, 128 Mio de journal. Le panneau
+de suivi empêche une autre correction et suspend les tirages automatiques pendant
+la reconnaissance et la reprise. Les sessions ouvertes ou récupérables restent
+bloquantes ; le raccord de D4 n’est pas contourné.
+
+Qualification ciblée : six scénarios backend réels sur Nextcloud A et B, couvrant
+les collisions intercomptes et interpostes, le renommage, la recréation du service
+après réponse perdue, la réunion interrompue, les références des cas et des tiers
+et la suppression vide. Deux parcours Electron réels valident la vue commune,
+les notes, la reconnaissance sans renvoi du succès et l’arrêt confirmé conservant
+les étapes acceptées. Les tests simulés couvrent notamment les trois phases de
+dissociation avant et après acceptation. Typage application/tests et build restent
+vérifiés par une série ciblée, sans nouvelle campagne générale. La série de dix
+fichiers passe avec 214 tests ; les derniers ajouts passent séparément avec 26 tests
+WebDAV et 26 tests suivi/politique. Ces séries se recouvrent. Le parcours Electron
+GitLab commun a été rejoué avec succès après le raccord du suivi WebDAV.
+
+**D4 et D5 restent ouverts.** Le nommage distant et les corrections depuis un
+entretien ne sont pas activés ; les composants et anciens noms Personnes ne sont
+pas encore supprimés. Voir le [bilan fournisseur](../../docs/dev/traiter/locuteurs/fournisseurs.md).
+
+## 12. Simplification locale avant le raccord de l’entretien distant
+
+À la demande de l’utilisateur, la gestion locale revient à la saisie directe :
+les boutons « Valider le nom » et « Renommer… » sous les champs sont retirés.
+Entrée ou la sortie du champ modifié enregistrent le nom. Si l’identité est associée
+à d’autres entretiens, l’aperçu exige toujours confirmation ; pour le seul entretien
+courant, la même transaction protégée s’exécute directement, sans dialogue préalable.
+
+L’inventaire complet, le contrôle de fraîcheur, la sauvegarde, le gel temporaire,
+la protection des autosauvegardes et la reconnaissance des réponses perdues restent
+en place. Une source indisponible ne justifie jamais de conclure que l’entretien
+est le seul concerné. Les erreurs restent visibles et ne provoquent aucun rejeu.
+Le focus revient au champ après annulation d’un renommage partagé.
+
+Aucun état « renommé / pas renommé » n’est ajouté. L’association désigne une identité
+commune, pas une validation du nom ; toutes les voix restent visibles au corpus et
+utilisables avant leur premier renommage. Homonymes distincts, retraits volontaires,
+rôles et autres données restent inchangés. D4 n’est pas activé par cette simplification.
+
+Validation ciblée : 17 parcours Electron locaux passent, plus le parcours d’aide
+avec capture de la gestion actualisée. Les tests unitaires ciblés, le typage de
+l’application et des tests modifiés, ainsi que le build passent. La qualification
+locale B5 n’est pas rouverte et les bancs distants inchangés ne sont pas rejoués.
+
+## 13. Premier raccord de l’entretien : renommage GitLab
+
+Le geste précis et la capacité `renommageLocuteurOuvert` sont ouverts pour GitLab,
+indépendamment de la création au nommage, qui reste locale. Le parcours simplifié
+est conservé : saisie directe pour un seul entretien et confirmation si d’autres
+entretiens sont associés. Aucun ancien canal de personnes n’est rouvert.
+
+L’aperçu construit l’inventaire depuis les sources serveur et le candidat sauvegardé
+de la seule session autorisée, dont la base publiée est vérifiée. Il ne publie rien.
+À la confirmation, seules les saisies de cette session sont publiées ; la correction
+réutilise son droit, prend ceux du corpus et des autres membres, puis publie un
+commit gardé. Le droit prêté n’est ni acquis une seconde fois ni rendu à la fin.
+La session adopte la version confirmée et les sauvegardes anciennes sont refusées.
+
+Le journal de session conserve avant envoi l’opération et l’empreinte attendue.
+Une issue inconnue garde la copie et suspend l’édition. La fermeture peut reconnaître
+le commit, sans le renvoyer, puis permettre la réouverture ; le redémarrage ne restaure
+pas le candidat ancien par-dessus le résultat confirmé. Une modification extérieure
+inattendue reste bloquante, sans écrasement. Le format natif ne change pas.
+
+Deux scénarios backend GitLab réels valident les comptes concurrents, le même compte
+sur un autre poste, le maintien du droit, les saisies suivantes et la réponse perdue
+reconnue sans rejeu. Le parcours Electron OAuth valide aussi l’aperçu annulé sans
+publication, le texte récent, le renommage partagé et la publication suivante.
+Onze parcours Electron locaux restent validés après la séparation des permissions.
+Les tests simulés couvrent notamment l’intention avant envoi, les aperçus périmés,
+les appels forgés, les sauvegardes anciennes et le redémarrage après confirmation.
+Typage et build restent contrôlés de façon ciblée.
+
+D4 n’est pas clôturé : poursuivre création et rapprochement depuis la session GitLab,
+puis le raccord WebDAV avec son propre droit et sa reprise. D5 reste ouvert.

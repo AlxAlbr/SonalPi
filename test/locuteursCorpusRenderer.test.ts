@@ -7,6 +7,7 @@ import type { VueLocuteursCorpus } from '../src/shared/corpus/repertoireLocuteur
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
+vi.mock('../src/renderer/components/traiter/corpus/SuiviCorrectionsLocuteursCorpus.vue', () => ({ default: { template: '<section class="suivi-corrections-locuteurs"></section>' } }))
 vi.mock('../src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue', () => ({ default: { emits: ['fermer'], template: '<section class="details-locuteurs"><button @click="$emit(\'fermer\')">Fermer les détails</button></section>' } }))
 const apps: App[] = []
 afterEach(() => {
@@ -50,6 +51,7 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
     revisionPersonnesCorpus: revision, dernierTirage, vue, idDistantCourant: distant,
     lectureSeule: ref(false), lireApercuLocuteurs: vi.fn(), corrigerLocuteurs: vi.fn(),
     gesteDisponible: () => !distant.value,
+    suiviLocuteurs: ref(null), erreurSuiviLocuteurs: ref(''), suiviLocuteursCharge: ref(true),
   }
   const actif = ref(options.actif ?? true)
   const host = document.body.appendChild(document.createElement('div'))

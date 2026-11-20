@@ -29,7 +29,7 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
-import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import { estTypeCorrectionLocuteurs, validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, type CommandeLocuteurs, type CommandeRenommageLocuteur, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
@@ -1467,7 +1467,6 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (typeof pourCorrection !== 'boolean') throw new Error('La demande de consultation est invalide.')
     if (!pourCorrection) return store.detailsLocuteursInventaire()
     const execution = executerContexteCommun(async (contexte) => {
-      if (!(contexte instanceof ContexteGitLab)) throw new Error('La préparation des corrections n’est pas encore disponible pour ce corpus distant.')
       return contexte.lireDetailsLocuteursCorrection()
     })
     if (!execution) return store.detailsLocuteursInventaire()
@@ -1479,7 +1478,6 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     validerCommandeCorrectionLocuteurs(commande)
     exigerGeste(fournisseurCourant(), gesteCorrectionLocuteurs(commande))
     const execution = executerContexteCommun(async (contexte) => {
-      if (!(contexte instanceof ContexteGitLab)) throw new Error('Cette correction n’est pas encore disponible pour ce corpus distant.')
       return contexte.corrigerLocuteurs(commande)
     })
     if (!execution) return store.personnesCommander(commande, true)
@@ -1487,6 +1485,29 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (!resultat.courant) throw new Error('Le corpus a changé pendant la correction. Actualisez sa liste de locuteurs.')
     return resultat.valeur
   })
+  ipcMain.handle('corpus:suiviCorrectionLocuteurs', async () => {
+    const execution = executerContexteCommun(async (contexte) => estContexteNextcloud(contexte) ? contexte.lireSuiviCorrectionLocuteurs() : null)
+    if (!execution) return null
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la lecture du suivi.')
+    return resultat.valeur
+  })
+  const agirCorrectionLocuteurs = async (id: unknown, action: 'verifier' | 'reprendre' | 'arreter') => {
+    if (typeof id !== 'string' || !id.trim()) throw new Error('La correction demandée est invalide.')
+    exigerGeste(fournisseurCourant(), `locuteurs.${action}-correction`)
+    const execution = executerContexteDistant(async (contexte) => {
+      if (action === 'verifier') { await contexte.reconcilierCorrectionLocuteurs(id); return null }
+      if (action === 'arreter') { contexte.arreterCorrectionLocuteurs(id); return null }
+      return contexte.reprendreCorrectionLocuteurs(id)
+    })
+    if (!execution) throw new Error('Aucune correction distante à reprendre.')
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la correction.')
+    return resultat.valeur
+  }
+  ipcMain.handle('corpus:reprendreCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'reprendre'))
+  ipcMain.handle('corpus:verifierCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'verifier'))
+  ipcMain.handle('corpus:arreterCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'arreter'))
   ipcMain.handle('corpus:identifierParticipationAuNommage', (_e, demande: DemandeIdentificationLocuteur) => {
     exigerGeste(fournisseurCourant(), 'personnes.commande')
     if (contextesDistants.actuel) throw new Error('La création au nommage est disponible uniquement en local.')
@@ -1497,9 +1518,16 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (contextesDistants.actuel) throw new Error('Ce rapprochement est disponible uniquement en local.')
     return store.rapprocherLocuteurDepuisEntretien(demande)
   })
+  ipcMain.handle('corpus:apercuRenommageLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-depuis-entretien')
+    validerReferenceLocuteurOuvert(reference)
+    if (contextesDistants.actuel) return executerGitLab((contexte) => contexte.apercuRenommageLocuteurDepuisEntretien(reference))
+    return store.personnesInventaire()
+  })
   ipcMain.handle('corpus:renommerLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => {
-    exigerGeste(fournisseurCourant(), 'personnes.commande')
-    if (contextesDistants.actuel) throw new Error('Le renommage global depuis un entretien est disponible uniquement en local.')
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-depuis-entretien')
+    validerReferenceLocuteurOuvert(reference); validerCommandeCorrectionLocuteurs(commande)
+    if (contextesDistants.actuel) return executerGitLab((contexte) => contexte.renommerLocuteurDepuisEntretien(reference, commande))
     return store.renommerLocuteurDepuisEntretien(reference, commande)
   })
   ipcMain.handle('corpus:personnesCommander', async (

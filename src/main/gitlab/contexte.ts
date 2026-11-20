@@ -11,6 +11,7 @@ import {
   FORMAT_VERSION,
   versionSupportee,
   type Categorie,
+  type ReferenceParticipation,
   type CibleRegleAnon,
   type CorpusFichier,
   type ItemLotValeur,
@@ -62,7 +63,7 @@ import {
   type GesteCorpus,
 } from './politiqueGestes'
 import type { ResultatPublicationGitLab } from './publication'
-import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, type CommandeRenommageLocuteur, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
 import type { ResultatTransactionDefinitions, TransactionsGitLab } from './transactions'
 
@@ -352,6 +353,54 @@ export class ContexteGitLab {
     finally { ids.forEach((id) => this.importsCibles.delete(id)) }
   }
 
+  private correctionLocuteursOuverte: string | null = null
+
+  private verifierSessionLocuteurOuvert(reference: ReferenceParticipation): SessionGitLab {
+    validerReferenceLocuteurOuvert(reference)
+    if (this.termine || !this.transactions) throw new Error('Le renommage depuis cet entretien est indisponible.')
+    this.exigerSansDissociation()
+    const ressource = this.ressourceEntretien(reference.entretienId), entree = this.sessions.get(ressource)
+    if (!entree?.protege || entree.session.etat().etat !== 'edition') throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+    if (this.cheminsRecuperables.some((chemin) => chemin !== `entretiens/${reference.entretienId}.json`)
+      || [...this.sessions].some(([cle, s]) => cle !== ressource && s.protege)) throw new Error('Fermez les autres entretiens en édition avant de renommer ce locuteur.')
+    const lecture = this.store.lireEntretien(reference.entretienId)
+    if (!lecture.ok || !lecture.data.participations.find((p) => p.id === reference.participationId)?.locuteurRef) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+    return entree.session
+  }
+
+  async apercuRenommageLocuteurDepuisEntretien(reference: ReferenceParticipation) {
+    exigerGeste('gitlab', 'locuteurs.renommer-depuis-entretien')
+    if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin du renommage en cours.')
+    const session = this.verifierSessionLocuteurOuvert(reference)
+    const copie = await session.lireCandidatLocuteurs()
+    const details = await this.transactions!.lireDetailsLocuteurs({ entretienId: reference.entretienId, ...copie })
+    this.verifierSessionLocuteurOuvert(reference)
+    return details.inventaire
+  }
+
+  async renommerLocuteurDepuisEntretien(reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) {
+    exigerGeste('gitlab', 'locuteurs.renommer-depuis-entretien')
+    validerCommandeCorrectionLocuteurs(commande)
+    if (commande.type !== 'renommerGlobal') throw new Error('La demande de renommage est invalide.')
+    if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin du renommage en cours.')
+    const session = this.verifierSessionLocuteurOuvert(reference), id = reference.entretienId
+    const verifier = () => {
+      this.verifierSessionLocuteurOuvert(reference)
+      const lecture = this.store.lireEntretien(id)
+      if (!lecture.ok || lecture.data.participations.find((p) => p.id === reference.participationId)?.locuteurRef !== commande.locuteurId) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+    }
+    verifier(); this.correctionLocuteursOuverte = id; this.store.revoquerEcritureEntretien(id)
+    try {
+      await session.corrigerNoms(commande.locuteurId, (courant) => this.transactions!.corrigerLocuteurs(commande, verifier, { ...courant, entretienId: id }))
+      const lecture = this.store.lireEntretien(id)
+      if (!lecture.ok) throw new Error('Le renommage a été enregistré mais sa relecture a échoué. Rouvrez le corpus.')
+      return lecture.data
+    } finally {
+      this.correctionLocuteursOuverte = null
+      if (session.etat().etat === 'edition') { this.store.protegerLocuteursSession(id); this.store.autoriserEcritureEntretien(id) }
+    }
+  }
+
   lireDetailsLocuteursCorrection() {
     if (this.termine || !this.transactions) throw new Error('La préparation des corrections est indisponible pour ce corpus.')
     return this.transactions.lireDetailsLocuteurs()
@@ -490,6 +539,7 @@ export class ContexteGitLab {
     cheminRelatif: string,
   ): Promise<EtatSessionGitLab> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
+    if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin du renommage des locuteurs avant d’ouvrir un entretien.')
     const id = /^entretiens\/([^/]+)\.json$/.exec(cheminRelatif)?.[1]
     if (id && (this.renommageCibles.has(id) || this.renommages?.cibleProtegee(id))) throw new Error('Cette cible de renommage reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
     if (id && (this.dissociationCibles.has(id) || this.dissociations?.cibleProtegee(id))) throw new Error('Cette cible de dissociation reste à publier. Reprenez le lot avant d’ouvrir cet entretien.')
@@ -1011,6 +1061,7 @@ export class ContexteGitLab {
    *  engagée est attendue, puis les sessions sont rendues. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin du renommage des locuteurs avant de changer de corpus.')
     if (this.renommageEnCours) throw new Error('Attendez la fin du renommage global avant le changement de corpus.')
     if (this.dissociationEnCours) throw new Error('Attendez la fin de la dissociation globale avant le changement de corpus.')
     if (this.suppressionAnonEnCours) throw new Error('Attendez la fin de la suppression globale avant le changement de corpus.')

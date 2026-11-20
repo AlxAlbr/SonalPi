@@ -434,7 +434,7 @@ test.describe('Consultation GitLab à deux profils', () => {
   test.skip(!configurationPresente, 'variables GITLAB_* absentes')
   test.setTimeout(180_000)
 
-  test('locuteurs GitLab : consultation commune, détails contextualisés et renommage depuis la sélection', async ({ browser }) => {
+  test('locuteurs GitLab : consultation commune, détails et renommage depuis le corpus puis l’entretien ouvert', async ({ browser }) => {
     const f = fixtureLocuteursDistants()
     const projet = await api<{ id: number }>('/projects', configuration.token1 as string, {
       method: 'POST', body: JSON.stringify({ name: `Sonal locuteurs E2E ${idExecution}`, path: `sonal-locuteurs-e2e-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }),
@@ -478,6 +478,41 @@ test.describe('Consultation GitLab à deux profils', () => {
         catch (e) { return String(e) }
       })
       expect(refus).toContain('Cette opération n’est pas disponible sur un corpus distant.')
+      await details.getByRole('button', { name: 'Ouvrir les locuteurs de Entretien A', exact: true }).click()
+      await expect(page.locator('.entretien-ecran')).toBeVisible()
+      await page.locator('.editeur').click(); await page.keyboard.press('Control+Home'); await page.keyboard.insertText('SAISIES RÉCENTES ')
+      await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+      const gestion = page.getByRole('dialog', { name: 'Gestion des locuteurs', exact: true }), nom = gestion.locator('.nom-loc').first()
+      await expect(nom).toHaveValue('Alice publiée')
+      await nom.fill('Alice depuis entretien'); await nom.press('Enter')
+      const ouvert = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
+      await expect(ouvert).toContainText('Entretien B')
+      const avant = await page.evaluate(async () => {
+        const r = await window.sonal.corpus.lireEntretien('A'); if (!r.ok) throw new Error('Entretien absent'); return r.data
+      })
+      const lireServeur = async (id: string) => {
+        const r = await api<{ content: string }>(`/projects/${projet.id}/repository/files/${encodeURIComponent(`entretiens/${id}.json`)}?ref=main`, configuration.token1 as string)
+        return JSON.parse(Buffer.from(r.content, 'base64').toString('utf8'))
+      }
+      const avantServeur = await lireServeur('A')
+      expect(JSON.stringify(avantServeur.corpsTexte)).not.toContain('SAISIES RÉCENTES')
+      await page.keyboard.press('Escape'); await expect(ouvert).toHaveCount(0)
+      await expect(nom).toHaveValue('Alice publiée'); await expect(nom).toBeFocused()
+      expect(await lireServeur('A')).toEqual(avantServeur)
+      await nom.fill('Alice depuis entretien'); await nom.press('Enter')
+      await ouvert.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+      await expect(ouvert).toHaveCount(0, { timeout: 30_000 }); await expect(nom).toHaveValue('Alice depuis entretien')
+      expect(await lireServeur('A')).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], nom: 'Alice depuis entretien' }] })
+      expect((await lireServeur('B')).participations[0].nom).toBe('Alice depuis entretien')
+      await gestion.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
+      await page.locator('.editeur').click(); await page.keyboard.press('Control+Home'); await page.keyboard.insertText('APRÈS RENOMMAGE ')
+      await expect.poll(() => page.evaluate(async () => {
+        const r = await window.sonal.corpus.lireEntretien('A'); return r.ok && JSON.stringify(r.data.corpsTexte).includes('APRÈS RENOMMAGE')
+      })).toBe(true)
+      expect(await page.evaluate(() => window.sonal.corpus.publierEntretien('A'))).toEqual({ ok: true })
+      const suite = await lireServeur('A')
+      expect(JSON.stringify(suite.corpsTexte)).toContain('APRÈS RENOMMAGE SAISIES RÉCENTES')
+      expect(suite.participations[0].nom).toBe('Alice depuis entretien')
     } finally {
       await Promise.allSettled([app.close(), session.fermer()])
       shim.nettoyer(); rmSync(profil, { recursive: true, force: true })

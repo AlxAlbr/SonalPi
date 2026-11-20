@@ -19,9 +19,9 @@ const {
   ouvertId,
   attribuerLoc,
   renommerParticipation,
-  demanderRenommageGlobal,
   demandeRenommageGlobal,
-  renommageGlobalDisponible,
+  erreurRenommageGlobal,
+  renommageGlobalOccupe,
   editionNomsSuspendue,
   renommageEnCours,
   messagePersonnes,
@@ -194,7 +194,8 @@ watch(
             >✕</button>
           </div>
           <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
-          <p v-if="renommageGlobalDisponible" class="aide-gestion-locuteurs">Valider un nom ajoute un locuteur distinct au corpus, même si un autre porte déjà ce nom. Les rapprochements demandent votre confirmation.</p>
+          <p class="aide-gestion-locuteurs">Pour changer un nom, appuyez sur Entrée ou quittez le champ modifié. Les noms identiques restent séparés tant que vous ne les réunissez pas.</p>
+          <p v-if="renommageGlobalOccupe && !demandeRenommageGlobal?.confirmationRequise" role="status">Enregistrement du nom…</p>
           <div v-if="locuteurASupprimer" class="confirm-suppr">
             Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
             <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
@@ -243,18 +244,13 @@ watch(
                 <div class="nom-cell">
                   <input
                     class="nom-loc"
+                    :data-participation-id="l.id"
                     :data-tour="i === 0 ? 'nom-locuteur' : undefined"
                     :value="l.nom"
-                    :disabled="lectureSeule || !l.id"
+                    :disabled="lectureSeule || !l.id || renommageGlobalOccupe"
                     @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
                     @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
                   />
-                  <button v-if="!l.locuteurRef && !l.associationRetiree && renommageGlobalDisponible" type="button" class="renommer-global"
-                    :disabled="lectureSeule || !l.nom.trim()" :aria-label="`Valider le nom ${l.nom}`"
-                    @click="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, l.nom)">Valider le nom</button>
-                <button v-if="l.locuteurRef && renommageGlobalDisponible" type="button" class="renommer-global"
-                  :disabled="lectureSeule" :aria-label="`Renommer ${l.nom} dans tous ses entretiens`"
-                  @click="demanderRenommageGlobal({ entretienId: ouvertId ?? '', participationId: l.id })">Renommer…</button>
                 </div>
                 <div class="pseudo-cell">
                   <input
@@ -294,7 +290,7 @@ watch(
         </section>
       </div>
     </Teleport>
-    <RenommageLocuteurOuvert v-if="demandeRenommageGlobal" />
+    <RenommageLocuteurOuvert v-if="demandeRenommageGlobal && (demandeRenommageGlobal.confirmationRequise || erreurRenommageGlobal)" />
     <details
       class="statistiques-locuteurs"
       :open="statistiquesOuvertes"
@@ -356,7 +352,6 @@ watch(
   font-weight: 600;
 }
 .nom-cell { min-width: 0; }
-.renommer-global { margin-top: .25rem; font-size: .8rem; }
 .nom-loc {
   width: 100%;
   box-sizing: border-box;

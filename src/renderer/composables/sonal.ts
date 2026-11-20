@@ -116,7 +116,8 @@ export function creerSonal() {
     },
     lectureSeule: () => !distant.entretienEditable.value, // aucune écriture d'entretien si la session n'est pas éditable
     entretienEditable: () => distant.entretienEditable.value,
-    renommageGlobalPossible: () => !idDistantCourant.value && !lectureSeule.value,
+    renommageGlobalPossible: () => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value,
+    identificationLocuteursPossible: () => !idDistantCourant.value && !lectureSeule.value,
     apresRenommageGlobal: () => { corpus.revisionPersonnesCorpus.value++; corpus.reinitialiserMatrice() },
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
@@ -445,6 +446,7 @@ export function creerSonal() {
     actualiserDistant,
     capacites,
     gesteDisponible,
+    repriseCorrectionLocuteursPossible,
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
@@ -1678,6 +1680,7 @@ export function creerSonal() {
     verrousIndisponibles,
     capacites,
     gesteDisponible,
+    repriseCorrectionLocuteursPossible,
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
@@ -1703,7 +1706,7 @@ export function creerSonal() {
     naviguerGuide,
     enregistrerNavigationParcours,
     entretienEditable: computed(() => entretienEditable.value && !ent.editionNomsSuspendue.value && !ent.renommageEnCours.value),
-    renommageGlobalDisponible: computed(() => !idDistantCourant.value && !lectureSeule.value),
+    renommageGlobalDisponible: computed(() => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value),
     divergenceProposee,
     confirmerFusion,
     jeterDivergence,

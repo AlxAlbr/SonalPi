@@ -36,6 +36,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   notes: true,
   locuteurs: true,
   correctionsLocuteurs: true,
+  renommageLocuteurOuvert: true,
   annulationJournal: true,
   designationMedia: true,
   televersementMedia: false,
@@ -211,6 +212,10 @@ export function useDistantCorpus(deps: {
   function gesteDisponible(capacite: keyof CapacitesCorpus): boolean {
     return idDistantCourant.value === null ||
       (!indisponible.value && capacites.value[capacite])
+  }
+
+  function repriseCorrectionLocuteursPossible(): boolean {
+    return !!idDistantCourant.value && !consultationSeule.value && capacites.value.correctionsLocuteurs
   }
 
   function tableLigneEditable(id: string): boolean {
@@ -440,6 +445,7 @@ export function useDistantCorpus(deps: {
     lectureSeule,
     capacites,
     gesteDisponible,
+    repriseCorrectionLocuteursPossible,
     ajoutEntretienPossible,
     fournisseurCourant,
     etatBaseMedia,

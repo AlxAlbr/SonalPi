@@ -10,8 +10,11 @@ Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des vale
 vides et `locuteurRef: null`. Son ajout seul ne crée pas d’identité corpus. En local,
 valider tout nom non vide crée puis associe une identité distincte, avant les
 propositions éventuelles : rôles, caractères uniques et libellés provisoires validés
-sont admissibles. Entrée, la sortie du champ modifié ou « Valider le nom » valident
-la saisie ; un nom identique ne constitue jamais une preuve de rapprochement.
+sont admissibles. Entrée ou la sortie du champ modifié enregistrent la saisie ;
+un nom identique ne constitue jamais une preuve de rapprochement.
+Il n’existe pas de marqueur « nom validé ». Le répertoire présente également les
+participations non associées ; leur consultation et leur attribution ne dépendent
+pas de la création d’une identité corpus.
 
 `identifierParticipationAuNommage` enregistre identité et association ensemble.
 « Plus tard » garde cette identité indépendante. Confirmer une proposition réunit
@@ -19,17 +22,21 @@ explicitement les identités via `rapprocherLocuteurDepuisEntretien`, sans fiche
 résiduelle ; seuls les champs locaux choisis peuvent être repris. Les retraits
 volontaires restent sans réassociation automatique.
 
-Pour une participation déjà associée, en local, valider le champ Nom ou cliquer
-sur `Renommer…` prépare une confirmation globale. Les noms ne changent qu’après
-confirmation dans tous les entretiens associés. Les index et les paragraphes ne
-sont jamais réécrits ; leur affichage retrouve le nouveau nom par référence.
+Pour une participation déjà associée, en local ou sur GitLab, modifier le champ Nom prépare
+l’inventaire complet. Si d’autres entretiens sont associés, leur aperçu demande
+confirmation avant toute modification. Sinon, le renommage est enregistré directement
+par la même transaction protégée, sans ouvrir de dialogue. Un inventaire incomplet
+ou périmé bloque aussi ce parcours direct. Les index et les paragraphes ne sont
+jamais réécrits ; leur affichage retrouve le nouveau nom par référence.
 
 Ces raccords attendent les saisies et la sauvegarde, suspendent l’autosauvegarde
 pendant la transaction, puis actualisent uniquement les noms ou associations et
 informations explicitement choisies du modèle ouvert. Les autres
 données et l’historique de frappe sont conservés. Une relecture incertaine garde
-l’entretien en lecture seule jusqu’à réouverture du corpus. Les corpus distants
-n’acquièrent aucun nouveau droit de création au nommage ni de correction globale.
+l’entretien en lecture seule jusqu’à réouverture du corpus. GitLab conserve le droit
+courant pendant le renommage et adopte la version confirmée comme base de session.
+Création au nommage et rapprochement restent locaux ; le renommage depuis une session
+WebDAV reste fermé.
 Voir [personnes.md](personnes.md#renommage-depuis-lentretien-ouvert).
 
 ## Attribuer un tour de parole

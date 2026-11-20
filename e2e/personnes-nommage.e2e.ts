@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ouvrir, retourCorpus } from './util'
 
-test('le nommage crée une identité distincte puis les changements de nom demandent confirmation globale', async () => {
+test('le nommage crée une identité distincte puis les changements de nom s’enregistrent directement pour un seul entretien', async () => {
   const { app, page } = await ouvrir('sonal-personnes-nommage-')
   try {
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
@@ -15,9 +15,7 @@ test('le nommage crée une identité distincte puis les changements de nom deman
     expect(avant.locuteurs).toHaveLength(1); expect(cible.locuteurRef).toBe(avant.locuteurs[0].id)
     await nom.fill('Mme Dupont'); await nom.press('Enter')
     const dialogue = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
-    await expect(dialogue).toBeVisible()
-    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toEqual(avant.locuteurs)
-    await dialogue.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(nom).toHaveValue('Mme Dupont'); await expect(nom).toBeEnabled()
     await expect(dialogue).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click(); await retourCorpus(page)
     const apres = await page.evaluate(() => window.sonal.corpus.personnesInventaire())

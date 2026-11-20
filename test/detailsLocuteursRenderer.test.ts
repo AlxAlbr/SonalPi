@@ -32,6 +32,7 @@ async function monter(options: { inventaire?: InventaireIdentitesLocuteurs; lire
   const lireDetailsLocuteurs = async () => ({ inventaire: await lire(), variables: [{ id: 'v', lib: 'Donnée conservée', portee: 'participation', priv: false, ordre: 0, vExport: 1, modalites: [{ id: 'm', lib: 'Valeur conservée', mExport: 1 }] }], categories: [{ id: 'cat', nom: 'Catégorie', couleur: '#123456' }] })
   injection.contexte = { lireDetailsLocuteurs, corrigerLocuteurs: corriger, dossierCourantDir: dossier, vue, idDistantCourant: distant, lectureSeule,
     gesteDisponible: () => !distant.value || correctionsDistantes.value,
+    suiviLocuteurs: ref(null), erreurSuiviLocuteurs: ref(''), suiviLocuteursCharge: ref(true),
     revisionPersonnesCorpus: revision, dernierTirage, variables: ref([{ id: 'v', lib: 'Donnée conservée', modalites: [{ id: 'm', lib: 'Valeur conservée' }] }]),
     nomCategorieNote: () => 'Catégorie', allerNotes, allerLocuteurs }
   const host = document.body.appendChild(document.createElement('div'))

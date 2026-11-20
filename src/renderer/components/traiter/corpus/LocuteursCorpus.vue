@@ -8,6 +8,7 @@ import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import BarreInterventionsLocuteurs from './BarreInterventionsLocuteurs.vue'
 import DetailsLocuteursCorpus from './DetailsLocuteursCorpus.vue'
+import SuiviCorrectionsLocuteursCorpus from './SuiviCorrectionsLocuteursCorpus.vue'
 import CorrectionsLocuteursCorpus from './CorrectionsLocuteursCorpus.vue'
 import type { ReferenceParticipation } from '../../../../shared/locuteurs'
 import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCorrectionsLocuteurs'
@@ -194,6 +195,7 @@ onBeforeUnmount(() => { generation++ })
         <template #actions><button type="button" :disabled="occupe" @click="actualiser(true)">Réessayer</button></template>
       </BandeauRetourCorpus>
       <p v-if="idDistantCourant" role="status" class="consultation-distante">Les informations affichées proviennent de la copie présente sur cet ordinateur.<template v-if="!gesteDisponible('correctionsLocuteurs')"> Les corrections depuis le corpus ne sont pas disponibles dans son état actuel.</template><template v-if="dernierTirage"> Dernière synchronisation : <time :datetime="dernierTirage">{{ new Date(dernierTirage).toLocaleString('fr-FR') }}</time>.</template><template v-else> La date de synchronisation n’est pas connue.</template></p>
+      <SuiviCorrectionsLocuteursCorpus v-if="idDistantCourant" :actif="visible" @actualiser="actualiser($event)" />
       <p v-if="occupe && !charge" role="status">Chargement des locuteurs…</p>
       <details v-if="donnees.indisponibles.length" class="sources-indisponibles">
         <summary>{{ donnees.indisponibles.length }} entretien{{ donnees.indisponibles.length > 1 ? 's' : '' }} indisponible{{ donnees.indisponibles.length > 1 ? 's' : '' }} — vue incomplète</summary>

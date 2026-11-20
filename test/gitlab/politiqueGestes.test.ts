@@ -22,12 +22,20 @@ test('les nouvelles corrections sont nommées précisément et ne rouvrent pas l
     expect(geste.startsWith('locuteurs.')).toBe(true)
     expect(gesteAutorise('local', geste)).toBe(true)
     expect(gesteAutorise('gitlab', geste)).toBe(true)
-    expect(gesteAutorise('webdav', geste)).toBe(false)
+    expect(gesteAutorise('webdav', geste)).toBe(true)
   }
   expect(gesteAutorise('gitlab', 'personnes.commande')).toBe(false)
   expect(gesteAutorise('webdav', 'personnes.commande')).toBe(false)
+  for (const action of ['verifier', 'reprendre', 'arreter']) {
+    expect(gesteAutorise('webdav', `locuteurs.${action}-correction`)).toBe(true)
+    expect(gesteAutorise('gitlab', `locuteurs.${action}-correction`)).toBe(false)
+  }
   expect(matriceCapacites('gitlab').correctionsLocuteurs).toBe(true)
-  expect(matriceCapacites('webdav').correctionsLocuteurs).toBe(false)
+  expect(matriceCapacites('webdav').correctionsLocuteurs).toBe(true)
+  expect(gesteAutorise('gitlab', 'locuteurs.renommer-depuis-entretien')).toBe(true)
+  expect(gesteAutorise('webdav', 'locuteurs.renommer-depuis-entretien')).toBe(false)
+  expect(matriceCapacites('gitlab').renommageLocuteurOuvert).toBe(true)
+  expect(matriceCapacites('webdav').renommageLocuteurOuvert).toBe(false)
 })
 
 describe('portée des gestes du corpus', () => {
@@ -285,6 +293,7 @@ describe('portée des gestes du corpus', () => {
       notes: false,
       locuteurs: false,
       correctionsLocuteurs: true,
+      renommageLocuteurOuvert: true,
       annulationJournal: false,
       designationMedia: true,
       televersementMedia: false,

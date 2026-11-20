@@ -4,8 +4,8 @@ L’onglet Locuteurs propose une vue transverse commune aux corpus locaux et dis
 ouvre les notes, données et propositions sans masquer la liste ni ses interventions.
 Le nom commun appartient au corpus ; pseudonymes, rôles, valeurs et notes restent
 chez leurs propriétaires dans chaque entretien. L’ancien répertoire Personnes n’est
-plus affiché. Les corrections corpus sont raccordées sur GitLab, pas encore sur
-WebDAV ; voir [les garanties et limites par fournisseur](fournisseurs.md).
+plus affiché. Les corrections corpus sont raccordées sur GitLab et WebDAV ; voir
+[les garanties et limites par fournisseur](fournisseurs.md).
 
 ## Consultation des interventions
 
@@ -116,8 +116,12 @@ un rapprochement approximatif.
 En local, valider tout nom non vide dans l’entretien crée d’abord une identité
 indépendante : rôles, noms génériques, caractère unique et « Nouveau locuteur »
 validé explicitement sont admis. Ajouter l’entrée provisoire seule ne suffit pas.
-La validation utilise Entrée, la sortie d’un champ modifié ou « Valider le nom ».
+La saisie utilise Entrée ou la sortie d’un champ modifié, sans bouton supplémentaire.
 Une participation déjà associée passe au renommage global, pas à une nouvelle création.
+Ce renommage ne demande confirmation que si d’autres entretiens sont concernés ;
+le parcours direct garde la préparation complète et les mêmes protections.
+L’association ne représente pas un état « nom validé » et ne conditionne pas
+l’apparition de la voix dans la vue corpus.
 Un retrait volontaire empêche toujours cette association automatique.
 
 `identifierParticipationAuNommage` vérifie la seule session locale ouverte, le nom
@@ -231,8 +235,11 @@ corrections depuis le corpus. La réouverture relit les données corrigées.
 ### Renommage depuis l’entretien ouvert
 
 `useRenommageLocuteurOuvert.ts` prépare le même aperçu pour une participation déjà
-associée. Saisir un autre nom n’altère pas encore le modèle local : le dialogue
-`RenommageLocuteurOuvert.vue` exige une confirmation explicite du périmètre global.
+associée. Saisir un autre nom n’altère pas encore le modèle local : l’inventaire
+complet décide du périmètre. Si d’autres entretiens sont associés, le dialogue
+`RenommageLocuteurOuvert.vue` exige confirmation ; sinon, la même transaction
+s’exécute directement, sans dialogue intermédiaire. Une erreur reste affichée
+et ne déclenche jamais une nouvelle tentative automatique.
 Les entrées sans association passent au nommage automatique décrit plus haut,
 sauf celles volontairement déliées, qui restent sans réassociation implicite.
 
@@ -257,14 +264,17 @@ cet état ne réenregistre pas l’ancien payload ; les dernières paroles avaie
 sauvegardées avant la correction. Les réponses d’une ancienne session sont écartées.
 
 Les corrections corpus disposent maintenant d’un dispatch dédié, avec gestes
-précis et protection par fournisseur. Les opérations depuis l’entretien ouvert
-restent locales pour ce nouveau raccord.
+précis et protection par fournisseur. Le renommage depuis l’entretien ouvert est
+également raccordé sur GitLab, avec publication des saisies et maintien du droit
+courant. La création et le rapprochement restent locaux ; voir le
+[bilan par fournisseur](fournisseurs.md).
 
 ## Disponibilité distante : distinguer les méthodes et le parcours ouvert
 
 La consultation commune peut lire la copie d’un corpus distant. Les nouvelles
 corrections passent par `corpus:corrigerLocuteurs` et les gestes `locuteurs.*`,
-ouverts sur GitLab avec éditions fermées. WebDAV reste en consultation.
+ouverts sur GitLab et WebDAV avec éditions fermées, sous leurs bornes et protections
+respectives. WebDAV dispose d’un suivi privé avec vérification puis reprise explicite.
 **Les anciennes commandes de personnes restent refusées sur les deux distants** :
 `personnes.commande` est classé `indisponible`, y compris par IPC direct.
 
@@ -290,7 +300,8 @@ Voir [gestes.md](../../distant/gestes.md) pour la politique commune.
 | Persistance et corrections locales | `src/main/corpusStore.ts` |
 | Journal des corrections multi-fichiers | `src/main/transactionsFichiers.ts` |
 | Dispatch et gardes | `src/main/index.ts`, `src/main/gitlab/politiqueGestes.ts` |
-| Transactions WebDAV présentes | `src/main/distant/transactions.ts` |
+| Transport et reprise WebDAV | `src/main/distant/correctionsLocuteursWebDAV.ts`, `journalCorrectionsLocuteursWebDAV.ts` |
+| Transactions WebDAV et gardes des anciens relais | `src/main/distant/transactions.ts` |
 | Projection compacte de consultation | `src/shared/corpus/repertoireLocuteurs.ts` |
 | Liste, sélection et barres d’interventions | `src/renderer/components/traiter/corpus/LocuteursCorpus.vue`, `BarreInterventionsLocuteurs.vue` |
 | Détails secondaires locaux et projection | `src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue`, `src/shared/corpus/detailsLocuteurs.ts` |

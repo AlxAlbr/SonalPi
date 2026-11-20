@@ -78,7 +78,7 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await nom.fill('MARIE DUPONT')
     await nom.press('Enter')
     const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
-    await renommage.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(nom).toHaveValue('MARIE DUPONT'); await expect(nom).toBeEnabled()
     await expect(renommage).toHaveCount(0)
     await expect(dialogue).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()

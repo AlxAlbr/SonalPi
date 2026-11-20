@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CorrectionNomsSessionGitLab } from './session'
 import { preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
 import type { DetailsLocuteurs } from '../../shared/corpus/detailsLocuteurs'
 import { inventorierPersonnes } from '../../shared/corpus/personnes'
@@ -30,6 +31,7 @@ import { analyserImpactSuppressionEntretien } from '../../shared/corpus/suppress
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import {
   cleRessourceBailGitLab,
+  cheminBailRessourceGitLab,
   type BailGitLab,
   type DepotCommitsGitLab,
   type DroitsEditionGitLab,
@@ -344,7 +346,7 @@ export class TransactionsGitLab {
   }
 
   /** Prépare un aperçu depuis un instantané publié, sans prendre de droit d’écriture. */
-  lireDetailsLocuteurs(): Promise<DetailsLocuteurs> {
+  lireDetailsLocuteurs(session?: { entretienId: string; avant: string; candidat: string }): Promise<DetailsLocuteurs> {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
       const sha = await this.options.depot.resoudreTete(this.branche)
@@ -354,34 +356,43 @@ export class TransactionsGitLab {
       const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus)
       const sources = await this.lireSources(ids, sha, frais.corpus)
       const entretiens = sources.map((s) => {
-        const data: unknown = JSON.parse(s.contenu)
+        if (s.id === session?.entretienId && s.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Rouvrez-le avant de renommer ses locuteurs.')
+        const data: unknown = JSON.parse(s.id === session?.entretienId ? session.candidat : s.contenu)
         validerEntretienNatif(data)
         return { id: s.id, titre: frais.corpus.membership[s.id].titre, data }
       })
+      if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
       return { inventaire: { ...inventorierPersonnes(frais.corpus, entretiens), indisponibles: [] },
         variables: Object.values(frais.corpus.variables), categories: normaliserCategoriesNote(frais.corpus.categoriesNote) }
     })
   }
 
-  /** Corrige les identités et leurs usages dans un seul commit, après fermeture des éditions. */
-  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: () => void): Promise<string> {
+  /** Protège tous les membres et conserve le droit de la session fournie, sans le reprendre. */
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: () => void,
+    session?: CorrectionNomsSessionGitLab & { entretienId: string }): Promise<string> {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
       if (!this.options.journal) throw new Error('Le suivi de la correction est indisponible. Aucun locuteur modifié.')
       verifierSessionsFermees()
+      if (session && this.options.coordination.snapshot(session.droit).chemin !== cheminBailRessourceGitLab(cleRessourceBailGitLab(this.branche, this.cheminDistant(`entretiens/${session.entretienId}.json`)))) throw new Error('Le droit fourni ne correspond pas à cet entretien.')
       const droit = await this.acquerirBailCorpus()
-      const droitsEntretiens: DroitsEditionGitLab[] = []
+      const droitsEntretiens: DroitsEditionGitLab[] = [], droitsAcquis: DroitsEditionGitLab[] = []
       try {
         const sha = await this.options.depot.resoudreTete(this.branche)
         const frais = await this.lireBase(sha)
         exigerAbsenceDissociationGitLab(frais.corpus)
         const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus).sort()
+        if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
         if (2 * ids.length + 2 > MAX_ACTIONS_PUBLICATION) {
           throw new Error('Ce corpus contient trop d’entretiens pour protéger cette correction dans un seul envoi. Aucun locuteur modifié.')
         }
-        for (const id of ids) droitsEntretiens.push(await this.acquerirBailEntretien(id))
+        for (const id of ids) {
+          if (id === session?.entretienId) droitsEntretiens.push(session.droit)
+          else { const acquis = await this.acquerirBailEntretien(id); droitsAcquis.push(acquis); droitsEntretiens.push(acquis) }
+        }
         verifierSessionsFermees()
         const sources = await this.lireSources(ids, sha, frais.corpus)
+        if (session && sources.find((s) => s.id === session.entretienId)?.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Aucun nom modifié.')
         const plan = preparerCorrectionLocuteurs(frais.fichier.contenu, sources, commande)
         const modifies = new Map(plan.entretiens.map((e) => [e.id, e.apres]))
         const corpusModifie = JSON.stringify(plan.corpusAvant) !== JSON.stringify(plan.corpusApres)
@@ -395,15 +406,22 @@ export class TransactionsGitLab {
           } : { action: 'garde', chemin: this.cheminDistant(`entretiens/${s.id}.json`), commitId: s.commitId, executable: s.executable })]
           this.verifierBornes(operationId, actions, droitsEntretiens.length + 1)
           verifierSessionsFermees()
+          const attenduSession = session ? modifies.has(session.entretienId) ? JSON.stringify(modifies.get(session.entretienId), null, 2) : session.avant : null
+          if (session && attenduSession !== null) session.preparer(operationId, attenduSession)
           const resultat = await this.options.publication.publierSousDroits({ operationId, nature: 'transaction-corpus', actions }, [droit, ...droitsEntretiens])
           this.verifierPublication(resultat, 'La correction des locuteurs')
+          if (session && attenduSession !== null) {
+            const confirme = await this.options.depot.lireFichier(this.cheminDistant(`entretiens/${session.entretienId}.json`), this.branche)
+            if (!confirme || confirme.contenu !== attenduSession) throw new Error('Le renommage a été envoyé mais sa relecture reste à vérifier. Rouvrez le corpus.')
+            await session.confirmer(confirme.commitId, confirme.contenu)
+          }
         }
-        for (const source of sources) this.options.store.installerEntretienDistant(source.id,
+        for (const source of sources) if (source.id !== session?.entretienId) this.options.store.installerEntretienDistant(source.id,
           modifies.get(source.id) ?? JSON.parse(source.contenu) as EntretienFichier)
         this.installer(operationId, plan.corpusApres)
         return plan.locuteurId
       } finally {
-        for (const tenu of droitsEntretiens.reverse()) await this.libererBail(tenu)
+        for (const tenu of droitsAcquis.reverse()) await this.libererBail(tenu)
         await this.libererBail(droit)
       }
     })

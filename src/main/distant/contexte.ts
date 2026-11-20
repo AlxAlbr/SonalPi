@@ -215,6 +215,21 @@ export class ContexteCorpusDistant {
 
   idsOperationsSessions(): string[] { return [...this.operationsParEntretien.keys()] }
   verifierContexteRetraitVariante(): void { this.exigerOuvert() }
+  verifierContexteCorrectionLocuteurs(): void {
+    this.exigerOuvert()
+    if (this.operationsSessions || this.lecturesRenommage || this.lecturesDissociation || this.lecturesSuppression || this.lecturesRetraitVariante
+      || this.sessions.idsTenus().length || this.sessions.idsRecuperablesLocalement().length) {
+      throw new Error('Enregistrez et fermez les entretiens et terminez les autres opérations avant de corriger les locuteurs du corpus partagé.')
+    }
+  }
+  lireDetailsLocuteursCorrection() { this.exigerOuvert(); return this.transactions.lireDetailsLocuteursCorrection() }
+  corrigerLocuteurs(commande: import('../../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) {
+    this.verifierContexteCorrectionLocuteurs(); return this.transactions.corrigerLocuteurs(commande)
+  }
+  lireSuiviCorrectionLocuteurs() { this.exigerOuvert(); return this.transactions.lireSuiviCorrectionLocuteurs() }
+  reprendreCorrectionLocuteurs(id: string) { this.verifierContexteCorrectionLocuteurs(); return this.transactions.reprendreCorrectionLocuteurs(id) }
+  reconcilierCorrectionLocuteurs(id: string) { this.verifierContexteCorrectionLocuteurs(); return this.transactions.reconcilierCorrectionLocuteurs(id) }
+  arreterCorrectionLocuteurs(id: string) { this.exigerOuvert(); this.transactions.arreterCorrectionLocuteurs(id) }
   private async avecLectureRetraitVariante<T>(action: () => Promise<T>): Promise<T> {
     this.exigerOuvert(); this.lecturesRetraitVariante++
     try { return await action() } finally { this.lecturesRetraitVariante-- }
@@ -674,6 +689,7 @@ export async function preparerContexteNextcloud(
       getSessions: () => sessions,
       sessionsEnCours: () => contexte?.idsOperationsSessions() ?? [],
       verifierContexteRetrait: () => contexte?.verifierContexteRetraitVariante(),
+      verifierContexteCorrection: () => contexte?.verifierContexteCorrectionLocuteurs(),
     },
   )
   await transactions.reconcilierAjoutVariante()
@@ -685,7 +701,7 @@ export async function preparerContexteNextcloud(
   )
   // Une reprise n’autorise ni migration ni archivage automatique des sources.
   if (!retraitEnAttente && !ajoutVariante && !transactions.lireSuiviSuppressionAnon() && !transactions.lireSuiviImportCorrespondances() && !transactions.lireSuiviRenommageAnon() && !transactions.lireSuiviDissociationAnon()
-    && !transactions.lirePublicationEntretien() && magasin.ouvrir().dissociationAnon === undefined && magasin.ouvrir().suppressionAnon === undefined && magasin.ouvrir().retraitVarianteAnon === undefined) {
+    && !transactions.lirePublicationEntretien() && !transactions.lireSuiviCorrectionLocuteurs() && magasin.ouvrir().dissociationAnon === undefined && magasin.ouvrir().suppressionAnon === undefined && magasin.ouvrir().retraitVarianteAnon === undefined) {
     await transactions.ouvrirCorpusNatif()
     await transactions.reconcilierFichiersOrphelins()
   }

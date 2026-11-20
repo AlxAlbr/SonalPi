@@ -352,6 +352,15 @@ export class CorpusStore {
     this.sessionsLocalesFermees.delete(id)
   }
 
+  /** Refuse qu’une ancienne sauvegarde rétablisse les noms ou associations corrigés. */
+  protegerLocuteursSession(id: string): void {
+    const lecture = this.lireEntretien(id)
+    if (!lecture.ok) throw new Error('Les locuteurs ne peuvent pas être vérifiés. Rouvrez cet entretien.')
+    this.associationsVerifieesSession.add(id)
+    this.nomsGlobauxSession.set(id, new Map(lecture.data.participations.flatMap((p) => p.locuteurRef
+      ? [[p.id, { locuteurId: p.locuteurRef, nom: p.nom }] as const] : [])))
+  }
+
   revoquerEcritureEntretien(id: string): void {
     this.ecrituresAutorisees.delete(id)
     this.nomsGlobauxSession.delete(id)

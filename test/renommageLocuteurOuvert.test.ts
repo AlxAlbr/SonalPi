@@ -18,7 +18,7 @@ function banc() {
   ], notes: [], indisponibles: [] }
   const lire = vi.fn().mockResolvedValue(inventaire), renommer = vi.fn().mockResolvedValue(apres)
   const rouvrir = vi.fn().mockResolvedValue({ ok: true, acces: 'edition', data: apres })
-  vi.stubGlobal('window', { sonal: { corpus: { personnesInventaire: lire, renommerLocuteurDepuisEntretien: renommer, ouvrirEntretienPourEdition: rouvrir } } })
+  vi.stubGlobal('window', { sonal: { corpus: { apercuRenommageLocuteurDepuisEntretien: lire, renommerLocuteurDepuisEntretien: renommer, ouvrirEntretienPourEdition: rouvrir } } })
   const sauver = vi.fn(async () => {}), suspendre = vi.fn(async () => structuredClone(avant)), terminer = vi.fn(), rafraichir = vi.fn()
   const appliquer = vi.fn((initial: PayloadEntretien, fichier: EntretienFichier, id: string) => {
     verifierRelectureRenommage(initial, fichier, id)
@@ -40,6 +40,57 @@ test('préparer et annuler ne renomment pas le modèle ; les autres entretiens s
   expect(b.outils.demande.value).toBeNull()
   expect(b.renommer).not.toHaveBeenCalled()
   expect(b.suspendre).not.toHaveBeenCalled()
+})
+
+test('un seul entretien : le champ suffit, sans étape de confirmation', async () => {
+  const b = banc(); b.inventaire.participations.pop()
+  await b.outils.preparer(reference, 'Nouveau nom')
+  expect(b.renommer).toHaveBeenCalledExactlyOnceWith(reference, { type: 'renommerGlobal', locuteurId: 'p', nom: 'Nouveau nom', attendu: JSON.stringify(b.inventaire) })
+  expect(b.participations.value[0].nom).toBe('Nouveau nom')
+  expect(b.outils.demande.value).toBeNull()
+  expect(b.suspendre).toHaveBeenCalledOnce()
+  expect(b.appliquer.mock.invocationCallOrder[0]).toBeLessThan(b.terminer.mock.invocationCallOrder[0])
+})
+
+test('plusieurs entretiens : la saisie seule ne publie rien et demande confirmation', async () => {
+  const b = banc()
+  await b.outils.preparer(reference, 'Nouveau nom')
+  expect(b.outils.demande.value?.confirmationRequise).toBe(true)
+  expect(b.renommer).not.toHaveBeenCalled()
+  expect(b.participations.value[0].nom).toBe('Nom local')
+})
+
+test.each(['indisponible', 'association absente'] as const)('un seul entretien supposé mais inventaire %s : aucun enregistrement automatique', async (cas) => {
+  const b = banc(); b.inventaire.participations.pop()
+  if (cas === 'indisponible') b.lire.mockResolvedValue({ ...b.inventaire, indisponibles: [{ id: 'B', titre: 'Inaccessible', raison: 'Absent' }] })
+  else b.inventaire.participations[0].locuteurRef = 'autre'
+  await b.outils.preparer(reference, 'Nouveau nom')
+  expect(b.renommer).not.toHaveBeenCalled()
+  expect(b.outils.erreur.value).not.toBe('')
+  expect(b.participations.value[0].nom).toBe('Nom local')
+})
+
+test('un renommage direct avec réponse perdue relit le résultat sans rejouer la commande', async () => {
+  const b = banc(); b.inventaire.participations.pop()
+  b.renommer.mockRejectedValue(new Error('Réponse perdue'))
+  await b.outils.preparer(reference, 'Nouveau nom')
+  expect(b.participations.value[0].nom).toBe('Nouveau nom')
+  expect(b.outils.erreur.value).toContain('Réponse perdue')
+  expect(b.outils.demande.value?.confirmationRequise).toBe(false)
+  expect(b.rouvrir).toHaveBeenCalledExactlyOnceWith('A')
+  await b.outils.confirmer()
+  expect(b.renommer).toHaveBeenCalledOnce()
+})
+
+test('un refus du renommage automatique conserve le nom enregistré et ne rejoue pas la commande', async () => {
+  const b = banc(); b.inventaire.participations.pop()
+  b.renommer.mockRejectedValue(new Error('Les associations ont changé'))
+  b.rouvrir.mockResolvedValue({ ok: true, acces: 'edition', data: { ...b.apres, participations: b.avant.participations } })
+  await b.outils.preparer(reference, 'Nouveau nom')
+  expect(b.outils.erreur.value).toContain('Les associations ont changé')
+  expect(b.participations.value[0].nom).toBe('Nom local')
+  await b.outils.confirmer()
+  expect(b.renommer).toHaveBeenCalledOnce()
 })
 
 test('la sauvegarde est suspendue avant l’envoi, les noms sont appliqués avant la reprise et les projections invalidées', async () => {
@@ -91,7 +142,7 @@ test.each(['contenu', 'journal'])('une relecture incertaine (%s) ne réinstalle 
   expect(b.rafraichir).not.toHaveBeenCalled()
 })
 
-test('ni une destination distante ni une participation sans association ne déclenchent ce parcours', async () => {
+test('ni un fournisseur sans ce geste ni une participation sans association ne déclenchent ce parcours', async () => {
   const b = banc()
   b.local.value = false
   await b.outils.preparer(reference)

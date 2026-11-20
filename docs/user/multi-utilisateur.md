@@ -22,7 +22,8 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Valeurs dans la table de données, application de la pseudonymisation | oui | oui |
 | Audio ou SRT d'un entretien fermé | oui | non |
 | Liste des locuteurs, interventions, statistiques et détails | oui | oui |
-| Corrections des locuteurs depuis le corpus | non | oui, après fermeture des éditions et dans les limites du corpus pris en charge |
+| Corrections des locuteurs depuis le corpus | oui, après fermeture des éditions, avec suivi des interruptions | oui, après fermeture des éditions et dans les limites du corpus pris en charge |
+| Renommer un locuteur dans ses entretiens depuis l’entretien ouvert | non | oui, après enregistrement des saisies et fermeture des autres éditions |
 | Notes du corpus, annulation d'une action du journal | non | non |
 | Médias partagés, documents du projet | oui | non |
 

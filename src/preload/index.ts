@@ -66,6 +66,7 @@ import type { CommandeLocuteurs, CommandeRenommageLocuteur, DemandeIdentificatio
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
+import type { SuiviCorrectionLocuteurs } from '../shared/corpus/suiviCorrectionsLocuteurs'
 import type { CommandeCorrectionLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -365,11 +366,17 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:identifierParticipationAuNommage', demande),
     rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage): Promise<EntretienFichier> =>
       invoquer('corpus:rapprocherLocuteurDepuisEntretien', demande),
+    apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation): Promise<InventaireIdentitesLocuteurs> =>
+      invoquer('corpus:apercuRenommageLocuteurDepuisEntretien', reference),
     renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): Promise<EntretienFichier> =>
       invoquer('corpus:renommerLocuteurDepuisEntretien', reference, commande),
     locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),
     detailsLocuteursInventaire: (pourCorrection = false): Promise<DetailsLocuteurs> => invoquer('corpus:detailsLocuteursInventaire', pourCorrection),
     corrigerLocuteurs: (commande: CommandeCorrectionLocuteurs): Promise<string | null> => invoquer('corpus:corrigerLocuteurs', commande),
+    suiviCorrectionLocuteurs: (): Promise<SuiviCorrectionLocuteurs | null> => invoquer('corpus:suiviCorrectionLocuteurs'),
+    reprendreCorrectionLocuteurs: (id: string): Promise<string | null> => invoquer('corpus:reprendreCorrectionLocuteurs', id),
+    verifierCorrectionLocuteurs: (id: string): Promise<null> => invoquer('corpus:verifierCorrectionLocuteurs', id),
+    arreterCorrectionLocuteurs: (id: string): Promise<null> => invoquer('corpus:arreterCorrectionLocuteurs', id),
     personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire = false): Promise<string | null> =>
       invoquer('corpus:personnesCommander', commande, depuisRepertoire),
     journalLister: (): Promise<EntreeJournalCorpusVue[]> => invoquer('corpus:journalLister'),

@@ -15,6 +15,9 @@ emplacement dans le dossier GitLab : elle classe les trois fournisseurs.
 | `tri-contenus` | Lecture de contenus publiés sur un corpus calme. |
 | `suppression-definition` | Décompte des usages publiés et fermeture des éditions avant retrait. |
 | `suppression-entretien` | Corpus, entretien retiré et archivage. |
+| `corrections-locuteurs-corpus` | Inventaire complet, corpus et tous les membres ; publication bornée et reprise par fournisseur. |
+| `corrections-locuteurs-reprise` | Suivi WebDAV privé : reconnaître sans PUT, reprendre explicitement ou arrêter un résultat connu sans compensation. |
+| `locuteur-session` | Renommage GitLab avec publication des saisies et conservation du droit de la session courante. |
 | `valeurs-entretien`, `pseudonymisation-entretiens` | Une source et les définitions qu’elle applique. |
 | Portées de pseudonymisation globale et de réaffectation thématique | Protocole spécialisé, inventaire, cibles et reprise propres à l’opération. |
 | `indisponible` | Geste refusé sur les fournisseurs distants. |
@@ -35,9 +38,12 @@ de chaque protocole restent applicables ; « ouvert » ne signifie pas « sans g
 - Les documents du projet et le téléversement média général sont proposés sur
   WebDAV, pas GitLab. La désignation d’un média existant est un parcours distinct.
 - Les gestes précis `locuteurs.*` de correction depuis le corpus sont ouverts
-  sur GitLab, avec les éditions fermées et un commit gardé. Ils restent refusés
-  sur WebDAV. La création au nommage et les corrections globales depuis une session
-  ouverte ne sont pas encore raccordées en distant.
+  sur GitLab et WebDAV, avec les éditions fermées. GitLab utilise un commit gardé ;
+  WebDAV protège tous les membres et publie sous préconditions, avec suivi privé
+  et reprise explicite. Voir les [limites par fournisseur](../traiter/locuteurs/fournisseurs.md).
+  Le renommage global depuis une session GitLab est ouvert séparément, sans second
+  bail sur l’entretien courant. Création au nommage, rapprochement depuis la session
+  GitLab et raccord de l’entretien ouvert WebDAV restent indisponibles.
 - `note.editer` depuis le corpus, `personnes.commande`, `journal.annuler` et le
   marquage d’un corpus de démonstration restent refusés sur les deux distants.
   Cela n’interdit pas l’édition des notes dans une session d’entretien autorisée.

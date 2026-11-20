@@ -52,7 +52,8 @@ import type {
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
-import type { CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CommandeLocuteurs, CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import { CorrectionsLocuteursWebDAV } from './correctionsLocuteursWebDAV'
 import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { verifierVersionNative } from '../../shared/versionsNatives'
 import type { SourcePassageCas } from '../../shared/corpus/cas'
@@ -72,7 +73,7 @@ import { DissociationsAnonWebDAV } from './dissociationsAnonWebDAV'
 import { SuppressionsAnonWebDAV } from './suppressionsAnonWebDAV'
 import { RetraitsVarianteAnonWebDAV, type EtapeRetraitVarianteWebDAV } from './retraitsVarianteAnonWebDAV'
 import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
-import { exigerGeste } from '../gitlab/politiqueGestes'
+import { exigerGeste, gesteCorrectionLocuteurs } from '../gitlab/politiqueGestes'
 import type { DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
 import type { DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
 import type { PreparationRenommageDistant } from '../renommagesAnon'
@@ -102,6 +103,7 @@ export interface OptionsTransactions {
   gardePseudos?: GardePseudosWebDAV
   sessionsEnCours?: () => string[]
   verifierContexteRetrait?: (etape: EtapeRetraitVarianteWebDAV) => void
+  verifierContexteCorrection?: () => void
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -125,6 +127,7 @@ export class TransactionsCorpus {
   private readonly retraitsVariante: RetraitsVarianteAnonWebDAV
   private readonly gardePseudos: GardePseudosWebDAV
   private readonly ajoutsVariante: AjoutsVarianteAnonWebDAV
+  private readonly correctionsLocuteurs: CorrectionsLocuteursWebDAV
   private mutationsEnCours = 0
 
   constructor(
@@ -136,6 +139,22 @@ export class TransactionsCorpus {
     private readonly identite: () => IdentiteSession,
     private readonly options: OptionsTransactions = {},
   ) {
+    const identiteCorrection = () => ({ ...this.identite(), sessionId: `locuteurs-${randomUUID()}` })
+    this.correctionsLocuteurs = new CorrectionsLocuteursWebDAV({ client, dirLocal: miroir.dirLocal,
+      utilisateur: () => this.identite().userId,
+      verifierContexte: () => options.verifierContexteCorrection?.(),
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? []), ...(options.sessionsEnCours?.() ?? [])],
+      miroir: (chemin, contenu, etag) => {
+        if (chemin === CHEMIN_CORPUS) this.ecrireCorpusLocal(contenu)
+        else this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      verrouCorpus: () => { const id = identiteCorrection(); return { provider: new ProviderPutConditionnel(client, () => id), chemin: CHEMIN_VERROU_CORPUS } },
+      verrouEntretien: (id) => {
+        const propre = identiteCorrection()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => propre) : new ProviderPutConditionnel(client, () => propre), chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
     this.gardePseudos = options.gardePseudos ?? new GardePseudosWebDAV(client, identite, miroir.dirLocal,
       (chemin, contenu, etag) => {
         const sessions = options.getSessions?.()
@@ -266,6 +285,7 @@ export class TransactionsCorpus {
 
   /** Refuse les écritures ordinaires tant qu’un import est actif ou incomplet. */
   exigerSansImportCorrespondances(): void {
+    this.correctionsLocuteurs.exigerDisponible()
     if (this.correspondances.occupe || this.correspondances.lireSuivi()) {
       throw new Error('Un import WebDAV est en cours ou reste à reprendre. Aucune autre écriture n’est autorisée.')
     }
@@ -281,7 +301,7 @@ export class TransactionsCorpus {
 
   async reconcilierPublicationEntretien() { await this.gardePseudos.reconcilier() }
   lirePublicationEntretien() { return this.gardePseudos.lireEnvoi() }
-  exigerPublicationDisponible() { this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible() }
+  exigerPublicationDisponible() { this.correctionsLocuteurs.exigerDisponible(); this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible() }
   exigerSansRenommage(): void {
     this.exigerSansDissociation()
     this.exigerPublicationDisponible()
@@ -303,7 +323,7 @@ export class TransactionsCorpus {
   }
   lireSuiviRenommageAnon() { return this.renommages.lireSuivi() }
   get renommageEnCours() { return this.renommages.occupe }
-  get mutationEnCours() { return this.mutationsEnCours > 0 }
+  get mutationEnCours() { return this.mutationsEnCours > 0 || this.correctionsLocuteurs.occupe }
   private exigerRenommageDisponible() {
     this.exigerSansDissociation()
     this.exigerPublicationDisponible()
@@ -376,6 +396,7 @@ export class TransactionsCorpus {
   cibleSuppressionProtegee(id: string) { return this.suppressions.cibleProtegee(id) }
 
   exigerSansRetraitVariante(): void {
+    this.correctionsLocuteurs.exigerDisponible()
     this.retraitsVariante.exigerMiroirComplet()
     if (this.retraitsVariante.occupe || this.retraitsVariante.lireSuivi()) throw new Error('Un retrait de variante WebDAV est engagé. Relisez son suivi avant cette mutation du corpus.')
   }
@@ -396,6 +417,37 @@ export class TransactionsCorpus {
   relireSuiviRetraitVarianteAnon(id: string) { return this.retraitsVariante.relireSuivi(id) }
   get retraitVarianteEnCours() { return this.retraitsVariante.occupe }
   cibleRetraitVarianteProtegee(id: string) { return this.retraitsVariante.cibleProtegee(id) }
+
+  private exigerAutresOperationsLocuteurs(): void {
+    this.renommages.exigerMiroirComplet(); this.dissociations.exigerMiroirComplet()
+    this.suppressions.exigerMiroirComplet(); this.retraitsVariante.exigerMiroirComplet()
+    if (this.mutationsEnCours || this.renommages.occupe || this.renommages.lireSuivi() || this.dissociations.occupe || this.dissociations.lireSuivi()
+      || this.suppressions.occupe || this.suppressions.lireSuivi() || this.retraitsVariante.occupe || this.retraitsVariante.lireSuivi()
+      || this.correspondances.occupe || this.correspondances.lireSuivi() || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()
+      || this.ajoutsVariante.lireEnvoi() || this.gardePseudos.lireEnvoi()) throw new Error('Terminez les autres opérations du corpus avant de corriger ses locuteurs.')
+  }
+
+  lireDetailsLocuteursCorrection() {
+    this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.lireDetails()
+  }
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
+    exigerGeste('webdav', gesteCorrectionLocuteurs(commande)); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.appliquer(commande)
+  }
+  lireSuiviCorrectionLocuteurs() { return this.correctionsLocuteurs.lireSuivi() }
+  reprendreCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.reprendre-correction'); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.reprendre(id)
+  }
+  arreterCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.arreter-correction'); this.exigerAutresOperationsLocuteurs()
+    this.correctionsLocuteurs.arreter(id)
+  }
+  reconcilierCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.verifier-correction'); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.reconcilier(id)
+  }
 
   private async avecMutation<T>(action: () => Promise<T>): Promise<T> {
     this.exigerSansImportCorrespondances()

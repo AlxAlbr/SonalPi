@@ -31,7 +31,8 @@ async function monter(options: { nombre?: number; inventaire?: InventaireIdentit
   const lectureSeule = ref(false), distant = ref<string | null>(null), indisponible = ref(false)
   const termine = vi.fn(), ouvrir = vi.fn(), correctionsDistantes = ref(false)
   injection.contexte = { lireApercuLocuteurs: lire, corrigerLocuteurs: corriger, lectureSeule, idDistantCourant: distant,
-    gesteDisponible: () => !distant.value || correctionsDistantes.value }
+    gesteDisponible: () => !distant.value || correctionsDistantes.value,
+    suiviLocuteurs: ref(null), erreurSuiviLocuteurs: ref(''), suiviLocuteursCharge: ref(true) }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(CorrectionsLocuteursCorpus, { selection: selection.value, indisponible: indisponible.value,
     onTermine: termine, onOuvrir: ouvrir }) })

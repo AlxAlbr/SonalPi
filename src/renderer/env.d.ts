@@ -10,6 +10,7 @@ import type { MemoireNavigationProjet, NavigationProjet } from '../shared/naviga
 import type { EtatMenuApplication } from '../shared/menuApplication'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
+import type { SuiviCorrectionLocuteurs } from '../shared/corpus/suiviCorrectionsLocuteurs'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -209,9 +210,14 @@ declare global {
         personnesInventaire: () => Promise<InventaireIdentitesLocuteurs>
         identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur) => Promise<EntretienFichier>
         rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
+        apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
         renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>
         detailsLocuteursInventaire: (pourCorrection?: boolean) => Promise<DetailsLocuteurs>
+        suiviCorrectionLocuteurs: () => Promise<SuiviCorrectionLocuteurs | null>
+        reprendreCorrectionLocuteurs: (id: string) => Promise<string | null>
+        verifierCorrectionLocuteurs: (id: string) => Promise<null>
+        arreterCorrectionLocuteurs: (id: string) => Promise<null>
         corrigerLocuteurs: (commande: import('../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) => Promise<string | null>
         personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>

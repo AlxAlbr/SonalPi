@@ -122,6 +122,17 @@ const verrou = {
   },
 }
 
+test('la reprise explicite peut réessayer le réseau, jamais contourner le mode consultation', () => {
+  const b = creerContexte(async () => null)
+  b.distant.activerDistant('destination', [], [], false, matriceCapacites('webdav'))
+  b.distant.enLigne.value = false
+  expect(b.distant.gesteDisponible('correctionsLocuteurs')).toBe(false)
+  expect(b.distant.repriseCorrectionLocuteursPossible()).toBe(true)
+  b.distant.activerDistant('destination', [], [], true, matriceCapacites('webdav'))
+  b.distant.enLigne.value = false
+  expect(b.distant.repriseCorrectionLocuteursPossible()).toBe(false)
+})
+
 describe('orchestration distante du renderer', () => {
   test('le tirage automatique attend les publications sans déclarer le réseau hors ligne', async () => {
     vi.useFakeTimers()

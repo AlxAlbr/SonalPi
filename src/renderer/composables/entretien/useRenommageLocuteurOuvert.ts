@@ -8,9 +8,10 @@ interface DemandeRenommageOuvert {
   reference: ReferenceParticipation
   nom: string
   apercu: ApercuCorrectionLocuteurs | null
+  confirmationRequise: boolean
 }
 
-/** Confirme un renommage global sans modifier le nom local pendant la préparation. */
+/** Préserve le nom courant et demande confirmation si d’autres entretiens sont concernés. */
 export function useRenommageLocuteurOuvert(deps: {
   participations: Ref<ParticipationLocuteur[]>
   ouvertId: Readonly<Ref<string | null>>
@@ -41,18 +42,22 @@ export function useRenommageLocuteurOuvert(deps: {
     if (!participation?.locuteurRef) return
     reinitialiser()
     cible = participation
-    demande.value = { reference: { ...reference }, nom: nom ?? participation.nom, apercu: null }
+    demande.value = { reference: { ...reference }, nom: nom ?? participation.nom, apercu: null, confirmationRequise: false }
     const jeton = generation
     const locuteurId = participation.locuteurRef
     occupe.value = true
     try {
       await deps.sauver()
       if (jeton !== generation || !courant()) return
-      const inventaire = await window.sonal.corpus.personnesInventaire()
+      const inventaire = await window.sonal.corpus.apercuRenommageLocuteurDepuisEntretien({ ...reference })
       if (jeton !== generation || !courant() || participation.locuteurRef !== locuteurId) return
       const identite = inventaire.locuteurs.find((l) => l.id === locuteurId)
       if (!identite) throw new Error('L’association de ce locuteur est introuvable. Vérifiez les associations depuis le corpus.')
       const membres = inventaire.participations.filter((p) => p.locuteurRef === locuteurId)
+      if (!membres.some((p) => p.entretienId === reference.entretienId && p.participationId === reference.participationId)) {
+        throw new Error('L’association de ce locuteur a changé. Rouvrez le dialogue pour vérifier son nom.')
+      }
+      demande.value!.confirmationRequise = nom === undefined || membres.some((p) => p.entretienId !== reference.entretienId)
       demande.value!.apercu = preparerApercuCorrectionLocuteurs('renommerGlobal', [{
         cle: locuteurId, nom: identite.nom.trim(), locuteurId, mots: 0, interventions: 0,
         participations: membres.map((p) => ({ entretienId: p.entretienId, participationId: p.participationId, nom: p.nom, entretienTitre: p.entretienTitre })),
@@ -62,6 +67,7 @@ export function useRenommageLocuteurOuvert(deps: {
     } finally {
       if (jeton === generation) occupe.value = false
     }
+    if (jeton === generation && courant() && !demande.value!.confirmationRequise && !erreur.value) await confirmer()
   }
   async function confirmer() {
     const initiale = demande.value

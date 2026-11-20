@@ -65,6 +65,10 @@ function champsExacts(v: Record<string, unknown>, champs: readonly string[]): bo
 const identifiant = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0
 const referenceValide = (p: unknown): p is ReferenceParticipation => objet(p)
   && champsExacts(p, ['entretienId', 'participationId']) && identifiant(p.entretienId) && identifiant(p.participationId)
+export function validerReferenceLocuteurOuvert(v: unknown): asserts v is ReferenceParticipation {
+  if (!referenceValide(v)) throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+}
+
 const refusValide = (r: unknown): r is RefusRapprochementLocuteur => objet(r) && (r.type === 'locuteur'
   ? champsExacts(r, ['type', 'locuteurId']) && identifiant(r.locuteurId)
   : r.type === 'participation' && champsExacts(r, ['type', 'entretienId', 'participationId'])
