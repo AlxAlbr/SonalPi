@@ -551,8 +551,8 @@ contextBridge.exposeInMainWorld('sonal', {
      *  `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
     choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string): Promise<string | null> =>
       invoquer('dialog:choisirDossier', kind, proposition),
-    choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
-      invoquer('dialog:choisirExport', nomSuggere, contenu),
+    choisirExport: (nomSuggere: string, contenu: string, encodage?: 'utf8' | 'windows-1252'): Promise<string | null> =>
+      invoquer('dialog:choisirExport', nomSuggere, contenu, encodage),
     /** Choisir un modèle de modalités au format JSON. */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),

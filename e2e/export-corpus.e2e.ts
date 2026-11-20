@@ -137,6 +137,62 @@ test('export QualCoder : projet .qda créé sans assistant modal', async () => {
   }
 })
 
+test('export IRaMuTeQ : un seul fichier texte avec lignes étoilées', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-iramuteq-'))
+  const destination = join(dir, 'corpus_iramuteq.txt')
+  const app = await lancer(dir)
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    await app.evaluate(({ dialog }, destination) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination })
+    }, destination)
+    await ouvrirOrganisation(page, 'export')
+    const espace = page.locator('.export-corpus')
+    await espace.getByRole('radio', { name: 'Corpus pour IRaMuTeQ (.txt)' }).check()
+    await espace.getByRole('radio', { name: /Tour de parole/ }).check()
+    await espace.locator('.actions .exporter').click()
+    await expect(espace.locator('.etape', { hasText: 'Fichier IRaMuTeQ créé' })).toBeVisible({ timeout: 20_000 })
+    const contenu = readFileSync(destination, 'utf8')
+    const etoilees = contenu.split('\n').filter((ligne) => ligne.startsWith('****'))
+    expect(etoilees.length).toBeGreaterThan(0)
+    for (const ligne of etoilees) expect(ligne).toMatch(/^\*\*\*\* \*ent_[a-z0-9_]+ \*loc_[a-z0-9_]+( \*[a-z0-9]+_[a-z0-9_]+)*$/)
+    expect(contenu.charCodeAt(0)).not.toBe(0xfeff)
+  } finally {
+    await app.close()
+  }
+})
+
+test('export IRaMuTeQ par passage : une variable par thème', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-iramuteq-passage-'))
+  const destination = join(dir, 'corpus_iramuteq.txt')
+  const app = await lancer(dir)
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    await app.evaluate(({ dialog }, destination) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination })
+    }, destination)
+    await ouvrirOrganisation(page, 'export')
+    const espace = page.locator('.export-corpus')
+    await espace.getByRole('radio', { name: 'Corpus pour IRaMuTeQ (.txt)' }).check()
+    await espace.getByRole('radio', { name: /Passage selon les thèmes codés/ }).check()
+    await expect(espace.getByRole('checkbox', { name: /Indiquer aussi les thèmes absents/ })).toBeChecked()
+    await expect(espace.getByRole('checkbox', { name: /^Tous les thèmes/ })).toBeChecked()
+    // Le corpus de démonstration n'a pas de variable ; sans thème,
+    // chaque texte n'est plus repéré que par l'entretien et le locuteur.
+    await espace.getByRole('checkbox', { name: /^Tous les thèmes/ }).uncheck()
+    await expect(espace.getByText('Aucune variable publique dans ce corpus.')).toBeVisible()
+    await espace.locator('.actions .exporter').click()
+    await expect(espace.locator('.etape', { hasText: 'Fichier IRaMuTeQ créé' })).toBeVisible({ timeout: 20_000 })
+    const etoilees = readFileSync(destination, 'latin1').split('\n').filter((ligne) => ligne.startsWith('****'))
+    expect(etoilees.length).toBeGreaterThan(0)
+    for (const ligne of etoilees) expect(ligne).toMatch(/^\*\*\*\* \*ent_[a-z0-9_]+ \*loc_[a-z0-9_]+ \*thaucun_oui$/)
+  } finally {
+    await app.close()
+  }
+})
+
 test('sélection partielle, rapport invalidé après modification puis enregistré', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-exp2-'))
   ecrireSeedDemo(join(dir, 'corpus'))

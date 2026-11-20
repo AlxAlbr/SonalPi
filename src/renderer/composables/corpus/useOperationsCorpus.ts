@@ -26,8 +26,11 @@ import { assemblerModeleQualcoder } from '../../export/exportQualcoder'
 import {
   type EntreeExport,
   type FormatExport,
+  type InstantaneEntretienExport,
   type OptionsExport,
 } from '../../../shared/export/types'
+import { genererCorpusIramuteq, type OptionsIramuteq } from '../../../shared/export/iramuteq'
+import { nettoyerBaseNom } from '../../../shared/export/nomsFichiers'
 import { MIGRATION_ANNULEE, type DemandePreparationMigration } from '../../../shared/migrationV1'
 import { infoGlobale } from '../../erreurs'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
@@ -343,25 +346,65 @@ export function useOperationsCorpus(deps: {
     )
   }
 
+  /** Photographie les entretiens sélectionnés, dans l'ordre reçu.
+   *  L'entretien ouvert est pris en mémoire, les autres sont lus par le main. */
+  async function instantanesSelection(
+    selection: Array<{ id: string; titre: string; date: string | null }>,
+  ): Promise<InstantaneEntretienExport[]> {
+    const snapshots: InstantaneEntretienExport[] = []
+    for (const item of selection) {
+      const resultat = item.id === deps.entretien.ouvertId.value
+        ? { etat: 'succes' as const, instantane: await construireInstantane(sourceExport()) }
+        : await window.sonal.export.instantaneCorpus(item.id)
+      if (resultat.etat === 'echec' || !resultat.instantane) {
+        throw new Error(resultat.etat === 'echec' ? resultat.message : `L'entretien « ${item.titre} » n'est plus disponible.`)
+      }
+      snapshots.push({
+        ...resultat.instantane,
+        date: resultat.instantane.date ?? item.date,
+        reperesPassages: resultat.instantane.reperesPassages,
+      })
+    }
+    return snapshots
+  }
+
+  /** Écrit un seul fichier texte lisible par IRaMuTeQ pour la sélection. */
+  async function exporterIramuteqLot(
+    selection: Array<{ id: string; titre: string; date: string | null }>,
+    options: OptionsIramuteq,
+  ): Promise<
+    | { etat: 'succes'; chemin: string; textes: number; vides: string[] }
+    | { etat: 'annule' }
+    | { etat: 'echec'; message: string }
+  > {
+    try {
+      const snapshots = await instantanesSelection(selection)
+      const corpus = genererCorpusIramuteq(
+        snapshots.map((s) => ({ titre: s.titre, entree: s.entretien })),
+        options,
+      )
+      if (corpus.textes === 0) {
+        return { etat: 'echec', message: 'Aucun texte à exporter : les entretiens choisis ne contiennent pas de discours retenu par ces réglages.' }
+      }
+      const nom = deps.profil.dossierCourantNom.value.trim() || 'Corpus'
+      const chemin = await window.sonal.dialog.choisirExport(
+        `${nettoyerBaseNom(nom, 'txt')}_iramuteq.txt`,
+        corpus.contenu,
+        options.encodage,
+      )
+      if (!chemin) return { etat: 'annule' }
+      return { etat: 'succes', chemin, textes: corpus.textes, vides: corpus.vides }
+    } catch (erreur) {
+      return { etat: 'echec', message: erreur instanceof Error ? erreur.message : String(erreur) }
+    }
+  }
+
   async function exporterQualcoderLot(
     selection: Array<{ id: string; titre: string; date: string | null }>,
     casSelectionnes: string[],
   ): Promise<{ etat: 'succes'; dossier: string } | { etat: 'annule' } | { etat: 'echec'; message: string }> {
-    const snapshots = []
     try {
-      for (const item of selection) {
-        const resultat = item.id === deps.entretien.ouvertId.value
-          ? { etat: 'succes' as const, instantane: await construireInstantane(sourceExport()) }
-          : await window.sonal.export.instantaneCorpus(item.id)
-        if (resultat.etat === 'echec' || !resultat.instantane) {
-          throw new Error(resultat.etat === 'echec' ? resultat.message : `L'entretien « ${item.titre} » n'est plus disponible.`)
-        }
-        snapshots.push({
-          ...resultat.instantane,
-          date: resultat.instantane.date ?? item.date,
-          reperesPassages: resultat.instantane.reperesPassages,
-        })
-      }
+      const snapshots = await instantanesSelection(selection)
       const inventaire = await deps.corpus.lirePersonnes()
       const modele = assemblerModeleQualcoder({
         nom: deps.profil.dossierCourantNom.value.trim() || 'Corpus',
@@ -512,6 +555,7 @@ export function useOperationsCorpus(deps: {
     exportCorpusEnCours,
     exporterCorpusLot,
     exporterQualcoderLot,
+    exporterIramuteqLot,
     preparerRapportCorpus,
     enregistrerRapportCorpus,
     exporter,

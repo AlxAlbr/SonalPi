@@ -272,7 +272,7 @@ declare global {
         choisirSrt: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirAudio: (defaultPath?: string) => Promise<string | null>
         choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string) => Promise<string | null>
-        choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
+        choisirExport: (nomSuggere: string, contenu: string, encodage?: 'utf8' | 'windows-1252') => Promise<string | null>
         choisirJson: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
       }
       /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */

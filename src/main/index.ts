@@ -29,6 +29,7 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
+import { encoderWindows1252, type EncodageTexte } from '../shared/export/encodageWindows1252'
 import { ExemplesLocaux } from './exemples'
 import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
@@ -2977,10 +2978,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
   })
-  ipcMain.handle('dialog:choisirExport', async (e, nomSuggere: string, contenu: string) => {
+  ipcMain.handle('dialog:choisirExport', async (e, nomSuggere: string, contenu: string, encodage?: EncodageTexte) => {
     const r = await montrerSauver(e, { defaultPath: nomSuggere })
     if (r.canceled || !r.filePath) return null
-    writeFileSync(r.filePath, contenu, 'utf8')
+    if (encodage === 'windows-1252') writeFileSync(r.filePath, encoderWindows1252(contenu))
+    else writeFileSync(r.filePath, contenu, 'utf8')
     return r.filePath
   })
   // Exports d'entretien en DOCX/PDF : GENERATION (buffer construit côté main,
