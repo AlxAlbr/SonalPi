@@ -7,7 +7,7 @@ ni de ProseMirror ; le composable orchestre l’éditeur et la sauvegarde.
 ## Ajouter et renommer
 
 Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des valeurs
-vides et `locuteurRef: null`. Son ajout seul ne crée pas d’identité corpus. En local,
+vides et `locuteurRef: null`. Son ajout seul ne crée pas d’identité corpus. En local et sur GitLab,
 valider tout nom non vide crée puis associe une identité distincte, avant les
 propositions éventuelles : rôles, caractères uniques et libellés provisoires validés
 sont admissibles. Entrée ou la sortie du champ modifié enregistrent la saisie ;
@@ -34,9 +34,10 @@ pendant la transaction, puis actualisent uniquement les noms ou associations et
 informations explicitement choisies du modèle ouvert. Les autres
 données et l’historique de frappe sont conservés. Une relecture incertaine garde
 l’entretien en lecture seule jusqu’à réouverture du corpus. GitLab conserve le droit
-courant pendant le renommage et adopte la version confirmée comme base de session.
-Création au nommage et rapprochement restent locaux ; le renommage depuis une session
-WebDAV reste fermé.
+courant pendant les trois corrections et adopte la version confirmée comme base
+de session. Créer une identité indépendante ne nécessite pas de fermer les autres
+entretiens GitLab ; renommer globalement ou rapprocher exige leur fermeture.
+Le raccord depuis une session WebDAV reste fermé.
 Voir [personnes.md](personnes.md#renommage-depuis-lentretien-ouvert).
 
 ## Attribuer un tour de parole

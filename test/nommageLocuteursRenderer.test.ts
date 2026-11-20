@@ -18,7 +18,7 @@ function banc(nomSource = 'Autre nom') {
       { ...source, entretienId: 'autre', entretienTitre: 'Source', participationId: source.id, interviewer: true },
     ], notes: [], indisponibles: [],
   })
-  const api = { personnesInventaire: vi.fn(async () => inventaire()), personnesCommander: vi.fn() }
+  const api = { inventaireLocuteursDepuisEntretien: vi.fn(async () => inventaire()), personnesCommander: vi.fn() }
   vi.stubGlobal('sonal', undefined)
   Object.assign(window, { sonal: { corpus: api } })
   const effets = { enregistrerAction: vi.fn(), rafraichirJournal: vi.fn(), rafraichirProjections: vi.fn(), rafraichirGouttiere: vi.fn(),
@@ -35,7 +35,7 @@ function banc(nomSource = 'Autre nom') {
 
 test.each(['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'Nouveau locuteur'])('valider %s identifie avant de calculer les propositions', async (nom) => {
   const b = banc(), avant = JSON.parse(JSON.stringify(b.locuteurs.value[0]))
-  b.api.personnesInventaire.mockImplementation(async () => { expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle'); return b.inventaire() })
+  b.api.inventaireLocuteursDepuisEntretien.mockImplementation(async () => { expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle'); return b.inventaire() })
   b.renommerParticipation(reference, nom)
   await b.attendreNommages()
   expect(b.identifier).toHaveBeenCalledExactlyOnceWith(reference, nom)
@@ -92,7 +92,7 @@ test.each(['vide', 'retrait', 'lecture seule', 'distant'] as const)('%s : pas de
   if (cas === 'lecture seule') b.editable.value = false
   if (cas === 'distant') b.local.value = false
   b.renommerParticipation(reference, cas === 'vide' ? '  ' : 'Marie Dupont'); await b.attendreNommages()
-  expect(b.identifier).not.toHaveBeenCalled(); expect(b.api.personnesInventaire).not.toHaveBeenCalled()
+  expect(b.identifier).not.toHaveBeenCalled(); expect(b.api.inventaireLocuteursDepuisEntretien).not.toHaveBeenCalled()
   expect(b.locuteurs.value[0].locuteurRef).toBeNull()
 })
 
@@ -101,6 +101,17 @@ test('deux noms saisis avant le démarrage de la création ne créent que le der
   b.renommerParticipation(reference, 'Premier nom'); b.renommerParticipation(reference, 'Dernier nom')
   await b.attendreNommages()
   expect(b.identifier).toHaveBeenCalledExactlyOnceWith(reference, 'Dernier nom')
+})
+
+test('un inventaire distant indisponible après création ne présente pas l’identité vérifiée comme un échec', async () => {
+  const b = banc()
+  b.api.inventaireLocuteursDepuisEntretien.mockRejectedValueOnce(new Error('Un entretien est indisponible'))
+  b.renommerParticipation(reference, 'X'); await b.attendreNommages()
+  expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle')
+  expect(b.messagePersonnes.value).toContain('Locuteur « X » créé')
+  expect(b.messagePersonnes.value).toContain('Les rapprochements ne peuvent pas être vérifiés')
+  expect(b.messagePersonnes.value).not.toContain('Identification non terminée')
+  expect(b.identifier).toHaveBeenCalledOnce()
 })
 
 test('une erreur conserve le nom et une validation identique permet de reprendre', async () => {
@@ -124,15 +135,15 @@ test('une réponse de l’ancien entretien ne présente aucune proposition dans 
   reprendre(); await ancien
   expect(b.locuteurs.value[0].locuteurRef).toBeNull()
   expect(b.rapprochementNommage.value).toBeNull(); expect(b.messagePersonnes.value).toBe('')
-  expect(b.api.personnesInventaire).not.toHaveBeenCalled()
+  expect(b.api.inventaireLocuteursDepuisEntretien).not.toHaveBeenCalled()
 })
 
 test('reporter les propositions en préparation garde la création sans ouvrir ensuite un ancien dialogue', async () => {
   const b = banc('Marie Dupont')
   let terminer!: (v: InventaireIdentitesLocuteurs) => void
-  b.api.personnesInventaire.mockImplementationOnce(() => new Promise((r) => { terminer = r }))
+  b.api.inventaireLocuteursDepuisEntretien.mockImplementationOnce(() => new Promise((r) => { terminer = r }))
   b.renommerParticipation(reference, 'Marie Dupont')
-  await vi.waitFor(() => expect(b.api.personnesInventaire).toHaveBeenCalledOnce())
+  await vi.waitFor(() => expect(b.api.inventaireLocuteursDepuisEntretien).toHaveBeenCalledOnce())
   b.reporterRapprochement()
   terminer(b.inventaire()); await b.attendreNommages()
   expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle')

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
-import type { CorrectionNomsSessionGitLab } from './session'
-import { preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
+import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CorrectionLocuteursSessionGitLab } from './session'
+import { preparerNommageLocuteurs, type PlanCorrectionLocuteurs, type SourceCorrectionLocuteurs, preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
 import type { DetailsLocuteurs } from '../../shared/corpus/detailsLocuteurs'
 import { inventorierPersonnes } from '../../shared/corpus/personnes'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
@@ -369,7 +369,19 @@ export class TransactionsGitLab {
 
   /** Protège tous les membres et conserve le droit de la session fournie, sans le reprendre. */
   corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: () => void,
-    session?: CorrectionNomsSessionGitLab & { entretienId: string }): Promise<string> {
+    session?: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
+    return this.publierCorrectionLocuteurs((corpus, sources) => preparerCorrectionLocuteurs(corpus, sources, commande), verifierSessionsFermees, session)
+  }
+
+  nommerLocuteurDepuisEntretien(operation: OperationNommageLocuteurs, verifierSession: () => void, session: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
+    validerOperationNommageLocuteurs(operation)
+    if (operation.demande.entretienId !== session.entretienId) throw new Error('La demande ne correspond pas à cet entretien.')
+    return this.publierCorrectionLocuteurs((corpus, sources) => preparerNommageLocuteurs(corpus, sources, operation), verifierSession, session,
+      operation.type === 'identifierAuNommage' ? session.entretienId : undefined)
+  }
+
+  private publierCorrectionLocuteurs(preparer: (corpus: string, sources: SourceCorrectionLocuteurs[]) => PlanCorrectionLocuteurs,
+    verifierSessionsFermees: () => void, session?: CorrectionLocuteursSessionGitLab & { entretienId: string }, entretienUnique?: string): Promise<string> {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
       if (!this.options.journal) throw new Error('Le suivi de la correction est indisponible. Aucun locuteur modifié.')
@@ -381,7 +393,7 @@ export class TransactionsGitLab {
         const sha = await this.options.depot.resoudreTete(this.branche)
         const frais = await this.lireBase(sha)
         exigerAbsenceDissociationGitLab(frais.corpus)
-        const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus).sort()
+        const ids = this.sourcesAttendues((c) => entretienUnique === undefined ? Object.keys(c.membership) : [entretienUnique], frais.corpus).sort()
         if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
         if (2 * ids.length + 2 > MAX_ACTIONS_PUBLICATION) {
           throw new Error('Ce corpus contient trop d’entretiens pour protéger cette correction dans un seul envoi. Aucun locuteur modifié.')
@@ -393,7 +405,7 @@ export class TransactionsGitLab {
         verifierSessionsFermees()
         const sources = await this.lireSources(ids, sha, frais.corpus)
         if (session && sources.find((s) => s.id === session.entretienId)?.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Aucun nom modifié.')
-        const plan = preparerCorrectionLocuteurs(frais.fichier.contenu, sources, commande)
+        const plan = preparer(frais.fichier.contenu, sources)
         const modifies = new Map(plan.entretiens.map((e) => [e.id, e.apres]))
         const corpusModifie = JSON.stringify(plan.corpusAvant) !== JSON.stringify(plan.corpusApres)
         const operationId = `locuteurs-${this.nouvelleOperation()}`

@@ -113,7 +113,7 @@ identiques, rôles équivalents et variantes proches strictes. Les variantes
 proches exigent plusieurs mots ; un prénom ou nom isolé ne suffit pas à déclencher
 un rapprochement approximatif.
 
-En local, valider tout nom non vide dans l’entretien crée d’abord une identité
+En local et sur GitLab, saisir tout nom non vide dans l’entretien crée d’abord une identité
 indépendante : rôles, noms génériques, caractère unique et « Nouveau locuteur »
 validé explicitement sont admis. Ajouter l’entrée provisoire seule ne suffit pas.
 La saisie utilise Entrée ou la sortie d’un champ modifié, sans bouton supplémentaire.
@@ -124,8 +124,10 @@ L’association ne représente pas un état « nom validé » et ne conditionne 
 l’apparition de la voix dans la vue corpus.
 Un retrait volontaire empêche toujours cette association automatique.
 
-`identifierParticipationAuNommage` vérifie la seule session locale ouverte, le nom
-sauvegardé et la participation avant de créer l’identité et son association ensemble.
+`identifierParticipationAuNommage` vérifie la session, le nom sauvegardé et la
+participation avant de créer l’identité et son association ensemble. Sur GitLab,
+seuls le corpus et la voix courante sont réservés : les autres éditions ne sont
+ni fermées ni publiées pour faire passer une création indépendante.
 Le même nommage répété retrouve l’identité enregistrée ; une transaction interrompue
 conserve l’identifiant à reprendre. Aucune fiche vide supplémentaire n’est créée à
 la nouvelle tentative. Une source étrangère indisponible n’empêche pas cette création
@@ -159,8 +161,8 @@ vérification du payload complet. Le document et les objets de participation ne 
 pas remplacés. Le main refuse les sauvegardes aux anciennes associations. Une réponse
 perdue entraîne une relecture, jamais un rejeu ; une relecture incertaine laisse
 l’entretien en lecture seule jusqu’à réouverture du corpus. Les réponses tardives ne
-modifient pas une autre session. La création automatique et ce raccord de rapprochement
-restent locaux ; aucun nouveau geste distant n’est autorisé.
+modifient pas une autre session. Ces deux parcours sont également raccordés sur
+GitLab avec leurs gestes précis ; ils restent fermés sur WebDAV.
 
 ## Reprise ponctuelle des informations
 
@@ -266,8 +268,8 @@ sauvegardées avant la correction. Les réponses d’une ancienne session sont �
 Les corrections corpus disposent maintenant d’un dispatch dédié, avec gestes
 précis et protection par fournisseur. Le renommage depuis l’entretien ouvert est
 également raccordé sur GitLab, avec publication des saisies et maintien du droit
-courant. La création et le rapprochement restent locaux ; voir le
-[bilan par fournisseur](fournisseurs.md).
+courant. Création et rapprochement GitLab ont également leur raccord qualifié ;
+les sessions WebDAV restent à traiter. Voir le [bilan par fournisseur](fournisseurs.md).
 
 ## Disponibilité distante : distinguer les méthodes et le parcours ouvert
 

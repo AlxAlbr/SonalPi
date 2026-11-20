@@ -61,6 +61,7 @@ export interface CapacitesCorpus {
   /** Corrections des identités depuis le corpus, éditions fermées. */
   correctionsLocuteurs: boolean
   renommageLocuteurOuvert: boolean
+  nommageLocuteurs: boolean
   /** Annulation d'une action du journal du corpus. */
   annulationJournal: boolean
   /** Désignation d'un média déjà présent dans un stockage partagé. */

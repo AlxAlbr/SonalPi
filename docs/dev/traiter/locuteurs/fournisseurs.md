@@ -11,7 +11,8 @@ locuteurs.
 | Liste, interventions, statistiques et détails | Disponible. | Vue commune, parcours Electron réel vérifié. | Vue commune, parcours Electron réel vérifié sur A et B. |
 | Corrections depuis le corpus | Disponible. | Nouveau parcours sous commit gardé, éditions fermées. | Parcours conditionnel avec suivi privé et reprise explicite, éditions fermées. |
 | Renommage global depuis l’entretien ouvert | Disponible. | Disponible sous le droit de la session courante. | Nouveau raccord non réalisé. |
-| Création au nommage et rapprochement depuis l’entretien ouvert | Disponible. | Nouveau raccord non réalisé. | Nouveau raccord non réalisé. |
+| Création au nommage depuis l’entretien ouvert | Disponible. | Disponible, sans fermer les autres éditions. | Nouveau raccord non réalisé. |
+| Rapprochement depuis l’entretien ouvert | Disponible. | Disponible, après fermeture des autres éditions. | Nouveau raccord non réalisé. |
 
 Le nettoyage final des noms et le retrait des composants historiques restent à
 faire. `PersonnesCorpus.vue` n’est plus affiché par la vue commune, mais n’est pas
@@ -103,7 +104,8 @@ consultation ni la permission main.
 
 Le geste `locuteurs.renommer-depuis-entretien` et la capacité
 `renommageLocuteurOuvert` sont distincts des corrections corpus et du nommage.
-Ils ne débloquent ni création ni rapprochement distant, ni l’ancien canal générique.
+La création et le rapprochement possèdent leurs propres gestes et leur capacité
+`nommageLocuteurs` ; l’ancien canal générique reste fermé.
 
 L’aperçu relit toutes les sources publiées à un SHA et remplace uniquement la source
 de la session autorisée par son candidat sauvegardé. Sa base publiée doit correspondre
@@ -131,6 +133,43 @@ reconnue à la fermeture. Le parcours Electron OAuth vérifie également l’abs
 de publication pendant l’aperçu annulé, la conservation des saisies, la confirmation
 et la publication suivante sur la nouvelle base. Onze parcours Electron locaux
 passent après la séparation des permissions de renommage et de création.
+
+## Création et rapprochement depuis une session GitLab
+
+Les gestes `locuteurs.identifier-au-nommage` et
+`locuteurs.rapprocher-depuis-entretien` conservent également le droit de la session.
+Leur métier est commun au local, dans `nommageLocuteurs.ts`, et la préparation
+produit des candidats natifs sans toucher au miroir.
+
+Une création indépendante ne réserve que le corpus et sa voix courante : les autres
+entretiens peuvent rester ouverts sur ce poste ou ailleurs. Le nom sauvegardé doit
+correspondre à la demande ; le retrait volontaire reste bloquant. Aucun rôle n’est
+déduit du nom, aucun homonyme n’est associé automatiquement. Répéter une création
+confirmée retrouve son id, sans nouvel envoi ni nouvelle définition.
+
+Le rapprochement exige toutes les sources, la fermeture des autres éditions et
+l’inventaire confirmé. Il conserve les noms locaux, redirige les cas et refus de
+tiers et retire l’identité absorbée dans le même commit. Deux voix d’un même
+entretien ne sont pas réunies. Seules les données choisies sont copiées ; les
+variables doivent toujours appartenir aux participations.
+
+`inventaireLocuteursDepuisEntretien` relit les sources publiées et le candidat
+courant autorisé, sans publication. Les suggestions commencent seulement après
+vérification de l’identité indépendante. Une source indisponible diffère les
+propositions sans présenter la création déjà confirmée comme un échec.
+
+La publication et la reprise utilisent le journal GitLab général et l’intention
+privée de session, avec les mêmes candidats. Les protections d’autosauvegarde portent
+sur les associations autant que les noms. Une réponse inconnue suspend l’édition ;
+sa reconnaissance ne crée pas un nouvel id et ne répète pas une réunion.
+
+Deux nouveaux scénarios backend réels vérifient les autres comptes et postes,
+la création malgré leurs éditions, le refus du rapprochement tant qu’elles sont
+tenues, la reprise de la saisie et les réponses perdues sur les deux gestes.
+Le parcours Electron OAuth vérifie l’identité indépendante sur le serveur avant
+confirmation, la réunion sans copie non demandée, puis la sauvegarde suivante.
+Les onze parcours Electron locaux de nommage et renommage passent également.
+Les séries ciblées de 85 puis 102 tests se recouvrent et ne doivent pas être additionnées.
 
 ## Qualification acquise et suite
 
@@ -166,5 +205,5 @@ WebDAV et 26 tests de suivi/politique. Le typage strict ciblé et le build passe
 Le parcours Electron GitLab commun a également été rejoué avec succès après
 l’ajout du suivi, sans nouvelle campagne générale.
 
-La suite concerne la création et le rapprochement depuis une session GitLab,
-le raccord de l’entretien ouvert sur WebDAV et le nettoyage final de nomenclature.
+La suite concerne le raccord de l’entretien ouvert sur WebDAV et le nettoyage
+final de nomenclature.

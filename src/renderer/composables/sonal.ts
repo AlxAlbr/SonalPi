@@ -117,7 +117,7 @@ export function creerSonal() {
     lectureSeule: () => !distant.entretienEditable.value, // aucune écriture d'entretien si la session n'est pas éditable
     entretienEditable: () => distant.entretienEditable.value,
     renommageGlobalPossible: () => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value,
-    identificationLocuteursPossible: () => !idDistantCourant.value && !lectureSeule.value,
+    identificationLocuteursPossible: () => distant.gesteDisponible('nommageLocuteurs') && distant.entretienEditable.value,
     apresRenommageGlobal: () => { corpus.revisionPersonnesCorpus.value++; corpus.reinitialiserMatrice() },
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)

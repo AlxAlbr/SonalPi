@@ -366,6 +366,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:identifierParticipationAuNommage', demande),
     rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage): Promise<EntretienFichier> =>
       invoquer('corpus:rapprocherLocuteurDepuisEntretien', demande),
+    inventaireLocuteursDepuisEntretien: (reference: ReferenceParticipation): Promise<InventaireIdentitesLocuteurs> =>
+      invoquer('corpus:inventaireLocuteursDepuisEntretien', reference),
     apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation): Promise<InventaireIdentitesLocuteurs> =>
       invoquer('corpus:apercuRenommageLocuteurDepuisEntretien', reference),
     renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): Promise<EntretienFichier> =>

@@ -33,7 +33,8 @@ import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type
 import { annulerRefusRapprochementLocuteurs, natureNomLocuteur, refuserRapprochementLocuteurs, reprendreDonneesParticipation } from "../shared/corpus/rapprochementsLocuteurs"
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
 import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocuteurs"
-import { estTypeCorrectionLocuteurs, validerRapprochementNommage, validerCommandeCorrectionLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
+import { identifierParticipationNommage, rapprocherParticipationsNommage } from '../shared/corpus/nommageLocuteurs'
+import { estTypeCorrectionLocuteurs, validerIdentificationLocuteur, validerRapprochementNommage, validerCommandeCorrectionLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
@@ -1506,19 +1507,10 @@ export class CorpusStore {
   /** Une répétition du même nommage retrouve l'identité enregistrée au lieu d'en créer une autre. */
   identifierParticipationAuNommage(demande: DemandeIdentificationLocuteur): EntretienFichier {
     this.verifierSessionNommage(demande)
-    if (typeof demande.nom !== 'string' || !demande.nom.trim()
-      || Object.keys(demande).some((c) => !['entretienId', 'participationId', 'nom'].includes(c))) throw new Error('Validez un nom non vide.')
+    validerIdentificationLocuteur(demande)
     return this.modifierAssociationsSession(demande, [demande.entretienId], 'corpus-puis-entretiens', (corpus, fichiers) => {
-      const data = fichiers[0].data, cible = trouverLocuteur(data, demande.participationId)
-      if (cible.nom !== demande.nom) throw new Error('Le nom a changé. Validez à nouveau le nom courant.')
-      if (cible.associationRetiree) throw new Error('L’association a été retirée volontairement. Choisissez explicitement un locuteur depuis le corpus.')
-      if (cible.locuteurRef) {
-        if (!Object.hasOwn(corpus.locuteurs, cible.locuteurRef)) throw new Error('Le locuteur associé est absent. Vérifiez le corpus.')
-        this.associationsVerifieesSession.add(demande.entretienId)
-        return
-      }
-      const identite = creerPersonne(corpus, genId('pers'), cible.nom)
-      lierLocuteur(corpus, data, cible.id, identite.id)
+      identifierParticipationNommage(corpus, fichiers[0].data, demande, () => genId('pers'))
+      this.associationsVerifieesSession.add(demande.entretienId)
     })
   }
 
@@ -1529,15 +1521,7 @@ export class CorpusStore {
     const inventaire = this.personnesInventaire()
     if (inventaire.indisponibles.length || JSON.stringify(inventaire) !== demande.attendu) throw new Error('Les locuteurs ou leurs données ont changé. Rouvrez le dialogue avant de confirmer.')
     return this.modifierAssociationsSession(demande, Object.keys(this.ouvrir().membership), 'entretiens-puis-corpus', (corpus, fichiers) => {
-      const cibleData = fichiers.find((f) => f.id === demande.entretienId)!.data
-      const sourceData = fichiers.find((f) => f.id === demande.source.entretienId)?.data
-      if (!sourceData) throw new Error('La source sélectionnée est absente.')
-      const cible = trouverLocuteur(cibleData, demande.participationId), source = trouverLocuteur(sourceData, demande.source.participationId)
-      if (!cible.locuteurRef || cible.associationRetiree) throw new Error('Validez d’abord le nom du locuteur pour créer son identité distincte.')
-      if (!source.locuteurRef) lierLocuteur(corpus, sourceData, source.id, cible.locuteurRef)
-      else if (source.locuteurRef !== cible.locuteurRef) fusionnerPersonnes(corpus,
-        fichiers.map((f) => ({ id: f.id, titre: f.titre, data: f.data })), source.locuteurRef, cible.locuteurRef)
-      if (demande.reprise) reprendreDonneesParticipation(cible, source, demande.reprise)
+      rapprocherParticipationsNommage(corpus, fichiers, demande)
     }, demande.attendu)
   }
 

@@ -682,7 +682,7 @@ export function useEntretien(deps: {
     const cible = locuteurs.value.find((p) => p.id === reference.participationId), editeur = editor.value
     const courant = () => ouvertId.value === reference.entretienId && editor.value === editeur
       && locuteurs.value.find((p) => p.id === reference.participationId) === cible
-    if (!cible || !courant() || !deps.identificationLocuteursPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage automatique est disponible uniquement dans un entretien local modifiable.')
+    if (!cible || !courant() || !deps.identificationLocuteursPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage n’est pas disponible dans cet entretien. Vérifiez son accès en modification.')
     let avant: PayloadEntretien | undefined
     try {
       avant = await suspendrePourCorrectionLocuteurs(attendreNommages)

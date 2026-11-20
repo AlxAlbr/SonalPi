@@ -157,7 +157,7 @@ export function useLocuteursEntretien(deps: {
     rapprochementOccupe.value = true
     try {
       await deps.effets.viderSauvegarde()
-      const inventaire = await window.sonal.corpus.personnesInventaire()
+      const inventaire = await window.sonal.corpus.inventaireLocuteursDepuisEntretien({ entretienId: demande.entretienId, participationId: demande.locuteurId })
       if (inventaire.indisponibles.length || JSON.stringify(inventaire) !== demande.attendu) throw new Error('Les propositions ou leurs données ont changé. Rouvrez le dialogue avant de confirmer.')
       const source = inventaire.participations.find(
         (locuteur) =>
@@ -208,7 +208,7 @@ export function useLocuteursEntretien(deps: {
             ? 'Propositions écartées. Vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer ces locuteurs.'
             : 'Propositions écartées. Vous pourrez revenir sur ce choix dans Personnes.'
       } else {
-        if (!deps.rapprocher || !deps.identificationPossible?.()) throw new Error('Ce rapprochement est disponible uniquement en local.')
+        if (!deps.rapprocher || !deps.identificationPossible?.()) throw new Error('Ce rapprochement n’est pas disponible dans cet entretien.')
         if (reprise && signatureDonnees(cibleInitiale) !== signatureDonnees(demande.cible)) throw new Error('Les données locales ont changé. Rouvrez le dialogue avant de confirmer leur reprise.')
         await deps.rapprocher({ entretienId: demande.entretienId, participationId: demande.locuteurId,
           source: { entretienId: source.entretienId, participationId: source.participationId },
@@ -252,9 +252,14 @@ export function useLocuteursEntretien(deps: {
         if (!courant()!.locuteurRef) await deps.identifier!({ entretienId: idEntretien, participationId: idLocuteur }, nom)
         if (!courant()) return
         if (!courant()!.locuteurRef) throw new Error('L’identité distincte n’a pas pu être vérifiée.')
-        const inventaire = await window.sonal.corpus.personnesInventaire()
-        if (!courant() || proposition !== revisionPropositions) return
         messagePersonnes.value = `Locuteur « ${nom} » créé au niveau du corpus.`
+        let inventaire: InventaireIdentitesLocuteurs
+        try { inventaire = await window.sonal.corpus.inventaireLocuteursDepuisEntretien({ entretienId: idEntretien, participationId: idLocuteur }) }
+        catch (e) {
+          if (courant() && proposition === revisionPropositions) messagePersonnes.value += ` Les rapprochements ne peuvent pas être vérifiés pour le moment. ${e instanceof Error ? e.message : String(e)}`
+          return
+        }
+        if (!courant() || proposition !== revisionPropositions) return
         if (inventaire.indisponibles.length) {
           messagePersonnes.value += ' Les propositions sont différées : certains entretiens sont indisponibles.'
           return

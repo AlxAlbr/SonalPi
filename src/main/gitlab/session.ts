@@ -21,10 +21,9 @@ import {
 import { versionSupportee } from '../../shared/format'
 import type { RaisonDegradationSession } from '../../shared/distant'
 import { JournalSessionsGitLab, sha256Session } from './journalSession'
-import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
-import type { EntretienFichier } from '../../shared/format'
+import type { EntretienFichier, PayloadEntretien } from '../../shared/format'
 
-export interface CorrectionNomsSessionGitLab {
+export interface CorrectionLocuteursSessionGitLab {
   droit: DroitsEditionGitLab
   avant: string
   preparer(operationId: string, apres: string): void
@@ -303,7 +302,7 @@ export class SessionGitLab {
   }
 
   /** Publie les saisies puis prête le droit courant, sans libérer ni rouvrir la session. */
-  async corrigerNoms<T>(locuteurId: string, executer: (session: CorrectionNomsSessionGitLab) => Promise<T>): Promise<T> {
+  async corrigerLocuteurs<T>(verifier: (avant: PayloadEntretien, apres: EntretienFichier) => void, executer: (session: CorrectionLocuteursSessionGitLab) => Promise<T>): Promise<T> {
     return this.serialiser(async () => {
       const s = this.session, journal = this.options.journalSessions
       if (!s || this.etat().etat !== 'edition' || !journal || !this.options.journal) throw new Error('La session ne permet pas de modifier les locuteurs. Rouvrez cet entretien.')
@@ -320,7 +319,7 @@ export class SessionGitLab {
         return await executer({ droit: s.droit, avant,
           preparer: (operationId, apres) => {
             const { formatVersion: _v, lastModified: _d, ...payload } = JSON.parse(avant) as EntretienFichier
-            verifierRelectureRenommage(payload, JSON.parse(apres) as EntretienFichier, locuteurId)
+            verifier(payload, JSON.parse(apres) as EntretienFichier)
             preparee = true
             journal.preparerCorrectionLocuteurs(this.options.ressource, operationId, apres)
           },

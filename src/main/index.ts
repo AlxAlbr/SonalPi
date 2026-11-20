@@ -1509,14 +1509,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:verifierCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'verifier'))
   ipcMain.handle('corpus:arreterCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'arreter'))
   ipcMain.handle('corpus:identifierParticipationAuNommage', (_e, demande: DemandeIdentificationLocuteur) => {
-    exigerGeste(fournisseurCourant(), 'personnes.commande')
-    if (contextesDistants.actuel) throw new Error('La création au nommage est disponible uniquement en local.')
+    exigerGeste(fournisseurCourant(), 'locuteurs.identifier-au-nommage')
+    if (contextesDistants.actuel) return executerGitLab((contexte) => contexte.identifierParticipationAuNommage(demande))
     return store.identifierParticipationAuNommage(demande)
   })
   ipcMain.handle('corpus:rapprocherLocuteurDepuisEntretien', (_e, demande: DemandeRapprochementNommage) => {
-    exigerGeste(fournisseurCourant(), 'personnes.commande')
-    if (contextesDistants.actuel) throw new Error('Ce rapprochement est disponible uniquement en local.')
+    exigerGeste(fournisseurCourant(), 'locuteurs.rapprocher-depuis-entretien')
+    if (contextesDistants.actuel) return executerGitLab((contexte) => contexte.rapprocherLocuteurDepuisEntretien(demande))
     return store.rapprocherLocuteurDepuisEntretien(demande)
+  })
+  ipcMain.handle('corpus:inventaireLocuteursDepuisEntretien', (_e, reference: ReferenceParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.identifier-au-nommage')
+    validerReferenceLocuteurOuvert(reference)
+    if (contextesDistants.actuel) return executerGitLab((contexte) => contexte.inventaireLocuteursDepuisEntretien(reference))
+    return store.personnesInventaire()
   })
   ipcMain.handle('corpus:apercuRenommageLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation) => {
     exigerGeste(fournisseurCourant(), 'locuteurs.renommer-depuis-entretien')

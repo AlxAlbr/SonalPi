@@ -11,10 +11,26 @@ export interface ChoixRepriseParticipation {
 export type ChoixRepriseLocuteur = ChoixRepriseParticipation
 
 export interface DemandeIdentificationLocuteur extends ReferenceParticipation { nom: string }
+
+export function validerIdentificationLocuteur(v: unknown): asserts v is DemandeIdentificationLocuteur {
+  if (!objet(v) || !champsExacts(v, ['entretienId', 'participationId', 'nom'])
+    || !identifiant(v.entretienId) || !identifiant(v.participationId) || !identifiant(v.nom)) throw new Error('Validez un nom non vide.')
+}
 export interface DemandeRapprochementNommage extends ReferenceParticipation {
   source: ReferenceParticipation
   attendu: string
   reprise?: ChoixRepriseParticipation
+}
+
+export type OperationNommageLocuteurs =
+  | { type: 'identifierAuNommage'; demande: DemandeIdentificationLocuteur }
+  | { type: 'rapprocherAuNommage'; demande: DemandeRapprochementNommage }
+
+export function validerOperationNommageLocuteurs(v: unknown): asserts v is OperationNommageLocuteurs {
+  if (!objet(v) || !champsExacts(v, ['type', 'demande'])) throw new Error('La demande de nommage est invalide.')
+  if (v.type === 'identifierAuNommage') validerIdentificationLocuteur(v.demande)
+  else if (v.type === 'rapprocherAuNommage') validerRapprochementNommage(v.demande)
+  else throw new Error('La demande de nommage est invalide.')
 }
 
 export function validerRapprochementNommage(v: unknown): asserts v is DemandeRapprochementNommage {

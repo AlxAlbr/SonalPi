@@ -54,6 +54,7 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 |---|---|
 | Types et validation | `src/shared/format.ts`, `src/shared/locuteurs.ts`, `src/shared/natif/validation.ts` |
 | Opérations d’identité | `src/shared/corpus/identitesLocuteurs.ts` |
+| Création au nommage et rapprochement communs | `src/shared/corpus/nommageLocuteurs.ts` |
 | Inventaire et contrats | `src/shared/corpus/personnes.ts`, `contratsLocuteurs.ts` |
 | Suggestions et reprise | `src/shared/corpus/rapprochementsLocuteurs.ts` |
 | Répertoire calculé | `src/shared/corpus/repertoireLocuteurs.ts` |
@@ -63,7 +64,8 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 
 La consultation utilise désormais la vue commune, y compris en distant. Le nouveau
 parcours de corrections corpus est raccordé sur GitLab et WebDAV, avec protections
-et reprise propres à chaque fournisseur.
+et reprise propres à chaque fournisseur. Depuis l’entretien ouvert, renommage,
+création et rapprochement sont également raccordés sur GitLab, pas encore WebDAV.
 Les noms et composants historiques encore présents seront traités par le nettoyage
 final, sans adaptation du stockage 9. Voir le bilan courant par fournisseur.
 

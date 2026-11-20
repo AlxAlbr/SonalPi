@@ -36,6 +36,12 @@ test('les nouvelles corrections sont nommées précisément et ne rouvrent pas l
   expect(gesteAutorise('webdav', 'locuteurs.renommer-depuis-entretien')).toBe(false)
   expect(matriceCapacites('gitlab').renommageLocuteurOuvert).toBe(true)
   expect(matriceCapacites('webdav').renommageLocuteurOuvert).toBe(false)
+  for (const geste of ['locuteurs.identifier-au-nommage', 'locuteurs.rapprocher-depuis-entretien']) {
+    expect(gesteAutorise('gitlab', geste)).toBe(true)
+    expect(gesteAutorise('webdav', geste)).toBe(false)
+  }
+  expect(matriceCapacites('gitlab').nommageLocuteurs).toBe(true)
+  expect(matriceCapacites('webdav').nommageLocuteurs).toBe(false)
 })
 
 describe('portée des gestes du corpus', () => {
@@ -294,6 +300,7 @@ describe('portée des gestes du corpus', () => {
       locuteurs: false,
       correctionsLocuteurs: true,
       renommageLocuteurOuvert: true,
+      nommageLocuteurs: true,
       annulationJournal: false,
       designationMedia: true,
       televersementMedia: false,

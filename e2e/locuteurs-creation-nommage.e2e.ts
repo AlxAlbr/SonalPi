@@ -126,7 +126,7 @@ test('un renommage demandé pendant les propositions en préparation ne reçoit 
     const modal = await gestion(page)
     await app.evaluate(({ ipcMain }) => {
       const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...args: unknown[]) => unknown> })._invokeHandlers
-      const identifier = handlers.get('corpus:identifierParticipationAuNommage'), inventorier = handlers.get('corpus:personnesInventaire')
+      const identifier = handlers.get('corpus:identifierParticipationAuNommage'), inventorier = handlers.get('corpus:inventaireLocuteursDepuisEntretien')
       if (!identifier || !inventorier) throw new Error('Handlers absents')
       const etat = { bloquer: false, demandes: 0, liberer: () => {} }
       const attente = new Promise<void>((r) => { etat.liberer = () => { etat.bloquer = false; r() } })
@@ -135,8 +135,8 @@ test('un renommage demandé pendant les propositions en préparation ne reçoit 
       ipcMain.handle('corpus:identifierParticipationAuNommage', async (...args) => {
         const resultat = await identifier(...args); etat.bloquer = true; return resultat
       })
-      ipcMain.removeHandler('corpus:personnesInventaire')
-      ipcMain.handle('corpus:personnesInventaire', async (...args) => {
+      ipcMain.removeHandler('corpus:inventaireLocuteursDepuisEntretien')
+      ipcMain.handle('corpus:inventaireLocuteursDepuisEntretien', async (...args) => {
         if (etat.bloquer) { etat.demandes++; await attente }
         return inventorier(...args)
       })

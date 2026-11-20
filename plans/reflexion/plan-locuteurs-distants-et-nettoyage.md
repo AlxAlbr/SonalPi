@@ -4,9 +4,8 @@
 
 **Statut : réalisation en cours. Analyse D0 effectuée ; consultation commune
 raccordée et corrections corpus GitLab et WebDAV implémentées. Reprise WebDAV et
-interface qualifiées sur les deux bancs. Le renommage depuis une session GitLab
-est raccordé ; création, rapprochement, session WebDAV et nettoyage final restent
-à réaliser.** Le lot local B1–B5 est clôturé
+interface qualifiées sur les deux bancs. Les trois parcours depuis une session
+GitLab sont raccordés ; session WebDAV et nettoyage final restent à réaliser.** Le lot local B1–B5 est clôturé
 dans `43a14d8`, sans réouverture de sa qualification générale.
 
 La comparaison avec les thématiques est une **question de départ**, pas une
@@ -312,8 +311,8 @@ le geste demeure indisponible et la limite est explicitement arbitrée.
 
 ### D4 — Nommage et corrections depuis l’entretien ouvert
 
-**Partiel :** renommage GitLab qualifié, en conservant le droit de la session.
-Création et rapprochement GitLab ainsi que le raccord de session WebDAV restent fermés.
+**Partiel :** renommage, création au nommage et rapprochement GitLab qualifiés,
+en conservant le droit de la session. Le raccord de session WebDAV reste fermé.
 
 - [ ] Raccorder création indépendante au nommage, renommage global et rapprochement confirmé.
 - [ ] Intégrer sauvegarde, publication de session et application sélective du résultat.
@@ -546,3 +545,41 @@ Typage et build restent contrôlés de façon ciblée.
 
 D4 n’est pas clôturé : poursuivre création et rapprochement depuis la session GitLab,
 puis le raccord WebDAV avec son propre droit et sa reprise. D5 reste ouvert.
+
+## 14. Création et rapprochement depuis une session GitLab
+
+La création au nommage et le rapprochement sont raccordés par leurs gestes précis.
+Leur capacité est séparée du renommage et aucune commande historique n’est rouverte.
+Le métier commun est extrait dans `nommageLocuteurs.ts` et réutilisé en local comme
+dans la préparation distante, sans autre modèle ni format natif.
+
+La création protège uniquement le corpus et la voix courante. Elle ne ferme ni ne
+publie les autres entretiens, même tenus par un autre poste ou un autre compte.
+Le nom doit correspondre au candidat sauvegardé ; les retraits volontaires restent
+bloquants. Toute identité déjà confirmée est retrouvée sans génération ni envoi.
+Les homonymes sont indépendants et le rôle n’est jamais déduit d’un nom.
+
+Le rapprochement garde l’inventaire complet, les autres éditions fermées et les
+contrôles de conflit dans un même entretien. Les cas et refus de tiers sont redirigés
+et la définition absorbée est retirée dans le même commit. Les noms locaux sont
+conservés ; seules les données explicitement choisies sont reprises.
+
+Les suggestions et leur confirmation utilisent un inventaire serveur frais avec
+le candidat de la session autorisée, sans publication pendant sa consultation.
+Un échec de lecture des propositions après une création confirmée ne transforme
+pas cette création en échec. Les sauvegardes anciennes ne peuvent rétablir les liens
+antérieurs. Réponses inconnues et redémarrages gardent le candidat reconnu, sans
+nouvel id ni nouvelle réunion automatique.
+
+Qualification ciblée : deux nouveaux scénarios backend GitLab réels couvrent les
+comptes et postes concurrents, la création avec une autre édition tenue, le refus
+du rapprochement avant sa libération, la saisie suivante et les réponses perdues
+sur les deux gestes. Le parcours Electron OAuth étendu vérifie l’identité indépendante
+sur le serveur avant confirmation, la réunion sans copie non demandée puis sa
+sauvegarde suivante. Onze parcours Electron locaux passent. Les séries unitaires
+et simulées de 85 puis 102 tests se recouvrent ; typage et build sont vérifiés.
+
+La suite de D4 concerne WebDAV, avec réutilisation du droit de la session et reprise
+propre au protocole multi-fichiers. Vérifier notamment les requêtes encore en cours
+après une réponse inconnue et la protection des références jusqu’à reconnaissance,
+avant d’étendre les écritures depuis une session. D5 reste ouvert.

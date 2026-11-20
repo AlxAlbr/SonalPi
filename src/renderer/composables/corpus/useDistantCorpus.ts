@@ -37,6 +37,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   locuteurs: true,
   correctionsLocuteurs: true,
   renommageLocuteurOuvert: true,
+  nommageLocuteurs: true,
   annulationJournal: true,
   designationMedia: true,
   televersementMedia: false,

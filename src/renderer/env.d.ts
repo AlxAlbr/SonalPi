@@ -210,6 +210,7 @@ declare global {
         personnesInventaire: () => Promise<InventaireIdentitesLocuteurs>
         identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur) => Promise<EntretienFichier>
         rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
+        inventaireLocuteursDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
         apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
         renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>

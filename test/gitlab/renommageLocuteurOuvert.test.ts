@@ -16,6 +16,7 @@ import type { MiroirDistant } from '../../src/main/distant/miroir'
 import type { ConfigDestinationGitLab } from '../../src/main/distant/coffre'
 import type { EntretienFichier } from '../../src/shared/format'
 import type { InventaireIdentitesLocuteurs } from '../../src/shared/corpus/personnes'
+import { verifierRelectureRenommage } from '../../src/shared/entretien/renommageGlobal'
 import { fixtureLocuteursDistants } from '../fixtures/locuteursDistants'
 import { DepotMemoire } from './depotMemoire'
 
@@ -24,8 +25,10 @@ afterEach(() => { for (const d of dossiers.splice(0)) rmSync(d, { recursive: tru
 const reference = { entretienId: 'A', participationId: 'local' }
 const commande = (inventaire: InventaireIdentitesLocuteurs) => ({ type: 'renommerGlobal' as const, locuteurId: 'a', nom: 'Alice renommée', attendu: JSON.stringify(inventaire) })
 
-function banc() {
-  const f = fixtureLocuteursDistants(), dir = mkdtempSync(join(tmpdir(), 'sonal-nom-ouvert-gitlab-')); dossiers.push(dir)
+function banc(sansAssociation = false) {
+  const f = fixtureLocuteursDistants()
+  if (sansAssociation) f.entretiens[0].data.participations[0].locuteurRef = null
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-nom-ouvert-gitlab-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens')); mkdirSync(join(dir, 'journal'))
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus, null, 2))
   for (const s of f.sources()) writeFileSync(join(dir, 'entretiens', `${s.id}.json`), s.contenu)
@@ -55,6 +58,67 @@ function banc() {
   const sauvegarder = async (data: EntretienFichier) => { store.ecrireEntretien('A', data); await contexte.marquerSessionSale(contexte.ressourceEntretien('A')) }
   return { f, dir, store, depot, coordination, journal, journalSessions, transactions, sessions, creerSession, contexte, donnees, lire, sauvegarder }
 }
+
+test('créer au nommage laisse les autres éditions ouvertes, garde les droits courants et reste idempotent', async () => {
+  const b = banc(true); await b.contexte.ouvrirEntretienPourEdition('A'); await b.contexte.ouvrirEntretienPourEdition('C')
+  const autre = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'bob' }) })
+  const tenue = await autre.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/B.json')); expect(tenue.ok).toBe(true)
+  const avant = b.lire('A'), lecturesB = b.depot.lectures.get('entretiens/B.json') ?? 0
+  const session = b.sessions.get('entretiens/A.json')!, droit = session.droit()!, generation = b.coordination.snapshot(droit).generation
+  const apres = await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' }), id = apres.participations[0].locuteurRef!
+  expect(id).toBeTruthy(); expect(id).not.toBe('a')
+  expect(apres).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], locuteurRef: id }] })
+  expect(b.depot.lectures.get('entretiens/B.json') ?? 0).toBe(lecturesB)
+  expect(b.donnees()).toHaveLength(1)
+  expect(b.coordination.snapshot(droit).generation).toBe(generation)
+  expect(b.sessions.get('entretiens/C.json')!.etat().etat).toBe('edition')
+  const encore = await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })
+  expect(encore.participations[0].locuteurRef).toBe(id); expect(b.donnees()).toHaveLength(1)
+  expect(() => b.store.ecrireEntretien('A', avant)).toThrow('associations des locuteurs ont changé')
+  await b.contexte.fermerEntretien('A'); await b.contexte.fermerEntretien('C')
+  if (tenue.ok) await autre.liberer(tenue.droit)
+})
+
+test.each(['retrait', 'nom différent', 'vide', 'champ inconnu'] as const)('nommage %s : refus avant publication des saisies', async (cas) => {
+  const b = banc(true); await b.contexte.ouvrirEntretienPourEdition('A')
+  if (cas === 'retrait') { const data = b.lire('A'); data.participations[0].associationRetiree = true; await b.sauvegarder(data) }
+  await expect(b.contexte.identifierParticipationAuNommage({ ...reference, nom: cas === 'vide' ? '' : cas === 'nom différent' ? 'Autre' : 'Alice A', ...(cas === 'champ inconnu' ? { locuteurRef: 'a' } : {}) })).rejects.toThrow()
+  expect(b.donnees()).toHaveLength(0)
+})
+
+test('rapprochement en session : une seule publication complète, source conservée, données copiées seulement sur demande', async () => {
+  const b = banc(true); await b.contexte.ouvrirEntretienPourEdition('A')
+  await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })
+  const avant = b.lire('A'), inventaire = await b.contexte.inventaireLocuteursDepuisEntretien(reference)
+  const independant = avant.participations[0].locuteurRef!, droit = b.sessions.get('entretiens/A.json')!.droit()
+  const apres = await b.contexte.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire), reprise: { pseudo: true, interviewer: true, variables: [], remplacer: true } })
+  expect(b.donnees()).toHaveLength(2)
+  expect(apres).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], locuteurRef: 'b', pseudo: 'Pseudo C', pseudoEtat: 'confirme', interviewer: false }] })
+  expect(b.store.ouvrir().locuteurs[independant]).toBeUndefined(); expect(b.store.ouvrir().locuteurs.b).toBeDefined()
+  expect(b.sessions.get('entretiens/A.json')!.droit()).toBe(droit)
+  const suite = b.lire('A'); suite.notes![0].corps = 'Après réunion'
+  await b.sauvegarder(suite); expect(await b.contexte.publierEntretien('A')).toEqual({ ok: true })
+  expect(JSON.parse((await b.depot.lireFichier('entretiens/A.json'))!.contenu).notes[0].corps).toBe('Après réunion')
+  await b.contexte.fermerEntretien('A')
+})
+
+test('réponse de création inconnue : le candidat enregistré est reconnu sans créer une deuxième identité', async () => {
+  const b = banc(true); await b.contexte.ouvrirEntretienPourEdition('A')
+  b.depot.avantCommit = (actions) => {
+    if (actions.some((a) => a.file_path === 'entretiens/A.json')) { b.depot.echouerApresAccepter(new Error('Coupure')); b.depot.rendreCommitsIllisibles() }
+  }
+  await expect(b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).rejects.toThrow()
+  expect(b.donnees()).toHaveLength(1)
+  const id = JSON.parse((await b.depot.lireFichier('entretiens/A.json'))!.contenu).participations[0].locuteurRef
+  await expect(b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).rejects.toThrow()
+  b.depot.avantCommit = () => {}; b.depot.rendreCommits()
+  await expect(b.contexte.fermerEntretien('A')).resolves.toEqual({ fermee: true })
+  await b.contexte.ouvrirEntretienPourEdition('A')
+  expect((await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).participations[0].locuteurRef).toBe(id)
+  expect(b.donnees()).toHaveLength(1)
+  expect(Object.keys(JSON.parse((await b.depot.lireFichier('corpus.crp'))!.contenu).locuteurs)).toHaveLength(4)
+  await b.contexte.fermerEntretien('A')
+})
 
 test('aperçu frais avec saisies locales : aucun envoi, puis droit conservé et nouvelle base pour les sauvegardes suivantes', async () => {
   const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A')
@@ -160,7 +224,7 @@ test('une intention conservée avant tout envoi se clôture sans publier son can
   const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A')
   const session = b.sessions.get('entretiens/A.json')!, apres = b.lire('A')
   apres.participations[0].nom = 'Jamais envoyé'
-  await expect(session.corrigerNoms('a', async (courant) => {
+  await expect(session.corrigerLocuteurs((avant, apres) => verifierRelectureRenommage(avant, apres, 'a'), async (courant) => {
     courant.preparer('locuteurs-arret-avant-envoi', JSON.stringify(apres)); throw new Error('Arrêt avant envoi')
   })).rejects.toThrow('Arrêt avant envoi')
   await expect(b.contexte.fermerEntretien('A')).resolves.toEqual({ fermee: true })

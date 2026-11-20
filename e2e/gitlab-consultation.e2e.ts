@@ -434,7 +434,7 @@ test.describe('Consultation GitLab à deux profils', () => {
   test.skip(!configurationPresente, 'variables GITLAB_* absentes')
   test.setTimeout(180_000)
 
-  test('locuteurs GitLab : consultation commune, détails et renommage depuis le corpus puis l’entretien ouvert', async ({ browser }) => {
+  test('locuteurs GitLab : consultation, renommage, nommage indépendant et rapprochement depuis l’entretien ouvert', async ({ browser }) => {
     const f = fixtureLocuteursDistants()
     const projet = await api<{ id: number }>('/projects', configuration.token1 as string, {
       method: 'POST', body: JSON.stringify({ name: `Sonal locuteurs E2E ${idExecution}`, path: `sonal-locuteurs-e2e-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }),
@@ -513,6 +513,34 @@ test.describe('Consultation GitLab à deux profils', () => {
       const suite = await lireServeur('A')
       expect(JSON.stringify(suite.corpsTexte)).toContain('APRÈS RENOMMAGE SAISIES RÉCENTES')
       expect(suite.participations[0].nom).toBe('Alice depuis entretien')
+      await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+      await gestion.getByRole('button', { name: '+ Locuteur', exact: true }).click()
+      const nouveau = gestion.locator('.nom-loc').last()
+      await nouveau.fill('Bob'); await nouveau.press('Enter')
+      const propositions = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
+      await expect(propositions).toBeVisible({ timeout: 30_000 })
+      const nomme = await lireServeur('A'), nouvelleVoix = nomme.participations.at(-1)
+      expect(nouvelleVoix.nom).toBe('Bob'); expect(nouvelleVoix.locuteurRef).toBeTruthy(); expect(nouvelleVoix.locuteurRef).not.toBe('b')
+      expect(nomme.corpsTexte).toEqual(suite.corpsTexte)
+      expect(nomme.participations[0]).toEqual(suite.participations[0])
+      await propositions.getByRole('radio').check()
+      await propositions.getByRole('checkbox', { name: /Reprendre les informations disponibles/ }).uncheck()
+      await propositions.getByRole('button', { name: 'Confirmer', exact: true }).click()
+      await expect(propositions).toHaveCount(0, { timeout: 30_000 })
+      const reuni = await lireServeur('A')
+      expect(reuni.participations.at(-1)).toEqual({ ...nouvelleVoix, locuteurRef: 'b' })
+      expect(reuni.participations[0]).toEqual(suite.participations[0]); expect(reuni.corpsTexte).toEqual(suite.corpsTexte)
+      const corpusPublie = await api<{ content: string }>(`/projects/${projet.id}/repository/files/corpus.crp?ref=main`, configuration.token1 as string)
+      expect(JSON.parse(Buffer.from(corpusPublie.content, 'base64').toString('utf8')).locuteurs[nouvelleVoix.locuteurRef]).toBeUndefined()
+      await gestion.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
+      await page.locator('.editeur').click(); await page.keyboard.press('Control+Home'); await page.keyboard.insertText('APRÈS RAPPROCHEMENT ')
+      await expect.poll(() => page.evaluate(async () => {
+        const r = await window.sonal.corpus.lireEntretien('A'); return r.ok && JSON.stringify(r.data.corpsTexte).includes('APRÈS RAPPROCHEMENT')
+      })).toBe(true)
+      expect(await page.evaluate(() => window.sonal.corpus.publierEntretien('A'))).toEqual({ ok: true })
+      const suiteReunion = await lireServeur('A')
+      expect(JSON.stringify(suiteReunion.corpsTexte)).toContain('APRÈS RAPPROCHEMENT APRÈS RENOMMAGE SAISIES RÉCENTES')
+      expect(suiteReunion.participations.at(-1).locuteurRef).toBe('b')
     } finally {
       await Promise.allSettled([app.close(), session.fermer()])
       shim.nettoyer(); rmSync(profil, { recursive: true, force: true })

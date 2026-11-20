@@ -24,6 +24,8 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Liste des locuteurs, interventions, statistiques et détails | oui | oui |
 | Corrections des locuteurs depuis le corpus | oui, après fermeture des éditions, avec suivi des interruptions | oui, après fermeture des éditions et dans les limites du corpus pris en charge |
 | Renommer un locuteur dans ses entretiens depuis l’entretien ouvert | non | oui, après enregistrement des saisies et fermeture des autres éditions |
+| Créer un locuteur indépendant en saisissant son nom dans l’entretien | non | oui, sans fermer les autres éditions |
+| Confirmer un rapprochement depuis l’entretien ouvert | non | oui, après fermeture des autres éditions |
 | Notes du corpus, annulation d'une action du journal | non | non |
 | Médias partagés, documents du projet | oui | non |
 

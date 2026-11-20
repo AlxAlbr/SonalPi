@@ -29,7 +29,74 @@ async function deposer(p: Pile, f: ReturnType<typeof fixtureLocuteursDistants>) 
   await p.depot.publierCommit('main', 'Qualification : entretiens de locuteurs', f.sources().map((s) => ({ action: 'create', file_path: `${p.racine}/entretiens/${s.id}.json`, content: s.contenu })))
 }
 
-decrire('renommage depuis une session sur GitLab réel', () => {
+decrire('locuteurs depuis une session sur GitLab réel', () => {
+  it('nommage et rapprochement : créer malgré les autres éditions, réunir seulement après libération et continuer la saisie', { timeout: 120_000 }, async () => {
+    const f = fixtureLocuteursDistants(); f.entretiens[0].data.participations[0].locuteurRef = null
+    const racine = await creerRacine('nommage', { corpus: f.corpus })
+    const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'nommage', corpusLocal: f.corpus })
+    const bob = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'nommage-bob' })
+    const autrePoste = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'nommage-autre-poste' })
+    const b = contexte(alice)
+    try {
+      await deposer(alice, f); await b.c.ouvrirEntretienPourEdition('A')
+      const droit = b.sessions.get('entretiens/A.json')!.droit()!, generation = alice.coordination.snapshot(droit).generation
+      const tenue = ouvrirSession(bob, `${racine}/entretiens/B.json`, 'B')
+      let id: string
+      try {
+        expect((await tenue.ouvrir()).etat).toBe('edition')
+        const a = await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })
+        id = a.participations[0].locuteurRef!; expect(id).toBeTruthy(); expect(id).not.toBe('a')
+      } finally { await tenue.fermer() }
+      const propre = ouvrirSession(autrePoste, `${racine}/entretiens/B.json`, 'B')
+      try {
+        expect((await propre.ouvrir()).etat).toBe('edition')
+        const r = alice.store.lireEntretien('A'); if (!r.ok) throw new Error('Entretien absent')
+        r.data.participations.push({ id: 'nouvelle', index: 8, nom: 'X', locuteurRef: null, valeursLoc: {} })
+        alice.store.ecrireEntretien('A', r.data); await b.c.marquerSessionSale(b.c.ressourceEntretien('A'))
+        const second = await b.c.identifierParticipationAuNommage({ entretienId: 'A', participationId: 'nouvelle', nom: 'X' })
+        expect(second.participations[1].locuteurRef).toBeTruthy(); expect(second.participations[1].locuteurRef).not.toBe(id!)
+        const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
+        await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })).rejects.toThrow(/en cours de modification|est retenu/)
+      } finally { await propre.fermer() }
+      const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
+      const avant = alice.store.lireEntretien('A'); if (!avant.ok) throw new Error('Entretien absent')
+      const apres = await b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire), reprise: { pseudo: true, variables: [], remplacer: true } })
+      expect(apres).toEqual({ ...avant.data, lastModified: expect.any(String), participations: [{ ...avant.data.participations[0], locuteurRef: 'b', pseudo: 'Pseudo C', pseudoEtat: 'confirme' }, avant.data.participations[1]] })
+      expect(alice.store.ouvrir().locuteurs[id!]).toBeUndefined()
+      expect(alice.coordination.snapshot(droit).generation).toBe(generation)
+      const suite = alice.store.lireEntretien('A'); if (!suite.ok) throw new Error('Entretien absent')
+      suite.data.notes![0].corps = 'Saisie après rapprochement'
+      alice.store.ecrireEntretien('A', suite.data); await b.c.marquerSessionSale(b.c.ressourceEntretien('A'))
+      expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
+      const serveur = JSON.parse(contenuDe(await lireFichier(`${racine}/entretiens/A.json`, configuration.token1 as string)))
+      expect(serveur.notes[0].corps).toBe('Saisie après rapprochement'); expect(serveur.participations[0].locuteurRef).toBe('b')
+    } finally { await b.c.fermerEntretien('A').catch(() => {}); nettoyer(alice, bob, autrePoste) }
+  })
+
+  it('nommage et rapprochement : réponses perdues reconnues sans nouvelle identité ni rejeu de réunion', { timeout: 120_000 }, async () => {
+    const f = fixtureLocuteursDistants(); f.entretiens[0].data.participations[0].locuteurRef = null
+    const racine = await creerRacine('nommage-reprise', { corpus: f.corpus })
+    const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'nommage-reprise', corpusLocal: f.corpus }), b = contexte(alice)
+    try {
+      await deposer(alice, f); await b.c.ouvrirEntretienPourEdition('A')
+      alice.perdreReponseDuCommitDeDonnees(async (p) => p.rendreHistoriqueIndisponible())
+      await expect(b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).rejects.toThrow()
+      const id = JSON.parse(contenuDe(await lireFichier(`${racine}/entretiens/A.json`, configuration.token1 as string))).participations[0].locuteurRef
+      expect(id).toBeTruthy(); alice.rendreHistorique()
+      expect(await b.c.fermerEntretien('A')).toEqual({ fermee: true }); await b.c.ouvrirEntretienPourEdition('A')
+      expect((await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).participations[0].locuteurRef).toBe(id)
+      expect(alice.commitsEnvoyes.filter((c) => c.message.includes('locuteurs-'))).toHaveLength(1)
+      const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
+      alice.perdreReponseDuCommitDeDonnees(async (p) => p.rendreHistoriqueIndisponible())
+      await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })).rejects.toThrow()
+      alice.rendreHistorique(); expect(await b.c.fermerEntretien('A')).toEqual({ fermee: true })
+      const relu = await b.c.ouvrirEntretienPourEdition('A')
+      expect(relu.ok && relu.acces).toBe('edition'); expect(relu.ok && relu.data.participations[0].locuteurRef).toBe('b')
+      expect(alice.commitsEnvoyes.filter((c) => c.message.includes('locuteurs-'))).toHaveLength(2)
+      expect(JSON.parse(contenuDe(await lireFichier(`${racine}/corpus.crp`, configuration.token1 as string))).locuteurs[id]).toBeUndefined()
+    } finally { alice.rendreHistorique(); await b.c.fermerEntretien('A').catch(() => {}); nettoyer(alice) }
+  })
+
   it('refuse les autres postes, conserve notre droit puis publie les saisies suivantes sur la nouvelle base', { timeout: 120_000 }, async () => {
     const f = fixtureLocuteursDistants(), racine = await creerRacine('droits', { corpus: f.corpus })
     const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'edition', corpusLocal: f.corpus })

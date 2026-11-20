@@ -53,7 +53,7 @@ export type PorteeGesteCorpus =
   | 'themes-reaffectation-suppression'
   /** Correction complète des identités et de leurs références, éditions fermées. */
   | 'corrections-locuteurs-corpus'
-  /** Renommage global depuis une session conservant son droit d’édition. */
+  /** Correction depuis une session conservant son droit d’édition, selon les sources du geste. */
   | 'locuteur-session'
   /** Reconnaissance et reprise des publications WebDAV de locuteurs. */
   | 'corrections-locuteurs-reprise'
@@ -234,6 +234,8 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
 
   'locuteurs.renommer': 'corrections-locuteurs-corpus',
   'locuteurs.renommer-depuis-entretien': 'locuteur-session',
+  'locuteurs.identifier-au-nommage': 'locuteur-session',
+  'locuteurs.rapprocher-depuis-entretien': 'locuteur-session',
   'locuteurs.regrouper': 'corrections-locuteurs-corpus',
   'locuteurs.dissocier': 'corrections-locuteurs-corpus',
   'locuteurs.individualiser': 'corrections-locuteurs-corpus',
@@ -370,6 +372,7 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   | 'suppressionSourceThemes'
   | 'correctionsLocuteurs'
   | 'renommageLocuteurOuvert'
+  | 'nommageLocuteurs'
 >> = {
   local: {
     renommageEntretien: true,
@@ -430,6 +433,7 @@ export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpu
     suppressionSourceThemes: gesteAutorise(fournisseur, 'theme.transferer-supprimer-source'),
     correctionsLocuteurs: gesteAutorise(fournisseur, 'locuteurs.renommer'),
     renommageLocuteurOuvert: gesteAutorise(fournisseur, 'locuteurs.renommer-depuis-entretien'),
+    nommageLocuteurs: gesteAutorise(fournisseur, 'locuteurs.identifier-au-nommage') && gesteAutorise(fournisseur, 'locuteurs.rapprocher-depuis-entretien'),
     ...PARCOURS_PAR_FOURNISSEUR[fournisseur],
   }
 }
