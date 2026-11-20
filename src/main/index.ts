@@ -57,6 +57,7 @@ import type { ConversionEntretienMigrationGitLab, DemandeBilanMigrationGitLab, D
 import {
   exigerGeste,
   gesteAutorise,
+  gesteCorrectionLocuteurs,
   gestureCas,
   gestureRecueil,
   gestureTri,
@@ -1462,6 +1463,30 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
   ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
+  ipcMain.handle('corpus:detailsLocuteursInventaire', async (_e, pourCorrection = false) => {
+    if (typeof pourCorrection !== 'boolean') throw new Error('La demande de consultation est invalide.')
+    if (!pourCorrection) return store.detailsLocuteursInventaire()
+    const execution = executerContexteCommun(async (contexte) => {
+      if (!(contexte instanceof ContexteGitLab)) throw new Error('La préparation des corrections n’est pas encore disponible pour ce corpus distant.')
+      return contexte.lireDetailsLocuteursCorrection()
+    })
+    if (!execution) return store.detailsLocuteursInventaire()
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la préparation.')
+    return resultat.valeur
+  })
+  ipcMain.handle('corpus:corrigerLocuteurs', async (_e, commande: unknown) => {
+    validerCommandeCorrectionLocuteurs(commande)
+    exigerGeste(fournisseurCourant(), gesteCorrectionLocuteurs(commande))
+    const execution = executerContexteCommun(async (contexte) => {
+      if (!(contexte instanceof ContexteGitLab)) throw new Error('Cette correction n’est pas encore disponible pour ce corpus distant.')
+      return contexte.corrigerLocuteurs(commande)
+    })
+    if (!execution) return store.personnesCommander(commande, true)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la correction. Actualisez sa liste de locuteurs.')
+    return resultat.valeur
+  })
   ipcMain.handle('corpus:identifierParticipationAuNommage', (_e, demande: DemandeIdentificationLocuteur) => {
     exigerGeste(fournisseurCourant(), 'personnes.commande')
     if (contextesDistants.actuel) throw new Error('La création au nommage est disponible uniquement en local.')

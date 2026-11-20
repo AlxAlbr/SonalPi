@@ -36,6 +36,7 @@ import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocute
 import { estTypeCorrectionLocuteurs, validerRapprochementNommage, validerCommandeCorrectionLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, type CommandeCorrectionLocuteurs, type CommandeLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
+import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
 import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
 import {
   memeEtatNote,
@@ -1139,6 +1140,16 @@ export class CorpusStore {
   personnesInventaire(): InventaireIdentitesLocuteurs {
     const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
     return { ...inventorierPersonnes(corpus, entretiens), indisponibles }
+  }
+
+  /** Lit les détails et leurs définitions dans le même contexte, sans modifier les sources. */
+  detailsLocuteursInventaire(): DetailsLocuteurs {
+    const { corpus, entretiens, indisponibles } = this.lireSourcesPersonnes()
+    return {
+      inventaire: { ...inventorierPersonnes(corpus, entretiens), indisponibles },
+      variables: Object.values(corpus.variables),
+      categories: normaliserCategoriesNote(corpus.categoriesNote),
+    }
   }
 
   /** Projette la liste et les interventions sans transmettre les textes à l’interface. */

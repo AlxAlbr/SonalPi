@@ -12,6 +12,7 @@
  */
 
 import type { CapacitesCorpus } from '../../shared/distant'
+import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import { referencesAjouteesCommandeCas, type CommandeCas } from '../../shared/corpus/cas'
 import type { CommandeRecueils } from '../../shared/corpus/recueils'
 import type { ModeTriEntretiens } from '../../shared/format'
@@ -50,6 +51,8 @@ export type PorteeGesteCorpus =
   | 'themes-reaffectation'
   /** Réaffectation suivie du retrait protégé de la source. */
   | 'themes-reaffectation-suppression'
+  /** Correction complète des identités et de leurs références, éditions fermées. */
+  | 'corrections-locuteurs-corpus'
   /** Parcours non pris en charge sur un corpus distant. */
   | 'indisponible'
 
@@ -75,6 +78,7 @@ export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = [
   'pseudonymisation-retrait-variante',
   'themes-reaffectation',
   'themes-reaffectation-suppression',
+  'corrections-locuteurs-corpus',
 ]
 
 /** Les portées WebDAV sont qualifiées séparément de celles de GitLab. */
@@ -115,6 +119,7 @@ const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]
     'pseudonymisation-ajout-variante',
     'pseudonymisation-retrait-variante',
     'indisponible',
+    'corrections-locuteurs-corpus',
   ],
   webdav: PORTEES_OUVERTES_WEBDAV,
   gitlab: PORTEEES_OVERTES_GITLAB,
@@ -218,11 +223,30 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
   'valeurs.lot': 'valeurs-entretien',
   'regles.lot': 'pseudonymisation-entretiens',
 
+  'locuteurs.renommer': 'corrections-locuteurs-corpus',
+  'locuteurs.regrouper': 'corrections-locuteurs-corpus',
+  'locuteurs.dissocier': 'corrections-locuteurs-corpus',
+  'locuteurs.individualiser': 'corrections-locuteurs-corpus',
+  'locuteurs.supprimer-vide': 'corrections-locuteurs-corpus',
+  'locuteurs.ecarter': 'corrections-locuteurs-corpus',
+  'locuteurs.reexaminer': 'corrections-locuteurs-corpus',
+  'locuteurs.reprendre-informations': 'corrections-locuteurs-corpus',
+
   // Parcours refusés sur un corpus distant, quel que soit le fournisseur.
   'note.editer': 'indisponible',
   'personnes.commande': 'indisponible',
   'journal.annuler': 'indisponible',
   'corpus.marquer-demo': 'indisponible',
+}
+
+export function gesteCorrectionLocuteurs(commande: Pick<CommandeCorrectionLocuteurs, 'type'>): GesteCorpus {
+  const gestes: Record<CommandeCorrectionLocuteurs['type'], GesteCorpus> = {
+    renommerGlobal: 'locuteurs.renommer', regrouperSelection: 'locuteurs.regrouper',
+    dissocierSelection: 'locuteurs.dissocier', individualiserSelection: 'locuteurs.individualiser',
+    supprimerVide: 'locuteurs.supprimer-vide', ecarterRapprochement: 'locuteurs.ecarter',
+    retablirRapprochement: 'locuteurs.reexaminer', reprendreInformations: 'locuteurs.reprendre-informations',
+  }
+  return gestes[commande.type]
 }
 
 /** Refus explicite et nommé, jamais un échec silencieux de la commande. */
@@ -331,6 +355,7 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
   | 'divisionThemes'
   | 'fusionThemes'
   | 'suppressionSourceThemes'
+  | 'correctionsLocuteurs'
 >> = {
   local: {
     renommageEntretien: true,
@@ -389,6 +414,7 @@ export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpu
     divisionThemes: gesteAutorise(fournisseur, 'theme.diviser'),
     fusionThemes: gesteAutorise(fournisseur, 'theme.fusionner'),
     suppressionSourceThemes: gesteAutorise(fournisseur, 'theme.transferer-supprimer-source'),
+    correctionsLocuteurs: gesteAutorise(fournisseur, 'locuteurs.renommer'),
     ...PARCOURS_PAR_FOURNISSEUR[fournisseur],
   }
 }

@@ -5,7 +5,7 @@ import type { CommandeCorrectionLocuteurs } from '../src/shared/corpus/contratsL
 const commande: CommandeCorrectionLocuteurs = { type: 'renommerGlobal', locuteurId: 'p', nom: 'Nom validé', attendu: '{}' }
 afterEach(() => vi.unstubAllGlobals())
 function banc(corriger = vi.fn().mockResolvedValue('p'), flush = vi.fn(async () => {})) {
-  vi.stubGlobal('window', { sonal: { corpus: { personnesCommander: corriger } } })
+  vi.stubGlobal('window', { sonal: { corpus: { corrigerLocuteurs: corriger } } })
   let revision = 1
   const corpus = useCorpus({ flush, revision: () => revision })
   corpus.matrice.value = [{ entretienId: 'e', titre: 'Ancien nom', valeursGen: {}, participations: [] }]
@@ -17,7 +17,7 @@ test('la correction attend la sauvegarde puis invalide répertoire, analyses dé
   const b = banc()
   expect(await b.corpus.corrigerLocuteurs(commande)).toBe('p')
   expect(b.flush).toHaveBeenCalledOnce()
-  expect(b.corriger).toHaveBeenCalledExactlyOnceWith(commande, true)
+  expect(b.corriger).toHaveBeenCalledExactlyOnceWith(commande)
   expect(b.flush.mock.invocationCallOrder[0]).toBeLessThan(b.corriger.mock.invocationCallOrder[0])
   expect(b.corpus.revisionPersonnesCorpus.value).toBe(1)
   expect(b.corpus.matriceChargee.value).toBe(false)

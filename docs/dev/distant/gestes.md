@@ -34,15 +34,21 @@ de chaque protocole restent applicables ; « ouvert » ne signifie pas « sans g
   La réaffectation avec suppression de la source est ouverte sur GitLab, pas WebDAV.
 - Les documents du projet et le téléversement média général sont proposés sur
   WebDAV, pas GitLab. La désignation d’un média existant est un parcours distinct.
+- Les gestes précis `locuteurs.*` de correction depuis le corpus sont ouverts
+  sur GitLab, avec les éditions fermées et un commit gardé. Ils restent refusés
+  sur WebDAV. La création au nommage et les corrections globales depuis une session
+  ouverte ne sont pas encore raccordées en distant.
 - `note.editer` depuis le corpus, `personnes.commande`, `journal.annuler` et le
   marquage d’un corpus de démonstration restent refusés sur les deux distants.
   Cela n’interdit pas l’édition des notes dans une session d’entretien autorisée.
 
 Ne pas recopier toute la matrice dans chaque page métier : `matriceCapacites`
 la construit depuis les portées et `PARCOURS_PAR_FOURNISSEUR`. Une différence
-actuelle mérite attention : WebDAV annonce la capacité publique `personnes`,
-mais le geste `personnes.commande` reste refusé. La présence d’un bouton ou d’une
-méthode de transaction ne prouve donc pas qu’une commande est livrée.
+actuelle mérite attention : WebDAV annonce l’ancien drapeau `locuteurs`,
+mais le geste `personnes.commande` reste refusé. Le nouveau drapeau
+`correctionsLocuteurs` décrit les corrections corpus qualifiées, sans rouvrir les
+anciennes commandes. La présence d’un bouton ou d’une méthode de transaction ne
+prouve donc pas qu’une commande est livrée.
 
 ## Les protections se complètent
 

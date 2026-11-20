@@ -3,6 +3,7 @@ import {
   exigerGeste,
   PORTEEES_OVERTES_GITLAB,
   gesteAutorise,
+  gesteCorrectionLocuteurs,
   gestureCas,
   gestureRecueil,
   gestureTri,
@@ -14,6 +15,20 @@ import type { CommandeCas } from '../../src/shared/corpus/cas'
 import type { CommandeRecueils } from '../../src/shared/corpus/recueils'
 
 const FOURNISSEURS: FournisseurCorpus[] = ['local', 'webdav', 'gitlab']
+
+test('les nouvelles corrections sont nommées précisément et ne rouvrent pas les anciennes commandes', () => {
+  for (const type of ['renommerGlobal', 'regrouperSelection', 'dissocierSelection', 'individualiserSelection', 'supprimerVide', 'ecarterRapprochement', 'retablirRapprochement', 'reprendreInformations'] as const) {
+    const geste = gesteCorrectionLocuteurs({ type })
+    expect(geste.startsWith('locuteurs.')).toBe(true)
+    expect(gesteAutorise('local', geste)).toBe(true)
+    expect(gesteAutorise('gitlab', geste)).toBe(true)
+    expect(gesteAutorise('webdav', geste)).toBe(false)
+  }
+  expect(gesteAutorise('gitlab', 'personnes.commande')).toBe(false)
+  expect(gesteAutorise('webdav', 'personnes.commande')).toBe(false)
+  expect(matriceCapacites('gitlab').correctionsLocuteurs).toBe(true)
+  expect(matriceCapacites('webdav').correctionsLocuteurs).toBe(false)
+})
 
 describe('portée des gestes du corpus', () => {
   function casSansPassage() {
@@ -269,6 +284,7 @@ describe('portée des gestes du corpus', () => {
       suppressionSourceThemes: true,
       notes: false,
       locuteurs: false,
+      correctionsLocuteurs: true,
       annulationJournal: false,
       designationMedia: true,
       televersementMedia: false,

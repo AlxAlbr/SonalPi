@@ -51,6 +51,17 @@ export async function reprendreAjoutsVarianteGitLab(options: OptionsRepriseGitLa
   }
 }
 
+/** Reconnaît les corrections du corpus avant le tirage, sans renvoyer leurs commits. */
+export async function reprendreCorrectionsLocuteursGitLab(options: OptionsRepriseGitLab): Promise<void> {
+  const reconciliateur = new ReconciliateurPublicationGitLab(options.depot, options.journal)
+  for (const entree of options.journal.lister().filter((e) => e.operationId.startsWith('locuteurs-'))) {
+    await reconcilierPublication(entree, options, reconciliateur)
+  }
+  if (options.journal.lister().some((e) => e.operationId.startsWith('locuteurs-'))) {
+    throw new Error('La correction des locuteurs n’a pas pu être vérifiée. Aucun nouvel envoi autorisé ; actualisez ou rouvrez ce corpus.')
+  }
+}
+
 export async function reprendreOperationsGitLab(options: OptionsRepriseGitLab): Promise<void> {
   repriseLocale(options.dirMiroir)
   const reconciliateur = new ReconciliateurPublicationGitLab(options.depot, options.journal)

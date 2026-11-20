@@ -1,11 +1,11 @@
 # Locuteurs du corpus et rapprochements entre entretiens
 
-L’onglet Locuteurs propose une vue transverse des interventions pour les corpus
-locaux. Les corrections utilisent la sélection ; « Détails et vérifications… »
+L’onglet Locuteurs propose une vue transverse commune aux corpus locaux et distants. Les corrections utilisent la sélection ; « Détails et vérifications… »
 ouvre les notes, données et propositions sans masquer la liste ni ses interventions.
 Le nom commun appartient au corpus ; pseudonymes, rôles, valeurs et notes restent
-chez leurs propriétaires dans chaque entretien. L’ancien répertoire Personnes est
-conservé uniquement pour les corpus distants, sans nouveau droit.
+chez leurs propriétaires dans chaque entretien. L’ancien répertoire Personnes n’est
+plus affiché. Les corrections corpus sont raccordées sur GitLab, pas encore sur
+WebDAV ; voir [les garanties et limites par fournisseur](fournisseurs.md).
 
 ## Consultation des interventions
 
@@ -256,15 +256,17 @@ ses panneaux restent en lecture seule jusqu’à la réouverture du corpus. Quit
 cet état ne réenregistre pas l’ancien payload ; les dernières paroles avaient été
 sauvegardées avant la correction. Les réponses d’une ancienne session sont écartées.
 
-Les nouvelles corrections ne changent pas les droits distants : elles passent
-par le même dispatch protégé que les autres commandes de personnes.
+Les corrections corpus disposent maintenant d’un dispatch dédié, avec gestes
+précis et protection par fournisseur. Les opérations depuis l’entretien ouvert
+restent locales pour ce nouveau raccord.
 
 ## Disponibilité distante : distinguer les méthodes et le parcours ouvert
 
-La consultation du répertoire peut lire le miroir d’un corpus distant. En
-revanche, **les commandes de personnes ne sont actuellement ouvertes ni sur
-GitLab ni sur WebDAV** : `personnes.commande` est classé `indisponible` dans
-`src/main/gitlab/politiqueGestes.ts`, et le dispatch IPC exige ce geste.
+La consultation commune peut lire la copie d’un corpus distant. Les nouvelles
+corrections passent par `corpus:corrigerLocuteurs` et les gestes `locuteurs.*`,
+ouverts sur GitLab avec éditions fermées. WebDAV reste en consultation.
+**Les anciennes commandes de personnes restent refusées sur les deux distants** :
+`personnes.commande` est classé `indisponible`, y compris par IPC direct.
 
 Le main contient déjà des branches de transactions WebDAV pour plusieurs
 commandes : définition, liaison, refus, rapprochement, fusion et séparation.
@@ -292,7 +294,7 @@ Voir [gestes.md](../../distant/gestes.md) pour la politique commune.
 | Projection compacte de consultation | `src/shared/corpus/repertoireLocuteurs.ts` |
 | Liste, sélection et barres d’interventions | `src/renderer/components/traiter/corpus/LocuteursCorpus.vue`, `BarreInterventionsLocuteurs.vue` |
 | Détails secondaires locaux et projection | `src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue`, `src/shared/corpus/detailsLocuteurs.ts` |
-| Répertoire historique distant et dialogue | `src/renderer/components/traiter/corpus/PersonnesCorpus.vue`, `RapprochementCorpus.vue` |
+| Anciens composants conservés en attente du nettoyage | `src/renderer/components/traiter/corpus/PersonnesCorpus.vue`, `RapprochementCorpus.vue` |
 | Propositions au nommage | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
 | Vérification des associations et données relues | `src/shared/entretien/identificationLocuteurs.ts` |
 | Sauvegarde, suspension et actualisation ciblée | `src/renderer/composables/useEntretien.ts` |

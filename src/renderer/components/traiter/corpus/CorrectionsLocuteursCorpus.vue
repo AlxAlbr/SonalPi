@@ -9,7 +9,7 @@ import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 
 const props = defineProps<{ selection: LigneRepertoireLocuteurs[]; indisponible: boolean }>()
 const emit = defineEmits<{ termine: [participations: ReferenceParticipation[]]; ouvrir: [entretienId: string] }>()
-const { lirePersonnes, corrigerLocuteurs, lectureSeule, idDistantCourant } = utiliserSonal()
+const { lireApercuLocuteurs, corrigerLocuteurs, lectureSeule, gesteDisponible } = utiliserSonal()
 const apercu = ref<ApercuCorrectionLocuteurs | null>(null)
 const dialogue = ref<HTMLDialogElement | null>(null)
 const annuler = ref<HTMLButtonElement | null>(null)
@@ -24,7 +24,7 @@ let generation = 0
 let retour: HTMLElement | null = null
 let selectionInitiale: ReferenceParticipation[] = []
 const sansAssociation = computed(() => props.selection.some((l) => !l.locuteurId))
-const bloque = computed(() => props.indisponible || lectureSeule.value || !!idDistantCourant.value)
+const bloque = computed(() => props.indisponible || lectureSeule.value || !gesteDisponible('correctionsLocuteurs'))
 const occupe = computed(() => preparation.value || enregistrement.value)
 const titre = computed(() => apercu.value?.type === 'renommerGlobal' ? 'Renommer ce locuteur'
   : apercu.value?.type === 'regrouperSelection' ? 'Réunir les locuteurs sélectionnés'
@@ -54,7 +54,7 @@ async function preparer(type: ApercuCorrectionLocuteurs['type']) {
   preparation.value = true
   erreur.value = ''; message.value = ''
   try {
-    const inventaire = await lirePersonnes()
+    const inventaire = await lireApercuLocuteurs()
     if (jeton !== generation) return
     apercu.value = preparerApercuCorrectionLocuteurs(type, selection, inventaire)
     selectionInitiale = selection.flatMap((l) => l.participations.map((p) => ({ entretienId: p.entretienId, participationId: p.participationId })))
@@ -119,7 +119,7 @@ onBeforeUnmount(() => { generation++; dialogue.value?.close() })
       <button v-if="selection.length === 1 && selection[0].participations.length > 1" type="button" :disabled="bloque || occupe" @click="preparer('dissocierSelection')">Dissocier…</button>
       <button v-if="sansAssociation" type="button" :disabled="bloque || occupe" @click="preparer('individualiserSelection')">Conserver séparément…</button>
       <button v-if="sansAssociation && selection.length === 1 && selection[0].participations[0]" type="button" @click="emit('ouvrir', selection[0].participations[0].entretienId)">Ouvrir l’entretien</button>
-      <p v-if="lectureSeule || idDistantCourant">Les corrections sont disponibles uniquement dans un corpus local modifiable.</p>
+      <p v-if="lectureSeule || !gesteDisponible('correctionsLocuteurs')">Les corrections ne sont pas disponibles dans ce corpus ou dans son état actuel.</p>
       <p v-else-if="indisponible">Actualisez la liste et rétablissez l’accès aux entretiens indisponibles avant toute correction.</p>
       <p v-else-if="sansAssociation">Conservez ces voix séparément dans le corpus avant de les renommer ou de les réunir. Aucune voix ni parole ne sera ajoutée dans les entretiens.</p>
     </div>

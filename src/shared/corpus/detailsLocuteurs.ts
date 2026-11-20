@@ -1,7 +1,14 @@
 import type { ReferenceParticipation, RefusRapprochementLocuteur } from '../locuteurs'
+import type { Variable, NoteCategory } from '../format'
 import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from './personnes'
 import { cleParticipationCorrection } from './apercusCorrectionsLocuteurs'
 import { suggestionsLocuteurs } from './rapprochementsLocuteurs'
+
+export interface DetailsLocuteurs {
+  inventaire: InventaireIdentitesLocuteurs
+  variables: Variable[]
+  categories: NoteCategory[]
+}
 
 /** Relie les notes par entretien et id local, jamais par le seul id d'une voix. */
 export function notesSelectionLocuteurs(inventaire: InventaireIdentitesLocuteurs, selection: readonly ReferenceParticipation[]) {

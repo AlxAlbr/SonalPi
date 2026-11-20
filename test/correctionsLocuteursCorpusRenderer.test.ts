@@ -29,14 +29,28 @@ async function monter(options: { nombre?: number; inventaire?: InventaireIdentit
   const lire = options.lire ?? vi.fn(async () => structuredClone(inventaire))
   const corriger = options.corriger ?? vi.fn(async () => 'p1')
   const lectureSeule = ref(false), distant = ref<string | null>(null), indisponible = ref(false)
-  const termine = vi.fn(), ouvrir = vi.fn()
-  injection.contexte = { lirePersonnes: lire, corrigerLocuteurs: corriger, lectureSeule, idDistantCourant: distant }
+  const termine = vi.fn(), ouvrir = vi.fn(), correctionsDistantes = ref(false)
+  injection.contexte = { lireApercuLocuteurs: lire, corrigerLocuteurs: corriger, lectureSeule, idDistantCourant: distant,
+    gesteDisponible: () => !distant.value || correctionsDistantes.value }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(CorrectionsLocuteursCorpus, { selection: selection.value, indisponible: indisponible.value,
     onTermine: termine, onOuvrir: ouvrir }) })
   apps.push(app); app.mount(host); await attendre()
-  return { host, selection, lire, corriger, lectureSeule, distant, indisponible, termine, ouvrir, app }
+  return { host, selection, lire, corriger, lectureSeule, distant, correctionsDistantes, indisponible, termine, ouvrir, app }
 }
+
+test('une correction distante autorisée utilise l’aperçu et reste bloquée en consultation seule', async () => {
+  const b = await monter()
+  b.distant.value = 'gitlab'; b.correctionsDistantes.value = true; await attendre()
+  expect(bouton(b.host, 'Renommer…').disabled).toBe(false)
+  bouton(b.host, 'Renommer…').click(); await attendre()
+  expect(b.lire).toHaveBeenCalledOnce()
+  remplir(b.host, 'Nom publié'); await attendre()
+  bouton(b.host, 'Renommer dans tous les entretiens').click(); await attendre()
+  expect(b.corriger).toHaveBeenCalledExactlyOnceWith({ type: 'renommerGlobal', locuteurId: 'p1', nom: 'Nom publié', attendu: JSON.stringify(inventaireCorrections()) })
+  b.lectureSeule.value = true; await attendre()
+  expect(bouton(b.host, 'Renommer…').disabled).toBe(true)
+})
 
 test('renommage : aperçu frais, entretiens masqués inclus, annulation par Échap et retour du focus', async () => {
   const b = await monter()

@@ -35,6 +35,29 @@ function sansAssociation(f: EntretienFichier) {
   return { ...f, lastModified: '', participations: f.participations.map(({ locuteurRef: _r, associationRetiree: _a, rapprochementsRefuses: _refus, ...p }) => p) }
 }
 
+test('les détails et leurs définitions sont lus ensemble, sans écriture même sur un miroir en lecture seule', () => {
+  const b = banc(), { id } = b.store.ajouterVariable('Champ actuel', 'participation')
+  b.store.ajouterModalite(id, 'Choix actuel')
+  b.store.lectureSeule = true
+  const avant = b.fichiers(), details = b.store.detailsLocuteursInventaire()
+  expect(details.inventaire).toEqual(b.store.personnesInventaire())
+  expect(details.variables.find((v) => v.id === id)).toMatchObject({ lib: 'Champ actuel', portee: 'participation', modalites: [expect.objectContaining({ lib: 'Choix actuel' })] })
+  expect(details.categories).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'ncat_generale' })]))
+  expect(details.inventaire.notes).toHaveLength(3)
+  expect(b.fichiers()).toEqual(avant)
+})
+
+test('un entretien invalide laisse les détails incomplets sans réparation ni faux inventaire complet', () => {
+  const b = banc()
+  writeFileSync(join(b.dir, 'entretiens', `${b.references[1].entretienId}.json`), '{}')
+  b.store.lectureSeule = true
+  const avant = b.fichiers(), details = b.store.detailsLocuteursInventaire()
+  expect(details.inventaire.indisponibles).toEqual([{ id: b.references[1].entretienId, titre: 'B', raison: 'Version non supportée' }])
+  expect(details.inventaire.participations).toHaveLength(2)
+  expect(details.inventaire.locuteurs).toEqual([])
+  expect(b.fichiers()).toEqual(avant)
+})
+
 test('les notes de mêmes ids locaux restent dans leur entretien et ne sont pas comptées deux fois', () => {
   const b = banc(), inv = b.store.personnesInventaire(), avant = b.fichiers()
   expect(notesSelectionLocuteurs(inv, [b.references[0]])).toEqual([inv.notes[0]])

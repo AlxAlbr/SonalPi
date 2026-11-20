@@ -11,7 +11,6 @@ import { useVariablesCorpus } from './corpus/useVariablesCorpus'
 import type { CommandeCorrectionLocuteurs, CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
-import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
 
 /**
@@ -56,11 +55,13 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     return window.sonal.corpus.personnesInventaire()
   }
 
-  async function lireDetailsLocuteurs() {
+  async function lireDetailsLocuteurs(pourCorrection = false) {
     await opts.flush()
-    const corpus = await window.sonal.corpus.ouvrir()
-    const inventaire = await window.sonal.corpus.personnesInventaire()
-    return { inventaire, variables: Object.values(corpus.variables), categories: normaliserCategoriesNote(corpus.categoriesNote) }
+    return window.sonal.corpus.detailsLocuteursInventaire(pourCorrection)
+  }
+
+  async function lireApercuLocuteurs() {
+    return (await lireDetailsLocuteurs(true)).inventaire
   }
 
   async function lireLocuteursCorpus() {
@@ -77,7 +78,7 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     const revision = opts.revision?.()
     await opts.flush()
     if (revision !== opts.revision?.()) throw new Error('Le corpus a changé. Vérifiez votre sélection dans le corpus courant.')
-    const id = await window.sonal.corpus.personnesCommander(toRaw(commande), true)
+    const id = await window.sonal.corpus.corrigerLocuteurs(toRaw(commande))
     if (revision === opts.revision?.()) {
       journal.revisionPersonnesCorpus.value++
       variables.reinitialiserMatrice()
@@ -162,6 +163,7 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     commanderNotes,
     lirePersonnes,
     lireDetailsLocuteurs,
+    lireApercuLocuteurs,
     lireLocuteursCorpus,
     commanderPersonnes,
     corrigerLocuteurs,

@@ -34,6 +34,7 @@ import {
 import { lancer, attendreAccueil, attendreCorpus, fermerAiguillage, retourCorpus } from './util'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
+import { fixtureLocuteursDistants } from '../test/fixtures/locuteursDistants'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
 import { ClientGitLab } from '../src/main/gitlab/client'
 import { BailGitLab, DepotCommitsGitLabClient, cleRessourceBailGitLab, cheminBailRessourceGitLab } from '../src/main/gitlab/bailGitLab'
@@ -432,6 +433,56 @@ async function rouvrirDissociation(page: Page, shim: InterceptionOuvertureUrl, s
 test.describe('Consultation GitLab à deux profils', () => {
   test.skip(!configurationPresente, 'variables GITLAB_* absentes')
   test.setTimeout(180_000)
+
+  test('locuteurs GitLab : consultation commune, détails contextualisés et renommage depuis la sélection', async ({ browser }) => {
+    const f = fixtureLocuteursDistants()
+    const projet = await api<{ id: number }>('/projects', configuration.token1 as string, {
+      method: 'POST', body: JSON.stringify({ name: `Sonal locuteurs E2E ${idExecution}`, path: `sonal-locuteurs-e2e-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }),
+    })
+    await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, {
+      method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'Qualification : locuteurs du corpus', actions: [
+        { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) },
+        ...f.sources().map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: s.contenu })),
+      ] }),
+    })
+    const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-locuteurs-'))
+    const shim = intercepterOuvertureUrl(), session = await sessionQualification(browser, Boolean(configuration.ca))
+    const app = await lancerProfil(profil, shim)
+    try {
+      const page = await app.firstWindow(); await attendreAccueil(page)
+      await page.locator('.carte-demo.distant-corpus').click()
+      await ouvrirDepuisFormulaireGitLab(page, shim, session, identifiantsDe(configuration.utilisateur as string), '', String(projet.id))
+      await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+      const panneau = page.locator('.locuteurs-corpus')
+      await expect(panneau.locator('.personnes-corpus')).toHaveCount(0)
+      await panneau.getByRole('option').filter({ has: page.getByText('Alice', { exact: true }) }).click()
+      await expect(panneau.locator('.entretien-interventions')).toHaveCount(2)
+      await panneau.getByRole('button', { name: 'Détails et vérifications…', exact: true }).click()
+      const details = panneau.locator('.details-locuteurs')
+      await expect(details).toContainText('Note A'); await expect(details).toContainText('Note B')
+      await expect(details).not.toContainText('Note C')
+      const renommer = panneau.getByRole('button', { name: 'Renommer…', exact: true })
+      await expect(renommer).toBeEnabled(); await renommer.click()
+      const dialogue = page.getByRole('dialog', { name: 'Renommer ce locuteur', exact: true })
+      await dialogue.getByLabel('Nouveau nom', { exact: true }).fill('Alice publiée')
+      await dialogue.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+      await expect(dialogue).toHaveCount(0, { timeout: 30_000 })
+      await expect(panneau.getByRole('option').filter({ has: page.getByText('Alice publiée', { exact: true }) })).toHaveAttribute('aria-selected', 'true')
+      for (const e of f.entretiens) {
+        const fichier = await api<{ content: string }>(`/projects/${projet.id}/repository/files/${encodeURIComponent(`entretiens/${e.id}.json`)}?ref=main`, configuration.token1 as string)
+        const apres = JSON.parse(Buffer.from(fichier.content, 'base64').toString('utf8'))
+        expect(apres).toEqual(e.id === 'C' ? e.data : { ...e.data, lastModified: expect.any(String), participations: [{ ...e.data.participations[0], nom: 'Alice publiée' }] })
+      }
+      const refus = await page.evaluate(async () => {
+        try { await window.sonal.corpus.personnesCommander({ type: 'modifier', locuteurId: 'a', nom: 'Ancien chemin' }); return null }
+        catch (e) { return String(e) }
+      })
+      expect(refus).toContain('Cette opération n’est pas disponible sur un corpus distant.')
+    } finally {
+      await Promise.allSettled([app.close(), session.fermer()])
+      shim.nettoyer(); rmSync(profil, { recursive: true, force: true })
+    }
+  })
 
   test('dissociation GitLab OAuth : annuler, cible tenue, nouveaux usages et consentement renouvelé', async ({ browser }, info) => {
     const b = await bancDissociation('partiel')

@@ -56,11 +56,13 @@ import type {
 } from '../../shared/corpus/themes'
 import {
   exigerGeste,
+  gesteCorrectionLocuteurs,
   porteeGeste,
   RefusGesteError,
   type GesteCorpus,
 } from './politiqueGestes'
 import type { ResultatPublicationGitLab } from './publication'
+import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
 import type { ResultatTransactionDefinitions, TransactionsGitLab } from './transactions'
 
@@ -350,6 +352,24 @@ export class ContexteGitLab {
     finally { ids.forEach((id) => this.importsCibles.delete(id)) }
   }
 
+  lireDetailsLocuteursCorrection() {
+    if (this.termine || !this.transactions) throw new Error('La préparation des corrections est indisponible pour ce corpus.')
+    return this.transactions.lireDetailsLocuteurs()
+  }
+
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
+    validerCommandeCorrectionLocuteurs(commande)
+    exigerGeste('gitlab', gesteCorrectionLocuteurs(commande))
+    if (this.termine || !this.transactions) throw new Error('La correction des locuteurs est indisponible pour ce corpus.')
+    return this.transactions.corrigerLocuteurs(commande, () => {
+      if (this.termine) throw new Error('Le contexte distant est fermé.')
+      this.exigerSansDissociation()
+      if (this.cheminsRecuperables.length || [...this.sessions.values()].some((s) => s.protege)) {
+        throw new Error('Enregistrez et fermez les entretiens en édition avant de corriger les locuteurs du corpus partagé.')
+      }
+    })
+  }
+
   async analyserOperationTheme(demande: DemandeOperationTheme, precedent?: string) {
     return this.file.executer(async () => {
       if (this.termine || !this.apercusThemes) throw new Error('Aperçus de thèmes GitLab indisponibles dans ce contexte.')
@@ -422,6 +442,7 @@ export class ContexteGitLab {
       this.retraitsVariante?.exigerMiroirComplet()
       if (this.suppressionAnonEnCours) throw new Error('Attendez la fin de la suppression globale avant d’actualiser le corpus.')
       await this.transactions?.relireAjoutsVarianteDansFile()
+      await this.transactions?.relireCorrectionsLocuteursDansFile()
       const suppression = this.suppressionsAnon?.lireSuivi()
       if (suppression && (suppression.statut === 'indetermine' || suppression.regleRetiree)) await this.suppressionsAnon!.relireSuiviDansFile(suppression.operationId)
       this.suppressionsAnon?.exigerMiroirComplet()

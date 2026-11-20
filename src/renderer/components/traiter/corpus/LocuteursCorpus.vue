@@ -7,7 +7,6 @@ import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import BandeauRetourCorpus from './BandeauRetourCorpus.vue'
 import BarreInterventionsLocuteurs from './BarreInterventionsLocuteurs.vue'
-import PersonnesCorpus from './PersonnesCorpus.vue'
 import DetailsLocuteursCorpus from './DetailsLocuteursCorpus.vue'
 import CorrectionsLocuteursCorpus from './CorrectionsLocuteursCorpus.vue'
 import type { ReferenceParticipation } from '../../../../shared/locuteurs'
@@ -15,7 +14,7 @@ import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCor
 
 const props = defineProps<{ actif: boolean }>()
 const { lireLocuteursCorpus, ouvrirAuSegment, dossierCourantDir, revisionPersonnesCorpus,
-  dernierTirage, vue, idDistantCourant } = utiliserSonal()
+  dernierTirage, vue, idDistantCourant, gesteDisponible, actualiserDistant } = utiliserSonal()
 const vide = (): VueLocuteursCorpus => ({ locuteurs: [], entretiens: [], indisponibles: [] })
 const donnees = ref<VueLocuteursCorpus>(vide())
 const selection = ref<SelectionListeLocuteurs>({ cles: [], ancre: null })
@@ -33,7 +32,7 @@ const limiteEntretiens = ref(20)
 const limiteStatistiques = ref(200)
 const indices = ref<Record<string, number>>({})
 let generation = 0
-const visible = computed(() => props.actif && vue.value === 'corpus' && !idDistantCourant.value)
+const visible = computed(() => props.actif && vue.value === 'corpus')
 const normaliser = (texte: string) => texte.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr')
 const filtres = computed(() => {
   const texte = normaliser(recherche.value.trim())
@@ -63,10 +62,14 @@ const totalMots = computed(() => selectionnes.value.reduce((total, locuteur) => 
 const totalTours = computed(() => selectionnes.value.reduce((total, locuteur) => total + locuteur.interventions, 0))
 const nombreEntretiens = (participations: { entretienId: string }[]) => new Set(participations.map((p) => p.entretienId)).size
 
-async function actualiser() {
+async function actualiser(depuisServeur = false) {
   const jeton = ++generation
   occupe.value = true
   try {
+    if (depuisServeur && idDistantCourant.value) {
+      await actualiserDistant()
+      if (jeton !== generation) return
+    }
     const resultat = await lireLocuteursCorpus()
     if (jeton !== generation) return
     donnees.value = resultat
@@ -165,7 +168,7 @@ watch(() => selection.value.cles.join('\n'), () => {
   indices.value = {}; limiteEntretiens.value = 20; limiteStatistiques.value = 200
 })
 watch(tousEntretiens, () => { limiteEntretiens.value = 20 })
-watch(dossierCourantDir, () => {
+watch([dossierCourantDir, idDistantCourant], () => {
   generation++
   donnees.value = vide()
   selection.value = { cles: [], ancre: null }
@@ -173,7 +176,7 @@ watch(dossierCourantDir, () => {
   tousEntretiens.value = false; statistiques.value = false; charge.value = false; erreur.value = ''
   limiteLocuteurs.value = 200; limiteEntretiens.value = 20; indices.value = {}
 })
-watch([visible, dossierCourantDir, revisionPersonnesCorpus, dernierTirage], () => {
+watch([visible, dossierCourantDir, idDistantCourant, revisionPersonnesCorpus, dernierTirage], () => {
   if (visible.value) void actualiser()
   else { generation++; occupe.value = false }
 }, { immediate: true })
@@ -182,18 +185,15 @@ onBeforeUnmount(() => { generation++ })
 
 <template>
   <section class="locuteurs-corpus" aria-label="Locuteurs du corpus" :aria-busy="occupe">
-    <template v-if="idDistantCourant">
-      <PersonnesCorpus :actif="actif" />
-    </template>
-    <template v-else>
       <BarreOngletCorpus titre="Locuteurs" aide="Sélectionnez un ou plusieurs locuteurs pour retrouver leurs interventions dans les entretiens.">
-        <button type="button" :disabled="occupe" @click="actualiser">Actualiser</button>
+        <button type="button" :disabled="occupe" @click="actualiser(true)">Actualiser</button>
         <button type="button" :aria-expanded="details" @click="details = !details">Détails et vérifications…</button>
       </BarreOngletCorpus>
       <BandeauRetourCorpus v-if="erreur" type="erreur" @fermer="erreur = ''">
         {{ erreur }}<template v-if="charge"> La liste affichée est le dernier état lisible.</template>
-        <template #actions><button type="button" :disabled="occupe" @click="actualiser">Réessayer</button></template>
+        <template #actions><button type="button" :disabled="occupe" @click="actualiser(true)">Réessayer</button></template>
       </BandeauRetourCorpus>
+      <p v-if="idDistantCourant" role="status" class="consultation-distante">Les informations affichées proviennent de la copie présente sur cet ordinateur.<template v-if="!gesteDisponible('correctionsLocuteurs')"> Les corrections depuis le corpus ne sont pas disponibles dans son état actuel.</template><template v-if="dernierTirage"> Dernière synchronisation : <time :datetime="dernierTirage">{{ new Date(dernierTirage).toLocaleString('fr-FR') }}</time>.</template><template v-else> La date de synchronisation n’est pas connue.</template></p>
       <p v-if="occupe && !charge" role="status">Chargement des locuteurs…</p>
       <details v-if="donnees.indisponibles.length" class="sources-indisponibles">
         <summary>{{ donnees.indisponibles.length }} entretien{{ donnees.indisponibles.length > 1 ? 's' : '' }} indisponible{{ donnees.indisponibles.length > 1 ? 's' : '' }} — vue incomplète</summary>
@@ -252,7 +252,6 @@ onBeforeUnmount(() => { generation++ })
           <button v-if="entretiensAffiches.length < entretiens.length" type="button" @click="limiteEntretiens += 20">Afficher les entretiens suivants ({{ entretiens.length - entretiensAffiches.length }})</button>
         </section>
       </div>
-    </template>
   </section>
 </template>
 

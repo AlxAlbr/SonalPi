@@ -61,13 +61,15 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 | Gestes d’entretien | `src/renderer/composables/entretien/useLocuteursEntretien.ts` |
 | Stockage et dispatch | `src/main/corpusStore.ts`, `src/main/index.ts` |
 
-Les noms de certains composants et canaux IPC du panneau historique Personnes
-subsistent pour ses parcours actuels. Ils transportent les types natifs, sans
-adaptation du stockage 9. Leur remplacement visuel est un chantier distinct.
+La consultation utilise désormais la vue commune, y compris en distant. Le nouveau
+parcours de corrections corpus est raccordé sur GitLab ; WebDAV reste en consultation.
+Les noms et composants historiques encore présents seront traités par le nettoyage
+final, sans adaptation du stockage 9. Voir le bilan courant par fournisseur.
 
 ## Parcours de lecture
 
 - [qualification.md](qualification.md) : bilan local, captures et réserves de qualification.
+- [fournisseurs.md](fournisseurs.md) : raccord distant, garanties et étapes restantes.
 
 - [entretien.md](entretien.md) : attribution, suppression, rôle et pseudonyme.
 - [personnes.md](personnes.md) : parcours historiques de correction et droits distants.

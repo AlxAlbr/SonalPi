@@ -65,6 +65,8 @@ import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
 import type { CommandeLocuteurs, CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
+import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
+import type { CommandeCorrectionLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -366,6 +368,8 @@ contextBridge.exposeInMainWorld('sonal', {
     renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): Promise<EntretienFichier> =>
       invoquer('corpus:renommerLocuteurDepuisEntretien', reference, commande),
     locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),
+    detailsLocuteursInventaire: (pourCorrection = false): Promise<DetailsLocuteurs> => invoquer('corpus:detailsLocuteursInventaire', pourCorrection),
+    corrigerLocuteurs: (commande: CommandeCorrectionLocuteurs): Promise<string | null> => invoquer('corpus:corrigerLocuteurs', commande),
     personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire = false): Promise<string | null> =>
       invoquer('corpus:personnesCommander', commande, depuisRepertoire),
     journalLister: (): Promise<EntreeJournalCorpusVue[]> => invoquer('corpus:journalLister'),

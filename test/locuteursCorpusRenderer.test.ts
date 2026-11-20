@@ -7,7 +7,6 @@ import type { VueLocuteursCorpus } from '../src/shared/corpus/repertoireLocuteur
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))
-vi.mock('../src/renderer/components/traiter/corpus/PersonnesCorpus.vue', () => ({ default: { template: '<div class="personnes-corpus">Détails distants</div>' } }))
 vi.mock('../src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue', () => ({ default: { emits: ['fermer'], template: '<section class="details-locuteurs"><button @click="$emit(\'fermer\')">Fermer les détails</button></section>' } }))
 const apps: App[] = []
 afterEach(() => {
@@ -43,12 +42,14 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   const lire = options.lire ?? vi.fn(async () => donnees())
-  const ouvrirAuSegment = vi.fn(async () => {})
+  const ouvrirAuSegment = vi.fn(async () => {}), actualiserDistant = vi.fn(async () => true)
   const dossier = ref('/corpus'), revision = ref(0), vue = ref('corpus'), distant = ref(options.distant ? 'distant' : null)
+  const dernierTirage = ref<string | null>(null)
   injection.contexte = {
-    lireLocuteursCorpus: lire, ouvrirAuSegment, dossierCourantDir: dossier,
-    revisionPersonnesCorpus: revision, dernierTirage: ref(null), vue, idDistantCourant: distant,
-    lectureSeule: ref(false), lirePersonnes: vi.fn(), corrigerLocuteurs: vi.fn(),
+    lireLocuteursCorpus: lire, ouvrirAuSegment, actualiserDistant, dossierCourantDir: dossier,
+    revisionPersonnesCorpus: revision, dernierTirage, vue, idDistantCourant: distant,
+    lectureSeule: ref(false), lireApercuLocuteurs: vi.fn(), corrigerLocuteurs: vi.fn(),
+    gesteDisponible: () => !distant.value,
   }
   const actif = ref(options.actif ?? true)
   const host = document.body.appendChild(document.createElement('div'))
@@ -57,7 +58,7 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
   app.mount(host)
   await nextTick()
   await nextTick()
-  return { host, lire, ouvrirAuSegment, actif, dossier, revision, vue, distant }
+  return { host, lire, ouvrirAuSegment, actualiserDistant, actif, dossier, revision, vue, distant, dernierTirage }
 }
 const liste = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>('[role="option"]')]
 const selection = (host: HTMLElement) => liste(host).filter((b) => b.getAttribute('aria-selected') === 'true').map((b) => b.dataset.cle)
@@ -168,7 +169,7 @@ test('un échec d’actualisation laisse le dernier résultat lisible avec un av
   expect(b.host.querySelector('[role=alert]')?.textContent).toContain('dernier état lisible')
 })
 
-test('détails secondaires sans remplacer les interventions ; répertoire historique réservé au distant', async () => {
+test('détails secondaires et interventions utilisent la même vue en local et en distant', async () => {
   const b = await monter({ actif: false })
   expect(b.lire).not.toHaveBeenCalled()
   b.actif.value = true
@@ -185,9 +186,11 @@ test('détails secondaires sans remplacer les interventions ; répertoire histor
   expect(liste(b.host)).toHaveLength(4)
   const lectures = b.lire.mock.calls.length
   b.distant.value = 'distant'
-  await nextTick()
-  expect(b.host.querySelector('.personnes-corpus')).not.toBeNull()
-  expect(b.lire.mock.calls.length).toBe(lectures)
+  await nextTick(); await nextTick()
+  expect(b.host.querySelector('.personnes-corpus')).toBeNull()
+  expect(liste(b.host)).toHaveLength(4)
+  expect(b.lire.mock.calls.length).toBeGreaterThan(lectures)
+  expect(b.host.querySelector('.consultation-distante')?.textContent).toContain('copie présente sur cet ordinateur')
 })
 
 test('borne le rendu initial des grandes listes sans perdre les éléments restants', async () => {
@@ -198,6 +201,47 @@ test('borne le rendu initial des grandes listes sans perdre les éléments resta
   bouton(b.host, 'Afficher les locuteurs suivants (50)').click()
   await nextTick()
   expect(liste(b.host)).toHaveLength(250)
+})
+
+test.each(['gitlab', 'nextcloud'])('%s : consultation, sélection et statistiques sans ouverture des corrections', async (fournisseur) => {
+  const b = await monter({ distant: true })
+  b.distant.value = fournisseur
+  await nextTick(); await nextTick()
+  liste(b.host)[0].click(); await nextTick()
+  expect(selection(b.host)).toEqual(['a'])
+  expect(bouton(b.host, 'Renommer…').disabled).toBe(true)
+  bouton(b.host, 'Statistiques').click(); await nextTick()
+  expect(b.host.querySelector('.statistiques-selection')?.textContent).toContain('7 mots · 2 interventions')
+  expect(b.host.querySelector('.personnes-corpus')).toBeNull()
+  b.dernierTirage.value = '2026-11-20T09:00:00.000Z'
+  await nextTick(); await nextTick()
+  expect(b.host.querySelector('time')?.dateTime).toBe('2026-11-20T09:00:00.000Z')
+  expect(selection(b.host)).toEqual(['a'])
+  expect(b.ouvrirAuSegment).not.toHaveBeenCalled()
+})
+
+test('Actualiser synchronise la copie distante ; une panne conserve le dernier résultat sans le présenter comme frais', async () => {
+  const b = await monter({ distant: true })
+  expect(b.actualiserDistant).not.toHaveBeenCalled()
+  bouton(b.host, 'Actualiser').click(); await nextTick(); await nextTick(); await nextTick()
+  expect(b.actualiserDistant).toHaveBeenCalledOnce()
+  b.actualiserDistant.mockRejectedValueOnce(new Error('Serveur inaccessible'))
+  bouton(b.host, 'Actualiser').click(); await nextTick(); await nextTick(); await nextTick()
+  expect(liste(b.host)).toHaveLength(4)
+  expect(b.host.querySelector('[role=alert]')?.textContent).toContain('Serveur inaccessible')
+  expect(b.host.querySelector('[role=alert]')?.textContent).toContain('dernier état lisible')
+})
+
+test('une réponse de l’ancienne destination ne peuple pas la nouvelle, même avec le même dossier', async () => {
+  let terminer!: (vue: VueLocuteursCorpus) => void
+  const lire = vi.fn().mockImplementationOnce(() => new Promise((r) => { terminer = r })).mockResolvedValue(donnees())
+  const b = await monter({ distant: true, lire })
+  b.distant.value = 'autre-destination'
+  await nextTick(); await nextTick()
+  expect(liste(b.host)).toHaveLength(4)
+  terminer({ locuteurs: [], entretiens: [], indisponibles: [] })
+  await nextTick(); await nextTick()
+  expect(liste(b.host)).toHaveLength(4)
 })
 
 test('la sélection pure gère les plages additives et les ancres disparues', () => {

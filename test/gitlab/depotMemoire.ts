@@ -120,7 +120,7 @@ export class DepotMemoire implements DepotCommitsGitLab {
     if (this.statutRefus) {
       const statut = this.statutRefus
       this.statutRefus = null
-      throw new ErreurEcritureGitLab(statut, `refus ${statut}`)
+      throw new ErreurEcritureGitLab(statut, statut === 401 || statut === 403 ? 'acces' : statut === 429 ? 'limite' : statut >= 500 ? 'service' : statut === 404 ? 'introuvable' : 'autre', `refus ${statut}`)
     }
     this.validerActions(actions)
     const id = this.nouvelId()
@@ -159,19 +159,19 @@ export class DepotMemoire implements DepotCommitsGitLab {
       if (action.action === 'move') {
         const precedent = this.fichiers.get(action.previous_path as string)
         if (!precedent || action.last_commit_id !== precedent.commitId) {
-          throw new ErreurEcritureGitLab(400, 'déplacement périmé')
+          throw new ErreurEcritureGitLab(400, 'autre', 'déplacement périmé')
         }
         if (this.fichiers.has(action.file_path)) {
-          throw new ErreurEcritureGitLab(400, 'archive déjà occupée')
+          throw new ErreurEcritureGitLab(400, 'autre', 'archive déjà occupée')
         }
         continue
       }
       const fichier = this.fichiers.get(action.file_path)
       if (action.action === 'create' && fichier) {
-        throw new ErreurEcritureGitLab(400, 'create existant')
+        throw new ErreurEcritureGitLab(400, 'autre', 'create existant')
       }
       if (action.action !== 'create' && (!fichier || action.last_commit_id !== fichier.commitId)) {
-        throw new ErreurEcritureGitLab(400, 'garde périmée')
+        throw new ErreurEcritureGitLab(400, 'autre', 'garde périmée')
       }
     }
   }

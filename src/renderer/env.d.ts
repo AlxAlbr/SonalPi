@@ -9,6 +9,7 @@ import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorr
 import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import type { EtatMenuApplication } from '../shared/menuApplication'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
+import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -210,6 +211,8 @@ declare global {
         rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
         renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>
+        detailsLocuteursInventaire: (pourCorrection?: boolean) => Promise<DetailsLocuteurs>
+        corrigerLocuteurs: (commande: import('../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) => Promise<string | null>
         personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>

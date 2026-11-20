@@ -12,8 +12,8 @@ import { corpsNoteEnTexte } from '../../../../shared/export/notesTexte'
 
 const props = defineProps<{ actif: boolean; selection: LigneRepertoireLocuteurs[] }>()
 const emit = defineEmits<{ fermer: []; selectionner: [references: ReferenceParticipation[]]; termine: [references: ReferenceParticipation[]] }>()
-const { lireDetailsLocuteurs, corrigerLocuteurs, dossierCourantDir, revisionPersonnesCorpus, vue, idDistantCourant,
-  lectureSeule, allerNotes, allerLocuteurs } = utiliserSonal()
+const { lireDetailsLocuteurs, corrigerLocuteurs, dossierCourantDir, revisionPersonnesCorpus, dernierTirage, vue, idDistantCourant,
+  lectureSeule, gesteDisponible, allerNotes, allerLocuteurs } = utiliserSonal()
 const vide = (): InventaireIdentitesLocuteurs => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] })
 const inventaire = ref(vide()), charge = ref(false), lecture = ref(false), preparation = ref(false), enregistrement = ref(false)
 const erreur = ref(''), message = ref(''), limite = ref(100)
@@ -24,8 +24,8 @@ const confirmation = ref<{ titre: string; texte: string; commande: CommandeCorre
 let contexte = 0, lectures = 0, preparations = 0
 let retour: HTMLElement | null = null
 const retourPanneau = document.activeElement as HTMLElement | null
-const visible = computed(() => props.actif && vue.value === 'corpus' && !idDistantCourant.value)
-const bloque = computed(() => lectureSeule.value || !!idDistantCourant.value || lecture.value || preparation.value || enregistrement.value || !charge.value || !!erreur.value || !!inventaire.value.indisponibles.length)
+const visible = computed(() => props.actif && vue.value === 'corpus')
+const bloque = computed(() => lectureSeule.value || !gesteDisponible('correctionsLocuteurs') || lecture.value || preparation.value || enregistrement.value || !charge.value || !!erreur.value || !!inventaire.value.indisponibles.length)
 const references = computed(() => props.selection.flatMap((l) => l.participations))
 const cles = computed(() => new Set(references.value.map(cleParticipationCorrection)))
 const participations = computed(() => inventaire.value.participations.filter((p) => cles.value.has(cleParticipationCorrection(p))))
@@ -71,7 +71,7 @@ async function preparer(titre: string, texte: string, commande: CommandeCorrecti
   retour = document.activeElement as HTMLElement | null
   preparation.value = true; message.value = ''; erreur.value = ''
   try {
-    const details = await lireDetailsLocuteurs(), frais = details.inventaire
+    const details = await lireDetailsLocuteurs(true), frais = details.inventaire
     if (courant !== contexte || jeton !== preparations || !visible.value) return
     if (frais.indisponibles.length || JSON.stringify(frais) !== attendu || JSON.stringify([details.variables, details.categories]) !== catalogue) throw new Error('La liste a changé. Actualisez les détails puis vérifiez à nouveau votre choix.')
     confirmation.value = { titre, texte, commande: JSON.parse(JSON.stringify({ ...commande, attendu })), references: (resultat.length ? resultat : references.value).map((r) => ({ entretienId: r.entretienId, participationId: r.participationId })) }
@@ -102,14 +102,14 @@ async function confirmer() {
 async function ouvrir(action: () => Promise<unknown>) {
   try { await action() } catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
 }
-watch([visible, dossierCourantDir], () => {
+watch([visible, dossierCourantDir, idDistantCourant], () => {
   contexte++; lectures++; preparations++
   dialogue.value?.close(); confirmation.value = null
   inventaire.value = vide(); variables.value = []; categories.value = []; charge.value = false; lecture.value = false; preparation.value = false; enregistrement.value = false
   erreur.value = ''; message.value = ''; limite.value = 100
   if (visible.value) void actualiser()
 }, { immediate: true })
-watch(revisionPersonnesCorpus, () => { if (visible.value && !enregistrement.value) void actualiser() })
+watch([revisionPersonnesCorpus, dernierTirage], () => { if (visible.value && !enregistrement.value) void actualiser() })
 onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.close(); if (retourPanneau?.isConnected) retourPanneau.focus() })
 </script>
 
@@ -120,7 +120,8 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
     <p v-if="erreur" role="alert">{{ erreur }} <button v-if="!confirmation" type="button" @click="actualiser">Réessayer</button></p>
     <p v-if="message" role="status">{{ message }}</p>
     <p v-if="inventaire.indisponibles.length" role="status">Certains entretiens sont indisponibles. Les détails sont incomplets et aucune correction ne peut être confirmée.</p>
-    <p v-if="lectureSeule">Consultation seule : les corrections ne sont pas disponibles.</p>
+    <p v-if="idDistantCourant && !gesteDisponible('correctionsLocuteurs')">Vous pouvez consulter et comparer ces informations. Les corrections depuis le corpus ne sont pas encore disponibles pour ce corpus en ligne.</p>
+    <p v-else-if="lectureSeule">Consultation seule : les corrections ne sont pas disponibles.</p>
     <section v-if="charge" aria-label="Informations de la sélection">
       <h3>Informations dans les entretiens</h3>
       <p v-if="!participations.length">Sélectionnez un ou plusieurs locuteurs dans la liste pour consulter leurs informations et notes.</p>

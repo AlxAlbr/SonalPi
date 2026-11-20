@@ -21,7 +21,9 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Créer ou importer un entretien, l'éditer sous session | oui | oui |
 | Valeurs dans la table de données, application de la pseudonymisation | oui | oui |
 | Audio ou SRT d'un entretien fermé | oui | non |
-| Notes du corpus, corrections de personnes, annulation d'une action du journal | non | non |
+| Liste des locuteurs, interventions, statistiques et détails | oui | oui |
+| Corrections des locuteurs depuis le corpus | non | oui, après fermeture des éditions et dans les limites du corpus pris en charge |
+| Notes du corpus, annulation d'une action du journal | non | non |
 | Médias partagés, documents du projet | oui | non |
 
 Une commande refusée par le fournisseur le dit explicitement, même appelée

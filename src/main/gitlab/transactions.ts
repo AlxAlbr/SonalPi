@@ -1,4 +1,10 @@
 import { randomUUID } from 'node:crypto'
+import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import { preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
+import type { DetailsLocuteurs } from '../../shared/corpus/detailsLocuteurs'
+import { inventorierPersonnes } from '../../shared/corpus/personnes'
+import { normaliserCategoriesNote } from '../../shared/entretien/notes'
+import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { CorpusStore } from '../corpusStore'
 import type { ConfigDestinationGitLab } from '../distant/coffre'
 import { normaliserRacineGitLab } from '../distant/coffre'
@@ -39,7 +45,7 @@ import { RenommagesAnonGitLab } from './renommagesAnon'
 import { DissociationsAnonGitLab } from './dissociationsAnon'
 import { SuppressionsAnonGitLab } from './suppressionsAnon'
 import { RetraitsVarianteAnonGitLab, type EtapeContexteRetraitVariante } from './retraitsVarianteAnon'
-import { reprendreAjoutsVarianteGitLab } from './reprise'
+import { reprendreAjoutsVarianteGitLab, reprendreCorrectionsLocuteursGitLab } from './reprise'
 import { exigerAbsenceDissociationGitLab } from './referencesDefinitions'
 import { verifierReferencesDefinitions } from './referencesDefinitions'
 import {
@@ -221,6 +227,12 @@ export class TransactionsGitLab {
     })
   }
 
+  async relireCorrectionsLocuteursDansFile(): Promise<void> {
+    if (!this.options.journal) return
+    await reprendreCorrectionsLocuteursGitLab({ depot: this.options.depot, coordination: this.options.coordination,
+      journal: this.options.journal, dirMiroir: this.options.store.repertoire })
+  }
+
   /** Mutation de définitions qui écrit une référence ou une recette.
    *
    *  Chaque source nécessaire est lue sur un même instantané Git que
@@ -326,6 +338,72 @@ export class TransactionsGitLab {
         return { valeur: preparation.valeur, corpus: installe }
       } finally {
         for (const droitEntretien of droitsEntretiens.reverse()) await this.libererBail(droitEntretien)
+        await this.libererBail(droit)
+      }
+    })
+  }
+
+  /** Prépare un aperçu depuis un instantané publié, sans prendre de droit d’écriture. */
+  lireDetailsLocuteurs(): Promise<DetailsLocuteurs> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      const sha = await this.options.depot.resoudreTete(this.branche)
+      const frais = await this.lireBase(sha)
+      validerCorpusNatif(frais.corpus)
+      exigerAbsenceDissociationGitLab(frais.corpus)
+      const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus)
+      const sources = await this.lireSources(ids, sha, frais.corpus)
+      const entretiens = sources.map((s) => {
+        const data: unknown = JSON.parse(s.contenu)
+        validerEntretienNatif(data)
+        return { id: s.id, titre: frais.corpus.membership[s.id].titre, data }
+      })
+      return { inventaire: { ...inventorierPersonnes(frais.corpus, entretiens), indisponibles: [] },
+        variables: Object.values(frais.corpus.variables), categories: normaliserCategoriesNote(frais.corpus.categoriesNote) }
+    })
+  }
+
+  /** Corrige les identités et leurs usages dans un seul commit, après fermeture des éditions. */
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: () => void): Promise<string> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      if (!this.options.journal) throw new Error('Le suivi de la correction est indisponible. Aucun locuteur modifié.')
+      verifierSessionsFermees()
+      const droit = await this.acquerirBailCorpus()
+      const droitsEntretiens: DroitsEditionGitLab[] = []
+      try {
+        const sha = await this.options.depot.resoudreTete(this.branche)
+        const frais = await this.lireBase(sha)
+        exigerAbsenceDissociationGitLab(frais.corpus)
+        const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus).sort()
+        if (2 * ids.length + 2 > MAX_ACTIONS_PUBLICATION) {
+          throw new Error('Ce corpus contient trop d’entretiens pour protéger cette correction dans un seul envoi. Aucun locuteur modifié.')
+        }
+        for (const id of ids) droitsEntretiens.push(await this.acquerirBailEntretien(id))
+        verifierSessionsFermees()
+        const sources = await this.lireSources(ids, sha, frais.corpus)
+        const plan = preparerCorrectionLocuteurs(frais.fichier.contenu, sources, commande)
+        const modifies = new Map(plan.entretiens.map((e) => [e.id, e.apres]))
+        const corpusModifie = JSON.stringify(plan.corpusAvant) !== JSON.stringify(plan.corpusApres)
+        const operationId = `locuteurs-${this.nouvelleOperation()}`
+        if (corpusModifie || modifies.size) {
+          const actions: ActionPlanGitLab[] = [corpusModifie ? this.actionCorpus(frais, plan) : {
+            action: 'garde', chemin: this.cheminCorpus, commitId: frais.fichier.commitId, executable: frais.fichier.executable,
+          }, ...sources.map((s): ActionPlanGitLab => modifies.has(s.id) ? {
+            action: 'update', chemin: this.cheminDistant(`entretiens/${s.id}.json`),
+            contenu: JSON.stringify(modifies.get(s.id), null, 2), commitId: s.commitId,
+          } : { action: 'garde', chemin: this.cheminDistant(`entretiens/${s.id}.json`), commitId: s.commitId, executable: s.executable })]
+          this.verifierBornes(operationId, actions, droitsEntretiens.length + 1)
+          verifierSessionsFermees()
+          const resultat = await this.options.publication.publierSousDroits({ operationId, nature: 'transaction-corpus', actions }, [droit, ...droitsEntretiens])
+          this.verifierPublication(resultat, 'La correction des locuteurs')
+        }
+        for (const source of sources) this.options.store.installerEntretienDistant(source.id,
+          modifies.get(source.id) ?? JSON.parse(source.contenu) as EntretienFichier)
+        this.installer(operationId, plan.corpusApres)
+        return plan.locuteurId
+      } finally {
+        for (const tenu of droitsEntretiens.reverse()) await this.libererBail(tenu)
         await this.libererBail(droit)
       }
     })

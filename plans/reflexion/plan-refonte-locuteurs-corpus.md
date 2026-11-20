@@ -6,6 +6,11 @@
 renommage depuis l’entretien, création au nommage et détails secondaires sont qualifiés.
 Captures et aide actualisées ; réserves transversales documentées sans extension du lot.**
 
+La suite fait l’objet du [plan Locuteurs distants et nettoyage](plan-locuteurs-distants-et-nettoyage.md) :
+préciser les besoins et les mécanismes adaptés au distant, puis raccorder les
+fournisseurs, retirer le panneau historique et harmoniser les noms techniques.
+La comparaison avec les thématiques est une piste d’analyse, pas un choix d’architecture.
+
 Remplacer le répertoire technique des personnes et de leurs associations par une
 vue simple des locuteurs du corpus : qui intervient, dans quels entretiens et à
 quels endroits. Permettre de reconnaître un même intervenant ou de corriger un

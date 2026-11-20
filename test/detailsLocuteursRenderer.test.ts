@@ -28,14 +28,16 @@ async function monter(options: { inventaire?: InventaireIdentitesLocuteurs; lire
   const corriger = vi.fn(options.corriger ?? (async () => 'vide'))
   const dossier = ref('/corpus'), vue = ref('corpus'), actif = ref(true), distant = ref<string | null>(null), lectureSeule = ref(false), revision = ref(0)
   const allerNotes = vi.fn(async () => {}), allerLocuteurs = vi.fn(async () => {}), termine = vi.fn(), selectionner = vi.fn()
+  const dernierTirage = ref<string | null>(null), correctionsDistantes = ref(false)
   const lireDetailsLocuteurs = async () => ({ inventaire: await lire(), variables: [{ id: 'v', lib: 'Donnée conservée', portee: 'participation', priv: false, ordre: 0, vExport: 1, modalites: [{ id: 'm', lib: 'Valeur conservée', mExport: 1 }] }], categories: [{ id: 'cat', nom: 'Catégorie', couleur: '#123456' }] })
   injection.contexte = { lireDetailsLocuteurs, corrigerLocuteurs: corriger, dossierCourantDir: dossier, vue, idDistantCourant: distant, lectureSeule,
-    revisionPersonnesCorpus: revision, variables: ref([{ id: 'v', lib: 'Donnée conservée', modalites: [{ id: 'm', lib: 'Valeur conservée' }] }]),
+    gesteDisponible: () => !distant.value || correctionsDistantes.value,
+    revisionPersonnesCorpus: revision, dernierTirage, variables: ref([{ id: 'v', lib: 'Donnée conservée', modalites: [{ id: 'm', lib: 'Valeur conservée' }] }]),
     nomCategorieNote: () => 'Catégorie', allerNotes, allerLocuteurs }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(DetailsLocuteursCorpus, { actif: actif.value, selection: lignesCorrections(inv).slice(0, 1), onTermine: termine, onSelectionner: selectionner }) })
   apps.push(app); app.mount(host); await attendre()
-  return { host, app, inv, lire, corriger, dossier, vue, actif, distant, lectureSeule, revision, allerNotes, allerLocuteurs, termine, selectionner }
+  return { host, app, inv, lire, corriger, dossier, vue, actif, distant, lectureSeule, revision, dernierTirage, correctionsDistantes, allerNotes, allerLocuteurs, termine, selectionner }
 }
 
 test('affiche notes et données locales sans mélange entre ids locaux identiques ni écriture', async () => {
@@ -105,7 +107,26 @@ test.each(['lecture seule', 'incomplet', 'distant'] as const)('%s : consultation
   if (cas === 'lecture seule') b.lectureSeule.value = true
   if (cas === 'distant') b.distant.value = 'nextcloud'
   await attendre()
-  if (cas !== 'distant') expect(bouton(b.host, 'Supprimer ce locuteur…').disabled).toBe(true)
+  expect(bouton(b.host, 'Supprimer ce locuteur…').disabled).toBe(true)
+  expect(b.host.textContent).toContain('Pseudonyme conservé')
+  expect(b.host.textContent).toContain('Note A')
+  expect(b.corriger).not.toHaveBeenCalled()
+})
+
+test.each(['gitlab', 'nextcloud'])('%s : les détails restent contextualisés et se relisent après synchronisation', async (fournisseur) => {
+  const b = await monter()
+  b.distant.value = fournisseur; await attendre()
+  expect(b.host.textContent).toContain('Note A'); expect(b.host.textContent).toContain('Note B')
+  expect(b.host.textContent).not.toContain('Note C')
+  expect(b.host.textContent).toContain('Donnée conservée')
+  expect(bouton(b.host, 'Supprimer ce locuteur…').disabled).toBe(true)
+  const lectures = b.lire.mock.calls.length
+  b.inv.participations[0].pseudo = 'Pseudo publié'
+  b.dernierTirage.value = '2026-11-20T09:00:00.000Z'; await attendre()
+  expect(b.lire.mock.calls.length).toBeGreaterThan(lectures)
+  expect(b.host.textContent).toContain('Pseudo publié')
+  bouton(b.host, 'Ouvrir les notes de Entretien A').click(); await attendre()
+  expect(b.allerNotes).toHaveBeenCalledExactlyOnceWith('A')
   expect(b.corriger).not.toHaveBeenCalled()
 })
 

@@ -35,6 +35,7 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   suppressionSourceThemes: true,
   notes: true,
   locuteurs: true,
+  correctionsLocuteurs: true,
   annulationJournal: true,
   designationMedia: true,
   televersementMedia: false,
