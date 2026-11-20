@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { nomDepuisCrp } from '../../../shared/migrationV1'
+import { nettoyerMessage } from '../../erreurs'
 
 const props = defineProps<{ initial: { chemin: string } }>()
 const emit = defineEmits<{ fermer: [] }>()
@@ -48,7 +49,7 @@ async function migrer() {
   try {
     await migrerDepuisV1({ cheminCrp: cheminCrp.value, nom: nomCorpus, dossier: dossier.value })
     emit('fermer')
-  } catch (e) { erreur.value = e instanceof Error ? e.message : 'Le passage à SonalPi2 n’a pas pu être terminé.' }
+  } catch (e) { erreur.value = e instanceof Error ? nettoyerMessage(e) : 'Le passage à SonalPi2 n’a pas pu être terminé.' }
   finally { enCours.value = false }
 }
 </script>
