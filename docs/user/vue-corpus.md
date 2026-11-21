@@ -2,20 +2,21 @@
 
 La barre supérieure propose quatre espaces de travail :
 
-- **Préparer et suivre** réunit l’**Accueil**, le **Tableau de bord**, les
-  **Documents du projet** et les **Documents exemples**. Ses onglets à icônes occupent la colonne de
-  gauche ; le contenu de travail reste à droite. L’Accueil présente les autres
-  onglets et garde le tableau de bord sous les yeux. Dans le Tableau de bord, les
+- **Préparer et suivre** réunit le **Tableau de bord**, les
+  **Documents du projet** et les **Documents exemples**. L’espace s’ouvre sur le
+  Tableau de bord ; l’icône info, en haut de la grille, rappelle qu’il n’impose
+  pas d’avancer case après case. Dans le Tableau de bord, les
   colonnes, lignes et badges se créent à gauche et la grille s’édite à droite.
   Une colonne ou une ligne s’ajoute après l’intitulé choisi, par défaut le dernier,
   ou en premier. La grille défile horizontalement et verticalement plutôt que de
   se comprimer ; glissez le bord droit d’un intitulé de colonne ou le bord bas
   d’un intitulé de ligne pour régler sa taille, et double-cliquez pour revenir au défaut.
+  Pendant l’édition d’un intitulé, Maj+Entrée (⇧ + Entrée) passe à la ligne et Entrée valide.
 - **Importer et traiter** donne accès au corpus et aux entretiens décrits ci-dessous.
-- **Analyser et interpréter** réunit un **Accueil**, **Tri et synthèse**, **Lexico**
-  et les **Analyses croisées**. Ses onglets à icônes occupent la colonne de
-  gauche. L’Accueil présente les trois outils ; dans chacun d’eux, les filtres
-  restent à gauche sur un panneau gris violet clair et les résultats à droite.
+- **Analyser et interpréter** réunit **Tri et synthèse**, **Lexico**
+  et les **Analyses croisées**, et s’ouvre sur Tri et synthèse. Dans chaque outil,
+  les filtres restent à gauche sur un panneau gris violet clair et les résultats à droite.
+  L’icône info explique comment les choix se combinent ou comment lire le tableau croisé.
   **Masquer les filtres** réduit la colonne à ses onglets. Chaque onglet garde
   ses critères, ses résultats et ses réglages d’affichage quand on le quitte.
   Dans **Tri et synthèse** et **Lexico**, les critères **Cas** apparaissent seulement si le
@@ -28,8 +29,8 @@ La barre supérieure propose quatre espaces de travail :
   Cas rassemble les matériaux d’une unité étudiée ; Recueils compose des documents
   à partir de citations et de textes de liaison. Le répertoire reste à gauche,
   sur un panneau gris violet clair, et le document de travail à droite.
-  Pour l’export, les entretiens, formats et options se choisissent à gauche ;
-  le récapitulatif, le rapport éventuel et le bilan s’affichent à droite,
+  Pour l’export, le type, les formats et les options se choisissent à gauche ;
+  les entretiens se cochent à droite, où s’affichent ensuite le rapport éventuel et le bilan,
   sans succession de fenêtres. Les choix sont conservés entre les onglets.
   Le dossier de destination est demandé au lancement de l’export.
   Pendant la préparation et l’écriture, la navigation est suspendue pour ne pas

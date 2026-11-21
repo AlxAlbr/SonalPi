@@ -555,6 +555,10 @@ contextBridge.exposeInMainWorld('sonal', {
     signataire: (): Promise<string> => invoquer('profil:lireSignataire'),
     memoriserSignataire: (nom: string): Promise<void> =>
       invoquer('profil:memoriserSignataire', nom),
+    /** Zoom de la liste des entretiens (settings.json du profil) ; null si jamais réglé. */
+    zoomEntretiens: (): Promise<number | null> => invoquer('profil:lireZoomEntretiens'),
+    memoriserZoomEntretiens: (zoom: number): Promise<void> =>
+      invoquer('profil:memoriserZoomEntretiens', zoom),
   },
   dialog: {
     /** Choisir un fichier d'entretien (contenu lu ici).
@@ -572,8 +576,8 @@ contextBridge.exposeInMainWorld('sonal', {
      *  `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
     choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string): Promise<string | null> =>
       invoquer('dialog:choisirDossier', kind, proposition),
-    choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
-      invoquer('dialog:choisirExport', nomSuggere, contenu),
+    choisirExport: (nomSuggere: string, contenu: string, encodage?: 'utf8' | 'windows-1252'): Promise<string | null> =>
+      invoquer('dialog:choisirExport', nomSuggere, contenu, encodage),
     /** Choisir un modèle de modalités au format JSON. */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),

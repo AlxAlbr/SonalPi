@@ -140,27 +140,6 @@
   background-color: rgba(135, 206, 235, 0.35);
 }
 
-/* Vue « ORIGINAL » (colonne-droite.noms-original, cf. Entretien.vue) : le texte
- * se lit sans aucun marqueur de pseudonymisation — ni barré, ni [pseudo], ni
- * fond bleu, ni ⊘. Les règles de décorations ci-dessus restent en place, ce
- * bloc les neutralise seulement à l'affichage. */
-.colonne-droite.noms-original .editeur .anon,
-.colonne-droite.noms-original .editeur .anon-exception {
-  text-decoration: none;
-  color: inherit;
-  background-color: transparent;
-}
-.colonne-droite.noms-original .editeur .anon::after {
-  content: none;
-}
-.colonne-droite.noms-original .editeur .gouttiere-loc.loc-anon .loc-nom {
-  text-decoration: none;
-}
-.colonne-droite.noms-original .editeur .gouttiere-loc .loc-pseudo,
-.colonne-droite.noms-original .editeur .gouttiere-loc .loc-refus {
-  display: none;
-}
-
 /* Vue « PSEUDONYMISÉ » : seuls les pseudos restent visibles, comme dans
  * l'export. Le texte d'origine est masqué par font-size 0 (l'occurrence se
  * replie sur sa longueur réelle) ; le pseudo du ::after repasse à la taille
@@ -183,6 +162,20 @@
 }
 .colonne-droite.noms-pseudonymise .editeur .gouttiere-loc.loc-anon .loc-nom {
   display: none;
+}
+/* Onglet Locuteurs inactif : libellés en gris, la couleur propre au locuteur
+ * (posée en ligne sur le nom et le pseudo) ne revient qu'avec l'onglet. */
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc,
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc .loc-nom,
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc .loc-pseudo {
+  color: #8c8c8c !important;
+}
+.colonne-droite.locuteurs-discrets .editeur .gouttiere-loc {
+  border-bottom-color: #e4e4e4;
+}
+/* Onglet Thèmes inactif : le soulignage des passages codés s'atténue. */
+.colonne-droite.themes-discrets {
+  --opacite-themes: 0.35;
 }
 
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du

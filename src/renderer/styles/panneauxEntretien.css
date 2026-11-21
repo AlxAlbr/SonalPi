@@ -1,0 +1,174 @@
+/**
+ *  Gabarit commun des panneaux de la colonne gauche de l'entretien
+ *  (Locuteurs, Pseudos, Thèmes, Commentaires). Chaque panneau a :
+ *  - un en-tête sans titre, avec le bouton d'aide (icône info) à gauche et au plus
+ *    deux actions à droite (l'action principale est pleine, l'autre est une icône) ;
+ *  - un bloc d'aide replié, ouvert par l'icône info ;
+ *  - une liste de lignes identiques, et un même message quand la liste est vide.
+ */
+
+.gabarit-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  margin-bottom: 0.5rem;
+}
+.gabarit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+/* Action principale : bouton plein. */
+.gabarit-action {
+  height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid #1565c0;
+  border-radius: 6px;
+  background: #2e73d8;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gabarit-action:hover:not(:disabled) {
+  background: #1565c0;
+}
+.gabarit-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Action secondaire : icône seule, même hauteur que l'action principale. */
+.gabarit-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid #c9d0da;
+  border-radius: 6px;
+  background: #fff;
+  color: #2b3d55;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.gabarit-icone:hover:not(:disabled),
+.gabarit-icone[aria-expanded='true'],
+.gabarit-icone[aria-pressed='true'] {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+  color: #1565c0;
+}
+.gabarit-icone:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Bloc d'aide, ouvert par l'icône info. */
+.gabarit-aide {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid #a9c4df;
+  border-radius: 4px;
+  background: #f2f6fb;
+  color: #4f5966;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.gabarit-aide p {
+  margin: 0;
+}
+.gabarit-aide + .gabarit-aide {
+  margin-top: 0.4rem;
+}
+
+/* Indication contextuelle (état du curseur, sélection), sous l'en-tête. */
+.gabarit-indication {
+  margin: 0.3rem 0 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #e0a03a;
+  border-radius: 6px;
+  background: #fff3e0;
+  color: #b06e0f;
+  font-size: 0.75rem;
+}
+
+/* Lignes de liste : même hauteur, bordure et police dans tous les panneaux. */
+.gabarit-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gabarit-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.1rem;
+  box-sizing: border-box;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #e3e6ec;
+  border-radius: 6px;
+  background: #fff;
+  color: #2b3d55;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+}
+button.gabarit-ligne {
+  cursor: pointer;
+}
+button.gabarit-ligne:hover:not(:disabled) {
+  border-color: #2e73d8;
+  background: #f5f9ff;
+}
+.gabarit-ligne-texte {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.gabarit-ligne-titre {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gabarit-ligne-detail {
+  color: #6b7480;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.gabarit-pastille {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+}
+.gabarit-meta {
+  flex: none;
+  margin-left: auto;
+  color: #8a8f98;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Liste vide : une phrase, et l'action à faire quand il y en a une. */
+.gabarit-vide {
+  margin: 0.4rem 0;
+  color: #8a8f98;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}

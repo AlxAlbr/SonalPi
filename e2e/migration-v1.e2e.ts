@@ -206,7 +206,7 @@ test('un nettoyage refusé protège les fichiers apparus et libère la migration
 test('une source manquante bloque la migration sans bascule et sans entretien vide', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1-manquant-'))
   const source = ecrireSeedMigrationV1(profil)
-  rmSync(source.audioExterne)
+  rmSync(join(source.dossierV1, 'entretien1.sonal'))
   const cible = join(profil, 'MonCorpusV2')
   const app = await lancer(profil)
   try {

@@ -6,7 +6,7 @@ import type { CelluleAnalyseCroisee } from '../../../../shared/analysesCroisees/
 import { utiliserSonal } from '../../../composables/sonal'
 import DetailCelluleAnalyse from './DetailCelluleAnalyse.vue'
 import MatriceThemesMateriaux from './MatriceThemesMateriaux.vue'
-import icoAnalysesCroisees from '../../../assets/icones/analyses-croisees.svg'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 
 // Panneau droit des analyses croisées : matrice et détail d'une cellule.
 // La sélection des thèmes et des entretiens est dans AnalysesCote.vue.
@@ -24,6 +24,8 @@ const {
   panneauAnalyseVisible, basculerPanneauAnalyse,
 } = utiliserSonal()
 
+/** Le mode de lecture du tableau reste replié derrière l'icône info. */
+const aideOuverte = ref(false)
 const afficherThemesSansResultat = ref(true)
 const triThemes = ref<'ordre' | 'nom' | 'total'>('ordre')
 const rechercheThemes = ref('')
@@ -107,7 +109,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 <template>
   <div class="panneau-analyses" aria-label="Analyses croisées">
     <header class="entete">
-      <div><h2><img class="icone-titre" :src="icoAnalysesCroisees" alt="" />Analyses croisées</h2><small>Dernier calcul : {{ dateCalcul }}</small></div>
+      <div class="entete-info"><BoutonInfo v-model="aideOuverte" libelle="Lire l’analyse croisée" /><small>Dernier calcul : {{ dateCalcul }}</small></div>
       <div class="actions">
         <label>Texte des justificatifs <select v-model="modeTexteAnalyseCroisee"><option value="pseudonymise">Pseudonymisé</option><option value="original">Original — peut contenir des identités</option></select></label>
         <select v-model="formatExport" aria-label="Format d’export"><option value="csv">CSV</option><option value="tsv">TSV</option></select>
@@ -115,6 +117,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
         <button :disabled="!exportAnalyseCroiseePossible" @click="exporter">Exporter</button>
       </div>
     </header>
+    <div v-if="aideOuverte" class="gabarit-aide aide-analyse">
+      <p>Le tableau croise les thèmes choisis (en lignes) avec les entretiens choisis (en colonnes). Cliquez sur une case pour lire les passages qui y contribuent.</p>
+      <p><strong>Passages</strong> : nombre de passages codés avec le thème. <strong>Volume</strong> : nombre de caractères de ces passages. <strong>Couverture</strong> : part du texte de l’entretien couverte par le thème.</p>
+      <p>Un passage portant plusieurs thèmes compte dans chacune de leurs lignes. Les valeurs des thèmes ne sont donc pas toujours additionnables.</p>
+    </div>
     <div v-if="chargementAnalysesCroisees" class="etat" role="status">Lecture en cours… {{ progressionAnalysesCroisees.faits }} sur {{ progressionAnalysesCroisees.total }} entretiens.</div>
     <div v-if="resultatPerimeAnalyseCroisee" class="etat avertissement" role="status">Les sources ou la sélection ont changé. Actualisez l’analyse pour ouvrir les passages ou exporter.</div>
     <div v-if="messageExport" class="etat" role="status">{{ messageExport }}</div>
@@ -134,7 +141,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
       <label>Rechercher un entretien <input v-model="rechercheEntretiens" type="search"></label>
       <button data-tour="afficher-selection-analyse" @click="basculerPanneauAnalyse()">{{ panneauAnalyseVisible ? 'Masquer' : 'Afficher' }} la sélection</button>
     </div>
-    <p class="regle">Une plage portant plusieurs thèmes contribue à chaque ligne. Les valeurs des thèmes ne sont donc pas toujours additionnables.</p>
     <div class="travail">
       <main class="resultats">
         <p v-if="!calculeLeAnalyseCroisee" class="vide">Sélectionnez au moins un thème et un entretien, puis calculez l’analyse.</p>
@@ -148,8 +154,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 <style scoped>
 .panneau-analyses { display: flex; flex-direction: column; min-height: 0; height: 100%; background: #fff; border-radius: 8px; overflow: hidden; }
 .entete, .bilan, .commandes { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid #dce2ea; flex-wrap: wrap; }
-.entete h2 { display: flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 1.15rem; }
-.icone-titre { width: 22px; height: 22px; object-fit: contain; }
+.entete-info { display: flex; align-items: center; gap: 0.6rem; }
 .actions, .commandes, .actions-liste { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; }
 .actions label { font-size: 0.8rem; }
 .bilan { font-size: 0.8rem; }
@@ -158,7 +163,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 .btn-calcul:disabled { border-color: #bbc2cb; background: #dfe4ea; color: #687080; }
 .etat { margin: 0.4rem 0.85rem 0; padding: 0.4rem 0.65rem; border-radius: 5px; background: #eaf3fd; }
 .avertissement { background: #fff0d2; }
-.regle { margin: 0.4rem 0.85rem; color: #596678; font-size: 0.73rem; }
+.aide-analyse { margin: 0.5rem 0.85rem 0; }
+.aide-analyse p + p { margin-top: 0.3rem; }
 .travail { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .travail:has(.detail) { grid-template-columns: minmax(0, 1fr) auto; }
 .resultats { min-width: 0; min-height: 0; padding: 0.7rem; overflow: hidden; }

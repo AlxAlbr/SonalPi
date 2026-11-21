@@ -32,18 +32,19 @@
         <li><a href="#destination">Enregistrer le lot dans un dossier distinct</a></li>
         <li><a href="#bilan">Contrôler le bilan et les fichiers</a></li>
         <li><a href="#arret">Arrêter ou reprendre un export</a></li>
+        <li><a href="#iramuteq">Préparer un corpus pour IRaMuTeQ</a></li>
       </ul>
     </nav>
     <h2 id="selection">Choisir les entretiens</h2>
     <ol>
       <li>Ouvrez votre corpus, puis l’espace <strong>Organiser et exporter</strong>.</li>
       <li>Cliquez sur <strong>Exporter le corpus</strong>. Le menu <strong>Corpus → Exporter le corpus…</strong> ouvre le même outil.</li>
-      <li>Dans la colonne de gauche, cochez les entretiens souhaités. Ils sont tous sélectionnés lors de la première ouverture de l’outil.</li>
-      <li>Conservez le type <strong>Formats de lecture (TXT, HTML, DOCX, PDF)</strong>.</li>
-      <li>Vérifiez à droite le nombre d’entretiens et, si nécessaire, ouvrez <strong>Voir les entretiens sélectionnés</strong>.</li>
+      <li>Dans la colonne de droite, cochez les entretiens souhaités. Ils sont tous sélectionnés lors de la première ouverture de l’outil ; le nombre retenu s’affiche au-dessus de la liste.</li>
+      <li>Dans la colonne de gauche, conservez le type <strong>Formats de lecture (TXT, HTML, DOCX, PDF)</strong>.</li>
     </ol>
-    <p>Pour ne retenir que quelques entretiens, décochez <strong>Tous les entretiens</strong>, puis cochez les titres voulus. Aucun export ne peut démarrer avec une sélection vide.</p>
+    <p>Pour ne retenir que quelques entretiens, décochez <strong>Tous les entretiens</strong>, puis cochez les titres voulus. Quand le corpus en contient beaucoup, le champ <strong>Filtrer par titre…</strong> réduit la liste affichée sans changer la sélection. Aucun export ne peut démarrer avec une sélection vide.</p>
     <p class="notice">Le choix <strong>Projet QualCoder (.qda)</strong> correspond à un autre transfert. Il exporte actuellement le texte original sans pseudonymisation ; les réglages des formats de lecture ne le rendent pas anonyme.</p>
+    <p>Le choix <strong>Corpus pour IRaMuTeQ (.txt)</strong> produit un seul fichier à analyser dans le logiciel IRaMuTeQ. Il a ses propres réglages, décrits dans <a href="#iramuteq">Préparer un corpus pour IRaMuTeQ</a>.</p>
     <h2 id="formats">Choisir les fichiers à produire</h2>
     <p>Vous pouvez cocher plusieurs formats. Les entretiens sont traités dans l’ordre de la liste.</p>
     <div class="tableau">
@@ -60,8 +61,8 @@
     <p>Un fichier <strong>_index.txt</strong> accompagne le lot. Il récapitule les titres, les dates lorsqu’elles sont renseignées et le nombre de mots des entretiens exportés.</p>
     <p>Les formats SONAL, SRT et VTT ne sont pas proposés dans ce lot. Pour ces formats, utilisez <a href="exporter-entretien.html">Exporter cet entretien</a> depuis l’entretien ouvert.</p>
     <figure>
-      <img src="../medias/export-corpus-reglages.png" alt="L’outil Exporter le corpus présente deux entretiens cochés à gauche et, à droite, le récapitulatif des fichiers TXT, HTML et DOCX prévus.">
-      <figcaption>La colonne de droite récapitule vos choix avant le lancement. Faites défiler la colonne de gauche pour accéder aux options situées plus bas.</figcaption>
+      <img src="../medias/export-corpus-reglages.png" alt="L’outil Exporter le corpus présente les formats et options à gauche et, à droite, la liste des entretiens à cocher.">
+      <figcaption>Les formats et options se règlent à gauche ; les entretiens se cochent à droite, au-dessus du bouton d’export.</figcaption>
     </figure>
     <h2 id="options">Régler le contenu et vérifier le rapport</h2>
     <p>Les cases reprennent celles de l’<a href="exporter-entretien.html#options">export individuel</a> : en-tête, notes, variables, coordonnées temporelles, locuteurs, thèmes et pseudonymisation. Leurs effets dépendent du format.</p>
@@ -82,7 +83,7 @@
     <p>Sans pseudonymisation, les pages HTML peuvent lire les copies disponibles dans <strong>medias/</strong>. Conservez les pages et ce sous-dossier ensemble, sans changer leur disposition. Si vous ne copiez pas le média, ou s’il est inaccessible, le lot HTML ne propose pas de lecteur pour cet entretien. Vérifiez séparément la présence de chaque enregistrement attendu.</p>
     <h2 id="destination">Enregistrer le lot dans un dossier distinct</h2>
     <ol>
-      <li>Relisez le récapitulatif à droite.</li>
+      <li>Vérifiez à droite le nombre d’entretiens retenus et l’avertissement sur la pseudonymisation.</li>
       <li>Cliquez sur <strong>Exporter…</strong> ou, après le rapport, sur <strong>Lancer l’export</strong>.</li>
       <li>Choisissez un <strong>nouveau dossier d’export</strong>, distinct du corpus natif. Un nom avec la date est proposé.</li>
       <li>Attendez le bilan avant de déplacer ou de partager ce dossier.</li>
@@ -106,6 +107,33 @@
     <p>Pendant le traitement, <strong>Annuler après l’entretien courant</strong> laisse finir l’entretien en cours puis arrête les suivants. Les fichiers déjà créés ne sont pas supprimés. Les documents combinés peuvent alors ne contenir que la partie traitée.</p>
     <p>Le bilan indique les entretiens exportés, ceux en échec et ceux non traités après l’arrêt. Pour reprendre, cliquez sur <strong>Préparer un autre export</strong>, vérifiez les cases conservées et lancez un nouveau lot dans un autre dossier.</p>
     <p>Si vous annulez seulement le choix de destination, aucun fichier n’est créé pour ce lancement. Vous pouvez revenir aux réglages avec <strong>Préparer un autre export</strong>.</p>
+    <h2 id="iramuteq">Préparer un corpus pour IRaMuTeQ</h2>
+    <p>IRaMuTeQ analyse un fichier texte unique, découpé en « textes » précédés d’une ligne <code>****</code> et de variables étoilées. SonalPi prépare ce fichier à partir des entretiens cochés.</p>
+    <ol>
+      <li>Dans <strong>Type d’export</strong>, choisissez <strong>Corpus pour IRaMuTeQ (.txt)</strong>.</li>
+      <li>Choisissez l’unité : <strong>Entretien</strong> donne un texte par entretien ; <strong>Tour de parole</strong> donne un texte par prise de parole, avec la variable <code>*loc_…</code> du locuteur ; <strong>Passage selon les thèmes codés</strong> donne un texte par passage, avec une variable par thème (voir plus bas).</li>
+      <li>Indiquez si IRaMuTeQ sera utilisé sous <strong>Windows</strong> ou sous <strong>Mac ou Linux</strong> : SonalPi enregistre le fichier dans l’encodage qu’IRaMuTeQ propose par défaut sur ce système.</li>
+      <li>Réglez les options. À droite, cochez les entretiens, les variables à ajouter et, si le texte est découpé selon les thèmes, les thèmes à prendre en compte. Cliquez ensuite sur <strong>Exporter…</strong> et choisissez l’emplacement du fichier.</li>
+      <li>Dans IRaMuTeQ, ouvrez ce fichier avec <strong>Fichier → Ouvrir un corpus</strong>. Vérifiez que l’encodage indiqué est celui rappelé par SonalPi à la fin de l’export : <strong>cp1252</strong> pour Windows, <strong>utf-8</strong> pour Mac ou Linux. Si les accents s’affichent mal (« Ã© » au lieu de « é »), l’encodage choisi à l’ouverture ne correspond pas au fichier.</li>
+    </ol>
+    <div class="tableau">
+      <table>
+        <thead><tr><th>Option</th><th>Effet dans le fichier</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Retirer les propos des interviewers</strong></td><td>Les tours des locuteurs marqués comme interviewers ne sont pas repris : seul le discours des personnes interrogées est analysé.</td></tr>
+          <tr><td><strong>Variables à ajouter</strong> (à droite)</td><td>Les variables cochées deviennent des variables étoilées, par exemple <code>*sexe_femme</code>. Les variables privées ne sont proposées que si vous cochez <strong>Proposer aussi les variables privées</strong> : elles peuvent permettre de reconnaître les personnes interrogées. Une variable de locuteur est reprise pour un entretien seulement si les locuteurs retenus ont la même valeur.</td></tr>
+          <tr><td><strong>Thèmes à prendre en compte</strong> (à droite)</td><td>Proposé quand le texte est découpé selon les thèmes. Seuls les thèmes cochés deviennent des thématiques ou des variables ; un passage codé seulement par des thèmes décochés est exporté comme non codé. Avec <strong>Compter les sous-thèmes dans leur thème parent</strong>, un passage codé « Ville », sous-thème de « Lieu de vie », reçoit aussi <code>*thlieudevie_oui</code>. Un sous-thème décoché est ignoré : ses passages ne comptent pas pour son parent. Avec les thématiques <code>-*</code>, le thème parent passe alors en premier dans la grille : décochez-le pour garder les sous-thèmes.</td></tr>
+          <tr><td><strong>Découper le texte selon les thèmes codés</strong></td><td>Chaque changement de thème ouvre une thématique <code>-*nom_du_theme</code>, utilisable dans les sous-corpus par thématiques. Un passage codé par plusieurs thèmes est rattaché au premier thème de la grille ; les passages sans thème sont regroupés sous <code>-*hors_theme</code>. Pour garder tous les thèmes d’un passage, choisissez plutôt l’unité <strong>Passage selon les thèmes codés</strong>.</td></tr>
+          <tr><td><strong>Pseudonymisation</strong></td><td>Les pseudonymes configurés remplacent les passages et les noms de locuteurs. Un locuteur sans pseudonyme apparaît sous un numéro, jamais sous son nom.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Un texte par passage, avec tous ses thèmes</h3>
+    <p>Avec l’unité <strong>Passage selon les thèmes codés</strong>, le discours est coupé à chaque début et à chaque fin de codage. Chaque morceau devient un texte IRaMuTeQ qui porte une variable par thème : <code>*thville_oui</code> si le passage est codé « Ville ». Un passage codé par plusieurs thèmes les garde tous, sans être dupliqué. Le texte non codé est gardé, avec <code>*thaucun_oui</code>.</p>
+    <p>L’option <strong>Indiquer aussi les thèmes absents</strong>, cochée par défaut, ajoute <code>*thville_non</code> aux autres textes. Elle permet, dans IRaMuTeQ, de comparer un thème au reste du corpus (spécificités, sous-corpus « tout sauf ce thème »). Seuls les thèmes présents dans les entretiens exportés deviennent des variables.</p>
+    <p>Les passages très courts, de quelques mots, pèsent peu dans les analyses statistiques d’IRaMuTeQ.</p>
+    <p>Chaque entretien est repéré par la variable <code>*ent_…</code>, construite à partir de son titre. Les noms de variables et de modalités sont simplifiés pour IRaMuTeQ : sans accents, sans espaces ni caractères spéciaux, en minuscules. Les symboles qui portent un sens deviennent des mots : « + de 20 ans » devient <code>plus_de_20_ans</code> et « - de 5 ans » devient <code>moins_de_5_ans</code>. Les horodatages, notes et commentaires ne sont pas exportés.</p>
+    <p class="retenir"><strong>Les titres d’entretiens restent en clair, même avec la pseudonymisation.</strong> Vérifiez les variables <code>*ent_…</code> et le texte avant de partager le fichier.</p>
     <nav class="suite" aria-label="Suite de la lecture">
       <a href="exporter-entretien.html" rel="prev">← Précédent : exporter un entretien</a>
       <a href="../index.html">Sommaire</a>

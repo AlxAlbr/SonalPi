@@ -19,6 +19,7 @@ const {
 } = utiliserSonal()
 
 const editerThemes = ref(false)
+const aideOuverte = ref(false)
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
 const descriptionsOuvertes = ref<Set<string>>(new Set())
 const repliesThemes = ref<Set<string>>(new Set())
@@ -62,29 +63,50 @@ function basculerToutesDescriptions() {
 
 <template>
   <aside class="panneau themes-coder" aria-label="Thématiques">
-    <div class="corpus-tete">
+    <div class="gabarit-entete">
       <button
-        v-if="idsDescriptions.length"
-        class="toutes-descriptions"
-        :aria-label="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
-        :aria-pressed="toutesDescriptionsOuvertes"
-        :title="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
-        @click="basculerToutesDescriptions"
-      >ⓘ tout</button>
-      <button
-        v-if="!lectureSeule"
-        class="crayon"
-        title="Éditer les thèmes"
-        @click="editerThemes = true"
-      >✏️</button>
+        type="button"
+        class="gabarit-icone"
+        :aria-expanded="aideOuverte"
+        aria-label="Aide sur les thématiques"
+        title="Aide"
+        @click="aideOuverte = !aideOuverte"
+      ><span class="ico-info" aria-hidden="true"></span></button>
+      <div class="gabarit-actions">
+        <button
+          v-if="idsDescriptions.length"
+          type="button"
+          class="gabarit-icone gabarit-libelle"
+          :aria-label="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+          :aria-pressed="toutesDescriptionsOuvertes"
+          :title="toutesDescriptionsOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
+          @click="basculerToutesDescriptions"
+        >Descriptions</button>
+        <button
+          v-if="!lectureSeule"
+          type="button"
+          class="gabarit-action"
+          title="Éditer les thèmes"
+          aria-label="Éditer les thèmes"
+          @click="editerThemes = true"
+        >Modifier</button>
+      </div>
     </div>
-    <p v-if="hintCodage" class="hint-codage">{{ hintCodage }}</p>
+    <div v-if="aideOuverte" class="gabarit-aide">
+      <p>
+        Cliquez sur un thème pour coder le passage sélectionné. Le chiffre à droite indique combien de passages sont déjà codés avec ce thème.
+        Un thème grisé est inactif : il n’apparaît plus dans le texte.
+      </p>
+    </div>
+    <p v-if="hintCodage" class="gabarit-indication hint-codage">{{ hintCodage }}</p>
 
-    <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
-    <ul class="liste-coder">
+    <p v-if="codebook.length === 0" class="gabarit-vide">Aucun thème pour le moment. Cliquez sur « Modifier » pour en créer.</p>
+    <p v-else class="gabarit-legende" aria-hidden="true">Codages</p>
+    <ul class="gabarit-liste liste-coder">
       <li v-for="n in arbreVisible" :key="n.cat.id" class="ligne-coder">
         <button
-          class="theme-coder"
+          type="button"
+          class="gabarit-ligne theme-coder"
           :class="{ inactif: !n.cat.actif }"
           :style="{ marginLeft: n.profondeur * 1.1 + 'rem' }"
           :disabled="lectureSeuleContenu"
@@ -101,19 +123,20 @@ function basculerToutesDescriptions() {
             {{ repliesThemes.has(n.cat.id) ? '▸' : '▾' }}
           </span>
           <span v-else class="depliant depliant-masque"></span>
-          <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
-          <span class="theme-nom">{{ n.cat.nom }}</span>
+          <span class="gabarit-pastille pastille" :style="{ background: couleurHex(n.cat) }"></span>
+          <span class="theme-nom gabarit-ligne-titre">{{ n.cat.nom }}</span>
         </button>
         <button
           v-if="n.cat.description"
+          type="button"
           class="info-theme"
           :aria-label="descriptionsOuvertes.has(n.cat.id) ? `Masquer la description de ${n.cat.nom}` : `Afficher la description de ${n.cat.nom}`"
           :aria-expanded="descriptionsOuvertes.has(n.cat.id)"
           :title="descriptionsOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
           @click="basculerDescription(n.cat.id)"
-        >ⓘ</button>
-        <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
-        <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">
+        ><span class="ico-info" aria-hidden="true"></span></button>
+        <span v-else class="info-theme info-theme-masque" aria-hidden="true"><span class="ico-info" aria-hidden="true"></span></span>
+        <span class="usage gabarit-meta" :title="`${usages[n.cat.id] ?? 0} codage(s)`">
           {{ usages[n.cat.id] ?? 0 }}
         </span>
         <p v-if="descriptionsOuvertes.has(n.cat.id)" class="description-theme">{{ n.cat.description }}</p>
@@ -136,47 +159,25 @@ function basculerToutesDescriptions() {
 </template>
 
 <style scoped>
-/* Sans titre dans l'en-tête : « ⓘ tout » reste à gauche, le crayon est
- * poussé au bord droit (le .corpus-tete global étale en space-between). */
-.corpus-tete {
-  justify-content: flex-start;
-  gap: 0.4rem;
+.gabarit-libelle {
+  width: auto;
+  padding: 0 0.55rem;
+  font-size: 0.8rem;
 }
-.corpus-tete .crayon {
-  margin-left: auto;
-  font-size: 1.2rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-}
-.hint-codage {
-  background: #fff3e0;
-  color: #b06e0f;
-  border: 1px solid #e0a03a;
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
-  margin: 0.3rem 0;
+.gabarit-legende {
+  margin: 0 0.2rem 0.2rem;
+  text-align: right;
+  color: #8a8f98;
+  font-size: 0.72rem;
 }
 .liste-coder {
-  list-style: none;
-  margin: 0.3rem 0 0;
   padding: 0 0 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
 }
 .theme-coder {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  width: 100%;
-  text-align: left;
-  border: 1px solid #e5e5ef;
-  border-radius: 6px;
-  background: #fff;
-  padding: 0.3rem 0.5rem;
   cursor: pointer;
-  font-size: 0.85rem;
+}
+.theme-coder.inactif {
+  opacity: 0.3;
 }
 .depliant {
   width: 1.1rem;
@@ -194,35 +195,6 @@ function basculerToutesDescriptions() {
 .depliant:hover {
   color: #1565c0;
 }
-.usage {
-  width: 1.8rem;
-  font-size: 0.68rem;
-  color: #888;
-  font-family: monospace;
-  flex: none;
-  text-align: center;
-}
-.theme-coder:hover {
-  border-color: #2e73d8;
-  background: #f0f6ff;
-}
-.theme-coder.inactif {
-  opacity: 0.3;
-}
-.pastille {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex: none;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-}
-.theme-nom {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .ligne-coder {
   display: flex;
   flex-wrap: wrap;
@@ -234,33 +206,19 @@ function basculerToutesDescriptions() {
   min-width: 0;
   flex: 1;
 }
-.toutes-descriptions {
-  border: 1px solid #d3dae5;
-  border-radius: 5px;
-  background: #fff;
-  color: #55708f;
-  cursor: pointer;
-  padding: 0.12rem 0.35rem;
-  font-size: 0.68rem;
-}
-.toutes-descriptions[aria-pressed="true"],
-.toutes-descriptions:hover {
-  border-color: #2e73d8;
-  color: #1565c0;
-  background: #f0f6ff;
-}
 .info-theme {
   width: 1.3rem;
   height: 1.3rem;
   margin-right: -0.1rem;
   flex: none;
-  border: 1px solid #d3dae5;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: #fff;
   color: #55708f;
   cursor: pointer;
   padding: 0;
-  font-size: 0.66rem;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 .info-theme:hover {
   border-color: #2e73d8;

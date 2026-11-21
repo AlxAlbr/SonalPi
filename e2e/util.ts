@@ -290,12 +290,12 @@ export async function coderTheme(page: Page, nomTheme: string): Promise<void> {
 /** S8 : ouvre la fenêtre d'ÉDITION des thèmes (crayon du panneau thèmes — écran Corpus ou onglet Thématique de l'Entretien,
  *  selon l'écran affiché). */
 export async function ouvrirEditionThemes(page: Page): Promise<void> {
-  const crayonVisible = page.locator('.panneau .crayon:visible, .barre-onglet .editer-themes:visible').first()
+  const crayonVisible = page.locator('.panneau .crayon:visible, .themes-coder .gabarit-action:visible, .barre-onglet .editer-themes:visible').first()
   if ((await crayonVisible.count()) === 0) {
     const ongletThemes = page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes' })
     if (await ongletThemes.isVisible()) await ongletThemes.click()
   }
-  await page.locator('.panneau .crayon:visible, .barre-onglet .editer-themes:visible').first().click()
+  await page.locator('.panneau .crayon:visible, .themes-coder .gabarit-action:visible, .barre-onglet .editer-themes:visible').first().click()
   await expect(page.locator('.modale-themes')).toBeVisible()
 }
 
@@ -336,4 +336,12 @@ export async function ouvrirSurCorpus(
   const page = await app.firstWindow()
   await entrerCorpus(page) // Accueil → Corpus
   return { app, page }
+}
+
+/** Ouvre une nouvelle note (« + Créer une note », fenêtre) puis la réduit dans le panneau Notes :
+ *  le formulaire en ligne est alors visible, comme pour une saisie dans le panneau. */
+export async function ouvrirFormulaireNoteDansPanneau(page: Page): Promise<void> {
+  await page.locator('.ouvrir-nouvelle-note').click()
+  await page.locator('.modale-note').getByRole('button', { name: 'Réduire', exact: true }).click()
+  await expect(page.locator('.nouvelle-note-inline')).toBeVisible()
 }

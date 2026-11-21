@@ -24,6 +24,8 @@ test('les interventions se dessinent sur la bande et la navigation met en évide
     audio: { url: ref('audio'), waveformUrl: ref(null), enLecture: ref(false), duree,
       position: ref(0), vitesse: ref(1), ratio: ref(0), erreur: ref(null) },
     resumeOuvert: ref([]), etatAudioOuvert: reactive({ etat: 'local' }),
+    editor: ref(null), rechercheOuverte: ref(false), rechercheTexte: ref(''),
+    occurrencesRecherche: ref([]), indexRecherche: ref(-1), allerOccurrence: vi.fn(),
   }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(LecteurAudio, { afficherLocuteurs: afficher.value, interventionActive: active.value }) })

@@ -44,7 +44,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   // par id à la projection (jamais copiée dans l'entretien), et l'entretien
   // n'a pas été touché par le recoloriage (pas de re-sauvegarde).
   await page.locator('.tete .btn-reprise').click()
-  await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /rgb\(255, 0, 0\)/)
+  await expect(page.locator('.editeur .soulignes')).toHaveAttribute('style', /rgb\(255, 0, 0\)|#ff0000/i)
   await expect(page.locator('.tete .etat')).toHaveText('à jour')
   await app.close()
 })

@@ -32,7 +32,7 @@ test('corpus → import V1 → coder → renommer globalement → saisir une don
     await expect(page.locator('.nom-loc').first()).toBeEnabled()
     await expect(renommage).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
-    await page.locator('.onglets button[data-onglet="donnees"]').click()
+    await page.locator('.outils-editeur button[data-onglet="donnees"]').click()
     await page.getByRole('tab', { name: 'Entretien', exact: true }).click()
     await page.locator('.saisie-eav-sel').first().selectOption({ label: 'MonTest' })
     await expect(page.locator('header .etat')).toHaveText('à jour')

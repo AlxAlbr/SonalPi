@@ -47,6 +47,12 @@ const {
   tirageEnCours,
   progressionDistant,
   pourcentageProgression,
+  editor,
+  rechercheOuverte,
+  rechercheTexte,
+  occurrencesRecherche,
+  indexRecherche,
+  allerOccurrence,
 } = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
@@ -76,6 +82,27 @@ const interventionsBande = computed(() => {
     return [{ loc: tour.loc, pos: tour.pos, gauche, largeur: droite - gauche, couleur }]
   })
 })
+
+/** Repères des occurrences de la recherche, placés sur l'axe du temps comme le reste de la bande.
+ *  Sans repère temporel, on se replie sur la position dans le texte (comme sur les cartes Corpus). */
+const reperesRecherche = computed(() => {
+  if (!rechercheOuverte.value) return []
+  const taille = editor.value?.state.doc.content.size ?? 0
+  return occurrencesRecherche.value.flatMap((occ, i) => {
+    const t = duree.value > 0 ? tempsAuTexte(occ.de) : null
+    const pourcent = t != null ? (t / duree.value) * 100 : taille > 0 ? (occ.de / taille) * 100 : null
+    if (pourcent == null) return []
+    return [{ i, pourcent: Math.max(0, Math.min(100, pourcent)) }]
+  })
+})
+
+/** Clic sur un repère : l'occurrence devient courante dans le texte, la lecture s'y place. */
+function clicRepere(i: number) {
+  allerOccurrence(i)
+  const occ = occurrencesRecherche.value[i]
+  const t = occ && duree.value > 0 ? tempsAuTexte(occ.de) : null
+  if (t != null) seek(t)
+}
 
 /** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur
  *  y vit) → les bornes texte du segment sont re-projetées en temps via les
@@ -151,8 +178,9 @@ function clicBande(e: MouseEvent) {
         >
           Lire le fichier local
         </button>
+        <span class="espace-aide" aria-hidden="true"></span>
+        <AideLectureAudio />
       </div>
-      <AideLectureAudio />
     </div>
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
@@ -174,6 +202,16 @@ function clicBande(e: MouseEvent) {
         :style="{ left: tour.gauche + '%', width: tour.largeur + '%', backgroundColor: tour.couleur }"
       ></span>
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
+      <!-- Repères de recherche : une barre par occurrence trouvée dans l'entretien. -->
+      <span
+        v-for="r in reperesRecherche"
+        :key="'r' + r.i"
+        class="occ-marqueur"
+        :class="{ courant: r.i === indexRecherche }"
+        :style="{ left: r.pourcent + '%' }"
+        :title="`Aller à l'occurrence ${r.i + 1} — « ${rechercheTexte.trim()} »`"
+        @click.stop="clicRepere(r.i)"
+      ></span>
     </div>
   </div>
   <div
@@ -384,13 +422,23 @@ dès que les droits seront ouverts.
   display: inline-flex;
   gap: 0.15rem;
 }
+/* Même hauteur que l'icône des raccourcis clavier. */
 .mini-lect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 1.6rem;
   border: 1px solid #ccc;
   border-radius: 5px;
   background: #fff;
   cursor: pointer;
   font-size: 0.72rem;
-  padding: 0.15rem 0.4rem;
+  padding: 0 0.4rem;
+}
+/* L'aide est écartée des commandes de lecture, dont l'usage est différent. */
+.espace-aide {
+  flex: 1 0 0.9rem;
 }
 .mini-lect:hover {
   border-color: #2e73d8;
@@ -466,6 +514,28 @@ dès que les droits seront ouverts.
   background: #d84315;
   z-index: 2;
   pointer-events: none;
+}
+/* Repère de recherche : même barre jaune cerclée de rouge que sur les cartes Corpus,
+   sur toute la hauteur de la bande ; l'occurrence courante passe au rouge. */
+.occ-marqueur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  background: rgb(254 255 0);
+  border: 2px solid #ff0000;
+  border-radius: 2px;
+  box-sizing: border-box;
+  cursor: pointer;
+  z-index: 3;
+}
+.occ-marqueur:hover,
+.occ-marqueur.courant {
+  background: rgb(255 0 0);
+  width: 6px;
+  margin-left: -3px;
+  box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
 }
 /* Segment du résumé thématique sur la bande — opacité 0.55 : la teinte du
    thème reste reconnaissable, l'onde reste lisible dessous. Jamais

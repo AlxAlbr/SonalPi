@@ -7,13 +7,13 @@
 export type VueApplication = 'accueil' | 'preparer' | 'analyser' | 'organiser' | 'corpus' | 'entretien'
 
 /** Onglets de l'espace « Préparer et suivre ». */
-export type SousEspacePreparation = 'accueil' | 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
+export type SousEspacePreparation = 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
 
 /** Onglets de l'espace « Analyser et interpréter ». */
-export type SousEspaceAnalyse = 'accueil' | 'synthese' | 'lexico' | 'analyses-croisees'
+export type SousEspaceAnalyse = 'synthese' | 'lexico' | 'analyses-croisees'
 
 /** Onglets de l'espace « Organiser et exporter ». */
 export type SousEspaceOrganisation = 'accueil' | 'cas' | 'recueils' | 'export'
 
 /** Onglets du corpus dans « Importer et traiter ». */
-export type OngletCorpus = 'accueil' | 'themes' | 'recherche' | "locuteurs" | 'notes' | 'donnees' | 'anon'
+export type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'locuteurs' | 'notes' | 'commentaires' | 'donnees' | 'anon'

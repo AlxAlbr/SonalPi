@@ -7,7 +7,7 @@ import type { CelluleAnalyseCroisee } from '../src/shared/analysesCroisees/types
 
 function exercice() {
   const deps: DepsParcoursAnalyse = {
-    vue: ref('analyser'), sousEspaceAnalyse: ref('accueil'), panneauAnalyseVisible: ref(true),
+    vue: ref('analyser'), sousEspaceAnalyse: ref('lexico'), panneauAnalyseVisible: ref(true),
     membership: ref(Object.fromEntries(['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants']
       .map((titre, index) => [`e${index}`, { titre, date: null, lastModified: '2026-01-01' }]))),
     synthese: {

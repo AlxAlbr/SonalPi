@@ -291,7 +291,7 @@ declare global {
         choisirSrt: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirAudio: (defaultPath?: string) => Promise<string | null>
         choisirDossier: (kind?: 'sources' | 'corpus' | 'projet', proposition?: string) => Promise<string | null>
-        choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
+        choisirExport: (nomSuggere: string, contenu: string, encodage?: 'utf8' | 'windows-1252') => Promise<string | null>
         choisirJson: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
       }
       /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */
@@ -334,6 +334,8 @@ declare global {
         memoriserNavigationProjet: (cle: string, navigation: NavigationProjet) => Promise<void>
         signataire: () => Promise<string>
         memoriserSignataire: (nom: string) => Promise<void>
+        zoomEntretiens: () => Promise<number | null>
+        memoriserZoomEntretiens: (zoom: number) => Promise<void>
       }
       fichier: {
         extraireTexteEntretien: (nom: string, octets: Uint8Array) => Promise<string>

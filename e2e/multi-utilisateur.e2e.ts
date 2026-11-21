@@ -470,7 +470,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await pause(pMax, "Max ouvre l'entretien : le VERROU lui est accordé…")
     await ouvrirEntretien(pMax)
     await pause(pMax, "Dans l'onglet Donnée, il ouvre l'édition des variables (✏️)…")
-    await pMax.locator('.onglets button[data-onglet="donnees"]').click()
+    await pMax.locator('.outils-editeur button[data-onglet="donnees"]').click()
     // Le crayon suit le sous-onglet affiché : « Entretien » borne l’édition
     // aux variables d’entretien ; la création passe par « + var. d’entretien ».
     await pMax.locator('.panneau.donnees .sous-onglet-bouton', { hasText: 'Entretien' }).click()
@@ -534,7 +534,7 @@ await attendreDefinitionServeur('"Lyon"')
     await expect(pOli.locator('.badge-verrou')).toHaveCount(0, { timeout: 20_000 })
     await ouvrirEntretien(pOli)
     await pause(pOli, "Verrou à lui : il saisit « Lyon » dans l'onglet Donnée…")
-    await pOli.locator('.onglets button[data-onglet="donnees"]').click()
+    await pOli.locator('.outils-editeur button[data-onglet="donnees"]').click()
     await pOli.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
     await narrer(pOli, 'Olivier referme : la valeur part avec la publication finale…')
     await retourAuCorpus(pOli)
@@ -563,7 +563,7 @@ await attendreDefinitionServeur('"Lyon"')
  *  Donnée de l'entretien OUVERT (mêmes gestes et mêmes barrières serveur que le
  *  scénario 2 — les transactions de définitions se disputent sinon le verrou). */
 async function creerVariableVille(page: Page): Promise<void> {
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  await page.locator('.outils-editeur button[data-onglet="donnees"]').click()
   // Le crayon suit le sous-onglet affiché : « Entretien » borne l’édition aux
   // variables d’entretien ; la création passe par « + var. d’entretien ».
   await page.locator('.panneau.donnees .sous-onglet-bouton', { hasText: 'Entretien' }).click()

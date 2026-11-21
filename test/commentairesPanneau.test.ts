@@ -18,20 +18,21 @@ async function monter() {
   const commentaires = ref<Array<{ id: string; auteur: string; texte: string }>>([])
   const commenterPlage = vi.fn()
   const allerAuCommentaire = vi.fn()
+  const editerCommentaire = vi.fn()
   const lectureSeule = ref(false)
-  injection.contexte = { selectionPassage, commentairesPourLiaison: commentaires, commenterPlage, allerAuCommentaire }
+  injection.contexte = { selectionPassage, commentairesPourLiaison: commentaires, commenterPlage, allerAuCommentaire, editerCommentaire }
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp({ render: () => h(PanneauCommentairesEntretien, { lectureSeule: lectureSeule.value }) })
   apps.push(app)
   app.mount(host)
   await nextTick()
-  return { host, selectionPassage, commentaires, commenterPlage, allerAuCommentaire, lectureSeule }
+  return { host, selectionPassage, commentaires, commenterPlage, allerAuCommentaire, editerCommentaire, lectureSeule }
 }
 
 test('le bouton Commentaire exige une sélection (hint sinon) et respecte la lecture seule', async () => {
   const outils = await monter()
-  const bouton = outils.host.querySelector<HTMLButtonElement>('.ajouter-commentaire')!
+  const bouton = outils.host.querySelector<HTMLButtonElement>('.gabarit-action')!
   // Sans sélection : le clic n'ouvre rien, il affiche le hint (l'aide permanente
   // d'origine est retirée).
   bouton.click()
@@ -71,6 +72,7 @@ test('la liste reste consultable en lecture seule et le texte est affiché sans 
   expect(outils.host.querySelector('script')).toBeNull()
   outils.host.querySelector<HTMLButtonElement>('.aller-commentaire')!.click()
   expect(outils.allerAuCommentaire).toHaveBeenCalledExactlyOnceWith('c1')
+  expect(outils.editerCommentaire).not.toHaveBeenCalled()
   outils.commentaires.value = []
   await nextTick()
   expect(outils.host.textContent).toContain('Aucun commentaire pour le moment.')

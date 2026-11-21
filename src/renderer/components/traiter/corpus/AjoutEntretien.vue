@@ -482,4 +482,8 @@ async function valider() {
   font-size: 0.88rem;
   padding: 0.28rem 0.65rem;
 }
+.ajout-ent:hover {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+}
 </style>

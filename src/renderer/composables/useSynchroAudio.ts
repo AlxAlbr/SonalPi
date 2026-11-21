@@ -129,5 +129,10 @@ export function useSynchroAudio(deps: {
     return tempsAuPoint(ancresTexte(), xDebuts[debutTour(locs, k)])
   }
 
-  return { majPlageLue, eteindre, allerAuTexte, tempsAuTexte, tempsDuBloc }
+  /** À appeler quand les temps des ancres changent sans que le texte change. */
+  function oublierProjection() {
+    projection = null
+  }
+
+  return { majPlageLue, eteindre, allerAuTexte, tempsAuTexte, tempsDuBloc, oublierProjection }
 }

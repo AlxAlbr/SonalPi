@@ -23,7 +23,7 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(barre.getByRole('button', { name: 'Tableau de bord' })).toHaveCount(0)
   await expect(barre.getByRole('button', { name: 'Docs cadre projet' })).toHaveCount(0)
 
-  // L’accueil présente les outils et une introduction, sans afficher la grille.
+  // L’espace s’ouvre directement sur le tableau de bord.
   await barre.getByRole('button', { name: 'Préparer & Suivre' }).click()
   const espace = page.locator('.espace-preparation')
   await expect(espace).toBeVisible()
@@ -33,26 +33,15 @@ test('les deux espaces de préparation, leurs onglets et le retour au traitement
   await expect(page.locator('.fil')).not.toContainText('Préparer et suivre')
   // Déjà au niveau corpus : le lien n'est pas cliquable.
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
-  await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveCount(0)
+  await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
   const cote = espace.locator('.cote-preparation')
-  await expect(cote).toContainText('Préparation')
-  await expect(cote).toContainText('Tableau de bord')
-  await expect(cote).toContainText('Documents du projet')
-  await expect(cote).toContainText('Documents exemples')
-  await expect(espace.locator('.principal td.case').first()).toBeHidden()
-  await expect(espace.locator('.presentation-preparation')).toBeVisible()
-
-  // Les quatre onglets partagent le fond et la taille de titre des panneaux de l'entretien.
-  const accueil = cote.locator('.accueil-preparation')
-  const fondPanneau = await accueil.evaluate((el) => getComputedStyle(el).backgroundColor)
-  const tailleTitre = await accueil.locator('.corpus-tete h3').evaluate((el) => getComputedStyle(el).fontSize)
 
   // Onglet Tableau de bord : ses cartes à gauche, la grille à droite.
-  await accueil.getByRole('button', { name: /^Tableau de bord/ }).click()
-  await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
+  // Les onglets partagent le fond et la taille de titre de ce panneau.
   const panneauTableau = cote.locator('.panneau-tableau-bord')
-  await expect(panneauTableau).toHaveCSS('background-color', fondPanneau)
-  await expect(panneauTableau.locator('.corpus-tete h3')).toHaveCSS('font-size', tailleTitre)
+  const fondPanneau = await panneauTableau.evaluate((el) => getComputedStyle(el).backgroundColor)
+  const tailleTitre = await panneauTableau.locator('.corpus-tete h3').evaluate((el) => getComputedStyle(el).fontSize)
   await expect(panneauTableau.locator('.corpus-tete h3')).toHaveText('Tableau de bord')
   await expect(panneauTableau.locator('.carte h3')).toHaveText(['Ajouter une colonne', 'Ajouter une ligne', 'Ajouter un badge'])
   await expect(espace.locator('.principal td.case').first()).toBeVisible()
@@ -204,7 +193,7 @@ test('l’organisation reprend son onglet depuis les autres espaces et conserve 
   }
 })
 
-test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et résultats à droite', async () => {
+test('l’espace d’analyse : onglets à icônes, filtres à gauche et résultats à droite', async () => {
   const app = await lancer(mkdtempSync(join(tmpdir(), 'sonal-espaces-analyse-')))
   const page = await app.firstWindow()
   await entrerCorpus(page)
@@ -224,32 +213,27 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(page.locator('.fil')).not.toContainText('Analyser et interpréter')
   await expect(page.locator('.fil .lien-nav', { hasText: 'Corpus' })).toBeDisabled()
 
-  // Ouverture par défaut : l'Accueil présente les trois outils.
+  // Ouverture par défaut : l'espace s'ouvre directement sur Tri et synthèse.
   const cote = espace.locator('.cote-analyse')
-  const accueil = cote.locator('.accueil-analyse')
-  await expect(espace.locator('[data-tour="ouvrir-accueil-analyse"]')).toHaveAttribute('aria-current', 'page')
-  await expect(accueil).toContainText('Analyse et interprétation')
-  await expect(accueil).toContainText('Tri et synthèse')
-  await expect(accueil).toContainText('Lexico')
-  await expect(accueil).toContainText('Analyses croisées')
-  await expect(espace.locator('.accueil-principal')).toContainText('Choisissez un outil')
+  await expect(espace.locator('[data-tour="ouvrir-accueil-analyse"]')).toHaveCount(0)
 
   // Les onglets sont en haut de l'espace, soulignés, avec icône et libellé comme dans les autres espaces.
-  const ongletAccueil = espace.locator('[data-tour="ouvrir-accueil-analyse"]')
-  await expect(ongletAccueil).toHaveText('Accueil')
-  await expect(ongletAccueil).toHaveCSS('border-bottom-width', '3px')
-  await expect(ongletAccueil.locator('img')).toBeVisible()
+  const ongletSynthese = espace.locator('[data-tour="ouvrir-synthese"]')
+  await expect(ongletSynthese).toHaveText('Tri et synthèse')
+  await expect(ongletSynthese).toHaveCSS('border-bottom-width', '3px')
+  await expect(ongletSynthese.locator('img')).toBeVisible()
   await expect(cote.locator('.onglet')).toHaveCount(0)
-  const fondPanneau = await accueil.evaluate((el) => getComputedStyle(el).backgroundColor)
 
-  // Tri et synthèse : critères à gauche, calcul à droite, sur le fond partagé des panneaux.
-  await accueil.getByRole('button', { name: /^Tri et synthèse/ }).click()
+  // Tri et synthèse : critères à gauche, calcul à droite, sans titre répété.
   const synthese = espace.locator('.cote-synthese')
   const panneauSynthese = espace.locator('.panneau-synthese')
-  await expect(espace.locator('[data-tour="ouvrir-synthese"]')).toHaveAttribute('aria-current', 'page')
+  await expect(ongletSynthese).toHaveAttribute('aria-current', 'page')
   await expect(synthese).toBeVisible()
-  await expect(synthese).toHaveCSS('background-color', fondPanneau)
-  await expect(synthese).toContainText('Comment les choix se combinent')
+  await expect(panneauSynthese.locator('h2')).toHaveCount(0)
+  // Le mode d'emploi des critères s'ouvre par l'icône info.
+  await expect(synthese).not.toContainText('Dans une liste, un passage')
+  await synthese.getByRole('button', { name: 'Comment les choix se combinent' }).click()
+  await expect(synthese).toContainText('Dans une liste, un passage')
   await expect(panneauSynthese).toBeVisible()
   await expect(panneauSynthese).toContainText('Calculer la synthèse')
 
@@ -259,7 +243,7 @@ test('l’espace d’analyse : accueil, onglets à icônes, filtres à gauche et
   await expect(synthese).toBeHidden()
   await expect(espace.locator('.cote-lexico')).toBeVisible()
   await expect(espace.locator('.cote-lexico')).toContainText('Retirer ce filtre')
-  await expect(espace.locator('.panneau-lexico')).toContainText('Index lexical')
+  await expect(espace.locator('.panneau-lexico h2')).toHaveCount(0)
   // Les trois outils ne s'ouvrent plus en fenêtre.
   await expect(page.getByRole('dialog', { name: 'Lexico' })).toHaveCount(0)
 
@@ -302,7 +286,7 @@ test('depuis Lexico, une concordance ouvre l’entretien et l’espace reprend s
 
   // Le retour contextuel retrouve Lexico et son index, sans recalcul.
   await page.getByRole('button', { name: '← Revenir à Lexico', exact: true }).click()
-  await expect(page.locator('.espace-analyse .panneau-lexico')).toContainText('Index lexical')
+  await expect(page.locator('.espace-analyse .panneau-lexico')).toBeVisible()
   await expect(page.locator('[data-tour="ouvrir-lexico"]')).toHaveAttribute('aria-current', 'page')
   await expect(principal.locator('.table-wrap tbody tr').first()).toBeVisible()
   await app.close()

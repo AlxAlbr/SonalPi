@@ -54,6 +54,8 @@ function detailsLocuteur(locuteur: ParticipationLocuteur): string {
 
 const gestionOuverte = ref(false)
 const boutonGestion = ref<HTMLButtonElement | null>(null)
+const aideOuverte = ref(false)
+const raccourcisOuverts = ref(false)
 const boutonFermerGestion = ref<HTMLButtonElement | null>(null)
 watch(ouvertId, () => { emit('update:statistiquesOuvertes', false) })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
@@ -138,42 +140,72 @@ watch(
 
 <template>
   <aside class="panneau locuteurs-coder">
-    <div class="corpus-tete">
-      <div class="actions-locuteurs">
+    <div class="gabarit-entete">
+      <button
+        type="button"
+        class="gabarit-icone"
+        :aria-expanded="aideOuverte"
+        aria-label="Aide sur les locuteurs"
+        title="Aide"
+        @click="aideOuverte = !aideOuverte"
+      ><span class="ico-info" aria-hidden="true"></span></button>
+      <button
+        type="button"
+        class="gabarit-icone"
+        :aria-expanded="raccourcisOuverts"
+        aria-label="Raccourcis clavier de la sélection"
+        title="Raccourcis clavier"
+        @click="raccourcisOuverts = !raccourcisOuverts"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <rect x="2.5" y="6" width="19" height="12" rx="2" />
+          <path d="M6 9.5h.01M9 9.5h.01M12 9.5h.01M15 9.5h.01M18 9.5h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8 15h8" />
+        </svg>
+      </button>
+      <div class="gabarit-actions">
         <button
           ref="boutonGestion"
           v-if="!lectureSeule"
-          class="crayon"
+          type="button"
+          class="gabarit-action"
           title="Modifier les locuteurs"
           aria-label="Modifier les locuteurs"
           @click="ouvrirGestion"
-        >✏️</button>
+        >Modifier</button>
       </div>
+    </div>
+    <div v-if="aideOuverte" class="gabarit-aide">
+      <p>
+        Cliquez sur un locuteur pour l’attribuer au tour de parole courant ou à la sélection.
+        « aucun » retire le locuteur. Modifier ouvre la liste pour changer les noms, couleurs, pseudos et rôles.
+      </p>
+    </div>
+    <div v-if="raccourcisOuverts" class="gabarit-aide">
+      <p>
+        Pour sélectionner un long passage : cliquez au début, puis maintenez <kbd class="touche">⇧ Maj</kbd> et cliquez à la fin.
+        Tout le texte entre les deux est sélectionné. Vous pouvez aussi étendre la sélection au clavier avec <kbd class="touche">⇧ Maj</kbd> + flèches.
+      </p>
     </div>
 
     <p v-if="editionNomsSuspendue && !renommageEnCours" role="alert">Les dernières paroles sont sauvegardées. Rouvrez le corpus avant de modifier à nouveau cet entretien.</p>
     <div class="attribuer">
-      <span class="lbl">Attribuer le bloc courant<br />ou la sélection :</span>
       <div class="boutons-loc">
         <div v-for="l in locuteurs" :key="l.index" class="choix-loc">
           <button
-            class="attr"
+            class="gabarit-ligne attr"
             :aria-label="l.nom"
             :aria-describedby="`details-locuteur-${l.index}`"
             :disabled="editionIndisponible"
             @click="attribuerLoc(l.index)"
           >
-            <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
+            <span class="gabarit-pastille pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
             <span class="libelle-loc">
               <span class="nom-attribution" :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }">{{ l.nom }}</span>
-              <span class="details-attribution">{{ detailsLocuteur(l) }}</span>
+              <span :id="`details-locuteur-${l.index}`" class="details-attribution">{{ detailsLocuteur(l) }}</span>
             </span>
           </button>
-          <span :id="`details-locuteur-${l.index}`" class="infobulle-loc" role="tooltip">
-            {{ l.nom }} — {{ detailsLocuteur(l) }}
-          </span>
         </div>
-        <button class="attr aucun" :disabled="editionIndisponible" @click="attribuerLoc(null)">aucun</button>
+        <button class="gabarit-ligne attr aucun" :disabled="editionIndisponible" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
 
@@ -468,11 +500,6 @@ watch(
 .liste-loc li:hover .x-loc {
   opacity: 1;
 }
-.attribuer {
-  margin-top: 0.6rem;
-  border-top: 1px solid #eee;
-  padding-top: 0.7rem;
-}
 .actions-locuteurs {
   display: flex;
   margin-left: auto;
@@ -502,6 +529,21 @@ watch(
   font-size: 14px;
   font-weight: 600;
   padding: 0.35rem 0;
+}
+/* Touche du clavier, pour montrer la touche à garder enfoncée. */
+.touche {
+  display: inline-block;
+  padding: 0 0.35rem;
+  border: 1px solid #b8c4d6;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f7f9fc;
+  color: #2b3d55;
+  font-family: inherit;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .voile-locuteurs {
   position: fixed;
@@ -574,77 +616,31 @@ watch(
   font-weight: 400;
   color: #595969;
 }
-.infobulle-loc {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  padding: 0.5rem;
-  border: 1px solid #c5c5ce;
-  border-radius: 4px;
-  background: #fff;
-  color: #333;
-  font-size: 14px;
-  overflow-wrap: anywhere;
-  box-shadow: 0 2px 6px #0002;
-}
-.choix-loc:hover .infobulle-loc,
-.choix-loc:focus-within .infobulle-loc {
-  display: block;
-}
 .attr {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  min-width: 0;
-  font-size: 14px;
-  line-height: 1.4;
-  min-height: 3.5rem;
-  overflow-wrap: anywhere;
   font-weight: 600;
-  text-align: left;
-  border: 1px solid #e5e5ef;
-  border-radius: 6px;
-  background: #fff;
-  color: #333;
-  padding: 0.6rem 0.75rem;
-  cursor: pointer;
-}
-.attr:hover {
-  border-color: #2e73d8;
-  background: #f0f6ff;
+  color: #2b3d55;
 }
 .attr:focus-visible {
   outline: 2px solid #2e73d8;
   outline-offset: 1px;
 }
-.pastille-locuteur {
-  align-self: flex-start;
-  margin-top: 0.1em;
-  width: 16px;
-  height: 16px;
-  flex: none;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 50%;
+.attr .nom-attribution {
+  font-size: 0.85rem;
 }
+/* « aucun » n'est pas un locuteur : ligne pointillée, à part. */
 .attr.aucun {
-  color: #777;
+  margin-top: 0.25rem;
+  border-style: dashed;
+  color: #6b7480;
+  font-weight: 600;
 }
 .attr.aucun::before {
-  width: 16px;
-  height: 16px;
+  width: 0.75rem;
+  height: 0.75rem;
   flex: none;
   border: 1px solid #c5c5ce;
   border-radius: 50%;
   content: '';
-}
-.actions-locuteurs .crayon {
-  font-size: 1.2rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
 }
 .modale-locuteurs :deep(button:not(.x-loc):not(.fermer)) {
   font-size: 14px;

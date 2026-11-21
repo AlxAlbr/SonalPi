@@ -6,6 +6,8 @@ import {
   type FormatExport,
   type OptionsExport,
 } from '../../../../shared/export/types'
+import { OPTIONS_IRAMUTEQ_DEFAUT, type OptionsIramuteq } from '../../../../shared/export/iramuteq'
+import { scinderNomDescriptionTheme } from '../../../../shared/corpus/categories'
 import type {
   ApercuRapportPseudonymisationCorpus,
   DemandeLotCorpus,
@@ -18,12 +20,15 @@ const {
   exporterCorpusLot,
   enregistrerExportGuide,
   exporterQualcoderLot,
+  exporterIramuteqLot,
   exportCorpusEnCours: occupe,
   listeCas,
   preparerRapportCorpus,
   enregistrerRapportCorpus,
   listeEntretiens,
   ouvertId,
+  variables: variablesCorpus,
+  codebook,
 } = utiliserSonal()
 
 /** Liste des entretiens du corpus, dans l'ordre de la grille. */
@@ -31,11 +36,19 @@ const entretiens = computed(() => listeEntretiens())
 
 /** Le rapport et le résultat s'affichent à côté des réglages. */
 const etape = ref<'options' | 'rapport' | 'traitement' | 'resume'>('options')
-const modeExport = ref<'lecture' | 'qualcoder'>('lecture')
+const modeExport = ref<'lecture' | 'qualcoder' | 'iramuteq'>('lecture')
 const casSelectionnes = ref<Set<string>>(new Set(listeCas.value.map((cas) => cas.id)))
 
 /** Entretiens cochés (tous par défaut). */
 const selectionnes = ref<Set<string>>(new Set(entretiens.value.map((e) => e.id)))
+/** Filtre d'affichage de la liste, utile pour un corpus avec beaucoup d'entretiens. */
+const filtreEntretiens = ref('')
+const SEUIL_FILTRE = 8
+const entretiensAffiches = computed(() => {
+  const requete = filtreEntretiens.value.trim().toLocaleLowerCase('fr')
+  if (!requete) return entretiens.value
+  return entretiens.value.filter((e) => e.titre.toLocaleLowerCase('fr').includes(requete))
+})
 const tous = computed({
   get: () => entretiens.value.length > 0 && selectionnes.value.size === entretiens.value.length,
   set: (v: boolean) => {
@@ -58,6 +71,71 @@ const options = ref<OptionsExport>({
   anon: true,
 })
 const copierMedias = ref(true)
+// IRaMuTeQ propose par défaut l'encodage du système : Windows-1252 sous Windows.
+const optionsIramuteq = ref<OptionsIramuteq>({
+  ...OPTIONS_IRAMUTEQ_DEFAUT,
+  encodage: window.sonal.platform === 'win32' ? 'windows-1252' : 'utf8',
+})
+
+/** Variables proposées pour IRaMuTeQ : les privées seulement si l'utilisateur le demande. */
+const variablesProposees = computed(() =>
+  variablesCorpus.value
+    .filter((v) => optionsIramuteq.value.variablesPrivees || !v.priv)
+    .sort((a, b) => a.ordre - b.ordre),
+)
+const aDesVariablesPrivees = computed(() => variablesCorpus.value.some((v) => v.priv))
+const aDesSousThemes = computed(() => themesProposes.value.some((t) => t.profondeur > 0))
+/** Thèmes exportables, dans l'ordre de la grille, avec leur niveau dans l'arborescence. */
+const themesProposes = computed(() =>
+  codebook.value
+    .filter((c) => c.codeExport)
+    .map((c) => ({ id: c.id, nom: scinderNomDescriptionTheme(c.nom).nom || c.codeExport, profondeur: profondeurTheme(c.id) })),
+)
+function profondeurTheme(id: string): number {
+  let profondeur = 0
+  let parent = codebook.value.find((c) => c.id === id)?.parent ?? null
+  const vus = new Set<string>()
+  while (parent && !vus.has(parent)) {
+    vus.add(parent)
+    profondeur++
+    parent = codebook.value.find((c) => c.id === parent)?.parent ?? null
+  }
+  return profondeur
+}
+// On retient ce qui est décoché : une variable ou un thème créé ensuite reste inclus.
+const variablesExclues = ref<Set<string>>(new Set())
+const themesExclus = ref<Set<string>>(new Set())
+const variablesIramuteq = computed(() =>
+  variablesProposees.value.filter((v) => !variablesExclues.value.has(v.id)).map((v) => v.id),
+)
+const themesIramuteq = computed(() =>
+  themesProposes.value.filter((t) => !themesExclus.value.has(t.id)).map((t) => t.id),
+)
+const toutesVariables = computed({
+  get: () => variablesProposees.value.length > 0 && variablesIramuteq.value.length === variablesProposees.value.length,
+  set: (v: boolean) => {
+    variablesExclues.value = v ? new Set() : new Set(variablesProposees.value.map((x) => x.id))
+  },
+})
+const tousThemes = computed({
+  get: () => themesProposes.value.length > 0 && themesIramuteq.value.length === themesProposes.value.length,
+  set: (v: boolean) => {
+    themesExclus.value = v ? new Set() : new Set(themesProposes.value.map((x) => x.id))
+  },
+})
+/** Les thèmes ne servent que si le texte est découpé selon eux. */
+const themesUtilesIramuteq = computed(
+  () => optionsIramuteq.value.unite === 'passage' || optionsIramuteq.value.thematiques,
+)
+const aideHeritage = ref(false)
+function basculerExclusion(ensemble: Set<string>, id: string): void {
+  if (ensemble.has(id)) ensemble.delete(id)
+  else ensemble.add(id)
+}
+function pluriel(n: number, mot: string): string {
+  return `${n} ${mot}${n > 1 ? 's' : ''}`
+}
+
 const rapportDemande = ref(false)
 const apercuRapport = ref<ApercuRapportPseudonymisationCorpus | null>(null)
 
@@ -72,6 +150,7 @@ const resultatQualcoder = ref<
   | { etat: 'echec'; message: string }
   | null
 >(null)
+const resultatIramuteq = ref<{ chemin: string; textes: number; vides: string[]; encodage: string } | null>(null)
 
 const message = ref<string | null>(null)
 const messageEstErreur = ref(true)
@@ -79,11 +158,12 @@ const messageEstErreur = ref(true)
 let generationRapport = 0
 
 // Un changement de réglage demande une nouvelle vérification avant l'export.
-watch([selectionnes, modeExport, casSelectionnes, formats, options, copierMedias, rapportDemande], () => {
+watch([selectionnes, modeExport, casSelectionnes, formats, options, copierMedias, rapportDemande, optionsIramuteq, variablesExclues, themesExclus], () => {
   generationRapport += 1
   apercuRapport.value = null
   resultat.value = null
   resultatQualcoder.value = null
+  resultatIramuteq.value = null
   message.value = null
   etape.value = 'options'
 }, { deep: true, flush: 'sync' })
@@ -181,10 +261,44 @@ async function lancerQualcoder(): Promise<void> {
   }
 }
 
+async function lancerIramuteq(): Promise<void> {
+  if (occupe.value || selectionnes.value.size === 0) return
+  occupe.value = true
+  message.value = null
+  messageEstErreur.value = true
+  etape.value = 'traitement'
+  const selection = entretiens.value
+    .filter((e) => selectionnes.value.has(e.id))
+    .map((e) => ({ id: e.id, titre: e.titre, date: e.date }))
+  try {
+    const r = await exporterIramuteqLot(selection, {
+      ...optionsIramuteq.value,
+      variables: variablesIramuteq.value,
+      themes: themesIramuteq.value,
+    })
+    if (r.etat === 'succes') {
+      resultatIramuteq.value = { ...r, encodage: optionsIramuteq.value.encodage === 'windows-1252' ? 'cp1252' : 'utf-8' }
+      etape.value = 'resume'
+      return
+    }
+    if (r.etat === 'echec') message.value = r.message
+    etape.value = 'options'
+  } catch (erreur) {
+    message.value = `L'export IRaMuTeQ a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`
+    etape.value = 'options'
+  } finally {
+    occupe.value = false
+  }
+}
+
 /** Le premier clic prépare l'aperçu demandé, sans lancer l'export final. */
 async function lancerExport(): Promise<void> {
   if (modeExport.value === 'qualcoder') {
     await lancerQualcoder()
+    return
+  }
+  if (modeExport.value === 'iramuteq') {
+    await lancerIramuteq()
     return
   }
   const demande = demandeCourante()
@@ -277,27 +391,11 @@ function demanderArret(): void {
   <section class="export-corpus">
     <aside class="panneau reglages-export" data-tour="reglages-export-guide">
       <div class="corpus-tete"><h3>Exporter le corpus</h3></div>
-      <p class="accueil-intro">Choisissez les entretiens et leur présentation. Vérifiez le récapitulatif à droite avant d’exporter.</p>
+      <p class="accueil-intro">Choisissez le type d’export et ses options. Les entretiens à exporter se cochent à droite.</p>
       <fieldset class="champs-export" :disabled="occupe">
         <div>
-          <h4>Entretiens à exporter</h4>
           <p v-if="entretiens.length === 0" class="vide">Aucun entretien dans le corpus.</p>
           <template v-else>
-            <label class="option tous-option">
-              <input type="checkbox" v-model="tous" />
-              Tous les entretiens ({{ entretiens.length }})
-            </label>
-            <div class="grille-selection">
-              <label v-for="e in entretiens" :key="e.id" class="ligne-entretien">
-                <input
-                  type="checkbox"
-                  :checked="selectionnes.has(e.id)"
-                  @change="selectionnes.has(e.id) ? selectionnes.delete(e.id) : selectionnes.add(e.id)"
-                />
-                <span class="titre">{{ e.titre }}</span>
-                <span v-if="e.date" class="date">{{ e.date }}</span>
-              </label>
-            </div>
             <fieldset class="mode-export">
               <legend>Type d’export</legend>
               <label class="option">
@@ -308,13 +406,90 @@ function demanderArret(): void {
                 <input v-model="modeExport" type="radio" value="qualcoder" />
                 Projet QualCoder (.qda)
               </label>
+              <label class="option">
+                <input v-model="modeExport" type="radio" value="iramuteq" />
+                Corpus pour IRaMuTeQ (.txt)
+              </label>
             </fieldset>
           </template>
         </div>
 
         <div v-if="entretiens.length > 0">
-          <h4>{{ modeExport === 'qualcoder' ? 'Cas à intégrer au projet QualCoder' : 'Formats et éléments à intégrer' }}</h4>
-          <template v-if="modeExport === 'qualcoder'">
+          <h4>{{ modeExport === 'qualcoder' ? 'Cas à intégrer au projet QualCoder' : modeExport === 'iramuteq' ? 'Préparer le corpus IRaMuTeQ' : 'Formats et éléments à intégrer' }}</h4>
+          <template v-if="modeExport === 'iramuteq'">
+            <p class="accueil-intro">
+              Un seul fichier texte, prêt à ouvrir dans IRaMuTeQ.
+              Chaque entretien y est repéré par la variable <code>*ent_…</code>.
+            </p>
+            <fieldset class="mode-export">
+              <legend>Un texte IRaMuTeQ par…</legend>
+              <label class="option">
+                <input v-model="optionsIramuteq.unite" type="radio" value="entretien" />
+                Entretien
+              </label>
+              <label class="option">
+                <input v-model="optionsIramuteq.unite" type="radio" value="tour" />
+                <span>Tour de parole <small>(ajoute la variable <code>*loc_…</code>)</small></span>
+              </label>
+              <label class="option">
+                <input v-model="optionsIramuteq.unite" type="radio" value="passage" />
+                <span>Passage selon les thèmes codés <small>(une variable par thème, par exemple <code>*thville_oui</code>)</small></span>
+              </label>
+            </fieldset>
+            <p v-if="optionsIramuteq.unite === 'passage'" class="avertissement-anon">
+              Le texte est coupé à chaque début et fin de codage : chaque passage porte tous ses thèmes.
+              Le texte non codé est gardé, avec <code>*thaucun_oui</code>.
+            </p>
+            <div class="options">
+              <label class="option">
+                <input v-model="optionsIramuteq.exclureInterviewers" type="checkbox" />
+                Retirer les propos des interviewers
+              </label>
+              <template v-if="optionsIramuteq.unite === 'passage'">
+                <label class="option">
+                  <input v-model="optionsIramuteq.themesAbsents" type="checkbox" />
+                  Indiquer aussi les thèmes absents
+                </label>
+                <p v-if="optionsIramuteq.themesAbsents" class="avertissement-anon">
+                  Chaque texte indique aussi les thèmes qu’il ne porte pas, par exemple <code>*thville_non</code>.
+                  Dans IRaMuTeQ, vous pourrez ainsi comparer les passages sur un thème à tout le reste du corpus
+                  (mots caractéristiques, AFC), ou isoler un sous-corpus « tout sauf ce thème ».
+                  Sans cette option, seuls les thèmes présents sont indiqués.
+                </p>
+              </template>
+              <template v-else>
+                <label class="option">
+                  <input v-model="optionsIramuteq.thematiques" type="checkbox" />
+                  Découper le texte selon les thèmes codés
+                </label>
+                <p v-if="optionsIramuteq.thematiques" class="avertissement-anon">
+                  Un passage codé par plusieurs thèmes est rattaché au premier thème de la grille.
+                  Pour garder tous les thèmes, choisissez un texte par passage.
+                  Les passages sans thème sont regroupés sous <code>-*hors_theme</code>.
+                </p>
+              </template>
+              <label class="option">
+                <input v-model="optionsIramuteq.anon" type="checkbox" />
+                Pseudonymisation
+              </label>
+              <p v-if="optionsIramuteq.anon" class="avertissement-anon">
+                Seuls les pseudonymes configurés sont appliqués. Les titres d’entretiens
+                et les autres éléments restent en clair ; cette opération ne garantit pas l'anonymat.
+              </p>
+            </div>
+            <fieldset class="mode-export">
+              <legend>IRaMuTeQ sera utilisé sous…</legend>
+              <label class="option">
+                <input v-model="optionsIramuteq.encodage" type="radio" value="windows-1252" />
+                Windows
+              </label>
+              <label class="option">
+                <input v-model="optionsIramuteq.encodage" type="radio" value="utf8" />
+                Mac ou Linux
+              </label>
+            </fieldset>
+          </template>
+          <template v-else-if="modeExport === 'qualcoder'">
             <p class="avertissement-anon">
               Le projet QualCoder contiendra les sources sélectionnées, leurs passages,
               les cas choisis et les attributs disponibles. Les règles dynamiques ne
@@ -382,34 +557,147 @@ function demanderArret(): void {
     </aside>
 
     <section class="resultats-export" aria-label="Vérifications et résultat de l’export" :aria-busy="occupe">
-      <div v-if="etape === 'options'" class="corps recapitulatif-export">
-        <h2>Préparer l’export</h2>
-        <p class="etape">{{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }} sélectionné{{ selectionnes.size > 1 ? 's' : '' }} sur {{ entretiens.length }}</p>
-        <template v-if="selectionnes.size > 0">
-          <p v-if="modeExport === 'qualcoder'">Un projet QualCoder (.qda), avec {{ casSelectionnes.size }} cas. Le texte source sera exporté sans pseudonymisation.</p>
-          <template v-else>
-            <h3>Fichiers prévus</h3>
-            <ul><li v-for="format in FORMATS_LOT.filter(f => formats.has(f))" :key="format">{{ libellesFormats[format] }}</li></ul>
-            <p>Un index récapitulatif accompagnera les fichiers.</p>
-            <h3>Éléments à intégrer</h3>
-            <ul><li v-for="option in LIBELLES_OPTIONS.filter(o => o.cle !== 'anon' && options[o.cle])" :key="option.cle">{{ option.label }}</li></ul>
-            <p v-if="copierMediasVisible && copierMedias">Les médias accessibles seront copiés avec les pages HTML.</p>
-            <p v-if="options.anon" class="avertissement-anon">Les pseudonymes configurés seront appliqués. Vérifiez les informations restantes avant de partager les fichiers.</p>
+      <!-- Choix des entretiens : la liste occupe la place, le lancement reste en bas. -->
+      <div v-if="etape === 'options'" class="corps choix-entretiens">
+        <div class="entete-choix">
+          <h2>Entretiens à exporter</h2>
+          <span class="compte">{{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }} sélectionné{{ selectionnes.size > 1 ? 's' : '' }} sur {{ entretiens.length }}</span>
+        </div>
+        <p v-if="entretiens.length === 0" class="vide">Aucun entretien dans le corpus.</p>
+        <fieldset v-else class="liste-entretiens" :disabled="occupe">
+          <div class="outils-liste">
+            <label class="option tous-option">
+              <input type="checkbox" v-model="tous" />
+              Tous les entretiens ({{ entretiens.length }})
+            </label>
+            <input
+              v-if="entretiens.length > SEUIL_FILTRE"
+              v-model="filtreEntretiens"
+              type="search"
+              class="filtre-entretiens"
+              placeholder="Filtrer par titre…"
+              aria-label="Filtrer les entretiens par titre"
+            />
+          </div>
+          <div class="grille-selection">
+            <label v-for="e in entretiensAffiches" :key="e.id" class="ligne-entretien">
+              <input
+                type="checkbox"
+                :checked="selectionnes.has(e.id)"
+                @change="selectionnes.has(e.id) ? selectionnes.delete(e.id) : selectionnes.add(e.id)"
+              />
+              <span class="titre" :title="e.titre">{{ e.titre }}</span>
+              <span v-if="e.date" class="date">{{ e.date }}</span>
+            </label>
+            <p v-if="entretiensAffiches.length === 0" class="vide">Aucun entretien ne correspond à ce filtre.</p>
+          </div>
+        </fieldset>
+        <div v-if="modeExport === 'iramuteq'" class="choix-iramuteq">
+          <fieldset class="liste-complementaire" :disabled="occupe">
+            <legend>Variables à ajouter</legend>
+            <p v-if="variablesProposees.length === 0" class="vide">
+              {{ optionsIramuteq.variablesPrivees ? 'Aucune variable dans ce corpus.' : 'Aucune variable publique dans ce corpus.' }}
+            </p>
+            <template v-else>
+              <label class="option tous-option">
+                <input v-model="toutesVariables" type="checkbox" />
+                Toutes les variables ({{ variablesProposees.length }})
+              </label>
+              <div class="grille-selection">
+                <label v-for="v in variablesProposees" :key="v.id" class="ligne-entretien">
+                  <input
+                    type="checkbox"
+                    :checked="!variablesExclues.has(v.id)"
+                    @change="basculerExclusion(variablesExclues, v.id)"
+                  />
+                  <span class="titre" :title="v.lib">{{ v.lib }}</span>
+                  <span class="date">{{ v.portee === 'participation' ? 'locuteur' : 'entretien' }}{{ v.priv ? ' · privée' : '' }}</span>
+                </label>
+              </div>
+            </template>
+            <label v-if="aDesVariablesPrivees" class="option">
+              <input v-model="optionsIramuteq.variablesPrivees" type="checkbox" />
+              Proposer aussi les variables privées
+            </label>
+            <p v-if="optionsIramuteq.variablesPrivees" class="avertissement-anon">
+              Les variables privées peuvent permettre de reconnaître les personnes interrogées.
+              Vérifiez le fichier avant de le partager.
+            </p>
+          </fieldset>
+          <fieldset v-if="themesUtilesIramuteq" class="liste-complementaire" :disabled="occupe">
+            <legend>Thèmes à prendre en compte</legend>
+            <p v-if="themesProposes.length === 0" class="vide">Aucun thème dans ce corpus.</p>
+            <template v-else>
+              <label class="option tous-option">
+                <input v-model="tousThemes" type="checkbox" />
+                Tous les thèmes ({{ themesProposes.length }})
+              </label>
+              <div class="grille-themes">
+                <label
+                  v-for="t in themesProposes"
+                  :key="t.id"
+                  class="ligne-entretien"
+                  :style="{ paddingLeft: `${t.profondeur * 1.2}rem` }"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="!themesExclus.has(t.id)"
+                    @change="basculerExclusion(themesExclus, t.id)"
+                  />
+                  <span class="titre" :title="t.nom">{{ t.nom }}</span>
+                </label>
+              </div>
+            </template>
+            <div v-if="aDesSousThemes" class="option-avec-aide">
+              <label class="option">
+                <input v-model="optionsIramuteq.heriterParents" type="checkbox" />
+                Compter les sous-thèmes dans leur thème parent
+              </label>
+              <button
+                type="button"
+                class="bouton-aide"
+                :aria-expanded="aideHeritage"
+                aria-label="Aide : compter les sous-thèmes dans leur thème parent"
+                title="Aide"
+                @click="aideHeritage = !aideHeritage"
+              ><span class="ico-info" aria-hidden="true"></span></button>
+            </div>
+            <div v-if="aDesSousThemes && aideHeritage" class="aide-option">
+              <p>
+                Exemple : « Ville » est un sous-thème de « Lieu de vie ».
+                Avec cette option, un passage codé « Ville » compte aussi pour « Lieu de vie »,
+                même s’il n’a pas été codé « Lieu de vie ».
+              </p>
+              <p>
+                Un sous-thème décoché est ignoré : si vous décochez « Ville »,
+                ses passages ne comptent pas non plus pour « Lieu de vie ».
+              </p>
+              <p>
+                L’inverse ne se produit pas : un passage codé « Lieu de vie » ne compte jamais pour « Ville ».
+              </p>
+            </div>
+            <p class="destination-export">
+              Un passage codé seulement par des thèmes décochés est exporté comme non codé.
+            </p>
+          </fieldset>
+        </div>
+        <div class="pied-export">
+          <p v-if="entretiens.length > 0 && selectionnes.size === 0" class="vide">Cochez au moins un entretien.</p>
+          <template v-else-if="selectionnes.size > 0">
+            <p v-if="modeExport === 'iramuteq'" class="avertissement-anon">
+              Un fichier IRaMuTeQ avec {{ pluriel(variablesIramuteq.length, 'variable') }}<template v-if="themesUtilesIramuteq"> et {{ pluriel(themesIramuteq.length, 'thème') }}</template>{{ optionsIramuteq.anon ? ', avec les pseudonymes configurés' : ', sans pseudonymisation' }}.
+            </p>
+            <p v-else-if="modeExport === 'qualcoder'" class="avertissement-anon">Un projet QualCoder (.qda), avec {{ casSelectionnes.size }} cas. Le texte source sera exporté sans pseudonymisation.</p>
+            <p v-else-if="options.anon" class="avertissement-anon">Les pseudonymes configurés seront appliqués. Vérifiez les informations restantes avant de partager les fichiers.</p>
             <p v-else class="avertissement-anon">Les transcriptions seront exportées sans pseudonymisation.</p>
-            <p v-if="options.anon && rapportDemande">Le rapport s’affichera ici pour vérification avant de lancer l’export.</p>
           </template>
-          <details class="entretiens-recap">
-            <summary>Voir les entretiens sélectionnés</summary>
-            <ul><li v-for="e in entretiens.filter(e => selectionnes.has(e.id))" :key="e.id">{{ e.titre }}</li></ul>
-          </details>
-        </template>
-        <p v-else class="vide">Cochez au moins un entretien dans le panneau de gauche.</p>
-        <p class="destination-export">Le dossier de destination vous sera demandé au lancement. Les entretiens du corpus ne seront pas modifiés.</p>
-        <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
-        <div class="actions">
-          <button class="exporter" :disabled="occupe || selectionnes.size === 0" @click="lancerExport">
-            {{ occupe ? 'Préparation…' : options.anon && rapportDemande && modeExport === 'lecture' ? 'Vérifier le rapport avant l’export' : `Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
-          </button>
+          <p class="destination-export">{{ modeExport === 'iramuteq' ? 'L’emplacement du fichier' : 'Le dossier de destination' }} vous sera demandé au lancement. Les entretiens du corpus ne seront pas modifiés.</p>
+          <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
+          <div class="actions">
+            <button class="exporter" :disabled="occupe || selectionnes.size === 0" @click="lancerExport">
+              {{ occupe ? 'Préparation…' : options.anon && rapportDemande && modeExport === 'lecture' ? 'Vérifier le rapport avant l’export' : `Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -471,6 +759,24 @@ function demanderArret(): void {
           <div v-if="modeExport === 'lecture'" class="actions">
             <button v-if="!arretDemande" class="annuler" @click="demanderArret">Annuler après l'entretien courant</button>
             <button v-else class="annuler" disabled>⏳ Arrêt en cours…</button>
+          </div>
+        </div>
+
+        <!-- Bilan du fichier IRaMuTeQ. -->
+        <div v-else-if="etape === 'resume' && resultatIramuteq" class="corps" aria-live="polite">
+          <p class="etape">Fichier IRaMuTeQ créé ✅</p>
+          <p class="dossier">Fichier : <code>{{ resultatIramuteq.chemin }}</code></p>
+          <p>{{ resultatIramuteq.textes }} texte{{ resultatIramuteq.textes > 1 ? 's' : '' }} IRaMuTeQ produit{{ resultatIramuteq.textes > 1 ? 's' : '' }}.</p>
+          <div v-if="resultatIramuteq.vides.length > 0" class="avertissement-anon">
+            <b>Entretiens sans texte retenu :</b>
+            <div v-for="titre in resultatIramuteq.vides" :key="titre">{{ titre }}</div>
+          </div>
+          <p class="destination-export">
+            Dans IRaMuTeQ : Fichier → Ouvrir un corpus, puis vérifiez que l’encodage indiqué est
+            <b>{{ resultatIramuteq.encodage }}</b>. Sinon, les accents s’afficheraient mal.
+          </p>
+          <div class="actions">
+            <button class="retour" @click="revenirAuxOptions">Préparer un autre export</button>
           </div>
         </div>
 
@@ -545,31 +851,50 @@ h4 { margin: 1rem 0 .5rem; font-size: .85rem; }
 .resultats-export { border: 1px solid #ddd; border-radius: 8px; background: #fff; }
 h2 { margin: 0; font-size: 1.1rem; }
 .corps { padding: 1rem 1.2rem; }
-.recapitulatif-export { max-width: 52rem; line-height: 1.45; }
-.recapitulatif-export h3 { font-size: .95rem; }
-.entretiens-recap { margin-top: 1rem; }
-.entretiens-recap summary { cursor: pointer; }
-.destination-export { color: #666; font-size: .85rem; }
+.choix-entretiens { display: flex; flex-direction: column; gap: .6rem; height: 100%; box-sizing: border-box; line-height: 1.45; }
+.entete-choix { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.compte { color: #555; font-size: .9rem; }
+.liste-entretiens { display: flex; flex-direction: column; gap: .4rem; flex: 1; min-height: 8rem; min-width: 0; border: 0; padding: 0; margin: 0; }
+.outils-liste { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid #ddd; padding-bottom: .4rem; }
+.outils-liste .tous-option { border: 0; padding: 0; margin: 0; font-weight: 600; }
+.filtre-entretiens { width: min(18rem, 100%); padding: .3rem .5rem; border: 1px solid #c9d0da; border-radius: 5px; font: inherit; font-size: .85rem; }
+.pied-export { flex: none; border-top: 1px solid #eee; padding-top: .4rem; }
+.pied-export .actions { margin-top: .6rem; }
+.destination-export { color: #666; font-size: .85rem; margin: .4rem 0 0; }
 @media (max-width: 780px) {
   .export-corpus { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .choix-entretiens { height: auto; }
+  .grille-selection { max-height: 50vh; }
   .reglages-export, .resultats-export { overflow: visible; }
 }
 .etape { font-size: .95rem; margin: 1rem 0 .8rem; color: #333; }
 .vide { color: #777; }
 .grille-selection {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: .15rem 1rem;
-  max-height: 28vh;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  align-content: start;
+  gap: .15rem 1.2rem;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: .5rem;
+  padding: .2rem 0;
   box-sizing: border-box;
 }
+.grille-selection .vide { grid-column: 1 / -1; margin: .3rem 0; }
 .ligne-entretien { display: flex; align-items: baseline; gap: .5rem; padding: .2rem 0; cursor: pointer; }
 .ligne-entretien .titre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ligne-entretien .date { color: #999; font-size: .8rem; }
+.choix-iramuteq { display: flex; flex-direction: column; gap: .6rem; flex: none; }
+.liste-complementaire { border: 1px solid #ddd; border-radius: 5px; padding: .4rem .8rem .5rem; margin: 0; min-width: 0; }
+.liste-complementaire legend { padding: 0 .3rem; font-weight: 600; }
+.liste-complementaire .grille-selection { max-height: 9rem; }
+.grille-themes { max-height: 12rem; overflow-y: auto; padding: .2rem 0; }
+.option-avec-aide { display: flex; align-items: center; gap: .3rem; }
+.bouton-aide { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem; padding: 0; border: 1px solid transparent; border-radius: 50%; background: none; color: #55708f; cursor: pointer; font-size: .95rem; }
+.bouton-aide:hover, .bouton-aide[aria-expanded='true'] { border-color: #2e73d8; color: #2e73d8; }
+.aide-option { margin: .2rem 0 .3rem; padding: .5rem .7rem; border-radius: 5px; background: #eef4fc; color: #24456b; border: 1px solid #c9daf2; font-size: .85rem; }
+.aide-option p { margin: 0; }
+.aide-option p + p { margin-top: .35rem; }
 .tous-option { border-bottom: 1px solid #ddd; padding-bottom: .5rem; margin-bottom: .5rem; }
 .mode-export { border: 1px solid #ddd; border-radius: 5px; padding: .5rem .7rem; margin: .8rem 0 0; }
 .mode-export legend { padding: 0 .3rem; font-weight: 600; }

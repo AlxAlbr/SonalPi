@@ -9,6 +9,7 @@ const {
   selectionPassage,
   commenterPlage,
   allerAuCommentaire,
+  editerCommentaire,
 } = utiliserSonal()
 
 // Sans sélection, le clic se contente d'afficher un hint (l'aide permanente
@@ -27,6 +28,7 @@ function commenterSelection() {
 // Recherche dans les commentaires (auteur ou texte) : le bouton déplie un champ,
 // le filtre s'applique à la volée sur la liste.
 const rechercheOuverte = ref(false)
+const aideOuverte = ref(false)
 const recherche = ref('')
 const champRecherche = ref<HTMLInputElement | null>(null)
 const commentairesFiltres = computed(() => {
@@ -44,14 +46,38 @@ function basculerRecherche() {
 
 <template>
   <aside class="panneau commentaires" aria-label="Commentaires">
-    <div class="corpus-tete">
+    <div class="gabarit-entete">
       <button
         type="button"
-        class="bouton-recherche"
-        :class="{ actif: rechercheOuverte }"
-        :aria-expanded="rechercheOuverte"
-        @click="basculerRecherche"
-      >🔍 Rechercher</button>
+        class="gabarit-icone"
+        :aria-expanded="aideOuverte"
+        aria-label="Aide sur les commentaires"
+        title="Aide"
+        @click="aideOuverte = !aideOuverte"
+      ><span class="ico-info" aria-hidden="true"></span></button>
+      <div class="gabarit-actions">
+        <button
+          type="button"
+          class="gabarit-icone"
+          :aria-expanded="rechercheOuverte"
+          aria-label="Rechercher dans les commentaires"
+          title="Rechercher dans les commentaires"
+          @click="basculerRecherche"
+        >🔍</button>
+        <button
+          type="button"
+          class="gabarit-action"
+          :disabled="lectureSeule"
+          @mousedown.prevent
+          @click="commenterSelection"
+        >+ Commentaire</button>
+      </div>
+    </div>
+    <div v-if="aideOuverte" class="gabarit-aide">
+      <p>
+        Sélectionnez un passage du texte, puis cliquez sur « + Commentaire » pour y écrire une remarque.
+        Cliquez sur un commentaire de la liste pour le modifier ; le passage est aussi retrouvé dans le texte.
+      </p>
     </div>
     <div v-if="rechercheOuverte" class="recherche-commentaires">
       <input
@@ -63,27 +89,22 @@ function basculerRecherche() {
         @keydown.esc.prevent="basculerRecherche"
       />
     </div>
-    <p v-if="hintCommentaire" class="hint-commentaire">{{ hintCommentaire }}</p>
-    <button
-      type="button"
-      class="ajouter-commentaire"
-      :disabled="lectureSeule"
-      @mousedown.prevent
-      @click="commenterSelection"
-    >Commentaire</button>
-    <p v-if="commentairesFiltres.length === 0" class="vide">
+    <p v-if="hintCommentaire" class="gabarit-indication">{{ hintCommentaire }}</p>
+    <p v-if="commentairesFiltres.length === 0" class="gabarit-vide">
       {{ rechercheOuverte && recherche.trim() ? 'Aucun commentaire ne correspond à la recherche.' : 'Aucun commentaire pour le moment.' }}
     </p>
-    <ul v-else class="liste-commentaires">
+    <ul v-else class="gabarit-liste">
       <li v-for="commentaire in commentairesFiltres" :key="commentaire.id">
         <button
           type="button"
-          class="aller-commentaire"
-          title="Retrouver ce commentaire dans le texte"
-          @click="allerAuCommentaire(commentaire.id)"
+          class="gabarit-ligne aller-commentaire"
+          :title="lectureSeule ? 'Aller à ce commentaire' : 'Modifier ce commentaire'"
+          @click="allerAuCommentaire(commentaire.id); !lectureSeule && editerCommentaire(commentaire.id)"
         >
-          <span class="auteur-commentaire">{{ commentaire.auteur || 'Sans auteur' }}</span>
-          <span class="texte-commentaire">{{ commentaire.texte }}</span>
+          <span class="gabarit-ligne-texte">
+            <span class="gabarit-ligne-titre">{{ commentaire.auteur || 'Sans auteur' }}</span>
+            <span class="gabarit-ligne-detail texte-commentaire">{{ commentaire.texte }}</span>
+          </span>
         </button>
       </li>
     </ul>
@@ -91,19 +112,6 @@ function basculerRecherche() {
 </template>
 
 <style scoped>
-.bouton-recherche {
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 0.3rem 0.6rem;
-  background: #fff;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.bouton-recherche.actif {
-  background: #e8f0fb;
-  border-color: #1565c0;
-}
 .recherche-commentaires {
   margin-bottom: 0.5rem;
 }
@@ -116,65 +124,9 @@ function basculerRecherche() {
   border: 1px solid #ccc;
   border-radius: 5px;
 }
-.hint-commentaire {
-  background: #fff3e0;
-  color: #b06e0f;
-  border: 1px solid #e0a03a;
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
-  margin: 0.3rem 0;
-}
-.ajouter-commentaire {
-  border: 1px solid #1565c0;
-  border-radius: 6px;
-  padding: 0.4rem 0.7rem;
-  background: #fff;
-  color: #1565c0;
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.ajouter-commentaire:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.liste-commentaires {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0 0;
-}
-.aller-commentaire {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  width: 100%;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 0.65rem;
-  background: #fff;
-  text-align: left;
-  font: inherit;
-  font-size: 0.85rem;
-  color: #333;
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-.aller-commentaire:hover {
-  background: #f2f7ff;
-  border-color: #1565c0;
-}
-.aller-commentaire:focus-visible,
-.ajouter-commentaire:focus-visible {
+.aller-commentaire:focus-visible {
   outline: 2px solid #1565c0;
   outline-offset: 2px;
-}
-.auteur-commentaire {
-  font-weight: 600;
-  color: #555;
 }
 .texte-commentaire {
   white-space: pre-wrap;

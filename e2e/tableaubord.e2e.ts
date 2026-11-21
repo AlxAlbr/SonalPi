@@ -15,7 +15,7 @@ test('poser un badge sur une case vide, puis le changer', async () => {
 
   await ouvrirPreparation(page)
   await expect(page.locator('.espace-preparation')).toBeVisible({ timeout: 20_000 })
-  await expect(page.locator('.aide-tableau')).toContainText('Clique sur une cellule pour éditer son contenu.')
+  await expect(page.locator('.aide-tableau')).toHaveCount(0)
   const cases = page.locator('.tableau-bord td.case')
 
   // Case vide → « OK ».

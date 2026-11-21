@@ -21,19 +21,18 @@ Les sous-espaces et panneaux conservent leurs réglages en session. Le changemen
 de corpus réinitialise les espaces et invalide les réponses asynchrones de
 l’ancien contexte. Voir [ouverture des corpus](accueil/ouverture.md).
 
-## Accueil de Préparer et suivre
+## Premiers onglets de Préparer et suivre et d’Analyser et interpréter
 
-L’onglet Accueil présente une introduction et le lien vers le kit pédagogique,
-pas la grille du tableau de bord. La grille reste montée mais masquée ; elle devient
-visible uniquement dans l’onglet Tableau de bord, sans perdre ses brouillons.
-Les commandes d’outils restent dans le panneau de gauche.
+Ces deux espaces n’ont pas d’onglet Accueil : ils s’ouvrent sur leur premier outil,
+le Tableau de bord et Tri et synthèse. Les panneaux restent montés mais masqués
+quand on change d’onglet, sans perdre leurs brouillons ni leurs résultats.
+Les explications d’usage sont repliées derrière une icône info (`BoutonInfo.vue`).
 
-Le kit s’ouvre dans le navigateur du poste via `application.ouvrirKitPedagogique`.
-Son adresse est fixée par `shared/ressourcesPedagogiques.ts` ; le renderer ne transmet
-pas d’URL à ouvrir. Les protections de navigation de la fenêtre restent inchangées.
-Ce lien externe demande un accès Internet, contrairement au guide HTML embarqué.
+Une navigation enregistrée avant ce changement peut encore pointer vers l’ancien
+onglet Accueil. Le processus principal la convertit à la lecture des réglages vers
+le premier outil de l’espace, pour ne pas relancer l’aiguillage de première ouverture.
 
-Tests : `test/documentation.test.ts`, `e2e/accueil-preparation.e2e.ts`,
+Tests : `test/espacesTravail.test.ts`, `e2e/preparation-tableau-bord.e2e.ts`,
 `e2e/espaces.e2e.ts` et `e2e/espaces-contexte.e2e.ts`.
 
 ## Aiguillage à la première ouverture

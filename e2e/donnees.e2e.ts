@@ -11,6 +11,7 @@ import {
   retourCorpus,
   ouvrirEditionVariables,
   fermerEditionVariables,
+  ouvrirFormulaireNoteDansPanneau,
 } from './util'
 
 /**
@@ -43,7 +44,7 @@ async function creerVariable(
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
 async function ongletDonnees(page: Page) {
-  const bouton = page.locator('.volet-notes [data-onglet="donnees"]')
+  const bouton = page.locator('.outils-editeur [data-onglet="donnees"]')
   if (await bouton.getAttribute('aria-expanded') !== 'true') await bouton.click()
   await expect(page.locator('.volet-notes .panneau.donnees')).toBeVisible()
 }
@@ -58,14 +59,15 @@ test('Notes et Données partagent le volet droit et se replient au second clic',
     await entrerEntretien(page)
 
     const volet = page.locator('.volet-notes')
-    const notes = volet.locator('[data-onglet="notes"]')
-    const donnees = volet.locator('[data-onglet="donnees"]')
+    const notes = page.locator('.outils-editeur [data-onglet="notes"]')
+    const donnees = page.locator('.outils-editeur [data-onglet="donnees"]')
     const panneauNotes = volet.locator('.panneau.notes')
     const panneauDonnees = volet.locator('.panneau.donnees')
     const titreNote = panneauNotes.locator('.champ-titre-note input')
     await expect(page.locator('.colonne-gauche [data-onglet="donnees"]')).toHaveCount(0)
 
     await notes.click()
+    await ouvrirFormulaireNoteDansPanneau(page)
     await titreNote.fill('Brouillon conservé')
     await donnees.click()
     await expect(donnees).toHaveAttribute('aria-expanded', 'true')
@@ -280,11 +282,11 @@ test('sous-onglets « Locuteur » / « Entretien » : le crayon ouvre l’éditi
 
   // Corpus sans variables : « Locuteur » est actif par défaut.
   await expect(panneau.locator('.sous-onglet-bouton.actif')).toHaveText('Locuteur')
-  await expect(panneau.locator('.vide')).toHaveText('Aucune variable de locuteur — ✏️ pour en créer.')
+  await expect(panneau.locator('.gabarit-vide')).toHaveText('Aucune variable de locuteur pour le moment. Cliquez sur « Modifier » pour en créer.')
 
   // Le crayon ouvre l’édition SANS créer rien d’emblée, bornée à la portée
   // affichée : seul « + var. de locuteur » est proposé.
-  await panneau.locator('.crayon').click()
+  await panneau.locator('.nouvelle-var').click()
   await expect(page.locator('.modale-vars')).toBeVisible()
   await expect(page.locator('.modale-vars .liste-var > li')).toHaveCount(0)
   await expect(page.locator('.modale-vars .corpus-tete .mini', { hasText: '+ var. de locuteur' })).toHaveCount(1)
@@ -304,6 +306,6 @@ test('sous-onglets « Locuteur » / « Entretien » : le crayon ouvre l’éditi
   await panneau.locator('.sous-onglet-bouton', { hasText: 'Entretien' }).click()
   await expect(panneau.locator('.sous-onglet-bouton.actif')).toHaveText('Entretien')
   await expect(panneau.locator('.fiche-loc')).toHaveCount(0)
-  await expect(panneau.locator('.vide')).toHaveText('Aucune variable d’entretien — ✏️ pour en créer.')
+  await expect(panneau.locator('.gabarit-vide')).toHaveText('Aucune variable d’entretien pour le moment. Cliquez sur « Modifier » pour en créer.')
   await app.close()
 })

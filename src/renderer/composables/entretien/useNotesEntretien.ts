@@ -167,12 +167,14 @@ export function useNotesEntretien(deps: {
     validerBrouillonNote(brouillonEditionNote.value)
   }
 
+  /** « Annuler » dans la fenêtre : la note en cours est abandonnée (création ou modification). */
   function annulerNote() {
-    // Une note NEUVE venue du formulaire en ligne (agrandie) y revient :
-    // annuler la fenêtre ne perd pas la saisie en cours.
-    const brouillon = brouillonEditionNote.value
-    if (brouillon && !brouillon.id) brouillonNote.value = brouillon
     brouillonEditionNote.value = null
+  }
+
+  /** « Annuler » dans le panneau : le formulaire en ligne est fermé, la saisie abandonnée. */
+  function fermerNotePanneau() {
+    brouillonNote.value = null
   }
 
   /** Fait passer la note en cours de rédaction du formulaire en ligne à la
@@ -181,6 +183,13 @@ export function useNotesEntretien(deps: {
     if (!brouillonNote.value) return
     brouillonEditionNote.value = brouillonNote.value
     brouillonNote.value = null
+  }
+
+  /** Fait revenir la note en cours d'édition dans le formulaire du panneau (la saisie est conservée). */
+  function reduireNote() {
+    if (!brouillonEditionNote.value) return
+    brouillonNote.value = brouillonEditionNote.value
+    brouillonEditionNote.value = null
   }
 
   function ecrireCorpsNote(id: string, htmlBrut: string) {
@@ -404,6 +413,8 @@ export function useNotesEntretien(deps: {
     validerEditionNote,
     annulerNote,
     agrandirNote,
+    reduireNote,
+    fermerNotePanneau,
     ecrireCorpsNote,
     ecrireTitreNote,
     enregistrerSyncZoneHorsModale,

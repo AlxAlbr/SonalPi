@@ -2,11 +2,11 @@
 export type NavigationProjet =
   | {
       vue: 'preparer'
-      onglet: 'accueil' | 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
+      onglet: 'tableau-bord' | 'docs-cadre' | 'documents-exemples'
     }
   | {
       vue: 'analyser'
-      onglet: 'accueil' | 'synthese' | 'lexico' | 'analyses-croisees'
+      onglet: 'synthese' | 'lexico' | 'analyses-croisees'
       panneauVisible: boolean
     }
   | {
@@ -15,7 +15,7 @@ export type NavigationProjet =
     }
   | {
       vue: 'corpus'
-      onglet: 'accueil' | 'themes' | "locuteurs" | 'notes' | 'donnees' | 'anon'
+      onglet: 'accueil' | 'themes' | 'locuteurs' | 'notes' | 'commentaires' | 'donnees' | 'anon'
     }
 
 /** La clé désigne le projet local ou distant dans les réglages de ce profil. */

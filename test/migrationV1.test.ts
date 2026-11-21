@@ -3,10 +3,10 @@ import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
   renameSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
-import { basename, join, sep } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { MigrationV1, proposerDestinationMigration } from '../src/main/migrationV1'
-import { CorpusStore } from '../src/main/corpusStore'
+import { CorpusStore, normaliserCheminAudio } from '../src/main/corpusStore'
 import { lireFichierCorpus } from '../src/main/ouvertureFichier'
 import iconv from 'iconv-lite'
 import { executerTransitionPreparee } from '../src/main/transitionContexte'
@@ -133,15 +133,36 @@ describe('migration V1 dans une cible non active', () => {
     expect(job.terminer()).toBeNull()
   })
 
-  test.each(['entretien', 'interne', 'externe'])('bloque un fichier référencé manquant : %s', (cas) => {
+  test('bloque une transcription référencée manquante', () => {
     const b = banc()
-    if (cas === 'entretien') b.raw.tabEnt[0].rtrPath = 'absent.sonal'
-    else b.raw.tabEnt[cas === 'interne' ? 0 : 1].audioPath = join(b.base, 'absent.wav')
+    b.raw.tabEnt[0].rtrPath = 'absent.sonal'
     b.ecrire()
     expect(() => new MigrationV1(b.req)).toThrow(/Fichiers référencés manquants ou illisibles/)
     expect(existsSync(b.req.dossier)).toBe(false)
     expect(existsSync(b.cheminCrp)).toBe(true)
     expect(temporaires(b.base)).toEqual([])
+  })
+
+  test.each([
+    ['interne', (b: ReturnType<typeof banc>) => join(b.source, 'absent.wav')],
+    ['externe', (b: ReturnType<typeof banc>) => join(b.base, 'absent.wav')],
+    ['d’un autre poste', () => 'C:\\Users\\autre\\Desktop\\audio\\absent.mp3'],
+  ])('garde l’ancien chemin d’un média introuvable : %s', async (_cas, chemin) => {
+    const b = banc()
+    const absent = chemin(b)
+    b.raw.tabEnt[0].audioPath = absent
+    b.ecrire()
+    const job = new MigrationV1(b.req)
+    await preparer(job)
+    const store = publier(job)
+    const ids = Object.keys(store.ouvrir().membership)
+    const e = store.lireEntretien(ids[0])
+    if (!e.ok) throw new Error('absent')
+    expect(e.data.meta.audioRef).toBe(resolve(b.source, normaliserCheminAudio(absent)))
+    expect(store.verifierAudios()[ids[0]]).toBe('manquant')
+    expect(store.verifierAudios()[ids[1]]).toBe('ok')
+    expect(existsSync(join(b.req.dossier, 'medias'))).toBe(false)
+    expect(job.terminer()).toBeNull()
   })
 
   test.each([null, [], { rtrPath: 42 }, { audioPath: 42 }])('une référence malformée ne devient pas un entretien vide : %j', (entree) => {

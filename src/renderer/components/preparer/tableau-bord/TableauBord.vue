@@ -10,6 +10,7 @@ import {
   type LigneTableau,
 } from '../../../../shared/corpus/tableaubord'
 import { texteLisible } from './tableauBordAffichage'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 
 // Grille du tableau de bord (panneau droit). Les badges, lignes et colonnes se
 // créent dans le panneau gauche (PanneauTableauBord.vue).
@@ -28,8 +29,8 @@ const {
 
 const editable = computed(() => !lectureSeule.value)
 
-/** L'aide sous le tableau reste ouverte par défaut ; un clic sur son titre la replie. */
-const aideOuverte = ref(true)
+/** Le message sur l'usage du tableau reste replié derrière l'icône info. */
+const aideOuverte = ref(false)
 
 /* Largeurs de colonnes et hauteurs de lignes : réglages d'affichage du poste.
  *  Ils sont conservés entre deux sessions et partagés par les corpus. */
@@ -321,17 +322,20 @@ function afficherDate(iso: string): string {
 <template>
   <div class="tableau-bord">
     <p v-if="messageTableau" class="message-tableau">{{ messageTableau }}</p>
-    <div class="aide-tableau" :class="{ ouvert: aideOuverte }">
-      <button class="aide-titre" @click="aideOuverte = !aideOuverte">
-        <span>ℹ️ Comment remplir le tableau ?</span>
-        <span class="aide-bascule">{{ aideOuverte ? '▾' : '▸' }}</span>
-      </button>
-      <div v-if="aideOuverte" class="aide-texte">
-        <p>Clique sur une cellule pour éditer son contenu.</p>
-        <p>Les notes apparaissent au survol de la case avec la souris.</p>
-        <p>Les intitulés des lignes et des colonnes sont modifiables (Alt+Entrée pour un retour à la ligne).</p>
-        <p>Fais glisser le bord droit d'une colonne ou le bord bas d'une ligne pour ajuster sa taille ; double-clique pour revenir au défaut.</p>
-      </div>
+    <div class="entete-tableau">
+      <BoutonInfo v-model="aideOuverte" libelle="À propos du tableau de bord" />
+    </div>
+    <div v-if="aideOuverte" class="gabarit-aide aide-tableau">
+      <p>Le tableau de bord ainsi que la répartition en espaces de travail
+        (« Préparer et suivre », « Importer et traiter », « Analyser et interpréter », « Organiser et exporter »)
+        peuvent conduire à une organisation linéaire et séquentielle.
+        En grossissant le trait, on attend d'avoir fini de cocher une case avant de commencer la suivante.</p>
+      <p>Or, c'est loin d'être la recommandation et le mode de fonctionnement des concepteurs de ce logiciel.
+        Nous pensons au contraire que <strong>des réalisations d'actions en parallèle (avec parfois des retours en arrière) ont beaucoup d'intérêt en analyse qualitative</strong>.
+        Il arrive qu'après de premiers entretiens exploratoires, on se rende compte qu'il faille changer la problématique.
+        Sur un autre plan, il est inutile d'attendre la fin de tous les entretiens pour commencer à faire des premières analyses…
+        Bref, ne vous enfermez pas dans une approche trop séquentielle du fait de l'interface.</p>
+      <p><strong>Bonnes explorations et utilisations !</strong></p>
     </div>
     <div v-if="tableaubord" class="conteneur">
       <table class="grille" :style="{ width: largeurTable + 'px' }">
@@ -347,6 +351,7 @@ function afficherDate(iso: string): string {
                 <textarea v-model="brouillonNom" class="saisie-nom" rows="1"
                   @keydown.enter.exact.prevent="validerEdition"
                   @keydown.escape="editionColonne = null" @blur="validerEdition"></textarea>
+                <span class="aide-saisie">Entrée pour valider, ⇧ + Entrée pour aller à la ligne.</span>
               </template>
               <template v-else>
                 <span class="nom" :title="colonne.nom" @click="commencerEditionColonne(colonne.id, colonne.nom)">{{ colonne.nom }}</span>
@@ -383,6 +388,7 @@ function afficherDate(iso: string): string {
                 <textarea v-model="brouillonNom" class="saisie-nom" rows="1"
                   @keydown.enter.exact.prevent="validerEdition"
                   @keydown.escape="editionLigne = null" @blur="validerEdition"></textarea>
+                <span class="aide-saisie">Entrée pour valider, ⇧ + Entrée pour aller à la ligne.</span>
               </template>
               <template v-else>
                 <span class="nom" :title="ligne.nom" @click="commencerEditionLigne(ligne.id, ligne.nom)">{{ ligne.nom }}</span>
@@ -471,14 +477,13 @@ function afficherDate(iso: string): string {
 .tableau-bord { position: relative; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
 .conteneur { overflow: auto; flex: 1; min-height: 0; }
 .message-tableau { color: #b03030; margin: 0; font-size: 0.8rem; }
-/* Encadré d'aide repliable, dans l'esprit de celui des documents du projet. */
-.aide-tableau { flex: none; border: 1px solid #d5dced; border-radius: 6px; background: #f2f5fb; }
-.aide-titre { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .4rem; text-align: left; background: none; border: none; border-radius: 0; padding: .45rem .6rem; font-size: .8rem; color: #2c3a5e; font-weight: 600; }
-.aide-titre:hover { background: rgba(74, 114, 184, .08); }
-.aide-bascule { color: #7a8299; }
-.aide-texte { padding: 0 .6rem .55rem 2.5rem; font-size: .74rem; line-height: 1.35; color: #44506a; }
-.aide-texte p { margin: 0 0 .25rem; }
-.aide-texte p:last-child { margin-bottom: 0; }
+/* Icône info en tête du tableau ; son message s'ouvre juste en dessous. */
+.entete-tableau { flex: none; display: flex; }
+.aide-tableau { flex: none; margin: 0; }
+.aide-tableau p { margin: 0 0 .4rem; }
+.aide-tableau p:last-child { margin-bottom: 0; }
+/* Rappel affiché sous l'intitulé en cours d'édition. */
+.aide-saisie { position: absolute; left: 0; top: 100%; z-index: 3; margin-top: 2px; padding: .15rem .4rem; border: 1px solid #c9d0da; border-radius: 4px; background: #fffbe6; color: #4f5966; font-size: .68rem; font-weight: 400; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .12); pointer-events: none; }
 .grille { border-collapse: collapse; background: #fff; table-layout: fixed; }
 .grille th, .grille td { border: 1px solid #c8ccd4; padding: 0.15rem 0.3rem; font-size: 0.72rem; }
 .coin { width: 7.5rem; }

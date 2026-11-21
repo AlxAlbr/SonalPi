@@ -46,7 +46,7 @@ test('Comments descend sous Locuteurs, reste utilisable, puis rejoint les onglet
     expect(rectBas.y + rectBas.height).toBeLessThanOrEqual(hauteurFenetre)
 
     await selectionner(page, 'retraite')
-    await bas.getByRole('button', { name: 'Commentaire', exact: true }).click()
+    await bas.getByRole('button', { name: '+ Commentaire', exact: true }).click()
     await page.locator('[data-test="commentaire-texte"]').fill('Commentaire depuis le panneau du bas')
     await page.locator('[data-test="commentaire-valider"]').click()
     await expect(bas.locator('.texte-commentaire')).toHaveText('Commentaire depuis le panneau du bas')

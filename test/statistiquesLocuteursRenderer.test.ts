@@ -107,7 +107,7 @@ test('les boutons présentent le nom, le pseudo distinct et un rôle sans accord
   const bouton = choix[1].querySelector('button')!
   expect(bouton.getAttribute('aria-label')).toBe('Fatima')
   const description = document.getElementById(bouton.getAttribute('aria-describedby')!)!
-  expect(description.textContent).toContain('Fatima — Fati · Répond aux questions')
+  expect(description.textContent).toBe('Fati · Répond aux questions')
 
   b.locuteurs.value[1].pseudo = ' Fatima '
   b.locuteurs.value[1].interviewer = true

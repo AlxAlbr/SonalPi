@@ -33,6 +33,7 @@ import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, val
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
+import { encoderWindows1252, type EncodageTexte } from '../shared/export/encodageWindows1252'
 import { ExemplesLocaux } from './exemples'
 import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
@@ -249,6 +250,8 @@ interface Settings {
    *  partagés entre tous les corpus ; niveau profil, comme signataire).
    *  Les modèles intégrés restent du code ; ici, on ne garde que ce qui a été importé. */
   modelesUtilisateur?: ModeleEAV[]
+  /** Zoom de la liste des entretiens du corpus, de 0 (très compact) à 2 (aéré). */
+  zoomEntretiens?: number
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -258,22 +261,33 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   if (!navigation || typeof navigation !== 'object') return false
   const n = navigation as Record<string, unknown>
   if (n.vue === 'preparer') {
-    return ['accueil', 'tableau-bord', 'docs-cadre', 'documents-exemples'].includes(String(n.onglet))
+    return ['tableau-bord', 'docs-cadre', 'documents-exemples'].includes(String(n.onglet))
   }
   if (n.vue === 'analyser') {
-    return ['accueil', 'synthese', 'lexico', 'analyses-croisees'].includes(String(n.onglet))
+    return ['synthese', 'lexico', 'analyses-croisees'].includes(String(n.onglet))
       && typeof n.panneauVisible === 'boolean'
   }
   if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
   if (n.vue === 'corpus') {
-    return ['accueil', 'themes', "locuteurs", 'notes', 'donnees', 'anon'].includes(String(n.onglet))
+    return ['accueil', 'themes', 'locuteurs', 'notes', 'commentaires', 'donnees', 'anon'].includes(String(n.onglet))
   }
   return false
+}
+
+/** Les anciens onglets « Accueil » de la préparation et de l'analyse rouvrent leur premier outil. */
+function sansAccueilRetire(navigation: unknown): unknown {
+  if (!navigation || typeof navigation !== 'object') return navigation
+  const n = navigation as Record<string, unknown>
+  if (n.onglet !== 'accueil') return navigation
+  if (n.vue === 'preparer') return { ...n, onglet: 'tableau-bord' }
+  if (n.vue === 'analyser') return { ...n, onglet: 'synthese' }
+  return navigation
 }
 
 function lireNavigationsProjets(navigations: unknown): Record<string, NavigationProjet> | undefined {
   if (!navigations || typeof navigations !== 'object' || Array.isArray(navigations)) return undefined
   const valides = Object.entries(navigations as Record<string, unknown>)
+    .map(([cle, navigation]): [string, unknown] => [cle, sansAccueilRetire(navigation)])
     .filter((entree): entree is [string, NavigationProjet] => entree[0] !== '' && estNavigationProjet(entree[1]))
   return valides.length ? Object.fromEntries(valides) : undefined
 }
@@ -293,6 +307,9 @@ function estListeModeles(d: unknown): d is ModeleEAV[] {
     )
   )
 }
+function estZoomEntretiens(z: unknown): z is number {
+  return typeof z === 'number' && Number.isFinite(z) && z >= 0 && z <= 2
+}
 function lireSettings(): Settings {
   try {
     const s = JSON.parse(readFileSync(fichierSettings(), 'utf8')) as Partial<Settings>
@@ -307,6 +324,7 @@ function lireSettings(): Settings {
       navigationProjets: lireNavigationsProjets(s.navigationProjets),
       signataire: typeof s.signataire === 'string' ? s.signataire : undefined,
       modelesUtilisateur: estListeModeles(s.modelesUtilisateur) ? s.modelesUtilisateur : undefined,
+      zoomEntretiens: estZoomEntretiens(s.zoomEntretiens) ? s.zoomEntretiens : undefined,
     }
   } catch {
     return { recents: [] }
@@ -2969,6 +2987,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     s.signataire = typeof nom === 'string' ? nom.trim() : ''
     ecrireSettings(s)
   })
+  // Zoom de la liste des entretiens (settings.json, niveau profil) ; null si jamais réglé.
+  ipcMain.handle('profil:lireZoomEntretiens', () => lireSettings().zoomEntretiens ?? null)
+  ipcMain.handle('profil:memoriserZoomEntretiens', (_e, zoom: unknown) => {
+    if (!estZoomEntretiens(zoom)) return
+    const s = lireSettings()
+    s.zoomEntretiens = zoom
+    ecrireSettings(s)
+  })
   // Picker de dossier PUR (aucun effet de bord sur le store), utilisé par la modale démo.
   // `kind` (sources | corpus) hinte le défaut ; soit `Documents/Sonal/démo/<kind>`, modifiable ;
   //  le retour est le chemin choisi ; le corpus est ensuite OUVERT via corpus:ouvrirDossier.
@@ -2981,10 +3007,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
   })
-  ipcMain.handle('dialog:choisirExport', async (e, nomSuggere: string, contenu: string) => {
+  ipcMain.handle('dialog:choisirExport', async (e, nomSuggere: string, contenu: string, encodage?: EncodageTexte) => {
     const r = await montrerSauver(e, { defaultPath: nomSuggere })
     if (r.canceled || !r.filePath) return null
-    writeFileSync(r.filePath, contenu, 'utf8')
+    if (encodage === 'windows-1252') writeFileSync(r.filePath, encoderWindows1252(contenu))
+    else writeFileSync(r.filePath, contenu, 'utf8')
     return r.filePath
   })
   // Exports d'entretien en DOCX/PDF : GENERATION (buffer construit côté main,

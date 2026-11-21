@@ -9,16 +9,17 @@ import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import LocuteursCorpus from './LocuteursCorpus.vue'
 import CadreOndeCorpus from './CadreOndeCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
+import CommentairesCorpus from './CommentairesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import OngletsEspace from '../../app/OngletsEspace.vue'
 import { vHauteurDisponible } from '../../../directives/hauteurDisponible'
 import type { OngletCorpus } from '../../../composables/espaces'
 import TableDonnees from '../partages/donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../../composables/sonal'
-import { rechercherDansCorpsTexte } from '../../../editor/rechercheCorpus'
+import { rechercherDansCorpsTexte, transcriptAvecOccurrences } from '../../../editor/rechercheCorpus'
 import { visiblesThemes } from '../../../../shared/corpus/categories'
 import type { EtatVerrouPublic } from '../../../../shared/distant'
-import type { OccurenceRecherche, ResultatRecherche } from '../../../editor/rechercheCorpus'
+import type { OccurenceRecherche, ResultatRecherche, SegmentTranscript } from '../../../editor/rechercheCorpus'
 import type { SegmentThematique } from '../../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
 import icoThemes from '../../../assets/icones/themes.png'
@@ -29,6 +30,7 @@ import icoEntretiens from '../../../assets/icones/entretiens.svg'
 import icoPersonnes from '../../../assets/icones/personnes.png'
 import icoNotes from '../../../assets/icones/notes.png'
 import icoRecherche from '../../../assets/icones/recherche.png'
+import icoCommentaires from '../../../assets/icones/commentaires.svg'
 
 const {
   vue,
@@ -95,6 +97,39 @@ const {
   suppressionPossible,
   presencesSur,
 } = utiliserSonal()
+
+/** Densité d'affichage de la liste des entretiens, mémorisée sur ce poste. */
+/** Le curseur « Zoom » est continu, du plus serré (0, à gauche) au plus aéré (2, à droite, par défaut).
+ *  La disposition suit l'état le plus proche ;
+ *  la hauteur des cartes et leur espacement glissent d'un état à l'autre.
+ */
+const DENSITES = ['tres-compact', 'compact', 'aere'] as const
+const LIBELLES_DENSITE = ['Très compact', 'Compact', 'Aéré']
+const HAUTEURS_CARTE = [22, 40, 67]
+const ECARTS_CARTES = [2, 5, 8]
+const ZOOM_MAX = DENSITES.length - 1
+/** Le réglage est gardé dans le profil de l'utilisateur et repris au prochain démarrage. */
+const zoom = ref(ZOOM_MAX)
+window.sonal.profil.zoomEntretiens().then(
+  (z) => { if (z !== null) zoom.value = z },
+  () => { /* Réglage facultatif : on garde l'affichage aéré. */ }
+)
+/** Enregistré au relâchement du curseur, pas à chaque pas du glissement. */
+function memoriserZoom(): void {
+  window.sonal.profil.memoriserZoomEntretiens(zoom.value).catch(() => { /* Réglage facultatif. */ })
+}
+const indiceDensite = computed(() => Math.round(zoom.value))
+const densite = computed(() => DENSITES[indiceDensite.value])
+/** Valeur interpolée entre les états voisins du zoom courant. */
+function interpoler(valeurs: number[]): number {
+  const bas = Math.min(Math.floor(zoom.value), ZOOM_MAX - 1)
+  const t = zoom.value - bas
+  return valeurs[bas] + (valeurs[bas + 1] - valeurs[bas]) * t
+}
+const styleListe = computed(() => ({
+  '--h-carte': interpoler(HAUTEURS_CARTE) + 'px',
+  '--ecart-cartes': interpoler(ECARTS_CARTES) + 'px'
+}))
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
@@ -182,7 +217,7 @@ async function choisirOnglet(onglet: OngletCorpus): Promise<boolean> {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return false
   if (revision !== revisionCorpus.value) return false
   if (ongletCorpus.value === onglet) return true
-  extraitAffiche.value = null
+  transcript.value = null
   ongletCorpus.value = onglet
   if (onglet === 'donnees') await rafraichirMatrice()
   return true
@@ -235,7 +270,7 @@ async function afficherParcours(
   if (parcoursId) selectionnerParcours(parcoursId)
   await choisirOnglet('accueil')
   if (ongletCorpus.value !== 'accueil') return false
-  extraitAffiche.value = null
+  transcript.value = null
   await nextTick()
   const resumeParcours = document.querySelector<HTMLElement>('[data-testid="resume-parcours-global"]')
   resumeParcours?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -259,7 +294,7 @@ function fermerRecherche() {
   // Les marqueurs du mur d'ondes suivent la recherche : on les retire à la fermeture.
   resultats.value = []
   message.value = ''
-  extraitAffiche.value = null
+  transcript.value = null
   void choisirOnglet(ongletAvantRecherche)
 }
 function raccourciRecherche(event: KeyboardEvent) {
@@ -290,37 +325,88 @@ const motEntier = ref(false)
 const resultats = ref<ResultatRecherche[]>([])
 const enCours = ref(false)
 const message = ref('')
-/** Marqueurs pour le « mur » de waveforms (carte par entretien) :
- *  le % divisé par l'axe caractères de chaque occurrence, + le contexte
- *  affiché si on clic. Le clic N'ouvre PAS l'entretien : il reste en vue
- *  Corpus et affiche l'extrait dans le panneau de gauche. */
+/** Marqueurs de recherche sur le « mur » d'ondes, par entretien.
+ *  Un clic sur un marqueur déplie le transcript sous la carte de l'entretien. */
 const marqueursRecherche = computed(() => {
   const out: Record<string, Array<OccurenceRecherche>> = {}
   for (const r of resultats.value) out[r.id] = r.occurrences
   return out
 })
-/** L'extrait d'entretien affiché après le clic sur une barre du mur. */
-const extraitAffiche = ref<{ id: string; titre: string; pre: string; match: string; post: string; pos: number } | null>(null)
-function afficherExtrait(id: string, o: OccurenceRecherche) {
-  const r = resultats.value.find((x) => x.id === id)
-  extraitAffiche.value = { id, titre: r?.titre ?? id, pre: o.pre, match: o.match, post: o.post, pos: o.pos }
+// Textes lus pendant la recherche, réutilisés pour déplier un transcript sans relire le disque.
+const corpsLus = new Map<string, unknown>()
+const requeteLancee = ref('')
+let motEntierLance = false
+
+/** Transcript déplié sous une carte, avec l'occurrence choisie mise en avant. */
+const transcript = ref<{ id: string; pos: number; paragraphes: SegmentTranscript[][] } | null>(null)
+const cadreTranscript = ref<HTMLElement | null>(null)
+// Le transcript est rendu dans la boucle des cartes : on garde l'élément par une fonction.
+function poserCadreTranscript(el: unknown) {
+  cadreTranscript.value = el instanceof HTMLElement ? el : null
 }
+const occurrencesTranscript = computed(() =>
+  transcript.value ? (marqueursRecherche.value[transcript.value.id] ?? []).map((o) => o.pos) : [])
+const rangTranscript = computed(() =>
+  transcript.value ? occurrencesTranscript.value.indexOf(transcript.value.pos) : -1)
+
+async function afficherTranscript(id: string, pos: number) {
+  if (transcript.value?.id === id) {
+    transcript.value.pos = pos
+  } else {
+    let corps = corpsLus.get(id)
+    if (corps === undefined) {
+      const lecture = await window.sonal.corpus.lireEntretien(id)
+      if (!lecture.ok) return
+      corps = lecture.data.corpsTexte
+      corpsLus.set(id, corps)
+    }
+    transcript.value = {
+      id,
+      pos,
+      paragraphes: transcriptAvecOccurrences(corps, requeteLancee.value, { motEntier: motEntierLance }),
+    }
+    if (corpusSelId.value !== id) void selectionnerCorpus(id)
+  }
+  await nextTick()
+  centrerOccurrence()
+}
+/** Fait défiler le transcript jusqu'à l'occurrence choisie, et la page jusqu'au transcript. */
+function centrerOccurrence() {
+  const cadre = cadreTranscript.value
+  const marque = cadre?.querySelector<HTMLElement>('mark.courante')
+  if (!cadre || !marque) return
+  cadre.scrollTop = marque.offsetTop - cadre.clientHeight / 2
+  cadre.closest('li')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+function occurrenceVoisine(sens: 1 | -1) {
+  const liste = occurrencesTranscript.value
+  if (!transcript.value || !liste.length) return
+  const rang = (rangTranscript.value + sens + liste.length) % liste.length
+  void afficherTranscript(transcript.value.id, liste[rang])
+}
+
 /** Lance la recherche : lit chaque entretien et extrait ses occurrences,
- *  avec contexte ±15 mots + position PM, puis groupe par entretien.
- *  Cliquer = ouvrir l'entretien. */
+ *  avec leur contexte et leur position, groupées par entretien. */
 async function lancerRecherche() {
   const q = requete.value.trim()
   if (!q) return
   message.value = ''
   enCours.value = true
   resultats.value = []
+  transcript.value = null
+  corpsLus.clear()
+  requeteLancee.value = q
+  motEntierLance = motEntier.value
   try {
     const res: ResultatRecherche[] = []
     for (const e of listeEntretiens()) {
       const lecture = await window.sonal.corpus.lireEntretien(e.id)
       if (!lecture.ok) continue
       const occurrences = rechercherDansCorpsTexte(lecture.data.corpsTexte, q, { motEntier: motEntier.value })
-      if (occurrences.length) res.push({ id: e.id, titre: e.titre, occurrences })
+      if (occurrences.length) {
+        res.push({ id: e.id, titre: e.titre, occurrences })
+        corpsLus.set(e.id, lecture.data.corpsTexte)
+      }
     }
     resultats.value = res
     const nb = res.reduce((n, r) => n + r.occurrences.length, 0)
@@ -335,19 +421,16 @@ function effacerRecherche() {
   requete.value = ''
   resultats.value = []
   message.value = ''
-}
-/** Cliquer une occurrence → ouvrir l'entretien et cale le texte sur le match,
- *  position PM (comme le clic sur un segment thématique). */
-function allerOccurrence(id: string, pos: number) {
-  ouvrirAuSegment(id, pos)
+  transcript.value = null
 }
 /** Onglets du corpus, dans l'ordre d'affichage ; « accueil » est l'onglet Entretiens. */
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
-  { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: "locuteurs", libelle: 'Locuteurs', icone: icoPersonnes },
+  { id: 'locuteurs', libelle: 'Locuteurs', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
+  { id: 'commentaires', libelle: 'Commentaires', icone: icoCommentaires },
+  { id: 'notes', libelle: 'Notes', icone: icoNotes },
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
 ]
 
@@ -368,7 +451,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
 <template>
     <section class="ecran corpus-ecran">
-      <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
       <!-- Corpus distant : horodatage du dernier pull + « Actualiser ».
            Le pull rafraîchit aussi les badges de verrou. -->
       <div v-if="idDistantCourant" class="corpus-barre">
@@ -390,7 +472,13 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </span>
       </div>
 
-      <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
+      <!-- Les onglets et le renommage du corpus partagent la même ligne. -->
+      <div class="ligne-onglets-corpus">
+        <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
+        <span class="zone-renommer-corpus">
+          <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
+        </span>
+      </div>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
 
@@ -406,6 +494,19 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         v-if="ongletCorpus === 'accueil' || ongletCorpus === 'recherche'"
         titre="Entretiens"
       >
+        <label class="mini densite-liste" :title="'Densité de la liste : ' + LIBELLES_DENSITE[indiceDensite]">
+          <span class="densite-libelle">Zoom</span>
+          <input
+            v-model.number="zoom"
+            type="range"
+            min="0"
+            :max="ZOOM_MAX"
+            step="0.01"
+            @change="memoriserZoom"
+            aria-label="Densité de la liste des entretiens"
+            :aria-valuetext="LIBELLES_DENSITE[indiceDensite]"
+          />
+        </label>
         <!-- La recherche remplace la fiche dans le panneau gauche, le temps de la consulter. -->
         <button
           class="mini ouvrir-recherche-corpus"
@@ -416,6 +517,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           @click="ongletCorpus === 'recherche' ? fermerRecherche() : ouvrirRecherche()"
         >
           <img :src="icoRecherche" alt="" draggable="false" />
+          <span>Rechercher</span>
         </button>
         <!-- Un seul point d'entrée : la modale à deux zones,
              couvrant import texte, texte+audio et audio seul.
@@ -423,29 +525,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'locuteurs' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
-        <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
-        <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
-          <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
-               reste en vue Corpus, affiche le contexte de l'occurrence ;
-               bouton pour ouvrir l'entretien si besoin.
-               Visible quel que soit l'onglet actif. -->
-          <div v-if="extraitAffiche" class="panneau extrait">
-            <div class="corpus-tete">
-              <h3>Extrait</h3>
-              <button class="mini" @click="extraitAffiche = null">✕</button>
-            </div>
-            <p class="extrait-ent">Entretien : <b>{{ extraitAffiche.titre }}</b></p>
-            <p class="extrait-texte">
-              <span class="pre">{{ extraitAffiche.pre }}</span>
-              <span class="match">{{ extraitAffiche.match }}</span>
-              <span class="post">{{ extraitAffiche.post }}</span>
-            </p>
-            <button class="mini" @click="ouvrirAuSegment(extraitAffiche.id, extraitAffiche.pos)">
-              Ouvrir l’entretien ici →
-            </button>
-          </div>
-
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'locuteurs' && ongletCorpus !== 'notes' && ongletCorpus !== 'commentaires'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !corpusSelId }">
+        <!-- Colonne gauche : fiche de l'entretien, recherche ou codebook. -->
+        <aside v-if="ongletCorpus !== 'accueil' || corpusSelId" class="colonne-g-corpus">
           <!-- Fiche de l'entretien sélectionné : il y en a toujours un dès que le corpus en contient.
                Réglages en haut, gestes qui retirent quelque chose en bas. -->
           <aside v-if="corpusSelId && ongletCorpus === 'accueil'" v-hauteur-disponible class="panneau meta-ent" aria-label="Fiche de l’entretien">
@@ -579,7 +661,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 :aria-pressed="toutesDescriptionsThemesOuvertes"
                 :title="toutesDescriptionsThemesOuvertes ? 'Masquer toutes les descriptions' : 'Afficher toutes les descriptions'"
                 @click="basculerToutesDescriptionsThemes"
-              >ⓘ tout</button>
+              ><span class="ico-info" aria-hidden="true"></span> tout</button>
             </div>
             <p v-if="codebook.length === 0" class="vide">Aucun thème — « Éditer les thèmes » pour en créer.</p>
             <ul class="liste-thm-lecture">
@@ -608,8 +690,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   :aria-expanded="descriptionsThemesOuvertes.has(n.cat.id)"
                   :title="descriptionsThemesOuvertes.has(n.cat.id) ? 'Masquer la description' : 'Afficher la description'"
                   @click="basculerDescriptionTheme(n.cat.id)"
-                >ⓘ</button>
-                <span v-else class="info-theme info-theme-masque" aria-hidden="true">ⓘ</span>
+                ><span class="ico-info" aria-hidden="true"></span></button>
+                <span v-else class="info-theme info-theme-masque" aria-hidden="true"><span class="ico-info" aria-hidden="true"></span></span>
                 <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
                 <p v-if="descriptionsThemesOuvertes.has(n.cat.id)" class="description-theme">{{ n.cat.description }}</p>
               </li>
@@ -651,7 +733,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
                 <ul class="occ-rech">
                   <li v-for="(o, i) in r.occurrences" :key="i">
-                    <button class="occ-rech-btn" title="Ouvrir l’entretien ici" @click="allerOccurrence(r.id, o.pos)">
+                    <button
+                      class="occ-rech-btn"
+                      :class="{ actif: transcript?.id === r.id && transcript.pos === o.pos }"
+                      title="Afficher ce passage dans le transcript, sous l’entretien"
+                      @click="afficherTranscript(r.id, o.pos)"
+                    >
                       <span class="pre">{{ o.pre }}</span>
                       <span class="match">{{ o.match }}</span>
                       <span class="post">{{ o.post }}</span>
@@ -686,10 +773,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
 
             <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
-            <ul class="cartes-ent" aria-label="Entretiens du corpus">
+            <ul class="cartes-ent" :class="'densite-' + densite" :style="styleListe" aria-label="Entretiens du corpus">
+              <template v-for="e in listeEntretiens()" :key="e.id">
               <li
-                v-for="e in listeEntretiens()"
-                :key="e.id"
                 class="carte-ent"
                 :data-tour="'carte-' + e.titre"
                 :data-entretien-id="e.id"
@@ -728,6 +814,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       data-tour="crayon-entretien"
                       :title="titreCrayon(e.id)"
                       @click.stop="ouvrirEntretien(e.id)"
+                      :aria-label="titreCrayon(e.id)"
                     >{{ badgeVerrou(e.id) ? '🔒 Ouvrir' : 'Ouvrir' }}</button>
                   </div>
                 </div>
@@ -745,20 +832,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       :title="s.codes.map(nomTheme).join(' + ')"
                       @click.stop="ouvrirAuSegment(e.id, s.pos)"
                     ></span>
-                    <!-- Marqueurs de RECHERCHE : une pastille par occurrence,
-                         à son emplacement % (axe caractères, aligné sur le résumé).
-                         Clic = RESTE en vue Corpus et affiche l'extrait dans le panneau de gauche,
-                         mais n'ouvre pas l'entretien. -->
+                    <!-- Marqueurs de recherche : une pastille par occurrence, à sa place dans le texte.
+                         Le clic déplie le transcript sous la carte, sans ouvrir l'entretien. -->
                     <span
                       v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
                       :key="'m' + mi"
                       class="occ-marqueur"
+                      :class="{ courant: transcript?.id === e.id && transcript.pos === m.pos }"
                       :style="{ left: m.pourcent + '%' }"
-                      :title="'Afficher l’extrait — « ' + requete + ' »'"
-                      @click.stop="afficherExtrait(e.id, m)"
+                      :title="'Afficher le passage dans le transcript — « ' + requeteLancee + ' »'"
+                      @click.stop="afficherTranscript(e.id, m.pos)"
                     ></span>
                   </CadreOndeCorpus>
               </li>
+              <!-- Transcript déplié sous la carte : texte simple, occurrences surlignées. -->
+              <li v-if="transcript?.id === e.id" class="transcript-ent" :aria-label="`Transcript de ${e.titre}`">
+                <div class="transcript-tete">
+                  <span class="transcript-compte">
+                    Occurrence {{ rangTranscript + 1 }} / {{ occurrencesTranscript.length }}
+                  </span>
+                  <button class="mini" title="Occurrence précédente" aria-label="Occurrence précédente" @click="occurrenceVoisine(-1)">◄</button>
+                  <button class="mini" title="Occurrence suivante" aria-label="Occurrence suivante" @click="occurrenceVoisine(1)">►</button>
+                  <button class="mini transcript-ouvrir" @click="ouvrirAuSegment(transcript.id, transcript.pos)">Ouvrir l’entretien ici</button>
+                  <button class="mini" title="Replier le transcript" aria-label="Replier le transcript" @click="transcript = null">✕</button>
+                </div>
+                <div :ref="poserCadreTranscript" class="transcript-texte">
+                  <p v-for="(paragraphe, pi) in transcript.paragraphes" :key="pi">
+                    <template v-for="(seg, si) in paragraphe" :key="si">
+                      <mark
+                        v-if="seg.pos !== undefined"
+                        :class="{ courante: seg.pos === transcript.pos }"
+                        @click="afficherTranscript(e.id, seg.pos)"
+                      >{{ seg.texte }}</mark>
+                      <template v-else>{{ seg.texte }}</template>
+                    </template>
+                  </p>
+                </div>
+              </li>
+              </template>
             </ul>
           </div>
         </section>
@@ -766,6 +877,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
       <LocuteursCorpus v-show="ongletCorpus === 'locuteurs'" :actif="ongletCorpus === 'locuteurs'" />
       <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
+      <CommentairesCorpus v-show="ongletCorpus === 'commentaires'" :actif="ongletCorpus === 'commentaires'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />
       </div>
@@ -856,9 +968,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   .grille-corpus.atelier-actif { grid-template-columns: minmax(0, 1fr); }
 }
 /* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
-.onglets-corpus {
+.ligne-onglets-corpus {
+  display: flex;
+  align-items: stretch;
   margin-bottom: 0.75rem;
 }
+/* Le bouton suit le dernier onglet ; la ligne des onglets se prolonge jusqu'au bord. */
+.zone-renommer-corpus {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 0 0 6px 0.75rem;
+  border-bottom: 1px solid #e2e4ec;
+}
+.renommer-corpus {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #d5d9e4;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5068;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.renommer-corpus:hover:not(:disabled) {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+  color: #1565c0;
+}
+.renommer-corpus:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
+}
+.renommer-corpus:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les onglets
    ne collent pas à sa bordure basse. */
 .corpus-ecran {
@@ -869,7 +1016,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.45rem;
+  gap: 0.35rem;
+  /* Même gabarit que « + Ajouter un entretien », en graisse normale. */
+  font-size: 0.88rem;
+  padding: 0.28rem 0.65rem;
 }
 .ouvrir-recherche-corpus img {
   width: 1rem;
@@ -984,7 +1134,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   cursor: pointer;
   line-height: 1.35;
 }
-.occ-rech-btn:hover {
+.occ-rech-btn:hover,
+.occ-rech-btn.actif {
   border-color: #2e73d8;
   background: #f0f6ff;
 }
@@ -1012,35 +1163,49 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-color: #2e73d8;
   color: #1565c0;
 }
-/* --- Panneau Extrait (clic sur une barre du mur de recherche) --- */
-.extrait {
-  border: 1px solid #dce4ef;
-  background: #fafdff;
+/* --- Transcript déplié sous une carte après le choix d'une occurrence --- */
+.transcript-ent {
+  margin-top: -0.5rem;
+  border: 1px solid #2e73d8;
+  border-top: 3px solid #2e73d8;
+  border-radius: 0 0 6px 6px;
+  background: #fff;
 }
-.extrait-ent {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
+.transcript-tete {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #e5e5ef;
+  background: #f5f8fd;
+}
+.transcript-compte {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #44506a;
+}
+.transcript-texte {
+  position: relative;
+  max-height: 45vh;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
   color: #333;
 }
-.extrait-texte {
-  margin: 0.4rem 0;
-  border: 1px solid #e5e5ef;
-  border-left: 3px solid #1565c0;
-  border-radius: 4px;
-  background: #fff;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.82rem;
-  color: #444;
-  line-height: 1.45;
+.transcript-texte p {
+  margin: 0 0 0.6rem;
+  white-space: pre-wrap;
 }
-.extrait-texte .match {
-  font-weight: 700;
-  color: #1565c0;
-  background: #fff3c4;
-  padding: 0 0.15rem;
-  /* Espaces VISUEL autour du match (les espaces du template sont détruits par
-     le mode condense de Vue — marge garantie, cf. .occ-rech-btn .match). */
-  margin: 0 0.3em;
+.transcript-texte mark {
+  background: #fff3a8;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.transcript-texte mark.courante {
+  background: #ffb347;
+  outline: 2px solid #e65100;
+  font-weight: 600;
 }
 /* --- Colonne gauche : métadonnées de l'entretien sélectionné --- */
 .meta-ent .champ-nom {
@@ -1239,7 +1404,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   z-index: 10;
   box-sizing: border-box;
 }
-.occ-marqueur:hover {
+.occ-marqueur:hover,
+.occ-marqueur.courant {
   background: rgb(255 0 0);
   width: 6px;
   margin-left: -3px;
@@ -1386,13 +1552,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   height: 1.3rem;
   margin-right: -0.3rem;
   flex: none;
-  border: 1px solid #d3dae5;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: #fff;
   color: #55708f;
   cursor: pointer;
   padding: 0;
-  font-size: 0.66rem;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 .info-theme:hover {
   border-color: #2e73d8;
@@ -1467,6 +1634,132 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-actions .ouvrir-ent:hover {
   background: #1f63c6;
+}
+
+/* Curseur de densité de la liste, dans la barre d'onglets. */
+.densite-liste {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch; /* même hauteur que les boutons voisins */
+  /* Mêmes marges intérieures et taille de texte que « Rechercher » et « Ajouter ». */
+  gap: 0.35rem;
+  padding: 0 0.65rem;
+  font-size: 0.88rem;
+  color: #666;
+}
+.densite-libelle {
+  white-space: nowrap;
+}
+.densite-liste input {
+  appearance: none;
+  width: 7.5rem;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.densite-liste input::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #d6d6d6;
+}
+.densite-liste input::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: #111;
+}
+.densite-liste input:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
+}
+
+/* Le zoom fixe la hauteur des cartes et leur espacement ;
+   l'onde occupe toute la place laissée par le titre et le bouton. */
+.cartes-ent {
+  gap: var(--ecart-cartes, 0.5rem);
+}
+.cartes-ent .carte-ent {
+  box-sizing: border-box;
+  height: var(--h-carte, auto);
+}
+.cartes-ent .spectro-cadre {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+.densite-aere .carte-entete {
+  flex: none;
+}
+
+/* Modes compacts : titre, onde et bouton sur une seule ligne.
+   L'en-tête s'efface pour que ses enfants se placent autour de l'onde. */
+.densite-compact .carte-ent,
+.densite-tres-compact .carte-ent {
+  flex-direction: row;
+  align-items: center;
+}
+.densite-compact .carte-entete,
+.densite-tres-compact .carte-entete {
+  display: contents;
+}
+.densite-compact .spectro-cadre,
+.densite-tres-compact .spectro-cadre {
+  order: 1;
+  align-self: stretch;
+}
+.densite-compact .carte-actions {
+  order: 2;
+}
+
+/* Compact : titre dans une colonne fixe, onde au milieu, bouton à droite. */
+.densite-compact .carte-ent {
+  gap: 0.5rem;
+  padding: 3px 0.35rem 3px 0.6rem;
+  border-radius: 8px;
+}
+.densite-compact .ent-titre {
+  flex: 0 0 10rem;
+}
+
+/* Très compact : une fine bande par entretien, titre posé sur l'onde.
+   Le double-clic ouvre l'entretien. */
+.densite-tres-compact {
+  margin-top: 0.25rem;
+}
+.densite-tres-compact .carte-ent {
+  position: relative;
+  padding: 1px;
+  border-radius: 8px;
+}
+.densite-tres-compact .spectro-cadre {
+  border-radius: 7px;
+}
+.densite-tres-compact .spectro {
+  border-radius: 7px;
+}
+.densite-tres-compact .ent-titre {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  max-width: 40%;
+  padding: 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+.densite-tres-compact .carte-actions {
+  display: none;
+}
+.densite-tres-compact .badge-presence,
+.densite-tres-compact .badge-verrou {
+  font-size: 0.65rem;
 }
 @media (max-width: 780px) {
   .colonne-g-corpus { position: static; }

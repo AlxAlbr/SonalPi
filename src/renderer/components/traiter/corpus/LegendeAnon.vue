@@ -1,7 +1,7 @@
 <template>
   <details class="pseudo-legende" open>
     <summary>
-      <span><span aria-hidden="true">ℹ️</span> Légende et aide</span>
+      <span><span class="ico-info" aria-hidden="true"></span> Légende et aide</span>
       <span class="legende-toggle" aria-hidden="true"><span class="reduire">−</span><span class="agrandir">+</span></span>
     </summary>
     <div class="legende-contenu">

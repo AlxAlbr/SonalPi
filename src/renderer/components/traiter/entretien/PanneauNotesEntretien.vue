@@ -22,6 +22,8 @@ const {
   brouillonEditionNote,
   ajouterNote,
   agrandirNote,
+  reduireNote,
+  fermerNotePanneau,
   editerNote,
   validerNote,
   validerEditionNote,
@@ -57,15 +59,6 @@ watch(
   () => {
     avertissementNote.value = ''
   },
-)
-// Le formulaire en ligne vit tant qu'aucune fenêtre d'édition n'est ouverte :
-// une note agrandie (fenêtre) ne doit pas rouvrir un formulaire vide dessous.
-watch(
-  [brouillonNote, brouillonEditionNote, () => props.lectureSeule],
-  ([brouillon, edition, lectureSeule]) => {
-    if (!lectureSeule && !brouillon && !edition) ajouterNote()
-  },
-  { immediate: true, flush: 'sync' },
 )
 watch(
   brouillonNote,
@@ -110,6 +103,11 @@ function marquerDansCorpsEditionNote() {
   if (!zoneCorpsEditionNote.value) return
   marquerPassage(zoneCorpsEditionNote.value)
   if (brouillonEditionNote.value) brouillonEditionNote.value.corps = zoneCorpsEditionNote.value.innerHTML
+}
+/** « + Créer une note » : la rédaction s'ouvre dans la fenêtre ; une saisie déjà réduite dans le panneau est reprise. */
+function ouvrirNouvelleNote() {
+  if (!brouillonNote.value) ajouterNote()
+  agrandirNote()
 }
 function creerNoteInline() {
   const brouillonCourant = brouillonNote.value
@@ -308,8 +306,17 @@ function onDropNote(cibleId: string) {
 
 <template>
   <aside class="panneau notes">
-    <section v-if="!lectureSeule && brouillonNote && !brouillonNote.id" class="nouvelle-note-inline">
+    <div class="corpus-tete">
+      <h3>Notes</h3>
+    </div>
+    <section v-if="!lectureSeule && brouillonNote" class="nouvelle-note-inline">
       <div class="tete-note-inline">
+        <button
+          type="button"
+          class="mini annuler-note-panneau"
+          title="Annuler la note et fermer l’éditeur du panneau"
+          @click="fermerNotePanneau"
+        >Annuler</button>
         <button
           type="button"
           class="mini agrandir-note"
@@ -372,30 +379,39 @@ function onDropNote(cibleId: string) {
       </details>
       <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
       <button type="button" class="principal creer-note-inline" data-tour="creer-note" @click="creerNoteInline">
-        Créer une note
+        Valider
       </button>
     </section>
 
-    <div class="notes-outils">
-      <div class="notes-outils-vues">
-        <button class="mini"
-          :class="{ actif: vueNotes === 'cartes' }"
-          title="Vue cartes"
-          @click="vueNotes = 'cartes'">🃏</button>
-        <button class="mini"
-          :class="{ actif: vueNotes === 'texte' }"
-          title="Vue feuille (toutes les notes à la suite, éditables)"
-          @click="vueNotes = 'texte'">📄</button>
+    <div class="gabarit-entete notes-entete">
+      <div class="notes-outils">
+        <div class="notes-outils-vues">
+          <button class="mini"
+            :class="{ actif: vueNotes === 'cartes' }"
+            title="Vue cartes"
+            @click="vueNotes = 'cartes'">🃏</button>
+          <button class="mini"
+            :class="{ actif: vueNotes === 'texte' }"
+            title="Vue feuille (toutes les notes à la suite, éditables)"
+            @click="vueNotes = 'texte'">📄</button>
+        </div>
+        <div class="notes-outils-actions">
+          <button class="mini"
+            :class="{ actif: voletRechercheNotes }"
+            title="Rechercher et filtrer les notes"
+            @click="basculerRechercheNotes">🔍</button>
+          <button class="mini" :disabled="notes.length === 0"
+            :title="notesCopiees ? 'Copié !' : 'Copier les notes affichées dans le presse-papier'"
+            @click="copierNotes">{{ notesCopiees ? '✓' : '📋' }}</button>
+        </div>
       </div>
-      <div class="notes-outils-actions">
-        <button class="mini"
-          :class="{ actif: voletRechercheNotes }"
-          title="Rechercher et filtrer les notes"
-          @click="basculerRechercheNotes">🔍</button>
-        <button class="mini" :disabled="notes.length === 0"
-          :title="notesCopiees ? 'Copié !' : 'Copier les notes affichées dans le presse-papier'"
-          @click="copierNotes">{{ notesCopiees ? '✓' : '📋' }}</button>
-      </div>
+      <button
+        v-if="!lectureSeule"
+        type="button"
+        class="gabarit-action ouvrir-nouvelle-note"
+        title="Créer une note dans une fenêtre"
+        @click="ouvrirNouvelleNote"
+      >+ Créer une note</button>
     </div>
 
     <div v-if="voletRechercheNotes" class="volet-recherche-notes">
@@ -487,11 +503,9 @@ function onDropNote(cibleId: string) {
             <h3>{{ brouillonEditionNote.id ? 'Éditer la note' : 'Nouvelle note' }}</h3>
             <button
               class="mini"
-              :title="brouillonEditionNote.id
-                ? 'Fermer sans enregistrer les modifications'
-                : 'Réduire — revenir au formulaire du panneau, la saisie est conservée'"
-              @click="annulerNote"
-            >{{ brouillonEditionNote.id ? '✕' : '⤡' }}</button>
+              title="Réduire dans le panneau — la saisie est conservée"
+              @click="reduireNote"
+            >⤡</button>
           </div>
           <div class="modale-note-corps">
             <label class="champ-note champ-titre-note">
@@ -548,8 +562,8 @@ function onDropNote(cibleId: string) {
           </div>
           <div class="modale-note-pied">
             <button class="principal" @click="validerEditionNote">Valider</button>
-            <!-- Une note NEUVE se RÉDUIT vers le formulaire ; une édition s'annule. -->
-            <button @click="annulerNote">{{ brouillonEditionNote.id ? 'Annuler' : 'Réduire' }}</button>
+            <button @click="annulerNote">Annuler</button>
+            <button @click="reduireNote">Réduire</button>
           </div>
         </div>
 
@@ -587,6 +601,26 @@ function onDropNote(cibleId: string) {
 </template>
 
 <style scoped>
+/* Barre des notes : boutons de vue et d'action à la même hauteur que « + Créer une note ». */
+.notes-entete .notes-outils {
+  flex: 1;
+  justify-content: space-between;
+}
+.notes-entete .mini,
+.notes-entete .ouvrir-nouvelle-note {
+  height: 2rem;
+  box-sizing: border-box;
+}
+.notes-entete .mini {
+  min-width: 2rem;
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+}
+/* En-tête du panneau : les outils de vue à gauche, « + Créer une note » à droite. */
+.notes-entete {
+  justify-content: space-between;
+}
+
 .carre-couleur {
   width: 1rem;
   height: 1rem;
@@ -997,4 +1031,31 @@ function onDropNote(cibleId: string) {
 }
 .sous-modale-fenetre h4 { margin: 0 0 0.5rem; }
 .sous-modale-fenetre .champ-note { margin-bottom: 0.4rem; }
+/* Barre des notes : même ligne de base que « + Créer une note », sans l'écart du bas. */
+.notes-entete .notes-outils {
+  padding-bottom: 0;
+  align-items: center;
+}
+
+/* Fenêtre d'édition : marges intérieures et espacement plus aérés. */
+.modale-note-fenetre .corpus-tete {
+  padding: 0.9rem 1.4rem;
+}
+.modale-note-corps {
+  padding: 1.1rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.modale-note-meta {
+  gap: 1rem;
+}
+.modale-note-pied {
+  padding: 0.9rem 1.4rem;
+}
+.modale-note .champ-note select,
+.modale-note .champ-note input[type='date'],
+.modale-note .champ-note input[type='text'] {
+  padding: 0.35rem 0.55rem;
+}
 </style>

@@ -71,11 +71,11 @@ describe('espaces de travail', () => {
     expect(isReadonly(espaces.documentsExemplesOuverts)).toBe(true)
     expect(isReadonly(espaces.tableauBordOuverts)).toBe(true)
     expect(isReadonly(espaces.analysesCroiseesOuvertes)).toBe(true)
-    // L'espace s'ouvre sur l'Accueil, sans panneau de travail actif.
+    // L'espace s'ouvre sur le tableau de bord.
     espaces.entrerPreparation()
-    expect(espaces.sousEspacePreparation.value).toBe('accueil')
+    expect(espaces.sousEspacePreparation.value).toBe('tableau-bord')
     expect(espaces.docsCadreOuverts.value).toBe(false)
-    expect(espaces.tableauBordOuverts.value).toBe(false)
+    expect(espaces.tableauBordOuverts.value).toBe(true)
     espaces.entrerPreparation('docs-cadre')
     expect(espaces.docsCadreOuverts.value).toBe(true)
     expect(espaces.tableauBordOuverts.value).toBe(false)
@@ -154,11 +154,11 @@ describe('espaces de travail', () => {
     arreter()
   })
 
-  test('la réinitialisation ramène l’onglet Accueil', () => {
+  test('la réinitialisation ramène le tableau de bord', () => {
     const { espaces, arreter } = creer()
     espaces.entrerPreparation('docs-cadre')
     espaces.reinitialiserEspaces()
-    expect(espaces.sousEspacePreparation.value).toBe('accueil')
+    expect(espaces.sousEspacePreparation.value).toBe('tableau-bord')
     arreter()
   })
 
@@ -169,12 +169,12 @@ describe('espaces de travail', () => {
     arreter()
   })
 
-  test('l’espace d’analyse s’ouvre sur son Accueil et mémorise l’onglet visité', () => {
+  test('l’espace d’analyse s’ouvre sur « Tri et synthèse » et mémorise l’onglet visité', () => {
     const { vue, espaces, arreter } = creer('entretien')
     espaces.entrerAnalyse()
     expect(vue.value).toBe('analyser')
     expect(espaces.analyseActive.value).toBe(true)
-    expect(espaces.sousEspaceAnalyse.value).toBe('accueil')
+    expect(espaces.sousEspaceAnalyse.value).toBe('synthese')
 
     espaces.entrerAnalyse('lexico')
     expect(espaces.sousEspaceAnalyse.value).toBe('lexico')
@@ -207,12 +207,12 @@ describe('espaces de travail', () => {
     arreter()
   })
 
-  test('la réinitialisation ramène l’analyse sur l’Accueil, filtres visibles', () => {
+  test('la réinitialisation ramène l’analyse sur « Tri et synthèse », filtres visibles', () => {
     const { espaces, arreter } = creer()
     espaces.entrerAnalyse('analyses-croisees')
     espaces.basculerPanneauAnalyse()
     espaces.reinitialiserEspaces()
-    expect(espaces.sousEspaceAnalyse.value).toBe('accueil')
+    expect(espaces.sousEspaceAnalyse.value).toBe('synthese')
     expect(espaces.panneauAnalyseVisible.value).toBe(true)
     arreter()
   })

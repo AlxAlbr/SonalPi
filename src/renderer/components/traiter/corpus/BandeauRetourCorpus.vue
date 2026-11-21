@@ -15,7 +15,7 @@ defineEmits<{ fermer: [] }>()
     :role="type === 'erreur' ? 'alert' : type === 'succes' ? 'status' : 'region'"
     :aria-label="etiquette"
   >
-    <span class="icone-retour" aria-hidden="true">{{ type === 'erreur' ? '⚠' : type === 'succes' ? '✓' : 'ℹ' }}</span>
+    <span class="icone-retour" aria-hidden="true"><span v-if="type !== 'erreur' && type !== 'succes'" class="ico-info"></span><template v-else>{{ type === 'erreur' ? '⚠' : '✓' }}</template></span>
     <div class="texte-retour"><slot /></div>
     <div v-if="$slots.actions" class="actions-retour"><slot name="actions" /></div>
     <button type="button" class="fermer-retour" title="Fermer ce message" aria-label="Fermer ce message" @click="$emit('fermer')">✕</button>

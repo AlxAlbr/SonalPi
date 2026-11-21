@@ -136,9 +136,12 @@ export class MigrationV1 {
       } catch { erreurs.push(`Entretien « ${e.titre} » : ${e.rtrPath}`) }
       try {
         if (e.audioRef) {
-          const ref = this.referencer(resolve(this.sourceDir, normaliserCheminAudio(e.audioRef)))
-          audioRef = ref.chemin
-          if (sousDossier(ref.chemin, this.sourceDir)) {
+          const attendu = resolve(this.sourceDir, normaliserCheminAudio(e.audioRef))
+          // Un média introuvable ne bloque pas : l'ancien chemin est gardé,
+          // et SonalPi2 proposera de réassigner le fichier à l'ouverture.
+          const ref = present(attendu) ? this.referencer(attendu) : null
+          audioRef = ref ? ref.chemin : attendu
+          if (ref && sousDossier(ref.chemin, this.sourceDir)) {
             let copie = medias.get(ref.chemin)
             if (!copie) {
               const nom = basename(ref.chemin).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')

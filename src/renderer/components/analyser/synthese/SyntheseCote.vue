@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { SelectionSynthese } from '../../../../shared/synthese/types'
 import { utiliserSonal } from '../../../composables/sonal'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 
 // Panneau gauche de la synthèse : les cinq dimensions de critères.
 // Les résultats, le bilan et l'export sont dans SynthesePanneau.vue.
@@ -9,6 +10,9 @@ const {
   filtresSynthese, ongletCriteresSynthese, ongletsCriteresSynthese, casDisponiblesSynthese,
   locuteursSynthese, membership, variables, codebook, cas,
 } = utiliserSonal()
+
+/** Le mode d'emploi des critères reste replié derrière l'icône info. */
+const aideOuverte = ref(false)
 
 const onglet = computed({
   get: () => ongletCriteresSynthese.value,
@@ -22,6 +26,24 @@ const libellesOnglets = {
   themes: 'Thèmes',
   cas: 'Cas',
 } as const
+
+/** Thèmes dans l'ordre du codebook, avec leur niveau pour afficher l'arborescence. */
+const themes = computed(() => codebook.value.map((theme) => ({
+  ...theme,
+  profondeur: profondeurTheme(theme.id),
+})))
+
+function profondeurTheme(id: string): number {
+  let profondeur = 0
+  let parent = codebook.value.find((theme) => theme.id === id)?.parent ?? null
+  const vus = new Set<string>()
+  while (parent && !vus.has(parent)) {
+    vus.add(parent)
+    profondeur++
+    parent = codebook.value.find((theme) => theme.id === parent)?.parent ?? null
+  }
+  return profondeur
+}
 
 function nombreSelectionsOnglet(cle: keyof typeof libellesOnglets): number {
   if (cle === 'entretiens' && filtresSynthese.value.entretiens.mode === 'sans-restriction') {
@@ -155,19 +177,23 @@ function nonRenseigne(variableId: string) {
       </button>
     </nav>
 
-    <div class="combinaison">
-      <strong>Comment les choix se combinent</strong>
-      <span>Dans une liste, un passage peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets, il doit répondre à tous les critères.</span>
+    <div class="ligne-info">
+      <BoutonInfo v-model="aideOuverte" libelle="Comment les choix se combinent" />
+      <label class="role">
+        <input
+          type="checkbox"
+          :checked="filtresSynthese.inclureEnqueteurs"
+          @change="filtresSynthese = { ...filtresSynthese, inclureEnqueteurs: !filtresSynthese.inclureEnqueteurs }"
+        >
+        Inclure les paroles des enquêteurs
+      </label>
     </div>
-
-    <label class="role">
-      <input
-        type="checkbox"
-        :checked="filtresSynthese.inclureEnqueteurs"
-        @change="filtresSynthese = { ...filtresSynthese, inclureEnqueteurs: !filtresSynthese.inclureEnqueteurs }"
-      >
-      Inclure les paroles des enquêteurs
-    </label>
+    <div v-if="aideOuverte" class="gabarit-aide combinaison">
+      <p><strong>Comment les choix se combinent</strong></p>
+      <p>Dans une liste, un passage peut correspondre à l’un ou l’autre des choix. Entre plusieurs onglets, il doit répondre à tous les critères.</p>
+      <p>Le chiffre affiché à côté de chaque onglet indique le nombre de choix qui y sont appliqués ; un onglet sans choix ne retire aucun passage.</p>
+      <p>Il faut au moins un thème, ou un cas s’il en existe, pour calculer la synthèse. Les résultats s’affichent à droite, en vue d’ensemble ou sous forme d’extraits.</p>
+    </div>
 
     <section v-if="onglet === 'entretiens'" role="tabpanel">
       <h3>Entretiens</h3>
@@ -186,7 +212,7 @@ function nonRenseigne(variableId: string) {
       </fieldset>
       <p class="discret">{{ casDisponiblesSynthese ? 'Au moins un thème ou un cas doit être choisi pour calculer la synthèse.' : 'Choisissez au moins un thème pour calculer la synthèse.' }}</p>
       <div class="actions-liste"><button @click="toutSelectionner('themes')">Tout sélectionner</button><button data-tour="vider-themes-synthese" @click="toutDeselectionner('themes')">Tout désélectionner</button></div>
-      <label v-for="item in codebook" :key="item.id" class="choix" :data-tour="`theme-synthese-${item.id}`"><input type="checkbox" :checked="coche(filtresSynthese.themes, item.id)" @change="choix('themes', item.id)"> {{ item.nom }}</label>
+      <label v-for="item in themes" :key="item.id" class="choix" :data-tour="`theme-synthese-${item.id}`" :style="{ paddingLeft: `${0.3 + item.profondeur * 0.8}rem` }"><input type="checkbox" :checked="coche(filtresSynthese.themes, item.id)" @change="choix('themes', item.id)"><span class="pastille" :style="{ backgroundColor: item.couleur || '#788596' }"></span>{{ item.nom }}</label>
     </section>
 
     <section v-if="onglet === 'cas'" role="tabpanel">
@@ -227,7 +253,10 @@ h3 { margin: 0; font-size: 0.95rem; }
 .onglets button.actif { color: #124d8b; font-weight: 700; background: #e7f0fc; border-color: #3976b8; box-shadow: inset 0 -2px #3976b8; }
 .badge { display: block; margin-top: 0.15rem; font-size: 0.63rem; color: #4f5968; background: #e9ecf1; border-radius: 8px; padding: 0.05rem 0.3rem; }
 .badge.applique { color: #6b4100; background: #ffedb3; font-weight: 700; }
-.combinaison { display: flex; flex-direction: column; gap: 0.18rem; margin: 0.65rem 0.25rem; padding: 0.55rem; border: 1px solid #c9d7ea; border-radius: 5px; background: #f2f7fd; font-size: 0.76rem; line-height: 1.35; }
+.ligne-info { display: flex; align-items: center; gap: 0.5rem; margin: 0.65rem 0.25rem; }
+.ligne-info .role { flex: 1; margin: 0; }
+.combinaison { margin: 0 0.25rem 0.65rem; }
+.combinaison p + p { margin-top: 0.3rem; }
 section, .role { margin: 0.65rem 0.25rem; }
 section, .variable { display: grid; gap: 0.42rem; }
 label { font-size: 0.84rem; }
@@ -237,6 +266,7 @@ label { font-size: 0.84rem; }
 .choix { display: flex; align-items: flex-start; gap: 0.3rem; padding: 0.28rem 0.3rem; }
 .choix:hover { background: #f3f6fb; }
 .choix input { margin-top: 0.15rem; }
+.pastille { width: 0.68rem; height: 0.68rem; flex: none; margin-top: 0.22rem; border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 50%; }
 .discret { color: #657083; font-size: 0.8rem; }
 .etat-selection { margin: 0.1rem 0; padding: 0.45rem 0.55rem; border-left: 3px solid #8b96a6; background: #f1f3f6; color: #4d5663; font-size: 0.76rem; line-height: 1.35; }
 .etat-selection.applique { border-left-color: #c18408; background: #fff5d6; color: #5d4105; }

@@ -25,7 +25,7 @@ test('un projet neuf ouvre la préparation puis reprend le dernier espace consul
   await fermerAiguillage(page)
 
   await expect(page.locator('.espace-preparation')).toBeVisible()
-  await expect(page.locator('[data-tour="ouvrir-accueil-preparation"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-tour="ouvrir-tableau-bord"]')).toHaveAttribute('aria-current', 'page')
 
   await page.getByRole('button', { name: 'Analyser & Interpréter', exact: true }).click()
   await page.locator('[data-tour="ouvrir-lexico"]').click()
@@ -68,12 +68,11 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // Six onglets nommés ; les actions récentes ne sont plus proposées.
+  // Sept onglets nommés ; les actions récentes ne sont plus proposées.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(6)
+  await expect(onglets).toHaveCount(7)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Actions récentes', exact: true })).toHaveCount(0)
-  await expect(onglets.nth(1)).toHaveText('Notes')
-  await expect(onglets.nth(2)).toHaveText('Personnes')
+  await expect(onglets).toHaveText(['Entretiens', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Commentaires', 'Notes', 'Données'])
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Entretiens')
