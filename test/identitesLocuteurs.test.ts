@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import {
-  associerParticipation, creerLocuteur, renommerLocuteur, separerLocuteur, supprimerLocuteurVide, trouverParticipation,
+  associerParticipation, creerLocuteur, renommerLocuteur, supprimerLocuteurVide, trouverParticipation,
 } from '../src/shared/corpus/identitesLocuteurs'
 import { validerCorpusNatif, validerEntretienNatif } from '../src/shared/natif/validation'
-import type { ReferenceParticipation } from '../src/shared/locuteurs'
 import { casNatif, corpusCasNatif, dateCasNatif, entretienCasNatif, idLocuteurNatif, idParticipationNative } from './fixtures/casNatifs'
 
 function preparer() {
@@ -20,7 +19,7 @@ function preparer() {
     validerCorpusNatif(corpus)
     for (const e of entretiens) validerEntretienNatif(e.data)
   }
-  return { corpus, a, b, entretiens, inventaire, verifier }
+  return { corpus, a, entretiens, inventaire, verifier }
 }
 
 describe('identités corpus et associations de participations', () => {
@@ -80,41 +79,6 @@ describe('identités corpus et associations de participations', () => {
     expect(() => associerParticipation(b.corpus, b.a, 'absente', 'autre')).toThrow('participation')
     expect([b.corpus, b.a]).toEqual(avant)
     b.verifier()
-  })
-
-  test('sépare selon le couple entretien/participation, même avec des ids locaux identiques', () => {
-    const b = preparer(), avant = structuredClone([b.a, b.b])
-    b.corpus.cas = { cas: casNatif() }
-    const avantCas = structuredClone(b.corpus.cas)
-    const nouvelle = separerLocuteur(b.corpus, b.entretiens, idLocuteurNatif, 'id-distinct', ' Nouvelle identité ', [
-      { entretienId: 'e2', participationId: idParticipationNative },
-    ])
-    expect(nouvelle).toEqual({ id: 'id-distinct', nom: 'Nouvelle identité' })
-    expect(b.a).toEqual(avant[0])
-    expect(b.b).toEqual({ ...avant[1], participations: [{ ...avant[1].participations[0], locuteurRef: 'id-distinct' }] })
-    expect(b.corpus.cas).toEqual(avantCas)
-    expect(b.b.notes![0].participationIds).toEqual([idParticipationNative])
-    b.verifier()
-  })
-
-  test.each([
-    [],
-    [{ entretienId: 'e2', participationId: idParticipationNative }, { entretienId: 'e2', participationId: idParticipationNative }],
-    [{ entretienId: 'inconnu', participationId: idParticipationNative }],
-    [{ entretienId: 'e2', participationId: 'absente' }],
-    [{ entretienId: 'e1', participationId: idParticipationNative }, { entretienId: 'e2', participationId: idParticipationNative }],
-  ] satisfies ReferenceParticipation[][])('une sélection invalide ne crée ni identité ni modification locale : %j', (...selection) => {
-    const b = preparer(), avant = structuredClone([b.corpus, b.entretiens])
-    expect(() => separerLocuteur(b.corpus, b.entretiens, idLocuteurNatif, 'id-distinct', 'Nouvelle', selection)).toThrow()
-    expect([b.corpus, b.entretiens]).toEqual(avant)
-  })
-
-  test('la séparation vérifie le nom et le nouvel id avant toute modification', () => {
-    const b = preparer(), avant = structuredClone([b.corpus, b.entretiens])
-    const selection = [{ entretienId: 'e2', participationId: idParticipationNative }]
-    expect(() => separerLocuteur(b.corpus, b.entretiens, idLocuteurNatif, 'autre', 'Nouvelle', selection)).toThrow('Identifiant')
-    expect(() => separerLocuteur(b.corpus, b.entretiens, idLocuteurNatif, 'id-distinct', ' ', selection)).toThrow('vide')
-    expect([b.corpus, b.entretiens]).toEqual(avant)
   })
 
   test('une identité inutilisée ne disparaît que sur demande explicite et avec un inventaire complet', () => {

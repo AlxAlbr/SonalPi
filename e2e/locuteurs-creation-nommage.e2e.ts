@@ -26,7 +26,7 @@ async function ajouterSource(page: Page) {
   return creerLocuteurFixture(dir, 'Marie Dupont', [{ entretienId: id, participationId: 'source' }])
 }
 
-test('tous les noms non vides créent une identité, mais ajouter une entrée provisoire ne suffit pas', async () => {
+test('chaque ajout apparaît immédiatement au corpus et son nom se valide sans notification de création', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-creation-noms-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
@@ -49,19 +49,23 @@ test('tous les noms non vides créent une identité, mais ajouter une entrée pr
     const initial = await page.evaluate(async () => { const r = await window.sonal.corpus.lireEntretien('e1'); if (!r.ok) throw new Error('Absent'); return r.data })
     const noms = ['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'Nouveau locuteur']
     for (const [i, nom] of noms.entries()) {
+      const identitesAvant = (await inventaire(page)).locuteurs
       await modal.getByRole('button', { name: '+ Locuteur', exact: true }).click()
       const champ = modal.locator('.nom-loc').last()
       await expect(champ).toHaveValue('Nouveau locuteur')
-      const identitesAvant = (await inventaire(page)).locuteurs
-      expect(identitesAvant).toHaveLength(base.locuteurs.length + i)
+      await expect.poll(async () => (await inventaire(page)).locuteurs.length).toBe(base.locuteurs.length + i + 1)
+      await expect(propositions(page)).toHaveCount(0)
+      await expect(modal.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
       if (i === 0) {
         await champ.fill('   '); await champ.press('Enter')
         await expect(modal.getByRole('status').filter({ hasText: 'Le nom ne peut pas être vide.' })).toBeVisible()
-        expect((await inventaire(page)).locuteurs).toHaveLength(base.locuteurs.length)
+        expect((await inventaire(page)).locuteurs).toHaveLength(base.locuteurs.length + i + 1)
       }
+      await expect(champ).toBeEnabled()
+      const participationId = await champ.getAttribute('data-participation-id')
       await champ.fill(nom); await champ.press('Enter')
-      await expect.poll(async () => (await inventaire(page)).locuteurs.length).toBe(base.locuteurs.length + i + 1)
-      await expect(modal.getByRole('status').filter({ hasText: new RegExp(`(?:Locuteur « ${nom} » créé|Un rapprochement est proposé pour « ${nom} »)`) })).toBeVisible()
+      await expect.poll(async () => (await inventaire(page)).participations.find((p) => p.entretienId === 'e1' && p.participationId === participationId)?.nom).toBe(nom)
+      await expect(modal.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
       if (await propositions(page).isVisible()) await propositions(page).getByRole('button', { name: 'Plus tard', exact: true }).click()
       const vue = await inventaire(page), nouvelles = vue.locuteurs.filter((l) => !identitesAvant.some((a) => a.id === l.id))
       expect(nouvelles).toHaveLength(1); expect(nouvelles[0].nom).toBe(nom)
@@ -77,6 +81,83 @@ test('tous les noms non vides créent une identité, mais ajouter une entrée pr
     expect(apres.participations.slice(0, initial.participations.length)).toEqual(initial.participations)
     expect(new Set(apres.participations.filter((p) => p.locuteurRef).map((p) => p.locuteurRef)).size).toBe(noms.length)
   } finally { await app.close(); rmSync(dir, { force: true, recursive: true }) }
+})
+
+test('un ajout non renommé est déjà visible dans les locuteurs du corpus, sans message ni proposition', async () => {
+  const { app, page } = await ouvrir('sonal-creation-immediate-')
+  try {
+    const modal = await gestion(page), avant = await inventaire(page)
+    await modal.getByRole('button', { name: '+ Locuteur', exact: true }).click()
+    await expect.poll(async () => (await inventaire(page)).locuteurs.length).toBe(avant.locuteurs.length + 1)
+    await expect(propositions(page)).toHaveCount(0)
+    await expect(modal.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
+    await modal.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
+    await retourCorpus(page)
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+    await expect(page.getByRole('option').filter({ has: page.getByText('Nouveau locuteur', { exact: true }) })).toHaveCount(1)
+  } finally { await app.close() }
+})
+
+test('les homonymes importés apparaissent séparément au corpus ; seule la validation de leur nom propose une association', async () => {
+  const { app, page } = await ouvrir('sonal-import-identites-immediates-')
+  try {
+    const ids = await page.evaluate(async () => {
+      const api = window.sonal.corpus, ids: string[] = []
+      for (const titre of ['Import premier', 'Import second']) {
+        const r = await api.importer(titre, {
+          corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'Paroles importées.' }] }] },
+          annotations: [], ancres: [], meta: { valeursGen: {}, audioRef: null },
+          participations: [{ id: 'voix', index: 0, nom: 'Alex importé', locuteurRef: null, valeursLoc: {} }],
+        }, [], [])
+        ids.push(r.id)
+      }
+      return ids
+    })
+    await expect(propositions(page)).toHaveCount(0)
+    await retourCorpus(page)
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+    await expect(page.getByRole('option').filter({ has: page.getByText('Alex importé', { exact: true }) })).toHaveCount(2)
+    const avant = await inventaire(page)
+    expect(new Set(avant.participations.filter((p) => ids.includes(p.entretienId)).map((p) => p.locuteurRef)).size).toBe(2)
+    await page.reload(); await entrerCorpus(page)
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
+    await page.locator('.carte-ent').filter({ hasText: 'Import premier' }).locator('.crayon').click()
+    const modal = await gestion(page)
+    await expect(propositions(page)).toHaveCount(0)
+    await modal.locator('.nom-loc').first().press('Enter')
+    await expect(propositions(page)).toBeVisible()
+    expect((await inventaire(page)).locuteurs).toEqual(avant.locuteurs)
+  } finally { await app.close() }
+})
+
+test('créer une identité au nommage laisse une autre édition locale ouverte et préserve ses saisies', async () => {
+  const { app, page } = await ouvrir('sonal-creation-autre-edition-')
+  try {
+    const autre = await page.evaluate(async () => {
+      const api = window.sonal.corpus, { id } = await api.creerEntretienVide('Autre édition ouverte')
+      const lecture = await api.ouvrirEntretienPourEdition(id)
+      if (!lecture.ok || lecture.acces !== 'edition') throw new Error('Édition indisponible')
+      const { formatVersion: _v, lastModified: _d, ...payload } = lecture.data
+      payload.meta.valeursGen = { autre: 'Saisie conservée' }
+      await api.ecrireEntretien(id, payload)
+      return { id, payload }
+    })
+    const avant = await inventaire(page), modal = await gestion(page)
+    await modal.locator('.nom-loc').first().fill('Identité nouvelle sans homonyme')
+    await modal.locator('.nom-loc').first().press('Enter')
+    await expect.poll(async () => (await inventaire(page)).locuteurs.length).toBe(avant.locuteurs.length + 1)
+    await expect(modal.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
+    const relu = await page.evaluate(async ({ id, payload }) => {
+      const api = window.sonal.corpus, lecture = await api.lireEntretien(id)
+      if (!lecture.ok) throw new Error('Autre entretien absent')
+      const avant = lecture.data
+      payload.meta.valeursGen.autre = 'Saisie suivante'
+      await api.ecrireEntretien(id, payload)
+      return avant
+    }, autre)
+    expect(relu.meta).toEqual(autre.payload.meta)
+    expect(relu.participations).toEqual(autre.payload.participations)
+  } finally { await app.close() }
 })
 
 test('Plus tard conserve immédiatement deux homonymes indépendants, visibles après retour au corpus', async () => {
@@ -205,8 +286,8 @@ for (const refuserRelecture of [false, true]) test(`réponse de création perdue
       await expect(page.getByRole('alert').filter({ hasText: 'Rouvrez le corpus' })).toBeVisible()
       await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
     } else {
-      await expect(modal.getByRole('status').filter({ hasText: 'Locuteur « X » créé' })).toBeVisible()
       await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
+      await expect(modal.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
     }
     const avant = await inventaire(page)
     expect(avant.locuteurs).toHaveLength(1); expect((await etatCreation(app)).appels).toBe(1)

@@ -48,6 +48,61 @@ async function banc(port: number, sansAssociation = false, invalidite?: 'retrait
 for (const port of [8080, 8081]) {
   const pret = await fetch(`http://localhost:${port}/status.php`, { signal: AbortSignal.timeout(800) }).then((r) => r.ok).catch(() => false)
   describe.skipIf(!pret)(`locuteurs depuis une session Nextcloud réel :${port}`, () => {
+    test('un nom local conserve les autres noms et les droits, y compris après une réponse perdue', { timeout: 150_000 }, async () => {
+      const b = await banc(port), autre = b.autre(false)
+      try {
+        await b.c.ouvrirEntretienPourEdition('A'); await b.c.ouvrirEntretienPourEdition('C')
+        expect((await autre.provider.acquerir(autre.chemin)).ok).toBe(true)
+        const avant = b.lire(), autreAvant = await b.client.getTexte('entretiens/B.json')
+        const demande = { ...reference, locuteurId: 'a', nomAvant: 'Alice A', nom: 'Mme Dupont' }
+        const apres = await b.c.renommerParticipationDepuisEntretien(demande)
+        expect(apres).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], nom: 'Mme Dupont' }] })
+        expect(JSON.parse(await b.client.getTexte('corpus.crp')).locuteurs.a.nom).toBe('Alice')
+        expect(await b.client.getTexte('entretiens/B.json')).toBe(autreAvant)
+        expect(b.c.sessions.etat('C').etat).toBe('a-nous')
+        expect(() => b.c.store.ecrireEntretien('A', avant)).toThrow('Les noms ont changé')
+        const puts = b.putsA()
+        await b.c.renommerParticipationDepuisEntretien(demande)
+        expect(b.putsA()).toBe(puts)
+        const suite = b.lire(); suite.notes![0].corps = 'Après le nom local'; b.c.store.ecrireEntretien('A', suite); b.c.sessions.noterSale('A')
+        expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
+        b.perdre()
+        const avantPerte = b.putsA()
+        await expect(b.c.renommerParticipationDepuisEntretien({ ...demande, nomAvant: 'Mme Dupont', nom: 'Alias après coupure' })).rejects.toThrow('doit être vérifié')
+        expect(await b.c.fermerEntretien('A')).toEqual({ fermee: true })
+        const suivi = b.c.lireSuiviCorrectionLocuteurs()!
+        await b.c.reconcilierCorrectionLocuteurs(suivi.operationId)
+        if (b.c.lireSuiviCorrectionLocuteurs()) await b.c.reprendreCorrectionLocuteurs(suivi.operationId)
+        expect(b.putsA()).toBe(avantPerte + 1)
+        const final = JSON.parse(await b.client.getTexte('entretiens/A.json'))
+        expect(final.participations[0].nom).toBe('Alias après coupure')
+        expect(final.notes[0].corps).toBe('Après le nom local')
+        expect(JSON.parse(await b.client.getTexte('corpus.crp')).locuteurs.a.nom).toBe('Alice')
+        expect(await b.client.getTexte('entretiens/B.json')).toBe(autreAvant)
+      } finally { await autre.provider.liberer(autre.chemin).catch(() => {}); await b.nettoyer() }
+    })
+
+    test('les imports créent leurs identités sans nommage supplémentaire, même avec un autre entretien ouvert', { timeout: 120_000 }, async () => {
+      const b = await banc(port)
+      try {
+        await b.c.ouvrirEntretienPourEdition('A')
+        const avant = b.lire(), { formatVersion: _v, lastModified: _d, ...payload } = structuredClone(avant)
+        payload.participations[0].locuteurRef = null
+        const ids: string[] = []
+        for (const titre of ['Import un', 'Import deux']) {
+          const r = await b.c.transactions.importerEntretien(titre, payload)
+          const data = JSON.parse(await b.client.getTexte(`entretiens/${r.id}.json`)), ref = data.participations[0].locuteurRef
+          expect(ref).toBeTruthy(); expect(ref).not.toBe('a')
+          const corpus = JSON.parse(await b.client.getTexte('corpus.crp'))
+          expect(corpus.locuteurs[ref]).toEqual({ id: ref, nom: payload.participations[0].nom })
+          ids.push(ref)
+        }
+        expect(new Set(ids).size).toBe(2)
+        expect(b.c.sessions.etat('A').etat).toBe('a-nous')
+        expect(b.lire()).toEqual(avant)
+      } finally { await b.nettoyer() }
+    })
+
     test('renommer, créer malgré une autre édition, réunir puis continuer les saisies sans changer de droit', { timeout: 180_000 }, async () => {
       const b = await banc(port)
       try {
@@ -74,7 +129,7 @@ for (const port of [8080, 8081]) {
           const cree = await b.c.identifierParticipationAuNommage({ ...seconde, nom: 'Bob' }); id = cree.participations[1].locuteurRef!
           expect(id).toBeTruthy(); expect(id).not.toBe('b')
           const sources = await b.c.inventaireLocuteursDepuisEntretien(seconde)
-          await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...seconde, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(sources) })).rejects.toThrow('en cours de modification')
+          await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...seconde, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(sources) })).resolves.toHaveProperty('participations.1.locuteurRef', 'b')
         } finally { await autre.provider.liberer(autre.chemin) }
         const sources = await b.c.inventaireLocuteursDepuisEntretien(seconde), avant = b.lire()
         const reuni = await b.c.rapprocherLocuteurDepuisEntretien({ ...seconde, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(sources) })

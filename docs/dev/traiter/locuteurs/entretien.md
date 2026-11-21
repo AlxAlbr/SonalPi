@@ -7,11 +7,13 @@ ni de ProseMirror ; le composable orchestre l’éditeur et la sauvegarde.
 ## Ajouter et renommer
 
 Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des valeurs
-vides et `locuteurRef: null`. Son ajout seul ne crée pas d’identité corpus. En local,
-sur GitLab et sur Nextcloud, valider tout nom non vide crée puis associe une identité distincte, avant les
-propositions éventuelles : rôles, caractères uniques et libellés provisoires validés
-sont admissibles. Entrée ou la sortie du champ modifié enregistrent la saisie ;
-un nom identique ne constitue jamais une preuve de rapprochement.
+vides, puis son identité corpus est enregistrée automatiquement dès le clic sur
+« + Locuteur », même avec le nom provisoire « Nouveau locuteur ». Les imports créent
+également une identité distincte par nouvelle participation dans leur transaction.
+Ces créations ne déclenchent ni notification de succès ni recherche de rapprochement.
+Entrée ou la sortie du champ modifié enregistrent le nom et déclenchent les
+propositions éventuelles, même pour une participation déjà identifiée à l’import.
+Un nom identique ne constitue jamais une preuve de rapprochement.
 Il n’existe pas de marqueur « nom validé ». L’entretien conserve également les
 participations non associées, même lorsqu’elles ne figurent pas dans la liste des
 locuteurs valides du corpus. Leur consultation et leur attribution restent possibles.
@@ -42,7 +44,20 @@ référence et la suppression explicite du marqueur de retrait, sans toucher au
 reste du payload. Une répétition reconnue conserve le locuteur déjà créé.
 Les protections de session, de publication et de reprise restent celles du nommage.
 
-Pour une participation déjà associée, sur les trois fournisseurs, modifier le champ Nom prépare
+### Choix de portée du renommage
+
+La gestion propose **Dans cet entretien uniquement** ou **Dans tous les entretiens
+de ce locuteur**, ce dernier restant sélectionné par défaut. Le choix reste actif
+tant que cet entretien est affiché et revient au défaut au changement d’entretien.
+
+Le choix local appelle `renommerParticipationDepuisEntretien`. Sa demande porte
+l’entretien, la participation, l’identité et les noms avant/après. Seul `nom` change :
+l’identité commune, l’association et tous les autres champs sont conservés.
+Il ne demande ni inventaire complet ni droit sur un autre entretien. Un autre
+entretien associé absent ou en cours d’édition ne bloque donc pas ce changement.
+La validation peut ensuite proposer les rapprochements habituels, sans les appliquer.
+
+Pour le choix global, sur les trois fournisseurs, modifier le champ Nom prépare
 l’inventaire complet. Si d’autres entretiens sont associés, leur aperçu demande
 confirmation avant toute modification. Sinon, le renommage est enregistré directement
 par la même transaction protégée, sans ouvrir de dialogue. Un inventaire incomplet
@@ -54,9 +69,10 @@ pendant la transaction, puis actualisent uniquement les noms ou associations et
 informations explicitement choisies du modèle ouvert. Les autres
 données et l’historique de frappe sont conservés. Une relecture incertaine garde
 l’entretien en lecture seule jusqu’à réouverture du corpus. GitLab et WebDAV conservent
-le droit courant pendant les trois corrections et adoptent la version confirmée
+le droit courant pendant ces corrections et adoptent la version confirmée
 comme base de session. Créer une identité indépendante ne nécessite pas de fermer
-les autres entretiens ; renommer globalement ou rapprocher exige leur fermeture.
+les autres entretiens ; en distant, seules les autres éditions réellement modifiées
+par un renommage ou un rapprochement doivent être fermées.
 Sur WebDAV, une correction interrompue peut être fermée sans renvoyer l’ancien contenu,
 puis vérifiée et reprise depuis le corpus. Une ancienne protection native n’est jamais
 forcée automatiquement après redémarrage. Voir [fournisseurs.md](fournisseurs.md).
@@ -161,7 +177,10 @@ corrections corpus est une question séparée des droits d’édition du texte.
 | Bilan et navigation | `src/renderer/components/traiter/entretien/StatistiquesLocuteurs.vue` |
 
 Tests principaux : `test/locuteurs.test.ts`, `test/locuteursGutter.test.ts`,
-`test/attribution.test.ts` et `e2e/locuteurs.e2e.ts`. Le test de gouttière vérifie
+`test/attribution.test.ts` et `e2e/locuteurs.e2e.ts`.
+`test/renommageParticipation.test.ts` couvre le renommage local, ses préconditions
+et la relecture limitée au nom. `e2e/locuteurs-renommage-ouvert.e2e.ts` vérifie le
+choix local/global et une réponse locale perdue. Le test de gouttière vérifie
 qu’un changement de couleur renouvelle les noms et pseudonymes déjà affichés,
 sans modifier le texte ni ses attributions. Les parcours de nommage et de
 rapprochement sont recensés dans [corpus.md](corpus.md).

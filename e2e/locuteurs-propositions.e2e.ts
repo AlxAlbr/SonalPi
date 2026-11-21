@@ -103,7 +103,7 @@ test('deux renommages immédiats ne créent que le locuteur du nom final', async
       input.value = 'Paul Final'
       input.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    await expect(page.getByRole('status').filter({ hasText: 'Locuteur « Paul Final » créé' })).toBeVisible()
+    await expect.poll(async () => (await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs.map((p) => p.nom)).toEqual(['Paul Final'])
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()

@@ -48,6 +48,7 @@ export function useLocuteursEntretien(deps: {
   lectureSeule?: () => boolean
   identificationPossible?: () => boolean
   identifier?: (reference: ReferenceParticipation, nom: string, regulariser?: DemandeIdentificationLocuteur['regulariser']) => Promise<void>
+  renommerLocal?: (reference: ReferenceParticipation, nom: string) => Promise<void>
   rapprocher?: (demande: DemandeRapprochementNommage, inventaire: InventaireIdentitesLocuteurs) => Promise<void>
   renommageGlobalPossible?: () => boolean
   demanderRenommageGlobal?: (reference: ReferenceParticipation, nom: string) => void
@@ -234,35 +235,45 @@ export function useLocuteursEntretien(deps: {
     }
   }
 
-  function proposerIdentite(reference: ReferenceParticipation, nom: string, regulariser?: DemandeIdentificationLocuteur['regulariser']) {
+  function enregistrerLocuteur(reference: ReferenceParticipation, options: { proposer?: boolean; regulariser?: DemandeIdentificationLocuteur['regulariser']; nomLocal?: string } = {}) {
+    const { proposer = false, regulariser, nomLocal } = options
     const idEntretien = reference.entretienId, locuteur = participationCourante(reference)
-    if (!locuteur || !nom.trim() || !deps.identificationPossible?.() || !deps.identifier || (!regulariser && !peutCreerLocuteurAuNommage(locuteur))) return
+    if (!locuteur || !locuteur.nom.trim() || !deps.identificationPossible?.()
+      || (nomLocal === undefined ? !deps.identifier : !deps.renommerLocal)
+      || (!regulariser && locuteur.associationRetiree)) return
     const idLocuteur = locuteur.id, jeton = generation, proposition = revisionPropositions
+    let nomValide = locuteur.nom
     nommagesPersonnes = nommagesPersonnes.then(async () => {
       const courant = () =>
         generation === jeton && deps.ouvertId.value === idEntretien
           ? deps.locuteurs.value.find(
-              (candidat) => candidat === locuteur && candidat.id === idLocuteur && candidat.nom === nom,
+              (candidat) => candidat === locuteur && candidat.id === idLocuteur && (!proposer || candidat.nom === nomValide),
             )
           : undefined
-      if (!courant() || (!regulariser && !peutCreerLocuteurAuNommage(courant()!))) return
+      if (!courant()) return
+      let nom = courant()!.nom
       messagePersonnes.value = ''
       try {
-        if (regulariser || !courant()!.locuteurRef) {
+        if (nomLocal !== undefined) {
+          await deps.renommerLocal!(reference, nomLocal.trim())
+          nom = nomLocal.trim(); nomValide = nom
+        } else if (regulariser || peutCreerLocuteurAuNommage(courant()!)) {
           await deps.identifier!({ entretienId: idEntretien, participationId: idLocuteur }, nom, ...(regulariser ? [regulariser] : []))
         }
         if (!courant()) return
         if (!courant()!.locuteurRef) throw new Error('L’enregistrement du locuteur n’a pas pu être vérifié.')
-        messagePersonnes.value = `Locuteur « ${nom} » créé au niveau du corpus.`
+        if (!proposer) return
+        await deps.effets.viderSauvegarde()
+        if (!courant()) return
         let inventaire: InventaireIdentitesLocuteurs
         try { inventaire = await window.sonal.corpus.inventaireLocuteursDepuisEntretien({ entretienId: idEntretien, participationId: idLocuteur }) }
         catch (e) {
-          if (courant() && proposition === revisionPropositions) messagePersonnes.value += ` Les rapprochements ne peuvent pas être vérifiés pour le moment. ${e instanceof Error ? e.message : String(e)}`
+          if (courant() && proposition === revisionPropositions) messagePersonnes.value = `Les rapprochements ne peuvent pas être vérifiés pour le moment. ${e instanceof Error ? e.message : String(e)}`
           return
         }
         if (!courant() || proposition !== revisionPropositions) return
         if (inventaire.indisponibles.length) {
-          messagePersonnes.value += ' Les propositions sont différées : certains entretiens sont indisponibles.'
+          messagePersonnes.value = 'Les propositions sont différées : certains entretiens sont indisponibles.'
           return
         }
         const locuteurRef = courant()!.locuteurRef
@@ -295,7 +306,7 @@ export function useLocuteursEntretien(deps: {
         }
       } catch (erreur) {
         if (courant()) {
-          messagePersonnes.value = `Identification non terminée : ${erreur instanceof Error ? erreur.message : String(erreur)}`
+          messagePersonnes.value = `${nomLocal === undefined ? 'Identification non terminée' : 'Renommage non terminé'} : ${erreur instanceof Error ? erreur.message : String(erreur)}`
         }
       }
     })
@@ -304,10 +315,10 @@ export function useLocuteursEntretien(deps: {
   function regulariserLocuteur(reference: ReferenceParticipation) {
     const locuteur = participationCourante(reference)
     if (!locuteur) return
-    proposerIdentite(reference, locuteur.nom, { locuteurRef: locuteur.locuteurRef, associationRetiree: !!locuteur.associationRetiree })
+    enregistrerLocuteur(reference, { regulariser: { locuteurRef: locuteur.locuteurRef, associationRetiree: !!locuteur.associationRetiree } })
   }
 
-  function renommerParticipation(reference: ReferenceParticipation, event: Event | string) {
+  function renommerParticipation(reference: ReferenceParticipation, event: Event | string, portee: 'corpus' | 'entretien' = 'corpus') {
     const cible = participationCourante(reference)
     if (!cible) return
     const champ = typeof event === 'string' ? null : event.target as HTMLInputElement
@@ -318,7 +329,12 @@ export function useLocuteursEntretien(deps: {
       messagePersonnes.value = 'Le nom ne peut pas être vide.'
       return
     }
-    if (cible.locuteurRef && deps.renommageGlobalPossible?.() && deps.demanderRenommageGlobal && ancien !== nouveau) {
+    if (cible.locuteurRef && portee === 'entretien' && deps.renommerLocal && ancien !== nouveau) {
+      if (champ) champ.value = ancien
+      enregistrerLocuteur(reference, { proposer: true, nomLocal: nouveau })
+      return
+    }
+    if (cible.locuteurRef && portee === 'corpus' && deps.renommageGlobalPossible?.() && deps.demanderRenommageGlobal && ancien !== nouveau) {
       if (champ) champ.value = ancien
       deps.demanderRenommageGlobal(reference, nouveau)
       return
@@ -333,14 +349,19 @@ export function useLocuteursEntretien(deps: {
     }
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
-    proposerIdentite(reference, nouveau)
+    proposerRapprochement(reference)
+  }
+
+  function proposerRapprochement(reference: ReferenceParticipation) {
+    enregistrerLocuteur(reference, { proposer: true })
   }
 
   function nouveauLocuteur() {
     if (!deps.ouvertId.value || deps.lectureSeule?.()) return
-    ajouterLocuteur(deps.locuteurs.value, 'Nouveau locuteur')
+    const participation = ajouterLocuteur(deps.locuteurs.value, 'Nouveau locuteur')
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
+    enregistrerLocuteur({ entretienId: deps.ouvertId.value, participationId: participation.id })
   }
 
   function setInterviewer(reference: ReferenceParticipation, actif: boolean) {
@@ -433,6 +454,7 @@ export function useLocuteursEntretien(deps: {
     attribuerLoc,
     renommerParticipation,
     regulariserLocuteur,
+    proposerRapprochement,
     reporterRapprochement,
     deciderRapprochement,
     nouveauLocuteur,

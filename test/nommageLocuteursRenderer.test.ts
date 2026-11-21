@@ -7,9 +7,9 @@ import { useLocuteursEntretien } from '../src/renderer/composables/entretien/use
 
 const reference = { entretienId: 'courant', participationId: 'local' }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
-function banc(nomSource = 'Autre nom') {
+function banc(nomSource = 'Autre nom', global = false) {
   const locuteurs = ref<ParticipationLocuteur[]>([{ id: 'local', index: 11, nom: 'Nouveau locuteur', locuteurRef: null, valeursLoc: { v: 'm' }, couleur: '#123456' }])
-  const ouvertId = ref<string | null>('courant'), editable = ref(true), local = ref(true)
+  const ouvertId = ref<string | null>('courant'), editable = ref(true), disponible = ref(true)
   const source: ParticipationLocuteur = { id: 'local', index: 0, nom: nomSource, locuteurRef: 'source', valeursLoc: {}, pseudo: 'Pseudonyme source', interviewer: true }
   const inventaire = (): InventaireIdentitesLocuteurs => ({
     locuteurs: [{ id: 'source', nom: nomSource }, ...locuteurs.value.filter((p) => p.locuteurRef).map((p) => ({ id: p.locuteurRef!, nom: p.nom }))],
@@ -23,15 +23,56 @@ function banc(nomSource = 'Autre nom') {
   Object.assign(window, { sonal: { corpus: api } })
   const effets = { enregistrerAction: vi.fn(), rafraichirJournal: vi.fn(), rafraichirProjections: vi.fn(), rafraichirGouttiere: vi.fn(),
     planifierSauvegarde: vi.fn(), viderSauvegarde: vi.fn(async () => {}), retirerLocuteurDesNotes: vi.fn() }
+  let numero = 0
   const identifier = vi.fn(async (ref: typeof reference, _nom: string) => {
     await effets.viderSauvegarde()
-    locuteurs.value.find((p) => p.id === ref.participationId)!.locuteurRef = 'nouvelle'
+    locuteurs.value.find((p) => p.id === ref.participationId)!.locuteurRef = ++numero === 1 ? 'nouvelle' : `nouvelle-${numero}`
   })
   const rapprocher = vi.fn(async () => {})
-  const outils = useLocuteursEntretien({ locuteurs, ouvertId, lectureSeule: () => !editable.value, identificationPossible: () => local.value,
-    identifier, rapprocher, lireEditeur: () => null, effets })
-  return { locuteurs, ouvertId, editable, local, source, inventaire, api, effets, identifier, rapprocher, ...outils }
+  const renommerLocal = vi.fn(async (ref: typeof reference, nom: string) => { locuteurs.value.find((p) => p.id === ref.participationId)!.nom = nom })
+  const demanderRenommageGlobal = vi.fn()
+  const outils = useLocuteursEntretien({ locuteurs, ouvertId, lectureSeule: () => !editable.value, identificationPossible: () => disponible.value,
+    identifier, rapprocher, renommerLocal, renommageGlobalPossible: () => global, demanderRenommageGlobal, lireEditeur: () => null, effets })
+  return { locuteurs, ouvertId, editable, disponible, source, inventaire, api, effets, identifier, rapprocher, renommerLocal, demanderRenommageGlobal, ...outils }
 }
+
+test('le choix local utilise la commande ciblée et ne demande aucun renommage global', async () => {
+  const b = banc('Autre nom', true)
+  b.locuteurs.value[0].locuteurRef = 'commune'
+  const avant = JSON.parse(JSON.stringify(b.locuteurs.value[0]))
+  b.renommerParticipation(reference, 'Nom dans cet entretien', 'entretien')
+  expect(b.locuteurs.value[0]).toEqual(avant)
+  await b.attendreNommages()
+  expect(b.renommerLocal).toHaveBeenCalledExactlyOnceWith(reference, 'Nom dans cet entretien')
+  expect(b.demanderRenommageGlobal).not.toHaveBeenCalled()
+  expect(b.identifier).not.toHaveBeenCalled()
+  expect(b.locuteurs.value[0]).toEqual({ ...avant, nom: 'Nom dans cet entretien' })
+})
+
+test('le choix corpus conserve le parcours global et ne modifie pas le nom avant confirmation', async () => {
+  const b = banc('Autre nom', true)
+  b.locuteurs.value[0].locuteurRef = 'commune'
+  b.renommerParticipation(reference, 'Nom commun souhaité', 'corpus')
+  expect(b.demanderRenommageGlobal).toHaveBeenCalledExactlyOnceWith(reference, 'Nom commun souhaité')
+  expect(b.renommerLocal).not.toHaveBeenCalled()
+  expect(b.locuteurs.value[0].nom).toBe('Nouveau locuteur')
+})
+
+test('un refus local conserve le nom précédent et affiche l’échec', async () => {
+  const b = banc(); b.locuteurs.value[0].locuteurRef = 'commune'
+  b.renommerLocal.mockRejectedValueOnce(new Error('Droit perdu'))
+  b.renommerParticipation(reference, 'Nom local', 'entretien'); await b.attendreNommages()
+  expect(b.locuteurs.value[0].nom).toBe('Nouveau locuteur')
+  expect(b.messagePersonnes.value).toContain('Renommage non terminé')
+})
+
+test('la validation d’un nom local peut proposer un rapprochement sans changer les liens', async () => {
+  const b = banc('Marie Dupont', true); b.locuteurs.value[0].locuteurRef = 'commune'
+  b.renommerParticipation(reference, 'Marie Dupont', 'entretien'); await b.attendreNommages()
+  expect(b.rapprochementNommage.value?.candidats).toHaveLength(1)
+  expect(b.locuteurs.value[0].locuteurRef).toBe('commune')
+  expect(b.rapprocher).not.toHaveBeenCalled()
+})
 
 test.each(['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'Nouveau locuteur'])('valider %s identifie avant de calculer les propositions', async (nom) => {
   const b = banc(), avant = JSON.parse(JSON.stringify(b.locuteurs.value[0]))
@@ -43,17 +84,40 @@ test.each(['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'Nouveau locuteur'])('
   expect(b.api).not.toHaveProperty('personnesCommander')
 })
 
-test('ajouter une entrée provisoire ne crée aucune identité, la validation du même libellé la crée', async () => {
+test('ajouter un locuteur enregistre immédiatement son identité, sans notification ni recherche de rapprochement', async () => {
   const b = banc(); b.nouveauLocuteur(); await b.attendreNommages()
-  expect(b.identifier).not.toHaveBeenCalled()
   const nouvelle = b.locuteurs.value[1]
-  expect(nouvelle.nom).toBe('Nouveau locuteur'); expect(nouvelle.locuteurRef).toBeNull()
-  b.renommerParticipation({ entretienId: 'courant', participationId: nouvelle.id }, nouvelle.nom)
-  await b.attendreNommages()
+  expect(nouvelle.nom).toBe('Nouveau locuteur'); expect(nouvelle.locuteurRef).toBe('nouvelle')
   expect(b.identifier).toHaveBeenCalledExactlyOnceWith({ entretienId: 'courant', participationId: nouvelle.id }, 'Nouveau locuteur')
+  expect(b.api.inventaireLocuteursDepuisEntretien).not.toHaveBeenCalled()
+  expect(b.rapprochementNommage.value).toBeNull(); expect(b.messagePersonnes.value).toBe('')
 })
 
-test('plus tard conserve une identité distincte ; une seconde validation ne crée ni fiche ni nouvelle demande', async () => {
+test('deux ajouts restent distincts malgré leur même nom provisoire', async () => {
+  const b = banc(); b.nouveauLocuteur(); b.nouveauLocuteur(); await b.attendreNommages()
+  expect(b.locuteurs.value.slice(1).map((p) => p.locuteurRef)).toEqual(['nouvelle', 'nouvelle-2'])
+  expect(b.api.inventaireLocuteursDepuisEntretien).not.toHaveBeenCalled()
+})
+
+test('une validation pendant la création ne crée pas de doublon et seule cette validation propose le rapprochement', async () => {
+  const b = banc('Marie Dupont'); b.nouveauLocuteur()
+  const p = b.locuteurs.value[1]
+  b.renommerParticipation({ entretienId: 'courant', participationId: p.id }, 'Marie Dupont')
+  await b.attendreNommages()
+  expect(b.identifier).toHaveBeenCalledExactlyOnceWith({ entretienId: 'courant', participationId: p.id }, 'Marie Dupont')
+  expect(b.rapprochementNommage.value?.locuteurId).toBe(p.id)
+})
+
+test('valider le nom déjà enregistré d’un locuteur importé propose une association sans recréer son identité', async () => {
+  const b = banc('Marie Dupont')
+  Object.assign(b.locuteurs.value[0], { nom: 'Marie Dupont', locuteurRef: 'importee' })
+  b.renommerParticipation(reference, 'Marie Dupont'); await b.attendreNommages()
+  expect(b.identifier).not.toHaveBeenCalled()
+  expect(b.rapprochementNommage.value?.locuteurRef).toBe('importee')
+  expect(b.rapprocher).not.toHaveBeenCalled()
+})
+
+test('plus tard conserve l’identité distincte ; une nouvelle validation peut reproposer sans créer de fiche', async () => {
   const b = banc('Marie Dupont')
   b.renommerParticipation(reference, 'Marie Dupont'); await b.attendreNommages()
   expect(b.rapprochementNommage.value?.locuteurRef).toBe('nouvelle')
@@ -62,7 +126,7 @@ test('plus tard conserve une identité distincte ; une seconde validation ne cr�
   b.renommerParticipation(reference, 'Marie Dupont'); await b.attendreNommages()
   expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle')
   expect(b.identifier).toHaveBeenCalledOnce(); expect(b.rapprocher).not.toHaveBeenCalled()
-  expect(b.rapprochementNommage.value).toBeNull()
+  expect(b.rapprochementNommage.value?.candidats).toHaveLength(1)
 })
 
 test('seule la confirmation explicite utilise le rapprochement transactionnel', async () => {
@@ -86,11 +150,11 @@ test('aucune de ces personnes mémorise le refus sans supprimer ni recréer l’
   expect(b.identifier).toHaveBeenCalledOnce(); expect(b.rapprocher).not.toHaveBeenCalled()
 })
 
-test.each(['vide', 'retrait', 'lecture seule', 'distant'] as const)('%s : pas de création automatique', async (cas) => {
+test.each(['vide', 'retrait', 'lecture seule', 'geste indisponible'] as const)('%s : pas de création automatique', async (cas) => {
   const b = banc()
   if (cas === 'retrait') b.locuteurs.value[0].associationRetiree = true
   if (cas === 'lecture seule') b.editable.value = false
-  if (cas === 'distant') b.local.value = false
+  if (cas === 'geste indisponible') b.disponible.value = false
   b.renommerParticipation(reference, cas === 'vide' ? '  ' : 'Marie Dupont'); await b.attendreNommages()
   expect(b.identifier).not.toHaveBeenCalled(); expect(b.api.inventaireLocuteursDepuisEntretien).not.toHaveBeenCalled()
   expect(b.locuteurs.value[0].locuteurRef).toBeNull()
@@ -108,7 +172,7 @@ test('un inventaire distant indisponible après création ne présente pas l’i
   b.api.inventaireLocuteursDepuisEntretien.mockRejectedValueOnce(new Error('Un entretien est indisponible'))
   b.renommerParticipation(reference, 'X'); await b.attendreNommages()
   expect(b.locuteurs.value[0].locuteurRef).toBe('nouvelle')
-  expect(b.messagePersonnes.value).toContain('Locuteur « X » créé')
+  expect(b.messagePersonnes.value).not.toContain('créé')
   expect(b.messagePersonnes.value).toContain('Les rapprochements ne peuvent pas être vérifiés')
   expect(b.messagePersonnes.value).not.toContain('Identification non terminée')
   expect(b.identifier).toHaveBeenCalledOnce()

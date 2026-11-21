@@ -29,7 +29,7 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
-import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, type CommandeRenommageLocuteur, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, validerRenommageParticipation, type CommandeRenommageLocuteur, type DemandeRenommageParticipation, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
@@ -1535,6 +1535,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     validerReferenceLocuteurOuvert(reference); validerCommandeCorrectionLocuteurs(commande)
     if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.renommerLocuteurDepuisEntretien(reference, commande), (c) => c.renommerLocuteurDepuisEntretien(reference, commande))
     return store.renommerLocuteurDepuisEntretien(reference, commande)
+  })
+  ipcMain.handle('corpus:renommerParticipationDepuisEntretien', (_e, demande: DemandeRenommageParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-participation')
+    validerRenommageParticipation(demande)
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.renommerParticipationDepuisEntretien(demande), (c) => c.renommerParticipationDepuisEntretien(demande))
+    return store.renommerParticipationDepuisEntretien(demande)
   })
   ipcMain.handle('corpus:journalLister', () => store.journalCorpusLister())
   ipcMain.handle('corpus:journalAnnuler', (_e, id: string) => {

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../../src/main/corpusStore'
-import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
+import { BailGitLab, cheminBailRessourceGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
 import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
@@ -43,7 +43,7 @@ test('sans suivi durable ou au-delà de la borne du commit : aucune correction p
   const sansJournal = new TransactionsGitLab({ destination: b.destination, store: b.store, depot: b.depot, coordination: b.coordination, publication: b.publication, file: new FileOperationsContexte() })
   await expect(sansJournal.corrigerLocuteurs(b.commande(), () => {})).rejects.toThrow('suivi')
   expect(b.depot.commits).toEqual([])
-  const gros = banc(125)
+  const gros = banc(126)
   await expect(gros.transactions.corrigerLocuteurs(gros.commande(), () => {})).rejects.toThrow('trop d’entretiens')
   expect(gros.donnees()).toEqual([])
 })
@@ -67,7 +67,8 @@ test('renommage gardé : un seul commit, sources serveur et miroir installé seu
   expect(b.donnees()).toHaveLength(1)
   const actions = b.donnees()[0].actions
   expect(actions.filter((a) => a.action === 'update' && !a.file_path.startsWith('.sonal/')).map((a) => a.file_path)).toEqual(['corpus.crp', 'entretiens/A.json', 'entretiens/B.json'])
-  expect(actions.find((a) => a.file_path === 'entretiens/C.json')?.action).toBe('chmod')
+  expect(actions.some((a) => a.file_path === 'entretiens/C.json')).toBe(false)
+  expect(b.depot.commits.flatMap((c) => c.actions).some((a) => a.file_path === cheminBailRessourceGitLab(cleRessourceBailGitLab('main', 'entretiens/C.json')))).toBe(false)
   expect(b.store.ouvrir().locuteurs.a.nom).toBe('Alice publiée')
   const lecture = b.store.lireEntretien('A'); expect(lecture.ok).toBe(true)
   if (!lecture.ok) throw new Error('Miroir absent')
@@ -84,7 +85,7 @@ test('réunion et suppression vide passent par le même commit complet sans copi
   expect(b.store.ouvrir().locuteurs.b).toBeUndefined()
   const c = b.store.lireEntretien('C'); if (!c.ok) throw new Error('Source absente')
   expect(c.data.participations[0]).toEqual({ ...b.fixture.entretiens[2].data.participations[0], locuteurRef: 'a' })
-  await b.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(b.store.inventaireIdentitesLocuteurs()) }, () => {})
+  await b.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify((await b.transactions.lireDetailsLocuteurs()).inventaire) }, () => {})
   expect(b.donnees()).toHaveLength(2); expect(b.store.ouvrir().locuteurs.vide).toBeUndefined()
 })
 
@@ -98,11 +99,54 @@ test.each(['session locale', 'bail étranger', 'aperçu périmé', 'source inval
   if (cas === 'aperçu périmé') commande.attendu = '{}'
   if (cas === 'source invalide') b.depot.modifierHorsProtocole('entretiens/C.json', '{}')
   if (cas === 'source changée pendant la publication') b.depot.avantCommit = (actions) => {
-    if (actions.some((a) => !a.file_path.startsWith('.sonal/'))) b.depot.modifierHorsProtocole('entretiens/C.json', JSON.stringify({ ...b.fixture.entretiens[2].data, lastModified: '2026-11-20T00:00:00.000Z' }))
+    if (actions.some((a) => !a.file_path.startsWith('.sonal/'))) b.depot.modifierHorsProtocole('entretiens/A.json', JSON.stringify({ ...b.fixture.entretiens[0].data, lastModified: '2026-11-20T00:00:00.000Z' }))
   }
   await expect(b.transactions.corrigerLocuteurs(commande, verifier)).rejects.toThrow()
   expect(b.donnees()).toEqual([])
   expect(readFileSync(join(b.dir, 'corpus.crp'), 'utf8')).toBe(avant)
+})
+
+test('un entretien sans rapport reste éditable et sa modification ne bloque pas la correction', async () => {
+  const b = banc(), autre = new BailGitLab({ branche: 'main', depot: b.depot,
+    identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'session-b' }) })
+  expect((await autre.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/C.json'))).ok).toBe(true)
+  const data = structuredClone(b.fixture.entretiens[2].data)
+  data.notes![0].corps = 'Modification d’un collègue'
+  b.depot.avantCommit = (actions) => {
+    if (actions.some((a) => a.file_path === 'entretiens/A.json')) b.depot.modifierHorsProtocole('entretiens/C.json', JSON.stringify(data))
+  }
+  expect(await b.transactions.corrigerLocuteurs(b.commande(), () => {})).toBe('a')
+  expect(JSON.parse((await b.depot.lireFichier('entretiens/C.json'))!.contenu)).toEqual(data)
+  expect(b.donnees()[0].actions.some((a) => a.file_path === 'entretiens/C.json')).toBe(false)
+})
+
+test('retirer une identité vérifie les autres sources dans le commit, sans prendre leurs droits', async () => {
+  const b = banc(), autre = new BailGitLab({ branche: 'main', depot: b.depot,
+    identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'session-b' }) })
+  expect((await autre.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/A.json'))).ok).toBe(true)
+  await b.transactions.corrigerLocuteurs({ type: 'regrouperSelection', locuteurIds: ['a', 'b'], conserverId: 'a', nom: 'Réunis', uniformiserNoms: false, attendu: b.fixture.attendu() }, () => {})
+  expect(b.donnees()).toHaveLength(1)
+  expect(b.donnees()[0].actions.find((a) => a.file_path === 'entretiens/A.json')?.action).toBe('chmod')
+  expect(b.store.ouvrir().locuteurs.b).toBeUndefined()
+})
+
+test('une nouvelle référence concurrente empêche un retrait sans écraser cette publication', async () => {
+  const b = banc(), data = structuredClone(b.fixture.entretiens[0].data)
+  data.participations[0].rapprochementsRefuses = [{ type: 'locuteur', locuteurId: 'b' }]
+  b.depot.avantCommit = (actions) => {
+    if (actions.some((a) => a.file_path === 'entretiens/C.json')) b.depot.modifierHorsProtocole('entretiens/A.json', JSON.stringify(data))
+  }
+  await expect(b.transactions.corrigerLocuteurs({ type: 'regrouperSelection', locuteurIds: ['a', 'b'], conserverId: 'a', nom: 'Réunis', uniformiserNoms: false, attendu: b.fixture.attendu() }, () => {})).rejects.toThrow()
+  expect(b.donnees()).toEqual([])
+  expect(JSON.parse((await b.depot.lireFichier('corpus.crp'))!.contenu).locuteurs.b).toBeDefined()
+  expect(JSON.parse((await b.depot.lireFichier('entretiens/A.json'))!.contenu)).toEqual(data)
+})
+
+test('la borne porte sur les entretiens modifiés, pas sur la taille totale du corpus', async () => {
+  const b = banc(130)
+  await b.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: b.fixture.attendu() }, () => {})
+  expect(b.donnees()).toHaveLength(1)
+  expect(b.donnees()[0].actions.filter((a) => a.action === 'update' && !a.file_path.startsWith('.sonal/')).map((a) => a.file_path)).toEqual(['corpus.crp'])
 })
 
 test('réponse perdue : publication journalisée, aucun miroir candidat et aucune nouvelle tentative aveugle', async () => {

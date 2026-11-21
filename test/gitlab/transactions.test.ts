@@ -412,6 +412,25 @@ describe('ajout et import GitLab', () => {
     expect(store.ouvrir().membership).toEqual(resultat.corpus.membership)
   })
 
+  test('les imports créent leurs identités dans le même commit, sans réunir les homonymes', async () => {
+    const { transactions, store, depot } = banc()
+    const source = payload('Texte importé')
+    source.participations = [1, 2].map((index) => ({ id: `p${index}`, index, nom: 'Alex importé', locuteurRef: null, valeursLoc: {} }))
+    const ids: string[] = []
+    for (const titre of ['Premier import', 'Second import']) {
+      const r = await transactions.importerEntretien(titre, source)
+      const data = JSON.parse(depot.fichiers.get(`${RACINE}/entretiens/${r.id}.json`)!.contenu) as EntretienFichier
+      for (const p of data.participations) {
+        expect(r.corpus.locuteurs[p.locuteurRef!]).toEqual({ id: p.locuteurRef, nom: p.nom })
+        ids.push(p.locuteurRef!)
+      }
+      expect(store.lireEntretien(r.id)).toEqual({ ok: true, data })
+    }
+    expect(new Set(ids).size).toBe(4)
+    expect(commitsDeDonnees(depot)).toHaveLength(2)
+    expect(store.locuteursInventaire().aVerifier).toEqual([])
+  })
+
   test('un miroir en retard accepte l’installation du plan local', async () => {
     const serveur = squeletteCorpus('Corpus partagé')
     const { transactions } = banc({ serveur, local: squeletteCorpus('copie très périmée') })

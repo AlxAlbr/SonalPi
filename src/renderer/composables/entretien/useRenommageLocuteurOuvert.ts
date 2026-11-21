@@ -21,6 +21,7 @@ export function useRenommageLocuteurOuvert(deps: {
   appliquer: (avant: PayloadEntretien, apres: EntretienFichier, locuteurId: string) => void
   terminer: () => void
   apresCorrection: () => void
+  apresValidation?: (reference: ReferenceParticipation) => void
 }) {
   const demande = ref<DemandeRenommageOuvert | null>(null)
   const occupe = ref(false)
@@ -78,6 +79,7 @@ export function useRenommageLocuteurOuvert(deps: {
     occupe.value = true
     enregistrement.value = true
     let avant: PayloadEntretien | undefined
+    let valide = false
     try {
       avant = await deps.suspendre()
       if (jeton !== generation || !courant()) return
@@ -88,6 +90,7 @@ export function useRenommageLocuteurOuvert(deps: {
       deps.appliquer(avant, apres, locuteurId)
       deps.apresCorrection()
       demande.value = null
+      valide = true
     } catch (e) {
       if (jeton !== generation) return
       erreur.value = e instanceof Error ? e.message : String(e)
@@ -105,6 +108,7 @@ export function useRenommageLocuteurOuvert(deps: {
     } finally {
       if (jeton === generation) { deps.terminer(); occupe.value = false; enregistrement.value = false }
     }
+    if (valide && jeton === generation) deps.apresValidation?.(initiale.reference)
   }
   return { demande, occupe, enregistrement, erreur, preparer, confirmer, annuler, reinitialiser }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { ParticipationLocuteur } from '../../../../shared/format'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
@@ -39,6 +39,7 @@ const {
   confirmerSuppressionLocuteur,
   vue,
 } = utiliserSonal()
+const editionIndisponible = computed(() => props.lectureSeule || editionNomsSuspendue.value || renommageEnCours.value)
 
 function regulariser(locuteur: ParticipationLocuteur) {
   if (!window.confirm(`Enregistrer « ${locuteur.nom} » comme locuteur distinct dans le corpus ? Les paroles et informations seront conservées. Aucune ancienne association ne sera rétablie.`)) return
@@ -52,9 +53,10 @@ function detailsLocuteur(locuteur: ParticipationLocuteur): string {
 }
 
 const gestionOuverte = ref(false)
+const porteeRenommage = ref<'corpus' | 'entretien'>('corpus')
 const boutonGestion = ref<HTMLButtonElement | null>(null)
 const boutonFermerGestion = ref<HTMLButtonElement | null>(null)
-watch(ouvertId, () => { emit('update:statistiquesOuvertes', false) })
+watch(ouvertId, () => { emit('update:statistiquesOuvertes', false); porteeRenommage.value = 'corpus' })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
 const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
@@ -159,7 +161,7 @@ watch(
             class="attr"
             :aria-label="l.nom"
             :aria-describedby="`details-locuteur-${l.index}`"
-            :disabled="lectureSeule"
+            :disabled="editionIndisponible"
             @click="attribuerLoc(l.index)"
           >
             <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
@@ -172,7 +174,7 @@ watch(
             {{ l.nom }} — {{ detailsLocuteur(l) }}
           </span>
         </div>
-        <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
+        <button class="attr aucun" :disabled="editionIndisponible" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
 
@@ -190,7 +192,7 @@ watch(
         <section class="modale-locuteurs">
           <div class="corpus-tete">
             <h3 id="titre-gestion-locuteurs">Gestion des locuteurs</h3>
-            <button class="mini" :disabled="lectureSeule" @click="nouveauLocuteur">+ Locuteur</button>
+            <button class="mini" :disabled="editionIndisponible" @click="nouveauLocuteur">+ Locuteur</button>
             <button
               ref="boutonFermerGestion"
               class="fermer"
@@ -201,6 +203,13 @@ watch(
           </div>
           <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
           <p class="aide-gestion-locuteurs">Pour changer un nom, appuyez sur Entrée ou quittez le champ modifié. Les noms identiques restent séparés tant que vous ne les réunissez pas.</p>
+          <label class="portee-renommage">Appliquer les changements de nom
+            <select v-model="porteeRenommage" :disabled="editionIndisponible">
+              <option value="entretien">Dans cet entretien uniquement</option>
+              <option value="corpus">Dans tous les entretiens de ce locuteur</option>
+            </select>
+          </label>
+          <p v-if="porteeRenommage === 'entretien'" class="aide-gestion-locuteurs">Le nom du corpus et les noms utilisés dans les autres entretiens restent inchangés.</p>
           <p v-if="renommageGlobalOccupe && !demandeRenommageGlobal?.confirmationRequise" role="status">Enregistrement du nom…</p>
           <div v-if="locuteurASupprimer" class="confirm-suppr">
             Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
@@ -233,7 +242,6 @@ watch(
             />
             <p
               v-if="messagePersonnes"
-              :class="{ 'message-personne-creation': messagePersonnes.startsWith('Locuteur «') }"
               role="status"
             >{{ messagePersonnes }}</p>
             <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
@@ -244,7 +252,7 @@ watch(
                   class="carre-couleur"
                   :value="l.couleur ?? couleurPourLocuteur(l.index)"
                   :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
-                  :disabled="lectureSeule"
+                  :disabled="editionIndisponible"
                   @change="choisirCouleurLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                 />
                 <div class="nom-cell">
@@ -253,9 +261,9 @@ watch(
                     :data-participation-id="l.id"
                     :data-tour="i === 0 ? 'nom-locuteur' : undefined"
                     :value="l.nom"
-                    :disabled="lectureSeule || !l.id || renommageGlobalOccupe"
-                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
-                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                    :disabled="editionIndisponible || !l.id || renommageGlobalOccupe"
+                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event, porteeRenommage)"
+                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event, porteeRenommage)"
                   />
                 </div>
                 <div class="pseudo-cell">
@@ -264,7 +272,7 @@ watch(
                     :value="l.pseudo ?? ''"
                     placeholder="pseudo…"
                     title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
-                    :disabled="lectureSeule"
+                    :disabled="editionIndisponible"
                     @change="setPseudoLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                   />
                 </div>
@@ -272,7 +280,7 @@ watch(
                   <input
                     type="checkbox"
                     :checked="l.interviewer ?? false"
-                    :disabled="lectureSeule"
+                    :disabled="editionIndisponible"
                     @change="setInterviewer({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).checked)"
                   />
                   <span class="glisseur"></span>
@@ -281,12 +289,13 @@ watch(
                 <button
                   v-if="!lectureSeule"
                   class="x-loc"
+                  :disabled="editionIndisponible"
                   title="Supprimer ce locuteur"
                   @click="demanderSuppressionLocuteur({ entretienId: ouvertId ?? '', participationId: l.id ?? '' })"
                 >✕</button>
                 <span v-if="!l.locuteurRef || l.associationRetiree || (liensPersonnesCharges && !nomsPersonnesLiees[l.locuteurRef])" class="lien-personne-loc reference-personne-absente">
                   {{ l.nom.trim() ? 'Ce locuteur n’est pas encore disponible dans le corpus.' : 'Renseignez un nom pour enregistrer ce locuteur.' }}
-                  <button v-if="!lectureSeule && l.nom.trim()" type="button" :disabled="renommageGlobalOccupe || rapprochementOccupe || editionNomsSuspendue" @click="regulariser(l)">Enregistrer ce locuteur…</button>
+                  <button v-if="!lectureSeule && l.nom.trim()" type="button" :disabled="renommageGlobalOccupe || rapprochementOccupe || editionIndisponible" @click="regulariser(l)">Enregistrer ce locuteur…</button>
                 </span>
                 <span v-else-if="l.locuteurRef && !liensPersonnesCharges" class="lien-personne-loc">
                   Association à « {{ l.locuteurRef }} » en cours de vérification.
@@ -331,6 +340,8 @@ watch(
   align-items: center;
   gap: 0.4rem;
 }
+.portee-renommage { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .8rem 0; font-size: 14px; }
+.portee-renommage select { min-width: 0; max-width: 100%; padding: .35rem; }
 .tableau-loc-tetes {
   font-size: 14px;
   letter-spacing: 0.04em;
@@ -344,9 +355,6 @@ watch(
 }
 .liste-loc li {
   min-width: 0;
-}
-.message-personne-creation {
-  font-size: 14px;
 }
 .lien-personne-loc {
   grid-column: 2 / -1;

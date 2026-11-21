@@ -8,8 +8,8 @@ test('le nommage crée une identité distincte puis les changements de nom s’e
     await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont'); await nom.press('Enter')
-    const confirmation = page.getByRole('status').filter({ hasText: 'Locuteur « Marie Dupont » créé' })
-    await expect(confirmation).toBeVisible(); await expect(confirmation).toHaveCSS('font-size', '14px')
+    await expect.poll(async () => (await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs.length).toBe(1)
+    await expect(page.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
     const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     const cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
     expect(avant.locuteurs).toHaveLength(1); expect(cible.locuteurRef).toBe(avant.locuteurs[0].id)

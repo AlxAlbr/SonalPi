@@ -40,18 +40,19 @@ async function gestion(page: Page) {
 }
 const nomGlobal = (page: Page) => page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
 
-async function installerReponsePerdue(app: ElectronApplication, refuserRelecture = false) {
-  await app.evaluate(({ ipcMain }, refuserRelecture) => {
+async function installerReponsePerdue(app: ElectronApplication, refuserRelecture = false, local = false) {
+  await app.evaluate(({ ipcMain }, { refuserRelecture, local }) => {
     const interne = ipcMain as unknown as { _invokeHandlers: Map<string, (...args: unknown[]) => unknown> }
-    const renommer = interne._invokeHandlers.get('corpus:renommerLocuteurDepuisEntretien')
+    const canal = local ? 'corpus:renommerParticipationDepuisEntretien' : 'corpus:renommerLocuteurDepuisEntretien'
+    const renommer = interne._invokeHandlers.get(canal)
     const ecrire = interne._invokeHandlers.get('corpus:ecrireEntretien')
     const ouvrir = interne._invokeHandlers.get('corpus:ouvrirEntretienPourEdition')
     if (!renommer || !ecrire || !ouvrir) throw new Error('Handlers de qualification absents')
     const etat = { attente: false, appels: 0, ecrituresPendant: 0, liberer: () => {} }
     const attente = new Promise<void>((resolve) => { etat.liberer = resolve })
     Reflect.set(globalThis, 'qualificationRenommageOuvert', etat)
-    ipcMain.removeHandler('corpus:renommerLocuteurDepuisEntretien')
-    ipcMain.handle('corpus:renommerLocuteurDepuisEntretien', async (...args) => {
+    ipcMain.removeHandler(canal)
+    ipcMain.handle(canal, async (...args) => {
       etat.attente = true; etat.appels++
       await attente
       await renommer(...args)
@@ -68,7 +69,7 @@ async function installerReponsePerdue(app: ElectronApplication, refuserRelecture
       if (refuserRelecture && etat.appels) throw new Error('Relecture momentanément indisponible')
       return ouvrir(...args)
     })
-  }, refuserRelecture)
+  }, { refuserRelecture, local })
 }
 async function etatReponse(app: ElectronApplication, liberer = false) {
   return app.evaluate((_electron, liberer) => {
@@ -77,6 +78,75 @@ async function etatReponse(app: ElectronApplication, liberer = false) {
     return etat ? { attente: etat.attente, appels: etat.appels, ecrituresPendant: etat.ecrituresPendant } : null
   }, liberer)
 }
+
+test('choisir cet entretien conserve les noms ailleurs ; choisir tous les entretiens conserve la confirmation globale', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-portee-nom-')), app = await lancer(dir)
+  try {
+    const page = await app.firstWindow(); await entrerCorpus(page)
+    const { autreId, locuteurId } = await preparer(page), autreAvant = lire(dir, autreId)
+    await entrerEntretien(page)
+    await page.evaluate((id) => window.sonal.corpus.ouvrirEntretienPourEdition(id), autreId)
+    const avant = lire(dir, 'e1'), fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
+    const portee = fenetre.getByLabel('Appliquer les changements de nom')
+    await expect(portee).toHaveValue('corpus')
+    await portee.selectOption('entretien')
+    await champ.fill('Nom réservé à cet entretien'); await champ.press('Enter')
+    await expect.poll(() => lire(dir, 'e1').participations[1].nom).toBe('Nom réservé à cet entretien')
+    await expect(champ).toBeEnabled(); await expect(nomGlobal(page)).toHaveCount(0)
+    expect(lire(dir, 'e1')).toEqual({ ...avant, lastModified: expect.any(String), participations: avant.participations.map((p, i) => i === 1 ? { ...p, nom: 'Nom réservé à cet entretien' } : p) })
+    expect(lire(dir, autreId)).toEqual(autreAvant)
+    const corpus = () => JSON.parse(readFileSync(join(dir, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier
+    expect(corpus().locuteurs[locuteurId].nom).toBe('Nom commun')
+    await page.evaluate((id) => window.sonal.corpus.fermerEntretien(id), autreId)
+    await portee.selectOption('corpus')
+    await champ.fill('Nom dans tous les entretiens'); await champ.press('Enter')
+    const confirmation = nomGlobal(page)
+    await expect(confirmation).toContainText('Autre entretien associé')
+    expect(lire(dir, autreId)).toEqual(autreAvant)
+    await confirmation.getByRole('button', { name: 'Renommer dans tous les entretiens', exact: true }).click()
+    await expect(confirmation).toHaveCount(0)
+    expect(lire(dir, 'e1').participations[1].nom).toBe('Nom dans tous les entretiens')
+    expect(lire(dir, autreId).participations[0].nom).toBe('Nom dans tous les entretiens')
+    expect(corpus().locuteurs[locuteurId].nom).toBe('Nom dans tous les entretiens')
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('un nom local reste modifiable même si un autre entretien associé est absent', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-portee-nom-absent-')), app = await lancer(dir)
+  try {
+    const page = await app.firstWindow(); await entrerCorpus(page)
+    const { autreId, locuteurId } = await preparer(page)
+    unlinkSync(join(dir, 'corpus/entretiens', `${autreId}.json`))
+    await entrerEntretien(page)
+    const fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
+    await fenetre.getByLabel('Appliquer les changements de nom').selectOption('entretien')
+    await champ.fill('Libellé local corrigé'); await champ.press('Tab')
+    await expect.poll(() => lire(dir, 'e1').participations[1].nom).toBe('Libellé local corrigé')
+    await expect(champ).toBeEnabled(); await expect(nomGlobal(page)).toHaveCount(0)
+    expect((JSON.parse(readFileSync(join(dir, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier).locuteurs[locuteurId].nom).toBe('Nom commun')
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('une réponse locale perdue est relue sans répéter le renommage ni rétablir l’ancien nom', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-portee-nom-perdue-')), app = await lancer(dir)
+  try {
+    const page = await app.firstWindow(); await entrerCorpus(page)
+    const { autreId, locuteurId } = await preparer(page), autreAvant = lire(dir, autreId)
+    await entrerEntretien(page)
+    const fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
+    await fenetre.getByLabel('Appliquer les changements de nom').selectOption('entretien')
+    await installerReponsePerdue(app, false, true)
+    await champ.fill('Nom local après coupure'); await champ.press('Enter')
+    await expect.poll(async () => (await etatReponse(app))?.attente).toBe(true)
+    await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
+    await etatReponse(app, true)
+    await expect(champ).toHaveValue('Nom local après coupure'); await expect(champ).toBeEnabled()
+    await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
+    expect((await etatReponse(app))?.appels).toBe(1)
+    expect(lire(dir, autreId)).toEqual(autreAvant)
+    expect((JSON.parse(readFileSync(join(dir, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier).locuteurs[locuteurId].nom).toBe('Nom commun')
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
+})
 
 test('un seul entretien associé : Entrée et Tabulation enregistrent directement, sans boutons ni confirmation', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-renommage-direct-')), app = await lancer(dir)

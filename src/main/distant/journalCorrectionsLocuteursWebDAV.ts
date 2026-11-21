@@ -12,6 +12,8 @@ export interface FichierCorrectionLocuteurs {
   chemin: string
   avant: string
   apres: string
+  /** Retours à la ligne ajoutés pour neutraliser un ancien envoi, sans changer les données. */
+  retoursReprise?: number
 }
 
 export interface JournalCorrectionLocuteursWebDAV {
@@ -27,6 +29,7 @@ export interface JournalCorrectionLocuteursWebDAV {
   etapes: FichierCorrectionLocuteurs[]
   position: number
   envoi?: number
+  neutralisation?: number
   termine: boolean
   abandonne?: boolean
   verrouCorpus?: { contenu: string; etag: string }
@@ -71,6 +74,11 @@ export class JournalCorrectionsLocuteursWebDAV {
       || (j.termine && (j.envoi !== undefined || j.position !== j.etapes.length))
       || typeof j.corpusAvant !== 'string' || typeof j.corpusApres !== 'string' || !Array.isArray(j.sources)
       || j.sources.length > MAX_ENTRETIENS_CORRECTION_WEBDAV || j.etapes.length > j.sources.length + 2) throw new Error('Suivi invalide')
+    if (j.neutralisation !== undefined) {
+      const etape = j.etapes[j.envoi ?? -1]
+      if (!etape || !Number.isSafeInteger(j.neutralisation) || j.neutralisation <= (etape.retoursReprise ?? 0)
+        || j.neutralisation > MAX_OCTETS_JOURNAL - Buffer.byteLength(etape.avant)) throw new Error('Neutralisation invalide')
+    }
     if (j.verrouCorpus !== undefined) {
       const p = j.verrouCorpus
       if (!p || typeof p !== 'object' || typeof p.contenu !== 'string' || Buffer.byteLength(p.contenu) > 16 * 1024
@@ -79,14 +87,14 @@ export class JournalCorrectionsLocuteursWebDAV {
       if (!identite || typeof identite !== 'object' || !('sessionId' in identite) || typeof identite.sessionId !== 'string' || !identite.sessionId
         || !('userId' in identite) || typeof identite.userId !== 'string' || !identite.userId) throw new Error('Protection invalide')
     }
-    if (j.commande?.type === 'identifierAuNommage' || j.commande?.type === 'rapprocherAuNommage') {
+    if (j.commande?.type === 'identifierAuNommage' || j.commande?.type === 'rapprocherAuNommage' || j.commande?.type === 'renommerParticipation') {
       validerOperationNommageLocuteurs(j.commande)
       if (!j.sessionLocale || j.sessionLocale.entretienId !== j.commande.demande.entretienId) throw new Error('Session absente')
     } else validerCommandeCorrectionLocuteurs(j.commande)
     const avant: unknown = JSON.parse(j.corpusAvant), apres: unknown = JSON.parse(j.corpusApres)
     validerCorpusNatif(avant); validerCorpusNatif(apres)
     const membres = Object.keys(avant.membership).sort(), recus = j.sources.map((s) => s.id).sort()
-    const ids = j.commande.type === 'identifierAuNommage' ? [j.commande.demande.entretienId] : membres
+    const ids = j.commande.type === 'identifierAuNommage' || j.commande.type === 'renommerParticipation' ? [j.commande.demande.entretienId] : membres
     if (JSON.stringify(membres) !== JSON.stringify(Object.keys(apres.membership).sort()) || JSON.stringify(ids) !== JSON.stringify(recus) || ids.some((id) => !membres.includes(id))
       || new Set(recus).size !== recus.length || !recus.every(idSourceLocuteursValide)) throw new Error('Sources invalides')
     if (j.sessionLocale && (!idSourceLocuteursValide(j.sessionLocale.entretienId) || !ids.includes(j.sessionLocale.entretienId)
@@ -106,6 +114,8 @@ export class JournalCorrectionsLocuteursWebDAV {
     for (const [index, etape] of j.etapes.entries()) {
       if (!etape || !chemins.has(etape.chemin) || typeof etape.avant !== 'string' || typeof etape.apres !== 'string'
         || courants.get(etape.chemin) !== etape.avant) throw new Error('Étape invalide')
+      if (etape.retoursReprise !== undefined && (!Number.isSafeInteger(etape.retoursReprise) || etape.retoursReprise <= 0
+        || etape.retoursReprise > MAX_OCTETS_JOURNAL - Buffer.byteLength(etape.avant))) throw new Error('Base de reprise invalide')
       if (etape.chemin === 'corpus.crp') {
         const corpus: unknown = JSON.parse(etape.apres); validerCorpusNatif(corpus)
         if (JSON.stringify(Object.keys(corpus.membership).sort()) !== JSON.stringify(membres)) throw new Error('Membership invalide')

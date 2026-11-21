@@ -28,14 +28,28 @@ export interface DemandeRapprochementNommage extends ReferenceParticipation {
   reprise?: ChoixRepriseParticipation
 }
 
+export interface DemandeRenommageParticipation extends ReferenceParticipation {
+  locuteurId: string
+  nomAvant: string
+  nom: string
+}
+
+export function validerRenommageParticipation(v: unknown): asserts v is DemandeRenommageParticipation {
+  if (!objet(v) || !champsExacts(v, ['entretienId', 'participationId', 'locuteurId', 'nomAvant', 'nom'])
+    || !identifiant(v.entretienId) || !identifiant(v.participationId) || !identifiant(v.locuteurId)
+    || typeof v.nomAvant !== 'string' || !identifiant(v.nom)) throw new Error('La demande de renommage dans cet entretien est invalide.')
+}
+
 export type OperationNommageLocuteurs =
   | { type: 'identifierAuNommage'; demande: DemandeIdentificationLocuteur }
   | { type: 'rapprocherAuNommage'; demande: DemandeRapprochementNommage }
+  | { type: 'renommerParticipation'; demande: DemandeRenommageParticipation }
 
 export function validerOperationNommageLocuteurs(v: unknown): asserts v is OperationNommageLocuteurs {
   if (!objet(v) || !champsExacts(v, ['type', 'demande'])) throw new Error('La demande de nommage est invalide.')
   if (v.type === 'identifierAuNommage') validerIdentificationLocuteur(v.demande)
   else if (v.type === 'rapprocherAuNommage') validerRapprochementNommage(v.demande)
+  else if (v.type === 'renommerParticipation') validerRenommageParticipation(v.demande)
   else throw new Error('La demande de nommage est invalide.')
 }
 

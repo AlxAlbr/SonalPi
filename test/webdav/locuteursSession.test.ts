@@ -64,7 +64,41 @@ for (const natif of [false, true]) {
     await b.c.fermerEntretien('A')
   })
 
-  test(`nommage puis rapprochement natif=${natif} : les autres éditions ne bloquent que la réunion, sans copie implicite`, async () => {
+  test(`renommage local natif=${natif} : pas de lecture ni de droit sur les autres entretiens, nom commun inchangé`, async () => {
+    const b = await banc(natif); await b.c.ouvrirEntretienPourEdition('A'); await b.c.ouvrirEntretienPourEdition('C')
+    const id = () => ({ userId: 'max', machineId: 'autre-poste', sessionId: 'autre' })
+    const autre = natif ? new ProviderFilesLock(b.client, id) : new ProviderPutConditionnel(b.client, id)
+    const chemin = natif ? 'entretiens/B.json' : 'verrous/B.lock.json'
+    expect((await autre.acquerir(chemin)).ok).toBe(true)
+    const avant = b.lire(), debut = b.requetes.length, demande = { ...reference, locuteurId: 'a', nomAvant: 'Alice A', nom: 'Mme Dupont' }
+    const apres = await b.c.renommerParticipationDepuisEntretien(demande)
+    expect(apres).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], nom: 'Mme Dupont' }] })
+    expect(b.c.store.ouvrir().locuteurs).toEqual(b.f.corpus.locuteurs)
+    expect(b.requetes.slice(debut).some((r) => new URL(r.url).pathname.endsWith('/entretiens/B.json'))).toBe(false)
+    expect(b.c.sessions.etat('C').etat).toBe('a-nous')
+    expect(() => b.sauver(avant)).toThrow('Les noms ont changé')
+    const puts = b.puts().length
+    await b.c.renommerParticipationDepuisEntretien(demande)
+    expect(b.puts()).toHaveLength(puts)
+    const suite = b.lire(); suite.notes![0].corps = 'Après renommage local'; b.sauver(suite)
+    expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
+    expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!).participations[0].nom).toBe('Mme Dupont')
+    expect(JSON.parse(b.serveur.contenuDe('entretiens/B.json')!)).toEqual(b.f.entretiens[1].data)
+    await autre.liberer(chemin); await b.c.fermerEntretien('A'); await b.c.fermerEntretien('C')
+  })
+
+  test.each(['nom', 'association'] as const)(`renommage local au %s périmé natif=${natif} : aucune publication des saisies`, async (cas) => {
+    const b = await banc(natif); await b.c.ouvrirEntretienPourEdition('A')
+    const saisie = b.lire(); saisie.notes![0].corps = 'Encore privé'; b.sauver(saisie)
+    await expect(b.c.renommerParticipationDepuisEntretien({ ...reference, locuteurId: cas === 'association' ? 'b' : 'a', nomAvant: cas === 'nom' ? 'Périmé' : 'Alice A', nom: 'Nom local' })).rejects.toThrow('a changé')
+    expect(b.puts()).toHaveLength(0)
+    expect(b.lire().notes![0].corps).toBe('Encore privé')
+    expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!)).toEqual(b.f.entretiens[0].data)
+    expect(b.c.sessions.etat('A')).toMatchObject({ etat: 'a-nous', sale: true })
+    await b.c.fermerEntretien('A')
+  })
+
+  test(`nommage puis rapprochement natif=${natif} : les éditions sans modification restent ouvertes, sans copie implicite`, async () => {
     const b = await banc(natif, true); await b.c.ouvrirEntretienPourEdition('A'); await b.c.ouvrirEntretienPourEdition('B')
     const identiteAutre = () => ({ userId: 'max', machineId: 'autre', sessionId: 'autre' })
     const autre = natif ? new ProviderFilesLock(b.client, identiteAutre) : new ProviderPutConditionnel(b.client, identiteAutre)
@@ -76,15 +110,17 @@ for (const natif of [false, true]) {
     const nombre = b.puts().length
     expect((await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).participations[0].locuteurRef).toBe(id)
     expect(b.puts()).toHaveLength(nombre)
-    await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: '{}' })).rejects.toThrow('fermez les entretiens')
-    await b.c.fermerEntretien('B')
+    const autreLocal = b.lire('B'); autreLocal.notes![0].corps = 'Saisie dans l’autre onglet'
+    b.c.store.ecrireEntretien('B', autreLocal); b.c.sessions.noterSale('B')
     const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
-    await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })).rejects.toThrow('en cours de modification')
+    const reuni = await b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })
     expect(b.c.sessions.etat('A').etat).toBe('a-nous')
     await autre.liberer(chemin)
-    const reuni = await b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })
     expect(reuni.participations[0]).toEqual({ ...cree.participations[0], locuteurRef: 'b' })
     expect(b.c.store.ouvrir().locuteurs[id]).toBeUndefined()
+    expect(b.lire('B').notes![0].corps).toBe('Saisie dans l’autre onglet')
+    expect(b.c.sessions.etat('B').etat).toBe('a-nous')
+    await b.c.fermerEntretien('B')
     const suite = b.lire(); suite.notes![0].corps = 'Après réunion'; b.sauver(suite)
     expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
     await b.c.fermerEntretien('A')
@@ -105,7 +141,7 @@ for (const natif of [false, true]) {
     await b.c.fermerEntretien('A')
   })
 
-  for (const geste of ['renommer', 'identifier', 'rapprocher'] as const) test(`réponse perdue ${geste} natif=${natif} : fermer sans réenregistrer l’ancien payload, puis reconnaître et reprendre`, async () => {
+  for (const geste of ['renommer', 'identifier', 'rapprocher', 'nomLocal'] as const) test(`réponse perdue ${geste} natif=${natif} : fermer sans réenregistrer l’ancien payload, puis reconnaître et reprendre`, async () => {
     const b = await banc(natif, geste === 'identifier'); await b.c.ouvrirEntretienPourEdition('A')
     const avant = b.lire(), inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
     let perdu = false
@@ -117,6 +153,7 @@ for (const natif of [false, true]) {
     })
     const operation = geste === 'renommer' ? b.c.renommerLocuteurDepuisEntretien(reference, { type: 'renommerGlobal', locuteurId: 'a', nom: 'Après', attendu: JSON.stringify(inventaire) })
       : geste === 'identifier' ? b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })
+        : geste === 'nomLocal' ? b.c.renommerParticipationDepuisEntretien({ ...reference, locuteurId: 'a', nomAvant: 'Alice A', nom: 'Mme Dupont' })
         : b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })
     await expect(operation).rejects.toThrow('doit être vérifié')
     expect(b.c.sessions.etat('A').etat).toBe('degrade')

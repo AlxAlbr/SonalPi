@@ -24,9 +24,10 @@ function banc() {
     verifierRelectureRenommage(initial, fichier, id)
     participations.value[0].nom = fichier.participations[0].nom
   })
+  const apresValidation = vi.fn()
   const outils = useRenommageLocuteurOuvert({ participations, ouvertId, disponible: () => local.value,
-    sauver, suspendre, appliquer, terminer, apresCorrection: rafraichir })
-  return { outils, participations, ouvertId, local, avant, apres, inventaire, lire, renommer, rouvrir, sauver, suspendre, appliquer, terminer, rafraichir }
+    sauver, suspendre, appliquer, terminer, apresCorrection: rafraichir, apresValidation })
+  return { outils, participations, ouvertId, local, avant, apres, inventaire, lire, renommer, rouvrir, sauver, suspendre, appliquer, terminer, rafraichir, apresValidation }
 }
 const reference = { entretienId: 'A', participationId: 'local' }
 
@@ -40,6 +41,7 @@ test('préparer et annuler ne renomment pas le modèle ; les autres entretiens s
   expect(b.outils.demande.value).toBeNull()
   expect(b.renommer).not.toHaveBeenCalled()
   expect(b.suspendre).not.toHaveBeenCalled()
+  expect(b.apresValidation).not.toHaveBeenCalled()
 })
 
 test('un seul entretien : le champ suffit, sans étape de confirmation', async () => {
@@ -50,6 +52,8 @@ test('un seul entretien : le champ suffit, sans étape de confirmation', async (
   expect(b.outils.demande.value).toBeNull()
   expect(b.suspendre).toHaveBeenCalledOnce()
   expect(b.appliquer.mock.invocationCallOrder[0]).toBeLessThan(b.terminer.mock.invocationCallOrder[0])
+  expect(b.apresValidation).toHaveBeenCalledExactlyOnceWith(reference)
+  expect(b.terminer.mock.invocationCallOrder[0]).toBeLessThan(b.apresValidation.mock.invocationCallOrder[0])
 })
 
 test('plusieurs entretiens : la saisie seule ne publie rien et demande confirmation', async () => {
@@ -89,6 +93,7 @@ test('un refus du renommage automatique conserve le nom enregistré et ne rejoue
   await b.outils.preparer(reference, 'Nouveau nom')
   expect(b.outils.erreur.value).toContain('Les associations ont changé')
   expect(b.participations.value[0].nom).toBe('Nom local')
+  expect(b.apresValidation).not.toHaveBeenCalled()
   await b.outils.confirmer()
   expect(b.renommer).toHaveBeenCalledOnce()
 })

@@ -25,7 +25,7 @@ import { useValeursEntretien } from './entretien/useValeursEntretien'
 import { useNotesEntretien } from './entretien/useNotesEntretien'
 import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
 import { useRenommageLocuteurOuvert } from './entretien/useRenommageLocuteurOuvert'
-import { verifierRelectureRenommage, signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
+import { verifierRelectureRenommage, verifierRelectureRenommageParticipation, signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
 import { payloadApresRapprochement, verifierPayloadRelecture, verifierRelectureIdentification } from '../../shared/entretien/identificationLocuteurs'
 import type { DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
 import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
@@ -312,6 +312,7 @@ export function useEntretien(deps: {
     appliquer: appliquerNomsRenommes,
     terminer: terminerRenommage,
     apresCorrection: () => deps.apresRenommageGlobal?.(),
+    apresValidation: (reference) => locuteursEntretien.proposerRapprochement(reference),
   })
   const locuteursEntretien = useLocuteursEntretien({
     locuteurs,
@@ -322,6 +323,18 @@ export function useEntretien(deps: {
     identifier: (reference, nom, regulariser) => corrigerAssociationAuNommage(reference,
       () => window.sonal.corpus.identifierParticipationAuNommage({ ...reference, nom, ...(regulariser ? { regulariser } : {}) }),
       (avant, apres, relecture) => verifierRelectureIdentification(avant, apres, reference, relecture, regulariser), false),
+    renommerLocal: (reference, nom) => {
+      const p = locuteurs.value.find((candidat) => candidat.id === reference.participationId)
+      if (!p?.locuteurRef) return Promise.reject(new Error('Le locuteur ou son association a changé.'))
+      const demande = { ...reference, locuteurId: p.locuteurRef, nomAvant: p.nom, nom }
+      return corrigerAssociationAuNommage(reference,
+        () => window.sonal.corpus.renommerParticipationDepuisEntretien(demande),
+        (avant, apres, relecture) => {
+          const { formatVersion: _v, lastModified: _d, ...payload } = apres
+          if (relecture && signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) return
+          verifierRelectureRenommageParticipation(avant, apres, demande)
+        }, false)
+    },
     rapprocher: (demande, inventaire) => rapprocherAuNommage(demande, inventaire),
     renommageGlobalPossible: deps.renommageGlobalPossible,
     demanderRenommageGlobal: (reference, nom) => { void demanderRenommageGlobal(reference, nom) },
@@ -701,6 +714,7 @@ export function useEntretien(deps: {
       verifier(avant, apres, erreurInitiale !== undefined)
       for (const p of locuteurs.value) {
         const frais = apres.participations.find((a) => a.id === p.id)!
+        p.nom = frais.nom
         p.locuteurRef = frais.locuteurRef
         for (const cle of ['associationRetiree', 'rapprochementsRefuses', 'pseudo', 'pseudoEtat', 'interviewer'] as const) {
           if (signaturePayloadEntretien(p[cle]) === signaturePayloadEntretien(frais[cle])) continue

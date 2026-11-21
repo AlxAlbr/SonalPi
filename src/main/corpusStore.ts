@@ -31,11 +31,12 @@ import type {
 } from '../shared/corpus/themes'
 import { decoderCorpusTheme, OperationsThemesCorpus, validerEntretienTheme, type InstantaneOperationTheme } from './operationsThemes'
 import { inventorierLocuteurs, type InventaireIdentitesLocuteurs } from '../shared/corpus/inventaireLocuteurs'
-import { renommerLocuteur } from '../shared/corpus/identitesLocuteurs'
 import { appliquerCorrectionLocuteurs } from "../shared/corpus/correctionsLocuteurs"
-import { identifierParticipationNommage, rapprocherParticipationsNommage } from '../shared/corpus/nommageLocuteurs'
+import { identifierParticipationsCreees, identifierParticipationNommage, rapprocherParticipationsNommage } from '../shared/corpus/nommageLocuteurs'
 import { validerIdentificationLocuteur, validerRapprochementNommage, validerCommandeCorrectionLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, type CommandeCorrectionLocuteurs, type CommandeRenommageLocuteur } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
+import { validerRenommageParticipation, type DemandeRenommageParticipation } from '../shared/corpus/contratsLocuteurs'
+import { renommerParticipationDansEntretien } from '../shared/entretien/renommageGlobal'
 import { projeterRepertoireLocuteurs, type VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
 import { preparerCorpusImportV1, preparerEntretienImportV1 } from '../shared/natif/importV1'
@@ -99,8 +100,6 @@ import {
 import {
   JournalCorpus,
   type EtatInverseJournalCorpus,
-  type EtatLienJournalCorpus,
-  type EtatRefusJournalCorpus,
   type InverseJournalCorpus,
 } from './journalCorpus'
 
@@ -817,7 +816,7 @@ export class CorpusStore {
       const preparation = preparerEntretienImportV1(corpusApres.locuteurs, importe, now, () => genId('pers'))
       for (const identite of preparation.locuteurs) corpusApres.locuteurs[identite.id] = identite
       importe.participations = preparation.entretien.participations
-    }
+    } else identifierParticipationsCreees(corpusApres, importe, id, () => genId('pers'))
     const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...importe }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)
     corpusModel.fusionnerReglesAnon(corpusApres, reglesAnon)
@@ -1177,34 +1176,6 @@ export class CorpusStore {
     return { ...projection, indisponibles: [...indisponibles, ...projection.indisponibles] }
   }
 
-  private etatLienJournal(locuteur: ParticipationLocuteur): EtatLienJournalCorpus {
-    return {
-      locuteurRef: locuteur.locuteurRef,
-      ...(locuteur.associationRetiree === undefined ? {} : { associationRetiree: locuteur.associationRetiree }),
-    }
-  }
-
-  private etatRefusJournal(locuteur: ParticipationLocuteur): EtatRefusJournalCorpus {
-    return locuteur.rapprochementsRefuses === undefined
-      ? {}
-      : { rapprochementsRefuses: [...locuteur.rapprochementsRefuses] }
-  }
-
-  private memeEtatJournal(a: unknown, b: unknown): boolean {
-    return JSON.stringify(a) === JSON.stringify(b)
-  }
-
-  private lireLocuteurJournal(entretienId: string, locuteurId: string):
-    | { ok: true; data: EntretienFichier; locuteur: ParticipationLocuteur }
-    | { ok: false; raison: 'entretien' | 'locuteur' } {
-    const lecture = this.lireEntretien(entretienId)
-    if (!lecture.ok) return { ok: false, raison: 'entretien' }
-    const locuteur = lecture.data.participations.find((candidat) => candidat.id === locuteurId)
-    return locuteur
-      ? { ok: true, data: lecture.data, locuteur }
-      : { ok: false, raison: 'locuteur' }
-  }
-
   private lireNoteJournal(entretienId: string, noteId: string):
     | { ok: true; data: EntretienFichier; note: Note }
     | { ok: false; raison: 'entretien' | 'note' } {
@@ -1221,12 +1192,6 @@ export class CorpusStore {
     if (this.transactionsFichiers.journalPresent()) {
       return { etat: 'bloquee', raison: 'Une transaction de fichiers doit d’abord être terminée.' }
     }
-    if (inverse.type === 'personneRenommer') {
-      const personne = this.ouvrir().locuteurs[inverse.personneId]
-      return personne?.nom === inverse.apres
-        ? { etat: 'annulable' }
-        : { etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' }
-    }
     if (inverse.type === 'noteModifier') {
       const lecture = this.lireNoteJournal(inverse.entretienId, inverse.noteId)
       if (!lecture.ok) {
@@ -1238,37 +1203,22 @@ export class CorpusStore {
         ? { etat: 'annulable' }
         : { etat: 'inapplicable', raison: 'La note a été modifiée depuis cette action.' }
     }
-    if (inverse.type === 'noteSupprimer') {
-      const lecture = this.lireEntretien(inverse.entretienId)
-      if (!lecture.ok) {
-        return !this.ouvrir().membership[inverse.entretienId]
-          ? { etat: 'inapplicable', raison: 'L’entretien n’existe plus.' }
-          : { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
-      }
-      if (!referencesNoteDisponibles(inverse.note, lecture.data.participations)) {
-        return { etat: 'inapplicable', raison: 'Un locuteur concerné par la note n’existe plus dans cet entretien.' }
-      }
-      const ordreCourant = notesParRang(normaliserNotes(lecture.data.notes)).map((note) => note.id)
-      if (ordreCourant.includes(inverse.note.id)) {
-        return { etat: 'inapplicable', raison: 'La note existe de nouveau.' }
-      }
-      return this.memeEtatJournal(ordreCourant, inverse.ordreApres)
-        ? { etat: 'annulable' }
-        : { etat: 'inapplicable', raison: 'L’ordre des notes a changé depuis cette action.' }
-    }
-    const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
+    const lecture = this.lireEntretien(inverse.entretienId)
     if (!lecture.ok) {
-      if (lecture.raison === 'locuteur' || !this.ouvrir().membership[inverse.entretienId]) {
-        return { etat: 'inapplicable', raison: 'L’entretien ou le locuteur n’existe plus.' }
-      }
-      return { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
+      return !this.ouvrir().membership[inverse.entretienId]
+        ? { etat: 'inapplicable', raison: 'L’entretien n’existe plus.' }
+        : { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
     }
-    const courant = inverse.type === 'personneLier'
-      ? this.etatLienJournal(lecture.locuteur)
-      : this.etatRefusJournal(lecture.locuteur)
-    return this.memeEtatJournal(courant, inverse.apres)
+    if (!referencesNoteDisponibles(inverse.note, lecture.data.participations)) {
+      return { etat: 'inapplicable', raison: 'Un locuteur concerné par la note n’existe plus dans cet entretien.' }
+    }
+    const ordreCourant = notesParRang(normaliserNotes(lecture.data.notes)).map((note) => note.id)
+    if (ordreCourant.includes(inverse.note.id)) {
+      return { etat: 'inapplicable', raison: 'La note existe de nouveau.' }
+    }
+    return JSON.stringify(ordreCourant) === JSON.stringify(inverse.ordreApres)
       ? { etat: 'annulable' }
-      : { etat: 'inapplicable', raison: 'Le locuteur a été modifié depuis cette action.' }
+      : { etat: 'inapplicable', raison: 'L’ordre des notes a changé depuis cette action.' }
   }
 
   private appliquerInverseJournal(
@@ -1280,11 +1230,7 @@ export class CorpusStore {
       return { ok: false, raison: etat.raison ?? 'Cette action ne peut plus être annulée.', temporaire: etat.etat === 'bloquee' }
     }
     try {
-      if (inverse.type === 'personneRenommer') {
-        const corpus = this.ouvrir()
-        renommerLocuteur(corpus, inverse.personneId, inverse.avant)
-        this.ecrireJsonAtomique(this.corpusFile, corpus)
-      } else if (inverse.type === 'noteModifier') {
+      if (inverse.type === 'noteModifier') {
         const lecture = this.lireNoteJournal(inverse.entretienId, inverse.noteId)
         if (!lecture.ok) return { ok: false, raison: 'L’entretien ou la note n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
         const index = lecture.data.notes!.findIndex((note) => note.id === inverse.noteId)
@@ -1294,26 +1240,12 @@ export class CorpusStore {
         }
         const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
         this.ecrireEntretien(inverse.entretienId, payload)
-      } else if (inverse.type === 'noteSupprimer') {
+      } else {
         const lecture = this.lireEntretien(inverse.entretienId)
         if (!lecture.ok) return { ok: false, raison: 'L’entretien n’est plus disponible.', temporaire: true }
         const notes = notesParRang(normaliserNotes(lecture.data.notes))
         notes.splice(Math.max(0, Math.min(inverse.note.rang, notes.length)), 0, structuredClone(inverse.note))
         lecture.data.notes = renumeroterRangs(notes)
-        const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
-        this.ecrireEntretien(inverse.entretienId, payload)
-      } else {
-        const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
-        if (!lecture.ok) return { ok: false, raison: 'L’entretien ou le locuteur n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
-        if (inverse.type === 'personneLier') {
-          lecture.locuteur.locuteurRef = inverse.avant.locuteurRef
-          if (inverse.avant.associationRetiree === undefined) delete lecture.locuteur.associationRetiree
-          else lecture.locuteur.associationRetiree = inverse.avant.associationRetiree
-        } else if (inverse.avant.rapprochementsRefuses === undefined) {
-          delete lecture.locuteur.rapprochementsRefuses
-        } else {
-          lecture.locuteur.rapprochementsRefuses = [...inverse.avant.rapprochementsRefuses]
-        }
         const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
         this.ecrireEntretien(inverse.entretienId, payload)
       }
@@ -1466,14 +1398,14 @@ export class CorpusStore {
     return locuteurId
   }
 
-  private verifierSessionNommage(reference: ReferenceParticipation): void {
+  private verifierSessionNommage(reference: ReferenceParticipation, seule = true): void {
     this.verifierEcriture()
     if (!reference || typeof reference.entretienId !== 'string' || !reference.entretienId.trim()
       || typeof reference.participationId !== 'string' || !reference.participationId.trim()
       || !this.ecrituresAutorisees.has(reference.entretienId)) throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
     if (this.sourcesPreparation !== null) throw new Error('La création au nommage est disponible uniquement en local.')
     if (this.transactionsFichiers.journalPresent()) throw new Error('Une modification reste à terminer. Rouvrez le corpus.')
-    if ([...this.ecrituresAutorisees].some((id) => id !== reference.entretienId)) throw new Error('Fermez les autres entretiens en édition avant de modifier ces associations.')
+    if (seule && [...this.ecrituresAutorisees].some((id) => id !== reference.entretienId)) throw new Error('Fermez les autres entretiens en édition avant de modifier ces associations.')
   }
 
   /** Enregistre ensemble les identités et leurs associations, sans remplacer les autres données. */
@@ -1512,11 +1444,20 @@ export class CorpusStore {
 
   /** Une répétition du même nommage retrouve l'identité enregistrée au lieu d'en créer une autre. */
   identifierParticipationAuNommage(demande: DemandeIdentificationLocuteur): EntretienFichier {
-    this.verifierSessionNommage(demande)
+    this.verifierSessionNommage(demande, false)
     validerIdentificationLocuteur(demande)
     return this.modifierAssociationsSession(demande, [demande.entretienId], 'corpus-puis-entretiens', (corpus, fichiers) => {
       identifierParticipationNommage(corpus, fichiers[0].data, demande, () => genId('pers'))
       this.associationsVerifieesSession.add(demande.entretienId)
+    })
+  }
+
+  /** Corrige le nom d'une seule participation en conservant les noms des autres entretiens. */
+  renommerParticipationDepuisEntretien(demande: DemandeRenommageParticipation): EntretienFichier {
+    validerRenommageParticipation(demande)
+    this.verifierSessionNommage(demande, false)
+    return this.modifierAssociationsSession(demande, [demande.entretienId], 'entretiens-puis-corpus', (corpus, fichiers) => {
+      renommerParticipationDansEntretien(corpus, fichiers[0].data, demande)
     })
   }
 

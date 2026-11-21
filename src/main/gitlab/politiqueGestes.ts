@@ -235,6 +235,7 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
 
   'locuteurs.renommer': 'corrections-locuteurs-corpus',
   'locuteurs.renommer-depuis-entretien': 'locuteur-session',
+  'locuteurs.renommer-participation': 'locuteur-session',
   'locuteurs.identifier-au-nommage': 'locuteur-session',
   'locuteurs.rapprocher-depuis-entretien': 'locuteur-session',
   'locuteurs.regrouper': 'corrections-locuteurs-corpus',

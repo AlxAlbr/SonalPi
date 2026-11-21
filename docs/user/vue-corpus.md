@@ -332,20 +332,27 @@ encore absent de la liste se vérifie dans son entretien avec **Enregistrer ce
 locuteur…** : les paroles et informations sont conservées, sans restaurer d’ancienne
 association. Un nom vide doit d’abord être renseigné.
 
-Dans un entretien ouvert, saisir un nom non vide crée d’abord un locuteur indépendant,
-y compris pour « Enquêteur », « Inconnu » ou « X ». Ajouter une ligne provisoire seule
-ne crée rien. Entrée ou la sortie du champ modifié enregistre le nom. Si le locuteur
-est déjà associé à d’autres entretiens, un changement de nom demande confirmation de
-ses effets sur ces entretiens ; sinon, il s’enregistre directement.
+Les locuteurs apparaissent dans le corpus dès leur import ou leur ajout avec
+**+ Locuteur**, même sous le nom provisoire « Nouveau locuteur », sans message de
+création. Ils restent indépendants, y compris lorsque leurs noms sont identiques.
+Entrée ou la sortie du champ modifié enregistre le nom et peut proposer un
+rapprochement avec un nom identique ou proche dans un autre entretien.
+Dans la gestion des locuteurs, **Appliquer les changements de nom** laisse choisir :
+- **Dans cet entretien uniquement** conserve le nom du corpus et ceux des autres
+  entretiens, sans changer les associations ;
+- **Dans tous les entretiens de ce locuteur** demande confirmation si d’autres
+  entretiens sont associés ; sinon, le changement s’enregistre directement.
 
 Une proposition **Est-ce le même locuteur ?** n’est jamais une association
 automatique. **Confirmer** réunit les identités après vérification et reprend les
 seules informations choisies. **Plus tard** conserve l’identité indépendante déjà
 créée. Un retrait volontaire d’association n’est pas annulé par un nouveau nom.
 
-Sur un corpus partagé, fermez les éditions avant une correction depuis le corpus.
-Depuis l’entretien ouvert, créer un locuteur indépendant ne nécessite pas de fermer
-les autres éditions ; renommer globalement ou rapprocher le nécessite. Les dernières
+Sur un corpus partagé, seules les éditions des entretiens réellement modifiés
+par la correction doivent être fermées.
+Depuis l’entretien ouvert, créer un locuteur indépendant ou modifier son nom dans
+ce seul entretien ne nécessite pas de fermer les autres éditions. Un renommage
+global ou un rapprochement ne demande de fermer que celles des entretiens modifiés. Les dernières
 saisies sont enregistrées avant la correction. Hors ligne, la consultation reste
 possible sans permettre de modification.
 
@@ -370,17 +377,14 @@ deux objets distincts.
 Le guide [Utiliser les cas](cas.md) décrit la création individuelle ou en lot, les cas
 collectifs, les familles, les attributs et les vues des matériaux.
 
-## Annuler une modification de personnes
+## Annuler une action
 
-Le corpus ne propose pas d’accès général à l’historique des actions pour le moment. Dans **Personnes**, **Annuler une modification…** reste disponible et affiche uniquement les actions récentes de Personnes, jamais celles de Notes. Choisissez l’action à annuler grâce à son libellé ; les actions devenues incompatibles restent désactivées.
+Le **Journal des actions de l’entretien** permet d’annuler les actions qui y
+figurent, comme un codage ou une attribution de paroles. Ses entrées sont effacées
+à la fermeture de l’entretien ; une action devenue incompatible reste désactivée.
 
-Le journal propre à l’entretien conserve son onglet et son fonctionnement.
-
-Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Elles restent disponibles après un changement d’onglet ou un aller-retour dans un entretien, mais sont effacées au changement de corpus et au redémarrage de l’application.
-
-Les actions simples prises en charge sont : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Les reprises de données, réunions et opérations partiellement réussies n’apparaissent pas. Les actions effectuées dans un entretien restent rattachées à cet entretien.
-
-Une action dont la cible a changé depuis reste visible mais ne peut plus être annulée. Le Journal n’écrase jamais cette modification plus récente. Il ne constitue pas un historique d’audit, n’est enregistré dans aucun fichier et ne propose pas de rétablissement après une annulation. L’annulation des actions d’un corpus distant n’est pas encore disponible.
+Les corrections des locuteurs au niveau du corpus ne figurent pas dans ce journal
+et ne proposent pas d’annulation automatique. Vérifiez leur aperçu avant de confirmer.
 
 ## Données
 

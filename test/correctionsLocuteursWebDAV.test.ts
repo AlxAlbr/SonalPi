@@ -12,8 +12,13 @@ import { fixtureLocuteursDistants } from './fixtures/locuteursDistants'
 
 const dossiers: string[] = []
 afterEach(() => { for (const d of dossiers.splice(0)) rmSync(d, { recursive: true, force: true }) })
-function banc(natif = false) {
+function banc(natif = false, nombre = 3) {
   const fixture = fixtureLocuteursDistants(), serveur = new ServeurWebDAVMemoire()
+  for (let i = 3; i < nombre; i++) {
+    const id = `E${i}`, e = structuredClone(fixture.entretiens[0]); e.id = id; e.titre = id
+    fixture.entretiens.push(e); fixture.corpus.membership[id] = { ...fixture.corpus.membership.A, titre: id }
+  }
+  if (nombre > 3) fixture.entretiens[2].data.participations[0].locuteurRef = 'a'
   serveur.creerDossierRelatif('verrous')
   serveur.poser('corpus.crp', JSON.stringify(fixture.corpus))
   for (const s of fixture.sources()) serveur.poser(`entretiens/${s.id}.json`, s.contenu)
@@ -46,7 +51,7 @@ test.each([false, true])('aperçu natif=%s : sources serveur complètes, aucun v
   expect(b.miroir.size).toBe(0)
 })
 
-test.each([false, true])('renommage natif=%s : tous les membres protégés, données conservées et miroir confirmé', async (natif) => {
+test.each([false, true])('renommage natif=%s : seuls les entretiens modifiés sont protégés, données conservées et miroir confirmé', async (natif) => {
   const b = banc(natif)
   expect(await b.service.appliquer(b.commande())).toBe('a')
   expect(b.puts()).toHaveLength(3)
@@ -55,7 +60,8 @@ test.each([false, true])('renommage natif=%s : tous les membres protégés, donn
     expect(lu).toEqual(e.id === 'C' ? e.data : { ...e.data, lastModified: expect.any(String), participations: [{ ...e.data.participations[0], nom: 'Alice publiée' }] })
     expect(b.serveur.contenuDe(`verrous/${e.id}.lock.json`)).toBeUndefined()
     expect(b.serveur.verrouNatifDe(`entretiens/${e.id}.json`)).toBeUndefined()
-    expect(JSON.parse(b.miroir.get(`entretiens/${e.id}.json`)!)).toEqual(lu)
+    if (e.id === 'C') expect(b.miroir.has(`entretiens/${e.id}.json`)).toBe(false)
+    else expect(JSON.parse(b.miroir.get(`entretiens/${e.id}.json`)!)).toEqual(lu)
   }
   expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).locuteurs.a.nom).toBe('Alice publiée')
   expect(b.journal().termine).toBe(true); expect(b.service.lireSuivi()).toBeNull()
@@ -136,16 +142,25 @@ test('réponse perdue après acceptation : vérification sans PUT, puis reprise 
   expect(repris.lireSuivi()).toBeNull()
 })
 
-test('réponse inconnue sans candidat observé : aucun rejeu ni retrait de définition', async () => {
-  const b = banc()
-  b.intercepter(async (r) => { if (r.method === 'PUT' && b.cible(r, 'A')) throw new Error('Requête interrompue'); return undefined })
+test.each([false, true])('réponse inconnue sans acceptation natif=%s : neutraliser l’ancien envoi permet un arrêt sûr', async (natif) => {
+  const b = banc(natif); let retard: Request | undefined
+  b.intercepter(async (r) => {
+    if (r.method === 'PUT' && b.cible(r, 'A')) { retard = r.clone(); throw new Error('Requête interrompue') }
+    return undefined
+  })
   await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
-  const suivi = b.service.lireSuivi()!, avant = b.puts().length
-  await expect(b.recreer().reconcilier(suivi.operationId)).rejects.toThrow('n’est pas confirmée')
-  expect(b.puts()).toHaveLength(avant); expect(b.service.lireSuivi()?.etat).toBe('a-verifier')
+  const suivi = b.service.lireSuivi()!, original = b.fixture.entretiens[0].data
+  b.intercepter(async () => undefined)
+  await b.recreer().reconcilier(suivi.operationId)
+  expect(b.service.lireSuivi()).toMatchObject({ etat: 'a-reprendre', termines: 0 })
+  await b.recreer().arreter(suivi.operationId)
+  expect(b.service.lireSuivi()).toBeNull()
+  expect((await b.serveur.fetch(retard!)).status).toBe(412)
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!)).toEqual(original)
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
 })
 
-test.each([false, true])('réponse perdue avant finalisation natif=%s : les autres postes restent bloqués jusqu’à acceptation reconnue', async (natif) => {
+test.each([false, true])('requête retardée avant finalisation natif=%s : neutralisation puis reprise, sans acceptation tardive', async (natif) => {
   const b = banc(natif); let retard: Request | undefined
   b.intercepter(async (r) => {
     if (r.method === 'PUT' && new URL(r.url).pathname.endsWith('/corpus.crp') && !JSON.parse(await r.clone().text()).locuteurs.b) {
@@ -159,13 +174,13 @@ test.each([false, true])('réponse perdue avant finalisation natif=%s : les autr
   expect(j.verrouCorpus.contenu).toBe(verrou)
   const autre = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'autre-poste', sessionId: 'autre-session' }))
   expect((await autre.acquerir('verrous/corpus.lock.json')).ok).toBe(false)
-  const repris = b.recreer(), avant = b.puts().length
-  await expect(repris.reconcilier(j.operationId)).rejects.toThrow('n’est pas confirmée')
-  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBe(verrou)
-  expect(b.puts()).toHaveLength(avant)
-  expect((await b.serveur.fetch(retard!)).ok).toBe(true)
+  const repris = b.recreer()
   await repris.reconcilier(j.operationId)
-  expect(repris.lireSuivi()).toBeNull(); expect(b.puts()).toHaveLength(avant)
+  expect(repris.lireSuivi()).toMatchObject({ etat: 'a-reprendre', termines: 1 })
+  expect((await b.serveur.fetch(retard!)).status).toBe(412)
+  b.intercepter(async () => undefined)
+  await repris.reprendre(j.operationId)
+  expect(repris.lireSuivi()).toBeNull()
   expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
   expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).locuteurs.b).toBeUndefined()
   expect(JSON.parse(b.serveur.contenuDe('entretiens/C.json')!).participations[0].locuteurRef).toBe('a')
@@ -211,23 +226,25 @@ test('ancien suivi sans preuve conservée : la vérification protège les défin
   const j = b.journal(), preuve = j.verrouCorpus
   await b.client.supprimer('verrous/corpus.lock.json', preuve.etag)
   delete j.verrouCorpus; writeFileSync(join(b.dir, '.corrections-locuteurs-webdav.json'), JSON.stringify(j))
-  await expect(b.recreer().reconcilier(j.operationId)).rejects.toThrow('n’est pas confirmée')
-  expect(b.journal().verrouCorpus).toBeDefined()
-  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeDefined()
-  expect(b.puts()).toHaveLength(1)
+  b.intercepter(async () => undefined)
+  await b.recreer().reconcilier(j.operationId)
+  expect(b.journal().envoi).toBeUndefined()
+  expect(b.journal().verrouCorpus).toBeUndefined()
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  expect(b.service.lireSuivi()?.etat).toBe('a-reprendre')
 })
 
 test('une édition extérieure après un progrès confirmé suspend la reprise sans l’écraser', async () => {
   const b = banc()
   b.intercepter(async (r) => r.method === 'PUT' && b.cible(r, 'B') ? new Response('conflit', { status: 412 }) : undefined)
   await expect(b.service.appliquer(b.commande())).rejects.toThrow()
-  const operation = b.service.lireSuivi()!.operationId, nouveau = structuredClone(b.fixture.entretiens[2].data)
-  nouveau.notes![0].corps = 'Modification d’un collègue'; b.serveur.poser('entretiens/C.json', JSON.stringify(nouveau))
+  const operation = b.service.lireSuivi()!.operationId, nouveau = structuredClone(b.fixture.entretiens[1].data)
+  nouveau.notes![0].corps = 'Modification d’un collègue'; b.serveur.poser('entretiens/B.json', JSON.stringify(nouveau))
   b.intercepter(async () => undefined)
   const avant = b.puts().length
   await expect(b.recreer().reprendre(operation)).rejects.toThrow('a changé')
   expect(b.puts()).toHaveLength(avant)
-  expect(JSON.parse(b.serveur.contenuDe('entretiens/C.json')!).notes[0].corps).toBe('Modification d’un collègue')
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/B.json')!).notes[0].corps).toBe('Modification d’un collègue')
 })
 
 test('arrêt explicite d’un lot connu : aucun PUT de plus, aucun retour des étapes déjà confirmées', async () => {
@@ -257,6 +274,144 @@ test('la perte d’un droit après un premier succès arrête le lot avant toute
   expect(b.puts()).toHaveLength(1)
   expect(b.service.lireSuivi()).toMatchObject({ etat: 'a-reprendre', termines: 1 })
   expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).locuteurs.a.nom).toBe('Alice')
+})
+
+test.each([false, true])('neutralisation natif=%s : réponse perdue, redémarrage puis reprise sans doublon', async (natif) => {
+  const b = banc(natif); let phase = 0
+  b.intercepter(async (r) => {
+    if (r.method !== 'PUT' || !b.cible(r, 'A')) return undefined
+    if (phase++ === 0) throw new Error('Envoi non accepté')
+    await b.serveur.fetch(r.clone()); throw new Error('Réponse de neutralisation perdue')
+  })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const id = b.journal().operationId
+  await expect(b.recreer().reconcilier(id)).rejects.toThrow('neutralisation perdue')
+  expect(b.journal().neutralisation).toBeDefined()
+  b.intercepter(async () => undefined)
+  const avant = b.puts().length
+  await b.recreer().reconcilier(id)
+  expect(b.puts()).toHaveLength(avant)
+  await b.recreer().reprendre(id)
+  expect(b.service.lireSuivi()).toBeNull()
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!).participations[0].nom).toBe('Alice publiée')
+})
+
+test.each([0, -1, 1.5, 128 * 1024 * 1024 + 1, 'contenu remplacé'])('une neutralisation invalide %s est refusée avant tout nouvel envoi', async (valeur) => {
+  const b = banc()
+  b.intercepter(async (r) => { if (r.method === 'PUT' && b.cible(r, 'A')) throw new Error('Coupure'); return undefined })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const j = b.journal(), avant = b.puts().length
+  j.neutralisation = valeur
+  writeFileSync(join(b.dir, '.corrections-locuteurs-webdav.json'), JSON.stringify(j))
+  await expect(b.recreer().reconcilier(j.operationId)).rejects.toThrow('suivi')
+  expect(b.puts()).toHaveLength(avant)
+})
+
+test('l’envoi initial peut gagner la course avec sa neutralisation, sans être répété', async () => {
+  const b = banc(); let retard: Request | undefined, phase = 0
+  b.intercepter(async (r) => {
+    if (r.method !== 'PUT' || !b.cible(r, 'A')) return undefined
+    if (phase++ === 0) { retard = r.clone(); throw new Error('Envoi retardé') }
+    expect((await b.serveur.fetch(retard!)).ok).toBe(true)
+    return undefined
+  })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const id = b.journal().operationId
+  await b.recreer().reconcilier(id)
+  expect(b.service.lireSuivi()).toMatchObject({ etat: 'a-reprendre', termines: 1 })
+  b.intercepter(async () => undefined)
+  await b.recreer().reprendre(id)
+  expect(b.service.lireSuivi()).toBeNull()
+  const corps = await Promise.all(b.puts().filter((r) => b.cible(r, 'A')).map((r) => r.clone().json()))
+  expect(corps.filter((c) => c.participations[0].nom === 'Alice publiée')).toHaveLength(1)
+})
+
+test('des interruptions successives produisent des versions distinctes avant un arrêt', async () => {
+  const b = banc(); const retards: Request[] = []
+  const couper = async (r: Request) => {
+    if (r.method === 'PUT' && b.cible(r, 'A')) { retards.push(r.clone()); throw new Error('Coupure') }
+    return undefined
+  }
+  b.intercepter(couper)
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const id = b.journal().operationId
+  let longueur = b.serveur.contenuDe('entretiens/A.json')!.length
+  for (let i = 0; i < 3; i++) {
+    b.intercepter(async () => undefined)
+    await b.recreer().reconcilier(id)
+    const nouvelleLongueur = b.serveur.contenuDe('entretiens/A.json')!.length
+    expect(nouvelleLongueur).toBeGreaterThan(longueur)
+    longueur = nouvelleLongueur
+    if (i < 2) {
+      b.intercepter(couper)
+      await expect(b.recreer().reprendre(id)).rejects.toThrow('vérifié')
+    }
+  }
+  await b.recreer().arreter(id)
+  for (const r of retards) expect((await b.serveur.fetch(r)).status).toBe(412)
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!)).toEqual(b.fixture.entretiens[0].data)
+})
+
+test.each([false, true])('un entretien sans rapport natif=%s reste réservé par un autre poste et n’est jamais remplacé dans le miroir', async (natif) => {
+  const b = banc(natif), identite = () => ({ userId: 'max', machineId: 'autre-poste', sessionId: 'autre' })
+  const autre = natif ? new ProviderFilesLock(b.client, identite) : new ProviderPutConditionnel(b.client, identite)
+  const chemin = natif ? 'entretiens/C.json' : 'verrous/C.lock.json'
+  expect((await autre.acquerir(chemin)).ok).toBe(true)
+  b.sessions.push('C')
+  b.miroir.set('entretiens/C.json', 'Saisie locale non publiée')
+  const data = structuredClone(b.fixture.entretiens[2].data); data.notes![0].corps = 'Modification d’un collègue'
+  b.intercepter(async (r) => {
+    if (r.method === 'PUT' && b.cible(r, 'A')) b.serveur.poser('entretiens/C.json', JSON.stringify(data))
+    return undefined
+  })
+  await b.service.appliquer(b.commande())
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/C.json')!)).toEqual(data)
+  expect(b.miroir.get('entretiens/C.json')).toBe('Saisie locale non publiée')
+  expect(natif ? b.serveur.verrouNatifDe(chemin) : b.serveur.contenuDe(chemin)).toBeDefined()
+  await autre.liberer(chemin)
+})
+
+test('un verrou natif qui change l’ETag ne provoque qu’une relecture ciblée après acquisition', async () => {
+  const b = banc(true), acquis = new Set<string>()
+  b.intercepter(async (r) => {
+    const chemin = new URL(r.url).pathname
+    if (r.method === 'LOCK' && !acquis.has(chemin)) {
+      acquis.add(chemin)
+      const reponse = await b.serveur.fetch(r.clone()), relatif = chemin.slice(b.serveur.racineDav.length + 1)
+      b.serveur.poser(relatif, b.serveur.contenuDe(relatif)!)
+      return reponse
+    }
+    return undefined
+  })
+  await b.service.appliquer(b.commande())
+  expect(b.service.lireSuivi()).toBeNull()
+  const lectures = b.requetes.filter((r) => r.method === 'GET' && /\/entretiens\//.test(new URL(r.url).pathname))
+  expect(lectures).toHaveLength(7)
+})
+
+test('les téléchargements restent linéaires : une lecture initiale puis une vérification finale des fichiers modifiés', async () => {
+  const b = banc(false, 20)
+  await b.service.appliquer(b.commande())
+  const lectures = b.requetes.filter((r) => r.method === 'GET' && /\/entretiens\//.test(new URL(r.url).pathname))
+  expect(lectures).toHaveLength(40)
+  expect(b.requetes.filter((r) => r.method === 'PUT' && /\/(corpus\.crp|entretiens\/[^/]+\.json)$/.test(new URL(r.url).pathname))).toHaveLength(21)
+})
+
+test('la vérification finale détecte une modification extérieure et ne l’installe pas comme notre succès', async () => {
+  const b = banc()
+  b.intercepter(async (r) => {
+    if (r.method === 'PUT' && new URL(r.url).pathname.endsWith('/corpus.crp')) {
+      const reponse = await b.serveur.fetch(r.clone()), data = structuredClone(b.fixture.entretiens[0].data)
+      data.notes![0].corps = 'Modification extérieure'
+      b.serveur.poser('entretiens/A.json', JSON.stringify(data))
+      return reponse
+    }
+    return undefined
+  })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('a changé')
+  expect(b.service.lireSuivi()?.etat).toBe('a-reprendre')
+  expect(b.miroir.size).toBe(0)
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!).notes[0].corps).toBe('Modification extérieure')
 })
 
 test.each(['session', 'source absente', 'source invalide', 'ETag faible', 'suivi corrompu', 'autre destination'] as const)('%s : aucune publication de données', async (cas) => {

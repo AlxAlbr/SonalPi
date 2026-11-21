@@ -4,6 +4,7 @@ import type { CommandeCorrectionLocuteurs, OperationNommageLocuteurs } from '../
 import { validerCommandeCorrectionLocuteurs, validerOperationNommageLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import { appliquerCorrectionLocuteurs } from '../shared/corpus/correctionsLocuteurs'
 import { identifierParticipationNommage, rapprocherParticipationsNommage } from '../shared/corpus/nommageLocuteurs'
+import { renommerParticipationDansEntretien } from '../shared/entretien/renommageGlobal'
 import { inventorierLocuteurs } from '../shared/corpus/inventaireLocuteurs'
 import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
 
@@ -59,9 +60,10 @@ export function preparerNommageLocuteurs(
     if (operation.type === 'identifierAuNommage') {
       return identifierParticipationNommage(corpus, fichiers[0].data, operation.demande, options.genererId ?? genererId)
     }
+    if (operation.type === 'renommerParticipation') return renommerParticipationDansEntretien(corpus, fichiers[0].data, operation.demande)
     verifierInventaire(corpus, fichiers, operation.demande.attendu)
     return rapprocherParticipationsNommage(corpus, fichiers, operation.demande)
-  }, operation.type === 'identifierAuNommage' ? operation.demande.entretienId : undefined)
+  }, operation.type !== 'rapprocherAuNommage' ? operation.demande.entretienId : undefined)
 }
 
 function genererId(): string { return `pers-${randomUUID()}` }

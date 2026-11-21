@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { JournalCorpus, type InverseJournalCorpus } from '../src/main/journalCorpus'
-import { creerLocuteurFixture, installerIdentitesFixture } from './fixtures/identitesLocuteurs'
-import type { ImpactJournalCorpus } from '../src/shared/corpus/journal'
+import { JournalCorpus } from '../src/main/journalCorpus'
 import { ecrireSeedDemo } from './seedDemo'
 import type { ChampsNote, CommandeNotes } from '../src/shared/corpus/notes'
-import type { EntretienFichier, Note } from '../src/shared/format'
+import type { Note } from '../src/shared/format'
 
 const dossiers: string[] = []
 afterEach(() => {
@@ -25,15 +23,18 @@ function preparer() {
   return { dir, store }
 }
 
-function entretien(nom: string): EntretienFichier {
+function noteJournal(): Note {
   return {
-    formatVersion: 10,
-    lastModified: '',
-    corpsTexte: {},
-    annotations: [],
-    ancres: [],
-    meta: { valeursGen: {}, audioRef: null },
-    participations: [{ id: 'loc-source', index: 0, nom, valeursLoc: {}, locuteurRef: null }],
+    id: 'note-corpus-test',
+    categorieId: 'ncat_resume',
+    titre: 'État A',
+    date: '2025-01-02',
+    statut: 'public',
+    corps: 'Corps A',
+    participationIds: [],
+    rang: 0,
+    creeLe: '2025-01-01T10:00:00.000Z',
+    modifieLe: null,
   }
 }
 
@@ -47,9 +48,9 @@ describe('Journal du corpus — service volatile', () => {
     for (let i = 0; i < 12; i++) {
       journal.enregistrer(
         `Action ${i}`,
-        "locuteurs",
-        { type: 'personneRenommer', personneId: 'p1', avant: 'A', apres: 'B' },
-        { corpus: true, entretiens: [], projections: ["locuteurs"] },
+        'notes',
+        { type: 'noteSupprimer', entretienId: 'e1', note: noteJournal(), ordreApres: [] },
+        { corpus: false, entretiens: ['e1'], projections: ['notes', 'locuteurs'] },
       )
     }
     const entrees = journal.lister(() => ({ etat: 'annulable' }))
@@ -66,16 +67,8 @@ function ajouterNote(store: CorpusStore): { entretienId: string; note: Note } {
   const lecture = store.lireEntretien(entretienId)
   if (!lecture.ok) throw new Error('Entretien de test indisponible')
   const note: Note = {
-    id: 'note-corpus-test',
-    categorieId: 'ncat_resume',
-    titre: 'État A',
-    date: '2025-01-02',
-    statut: 'public',
-    corps: 'Corps A',
+    ...noteJournal(),
     participationIds: [lecture.data.participations[0]?.id ?? 'loc-absent'],
-    rang: 0,
-    creeLe: '2025-01-01T10:00:00.000Z',
-    modifieLe: null,
   }
   lecture.data.notes = [note]
   const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
@@ -108,6 +101,50 @@ function champsNote(
 }
 
 describe('Journal du corpus — commandes Notes', () => {
+  test('le journal disparaît à la réouverture, pas les notes enregistrées', () => {
+    const { dir, store } = preparer(), { entretienId } = ajouterNote(store)
+    const vue = store.notesInventaire().notes[0]
+    store.notesCommander({ type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: champsNote(vue.attendu, { titre: 'Note enregistrée' }) }, true)
+    expect(store.journalCorpusLister()).toHaveLength(1)
+    const rouvert = new CorpusStore(dir)
+    expect(rouvert.journalCorpusLister()).toEqual([])
+    expect(rouvert.notesInventaire().notes[0].titre).toBe('Note enregistrée')
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).not.toHaveProperty('journal')
+  })
+
+  test('une modification plus récente rend l’annulation inapplicable sans écraser la note', () => {
+    const { dir, store } = preparer(), { entretienId } = ajouterNote(store)
+    let vue = store.notesInventaire().notes[0]
+    store.notesCommander({ type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: champsNote(vue.attendu, { titre: 'Première modification' }) }, true)
+    vue = store.notesInventaire().notes[0]
+    store.notesCommander({ type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: champsNote(vue.attendu, { titre: 'Modification plus récente' }) })
+    const chemin = join(dir, 'entretiens', `${entretienId}.json`), avant = readFileSync(chemin, 'utf8')
+    const entree = store.journalCorpusLister()[0]
+    expect(entree).toMatchObject({ etat: 'inapplicable', raison: 'La note a été modifiée depuis cette action.' })
+    expect(store.journalCorpusAnnuler(entree.id)).toMatchObject({ ok: false, temporaire: false })
+    expect(readFileSync(chemin, 'utf8')).toBe(avant)
+  })
+
+  test.each(['modifier', 'supprimer'] as const)('une annulation de note (%s) reste bloquée seulement pendant l’indisponibilité de sa source', (type) => {
+    const { dir, store } = preparer(), { entretienId } = ajouterNote(store)
+    const vue = store.notesInventaire().notes[0]
+    const commande = { type, entretienId, noteId: vue.id, attendu: vue.attendu }
+    store.notesCommander(type === 'modifier' ? { ...commande, type, champs: champsNote(vue.attendu, { titre: 'Modifiée' }) }
+      : { ...commande, type }, true)
+    const chemin = join(dir, 'entretiens', `${entretienId}.json`), contenu = readFileSync(chemin, 'utf8')
+    unlinkSync(chemin)
+    const entree = store.journalCorpusLister()[0]
+    expect(entree.etat).toBe('bloquee')
+    expect(store.journalCorpusAnnuler(entree.id)).toMatchObject({ ok: false, temporaire: true })
+    writeFileSync(chemin, contenu)
+    expect(store.journalCorpusLister()[0].etat).toBe('annulable')
+    expect(store.journalCorpusAnnuler(entree.id).ok).toBe(true)
+    expect(store.notesInventaire().notes[0].titre).toBe('État A')
+  })
+
   test('refuse une modification des références avant toute lecture ou écriture des fichiers', () => {
     const { dir, store } = preparer()
     const { entretienId } = ajouterNote(store)
@@ -322,94 +359,5 @@ describe('Journal du corpus — commandes Notes', () => {
     expect(journal[0].etat).toBe('annulable')
     expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
     expect(store.notesInventaire().notes.map((note) => note.id)).toEqual(['note-a', 'note-b', 'note-c'])
-  })
-})
-
-type AncienInverseLocuteur = Extract<InverseJournalCorpus, { type: 'personneRenommer' | 'personneLier' | 'personneRefus' }>
-
-/** Installe un ancien inverse pour tester sa lecture sans recréer sa commande d’origine. */
-function ancienInverse(store: CorpusStore, inverse: AncienInverseLocuteur) {
-  const journal = Reflect.get(store, 'journalCorpus') as JournalCorpus
-  const impact: ImpactJournalCorpus = inverse.type === 'personneRenommer'
-    ? { corpus: true, entretiens: [], projections: ['locuteurs'] }
-    : { corpus: false, entretiens: [inverse.entretienId], projections: inverse.type === 'personneLier' ? ['locuteurs', 'notes'] : ['locuteurs'] }
-  journal.enregistrer('Action antérieure', 'locuteurs', inverse, impact)
-}
-
-describe('Journal du corpus — lecture des anciens inverses de locuteurs', () => {
-  test('annule deux renommages successifs sans changer le format des inverses', () => {
-    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Marie D.')
-    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
-    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Maria', apres: 'Marie D.' })
-    let journal = store.journalCorpusLister()
-    expect(journal.map((e) => e.etat)).toEqual(['annulable', 'inapplicable'])
-    expect(store.journalCorpusAnnuler(journal[0].id)).toEqual({ ok: true, impact: { corpus: true, entretiens: [], projections: ['locuteurs'] } })
-    journal = store.journalCorpusLister()
-    expect(journal).toHaveLength(1); expect(journal[0].etat).toBe('annulable')
-    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    expect(store.ouvrir().locuteurs[id].nom).toBe('Marie')
-    expect(store.journalCorpusLister()).toEqual([])
-  })
-
-  test('restaure exactement les associations et leur marqueur sans écraser une autre saisie', () => {
-    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Marie')
-    const autre = store.creerEntretienVide('Autre entretien')
-    store.ecrireEntretien(autre.id, entretien('Mme Marie'))
-    const reference = { entretienId: autre.id, participationId: 'loc-source' }
-    installerIdentitesFixture(dir, { associations: [{ ...reference, locuteurRef: id }] })
-    ancienInverse(store, { type: 'personneLier', entretienId: autre.id, locuteurId: 'loc-source', avant: { locuteurRef: null }, apres: { locuteurRef: id } })
-    const courant = store.lireEntretien(autre.id)
-    if (!courant.ok) throw new Error('Entretien indisponible')
-    courant.data.meta.valeursGen.sansRapport = 'modalite'; store.ecrireEntretien(autre.id, courant.data)
-    expect(store.journalCorpusAnnuler(store.journalCorpusLister()[0].id).ok).toBe(true)
-    const apres = store.lireEntretien(autre.id)
-    expect(apres.ok && apres.data.participations[0]).toMatchObject({ locuteurRef: null })
-    expect(apres.ok && apres.data.participations[0].associationRetiree).toBeUndefined()
-    expect(apres.ok && apres.data.meta.valeursGen.sansRapport).toBe('modalite')
-    installerIdentitesFixture(dir, { associations: [{ ...reference, locuteurRef: null }] })
-    ancienInverse(store, { type: 'personneLier', entretienId: autre.id, locuteurId: 'loc-source', avant: { locuteurRef: id }, apres: { locuteurRef: null, associationRetiree: true } })
-    expect(store.journalCorpusAnnuler(store.journalCorpusLister()[0].id).ok).toBe(true)
-    const retabli = store.lireEntretien(autre.id)
-    expect(retabli.ok && retabli.data.participations[0].locuteurRef).toBe(id)
-    expect(retabli.ok && retabli.data.participations[0].associationRetiree).toBeUndefined()
-  })
-
-  test('reste en mémoire et disparaît avec l’instance du corpus', () => {
-    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Maria')
-    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
-    expect(store.journalCorpusLister()).toHaveLength(1)
-    expect(new CorpusStore(dir).journalCorpusLister()).toEqual([])
-    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).not.toHaveProperty('journal')
-  })
-
-  test('grise une entrée si sa cible a changé et ne l’écrase pas', () => {
-    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Maria')
-    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
-    installerIdentitesFixture(dir, { locuteurs: [{ id, nom: 'Modification extérieure' }] })
-    const entree = store.journalCorpusLister()[0]
-    expect(entree).toMatchObject({ etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' })
-    expect(store.journalCorpusAnnuler(entree.id)).toEqual({ ok: false, raison: 'La personne a été modifiée depuis cette action.', temporaire: false })
-    expect(store.ouvrir().locuteurs[id].nom).toBe('Modification extérieure')
-  })
-
-  test('relit deux inverses de refus successifs avec leurs références contextualisées', () => {
-    const { store } = preparer()
-    const cible = store.inventaireIdentitesLocuteurs().participations.find((p) => p.nom === 'Karine')!
-    const autre = store.creerEntretienVide('Autre entretien'); store.ecrireEntretien(autre.id, entretien(cible.nom))
-    const reference = { entretienId: cible.entretienId, locuteurId: cible.participationId }
-    const refus = { type: 'participation' as const, entretienId: autre.id, participationId: 'loc-source' }
-    const avant = { rapprochementsRefuses: [] }, apres = { rapprochementsRefuses: [refus] }
-    const data = store.lireEntretien(cible.entretienId)
-    if (!data.ok) throw new Error('Entretien indisponible')
-    data.data.participations.find((p) => p.id === cible.participationId)!.rapprochementsRefuses = []
-    store.ecrireEntretien(cible.entretienId, data.data)
-    ancienInverse(store, { type: 'personneRefus', ...reference, avant, apres })
-    ancienInverse(store, { type: 'personneRefus', ...reference, avant: apres, apres: avant })
-    let journal = store.journalCorpusLister()
-    expect(journal.map((e) => e.etat)).toEqual(['annulable', 'inapplicable'])
-    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    journal = store.journalCorpusLister(); expect(journal[0].etat).toBe('annulable')
-    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    expect(store.inventaireIdentitesLocuteurs().participations.find((p) => p.participationId === cible.participationId)?.rapprochementsRefuses).toEqual([])
   })
 })

@@ -353,7 +353,7 @@ export class TransactionsGitLab {
       const frais = await this.lireBase(sha)
       validerCorpusNatif(frais.corpus)
       exigerAbsenceDissociationGitLab(frais.corpus)
-      const ids = this.sourcesAttendues((c) => Object.keys(c.membership), frais.corpus)
+      const ids = Object.keys(frais.corpus.membership)
       const sources = await this.lireSources(ids, sha, frais.corpus)
       const entretiens = sources.map((s) => {
         if (s.id === session?.entretienId && s.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Rouvrez-le avant de renommer ses locuteurs.')
@@ -367,21 +367,21 @@ export class TransactionsGitLab {
     })
   }
 
-  /** Protège tous les membres et conserve le droit de la session fournie, sans le reprendre. */
-  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: () => void,
+  /** Protège les seuls entretiens modifiés et conserve le droit de la session fournie. */
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: (cibles?: readonly string[]) => void,
     session?: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
     return this.publierCorrectionLocuteurs((corpus, sources) => preparerCorrectionLocuteurs(corpus, sources, commande), verifierSessionsFermees, session)
   }
 
-  nommerLocuteurDepuisEntretien(operation: OperationNommageLocuteurs, verifierSession: () => void, session: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
+  nommerLocuteurDepuisEntretien(operation: OperationNommageLocuteurs, verifierSession: (cibles?: readonly string[]) => void, session: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
     validerOperationNommageLocuteurs(operation)
     if (operation.demande.entretienId !== session.entretienId) throw new Error('La demande ne correspond pas à cet entretien.')
     return this.publierCorrectionLocuteurs((corpus, sources) => preparerNommageLocuteurs(corpus, sources, operation), verifierSession, session,
-      operation.type === 'identifierAuNommage' ? session.entretienId : undefined)
+      operation.type !== 'rapprocherAuNommage' ? session.entretienId : undefined)
   }
 
   private publierCorrectionLocuteurs(preparer: (corpus: string, sources: SourceCorrectionLocuteurs[]) => PlanCorrectionLocuteurs,
-    verifierSessionsFermees: () => void, session?: CorrectionLocuteursSessionGitLab & { entretienId: string }, entretienUnique?: string): Promise<string> {
+    verifierSessionsFermees: (cibles?: readonly string[]) => void, session?: CorrectionLocuteursSessionGitLab & { entretienId: string }, entretienUnique?: string): Promise<string> {
     return this.options.file.executer(async () => {
       this.verifierTransactionReconciliee()
       if (!this.options.journal) throw new Error('Le suivi de la correction est indisponible. Aucun locuteur modifié.')
@@ -393,31 +393,37 @@ export class TransactionsGitLab {
         const sha = await this.options.depot.resoudreTete(this.branche)
         const frais = await this.lireBase(sha)
         exigerAbsenceDissociationGitLab(frais.corpus)
-        const ids = this.sourcesAttendues((c) => entretienUnique === undefined ? Object.keys(c.membership) : [entretienUnique], frais.corpus).sort()
-        if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
-        if (2 * ids.length + 2 > MAX_ACTIONS_PUBLICATION) {
-          throw new Error('Ce corpus contient trop d’entretiens pour protéger cette correction dans un seul envoi. Aucun locuteur modifié.')
-        }
-        for (const id of ids) {
-          if (id === session?.entretienId) droitsEntretiens.push(session.droit)
-          else { const acquis = await this.acquerirBailEntretien(id); droitsAcquis.push(acquis); droitsEntretiens.push(acquis) }
-        }
-        verifierSessionsFermees()
+        const ids = entretienUnique === undefined ? Object.keys(frais.corpus.membership).sort() : [entretienUnique]
+        if (session && !Object.hasOwn(frais.corpus.membership, session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
         const sources = await this.lireSources(ids, sha, frais.corpus)
         if (session && sources.find((s) => s.id === session.entretienId)?.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Aucun nom modifié.')
         const plan = preparer(frais.fichier.contenu, sources)
         const modifies = new Map(plan.entretiens.map((e) => [e.id, e.apres]))
+        const cibles = [...modifies.keys()].sort()
+        if (2 * cibles.length + 2 > MAX_ACTIONS_PUBLICATION) {
+          throw new Error('Cette correction modifie trop d’entretiens pour un seul envoi. Aucun locuteur modifié.')
+        }
+        verifierSessionsFermees(cibles)
+        for (const id of cibles) {
+          if (id === session?.entretienId) droitsEntretiens.push(session.droit)
+          else { const acquis = await this.acquerirBailEntretien(id); droitsAcquis.push(acquis); droitsEntretiens.push(acquis) }
+        }
+        verifierSessionsFermees(cibles)
         const corpusModifie = JSON.stringify(plan.corpusAvant) !== JSON.stringify(plan.corpusApres)
+        // Un retrait doit aussi empêcher l’ajout concurrent d’une référence dans un autre entretien.
+        const retraitIdentite = Object.keys(plan.corpusAvant.locuteurs).some((id) => !Object.hasOwn(plan.corpusApres.locuteurs, id))
         const operationId = `locuteurs-${this.nouvelleOperation()}`
         if (corpusModifie || modifies.size) {
           const actions: ActionPlanGitLab[] = [corpusModifie ? this.actionCorpus(frais, plan) : {
             action: 'garde', chemin: this.cheminCorpus, commitId: frais.fichier.commitId, executable: frais.fichier.executable,
-          }, ...sources.map((s): ActionPlanGitLab => modifies.has(s.id) ? {
+          }, ...sources.filter((s) => modifies.has(s.id)).map((s): ActionPlanGitLab => ({
             action: 'update', chemin: this.cheminDistant(`entretiens/${s.id}.json`),
             contenu: JSON.stringify(modifies.get(s.id), null, 2), commitId: s.commitId,
-          } : { action: 'garde', chemin: this.cheminDistant(`entretiens/${s.id}.json`), commitId: s.commitId, executable: s.executable })]
+          })), ...sources.filter((s) => retraitIdentite && !modifies.has(s.id)).map((s): ActionPlanGitLab => ({
+            action: 'garde', chemin: this.cheminDistant(`entretiens/${s.id}.json`), commitId: s.commitId, executable: s.executable,
+          }))]
           this.verifierBornes(operationId, actions, droitsEntretiens.length + 1)
-          verifierSessionsFermees()
+          verifierSessionsFermees(cibles)
           const attenduSession = session ? modifies.has(session.entretienId) ? JSON.stringify(modifies.get(session.entretienId), null, 2) : session.avant : null
           if (session && attenduSession !== null) session.preparer(operationId, attenduSession)
           const resultat = await this.options.publication.publierSousDroits({ operationId, nature: 'transaction-corpus', actions }, [droit, ...droitsEntretiens])
@@ -428,8 +434,7 @@ export class TransactionsGitLab {
             await session.confirmer(confirme.commitId, confirme.contenu)
           }
         }
-        for (const source of sources) if (source.id !== session?.entretienId) this.options.store.installerEntretienDistant(source.id,
-          modifies.get(source.id) ?? JSON.parse(source.contenu) as EntretienFichier)
+        for (const [id, apres] of modifies) if (id !== session?.entretienId) this.options.store.installerEntretienDistant(id, apres)
         this.installer(operationId, plan.corpusApres)
         return plan.locuteurId
       } finally {

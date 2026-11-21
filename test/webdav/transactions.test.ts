@@ -315,6 +315,24 @@ describe('Création et import d’entretien — transaction multi-fichiers', () 
     expect(serveur.contenuDe(`entretiens/${resultat.id}.json`)).toContain('Importé')
   })
 
+  it('les imports publient leurs identités sans réunir les homonymes et sans nommage supplémentaire', async () => {
+    const { serveur, tx, store } = await banc()
+    const { formatVersion: _v, lastModified: _d, ...payload } = JSON.parse(entretienE1()) as EntretienFichier
+    payload.participations = [1, 2].map((index) => ({ id: `p${index}`, index, nom: 'Alex importé', locuteurRef: null, valeursLoc: {} }))
+    const ids: string[] = []
+    for (const titre of ['Premier import', 'Second import']) {
+      const r = await tx.importerEntretien(titre, payload)
+      const data = JSON.parse(serveur.contenuDe(`entretiens/${r.id}.json`)!) as EntretienFichier
+      for (const p of data.participations) {
+        expect(corpusServeur(serveur).locuteurs[p.locuteurRef!]).toEqual({ id: p.locuteurRef, nom: p.nom })
+        ids.push(p.locuteurRef!)
+      }
+      expect(store.lireEntretien(r.id)).toEqual({ ok: true, data })
+    }
+    expect(new Set(ids).size).toBe(4)
+    expect(store.locuteursInventaire().aVerifier).toEqual([])
+  })
+
   it('récupère une réponse perdue après la création exclusive de l’entretien', async () => {
     const { serveur, miroir, store } = await banc()
     let reponsePerdue = false

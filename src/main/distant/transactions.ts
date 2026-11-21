@@ -104,7 +104,7 @@ export interface OptionsTransactions {
   gardePseudos?: GardePseudosWebDAV
   sessionsEnCours?: () => string[]
   verifierContexteRetrait?: (etape: EtapeRetraitVarianteWebDAV) => void
-  verifierContexteCorrection?: (session?: ContexteSessionLocuteursWebDAV) => void
+  verifierContexteCorrection?: (session?: ContexteSessionLocuteursWebDAV, cibles?: readonly string[]) => void
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -143,7 +143,7 @@ export class TransactionsCorpus {
     const identiteCorrection = () => ({ ...this.identite(), sessionId: `locuteurs-${randomUUID()}` })
     this.correctionsLocuteurs = new CorrectionsLocuteursWebDAV({ client, dirLocal: miroir.dirLocal,
       utilisateur: () => this.identite().userId,
-      verifierContexte: (session) => options.verifierContexteCorrection?.(session),
+      verifierContexte: (session, cibles) => options.verifierContexteCorrection?.(session, cibles),
       sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? []), ...(options.sessionsEnCours?.() ?? [])],
       miroir: (chemin, contenu, etag) => {
         if (chemin === CHEMIN_CORPUS) this.ecrireCorpusLocal(contenu)
@@ -756,8 +756,10 @@ export class TransactionsCorpus {
       const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
       const nouvellesRegles = Object.fromEntries(Object.entries(plan.corpusApres.reglesAnon ?? {})
         .filter(([id]) => !Object.hasOwn(plan.corpusAvant.reglesAnon ?? {}, id)))
+      const nouvellesIdentites = Object.fromEntries(Object.entries(plan.corpusApres.locuteurs)
+        .filter(([id]) => !Object.hasOwn(plan.corpusAvant.locuteurs, id)))
       const etagEntretien = await this.gardePseudos.publierSousVerrou(contenuEntretien, JSON.stringify({ annotations: [] }),
-        () => this.publierNouvelEntretien(cheminEntretien, contenuEntretien), provider, cheminEntretien, nouvellesRegles)
+        () => this.publierNouvelEntretien(cheminEntretien, contenuEntretien), provider, cheminEntretien, nouvellesRegles, nouvellesIdentites)
 
       let etagCorpusPublie = ''
       try {

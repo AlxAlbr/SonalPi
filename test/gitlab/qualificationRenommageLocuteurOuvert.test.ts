@@ -50,7 +50,7 @@ decrire('locuteurs depuis une session sur GitLab réel', () => {
     } finally { await b.c.fermerEntretien('A').catch(() => {}); nettoyer(alice) }
   })
 
-  it('nommage et rapprochement : créer malgré les autres éditions, réunir seulement après libération et continuer la saisie', { timeout: 120_000 }, async () => {
+  it('nommage et rapprochement : les éditions sans rapport restent ouvertes et la saisie continue', { timeout: 120_000 }, async () => {
     const f = fixtureLocuteursDistants(); f.entretiens[0].data.participations[0].locuteurRef = null
     const racine = await creerRacine('nommage', { corpus: f.corpus })
     const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'nommage', corpusLocal: f.corpus })
@@ -76,7 +76,7 @@ decrire('locuteurs depuis une session sur GitLab réel', () => {
         const second = await b.c.identifierParticipationAuNommage({ entretienId: 'A', participationId: 'nouvelle', nom: 'X' })
         expect(second.participations[1].locuteurRef).toBeTruthy(); expect(second.participations[1].locuteurRef).not.toBe(id!)
         const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
-        await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })).rejects.toThrow(/en cours de modification|est retenu/)
+        await expect(b.c.rapprocherLocuteurDepuisEntretien({ ...reference, source: { entretienId: 'C', participationId: 'local' }, attendu: JSON.stringify(inventaire) })).resolves.toHaveProperty('participations.0.locuteurRef', 'b')
       } finally { await propre.fermer() }
       const inventaire = await b.c.inventaireLocuteursDepuisEntretien(reference)
       const avant = alice.store.lireEntretien('A'); if (!avant.ok) throw new Error('Entretien absent')

@@ -9,15 +9,35 @@ locuteurs.
 | Parcours | Local | GitLab | WebDAV / Nextcloud |
 |---|---|---|---|
 | Liste, interventions, statistiques et détails | Disponible. | Vue commune, parcours Electron réel vérifié. | Vue commune, parcours Electron réel vérifié sur A et B. |
-| Corrections depuis le corpus | Disponible. | Nouveau parcours sous commit gardé, éditions fermées. | Parcours conditionnel avec suivi privé et reprise explicite, éditions fermées. |
+| Corrections depuis le corpus | Disponible. | Commit gardé, seules les éditions concernées doivent être fermées. | Écritures conditionnelles, suivi privé et reprise explicite ; seules les éditions concernées doivent être fermées. |
 | Renommage global depuis l’entretien ouvert | Disponible. | Disponible sous le droit de la session courante. | Disponible sous le droit courant, avec suivi privé et reprise explicite. |
+| Renommage dans le seul entretien ouvert | Disponible. | Même droit courant ; aucune réservation des autres entretiens. | Même droit courant et suivi privé ; aucune réservation des autres entretiens. |
 | Création au nommage depuis l’entretien ouvert | Disponible. | Disponible, sans fermer les autres éditions. | Disponible, sans fermer les autres éditions. |
-| Rapprochement depuis l’entretien ouvert | Disponible. | Disponible, après fermeture des autres éditions. | Disponible, après fermeture des autres éditions, avec reprise explicite. |
+| Rapprochement depuis l’entretien ouvert | Disponible. | Disponible ; les éditions sans modification restent ouvertes. | Disponible avec reprise explicite ; les éditions sans modification restent ouvertes. |
 
 Les composants `PersonnesCorpus.vue` et `RapprochementCorpus.vue` sont supprimés.
 L’inventaire pur est dans `inventaireLocuteurs.ts`, sans relais vers les anciennes
 fonctions métier. Les anciens points d’entrée et commandes, ainsi que leurs relais
 WebDAV, sont supprimés. Les capacités ne conservent pas l’ancien drapeau générique.
+
+## Renommage local et identité commune
+
+`renommerParticipationDepuisEntretien` valide la participation, son identité et
+son nom attendu avant publication. La préparation lit uniquement cette source ;
+elle ne change que son nom local et la date de modification correspondante.
+Le nom de l’identité corpus reste inchangé. Les autres éditions peuvent rester
+ouvertes, même lorsqu’elles concernent cette identité.
+
+GitLab utilise le geste `locuteurs.renommer-participation` et le journal général
+de publication. WebDAV reconnaît `renommerParticipation` dans son journal privé,
+y compris pour vérifier, reprendre ou arrêter après une réponse inconnue.
+Les deux fournisseurs gardent le droit courant, protègent les anciennes sauvegardes
+et adoptent la version confirmée comme base de session. Une répétition reconnue
+ne publie pas de nouveau changement.
+
+Ce parcours est couvert par `test/renommageParticipation.test.ts`, les tests de
+session GitLab/WebDAV simulés, `test/webdav/locuteursSession-nextcloud.test.ts`
+et les parcours Electron de renommage ouvert et Nextcloud.
 
 ## Consultation et aperçu sont distincts
 
@@ -43,9 +63,10 @@ Le nouveau canal `corpus:corrigerLocuteurs` valide strictement les commandes et
 contrôle leur geste précis. La capacité `correctionsLocuteurs` est distincte de
 l’ancien drapeau `locuteurs`, supprimé avec les commandes historiques.
 
-Le contexte refuse les éditions locales protégées et les copies récupérables.
-La transaction acquiert le droit corpus puis ceux de tous les membres dans un
-ordre stable. Les modifications d’autres postes restent protégées par leurs
+Le contexte refuse les éditions locales protégées et les copies récupérables
+uniquement si leurs entretiens doivent être modifiés. La transaction lit les sources
+sous le droit corpus, prépare les candidats puis réserve les seuls entretiens
+modifiés, dans un ordre stable. Les modifications d’autres postes restent protégées par leurs
 droits et par les gardes des fichiers ; une session n’est pas publiée pour faire
 passer la correction.
 
@@ -54,10 +75,14 @@ sources serveur fournies. L’inventaire doit être complet et correspondre à l
 confirmation. Les entretiens réellement modifiés portent leur nouvelle date ;
 texte, codages, notes et champs étrangers à la commande restent inchangés.
 
-Un seul commit porte les modifications et les gardes des membres inchangés, ainsi
-que les droits. La borne actuelle est de 124 entretiens lorsque tous doivent être
-réservés : le dépassement est refusé, pas transformé en lot partiel. Les limites
-d’octets du publieur restent également applicables.
+Un seul commit porte les modifications et leurs droits, ainsi que la garde du
+corpus. Les entretiens inchangés ne sont jamais réservés. Un retrait d’identité
+ajoute toutefois leurs gardes au même commit : ils ne peuvent pas publier une
+nouvelle référence vers l’identité retirée entre lecture et confirmation.
+Sans retrait, ils ne figurent pas dans le commit.
+La borne est de 124 entretiens modifiés, complétée par la limite totale d’actions
+si un retrait exige ces gardes supplémentaires. Un dépassement est refusé, pas
+transformé en lot partiel. Les limites d’octets du publieur restent applicables.
 
 Le miroir n’est installé qu’après confirmation. Le journal de publication général
 conserve les réponses inconnues. Les opérations préfixées `locuteurs-` sont
@@ -68,16 +93,22 @@ et aucune annulation globale n’est promise.
 ## Corrections WebDAV depuis le corpus
 
 `CorrectionsLocuteursWebDAV` utilise les mêmes candidats métier, sans emprunter
-les services ou journaux thématiques. La publication protège le corpus puis tous
-les membres, avec `files_lock` ou les verrous conditionnels existants. Les sessions
-locales ouvertes ou récupérables et les opérations incompatibles restent bloquantes.
+les services ou journaux thématiques. La publication protège le corpus, lit les
+sources puis réserve seulement les entretiens réellement modifiés, avec `files_lock` ou les verrous conditionnels
+existants. Les sessions locales ouvertes ou récupérables ne bloquent la correction
+que si leur entretien doit être modifié ; les opérations incompatibles restent bloquantes.
 Une nouvelle session ne peut pas contourner une correction en cours ou à reprendre.
 
-Les GET fournissent ensemble les contenus et leurs ETags forts. Chaque PUT porte
-`If-Match` ; avant de poursuivre, le service vérifie les contenus et les garanties
-des droits. Il garde tous les membres protégés, y compris ceux inchangés, jusqu’à
-la finalisation. Les nouvelles définitions précèdent les associations ; les identités
-absorbées ne sont retirées qu’après traitement et vérification des références.
+Les GET initiaux fournissent ensemble les contenus et leurs ETags forts. Chaque PUT
+porte `If-Match` ; sa réponse fournit la version à utiliser pour une éventuelle étape
+suivante du même fichier. Seuls les droits du corpus et de la cible courante sont
+renouvelés avant chaque envoi. Une seule vérification finale relit le corpus et les
+entretiens modifiés ; il n’y a plus de relecture complète entre les étapes.
+Nextcloud peut changer l’ETag lors d’un verrouillage natif : une seule relecture de
+la cible juste après cette acquisition conserve sa garde sans masquer un changement.
+Les fichiers sans modification ne sont jamais réinstallés dans le miroir : une
+saisie dans un autre onglet reste intacte. Les nouvelles définitions précèdent les
+associations ; les identités absorbées ne sont retirées qu’après traitement des références.
 
 Les bornes sont de **100 entretiens**, **32 Mio de sources** et **128 Mio de journal**.
 Un dépassement est refusé avant publication ; aucune découpe cachée n’est pratiquée.
@@ -89,15 +120,22 @@ un journal invalide ou un contenu serveur inattendu interdit toute nouvelle écr
 Les contenus déjà confirmés ne sont jamais réinstallés par-dessus une modification
 d’un autre poste ; le miroir n’est alimenté qu’avec des contenus confirmés.
 
-Une réponse inconnue demande **Vérifier le résultat**, sans PUT. Si le candidat est
-reconnu, **Reprendre la correction** publie seulement la suite, avec les mêmes ids.
-Si l’acceptation reste inconnue, ni reprise ni arrêt du suivi ne sont autorisés.
+Une réponse inconnue demande **Vérifier le résultat**. Si le candidat est reconnu,
+aucun PUT n’est répété et la reprise publie seulement la suite, avec les mêmes ids.
+Si le fichier est resté dans son état antérieur, la vérification le réécrit sous
+`If-Match` en ajoutant uniquement des retours à la ligne. Cette nouvelle version
+neutralise la condition d’une requête encore retardée, sans appliquer sa correction.
+La reprise ou l’arrêt deviennent alors possibles. Cette représentation est conservée
+avant l’envoi dans le journal privé ; une nouvelle coupure peut donc être vérifiée
+après redémarrage. Les neutralisations successives ont des longueurs croissantes,
+pour ne jamais réutiliser une ancienne représentation.
+Un contenu extérieur inattendu reste protégé et suspend la reprise.
 La protection conditionnelle du corpus reste alors en place : une autre session
 ne peut pas publier de nouvelles références pendant qu’une ancienne requête peut
 encore aboutir. Sa preuve est conservée dans le journal privé, y compris pour une
-vérification après recréation du service. Reconnaître le candidat accepté autorise
-seulement une libération conditionnelle de cette ancienne protection, jamais sa
-réutilisation pour publier. La reprise acquiert ensuite de nouveaux droits.
+vérification après recréation du service. Reconnaître le candidat accepté ou la
+version neutralisée autorise une libération conditionnelle de cette ancienne
+protection, jamais sa réutilisation pour publier une nouvelle correction. La reprise acquiert ensuite de nouveaux droits.
 Une protection remplacée ou perdue n’est ni forcée ni supprimée à l’aveugle.
 Pour un progrès connu, **Arrêter cette correction…** demande confirmation, clôture
 uniquement le suivi local et conserve les étapes déjà enregistrées. Ce n’est pas
@@ -135,8 +173,9 @@ publie seulement les saisies de notre session, puis prépare la correction compl
 Un inventaire périmé reste refusé, même si le nom ne concerne que cet entretien.
 
 Le commit conserve le droit courant : aucun second bail ni fermeture/réouverture
-pour contourner la session. Le corpus et les autres membres sont protégés dans
-l’ordre existant ; une édition tierce ou une autre édition locale reste bloquante.
+pour contourner la session. Le corpus et les autres entretiens modifiés sont protégés dans
+l’ordre existant ; une édition tierce ou locale ne bloque que si elle concerne
+l’un de ces entretiens.
 La correction confirmée devient la nouvelle base de la session avant toute sauvegarde
 suivante. Le store refuse les anciens noms d’une sauvegarde retardée. Le renderer
 ne remplace que les noms attendus, pas le document ni l’historique de frappe.
@@ -168,15 +207,17 @@ correspondre à la demande ; le retrait volontaire reste bloquant. Aucun rôle n
 déduit du nom, aucun homonyme n’est associé automatiquement. Répéter une création
 confirmée retrouve son id, sans nouvel envoi ni nouvelle définition.
 
-Le rapprochement exige toutes les sources, la fermeture des autres éditions et
-l’inventaire confirmé. Il conserve les noms locaux, redirige les cas et refus de
+Le rapprochement exige toutes les sources et l’inventaire confirmé. Seules les
+éditions des entretiens réellement modifiés doivent être fermées. Il conserve les noms locaux, redirige les cas et refus de
 tiers et retire l’identité absorbée dans le même commit. Deux voix d’un même
 entretien ne sont pas réunies. Seules les données choisies sont copiées ; les
 variables doivent toujours appartenir aux participations.
 
 `inventaireLocuteursDepuisEntretien` relit les sources publiées et le candidat
-courant autorisé, sans publication. Les suggestions commencent seulement après
-vérification de l’identité indépendante. Une source indisponible diffère les
+courant autorisé, sans publication. Les suggestions commencent seulement à la validation du nom, après vérification
+de l’identité indépendante. Le clic « + Locuteur » crée cette identité sans
+notification ni suggestions. Les imports préparent leurs identités avec l’entretien ;
+WebDAV autorise ces nouvelles références uniquement dans cette publication d’ajout. Une source indisponible diffère les
 propositions sans présenter la création déjà confirmée comme un échec.
 
 La publication et la reprise utilisent le journal GitLab général et l’intention
@@ -233,15 +274,15 @@ les deux variantes Nextcloud. Le canal générique historique est supprimé.
 `SessionsDEntretien.corrigerLocuteurs()` sérialise la sauvegarde récente, la
 publication ordinaire, le prêt du droit courant et l’adoption du résultat. Le
 service n’acquiert ni ne libère une seconde fois le droit de cet entretien. Son
-renouvellement reste celui de la session ; les autres membres sont protégés dans
-l’ordre habituel, après le corpus.
+renouvellement reste celui de la session ; les autres entretiens modifiés sont
+protégés dans l’ordre habituel, après le corpus.
 
 L’aperçu utilise la version publiée et le candidat local autorisé, sans publication.
 La confirmation vérifie encore cette base, applique le métier commun et fixe les
 candidats dans le suivi privé avant l’envoi. La création indépendante ne lit ni ne
 réserve les autres entretiens, même si d’autres éditions sont ouvertes. Le renommage
-et le rapprochement exigent les autres éditions locales fermées et un inventaire
-complet. Les droits d’autres comptes ou postes restent bloquants.
+et le rapprochement exigent un inventaire complet. Les éditions locales et les
+droits d’autres comptes ou postes ne bloquent que les entretiens modifiés.
 
 Après confirmation, le contenu et l’ETag deviennent la nouvelle base de session.
 Le renderer ne remplace que les champs attendus, sans recharger le document. Les

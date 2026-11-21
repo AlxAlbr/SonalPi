@@ -61,6 +61,40 @@ function banc(sansAssociation = false, invalidite?: 'retrait' | 'absente') {
   return { f, dir, store, depot, coordination, journal, journalSessions, transactions, sessions, creerSession, contexte, donnees, lire, sauvegarder }
 }
 
+test('renommer dans un entretien conserve le nom commun, les autres éditions et les sauvegardes suivantes', async () => {
+  const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A'); await b.contexte.ouvrirEntretienPourEdition('C')
+  const autre = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'bob' }) })
+  const tenue = await autre.acquireRessource(cleRessourceBailGitLab('main', 'entretiens/B.json')); expect(tenue.ok).toBe(true)
+  const avant = b.lire('A'), lecturesB = b.depot.lectures.get('entretiens/B.json') ?? 0
+  const demande = { ...reference, locuteurId: 'a', nomAvant: 'Alice A', nom: 'Mme Dupont' }
+  const apres = await b.contexte.renommerParticipationDepuisEntretien(demande)
+  expect(apres).toEqual({ ...avant, lastModified: expect.any(String), participations: [{ ...avant.participations[0], nom: 'Mme Dupont' }] })
+  expect(b.store.ouvrir().locuteurs).toEqual(b.f.corpus.locuteurs)
+  expect(b.depot.lectures.get('entretiens/B.json') ?? 0).toBe(lecturesB)
+  expect(b.sessions.get('entretiens/C.json')!.etat().etat).toBe('edition')
+  expect(() => b.store.ecrireEntretien('A', avant)).toThrow('Les noms ont changé')
+  await b.contexte.renommerParticipationDepuisEntretien(demande)
+  expect(b.donnees()).toHaveLength(1)
+  const suite = b.lire('A'); suite.notes![0].corps = 'Note après renommage local'
+  await b.sauvegarder(suite); expect(await b.contexte.publierEntretien('A')).toEqual({ ok: true })
+  const publie = JSON.parse((await b.depot.lireFichier('entretiens/A.json'))!.contenu)
+  expect(publie.participations[0].nom).toBe('Mme Dupont')
+  expect(publie.notes[0].corps).toBe('Note après renommage local')
+  expect(JSON.parse((await b.depot.lireFichier('entretiens/B.json'))!.contenu)).toEqual(b.f.entretiens[1].data)
+  await b.contexte.fermerEntretien('A'); await b.contexte.fermerEntretien('C')
+  if (tenue.ok) await autre.liberer(tenue.droit)
+})
+
+test.each(['nom', 'association'] as const)('un renommage local au %s périmé ne publie pas les saisies en attente', async (cas) => {
+  const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A')
+  const saisie = b.lire('A'); saisie.notes![0].corps = 'Encore privé'; await b.sauvegarder(saisie)
+  await expect(b.contexte.renommerParticipationDepuisEntretien({ ...reference, locuteurId: cas === 'association' ? 'b' : 'a', nomAvant: cas === 'nom' ? 'Périmé' : 'Alice A', nom: 'Nom local' })).rejects.toThrow('a changé')
+  expect(b.donnees()).toHaveLength(0)
+  expect(b.lire('A').notes![0].corps).toBe('Encore privé')
+  expect(JSON.parse((await b.depot.lireFichier('entretiens/A.json'))!.contenu)).toEqual(b.f.entretiens[0].data)
+  await b.contexte.fermerEntretien('A')
+})
+
 test('créer au nommage laisse les autres éditions ouvertes, garde les droits courants et reste idempotent', async () => {
   const b = banc(true); await b.contexte.ouvrirEntretienPourEdition('A'); await b.contexte.ouvrirEntretienPourEdition('C')
   const autre = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'bob' }) })
@@ -192,14 +226,27 @@ test('sans suivi durable de session, aucune publication même si notre droit res
   expect(b.donnees()).toHaveLength(0)
 })
 
-test('une autre édition locale ou une référence forgée refuse aussi les appels directs', async () => {
+test('une autre édition sans rapport reste ouverte, mais une référence forgée est refusée', async () => {
   const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A'); await b.contexte.ouvrirEntretienPourEdition('C')
-  await expect(b.contexte.apercuRenommageLocuteurDepuisEntretien(reference)).rejects.toThrow('autres entretiens')
+  const autre = b.lire('C'); autre.notes![0].corps = 'Saisie dans l’autre entretien'
+  b.store.ecrireEntretien('C', autre)
+  const inventaireOuvert = await b.contexte.apercuRenommageLocuteurDepuisEntretien(reference)
+  await b.contexte.renommerLocuteurDepuisEntretien(reference, commande(inventaireOuvert))
+  expect(b.lire('C').notes![0].corps).toBe('Saisie dans l’autre entretien')
+  expect(b.sessions.get('entretiens/C.json')!.etat().etat).toBe('edition')
   await b.contexte.fermerEntretien('C')
   await expect(b.contexte.apercuRenommageLocuteurDepuisEntretien({ ...reference, inconnu: true } as typeof reference)).rejects.toThrow('Rouvrez')
   const inventaire = await b.contexte.apercuRenommageLocuteurDepuisEntretien(reference)
   await expect(b.contexte.renommerLocuteurDepuisEntretien(reference, { ...commande(inventaire), locuteurId: 'b' })).rejects.toThrow('association a changé')
-  expect(b.donnees()).toHaveLength(0); await b.contexte.fermerEntretien('A')
+  expect(b.donnees()).toHaveLength(1); await b.contexte.fermerEntretien('A')
+})
+
+test('une autre édition locale concernée reste refusée à la confirmation', async () => {
+  const b = banc(); await b.contexte.ouvrirEntretienPourEdition('A'); await b.contexte.ouvrirEntretienPourEdition('B')
+  const inventaire = await b.contexte.apercuRenommageLocuteurDepuisEntretien(reference)
+  await expect(b.contexte.renommerLocuteurDepuisEntretien(reference, commande(inventaire))).rejects.toThrow('entretiens concernés')
+  expect(b.donnees()).toHaveLength(0)
+  await b.contexte.fermerEntretien('B'); await b.contexte.fermerEntretien('A')
 })
 
 test('un aperçu périmé ne renomme aucun entretien et conserve la modification extérieure', async () => {

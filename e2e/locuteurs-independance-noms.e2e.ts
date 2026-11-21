@@ -9,7 +9,7 @@ test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunio
     await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const gestion = page.getByRole('dialog', { name: 'Gestion des locuteurs', exact: true }), nom = gestion.locator('.nom-loc').first()
     await nom.fill('Marie Dupont'); await nom.press('Enter')
-    await expect(page.getByRole('status').filter({ hasText: 'Locuteur « Marie Dupont » créé' })).toBeVisible()
+    await expect.poll(async () => (await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs.length).toBe(1)
     const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs()), cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
     const source = await page.evaluate(async () => {
       const api = window.sonal.corpus, { id } = await api.creerEntretienVide('Autre identité'), r = await api.lireEntretien(id)
@@ -27,7 +27,9 @@ test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunio
     const apresNom = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(apresNom.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual({ ...cible, nom: 'Paul Martin' })
     expect(apresNom.locuteurs).toHaveLength(2); expect(cible.locuteurRef).not.toBe(sourceId)
-    await expect(page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })).toHaveCount(0)
+    const proposition = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })
+    await expect(proposition).toBeVisible()
+    await proposition.getByRole('button', { name: 'Plus tard', exact: true }).click()
     await gestion.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click(); await retourCorpus(page)
     await ouvrirDetailsLocuteurs(page)
     const details = page.locator('.details-locuteurs')

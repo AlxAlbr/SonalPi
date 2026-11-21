@@ -1,12 +1,19 @@
 import type { CorpusFichier, EntretienFichier } from '../format'
 import { creerLocuteur, associerParticipation, regrouperLocuteurs } from './identitesLocuteurs'
-import { reprendreDonneesParticipation } from './rapprochementsLocuteurs'
+import { peutCreerLocuteurAuNommage, reprendreDonneesParticipation } from './rapprochementsLocuteurs'
 import { validerIdentificationLocuteur, validerRapprochementNommage, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from './contratsLocuteurs'
 
 type CorpusNommage = Pick<CorpusFichier, 'locuteurs' | 'cas' | 'variables'>
 type EntretienNommage = Pick<EntretienFichier, 'participations'>
 
-/** Un nom saisi crée une identité indépendante, jamais une association déduite du nom. */
+/** Enregistre les nouvelles participations sans rapprocher les noms ni rétablir les liens retirés. */
+export function identifierParticipationsCreees(corpus: CorpusNommage, entretien: EntretienNommage, entretienId: string, genererId: () => string): void {
+  for (const p of entretien.participations) if (peutCreerLocuteurAuNommage(p)) {
+    identifierParticipationNommage(corpus, entretien, { entretienId, participationId: p.id, nom: p.nom }, genererId)
+  }
+}
+
+/** Crée une identité indépendante, jamais une association déduite du nom. */
 export function identifierParticipationNommage(corpus: CorpusNommage, entretien: EntretienNommage, demande: DemandeIdentificationLocuteur, genererId: () => string): string {
   validerIdentificationLocuteur(demande)
   const cible = entretien.participations.find((p) => p.id === demande.participationId)

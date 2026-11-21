@@ -64,7 +64,7 @@ import type {
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
 import type { InventaireIdentitesLocuteurs } from '../shared/corpus/inventaireLocuteurs'
-import type { CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import type { CommandeRenommageLocuteur, DemandeRenommageParticipation, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -213,6 +213,7 @@ declare global {
         inventaireLocuteursDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
         apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
         renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
+        renommerParticipationDepuisEntretien: (demande: DemandeRenommageParticipation) => Promise<EntretienFichier>
         locuteursInventaire: () => Promise<VueLocuteursCorpus>
         detailsLocuteursInventaire: (pourCorrection?: boolean) => Promise<DetailsLocuteurs>
         suiviCorrectionLocuteurs: () => Promise<SuiviCorrectionLocuteurs | null>

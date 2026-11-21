@@ -63,7 +63,8 @@ import {
   type GesteCorpus,
 } from './politiqueGestes'
 import type { ResultatPublicationGitLab } from './publication'
-import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
+import { verifierRelectureRenommage, verifierRelectureRenommageParticipation } from '../../shared/entretien/renommageGlobal'
+import type { DemandeRenommageParticipation } from '../../shared/corpus/contratsLocuteurs'
 import { verifierRelectureIdentification, verifierPayloadRelecture, payloadApresRapprochement } from '../../shared/entretien/identificationLocuteurs'
 import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, type CommandeRenommageLocuteur, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
@@ -358,14 +359,15 @@ export class ContexteGitLab {
 
   private correctionLocuteursOuverte: string | null = null
 
-  private verifierSessionLocuteurOuvert(reference: ReferenceParticipation, options: { association?: boolean; seule?: boolean } = {}): SessionGitLab {
+  private verifierSessionLocuteurOuvert(reference: ReferenceParticipation, options: { association?: boolean; cibles?: readonly string[] } = {}): SessionGitLab {
     validerReferenceLocuteurOuvert(reference)
     if (this.termine || !this.transactions) throw new Error('La modification des locuteurs depuis cet entretien est indisponible.')
     this.exigerSansDissociation()
     const ressource = this.ressourceEntretien(reference.entretienId), entree = this.sessions.get(ressource)
     if (!entree?.protege || entree.session.etat().etat !== 'edition') throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
-    if (options.seule !== false && (this.cheminsRecuperables.some((chemin) => chemin !== `entretiens/${reference.entretienId}.json`)
-      || [...this.sessions].some(([cle, s]) => cle !== ressource && s.protege))) throw new Error('Fermez les autres entretiens en édition avant de corriger ce locuteur.')
+    const chemins = new Set(options.cibles?.filter((id) => id !== reference.entretienId).map((id) => `entretiens/${id}.json`))
+    if (this.cheminsRecuperables.some((chemin) => chemins.has(chemin))
+      || [...this.sessions.values()].some((s) => s.protege && chemins.has(s.chemin))) throw new Error('Fermez les entretiens concernés avant de corriger ce locuteur.')
     const lecture = this.store.lireEntretien(reference.entretienId)
     const cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
     if (!cible || (options.association !== false && !cible.locuteurRef)) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
@@ -385,7 +387,7 @@ export class ContexteGitLab {
   async inventaireLocuteursDepuisEntretien(reference: ReferenceParticipation) {
     exigerGeste('gitlab', 'locuteurs.identifier-au-nommage')
     if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin de la correction en cours.')
-    const options = { association: false, seule: false }, session = this.verifierSessionLocuteurOuvert(reference, options)
+    const options = { association: false }, session = this.verifierSessionLocuteurOuvert(reference, options)
     const copie = await session.lireCandidatLocuteurs()
     const details = await this.transactions!.lireDetailsLocuteurs({ entretienId: reference.entretienId, ...copie })
     this.verifierSessionLocuteurOuvert(reference, options)
@@ -400,19 +402,28 @@ export class ContexteGitLab {
     return this.nommerDepuisSession({ type: 'rapprocherAuNommage', demande })
   }
 
+  renommerParticipationDepuisEntretien(demande: DemandeRenommageParticipation) {
+    return this.nommerDepuisSession({ type: 'renommerParticipation', demande })
+  }
+
   private async nommerDepuisSession(operation: OperationNommageLocuteurs) {
     validerOperationNommageLocuteurs(operation)
     const creation = operation.type === 'identifierAuNommage'
-    exigerGeste('gitlab', creation ? 'locuteurs.identifier-au-nommage' : 'locuteurs.rapprocher-depuis-entretien')
+    exigerGeste('gitlab', creation ? 'locuteurs.identifier-au-nommage'
+      : operation.type === 'renommerParticipation' ? 'locuteurs.renommer-participation' : 'locuteurs.rapprocher-depuis-entretien')
     if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin de la correction en cours.')
     const reference = { entretienId: operation.demande.entretienId, participationId: operation.demande.participationId }, id = reference.entretienId
-    const options = { association: !creation, seule: !creation }, session = this.verifierSessionLocuteurOuvert(reference, options)
+    const options = { association: !creation }, session = this.verifierSessionLocuteurOuvert(reference, options)
     const sources = operation.type === 'rapprocherAuNommage' ? JSON.parse(operation.demande.attendu) as InventaireIdentitesLocuteurs : null
-    const verifier = () => {
-      this.verifierSessionLocuteurOuvert(reference, options)
+    const verifier = (cibles?: readonly string[]) => {
+      this.verifierSessionLocuteurOuvert(reference, { ...options, cibles })
       if (operation.type === 'identifierAuNommage') {
         const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
         if (!cible || cible.nom !== operation.demande.nom || (cible.associationRetiree && !operation.demande.regulariser)) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
+      } else if (operation.type === 'renommerParticipation') {
+        const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
+        if (!cible || cible.locuteurRef !== operation.demande.locuteurId
+          || (cible.nom !== operation.demande.nomAvant && cible.nom !== operation.demande.nom.trim())) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
       }
     }
     verifier(); this.correctionLocuteursOuverte = id; this.store.revoquerEcritureEntretien(id)
@@ -422,7 +433,8 @@ export class ContexteGitLab {
           const refAvant = avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef
           if (refAvant && (!operation.demande.regulariser || refAvant !== operation.demande.regulariser.locuteurRef)) verifierPayloadRelecture(avant, apres)
           else verifierRelectureIdentification(avant, apres, reference, false, operation.demande.regulariser)
-        } else verifierPayloadRelecture(payloadApresRapprochement(avant, operation.demande, sources!), apres)
+        } else if (operation.type === 'renommerParticipation') verifierRelectureRenommageParticipation(avant, apres, operation.demande)
+        else verifierPayloadRelecture(payloadApresRapprochement(avant, operation.demande, sources!), apres)
       }, (courant) => this.transactions!.nommerLocuteurDepuisEntretien(operation, verifier, { ...courant, entretienId: id }))
       const lecture = this.store.lireEntretien(id)
       if (!lecture.ok) throw new Error('Les locuteurs ont été enregistrés mais leur relecture a échoué. Rouvrez le corpus.')
@@ -439,8 +451,8 @@ export class ContexteGitLab {
     if (commande.type !== 'renommerGlobal') throw new Error('La demande de renommage est invalide.')
     if (this.correctionLocuteursOuverte) throw new Error('Attendez la fin du renommage en cours.')
     const session = this.verifierSessionLocuteurOuvert(reference), id = reference.entretienId
-    const verifier = () => {
-      this.verifierSessionLocuteurOuvert(reference)
+    const verifier = (cibles?: readonly string[]) => {
+      this.verifierSessionLocuteurOuvert(reference, { cibles })
       const lecture = this.store.lireEntretien(id)
       if (!lecture.ok || lecture.data.participations.find((p) => p.id === reference.participationId)?.locuteurRef !== commande.locuteurId) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
     }
@@ -465,10 +477,11 @@ export class ContexteGitLab {
     validerCommandeCorrectionLocuteurs(commande)
     exigerGeste('gitlab', gesteCorrectionLocuteurs(commande))
     if (this.termine || !this.transactions) throw new Error('La correction des locuteurs est indisponible pour ce corpus.')
-    return this.transactions.corrigerLocuteurs(commande, () => {
+    return this.transactions.corrigerLocuteurs(commande, (cibles) => {
       if (this.termine) throw new Error('Le contexte distant est fermé.')
       this.exigerSansDissociation()
-      if (this.cheminsRecuperables.length || [...this.sessions.values()].some((s) => s.protege)) {
+      const chemins = new Set(cibles?.map((id) => `entretiens/${id}.json`))
+      if (this.cheminsRecuperables.some((chemin) => chemins.has(chemin)) || [...this.sessions.values()].some((s) => s.protege && chemins.has(s.chemin))) {
         throw new Error('Enregistrez et fermez les entretiens en édition avant de corriger les locuteurs du corpus partagé.')
       }
     })

@@ -151,7 +151,7 @@ describe('préparation commune des imports V1', () => {
     expect(inventaire.participations.filter((l) => l.participationId === 'loc-conserve').map((l) => l.entretienId).sort()).toEqual([a.id, b.id].sort())
   })
 
-  test('hors import V1, conserve les associations absentes ou volontairement retirées', () => {
+  test('les autres imports identifient leurs nouvelles participations, sans rétablir une association retirée', () => {
     const { store } = banc()
     const source = payload()
     source.participations[0].associationRetiree = true
@@ -161,10 +161,23 @@ describe('préparation commune des imports V1', () => {
     ]
     const avant = structuredClone(source)
     const plan = store.preparerImportEntretien('Autre import', source)
-    expect(plan.corpusApres.locuteurs).toEqual({})
+    expect(Object.values(plan.corpusApres.locuteurs)).toHaveLength(4)
     expect(plan.entretien.participations[0]).toEqual(source.participations[0])
-    expect(plan.entretien.participations.every((l) => l.locuteurRef === null)).toBe(true)
+    for (const p of plan.entretien.participations.slice(1)) {
+      expect(plan.corpusApres.locuteurs[p.locuteurRef!]).toEqual({ id: p.locuteurRef, nom: p.nom })
+    }
     expect(source).toEqual(avant)
+  })
+
+  test('deux imports ordinaires créent leurs identités immédiatement sans réunir les homonymes', () => {
+    const { store } = banc(), source = payload()
+    store.importerEntretien('Premier import', source)
+    store.importerEntretien('Second import', source)
+    const inventaire = store.inventaireIdentitesLocuteurs()
+    expect(inventaire.locuteurs).toHaveLength(10)
+    expect(new Set(inventaire.participations.map((p) => p.locuteurRef)).size).toBe(10)
+    expect(store.locuteursInventaire().aVerifier).toEqual([])
+    expect(store.locuteursInventaire().locuteurs).toHaveLength(10)
   })
 
   test.each(['.transaction-fichiers.json', 'entretien', 'corpus.crp'])('reprend un import V1 interrompu après %s sans recréer ses identités', (stade) => {

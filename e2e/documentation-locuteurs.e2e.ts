@@ -15,8 +15,11 @@ async function texteTranscription(page: Page): Promise<string> {
 
 async function nommer(page: Page, champ: Locator, nom: string) {
   await champ.fill(nom); await champ.press('Enter')
-  await expect(page.getByRole('status').filter({ hasText: `Locuteur « ${nom} » créé` })).toBeVisible()
+  await expect.poll(() => page.evaluate(async (nom) =>
+    (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.some((p) => p.nom === nom), nom)).toBe(true)
   await expect(champ).toHaveValue(nom)
+  await expect(champ).toBeEnabled()
+  await expect(page.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
 }
 
 test('manuel : identifier les voix, attribuer une sélection puis supprimer sans effacer les paroles', async () => {
@@ -98,9 +101,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.confirm-suppr')).toHaveCount(0)
     await page.getByRole('button', { name: '+ Locuteur', exact: true }).click()
-    await liste.nth(2).locator('.nom-loc').fill('Autre bénévole')
-    await liste.nth(2).locator('.nom-loc').press('Tab')
-    await expect(page.getByRole('status').filter({ hasText: 'Locuteur « Autre bénévole » créé' })).toBeVisible()
+    await nommer(page, liste.nth(2).locator('.nom-loc'), 'Autre bénévole')
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     const personneAvant = await page.evaluate(async () =>
       (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.find((p) => p.nom === 'Autre bénévole')?.id)

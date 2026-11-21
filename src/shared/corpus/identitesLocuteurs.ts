@@ -1,4 +1,4 @@
-import type { Locuteur, ParticipationLocuteur, ReferenceParticipation } from '../locuteurs'
+import type { Locuteur, ParticipationLocuteur } from '../locuteurs'
 import type { CorpusFichier, MembreLocuteurCas, RegleCas } from "../format"
 import { membresLocuteursRegle } from '../natif/lectureCas'
 import { cleRefusRapprochement } from './rapprochementsLocuteurs'
@@ -67,36 +67,6 @@ export function associerParticipation<T extends ParticipationAssociation>(
   participation.locuteurRef = locuteurId
   if (locuteurId === null) participation.associationRetiree = true
   else delete participation.associationRetiree
-}
-
-/** Crée une identité pour une partie des participations déjà associées. */
-export function separerLocuteur<T extends ParticipationAssociation>(
-  corpus: CorpusIdentites,
-  entretiens: readonly EntretienAssociations<T>[],
-  locuteurId: string,
-  nouvelleId: string,
-  nom: string,
-  selection: readonly ReferenceParticipation[],
-): Locuteur {
-  if (!Object.hasOwn(corpus.locuteurs, locuteurId)) throw new Error('Ce locuteur n’existe plus.')
-  if (!selection.length) throw new Error('Choisissez au moins une participation à séparer.')
-  const cles = selection.map((p) => JSON.stringify([p.entretienId, p.participationId]))
-  if (new Set(cles).size !== cles.length) throw new Error('La sélection contient plusieurs fois la même participation.')
-  if (new Set(selection.map((p) => p.entretienId)).size !== selection.length) {
-    throw new Error('Un locuteur ne peut pas recevoir plusieurs participations du même entretien.')
-  }
-  const membres = entretiens.flatMap((e) => e.data.participations.filter((p) => p.locuteurRef === locuteurId)
-    .map((participation) => ({ entretienId: e.id, participation })))
-  const parCle = new Map(membres.map((m) => [JSON.stringify([m.entretienId, m.participation.id]), m.participation]))
-  const choisis = cles.map((cle) => parCle.get(cle))
-  if (choisis.some((p) => !p)) throw new Error('Une participation sélectionnée n’est plus associée à ce locuteur.')
-  if (selection.length >= membres.length) throw new Error('Laissez au moins une participation sur le locuteur d’origine.')
-  const nouvelle = creerLocuteur(corpus, nouvelleId, nom)
-  for (const participation of choisis) {
-    participation!.locuteurRef = nouvelle.id
-    delete participation!.associationRetiree
-  }
-  return nouvelle
 }
 
 /** Regroupe les références sur des copies complètes, sans propager les données locales. */

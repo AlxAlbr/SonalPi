@@ -70,7 +70,7 @@ onBeforeUnmount(() => { generation++; dialogueArret.value?.close(); oublierSuivi
     <template v-if="suiviLocuteurs">
       <h3>{{ suiviLocuteurs.action }}</h3>
       <p>{{ suiviLocuteurs.termines }} étape(s) confirmée(s) sur {{ suiviLocuteurs.total }}. Les modifications déjà enregistrées sont conservées.</p>
-      <p v-if="suiviLocuteurs.etat === 'a-verifier'">La réponse du serveur n’a pas pu être vérifiée. Vérifiez le résultat avant de poursuivre ; aucune modification ne sera renvoyée pendant cette vérification.</p>
+      <p v-if="suiviLocuteurs.etat === 'a-verifier'">La réponse du serveur n’a pas pu être vérifiée. Vérifiez le résultat pour pouvoir reprendre ou arrêter la correction. Les étapes déjà enregistrées ne seront pas renvoyées.</p>
       <p v-else>Cette correction n’est pas terminée. Reprenez les étapes restantes avant de modifier les locuteurs ou les entretiens de ce corpus.</p>
       <button type="button" :disabled="lecture || enregistrement || !repriseCorrectionLocuteursPossible()" @click="agir()">{{ suiviLocuteurs.etat === 'a-verifier' ? 'Vérifier le résultat' : 'Reprendre la correction' }}</button>
       <button v-if="suiviLocuteurs.etat === 'a-reprendre'" type="button" :disabled="lecture || enregistrement || !repriseCorrectionLocuteursPossible()" @click="demanderArret">Arrêter cette correction…</button>

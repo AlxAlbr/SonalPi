@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { ErreurHttp, type ClientWebDAV } from '../webdav/client'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import type { IdentiteSession } from './sessions'
-import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type RegleAnon } from '../../shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type RegleAnon, type Locuteur } from '../../shared/format'
 import { verifierBarriereDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
 import { verifierReferencesLocuteurs } from '../../shared/corpus/identitesLocuteurs'
 import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
@@ -68,7 +68,7 @@ export class GardePseudosWebDAV {
   }
   /** Réutilise uniquement le provider déjà acquis par une transaction main. */
   async publierSousVerrou<T>(contenu: string, contenuAvant: string, envoi: (garantir: () => void) => Promise<T>, provider: ProviderPutConditionnel,
-    chemin: string, nouvellesRegles: Record<string, RegleAnon> = {}): Promise<T> {
+    chemin: string, nouvellesRegles: Record<string, RegleAnon> = {}, nouvellesIdentites: Record<string, Locuteur> = {}): Promise<T> {
     this.exigerDisponible()
     const debut = Date.now()
     const preuve = await provider.battre(cheminCorpus)
@@ -82,7 +82,12 @@ export class GardePseudosWebDAV {
       || !Array.isArray(avant.annotations) || !Array.isArray(candidat.annotations)) throw new Error('La publication n’est pas prise en charge dans ce format.')
     const id = /^entretiens\/([^/]+)\.json$/.exec(chemin)?.[1]
     if (!id) throw new Error('La destination de publication d’entretien est invalide.')
-    verifierReferencesLocuteurs(candidat, corpus)
+    const locuteurs: Record<string, Locuteur> = Object.assign(Object.create(null), corpus.locuteurs)
+    for (const [id, identite] of Object.entries(nouvellesIdentites)) {
+      if (Object.hasOwn(locuteurs, id)) throw new Error('Un locuteur importé existe déjà. Recalculez l’import.')
+      locuteurs[id] = identite
+    }
+    verifierReferencesLocuteurs(candidat, { locuteurs })
     verifierBarriereDissociationWebDAV(corpus, candidat, id)
     const regles: Record<string, RegleAnon> = Object.assign(Object.create(null), corpus.reglesAnon ?? {})
     for (const [id, regle] of Object.entries(nouvellesRegles)) {

@@ -84,20 +84,33 @@ test('deux noms égaux restent distincts avant toute décision', () => {
   expect(b.store.inventaireIdentitesLocuteurs().locuteurs).toHaveLength(2)
 })
 
-test.each(['vide', 'nom changé', 'retrait', 'lecture seule', 'session fermée', 'autre session', 'journal', 'préparation', 'format refusé'] as const)('%s : aucune création ni modification partielle', (cas) => {
+test.each(['vide', 'nom changé', 'retrait', 'lecture seule', 'session fermée', 'journal', 'préparation', 'format refusé'] as const)('%s : aucune création ni modification partielle', (cas) => {
   const b = banc()
   if (cas === 'vide') b.cible.nom = ' \t '
   if (cas === 'nom changé') b.cible.nom = 'Autre nom'
   if (cas === 'retrait') { const data = b.payload(); data.participations[0].associationRetiree = true; b.store.ecrireEntretien(b.cible.entretienId, data) }
   if (cas === 'lecture seule') b.store.lectureSeule = true
   if (cas === 'session fermée') b.store.revoquerEcritureEntretien(b.cible.entretienId)
-  if (cas === 'autre session') b.store.ouvrirEntretienPourEdition(b.source.entretienId)
   if (cas === 'journal') writeFileSync(join(b.dir, '.transaction-fichiers.json'), '{}')
   if (cas === 'préparation') b.store.activerModePreparation([b.cible.entretienId], true)
   if (cas === 'format refusé') writeFileSync(join(b.dir, 'entretiens', `${b.cible.entretienId}.json`), JSON.stringify({ ...b.lire(), formatVersion: 9 }))
   const avant = b.fichiers()
   expect(() => cas === 'préparation' ? b.store.avecEcritureCorpus(() => b.identifier()) : b.identifier()).toThrow()
   expect(b.fichiers()).toEqual(avant)
+})
+
+test('une création indépendante laisse les autres éditions locales ouvertes et leurs saisies intactes', () => {
+  const b = banc()
+  b.store.ouvrirEntretienPourEdition(b.source.entretienId)
+  const autre = b.lire(b.source.entretienId)
+  autre.notes![0].corps = 'Saisie dans l’autre onglet'
+  b.store.ecrireEntretien(b.source.entretienId, autre)
+  const avant = b.fichiers()[2]
+  expect(b.identifier().participations[0].locuteurRef).toBeTruthy()
+  expect(b.fichiers()[2]).toBe(avant)
+  autre.notes![0].corps = 'Saisie suivante'
+  expect(() => b.store.ecrireEntretien(b.source.entretienId, autre)).not.toThrow()
+  expect(b.lire(b.source.entretienId).notes![0].corps).toBe('Saisie suivante')
 })
 
 test('une source indisponible diffère les suggestions, pas la création indépendante', () => {

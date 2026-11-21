@@ -47,7 +47,8 @@ import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon
 import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
 import type { ContexteSessionLocuteursWebDAV } from './sessionCorrectionLocuteurs'
 import { validerReferenceLocuteurOuvert, validerCommandeCorrectionLocuteurs, validerOperationNommageLocuteurs, type CommandeRenommageLocuteur, type OperationNommageLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
-import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
+import { verifierRelectureRenommage, verifierRelectureRenommageParticipation } from '../../shared/entretien/renommageGlobal'
+import type { DemandeRenommageParticipation } from '../../shared/corpus/contratsLocuteurs'
 import { verifierPayloadRelecture, verifierRelectureIdentification, payloadApresRapprochement } from '../../shared/entretien/identificationLocuteurs'
 import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import { JournalRetraitVarianteAnonWebDAV } from './journalRetraitVarianteAnonWebDAV'
@@ -226,12 +227,14 @@ export class ContexteCorpusDistant {
 
   idsOperationsSessions(): string[] { return [...this.operationsParEntretien.keys()] }
   verifierContexteRetraitVariante(): void { this.exigerOuvert() }
-  verifierContexteCorrectionLocuteurs(session?: ContexteSessionLocuteursWebDAV): void {
+  verifierContexteCorrectionLocuteurs(session?: ContexteSessionLocuteursWebDAV, cibles?: readonly string[]): void {
     this.exigerOuvert()
     const ids = [...this.sessions.idsTenus(), ...this.sessions.idsRecuperablesLocalement()]
     const operationsSansCible = this.operationsSessions - [...this.operationsParEntretien.values()].reduce((n, v) => n + v, 0)
-    const operations = session?.creation ? operationsSansCible || this.operationsParEntretien.has(session.entretienId) : this.operationsSessions
-    const bloque = session ? (!session.creation && ids.some((id) => id !== session.entretienId)) || this.sessions.etat(session.entretienId).etat !== 'a-nous' : ids.length > 0
+    const operations = operationsSansCible || cibles?.some((id) => this.operationsParEntretien.has(id))
+      || (session !== undefined && this.operationsParEntretien.has(session.entretienId))
+    const bloque = ids.some((id) => cibles?.includes(id) && id !== session?.entretienId)
+      || (session !== undefined && this.sessions.etat(session.entretienId).etat !== 'a-nous')
     if (operations || this.lecturesRenommage || this.lecturesDissociation || this.lecturesSuppression || this.lecturesRetraitVariante || bloque) {
       throw new Error('Enregistrez et fermez les entretiens et terminez les autres opérations avant de corriger les locuteurs du corpus partagé.')
     }
@@ -264,12 +267,15 @@ export class ContexteCorpusDistant {
   identifierParticipationAuNommage(demande: DemandeIdentificationLocuteur) { return this.modifierLocuteursSession({ type: 'identifierAuNommage', demande }) }
   rapprocherLocuteurDepuisEntretien(demande: DemandeRapprochementNommage) { return this.modifierLocuteursSession({ type: 'rapprocherAuNommage', demande }) }
   renommerLocuteurDepuisEntretien(reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) { return this.modifierLocuteursSession(commande, reference) }
+  renommerParticipationDepuisEntretien(demande: DemandeRenommageParticipation) { return this.modifierLocuteursSession({ type: 'renommerParticipation', demande }) }
 
   private async modifierLocuteursSession(commande: CommandeRenommageLocuteur | OperationNommageLocuteurs, referenceRenommage?: ReferenceParticipation): Promise<EntretienFichier> {
     if (commande.type === 'renommerGlobal') validerCommandeCorrectionLocuteurs(commande)
     else validerOperationNommageLocuteurs(commande)
     const creation = commande.type === 'identifierAuNommage'
-    const geste = creation ? 'locuteurs.identifier-au-nommage' : commande.type === 'rapprocherAuNommage' ? 'locuteurs.rapprocher-depuis-entretien' : 'locuteurs.renommer-depuis-entretien'
+    const geste = creation ? 'locuteurs.identifier-au-nommage' : commande.type === 'rapprocherAuNommage'
+      ? 'locuteurs.rapprocher-depuis-entretien' : commande.type === 'renommerParticipation'
+        ? 'locuteurs.renommer-participation' : 'locuteurs.renommer-depuis-entretien'
     exigerGeste('webdav', geste)
     const reference = commande.type === 'renommerGlobal' ? referenceRenommage! : { entretienId: commande.demande.entretienId, participationId: commande.demande.participationId }
     if (this.correctionSessionEnCours) throw new Error('Attendez la fin de la correction en cours.')
@@ -278,6 +284,8 @@ export class ContexteCorpusDistant {
     const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
     if (commande.type === 'identifierAuNommage' && (!cible || cible.nom !== commande.demande.nom || (cible.associationRetiree && !commande.demande.regulariser))) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
     if (commande.type === 'renommerGlobal' && cible?.locuteurRef !== commande.locuteurId) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+    if (commande.type === 'renommerParticipation' && (!cible || cible.locuteurRef !== commande.demande.locuteurId
+      || (cible.nom !== commande.demande.nomAvant && cible.nom !== commande.demande.nom.trim()))) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
     const sources = commande.type === 'rapprocherAuNommage' ? JSON.parse(commande.demande.attendu) as InventaireIdentitesLocuteurs : null
     const verifier = (avant: PayloadEntretien, apres: EntretienFichier) => {
       if (commande.type === 'renommerGlobal') verifierRelectureRenommage(avant, apres, commande.locuteurId)
@@ -285,7 +293,8 @@ export class ContexteCorpusDistant {
         const refAvant = avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef
         if (refAvant && (!commande.demande.regulariser || refAvant !== commande.demande.regulariser.locuteurRef)) verifierPayloadRelecture(avant, apres)
         else verifierRelectureIdentification(avant, apres, reference, false, commande.demande.regulariser)
-      } else verifierPayloadRelecture(payloadApresRapprochement(avant, commande.demande, sources!), apres)
+      } else if (commande.type === 'renommerParticipation') verifierRelectureRenommageParticipation(avant, apres, commande.demande)
+      else verifierPayloadRelecture(payloadApresRapprochement(avant, commande.demande, sources!), apres)
     }
     this.correctionSessionEnCours = id; this.store.revoquerEcritureEntretien(id)
     try { return await this.sessions.corrigerLocuteurs(id, verifier, (session) => this.transactions.corrigerLocuteursDepuisSession(commande, session)) }
@@ -763,7 +772,7 @@ export async function preparerContexteNextcloud(
       getSessions: () => sessions,
       sessionsEnCours: () => contexte?.idsOperationsSessions() ?? [],
       verifierContexteRetrait: () => contexte?.verifierContexteRetraitVariante(),
-      verifierContexteCorrection: (session) => contexte?.verifierContexteCorrectionLocuteurs(session),
+      verifierContexteCorrection: (session, cibles) => contexte?.verifierContexteCorrectionLocuteurs(session, cibles),
     },
   )
   const sessionInterrompue = transactions.sessionCorrectionLocuteursInterrompue()

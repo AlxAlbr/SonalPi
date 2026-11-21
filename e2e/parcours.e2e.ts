@@ -23,7 +23,9 @@ test('corpus → import V1 → coder → renommer globalement → saisir une don
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await page.locator('.nom-loc').first().fill('TEST-LOCUTEUR'); await page.locator('.nom-loc').first().press('Enter')
-    await expect(page.getByRole('status').filter({ hasText: 'Locuteur « TEST-LOCUTEUR » créé' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () =>
+      (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.some((p) => p.nom === 'TEST-LOCUTEUR'))).toBe(true)
+    await expect(page.locator('.nom-loc').first()).toBeEnabled()
     await page.locator('.nom-loc').first().fill('TEST-LOCUTEUR-RENOMME'); await page.locator('.nom-loc').first().press('Enter')
     const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
     await expect(page.locator('.nom-loc').first()).toHaveValue('TEST-LOCUTEUR-RENOMME')

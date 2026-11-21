@@ -60,6 +60,9 @@ for (const extension of ['docx', 'pdf']) {
         const id = Object.keys(corpus.membership).find((id) => corpus.membership[id].titre === 'Entretien')!
         const sauvegarde = JSON.parse(readFileSync(join(profil, 'corpus/entretiens', `${id}.json`), 'utf8'))
         expect(sauvegarde.participations.map((l: { nom: string }) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])
+        for (const p of sauvegarde.participations) expect(corpus.locuteurs[p.locuteurRef]).toEqual({ id: p.locuteurRef, nom: p.nom })
+        expect(new Set(sauvegarde.participations.map((p: { locuteurRef: string }) => p.locuteurRef)).size).toBe(2)
+        await expect(page.getByRole('dialog', { name: 'Est-ce le même locuteur ?', exact: true })).toHaveCount(0)
         await retourCorpus(page)
         await expect(page.locator('.carte-ent')).toHaveCount(2)
         await page.locator('.carte-ent').filter({ hasText: 'Entretien' }).nth(1).locator('.crayon').click()

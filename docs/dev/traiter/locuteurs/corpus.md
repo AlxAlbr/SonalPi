@@ -118,13 +118,17 @@ aveugle. Reprendre une opération n’est pas un Undo.
 
 Les dialogues se ferment avec Annuler ou Échap avant confirmation. Leur fermeture
 est bloquée pendant l’enregistrement. Les réponses tardives ne réinstallent pas un
-ancien aperçu. Les commandes corpus refusent les sessions encore ouvertes.
+ancien aperçu. Les commandes corpus refusent les sessions encore ouvertes en local ;
+en distant, seules celles des entretiens réellement modifiés sont bloquantes.
 
 ## Nommage et rapprochement depuis l’entretien
 
-Sur les trois fournisseurs, saisir tout nom non vide crée d’abord une identité
-indépendante. Rôles, noms génériques, caractères uniques et « Nouveau locuteur »
-explicitement saisi sont admis. Ajouter une ligne provisoire seule ne suffit pas.
+Sur les trois fournisseurs, cliquer sur « + Locuteur » enregistre immédiatement
+une identité indépendante, même sous le nom provisoire « Nouveau locuteur ».
+Les imports font de même pour chaque nouvelle participation. Il n’y a ni notification
+de création ni proposition à cette étape. Les homonymes restent distincts.
+La validation du nom par Entrée ou sortie du champ modifié déclenche les propositions,
+y compris lorsque l’identité existe déjà depuis sa création ou son import.
 L’association n’est pas un état « nom validé » et ne conditionne ni la consultation
 ni l’attribution des paroles. Un retrait volontaire empêche la recréation automatique.
 
@@ -139,12 +143,20 @@ rôles et variantes proches peuvent suggérer une comparaison, jamais une associ
 implicite. « Plus tard » garde l’identité indépendante. Confirmer appelle
 `rapprocherLocuteurDepuisEntretien` : inventaire frais, réunion explicite, redirection
 des cas et refus, conservation des noms locaux et reprise des seuls champs choisis.
-Les autres éditions doivent être fermées. Aucun texte ni note n’est copié.
+En local, les autres éditions doivent être fermées pour cette réunion. En distant,
+seules les éditions des entretiens réellement modifiés sont bloquantes.
+Aucun texte ni note n’est copié.
 
 ### Renommage depuis l’entretien ouvert
 
-`useRenommageLocuteurOuvert.ts` prépare le même aperçu pour une participation déjà
-associée. La modification du champ Nom ne remplace pas immédiatement le modèle.
+La gestion laisse choisir le nom de ce seul entretien ou le nom de tous les
+entretiens du locuteur. Le choix local utilise `renommerParticipationDepuisEntretien`
+et vérifie les noms avant/après avec `verifierRelectureRenommageParticipation`.
+Il ne change ni le nom corpus ni l’association, et ne lit que l’entretien courant.
+Une source indisponible ailleurs diffère les suggestions, pas ce renommage.
+
+Pour le choix global, `useRenommageLocuteurOuvert.ts` prépare le même aperçu pour
+une participation déjà associée. La modification du champ Nom ne remplace pas immédiatement le modèle.
 Si d’autres entretiens sont concernés, `RenommageLocuteurOuvert.vue` demande
 confirmation ; sinon, la même transaction protégée s’exécute sans dialogue.
 Une erreur ne déclenche jamais de nouvelle tentative automatique.
@@ -178,9 +190,10 @@ privée distincte. L’ancien geste `personnes.commande` est inconnu, donc refus
 tous les fournisseurs, y compris en local. L’ancien drapeau de capacité `locuteurs`
 est supprimé : seules les capacités précises des parcours livrés sont proposées.
 
-Les noms des inverses de journaux sont conservés : leur lecture ne doit pas être
-cassée par un renommage de code. Les tests de l’ancien journal en mémoire installent
-ces inverses comme fixtures, sans appeler les commandes qui les produisaient.
+Le journal corpus est uniquement en mémoire et ne conserve que les inverses de
+notes encore produits par l’application. Les anciennes annulations de locuteurs
+et leurs fixtures sont supprimées, sans migration de fichiers.
+La dissociation passe par `dissocierSelection`, sans ancien parcours parallèle.
 Les références V1 et le mot courant
 « personne » ne font pas l’objet de remplacements globaux.
 
@@ -213,7 +226,8 @@ courants ; une fixture n’est pas une réimplémentation de la transaction mét
 
 Les tests métier et store sont dans `test/identitesLocuteursStore.test.ts`,
 `test/correctionsLocuteurs.test.ts`, `test/detailsLocuteurs.test.ts` et
-`test/nommageLocuteurs.test.ts`. `test/suggestionsLocuteurs.test.ts` vérifie les
+`test/nommageLocuteurs.test.ts` et `test/renommageParticipation.test.ts`.
+`test/suggestionsLocuteurs.test.ts` vérifie les
 suggestions et la reprise. Les fichiers `*Renderer.test.ts` correspondants couvrent
 l’orchestration, les gardes de génération et les réponses tardives.
 

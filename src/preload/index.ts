@@ -62,7 +62,7 @@ import type {
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
 import type { InventaireIdentitesLocuteurs } from '../shared/corpus/inventaireLocuteurs'
-import type { CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import type { CommandeRenommageLocuteur, DemandeRenommageParticipation, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
 import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
@@ -372,6 +372,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:apercuRenommageLocuteurDepuisEntretien', reference),
     renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur): Promise<EntretienFichier> =>
       invoquer('corpus:renommerLocuteurDepuisEntretien', reference, commande),
+    renommerParticipationDepuisEntretien: (demande: DemandeRenommageParticipation): Promise<EntretienFichier> =>
+      invoquer('corpus:renommerParticipationDepuisEntretien', demande),
     locuteursInventaire: (): Promise<VueLocuteursCorpus> => invoquer('corpus:locuteursInventaire'),
     detailsLocuteursInventaire: (pourCorrection = false): Promise<DetailsLocuteurs> => invoquer('corpus:detailsLocuteursInventaire', pourCorrection),
     corrigerLocuteurs: (commande: CommandeCorrectionLocuteurs): Promise<string | null> => invoquer('corpus:corrigerLocuteurs', commande),

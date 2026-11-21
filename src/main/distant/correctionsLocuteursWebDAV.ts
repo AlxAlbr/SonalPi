@@ -20,7 +20,7 @@ interface Dependances {
   dirLocal: string
   utilisateur: () => string
   sessionsLocales: () => string[]
-  verifierContexte: (session?: ContexteSessionLocuteursWebDAV) => void
+  verifierContexte: (session?: ContexteSessionLocuteursWebDAV, cibles?: readonly string[]) => void
   verrouCorpus: () => Reservation
   verrouEntretien: (id: string) => Reservation
   miroir: (chemin: string, contenu: string, etag: string) => void
@@ -41,6 +41,10 @@ function serialiser(valeur: unknown, precedents: string[]): string {
   return texte
 }
 
+function contenuAvant(etape: FichierCorrectionLocuteurs): string {
+  return etape.avant + '\n'.repeat(etape.retoursReprise ?? 0)
+}
+
 /** Publie des candidats fixes, sans retirer une identité avant ses dernières références. */
 export class CorrectionsLocuteursWebDAV {
   private readonly journal: JournalCorrectionsLocuteursWebDAV
@@ -49,6 +53,7 @@ export class CorrectionsLocuteursWebDAV {
   private contexteSession?: ContexteSessionLocuteursWebDAV
   private sessionCourante?: SessionCorrectionLocuteursWebDAV
   private entretienUnique?: string
+  private cibles?: readonly string[]
   constructor(private readonly deps: Dependances) {
     this.journal = new JournalCorrectionsLocuteursWebDAV(deps.dirLocal,
       destinationCorrectionLocuteurs(deps.client.config.baseUrl, deps.utilisateur()))
@@ -60,7 +65,7 @@ export class CorrectionsLocuteursWebDAV {
     if (!j || j.termine || j.abandonne) return null
     const actions: Record<JournalCorrectionLocuteursWebDAV['commande']['type'], string> = {
       identifierAuNommage: 'Création du locuteur', rapprocherAuNommage: 'Rapprochement des locuteurs',
-      renommerGlobal: 'Renommage des locuteurs', regrouperSelection: 'Réunion des locuteurs',
+      renommerGlobal: 'Renommage des locuteurs', renommerParticipation: 'Renommage dans un entretien', regrouperSelection: 'Réunion des locuteurs',
       dissocierSelection: 'Dissociation des locuteurs', individualiserSelection: 'Conservation séparée des voix',
       supprimerVide: 'Suppression d’un locuteur sans entretien', ecarterRapprochement: 'Distinction des locuteurs',
       retablirRapprochement: 'Réexamen d’une distinction', reprendreInformations: 'Reprise des informations',
@@ -106,7 +111,7 @@ export class CorrectionsLocuteursWebDAV {
     else validerOperationNommageLocuteurs(commande)
     this.sessionCourante = session
     this.contexteSession = { entretienId: session.identite.entretienId, creation: commande.type === 'identifierAuNommage' }
-    this.entretienUnique = commande.type === 'identifierAuNommage' ? session.identite.entretienId : undefined
+    this.entretienUnique = commande.type === 'identifierAuNommage' || commande.type === 'renommerParticipation' ? session.identite.entretienId : undefined
     try {
       await this.appliquerOperation(commande)
       session.verifier()
@@ -119,10 +124,10 @@ export class CorrectionsLocuteursWebDAV {
   private async appliquerOperation(commande: JournalCorrectionLocuteursWebDAV['commande']): Promise<string> {
     this.exigerDisponible(); this.enCours = true
     try {
-      return await this.avecProtections(null, async (courants, reservations) => {
+      return await this.avecProtections(null, async (courants, reservations, reserver) => {
         const corpus = courants.get('corpus.crp')!
         const sources = [...courants].filter(([chemin]) => chemin !== 'corpus.crp').map(([chemin, s]) => ({ id: chemin.slice(11, -5), contenu: s.contenu }))
-        const plan = commande.type === 'identifierAuNommage' || commande.type === 'rapprocherAuNommage'
+        const plan = commande.type === 'identifierAuNommage' || commande.type === 'rapprocherAuNommage' || commande.type === 'renommerParticipation'
           ? preparerNommageLocuteurs(corpus.contenu, sources, commande) : preparerCorrectionLocuteurs(corpus.contenu, sources, commande)
         if (this.sessionCourante) {
           const id = this.sessionCourante.identite.entretienId
@@ -154,24 +159,25 @@ export class CorrectionsLocuteursWebDAV {
           operationId: randomUUID(), commande: structuredClone(commande), locuteurId: plan.locuteurId,
           ...(this.sessionCourante ? { sessionLocale: { ...this.sessionCourante.identite } } : {}),
           corpusAvant: corpus.contenu, corpusApres: corpusCourant, sources: fichiers, etapes, position: 0, termine: false }
+        await reserver([...modifies.keys()])
         if (etapes.length) this.sessionCourante?.engager()
         this.journal.ecrire(j)
         return this.continuer(j, courants, reservations)
       })
-    } finally { this.enCours = false }
+    } finally { this.enCours = false; this.cibles = undefined }
   }
 
   async reprendre(operationId: string): Promise<string> {
     if (this.enCours) throw new Error('Attendez la fin de la correction en cours.')
     const j = this.exigerJournal(operationId)
     if (j.envoi !== undefined) throw new Error('Vérifiez d’abord le résultat de la correction. Aucun envoi ne sera répété sans vérification.')
-    this.entretienUnique = j.commande.type === 'identifierAuNommage' ? j.commande.demande.entretienId : undefined
+    this.entretienUnique = j.commande.type === 'identifierAuNommage' || j.commande.type === 'renommerParticipation' ? j.commande.demande.entretienId : undefined
     this.enCours = true
     try {
       await this.libererProtectionReconnue(j)
       return await this.avecProtections(j, (courants, reservations) => this.continuer(j, courants, reservations))
     }
-    finally { this.enCours = false; this.entretienUnique = undefined }
+    finally { this.enCours = false; this.entretienUnique = undefined; this.cibles = undefined }
   }
 
   async arreter(operationId: string): Promise<void> {
@@ -188,41 +194,40 @@ export class CorrectionsLocuteursWebDAV {
   async reconcilier(operationId: string): Promise<void> {
     if (this.enCours) throw new Error('Attendez la fin de la correction en cours.')
     const j = this.exigerJournal(operationId)
-    this.entretienUnique = j.commande.type === 'identifierAuNommage' ? j.commande.demande.entretienId : undefined
+    this.entretienUnique = j.commande.type === 'identifierAuNommage' || j.commande.type === 'renommerParticipation' ? j.commande.demande.entretienId : undefined
     this.enCours = true
     try {
       if (j.envoi !== undefined && j.verrouCorpus) await this.reconnaitreEnvoiRetenu(j)
       await this.libererProtectionReconnue(j)
-      await this.avecProtections(j, async (courants) => {
+      await this.avecProtections(j, async (courants, reservations) => {
         if (j.envoi !== undefined) {
-          const etape = j.etapes[j.envoi]
-          if (courants.get(etape.chemin)?.contenu !== etape.apres) throw new Error('La correction n’est pas confirmée. Aucun envoi n’a été répété ; conservez le suivi pour une nouvelle vérification ou l’assistance.')
-          j.position++; delete j.envoi; delete j.verrouCorpus; this.journal.ecrire(j)
-          this.publicationIncertaine = false
+          await this.reconnaitreEnvoiRetenu(j, reservations)
+          courants = await this.lireEtatCorrection(j)
+          await this.libererProtectionReconnue(j)
         }
+        this.verifierContenus(j, courants)
         if (j.position === j.etapes.length) { j.termine = true; this.journal.ecrire(j) }
-        else this.verifierContenus(j, courants)
-        this.installer(courants)
+        this.installerCorrection(j, courants)
       })
-    } finally { this.enCours = false; this.entretienUnique = undefined }
+    } finally { this.enCours = false; this.entretienUnique = undefined; this.cibles = undefined }
   }
 
   private async continuer(j: JournalCorrectionLocuteursWebDAV, courants: Map<string, Lecture>, reservations: Reservation[]): Promise<string> {
-    if (j.position < j.etapes.length) this.verifierContenus(j, courants)
+    this.verifierContenus(j, courants)
     while (j.position < j.etapes.length) {
       const etape = j.etapes[j.position]
-      await this.verifierDroits(reservations)
-      const frais = await this.lireEnsemble()
-      courants = new Map([['corpus.crp', frais.lecture], ...[...frais.sources].map(([id, s]): [string, Lecture] => [`entretiens/${id}.json`, s])])
-      this.verifierContenus(j, courants)
-      this.garantir(reservations)
+      const cheminAnnexe = `verrous/${etape.chemin.slice(11, -5)}.lock.json`
+      const droits = reservations.filter((r) => r.chemin === CHEMIN_VERROU_CORPUS
+        || r.chemin === etape.chemin || r.chemin === cheminAnnexe)
+      await this.verifierDroits(droits)
       j.verrouCorpus = await this.preuveCorpus(reservations[0])
       j.envoi = j.position; this.journal.ecrire(j)
-      try { this.garantir(reservations) }
+      try { this.garantir(droits) }
       catch (e) { delete j.envoi; delete j.verrouCorpus; this.journal.ecrire(j); throw e }
       this.publicationIncertaine = true
+      let etag: string | null
       try {
-        await this.deps.client.putTexte(etape.chemin, etape.apres, { ifMatch: courants.get(etape.chemin)!.etag })
+        etag = await this.deps.client.putTexte(etape.chemin, etape.apres, { ifMatch: courants.get(etape.chemin)!.etag })
       } catch (e) {
         if (e instanceof ErreurHttp && [400, 401, 403, 404, 409, 412, 413, 423].includes(e.statut)) {
           delete j.envoi; delete j.verrouCorpus; this.journal.ecrire(j)
@@ -231,15 +236,16 @@ export class CorrectionsLocuteursWebDAV {
         }
         throw new Error('Le résultat de la correction doit être vérifié avant de poursuivre. Aucun envoi ne sera répété automatiquement.')
       }
-      const confirme = await this.lire(etape.chemin)
+      const confirme = etag && !/^W\//i.test(etag) ? { contenu: etape.apres, etag } : await this.lire(etape.chemin)
       if (confirme.contenu !== etape.apres) throw new Error('La correction doit être vérifiée avant de poursuivre.')
       j.position++; delete j.envoi; delete j.verrouCorpus; this.journal.ecrire(j)
       this.publicationIncertaine = false
       courants.set(etape.chemin, confirme)
-      this.deps.miroir(etape.chemin, confirme.contenu, confirme.etag)
     }
+    const resultat = await this.lireEtatCorrection(j)
+    this.verifierContenus(j, resultat)
     j.termine = true; this.journal.ecrire(j)
-    try { this.installer(courants) }
+    try { this.installerCorrection(j, resultat) }
     catch { throw new Error('La correction est enregistrée, mais la copie de cet ordinateur n’a pas pu être actualisée. Actualisez ou rouvrez le corpus avant de poursuivre.') }
     return j.locuteurId
   }
@@ -251,14 +257,46 @@ export class CorrectionsLocuteursWebDAV {
     return preuve
   }
 
-  /** Reconnaît le résultat sous sa protection conservée, sans hériter de droits pour écrire. */
-  private async reconnaitreEnvoiRetenu(j: JournalCorrectionLocuteursWebDAV): Promise<void> {
+  /** Une version sans changement métier empêche une ancienne requête d’aboutir après l’arrêt. */
+  private async reconnaitreEnvoiRetenu(j: JournalCorrectionLocuteursWebDAV, reservations: Reservation[] = []): Promise<void> {
     const preuve = j.verrouCorpus!, verrou = await this.lire(CHEMIN_VERROU_CORPUS)
     if (verrou.etag !== preuve.etag || verrou.contenu !== preuve.contenu) throw new Error('La protection de cette correction a changé. Conservez son suivi pour l’assistance ; aucun nouvel envoi autorisé.')
-    const etape = j.etapes[j.envoi!], cible = await this.lire(etape.chemin)
-    if (cible.contenu !== etape.apres) throw new Error('La correction n’est pas confirmée. Aucun envoi n’a été répété ; conservez le suivi pour une nouvelle vérification ou l’assistance.')
-    j.position++; delete j.envoi; this.journal.ecrire(j)
-    this.publicationIncertaine = false
+    const etape = j.etapes[j.envoi!]
+    const reconnaitre = (cible: Lecture): boolean => {
+      if (cible.contenu === etape.apres) j.position++
+      else if (j.neutralisation !== undefined && cible.contenu === etape.avant + '\n'.repeat(j.neutralisation)) etape.retoursReprise = j.neutralisation
+      else return false
+      delete j.envoi; delete j.neutralisation; this.journal.ecrire(j)
+      this.publicationIncertaine = false
+      return true
+    }
+    let cible = await this.lire(etape.chemin)
+    if (reconnaitre(cible)) return
+    if (cible.contenu !== contenuAvant(etape)) throw new Error('Le fichier a changé. La correction est suspendue sans écraser ces modifications.')
+    let reservation: Reservation | undefined
+    try {
+      if (etape.chemin !== 'corpus.crp') {
+        const droit = this.deps.verrouEntretien(etape.chemin.slice(11, -5))
+        if (!reservations.some((r) => r.chemin === droit.chemin)) {
+          const acquisition = await droit.provider.acquerir(droit.chemin)
+          if (!acquisition.ok) throw new Error('Cet entretien est en cours de modification. Fermez son édition avant de vérifier la correction.')
+          reservation = droit
+          if (droit.chemin === etape.chemin) {
+            cible = await this.lire(etape.chemin)
+            if (reconnaitre(cible)) return
+            if (cible.contenu !== contenuAvant(etape)) throw new Error('Le fichier a changé. Aucun contenu remplacé.')
+          }
+        }
+      }
+      if (j.neutralisation === undefined) {
+        j.neutralisation = (etape.retoursReprise ?? 0) + 1
+        if (Buffer.byteLength(etape.avant) + j.neutralisation === Buffer.byteLength(etape.apres)) j.neutralisation++
+      }
+      this.journal.ecrire(j)
+      try { await this.deps.client.putTexte(etape.chemin, etape.avant + '\n'.repeat(j.neutralisation), { ifMatch: cible.etag }) }
+      catch (e) { if (!(e instanceof ErreurHttp && e.statut === 412)) throw e }
+      if (!reconnaitre(await this.lire(etape.chemin))) throw new Error('Le résultat reste à vérifier. Réessayez lorsque la connexion sera rétablie.')
+    } finally { await reservation?.provider.liberer(reservation.chemin).catch(() => {}) }
   }
 
   private async libererProtectionReconnue(j: JournalCorrectionLocuteursWebDAV): Promise<void> {
@@ -271,15 +309,28 @@ export class CorrectionsLocuteursWebDAV {
   }
 
   private verifierContenus(j: JournalCorrectionLocuteursWebDAV, courants: Map<string, Lecture>): void {
-    const attendus = new Map([['corpus.crp', j.corpusAvant], ...j.sources.map((s): [string, string] => [`entretiens/${s.id}.json`, s.avant])])
+    const attendus = new Map([['corpus.crp', j.corpusAvant], ...j.sources.filter((s) => s.avant !== s.apres)
+      .map((s): [string, string] => [`entretiens/${s.id}.json`, s.avant])])
     for (const etape of j.etapes.slice(0, j.position)) attendus.set(etape.chemin, etape.apres)
-    if (attendus.size !== courants.size || [...attendus].some(([chemin, contenu]) => courants.get(chemin)?.contenu !== contenu)) {
+    const suivante = j.etapes[j.position]
+    if (suivante?.retoursReprise !== undefined) attendus.set(suivante.chemin, contenuAvant(suivante))
+    if ([...attendus].some(([chemin, contenu]) => courants.get(chemin)?.contenu !== contenu)) {
       throw new Error('Le corpus ou un entretien a changé. La correction est suspendue sans écraser ces modifications ; conservez son suivi pour l’assistance.')
     }
   }
 
-  private installer(courants: Map<string, Lecture>): void {
-    for (const [chemin, s] of courants) this.deps.miroir(chemin, s.contenu, s.etag)
+  private installerCorrection(j: JournalCorrectionLocuteursWebDAV, courants: Map<string, Lecture>): void {
+    const chemins = new Set(['corpus.crp', ...j.sources.filter((s) => s.avant !== s.apres).map((s) => `entretiens/${s.id}.json`)])
+    for (const [chemin, s] of courants) if (chemins.has(chemin)) this.deps.miroir(chemin, s.contenu, s.etag)
+  }
+
+  private async lireEtatCorrection(j: JournalCorrectionLocuteursWebDAV, corpus?: Lecture): Promise<Map<string, Lecture>> {
+    const courants = new Map([['corpus.crp', corpus ?? await this.lire('corpus.crp')]])
+    for (const source of j.sources) if (source.avant !== source.apres) {
+      const chemin = `entretiens/${source.id}.json`
+      courants.set(chemin, await this.lire(chemin))
+    }
+    return courants
   }
 
   private exigerJournal(id: string): JournalCorrectionLocuteursWebDAV {
@@ -314,12 +365,30 @@ export class CorrectionsLocuteursWebDAV {
     return { lecture, corpus, sources }
   }
 
-  private async avecProtections<T>(j: JournalCorrectionLocuteursWebDAV | null, action: (courants: Map<string, Lecture>, reservations: Reservation[]) => Promise<T>): Promise<T> {
+  private async avecProtections<T>(j: JournalCorrectionLocuteursWebDAV | null, action: (courants: Map<string, Lecture>, reservations: Reservation[], reserver: (ids: string[]) => Promise<void>) => Promise<T>): Promise<T> {
     const reservations: Reservation[] = []
+    let courants: Map<string, Lecture> | undefined
     const prendre = async (r: Reservation) => {
       const debut = Date.now(), acquisition = await r.provider.acquerir(r.chemin)
       if (!acquisition.ok) throw new Error(`Un entretien ou le corpus est en cours de modification par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'}.`)
       r.echeance = debut + acquisition.dureeGarantieMs; r.etag = acquisition.etag; reservations.push(r)
+    }
+    const reserver = async (ids: string[]) => {
+      this.cibles = ids
+      this.verifierSession()
+      for (const id of [...ids].sort()) {
+        if (id === this.sessionCourante?.identite.entretienId) reservations.push(this.sessionCourante.reservation)
+        else {
+          const droit = this.deps.verrouEntretien(id)
+          await prendre(droit)
+          // Nextcloud peut changer la version du fichier lors de son verrouillage natif.
+          if (courants && droit.chemin === `entretiens/${id}.json`) {
+            const frais = await this.lire(droit.chemin)
+            if (frais.contenu !== courants.get(droit.chemin)?.contenu) throw new Error('Cet entretien a changé. Actualisez avant de corriger ses locuteurs.')
+            courants.set(droit.chemin, frais)
+          }
+        }
+      }
     }
     try {
       this.verifierSession()
@@ -328,19 +397,15 @@ export class CorrectionsLocuteursWebDAV {
         j.verrouCorpus = await this.preuveCorpus(reservations[0]); this.journal.ecrire(j)
         this.publicationIncertaine = true
       }
-      const corpus = await this.lire('corpus.crp'), data: unknown = JSON.parse(corpus.contenu)
-      validerCorpusNatif(data)
-      const ids = j ? j.sources.map((s) => s.id).sort() : this.entretienUnique === undefined ? Object.keys(data.membership).sort() : [this.entretienUnique]
-      if (ids.length > MAX_ENTRETIENS_CORRECTION_WEBDAV || !ids.every(idSourceLocuteursValide)) throw new Error('Trop d’entretiens ou identifiants invalides pour cette correction.')
-      for (const id of ids) {
-        if (id === this.sessionCourante?.identite.entretienId) reservations.push(this.sessionCourante.reservation)
-        else await prendre(this.deps.verrouEntretien(id))
+      const corpus = await this.lire('corpus.crp')
+      if (j) {
+        await reserver(j.sources.filter((s) => s.avant !== s.apres).map((s) => s.id))
+        courants = await this.lireEtatCorrection(j, corpus)
+      } else {
+        const lecture = await this.lireEnsemble(corpus)
+        courants = new Map([['corpus.crp', lecture.lecture], ...[...lecture.sources].map(([id, s]): [string, Lecture] => [`entretiens/${id}.json`, s])])
       }
-      this.verifierSession()
-      const lecture = await this.lireEnsemble(corpus)
-      await this.verifierDroits(reservations)
-      const courants = new Map([['corpus.crp', lecture.lecture], ...[...lecture.sources].map(([id, s]): [string, Lecture] => [`entretiens/${id}.json`, s])])
-      return await action(courants, reservations)
+      return await action(courants, reservations, reserver)
     } finally {
       for (const r of reservations.reverse()) {
         if (!r.empruntee && (r.chemin !== CHEMIN_VERROU_CORPUS || !this.publicationIncertaine)) await r.provider.liberer(r.chemin).catch(() => {})
@@ -349,10 +414,11 @@ export class CorrectionsLocuteursWebDAV {
   }
 
   private verifierSession(): void {
-    this.deps.verifierContexte(this.contexteSession)
+    this.deps.verifierContexte(this.contexteSession, this.cibles)
     this.sessionCourante?.verifier()
-    const sessions = this.deps.sessionsLocales()
-    if (this.contexteSession ? !this.contexteSession.creation && sessions.some((id) => id !== this.contexteSession!.entretienId) : sessions.length) throw new Error('Enregistrez et fermez les entretiens en édition avant de corriger les locuteurs du corpus partagé.')
+    if (this.deps.sessionsLocales().some((id) => this.cibles?.includes(id) && id !== this.contexteSession?.entretienId)) {
+      throw new Error('Enregistrez et fermez les entretiens concernés avant de corriger leurs locuteurs.')
+    }
   }
 
   private async verifierDroits(reservations: Reservation[]): Promise<void> {

@@ -7,7 +7,7 @@ import { ecrireSeedDemo } from './seedDemo'
 import { creerLocuteurFixture, installerIdentitesFixture } from './fixtures/identitesLocuteurs'
 import type { ReferenceParticipation } from '../src/shared/format'
 import { inventorierLocuteurs } from '../src/shared/corpus/inventaireLocuteurs'
-import { creerLocuteur, associerParticipation, renommerLocuteur, separerLocuteur, supprimerLocuteurVide } from '../src/shared/corpus/identitesLocuteurs'
+import { creerLocuteur, associerParticipation, renommerLocuteur, supprimerLocuteurVide } from '../src/shared/corpus/identitesLocuteurs'
 import { peutCreerLocuteurAuNommage, suggestionsExactesLocuteurs } from "../src/shared/corpus/rapprochementsLocuteurs"
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import type { EntretienFichier } from '../src/shared/format'
@@ -116,28 +116,6 @@ describe('Identités de locuteurs — règles de domaine', () => {
     associerParticipation(c, e, 'l1', null)
     expect(e.participations[0].locuteurRef).toBeNull()
     expect(c.locuteurs.p1).toEqual({ id: 'p1', nom: 'Marie D.' })
-  })
-
-  test('sépare une partie des locuteurs et en laisse au moins un sur la fiche d’origine', () => {
-    const c = squeletteCorpus()
-    creerLocuteur(c, 'p1', 'Marie Dupont')
-    const a = entretien()
-    const b = entretien()
-    b.participations = [{ id: 'l3', index: 0, nom: 'Mme Dupont', valeursLoc: {}, locuteurRef: null }]
-    associerParticipation(c, a, 'l1', 'p1')
-    associerParticipation(c, b, 'l3', 'p1')
-    const entretiens = [{ id: 'a', titre: 'A', data: a }, { id: 'b', titre: 'B', data: b }]
-    expect(() => separerLocuteur(c, entretiens, 'p1', 'p2', 'Marie B', [])).toThrow('au moins un')
-    expect(() => separerLocuteur(c, entretiens, 'p1', 'p2', 'Marie B', [
-      { entretienId: 'a', participationId: 'l1' },
-      { entretienId: 'b', participationId: 'l3' },
-    ])).toThrow('Laissez au moins un')
-    const nouvelle = separerLocuteur(c, entretiens, 'p1', 'p2', 'Marie B', [
-      { entretienId: 'b', participationId: 'l3' },
-    ])
-    expect(nouvelle).toEqual({ id: 'p2', nom: 'Marie B' })
-    expect(a.participations[0].locuteurRef).toBe('p1')
-    expect(b.participations[0].locuteurRef).toBe('p2')
   })
 
   test('une déliaison persistée empêche la recréation au nommage sans interdire un rapprochement explicite', () => {
