@@ -28,12 +28,14 @@ export interface TourLocuteurCorpus {
 export interface EntretienLocuteursCorpus {
   id: string
   titre: string
+  mots: number
   tours: TourLocuteurCorpus[]
 }
 
 export interface VueLocuteursCorpus {
   locuteurs: LigneRepertoireLocuteurs[]
   entretiens: EntretienLocuteursCorpus[]
+  aVerifier: ParticipationRepertoireLocuteurs[]
   indisponibles: { id: string; titre: string; raison: string }[]
 }
 
@@ -41,19 +43,23 @@ export interface SourceRepertoireLocuteurs {
   id: string
   titre: string
   corpsTexte: unknown
-  participations: readonly Pick<ParticipationLocuteur, 'id' | 'index' | 'nom' | 'locuteurRef' | 'interviewer'>[]
+  participations: readonly Pick<ParticipationLocuteur, 'id' | 'index' | 'nom' | 'locuteurRef' | 'interviewer' | 'associationRetiree'>[]
 }
 
 function projeterEntretien(locuteurs: Readonly<Record<string, Locuteur>>, entretien: SourceRepertoireLocuteurs) {
   const groupes = new Map<string, LigneRepertoireLocuteurs>()
   const parIndex = new Map<number, LigneRepertoireLocuteurs>()
+  const aVerifier: ParticipationRepertoireLocuteurs[] = []
   for (const participation of entretien.participations) {
     if (!participation.id) throw new Error('Les identifiants des participations doivent être complétés avant la consultation.')
     const locuteur = participation.locuteurRef && Object.hasOwn(locuteurs, participation.locuteurRef)
       ? locuteurs[participation.locuteurRef] : null
-    const cle = locuteur
-      ? JSON.stringify(['locuteur', locuteur.id])
-      : JSON.stringify(['participation', entretien.id, participation.id])
+    if (!locuteur || participation.associationRetiree || !locuteur.nom.trim() || !participation.nom.trim()) {
+      aVerifier.push({ entretienId: entretien.id, entretienTitre: entretien.titre,
+        participationId: participation.id, nom: participation.nom })
+      continue
+    }
+    const cle = JSON.stringify(['locuteur', locuteur.id])
     let groupe = groupes.get(cle)
     if (!groupe) {
       groupe = {
@@ -83,7 +89,7 @@ function projeterEntretien(locuteurs: Readonly<Record<string, Locuteur>>, entret
       debut: tour.debut / longueur * 100, fin: tour.fin / longueur * 100, mots: tour.mots,
     }
   }) : []
-  return { groupes, entretien: { id: entretien.id, titre: entretien.titre, tours } }
+  return { groupes, aVerifier, entretien: { id: entretien.id, titre: entretien.titre, mots: bilan.totalMots, tours } }
 }
 
 /** Réunit les participations connues sans transporter les transcriptions ni modifier les sources. */
@@ -93,6 +99,7 @@ export function projeterRepertoireLocuteurs(
 ): VueLocuteursCorpus {
   const groupes = new Map<string, LigneRepertoireLocuteurs>()
   const resultats: EntretienLocuteursCorpus[] = []
+  const aVerifier: ParticipationRepertoireLocuteurs[] = []
   const indisponibles: VueLocuteursCorpus['indisponibles'] = []
   for (const entree of entretiens) {
     try {
@@ -107,6 +114,7 @@ export function projeterRepertoireLocuteurs(
         }
       }
       resultats.push(projection.entretien)
+      aVerifier.push(...projection.aVerifier)
     } catch (e) {
       indisponibles.push({ id: entree.id, titre: entree.titre, raison: e instanceof Error ? e.message : String(e) })
     }
@@ -117,6 +125,7 @@ export function projeterRepertoireLocuteurs(
       || a.participations[0].entretienTitre.localeCompare(b.participations[0].entretienTitre, 'fr')
       || a.cle.localeCompare(b.cle)),
     entretiens: resultats,
+    aVerifier,
     indisponibles,
   }
 }

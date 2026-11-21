@@ -17,7 +17,7 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
-    const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
+    const dialogue = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })
     await dialogue.getByRole('radio').check()
     const reprise = dialogue.getByRole('checkbox', { name: /Reprendre les informations disponibles/ })
     await expect(reprise).toBeChecked()

@@ -34,7 +34,9 @@ describe('Répertoire calculé des locuteurs et participations', () => {
     const entretiens = [source('a', 'Jean', 'p'), source('b', 'J. Martin', 'p'), source('c', 'Jean Martin')]
     const avant = JSON.stringify([locuteurs, entretiens])
     const vue = projeterRepertoireLocuteurs(locuteurs, entretiens)
-    expect(vue.locuteurs).toHaveLength(2)
+    expect(vue.locuteurs).toHaveLength(1)
+    expect(vue.aVerifier).toEqual([{ entretienId: 'c', entretienTitre: 'Entretien c', participationId: 'meme-id-local', nom: 'Jean Martin' }])
+    expect(vue.entretiens[0].mots).toBe(7)
     const groupe = vue.locuteurs.find((l) => l.locuteurId === 'p')!
     expect(groupe).toMatchObject({ nom: 'Jean Martin', mots: 10, interventions: 4 })
     expect(groupe.participations).toEqual([
@@ -50,10 +52,19 @@ describe('Répertoire calculé des locuteurs et participations', () => {
   test('ne fusionne ni les homonymes, ni les rôles, ni les références absentes', () => {
     const entretiens = [source('a', 'Enquêteur'), source('b', 'Enquêteur'), source('c', 'X', 'absente'), source('d', '')]
     const vue = projeterRepertoireLocuteurs({}, entretiens)
-    expect(vue.locuteurs).toHaveLength(4)
-    expect(new Set(vue.locuteurs.map((l) => l.cle)).size).toBe(4)
-    expect(vue.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur', 'Enquêteur', 'Locuteur sans nom', 'X'])
-    expect(vue.locuteurs.every((l) => l.locuteurId === null)).toBe(true)
+    expect(vue.locuteurs).toEqual([])
+    expect(vue.aVerifier.map((p) => p.nom)).toEqual(['Enquêteur', 'Enquêteur', 'X', ''])
+    expect(vue.entretiens.every((e) => e.tours.every((t) => t.cle === null))).toBe(true)
+    expect(vue.entretiens.every((e) => e.mots === 7)).toBe(true)
+  })
+
+  test('deux homonymes valides restent distincts et un retrait volontaire reste à vérifier', () => {
+    const a = source('a', 'Jean', 'p'), b = source('b', 'Jean', 'q'), c = source('c', 'Jean', 'p')
+    c.participations = c.participations.map((p) => ({ ...p, associationRetiree: true }))
+    const vue = projeterRepertoireLocuteurs({ p: { id: 'p', nom: 'Jean' }, q: { id: 'q', nom: 'Jean' } }, [a, b, c])
+    expect(vue.locuteurs).toHaveLength(2)
+    expect(vue.locuteurs.map((l) => l.participations.length)).toEqual([1, 1])
+    expect(vue.aVerifier).toEqual([expect.objectContaining({ entretienId: 'c' })])
   })
 
   test('ne confond pas un id corpus, un id local identique et les index des paragraphes', () => {
@@ -61,17 +72,16 @@ describe('Répertoire calculé des locuteurs et participations', () => {
     const vue = projeterRepertoireLocuteurs(locuteurs, [
       source('a', 'Variante locale', 'meme-id-local'), source('b', 'Participation isolée'),
     ])
-    expect(vue.locuteurs).toHaveLength(2)
-    expect(new Set(vue.locuteurs.map((l) => l.cle)).size).toBe(2)
-    expect(vue.locuteurs.find((l) => l.locuteurId)?.cle).toBe(JSON.stringify(['locuteur', 'meme-id-local']))
-    expect(vue.locuteurs.find((l) => !l.locuteurId)?.cle).toBe(JSON.stringify(['participation', 'b', 'meme-id-local']))
-    expect(vue.locuteurs.map((l) => l.mots)).toEqual([5, 5])
+    expect(vue.locuteurs).toHaveLength(1)
+    expect(vue.locuteurs[0].cle).toBe(JSON.stringify(['locuteur', 'meme-id-local']))
+    expect(vue.aVerifier[0]).toMatchObject({ entretienId: 'b', participationId: 'meme-id-local' })
+    expect(vue.locuteurs[0].mots).toBe(5)
   })
 
   test('conserve les participants sans parole et neutralise les index inconnus', () => {
-    const entree = source('a', 'Silencieux')
+    const entree = source('a', 'Silencieux', 'p')
     entree.participations = entree.participations.map((p) => ({ ...p, index: 7 }))
-    const vue = projeterRepertoireLocuteurs({}, [entree])
+    const vue = projeterRepertoireLocuteurs({ p: { id: 'p', nom: 'Silencieux' } }, [entree])
     expect(vue.locuteurs[0]).toMatchObject({ mots: 0, interventions: 0 })
     expect(vue.entretiens[0].tours).toHaveLength(1)
     expect(vue.entretiens[0].tours[0]).toMatchObject({ cle: null, nom: 'Sans locuteur', debut: 0, fin: 100 })
@@ -103,9 +113,9 @@ describe('Répertoire calculé des locuteurs et participations', () => {
   })
 
   test('un entretien sans texte ne produit aucune intervention fictive', () => {
-    const entree = source('a', 'Jean')
+    const entree = source('a', 'Jean', 'p')
     entree.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 } }] }
-    const vue = projeterRepertoireLocuteurs({}, [entree])
+    const vue = projeterRepertoireLocuteurs({ p: { id: 'p', nom: 'Jean' } }, [entree])
     expect(vue.entretiens[0].tours).toEqual([])
     expect(vue.locuteurs[0]).toMatchObject({ mots: 0, interventions: 0 })
   })
@@ -158,7 +168,8 @@ test('le store consulte sans réécriture, y compris en lecture seule, et signal
   unlinkSync(join(dir, 'entretiens', `${autres.id}.json`))
   store.lectureSeule = true
   const vue = store.locuteursInventaire()
-  expect(vue.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur', 'Karine'])
+  expect(vue.locuteurs).toEqual([])
+  expect(vue.aVerifier.map((p) => p.nom)).toEqual(['Enquêteur', 'Karine'])
   expect(vue.entretiens.map((e) => e.id)).toEqual(['e1'])
   expect(vue.indisponibles).toEqual([expect.objectContaining({ id: autres.id, titre: 'Indisponible' })])
   expect(fichiers.map((f) => readFileSync(f, 'utf8'))).toEqual(avant)

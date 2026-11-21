@@ -59,20 +59,20 @@ onBeforeUnmount(() => { dialogue.value?.close(); retour?.focus() })
 
 <template>
   <dialog ref="dialogue" aria-labelledby="titre-rapprochement-nommage" :aria-busy="occupe" @keydown.esc.stop @cancel.prevent="!occupe && emit('reporter')">
-    <h2 id="titre-rapprochement-nommage">Une personne déjà rencontrée ?</h2>
+    <h2 id="titre-rapprochement-nommage">Est-ce le même locuteur ?</h2>
     <p>Vous avez nommé ce locuteur <strong>« {{ nom }} »</strong>. Il est déjà enregistré comme locuteur distinct dans le corpus.</p>
-    <p>« Plus tard » conserve cette identité indépendante, sans réunir les locuteurs.</p>
-    <p v-if="natureNomLocuteur(nom) === 'role'">{{ candidats.length === 1 ? 'Un locuteur a le même rôle dans un autre entretien.' : 'Des locuteurs ont le même rôle dans d’autres entretiens.' }} Ce n’est pas nécessairement la même personne.</p>
+    <p>« Plus tard » conserve ce locuteur distinct, sans appliquer d’association.</p>
+    <p v-if="natureNomLocuteur(nom) === 'role'">{{ candidats.length === 1 ? 'Un locuteur a le même rôle dans un autre entretien.' : 'Des locuteurs ont le même rôle dans d’autres entretiens.' }} Ce n’est pas nécessairement le même locuteur.</p>
     <p v-else-if="contientNomProche">Une ou plusieurs graphies proches ont été trouvées. Vérifiez les noms et les entretiens avant de décider.</p>
-    <p v-else>{{ candidats.length === 1 ? 'Une personne porte déjà ce nom.' : 'Des personnes portent déjà ce nom.' }}</p>
+    <p v-else>{{ candidats.length === 1 ? 'Un locuteur porte déjà ce nom.' : 'Des locuteurs portent déjà ce nom.' }}</p>
     <fieldset :disabled="occupe">
-      <legend>{{ candidats.length === 1 ? 'S’il s’agit de la même personne, sélectionnez la proposition ci-dessous.' : 'S’il s’agit de l’une d’elles, sélectionnez-la ci-dessous.' }}</legend>
+      <legend>{{ candidats.length === 1 ? 'S’il s’agit du même locuteur, sélectionnez la proposition ci-dessous.' : 'Sélectionnez le locuteur correspondant ci-dessous.' }}</legend>
       <label v-for="l in candidats" :key="cle(l)" class="proposition-personne">
         <input v-model="selection" type="radio" name="candidat-personne" :value="cle(l)" />
         <span class="details-proposition">
           <span><strong>{{ l.nom }}</strong> · {{ analyserRapprochementLocuteur(nom, l.nom)?.libelle }}</span>
           <small v-if="membresCandidat(l).length > 1">
-            Identité déjà reliée à {{ entretiensCandidat(l).length }} entretien{{ entretiensCandidat(l).length > 1 ? 's' : '' }} : {{ entretiensCandidat(l).join(', ') }}.
+            Locuteur déjà associé à {{ entretiensCandidat(l).length }} entretien{{ entretiensCandidat(l).length > 1 ? 's' : '' }} : {{ entretiensCandidat(l).join(', ') }}.
           </small>
           <small v-else>Entretien : {{ l.entretienTitre }}.</small>
         </span>
@@ -101,7 +101,7 @@ onBeforeUnmount(() => { dialogue.value?.close(); retour?.focus() })
       <button ref="plusTard" :disabled="occupe" @click="emit('reporter')">Plus tard</button>
       <button v-if="candidat" :disabled="occupe || (reprendreInformations && !source)" @click="confirmer">Confirmer</button>
     </div>
-    <button class="secondaire" :disabled="occupe" @click="refuserToutes">{{ candidats.length === 1 ? 'Ce n’est pas cette personne' : 'Aucune de ces personnes' }}</button>
+    <button class="secondaire" :disabled="occupe" @click="refuserToutes">{{ candidats.length === 1 ? 'Ce n’est pas le même locuteur' : 'Aucun de ces locuteurs' }}</button>
   </dialog>
 </template>
 

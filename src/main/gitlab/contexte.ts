@@ -412,15 +412,16 @@ export class ContexteGitLab {
       this.verifierSessionLocuteurOuvert(reference, options)
       if (operation.type === 'identifierAuNommage') {
         const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
-        if (!cible || cible.nom !== operation.demande.nom || cible.associationRetiree) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
+        if (!cible || cible.nom !== operation.demande.nom || (cible.associationRetiree && !operation.demande.regulariser)) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
       }
     }
     verifier(); this.correctionLocuteursOuverte = id; this.store.revoquerEcritureEntretien(id)
     try {
       await session.corrigerLocuteurs((avant, apres) => {
         if (operation.type === 'identifierAuNommage') {
-          if (avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef) verifierPayloadRelecture(avant, apres)
-          else verifierRelectureIdentification(avant, apres, reference)
+          const refAvant = avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef
+          if (refAvant && (!operation.demande.regulariser || refAvant !== operation.demande.regulariser.locuteurRef)) verifierPayloadRelecture(avant, apres)
+          else verifierRelectureIdentification(avant, apres, reference, false, operation.demande.regulariser)
         } else verifierPayloadRelecture(payloadApresRapprochement(avant, operation.demande, sources!), apres)
       }, (courant) => this.transactions!.nommerLocuteurDepuisEntretien(operation, verifier, { ...courant, entretienId: id }))
       const lecture = this.store.lireEntretien(id)

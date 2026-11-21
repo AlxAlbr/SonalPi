@@ -7,6 +7,7 @@ import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import LocuteursCorpus from './LocuteursCorpus.vue'
+import CadreOndeCorpus from './CadreOndeCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import OngletsEspace from '../../app/OngletsEspace.vue'
@@ -735,9 +736,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                        superpose : un span par segment codé, positionné en % du
                        TEXTE ; clic = ouvrir l'entretien à cet endroit.
                        Les ondes empilées sur toute la largeur forment le « mur » d'ondes. -->
-                  <div class="spectro-cadre">
-                    <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
-                    <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
+                  <CadreOndeCorpus :source="urlWaveform(e.id)">
                     <span
                       v-for="(s, i) in resumes[e.id] ?? []"
                       :key="i"
@@ -758,7 +757,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       :title="'Afficher l’extrait — « ' + requete + ' »'"
                       @click.stop="afficherExtrait(e.id, m)"
                     ></span>
-                  </div>
+                  </CadreOndeCorpus>
               </li>
             </ul>
           </div>
@@ -1211,32 +1210,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   background: #e2ecff;
   color: #1d4fa1;
 }
-.spectro {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* pas de distorsion */
-  border-radius: 3px; /* conserve le coin arrondi du cadre (overflow visible désormais) */
-}
-/* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
-   en % de SA largeur — la même que l'onde ou le placeholder). Conteneur
-   compact : 25 px de haut, dégradé vertical (creux au centre), bord fin —
-   c'est lui qui donne la profondeur au « mur » d'ondes. */
-.spectro-cadre {
-  position: relative;
-  flex: none;
-  min-width: 0;
-  height: 25px;
-  border-radius: 3px;
-  border: 1px solid #cbcbcb;
-  background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
-  /* overflow VISIBLE : les marqueurs de recherche dépassent au-dessus/en dessous
-     du cadre. L'image .spectro, elle, est en absolute inset:0 → ne déborde
-     jamais ; ses coins sont arrondis par son propre border-radius (ci-dessous)
-     puisqu'on ne clippe plus ici. */
-  overflow: visible;
-}
 .xtr-graph {
   position: absolute;
   top: 1px;
@@ -1314,15 +1287,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .assigner-srt {
   margin-top: 0.6rem;
   width: 100%;
-}
-.spectro-vide {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.66rem;
-  color: #9a9aa8;
-  font-style: italic;
 }
 .carte-actions {
   display: flex;

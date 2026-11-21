@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creerLocuteurFixture, installerIdentitesFixture } from '../test/fixtures/identitesLocuteurs'
-import { entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
+import { entrerCorpus, lancer, ouvrirDetailsLocuteurs, regulariserDansEntretien } from './util'
 
 function fichiers(dir: string, ids: string[]) { return [join(dir, 'corpus', 'corpus.crp'), ...ids.map((id) => join(dir, 'corpus', 'entretiens', `${id}.json`))].map((f) => readFileSync(f, 'utf8')) }
 
@@ -125,18 +125,13 @@ test('régulariser un retrait ou un lien absent est explicite et conserve sépar
     })
     await ouvrirDetailsLocuteurs(page)
     const panneau = page.locator('.locuteurs-corpus'), lignes = panneau.getByRole('option').filter({ has: page.getByText('X', { exact: true }) })
-    await expect(lignes).toHaveCount(2)
+    await expect(lignes).toHaveCount(0)
     const avant = fichiers(dir, ['e1', autre])
-    await lignes.nth(0).click(); await lignes.nth(1).click({ modifiers: ['Control'] })
+    await expect(panneau.locator('.verification-locuteurs')).toBeVisible()
+    await expect(panneau.getByRole('button', { name: 'Conserver séparément…' })).toHaveCount(0)
     expect(fichiers(dir, ['e1', autre])).toEqual(avant)
-    await expect(panneau.getByRole('button', { name: 'C’est le même locuteur…' })).toBeDisabled()
-    await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
-    const dialogue = page.getByRole('dialog', { name: 'Conserver ces locuteurs séparément' })
-    await expect(dialogue.locator('input[type=text]')).toHaveCount(0)
-    await dialogue.getByRole('button', { name: 'Annuler', exact: true }).click()
-    expect(fichiers(dir, ['e1', autre])).toEqual(avant)
-    await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
-    await dialogue.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(dialogue).toHaveCount(0)
+    await regulariserDansEntretien(page, 'Entretien Karine', 'X')
+    await regulariserDansEntretien(page, 'Lien absent', 'X')
     const inv = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs()), voix = inv.participations.filter((p) => p.nom === 'X')
     expect(inv.locuteurs).toHaveLength(2); expect(new Set(voix.map((p) => p.locuteurRef)).size).toBe(2)
     expect(voix.every((p) => !!p.locuteurRef && !p.associationRetiree)).toBe(true)

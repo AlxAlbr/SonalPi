@@ -11,7 +11,7 @@ import { participationParId, renommerParticipation as renommerNomParticipation, 
 import type { ReferenceParticipation } from '../../../shared/locuteurs'
 import type { ParticipationLocuteur } from '../../../shared/format'
 import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../shared/corpus/inventaireLocuteurs'
-import type { DemandeRapprochementNommage, ChoixRepriseParticipation } from '../../../shared/corpus/contratsLocuteurs'
+import type { DemandeIdentificationLocuteur, DemandeRapprochementNommage, ChoixRepriseParticipation } from '../../../shared/corpus/contratsLocuteurs'
 import {
   natureNomLocuteur,
   peutCreerLocuteurAuNommage,
@@ -47,7 +47,7 @@ export function useLocuteursEntretien(deps: {
   lireEditeur: () => Editor | null
   lectureSeule?: () => boolean
   identificationPossible?: () => boolean
-  identifier?: (reference: ReferenceParticipation, nom: string) => Promise<void>
+  identifier?: (reference: ReferenceParticipation, nom: string, regulariser?: DemandeIdentificationLocuteur['regulariser']) => Promise<void>
   rapprocher?: (demande: DemandeRapprochementNommage, inventaire: InventaireIdentitesLocuteurs) => Promise<void>
   renommageGlobalPossible?: () => boolean
   demanderRenommageGlobal?: (reference: ReferenceParticipation, nom: string) => void
@@ -163,7 +163,7 @@ export function useLocuteursEntretien(deps: {
           locuteur.participationId === sourceId && locuteur.entretienId === sourceEntretienId,
       )
       if (!source || courant() !== cibleInitiale) {
-        throw new Error('Le locuteur a changé. Relancez le rapprochement depuis Personnes.')
+        throw new Error('Le locuteur a changé. Relancez le rapprochement depuis les locuteurs.')
       }
       const sourceApercu = demande.sources.find(
         (locuteur) =>
@@ -173,7 +173,7 @@ export function useLocuteursEntretien(deps: {
         decision === 'lier' &&
         (!sourceApercu || source.locuteurRef !== sourceApercu.locuteurRef)
       ) {
-        throw new Error('La personne sélectionnée a changé. Rouvrez le dialogue pour vérifier l’association.')
+        throw new Error('Le locuteur sélectionné a changé. Rouvrez le dialogue pour vérifier l’association.')
       }
       if (reprise && (!sourceApercu || signatureDonnees(source) !== signatureDonnees(sourceApercu))) {
         throw new Error('Les données source ont changé. Rouvrez le dialogue pour vérifier la reprise.')
@@ -205,7 +205,7 @@ export function useLocuteursEntretien(deps: {
         messagePersonnes.value =
           natureNomLocuteur(demande.nom) === 'role'
             ? 'Propositions écartées. Vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer ces locuteurs.'
-            : 'Propositions écartées. Vous pourrez revenir sur ce choix dans Personnes.'
+            : 'Propositions écartées. Vous pourrez revenir sur ce choix dans les détails des locuteurs du corpus.'
       } else {
         if (!deps.rapprocher || !deps.identificationPossible?.()) throw new Error('Ce rapprochement n’est pas disponible dans cet entretien.')
         if (reprise && signatureDonnees(cibleInitiale) !== signatureDonnees(demande.cible)) throw new Error('Les données locales ont changé. Rouvrez le dialogue avant de confirmer leur reprise.')
@@ -234,9 +234,9 @@ export function useLocuteursEntretien(deps: {
     }
   }
 
-  function proposerIdentite(reference: ReferenceParticipation, nom: string) {
+  function proposerIdentite(reference: ReferenceParticipation, nom: string, regulariser?: DemandeIdentificationLocuteur['regulariser']) {
     const idEntretien = reference.entretienId, locuteur = participationCourante(reference)
-    if (!locuteur || !deps.identificationPossible?.() || !deps.identifier || !peutCreerLocuteurAuNommage(locuteur)) return
+    if (!locuteur || !nom.trim() || !deps.identificationPossible?.() || !deps.identifier || (!regulariser && !peutCreerLocuteurAuNommage(locuteur))) return
     const idLocuteur = locuteur.id, jeton = generation, proposition = revisionPropositions
     nommagesPersonnes = nommagesPersonnes.then(async () => {
       const courant = () =>
@@ -245,12 +245,14 @@ export function useLocuteursEntretien(deps: {
               (candidat) => candidat === locuteur && candidat.id === idLocuteur && candidat.nom === nom,
             )
           : undefined
-      if (!courant() || !peutCreerLocuteurAuNommage(courant()!)) return
+      if (!courant() || (!regulariser && !peutCreerLocuteurAuNommage(courant()!))) return
       messagePersonnes.value = ''
       try {
-        if (!courant()!.locuteurRef) await deps.identifier!({ entretienId: idEntretien, participationId: idLocuteur }, nom)
+        if (regulariser || !courant()!.locuteurRef) {
+          await deps.identifier!({ entretienId: idEntretien, participationId: idLocuteur }, nom, ...(regulariser ? [regulariser] : []))
+        }
         if (!courant()) return
-        if (!courant()!.locuteurRef) throw new Error('L’identité distincte n’a pas pu être vérifiée.')
+        if (!courant()!.locuteurRef) throw new Error('L’enregistrement du locuteur n’a pas pu être vérifié.')
         messagePersonnes.value = `Locuteur « ${nom} » créé au niveau du corpus.`
         let inventaire: InventaireIdentitesLocuteurs
         try { inventaire = await window.sonal.corpus.inventaireLocuteursDepuisEntretien({ entretienId: idEntretien, participationId: idLocuteur }) }
@@ -288,7 +290,7 @@ export function useLocuteursEntretien(deps: {
               ),
             ),
           }
-          messagePersonnes.value = `Un rapprochement est proposé pour « ${nom} ». Il reste aussi disponible dans Personnes.`
+          messagePersonnes.value = `Un rapprochement est proposé pour « ${nom} ». Il reste aussi disponible dans les détails des locuteurs du corpus.`
           return
         }
       } catch (erreur) {
@@ -297,6 +299,12 @@ export function useLocuteursEntretien(deps: {
         }
       }
     })
+  }
+
+  function regulariserLocuteur(reference: ReferenceParticipation) {
+    const locuteur = participationCourante(reference)
+    if (!locuteur) return
+    proposerIdentite(reference, locuteur.nom, { locuteurRef: locuteur.locuteurRef, associationRetiree: !!locuteur.associationRetiree })
   }
 
   function renommerParticipation(reference: ReferenceParticipation, event: Event | string) {
@@ -424,6 +432,7 @@ export function useLocuteursEntretien(deps: {
     attendreNommages: () => nommagesPersonnes,
     attribuerLoc,
     renommerParticipation,
+    regulariserLocuteur,
     reporterRapprochement,
     deciderRapprochement,
     nouveauLocuteur,

@@ -27,7 +27,7 @@ test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunio
     const apresNom = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(apresNom.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual({ ...cible, nom: 'Paul Martin' })
     expect(apresNom.locuteurs).toHaveLength(2); expect(cible.locuteurRef).not.toBe(sourceId)
-    await expect(page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })).toHaveCount(0)
     await gestion.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click(); await retourCorpus(page)
     await ouvrirDetailsLocuteurs(page)
     const details = page.locator('.details-locuteurs')

@@ -25,9 +25,11 @@ afterEach(() => { for (const d of dossiers.splice(0)) rmSync(d, { recursive: tru
 const reference = { entretienId: 'A', participationId: 'local' }
 const commande = (inventaire: InventaireIdentitesLocuteurs) => ({ type: 'renommerGlobal' as const, locuteurId: 'a', nom: 'Alice renommée', attendu: JSON.stringify(inventaire) })
 
-function banc(sansAssociation = false) {
+function banc(sansAssociation = false, invalidite?: 'retrait' | 'absente') {
   const f = fixtureLocuteursDistants()
   if (sansAssociation) f.entretiens[0].data.participations[0].locuteurRef = null
+  if (invalidite === 'retrait') f.entretiens[0].data.participations[0].associationRetiree = true
+  if (invalidite === 'absente') f.entretiens[0].data.participations[0].locuteurRef = 'disparu'
   const dir = mkdtempSync(join(tmpdir(), 'sonal-nom-ouvert-gitlab-')); dossiers.push(dir)
   mkdirSync(join(dir, 'entretiens')); mkdirSync(join(dir, 'journal'))
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(f.corpus, null, 2))
@@ -77,6 +79,19 @@ test('créer au nommage laisse les autres éditions ouvertes, garde les droits c
   expect(() => b.store.ecrireEntretien('A', avant)).toThrow('associations des locuteurs ont changé')
   await b.contexte.fermerEntretien('A'); await b.contexte.fermerEntretien('C')
   if (tenue.ok) await autre.liberer(tenue.droit)
+})
+
+test.each(['retrait', 'absente'] as const)('régularisation explicite %s dans la session GitLab sans association automatique ni doublon', async (invalidite) => {
+  const b = banc(true, invalidite); await b.contexte.ouvrirEntretienPourEdition('A')
+  const avant = b.lire('A'), regulariser = { locuteurRef: avant.participations[0].locuteurRef, associationRetiree: !!avant.participations[0].associationRetiree }
+  const apres = await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })
+  const { associationRetiree: _retrait, ...initial } = avant.participations[0]
+  expect(apres.participations).toEqual([{ ...initial, locuteurRef: expect.any(String) }])
+  expect(apres.participations[0].locuteurRef).not.toBe('a')
+  expect(apres.corpsTexte).toEqual(avant.corpsTexte); expect(apres.notes).toEqual(avant.notes)
+  expect((await b.contexte.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })).participations[0].locuteurRef).toBe(apres.participations[0].locuteurRef)
+  expect(b.donnees()).toHaveLength(1)
+  await b.contexte.fermerEntretien('A')
 })
 
 test.each(['retrait', 'nom différent', 'vide', 'champ inconnu'] as const)('nommage %s : refus avant publication des saisies', async (cas) => {

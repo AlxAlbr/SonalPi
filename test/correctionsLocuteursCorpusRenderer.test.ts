@@ -177,18 +177,15 @@ test('les participations sans association ne sont pas silencieusement transform�
   expect(b.lire).not.toHaveBeenCalled()
 })
 
-test('régularisation explicite : aucune création dans l’aperçu, seule la voix sans identité est corrigée', async () => {
-  const inventaire = inventaireCorrections(); inventaire.participations[2].locuteurRef = null
-  const b = await monter({ inventaire })
-  b.selection.value = [b.selection.value[0], { cle: 'solo', nom: 'Bob local', locuteurId: null, participations: [{ entretienId: 'C', entretienTitre: 'Entretien C', participationId: 'local', nom: 'Bob local' }], mots: 0, interventions: 0 }]
+test('une sélection non valide ne propose plus de régularisation dans le corpus', async () => {
+  const b = await monter()
+  b.selection.value[0].locuteurId = null
   await attendre()
+  expect(b.host.textContent).not.toContain('Conserver séparément')
+  expect(b.host.textContent).toContain('Vérifiez ce locuteur dans son entretien')
+  expect(bouton(b.host, 'Dissocier…').disabled).toBe(true)
   expect(b.corriger).not.toHaveBeenCalled()
-  bouton(b.host, 'Conserver séparément…').click(); await attendre()
-  expect(b.corriger).not.toHaveBeenCalled()
-  expect(b.host.querySelector('input[type=text]')).toBeNull()
-  bouton(b.host, 'Conserver séparément').click(); await attendre()
-  expect(b.corriger).toHaveBeenCalledExactlyOnceWith({ type: 'individualiserSelection', participations: [{ entretienId: 'C', participationId: 'local' }], attendu: JSON.stringify(inventaire) })
-  expect(b.termine.mock.calls[0][0]).toHaveLength(3)
+  expect(b.lire).not.toHaveBeenCalled()
 })
 
 test('une source devenue indisponible pendant la préparation ne produit pas de confirmation', async () => {

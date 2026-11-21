@@ -10,7 +10,7 @@ import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutCondi
 import { fixtureLocuteursDistants } from '../fixtures/locuteursDistants'
 
 const reference = { entretienId: 'A', participationId: 'local' }
-async function banc(port: number, sansAssociation = false) {
+async function banc(port: number, sansAssociation = false, invalidite?: 'retrait' | 'absente') {
   const natif = port === 8080, parent = new ClientWebDAV({ baseUrl: `http://localhost:${port}/remote.php/dav/files/max/MonCorpus`, identifiants: { utilisateur: 'max', motDePasse: 'max-max-1234' } })
   const dossier = `sonde/session-locuteurs-${randomUUID()}`
   await parent.creerDossier('sonde'); await parent.creerDossier(dossier)
@@ -25,6 +25,8 @@ async function banc(port: number, sansAssociation = false) {
   })
   const f = fixtureLocuteursDistants()
   if (sansAssociation) f.entretiens[0].data.participations[0].locuteurRef = null
+  if (invalidite === 'retrait') f.entretiens[0].data.participations[0].associationRetiree = true
+  if (invalidite === 'absente') f.entretiens[0].data.participations[0].locuteurRef = 'disparu'
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   await client.putTexte('corpus.crp', JSON.stringify(f.corpus), { ifNoneMatch: '*' })
   for (const s of f.sources()) await client.putTexte(`entretiens/${s.id}.json`, s.contenu, { ifNoneMatch: '*' })
@@ -82,6 +84,23 @@ for (const port of [8080, 8081]) {
         expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
         expect(JSON.parse(await b.client.getTexte('entretiens/A.json')).notes[0].corps).toBe('Après rapprochement')
         expect(b.c.sessions.etat('A').etat).toBe('a-nous')
+        await b.c.fermerEntretien('A')
+      } finally { await b.nettoyer() }
+    })
+
+    test.each(['retrait', 'absente'] as const)('régularisation explicite %s sans restaurer le groupe d’origine', { timeout: 180_000 }, async (invalidite) => {
+      const b = await banc(port, true, invalidite)
+      try {
+        await b.c.ouvrirEntretienPourEdition('A')
+        const avant = b.lire(), regulariser = { locuteurRef: avant.participations[0].locuteurRef, associationRetiree: !!avant.participations[0].associationRetiree }
+        const apres = await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })
+        const { associationRetiree: _retrait, ...initial } = avant.participations[0]
+        expect(apres.participations).toEqual([{ ...initial, locuteurRef: expect.any(String) }])
+        expect(apres.participations[0].locuteurRef).not.toBe('a')
+        expect(apres.corpsTexte).toEqual(avant.corpsTexte); expect(apres.notes).toEqual(avant.notes)
+        const puts = b.putsA()
+        expect((await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })).participations[0].locuteurRef).toBe(apres.participations[0].locuteurRef)
+        expect(b.putsA()).toBe(puts)
         await b.c.fermerEntretien('A')
       } finally { await b.nettoyer() }
     })

@@ -1,6 +1,6 @@
 import { FORMAT_VERSION, type EntretienFichier, type ParticipationLocuteur, type PayloadEntretien } from '../format'
 import type { ReferenceParticipation } from '../locuteurs'
-import type { DemandeRapprochementNommage } from '../corpus/contratsLocuteurs'
+import type { DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../corpus/contratsLocuteurs'
 import type { InventaireIdentitesLocuteurs } from '../corpus/inventaireLocuteurs'
 import { associerParticipation, regrouperLocuteurs } from '../corpus/identitesLocuteurs'
 import { reprendreDonneesParticipation } from '../corpus/rapprochementsLocuteurs'
@@ -13,14 +13,19 @@ export function verifierPayloadRelecture(attendu: PayloadEntretien, apres: Entre
   }
 }
 
-/** Une identification ne peut modifier que la référence de la participation nommée. */
-export function verifierRelectureIdentification(avant: PayloadEntretien, apres: EntretienFichier, reference: ReferenceParticipation, relecture = false): void {
+/** Une identification ne change que la référence et, sur demande explicite, le retrait d'association. */
+export function verifierRelectureIdentification(avant: PayloadEntretien, apres: EntretienFichier, reference: ReferenceParticipation, relecture = false, regulariser?: DemandeIdentificationLocuteur['regulariser']): void {
   const attendu = structuredClone(avant), cible = attendu.participations.find((p) => p.id === reference.participationId)
   const resultat = apres.participations.find((p) => p.id === reference.participationId)
-  if (!cible || cible.locuteurRef || cible.associationRetiree || !resultat
+  if (!cible || !resultat || (!regulariser && (cible.locuteurRef || cible.associationRetiree))
+    || (regulariser && (cible.locuteurRef !== regulariser.locuteurRef || !!cible.associationRetiree !== regulariser.associationRetiree))
     || (!resultat.locuteurRef && !relecture)) throw new Error('L’association a changé. Rouvrez le corpus pour vérifier les locuteurs.')
+  if (relecture && cible.locuteurRef === resultat.locuteurRef && cible.associationRetiree === resultat.associationRetiree) {
+    verifierPayloadRelecture(attendu, apres)
+    return
+  }
   cible.locuteurRef = resultat.locuteurRef
-  if (cible.associationRetiree === false && resultat.associationRetiree === undefined) delete cible.associationRetiree
+  if (regulariser || (cible.associationRetiree === false && resultat.associationRetiree === undefined)) delete cible.associationRetiree
   verifierPayloadRelecture(attendu, apres)
 }
 

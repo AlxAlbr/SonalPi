@@ -11,7 +11,7 @@ export function selectionnerLocuteurs(
   geste: { etendre?: boolean; basculer?: boolean } = {},
 ): SelectionListeLocuteurs {
   if (!ordre.includes(cible)) return selection
-  const presentes = selection.cles.filter((cle) => ordre.includes(cle))
+  const presentes = selection.cles
   if (geste.etendre && selection.ancre && ordre.includes(selection.ancre)) {
     const a = ordre.indexOf(selection.ancre), b = ordre.indexOf(cible)
     const plage = ordre.slice(Math.min(a, b), Math.max(a, b) + 1)

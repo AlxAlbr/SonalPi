@@ -50,6 +50,31 @@ test.each(['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'A', 'Nouveau locuteur
   expect(b.store.ouvrirEntretienPourEdition(b.cible.entretienId).ok).toBe(true)
 })
 
+test.each(['retrait', 'référence absente', 'sans référence'] as const)('la régularisation explicite dans l’entretien traite %s sans restaurer une association', (cas) => {
+  const b = banc(), payload = b.payload()
+  payload.participations[0].locuteurRef = cas === 'référence absente' ? 'disparu' : null
+  if (cas === 'retrait') payload.participations[0].associationRetiree = true
+  b.store.ecrireEntretien(b.cible.entretienId, payload)
+  const avant = b.payload(), regulariser = { locuteurRef: avant.participations[0].locuteurRef, associationRetiree: !!avant.participations[0].associationRetiree }
+  const sourceAvant = b.fichiers()[2]
+  const apres = b.store.identifierParticipationAuNommage({ ...b.cible, regulariser })
+  expect(apres.participations[0].locuteurRef).toBeTruthy()
+  expect(apres.participations[0].locuteurRef).not.toBe('disparu')
+  expect(apres.participations[0].associationRetiree).toBeUndefined()
+  verifierRelectureIdentification(avant, apres, b.cible, false, regulariser)
+  expect(b.fichiers()[2]).toBe(sourceAvant)
+  expect(b.store.locuteursInventaire().locuteurs).toHaveLength(1)
+  expect(b.store.locuteursInventaire().aVerifier).toHaveLength(1)
+  expect(b.store.identifierParticipationAuNommage({ ...b.cible, regulariser }).participations[0].locuteurRef).toBe(apres.participations[0].locuteurRef)
+})
+
+test('une régularisation périmée ou mal formée ne modifie aucun fichier', () => {
+  const b = banc(), avant = b.fichiers()
+  expect(() => b.store.identifierParticipationAuNommage({ ...b.cible, regulariser: { locuteurRef: 'disparu', associationRetiree: false } })).toThrow('changé')
+  expect(() => b.store.identifierParticipationAuNommage({ ...b.cible, regulariser: { locuteurRef: null, associationRetiree: 'oui' } } as never)).toThrow()
+  expect(b.fichiers()).toEqual(avant)
+})
+
 test('deux noms égaux restent distincts avant toute décision', () => {
   const b = banc('Enquêteur'), id = b.identifier().participations[0].locuteurRef
   b.store.revoquerEcritureEntretien(b.cible.entretienId)

@@ -74,6 +74,8 @@ test('sélection corpus : annuler, renommer, réunir trois identités, puis diss
     await expect(dialogue).not.toBeVisible()
     await expect(liste.locator('[aria-selected=true]')).toHaveCount(1)
     await expect(liste.locator('[aria-selected=true]')).toContainText('Alpha renommé')
+    await expect(panneau.getByRole('searchbox')).toHaveValue('Alpha A')
+    await panneau.getByRole('button', { name: 'Effacer la recherche', exact: true }).click()
     await liste.getByRole('option').filter({ has: page.getByText('Beta', { exact: true }) }).click({ modifiers: ['Control'] })
     await liste.getByRole('option').filter({ has: page.getByText('Gamma', { exact: true }) }).click({ modifiers: ['Control'] })
     await panneau.getByRole('button', { name: 'C’est le même locuteur…', exact: true }).click()

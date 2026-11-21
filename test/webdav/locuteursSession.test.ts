@@ -19,9 +19,11 @@ afterEach(async () => {
   dossiers.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true }))
 })
 const reference = { entretienId: 'A', participationId: 'local' }
-async function banc(natif: boolean, sansAssociation = false) {
+async function banc(natif: boolean, sansAssociation = false, invalidite?: 'retrait' | 'absente') {
   const f = fixtureLocuteursDistants(), serveur = new ServeurWebDAVMemoire()
   if (sansAssociation) f.entretiens[0].data.participations[0].locuteurRef = null
+  if (invalidite === 'retrait') f.entretiens[0].data.participations[0].associationRetiree = true
+  if (invalidite === 'absente') f.entretiens[0].data.participations[0].locuteurRef = 'disparu'
   serveur.creerDossierRelatif('verrous'); serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources()) serveur.poser(`entretiens/${s.id}.json`, s.contenu)
   const dir = mkdtempSync(join(tmpdir(), 'sonal-locuteurs-session-nc-')); dossiers.push(dir)
@@ -85,6 +87,21 @@ for (const natif of [false, true]) {
     expect(b.c.store.ouvrir().locuteurs[id]).toBeUndefined()
     const suite = b.lire(); suite.notes![0].corps = 'Après réunion'; b.sauver(suite)
     expect(await b.c.publierEntretien('A')).toEqual({ ok: true })
+    await b.c.fermerEntretien('A')
+  })
+
+  test.each(['retrait', 'absente'] as const)(`régularisation explicite %s natif=${natif} : références et données conservées, répétition sans doublon`, async (invalidite) => {
+    const b = await banc(natif, true, invalidite); await b.c.ouvrirEntretienPourEdition('A')
+    const avant = b.lire(), regulariser = { locuteurRef: avant.participations[0].locuteurRef, associationRetiree: !!avant.participations[0].associationRetiree }
+    await expect(b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A' })).rejects.toThrow()
+    const apres = await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })
+    const { associationRetiree: _retrait, ...initial } = avant.participations[0]
+    expect(apres.participations).toEqual([{ ...initial, locuteurRef: expect.any(String) }])
+    expect(apres.participations[0].locuteurRef).not.toBe('a')
+    expect(apres.corpsTexte).toEqual(avant.corpsTexte); expect(apres.notes).toEqual(avant.notes)
+    const nombre = b.puts().length
+    expect((await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })).participations[0].locuteurRef).toBe(apres.participations[0].locuteurRef)
+    expect(b.puts()).toHaveLength(nombre)
     await b.c.fermerEntretien('A')
   })
 

@@ -19,6 +19,7 @@ const {
   ouvertId,
   attribuerLoc,
   renommerParticipation,
+  regulariserLocuteur,
   demandeRenommageGlobal,
   erreurRenommageGlobal,
   renommageGlobalOccupe,
@@ -38,6 +39,11 @@ const {
   confirmerSuppressionLocuteur,
   vue,
 } = utiliserSonal()
+
+function regulariser(locuteur: ParticipationLocuteur) {
+  if (!window.confirm(`Enregistrer « ${locuteur.nom} » comme locuteur distinct dans le corpus ? Les paroles et informations seront conservées. Aucune ancienne association ne sera rétablie.`)) return
+  regulariserLocuteur({ entretienId: ouvertId.value ?? '', participationId: locuteur.id })
+}
 
 function detailsLocuteur(locuteur: ParticipationLocuteur): string {
   const pseudo = locuteur.pseudo?.trim()
@@ -98,7 +104,7 @@ watch(
   },
 )
 
-// Ne relit les personnes que si les liens changent, pas à chaque ajout de locuteur.
+// Relit les locuteurs du corpus quand les associations changent.
 watch(
   () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.locuteurRef).filter(Boolean)]),
   async () => {
@@ -121,7 +127,7 @@ watch(
     } catch {
       if (lecture === lectureLiensPersonnes) {
         erreurLiensPersonnes.value =
-          'Le nom des personnes liées est indisponible. Consultez le répertoire Personnes.'
+          'Les associations des locuteurs ne peuvent pas être vérifiées pour le moment.'
       }
     }
   },
@@ -278,8 +284,9 @@ watch(
                   title="Supprimer ce locuteur"
                   @click="demanderSuppressionLocuteur({ entretienId: ouvertId ?? '', participationId: l.id ?? '' })"
                 >✕</button>
-                <span v-if="l.locuteurRef && liensPersonnesCharges && !nomsPersonnesLiees[l.locuteurRef]" class="lien-personne-loc reference-personne-absente">
-                  Référence de personne absente : « {{ l.locuteurRef }} ». Corrigez cette association dans Personnes.
+                <span v-if="!l.locuteurRef || l.associationRetiree || (liensPersonnesCharges && !nomsPersonnesLiees[l.locuteurRef])" class="lien-personne-loc reference-personne-absente">
+                  {{ l.nom.trim() ? 'Ce locuteur n’est pas encore disponible dans le corpus.' : 'Renseignez un nom pour enregistrer ce locuteur.' }}
+                  <button v-if="!lectureSeule && l.nom.trim()" type="button" :disabled="renommageGlobalOccupe || rapprochementOccupe || editionNomsSuspendue" @click="regulariser(l)">Enregistrer ce locuteur…</button>
                 </span>
                 <span v-else-if="l.locuteurRef && !liensPersonnesCharges" class="lien-personne-loc">
                   Association à « {{ l.locuteurRef }} » en cours de vérification.

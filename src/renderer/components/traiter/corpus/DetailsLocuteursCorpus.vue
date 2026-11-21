@@ -31,7 +31,12 @@ const references = computed(() => props.selection.flatMap((l) => l.participation
 const cles = computed(() => new Set(references.value.map(cleParticipationCorrection)))
 const participations = computed(() => inventaire.value.participations.filter((p) => cles.value.has(cleParticipationCorrection(p))))
 const notes = computed(() => notesSelectionLocuteurs(inventaire.value, references.value))
-const examen = computed(() => examinerLocuteurs(inventaire.value, limite.value))
+const examen = computed(() => {
+  const resultat = examinerLocuteurs(inventaire.value, limite.value)
+  const ids = new Set(inventaire.value.locuteurs.filter((l) => l.nom.trim()).map((l) => l.id))
+  const valides = new Set(inventaire.value.participations.filter((p) => p.nom.trim() && !p.associationRetiree && p.locuteurRef && ids.has(p.locuteurRef)).map(cleParticipationCorrection))
+  return { ...resultat, propositions: resultat.propositions.filter((p) => p.selection.every((r) => valides.has(cleParticipationCorrection(r)))) }
+})
 const reprise = computed(() => confirmation.value?.commande.type === 'reprendreInformations' ? confirmation.value.commande : null)
 const sourcesReprise = computed(() => {
   const r = reprise.value
@@ -133,13 +138,13 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
         <h4>{{ p.nom || 'Locuteur sans nom' }} · {{ p.entretienTitre }}</h4>
         <p>{{ p.interviewer ? 'Pose les questions' : 'Répond aux questions' }} · Pseudonyme : {{ p.pseudo || (p.pseudoEtat === 'refuse' ? 'non souhaité' : 'non renseigné') }}</p>
         <p v-if="p.associationRetiree">Un lien a été retiré volontairement. Il ne sera pas restauré par un nouveau nom.</p>
-        <p v-if="p.locuteurRef && !inventaire.locuteurs.some((l) => l.id === p.locuteurRef)">L’ancien locuteur associé n’existe plus. Vous pouvez conserver cette voix séparément depuis les actions de la sélection.</p>
+        <p v-if="p.locuteurRef && !inventaire.locuteurs.some((l) => l.id === p.locuteurRef)">L’ancien locuteur associé n’existe plus. Vérifiez ce locuteur dans son entretien.</p>
         <dl v-if="Object.keys(p.valeursLoc).length"><template v-for="(mod, id) in p.valeursLoc" :key="id"><dt>{{ variable(String(id))?.lib ?? 'Ancienne donnée' }}</dt><dd>{{ valeur(String(id), mod) }}</dd></template></dl>
         <button v-if="p.locuteurRef && inventaire.locuteurs.some((l) => l.id === p.locuteurRef) && inventaire.participations.some((a) => a.locuteurRef === p.locuteurRef && a.entretienId !== p.entretienId)" type="button" :disabled="bloque" @click="preparer('Reprendre des informations locales', `Choisissez les informations à reprendre pour « ${p.nom} » dans « ${p.entretienTitre} ». Les noms, notes et associations resteront inchangés. Les changements futurs ne seront pas recopiés.`, { type: 'reprendreInformations', reference: { entretienId: p.entretienId, participationId: p.participationId }, source: { entretienId: '', participationId: '' }, choix: { pseudo: true, interviewer: true, variables: [], remplacer: false }, attendu: '' })">Reprendre des informations…</button>
         <button type="button" :disabled="enregistrement" @click="ouvrir(() => allerLocuteurs(p.entretienId))">Ouvrir les locuteurs de {{ p.entretienTitre }}</button>
       </article>
       <section aria-label="Notes liées à la sélection"><h3>Notes liées</h3>
-        <p v-if="!notes.length">Aucune note liée à ces voix.</p>
+        <p v-if="!notes.length">Aucune note liée à ces locuteurs.</p>
         <article v-for="n in notes.slice(0, limite)" :key="JSON.stringify([n.entretienId, n.id])">
           <h4>{{ n.titre || 'Note sans titre' }} · {{ n.entretienTitre }}</h4>
           <p>{{ nomCategorieNote(n.categorieId) }} · {{ n.statut === 'prive' ? 'Note privée' : 'Note publique' }}<template v-if="n.date"> · {{ n.date }}</template></p>
@@ -149,7 +154,7 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
       </section>
     </section>
     <details v-if="charge"><summary>Propositions présentées ({{ examen.propositions.length }})</summary>
-      <section aria-label="Suggestions à vérifier"><p v-if="inventaire.participations.length > limite || examen.propositions.length >= limite">La recherche et les propositions affichées sont limitées. « Afficher les détails suivants » élargit la recherche.</p><p>Un nom proche n’est pas une preuve d’identité. Comparer sélectionne les locuteurs ; seule la confirmation de « C’est le même locuteur… » peut les réunir.</p>
+      <section aria-label="Suggestions à vérifier"><p v-if="inventaire.participations.length > limite || examen.propositions.length >= limite">La recherche et les propositions affichées sont limitées. « Afficher les détails suivants » élargit la recherche.</p><p>Un nom proche ne suffit pas à réunir des locuteurs. Comparer sélectionne les locuteurs ; seule la confirmation de « C’est le même locuteur… » peut les réunir.</p>
         <p v-if="!examen.propositions.length">Aucun rapprochement proposé.</p>
         <article v-for="p in examen.propositions.slice(0, limite)" :key="p.cle"><p>{{ p.titre }}</p>
           <button type="button" :disabled="enregistrement" @click="emit('selectionner', p.selection)">Comparer ces locuteurs</button>
@@ -165,7 +170,7 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
       </section>
     </details>
     <details v-if="charge"><summary>Locuteurs sans entretien ({{ examen.sansEntretien.length }})</summary>
-      <section aria-label="Locuteurs sans entretien"><p>Ces locuteurs ne sont reliés à aucune voix lisible. Une suppression exige que tous les entretiens soient accessibles et qu’aucun cas ni distinction ne les utilise.</p>
+      <section aria-label="Locuteurs sans entretien"><p>Ces locuteurs ne sont présents dans aucun entretien lisible. Une suppression exige que tous les entretiens soient accessibles et qu’aucun cas ni distinction ne les utilise.</p>
         <p v-if="!examen.sansEntretien.length">Aucun locuteur sans entretien.</p>
         <article v-for="l in examen.sansEntretien.slice(0, limite)" :key="l.id"><p>{{ l.nom }}</p>
           <button type="button" :disabled="bloque" @click="preparer('Supprimer ce locuteur sans entretien', `Supprimer « ${l.nom} » ? Aucun texte ni aucune note ne sera supprimé. Ses utilisations seront vérifiées avant l’enregistrement. Cette suppression n’est pas annulable depuis cet écran.`, { type: 'supprimerVide', locuteurId: l.id, attendu: '' })">Supprimer ce locuteur…</button>

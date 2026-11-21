@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer, ouvrirDetailsLocuteurs, retourCorpus } from './util'
+import { entrerCorpus, lancer, ouvrirDetailsLocuteurs, retourCorpus, regulariserDansEntretien } from './util'
 
 test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissocier sans ancien répertoire', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-locuteurs-parcours-')), app = await lancer(dir)
@@ -15,21 +15,19 @@ test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissoc
       payload.participations = [{ id: 'local', index: 0, nom: 'Mme Dupont', valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
     })
+    await regulariserDansEntretien(page, 'Entretien Karine', 'Karine')
+    await regulariserDansEntretien(page, 'Deuxième entretien', 'Mme Dupont')
     await ouvrirDetailsLocuteurs(page)
     const panneau = page.locator('.locuteurs-corpus'), details = panneau.locator('.details-locuteurs')
     const ligne = (nom: string) => panneau.getByRole('option').filter({ has: page.getByText(nom, { exact: true }) })
     await expect(panneau.locator('.personnes-corpus')).toHaveCount(0)
     await expect(panneau.getByLabel('Nouvelle personne', { exact: true })).toHaveCount(0)
-    await ligne('Karine').click(); await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
-    const conserver = page.getByRole('dialog', { name: 'Conserver ces locuteurs séparément' })
-    await conserver.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(conserver).toHaveCount(0)
+    await ligne('Karine').click()
     await panneau.getByRole('button', { name: 'Renommer…', exact: true }).click()
     const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur', exact: true })
     await renommage.getByLabel('Nouveau nom').fill('K. Dupont')
     await renommage.getByRole('button', { name: 'Renommer dans tous les entretiens' }).click(); await expect(renommage).toHaveCount(0)
     await ligne('Mme Dupont').click({ modifiers: ['Control'] })
-    await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
-    await conserver.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(conserver).toHaveCount(0)
     await panneau.getByRole('button', { name: 'C’est le même locuteur…' }).click()
     const reunir = page.getByRole('dialog', { name: 'Réunir les locuteurs sélectionnés' })
     await reunir.getByLabel('Nom commun', { exact: true }).fill('K. Dupont')
@@ -80,7 +78,7 @@ test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissoc
     const karine = inv.participations.find((p) => p.nom === 'Karine Durand')!, autre = inv.participations.find((p) => p.nom === 'Mme Dupont')!
     expect(karine.locuteurRef).toBeTruthy(); expect(karine.locuteurRef).not.toBe(autre.locuteurRef)
     expect(inv.notes.find((n) => n.titre === 'Identité vérifiée')?.participationIds).toContain(karine.participationId)
-    await expect(panneau.getByRole('separator')).toHaveCount(0)
+    await expect(panneau.getByRole('separator')).toHaveCount(1)
     await page.setViewportSize({ width: 650, height: 850 })
     const cadre = await details.boundingBox(); expect(cadre!.x).toBeGreaterThanOrEqual(0); expect(cadre!.x + cadre!.width).toBeLessThanOrEqual(651)
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }

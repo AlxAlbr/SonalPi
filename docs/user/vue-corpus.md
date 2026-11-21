@@ -272,14 +272,41 @@ Les filtres, le tri, le mode d’affichage et la largeur du panneau sont conserv
 
 ## Locuteurs
 
-L’onglet **Locuteurs** présente toutes les voix du corpus, associées ou non à d’autres
-entretiens. Deux homonymes restent distincts tant que vous ne les réunissez pas.
-La même vue est proposée en local, sur GitLab et sur Nextcloud.
+L’onglet **Locuteurs** présente les locuteurs valides du corpus, même présents dans
+un seul entretien. Deux homonymes restent distincts tant que vous ne les réunissez
+pas. La même vue est proposée en local, sur GitLab et sur Nextcloud. Les passages
+non attribués et les locuteurs à régulariser se traitent dans l’entretien ; une
+indication permet d’ouvrir les entretiens qui nécessitent une vérification.
 
-Sélectionnez un ou plusieurs locuteurs pour consulter leurs interventions ou leurs
-statistiques. La recherche peut porter sur leurs noms et sur les entretiens. Ouvrir
-une intervention ne modifie ni ses paroles ni ses associations ; le retour au corpus
-conserve la sélection.
+Sélectionnez un ou plusieurs locuteurs pour consulter leurs tours de parole ou
+leurs statistiques. La recherche porte sur les noms, leurs variantes et les titres
+d’entretiens. **Entrée** transforme une saisie en tag retirable ; plusieurs tags
+retiennent les résultats correspondant à au moins l’un d’eux. La saisie en cours
+s’ajoute aux tags comme aperçu. La recherche conserve les locuteurs sélectionnés,
+même masqués : le compteur les signale. **Effacer la recherche** et **Effacer la
+sélection** sont deux actions distinctes.
+
+Les commandes sont regroupées en icônes en haut du panneau gauche ; leur infobulle
+indique leur fonction. La largeur de ce panneau se règle avec le séparateur, à la
+souris ou avec les flèches du clavier. Elle est mémorisée sur le poste.
+
+Les cartes reprennent la forme d’onde de l’onglet **Entretiens**, ou un fond neutre
+sans audio. Seuls les tours de parole sélectionnés sont colorés en superposition,
+sans comprimer les portions restantes. Leur placement suit le texte : il ne donne
+pas un temps audio exact. **Avec la sélection** limite les entretiens aux locuteurs
+choisis ; **Tous les entretiens** conserve aussi les cartes sans intervention de
+la sélection. Sans sélection, toutes les cartes sont affichées sans calque.
+
+Un clic sur un tour coloré ou **Précédente / Suivante** ouvre le passage dans
+l’entretien. Cette consultation ne modifie ni les paroles ni les associations ;
+le retour au corpus conserve recherche, tags, sélection et réglage d’affichage.
+
+**Statistiques** affiche les mots, tours de parole et entretiens distincts de toute
+la sélection, y compris les locuteurs masqués par la recherche. La comparaison par
+locuteur est triable et indique sa part des mots de la sélection. Le détail par
+entretien indique la part des mots sélectionnés dans toute sa transcription,
+y compris les passages non attribués ou dont le locuteur reste à vérifier.
+Il ne s’agit pas de durées audio. Une source indisponible rend le bilan incomplet.
 
 Les corrections partent de cette sélection :
 
@@ -288,8 +315,6 @@ Les corrections partent de cette sélection :
   entretiens concernés et choix de conserver ou d’uniformiser leurs noms ;
 - **Dissocier…** rend indépendantes les voix cochées, sans demander de nouveau nom.
   Au moins un entretien doit rester associé au locuteur d’origine ;
-- **Conserver séparément…** donne une identité propre aux voix encore sans identité
-  commune, sans les réunir.
 
 La confirmation précise les conséquences avant toute modification. Annuler ou Échap
 conserve les données actuelles. Les paroles, notes, couleurs, pseudonymes, rôles et
@@ -301,7 +326,11 @@ ainsi que les rapprochements à examiner et les distinctions déjà mémorisées
 notes restent dans leurs entretiens, même si plusieurs participations portent le
 même identifiant local. Une reprise d’informations copie seulement les champs choisis,
 avec remplacement des valeurs existantes uniquement sur demande. Une définition sans
-entretien n’est supprimable qu’après vérification de tous ses usages.
+entretien n’est supprimable qu’après vérification de tous ses usages. Les propositions
+à comparer dans le corpus ne concernent que les locuteurs valides. Un locuteur
+encore absent de la liste se vérifie dans son entretien avec **Enregistrer ce
+locuteur…** : les paroles et informations sont conservées, sans restaurer d’ancienne
+association. Un nom vide doit d’abord être renseigné.
 
 Dans un entretien ouvert, saisir un nom non vide crée d’abord un locuteur indépendant,
 y compris pour « Enquêteur », « Inconnu » ou « X ». Ajouter une ligne provisoire seule
@@ -309,7 +338,7 @@ ne crée rien. Entrée ou la sortie du champ modifié enregistre le nom. Si le l
 est déjà associé à d’autres entretiens, un changement de nom demande confirmation de
 ses effets sur ces entretiens ; sinon, il s’enregistre directement.
 
-Une proposition **Une personne déjà rencontrée ?** n’est jamais une association
+Une proposition **Est-ce le même locuteur ?** n’est jamais une association
 automatique. **Confirmer** réunit les identités après vérification et reprend les
 seules informations choisies. **Plus tard** conserve l’identité indépendante déjà
 créée. Un retrait volontaire d’association n’est pas annulé par un nouveau nom.

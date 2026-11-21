@@ -515,7 +515,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await gestion.getByRole('button', { name: '+ Locuteur', exact: true }).click()
       const nouveau = gestion.locator('.nom-loc').last()
       await nouveau.fill('Bob'); await nouveau.press('Enter')
-      const propositions = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
+      const propositions = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?', exact: true })
       await expect(propositions).toBeVisible({ timeout: 30_000 })
       const nomme = await lireServeur('A'), nouvelleVoix = nomme.participations.at(-1)
       expect(nouvelleVoix.nom).toBe('Bob'); expect(nouvelleVoix.locuteurRef).toBeTruthy(); expect(nouvelleVoix.locuteurRef).not.toBe('b')

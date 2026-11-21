@@ -10,7 +10,7 @@ async function gestion(page: Page) {
   await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
   return page.getByRole('dialog', { name: 'Gestion des locuteurs', exact: true })
 }
-const propositions = (page: Page) => page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
+const propositions = (page: Page) => page.getByRole('dialog', { name: 'Est-ce le même locuteur ?', exact: true })
 const inventaire = (page: Page) => page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
 async function ajouterSource(page: Page) {
   const { dir } = await page.evaluate(() => window.sonal.corpus.dossierCourant())

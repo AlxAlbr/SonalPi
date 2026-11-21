@@ -17,6 +17,8 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
       await api.ouvrirEntretienPourEdition(karine.entretienId)
       const identifie = await api.identifierParticipationAuNommage({ entretienId: karine.entretienId, participationId: karine.participationId, nom: 'Karine' })
       const personneId = identifie.participations.find((p) => p.id === karine.participationId)!.locuteurRef
+      const enqueteur = inventaire.participations.find((l) => l.nom === 'Enquêteur')!
+      await api.identifierParticipationAuNommage({ entretienId: enqueteur.entretienId, participationId: enqueteur.participationId, nom: enqueteur.nom })
       await api.fermerEntretien(karine.entretienId)
       for (const [titre, nom, lien] of [
         ['Deuxième entretien', 'Mme Dupont', personneId],
@@ -29,6 +31,11 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
         payload.participations = [{ id: `loc-${id}`, index: 0, nom, locuteurRef: lien, valeursLoc: {} }]
         payload.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: 'Une intervention dans cet entretien.' }] }] }
         await api.ecrireEntretien(id, payload)
+        if (!lien) {
+          await api.ouvrirEntretienPourEdition(id)
+          await api.identifierParticipationAuNommage({ entretienId: id, participationId: `loc-${id}`, nom })
+          await api.fermerEntretien(id)
+        }
       }
     })
     const fichiers = [join(dir, 'corpus', 'corpus.crp'), ...readdirSync(join(dir, 'corpus', 'entretiens')).filter((f) => f.endsWith('.json')).map((f) => join(dir, 'corpus', 'entretiens', f))]
@@ -41,6 +48,8 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
     const groupe = liste.getByRole('option', { name: /^Karine / }).filter({ hasText: 'Entretien Karine' })
     const homonyme = liste.getByRole('option').filter({ hasText: 'Homonyme indépendant' })
     await groupe.click()
+    const rangs = await panneau.locator('.actions-selection > button, .actions-selection .actions-correction > button').evaluateAll((boutons) => [...new Set(boutons.map((b) => Math.round(b.getBoundingClientRect().top)))])
+    expect(rangs).toHaveLength(1)
     await expect(panneau.locator('.entretien-interventions')).toHaveCount(2)
     await homonyme.click({ modifiers: ['Control'] })
     await expect(liste.locator('[aria-selected=true]')).toHaveCount(2)
@@ -48,9 +57,13 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
     await panneau.getByRole('button', { name: 'Statistiques', exact: true }).click()
     await expect(panneau.getByRole('region', { name: 'Statistiques de la sélection' })).toContainText('interventions')
     await panneau.getByRole('searchbox').fill('Mme Dupont')
+    await panneau.getByRole('searchbox').press('Enter')
     await expect(liste.getByRole('option')).toHaveCount(1)
-    await expect(liste.locator('[aria-selected=true]')).toHaveCount(1)
-    await panneau.getByRole('searchbox').clear()
+    await expect(panneau.locator('.compteur-selection')).toContainText('2 sélectionnés, dont 1 masqué')
+    await panneau.getByRole('searchbox').fill('Homonyme')
+    await panneau.getByRole('searchbox').press('Enter')
+    await expect(liste.getByRole('option')).toHaveCount(2)
+    await panneau.getByRole('button', { name: 'Effacer la recherche', exact: true }).click()
     await expect(liste.getByRole('option')).toHaveCount(3)
     expect(fichiers.map((f) => readFileSync(f, 'utf8'))).toEqual(avant)
     await page.screenshot({ path: test.info().outputPath('locuteurs-corpus.png') })
@@ -59,15 +72,19 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
     await expect(page.locator('.tiptap')).toContainText('Une intervention dans cet entretien.')
     await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toBeVisible()
-    await expect(liste.locator('[aria-selected=true]')).toHaveCount(1)
-    await expect(panneau.locator('.entretien-interventions')).toHaveCount(2)
+    await expect(liste.locator('[aria-selected=true]')).toHaveCount(2)
+    await expect(panneau.locator('.entretien-interventions')).toHaveCount(3)
     await panneau.getByRole('button', { name: 'Détails et vérifications…', exact: true }).click()
     await expect(panneau.locator('.details-locuteurs')).toBeVisible()
     await expect(panneau.locator('.personnes-corpus')).toHaveCount(0)
     await expect(panneau.getByRole('listbox', { name: 'Locuteurs', exact: true })).toBeVisible()
     await panneau.getByRole('button', { name: 'Fermer les détails', exact: true }).click()
     await expect(liste).toBeVisible()
-    await expect(liste.locator('[aria-selected=true]')).toHaveCount(1)
+    await expect(liste.locator('[aria-selected=true]')).toHaveCount(2)
+    const separateur = panneau.getByRole('separator')
+    const largeur = Number(await separateur.getAttribute('aria-valuenow'))
+    await separateur.focus(); await separateur.press('ArrowRight')
+    await expect(separateur).toHaveAttribute('aria-valuenow', String(largeur + 20))
     await page.setViewportSize({ width: 650, height: 850 })
     await expect(panneau.locator('.vue-locuteurs')).toHaveCSS('grid-template-columns', /^\d+(?:\.\d+)?px$/)
   } finally {

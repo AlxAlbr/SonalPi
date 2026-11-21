@@ -12,15 +12,35 @@ sur GitLab et sur Nextcloud, valider tout nom non vide crée puis associe une id
 propositions éventuelles : rôles, caractères uniques et libellés provisoires validés
 sont admissibles. Entrée ou la sortie du champ modifié enregistrent la saisie ;
 un nom identique ne constitue jamais une preuve de rapprochement.
-Il n’existe pas de marqueur « nom validé ». Le répertoire présente également les
-participations non associées ; leur consultation et leur attribution ne dépendent
-pas de la création d’une identité corpus.
+Il n’existe pas de marqueur « nom validé ». L’entretien conserve également les
+participations non associées, même lorsqu’elles ne figurent pas dans la liste des
+locuteurs valides du corpus. Leur consultation et leur attribution restent possibles.
 
 `identifierParticipationAuNommage` enregistre identité et association ensemble.
 « Plus tard » garde cette identité indépendante. Confirmer une proposition réunit
 explicitement les identités via `rapprocherLocuteurDepuisEntretien`, sans fiche vide
 résiduelle ; seuls les champs locaux choisis peuvent être repris. Les retraits
-volontaires restent sans réassociation automatique.
+volontaires restent sans réassociation automatique. Le dialogue emploie uniquement
+le vocabulaire « locuteur » et porte le titre « Est-ce le même locuteur ? ».
+
+### Régularisation explicite
+
+Dans la gestion des locuteurs, **Enregistrer ce locuteur…** permet de traiter une
+référence absente ou disparue, ou un retrait volontaire. La confirmation explique
+que les paroles et informations restent inchangées et qu’aucune ancienne association
+ne sera restaurée. Un nom vide doit d’abord être renseigné.
+
+La demande `DemandeIdentificationLocuteur.regulariser` porte la référence et l’état
+de retrait attendus. Sans ce choix explicite, le nommage automatique continue à
+refuser les références disparues et les retraits volontaires. La transaction crée
+un locuteur distinct et ne reprend aucune association par déduction du nom.
+Les distinctions déjà enregistrées sont conservées.
+
+Ce parcours réutilise la transaction de nommage et le droit de l’entretien ouvert,
+sur les trois fournisseurs. La relecture autorise uniquement le changement de
+référence et la suppression explicite du marqueur de retrait, sans toucher au
+reste du payload. Une répétition reconnue conserve le locuteur déjà créé.
+Les protections de session, de publication et de reprise restent celles du nommage.
 
 Pour une participation déjà associée, sur les trois fournisseurs, modifier le champ Nom prépare
 l’inventaire complet. Si d’autres entretiens sont associés, leur aperçu demande

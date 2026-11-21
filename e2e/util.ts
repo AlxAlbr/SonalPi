@@ -78,6 +78,23 @@ export async function ouvrirDetailsLocuteurs(page: Page): Promise<void> {
   await expect(page.locator('.details-locuteurs')).toBeVisible()
 }
 
+/** Vérifie une ancienne entrée dans son entretien, sans passer par une correction du corpus. */
+export async function regulariserDansEntretien(page: Page, titre: string, nom: string): Promise<void> {
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+  const verification = page.locator('.verification-locuteurs')
+  if (await verification.getAttribute('open') === null) await verification.locator('summary').click()
+  await verification.getByRole('button', { name: `Ouvrir les locuteurs de ${titre}`, exact: true }).click()
+  await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+  const ligne = page.locator('.liste-loc li')
+  const index = await ligne.locator('.nom-loc').evaluateAll((inputs, nom) => inputs.findIndex((input) => (input as HTMLInputElement).value === nom), nom)
+  expect(index).toBeGreaterThanOrEqual(0)
+  page.once('dialog', (dialogue) => dialogue.accept())
+  await ligne.nth(index).getByRole('button', { name: 'Enregistrer ce locuteur…', exact: true }).click()
+  await expect(ligne.nth(index).getByRole('button', { name: 'Enregistrer ce locuteur…', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
+  await retourCorpus(page)
+}
+
 /** Ouvre la préparation sans recliquer sur l'onglet déjà repris par la barre. */
 export async function ouvrirPreparation(
   page: Page,

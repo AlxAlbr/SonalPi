@@ -21,6 +21,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
       return ids
     })
     creerLocuteurFixture(join(dir, 'corpus'), 'Marie Dupont', ids.slice(0, 2).map((entretienId) => ({ entretienId, participationId: 'local' })))
+    creerLocuteurFixture(join(dir, 'corpus'), 'Marie Dupont', [{ entretienId: ids[2], participationId: 'local' }])
     await ouvrirDetailsLocuteurs(page)
     const panneau = page.locator('.locuteurs-corpus'), details = panneau.locator('.details-locuteurs')
     await details.locator('summary').filter({ hasText: 'Propositions présentées' }).click()
@@ -32,7 +33,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
     await expect(distincts.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
     await distincts.getByRole('button', { name: 'Garder distincts', exact: true }).click(); await expect(distincts).toHaveCount(0)
     await expect(suggestions.locator('article')).toHaveCount(0)
-    expect((await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs).toHaveLength(1)
+    expect((await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs).toHaveLength(2)
     await details.locator('summary').filter({ hasText: 'Distinctions enregistrées (1)' }).click()
     await details.getByRole('button', { name: 'Réexaminer cette distinction…' }).click()
     const revoir = page.getByRole('dialog', { name: 'Réexaminer cette distinction' })
@@ -40,9 +41,6 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
     await revoir.getByRole('button', { name: 'Réexaminer la distinction' }).click(); await expect(revoir).toHaveCount(0)
     await expect(suggestions.locator('article')).toHaveCount(1)
     await suggestions.getByRole('button', { name: 'Comparer ces locuteurs' }).click()
-    await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
-    const conserver = page.getByRole('dialog', { name: 'Conserver ces locuteurs séparément' })
-    await conserver.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(conserver).toHaveCount(0)
     await panneau.getByRole('button', { name: 'C’est le même locuteur…' }).click()
     const reunir = page.getByRole('dialog', { name: 'Réunir les locuteurs sélectionnés' })
     await expect(reunir).toContainText('3 entretiens')
@@ -67,7 +65,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('écarter une paire sans créer de fiche conserve les propositions avec le troisième locuteur', async () => {
+test('écarter une paire conserve les propositions avec le troisième locuteur valide', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-propositions-trois-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
@@ -79,6 +77,9 @@ test('écarter une paire sans créer de fiche conserve les propositions avec le 
         const { formatVersion: _v, lastModified: _d, ...payload } = r.data
         payload.participations = [{ id: 'local', index: 0, nom: 'Marie Dupont', valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload)
+        await api.ouvrirEntretienPourEdition(id)
+        await api.identifierParticipationAuNommage({ entretienId: id, participationId: 'local', nom: 'Marie Dupont' })
+        await api.fermerEntretien(id)
       }
     })
     await ouvrirDetailsLocuteurs(page)
@@ -92,7 +93,7 @@ test('écarter une paire sans créer de fiche conserve les propositions avec le 
     await expect(suggestions.locator('article')).toHaveCount(2)
     await expect(suggestions).toContainText('Entretien C')
     const inv = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
-    expect(inv.locuteurs).toHaveLength(0)
+    expect(inv.locuteurs).toHaveLength(3)
     expect(inv.participations.filter((p) => p.rapprochementsRefuses?.length)).toHaveLength(2)
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

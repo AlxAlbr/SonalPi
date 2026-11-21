@@ -276,14 +276,15 @@ export class ContexteCorpusDistant {
     this.verifierReferenceSession(reference, creation)
     const id = reference.entretienId
     const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
-    if (commande.type === 'identifierAuNommage' && (!cible || cible.nom !== commande.demande.nom || cible.associationRetiree)) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
+    if (commande.type === 'identifierAuNommage' && (!cible || cible.nom !== commande.demande.nom || (cible.associationRetiree && !commande.demande.regulariser))) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
     if (commande.type === 'renommerGlobal' && cible?.locuteurRef !== commande.locuteurId) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
     const sources = commande.type === 'rapprocherAuNommage' ? JSON.parse(commande.demande.attendu) as InventaireIdentitesLocuteurs : null
     const verifier = (avant: PayloadEntretien, apres: EntretienFichier) => {
       if (commande.type === 'renommerGlobal') verifierRelectureRenommage(avant, apres, commande.locuteurId)
       else if (commande.type === 'identifierAuNommage') {
-        if (avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef) verifierPayloadRelecture(avant, apres)
-        else verifierRelectureIdentification(avant, apres, reference)
+        const refAvant = avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef
+        if (refAvant && (!commande.demande.regulariser || refAvant !== commande.demande.regulariser.locuteurRef)) verifierPayloadRelecture(avant, apres)
+        else verifierRelectureIdentification(avant, apres, reference, false, commande.demande.regulariser)
       } else verifierPayloadRelecture(payloadApresRapprochement(avant, commande.demande, sources!), apres)
     }
     this.correctionSessionEnCours = id; this.store.revoquerEcritureEntretien(id)

@@ -6,7 +6,7 @@ async function nommer(page: Page) {
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
   await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
   await page.locator('.nom-loc').first().fill('Marie Dupont'); await page.locator('.nom-loc').first().press('Enter')
-  const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
+  const dialogue = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?', exact: true })
   await expect(dialogue).toBeVisible()
   const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
   const cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
@@ -70,7 +70,7 @@ test('des propositions modifiées empêchent un refus en masse sans supprimer l�
     await expect(dialogue.getByRole('radio')).toHaveCount(2)
     const dir = (await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir
     creerLocuteurFixture(dir, 'Marie Dupont', [{ entretienId: ids[0], participationId: 'local' }])
-    await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
+    await dialogue.getByRole('button', { name: 'Aucun de ces locuteurs', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('ont changé')
     const vue = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(vue.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual(cible)

@@ -8,11 +8,19 @@ export interface ChoixRepriseParticipation {
   remplacer?: boolean
 }
 
-export interface DemandeIdentificationLocuteur extends ReferenceParticipation { nom: string }
+export interface DemandeIdentificationLocuteur extends ReferenceParticipation {
+  nom: string
+  regulariser?: { locuteurRef: string | null; associationRetiree: boolean }
+}
 
 export function validerIdentificationLocuteur(v: unknown): asserts v is DemandeIdentificationLocuteur {
-  if (!objet(v) || !champsExacts(v, ['entretienId', 'participationId', 'nom'])
+  if (!objet(v) || !champsExacts(v, v.regulariser === undefined
+    ? ['entretienId', 'participationId', 'nom'] : ['entretienId', 'participationId', 'nom', 'regulariser'])
     || !identifiant(v.entretienId) || !identifiant(v.participationId) || !identifiant(v.nom)) throw new Error('Validez un nom non vide.')
+  if (v.regulariser !== undefined && (!objet(v.regulariser)
+    || !champsExacts(v.regulariser, ['locuteurRef', 'associationRetiree'])
+    || !(v.regulariser.locuteurRef === null || identifiant(v.regulariser.locuteurRef))
+    || typeof v.regulariser.associationRetiree !== 'boolean')) throw new Error('Vérifiez à nouveau ce locuteur dans l’entretien.')
 }
 export interface DemandeRapprochementNommage extends ReferenceParticipation {
   source: ReferenceParticipation

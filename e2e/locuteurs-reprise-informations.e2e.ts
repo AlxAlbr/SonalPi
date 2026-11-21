@@ -26,7 +26,7 @@ test('le nommage affiche les informations divergentes et reprend la source chois
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
-    const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
+    const dialogue = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })
     await dialogue.locator('.proposition-personne').getByRole('radio').check()
     const sources = dialogue.getByRole('group', { name: 'Les informations diffèrent selon l’entretien. Choisissez celles à reprendre.' })
     await expect(sources.getByRole('radio', { name: /Source A.*Alice.*interviewer/ })).toBeVisible()
@@ -47,7 +47,7 @@ test('le nommage affiche les informations divergentes et reprend la source chois
   } finally { await app.close() }
 })
 
-test('Aucune de ces personnes écarte toutes les propositions sans sélection préalable', async () => {
+test('Aucun de ces locuteurs écarte toutes les propositions sans sélection préalable', async () => {
   const { app, page } = await ouvrir('sonal-nommage-refus-tous-')
   try {
     await page.evaluate(async () => {
@@ -64,14 +64,14 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
-    const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
-    await expect(dialogue).toContainText('Des personnes portent déjà ce nom.')
+    const dialogue = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?' })
+    await expect(dialogue).toContainText('Des locuteurs portent déjà ce nom.')
     await expect(dialogue.getByRole('radio')).toHaveCount(2)
     await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toHaveCount(0)
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     expect(avant.locuteurs).toHaveLength(1)
     expect(avant.participations.find((p: any) => p.entretienId === 'e1' && p.nom === 'Marie Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
-    await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
+    await dialogue.getByRole('button', { name: 'Aucun de ces locuteurs', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     const cible = apres.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')

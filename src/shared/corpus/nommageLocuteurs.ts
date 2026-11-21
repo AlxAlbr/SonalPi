@@ -11,10 +11,14 @@ export function identifierParticipationNommage(corpus: CorpusNommage, entretien:
   validerIdentificationLocuteur(demande)
   const cible = entretien.participations.find((p) => p.id === demande.participationId)
   if (!cible || cible.nom !== demande.nom) throw new Error('Le nom a changé. Validez à nouveau le nom courant.')
-  if (cible.associationRetiree) throw new Error('L’association a été retirée volontairement. Choisissez explicitement un locuteur depuis le corpus.')
-  if (cible.locuteurRef) {
-    if (!Object.hasOwn(corpus.locuteurs, cible.locuteurRef)) throw new Error('Le locuteur associé est absent. Vérifiez le corpus.')
-    return cible.locuteurRef
+  if (cible.locuteurRef && Object.hasOwn(corpus.locuteurs, cible.locuteurRef) && !cible.associationRetiree) return cible.locuteurRef
+  if (demande.regulariser) {
+    if (cible.locuteurRef !== demande.regulariser.locuteurRef || !!cible.associationRetiree !== demande.regulariser.associationRetiree) {
+      throw new Error('L’association a changé. Vérifiez à nouveau ce locuteur.')
+    }
+  } else {
+    if (cible.associationRetiree) throw new Error('L’association a été retirée volontairement. Vérifiez ce locuteur dans son entretien.')
+    if (cible.locuteurRef) throw new Error('Le locuteur associé est absent. Vérifiez ce locuteur dans son entretien.')
   }
   const id = genererId()
   creerLocuteur(corpus, id, cible.nom)

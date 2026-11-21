@@ -127,7 +127,7 @@ for (const port of [8080, 8081]) test.describe(`locuteurs WebDAV :${port}`, () =
       expect(suite).toEqual({ ...avantLocal, lastModified: expect.any(String), participations: [{ ...avantLocal.participations[0], nom: 'Alice en session' }] })
       await gestion.getByRole('button', { name: '+ Locuteur', exact: true }).click()
       const nouveau = gestion.locator('.nom-loc').last(); await nouveau.fill('Bob'); await nouveau.press('Enter')
-      const propositions = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
+      const propositions = page.getByRole('dialog', { name: 'Est-ce le même locuteur ?', exact: true })
       await expect(propositions).toBeVisible({ timeout: 60_000 })
       const nomme = JSON.parse(await client.getTexte('entretiens/A.json')), voix = nomme.participations.at(-1)
       expect(voix.nom).toBe('Bob'); expect(voix.locuteurRef).toBeTruthy(); expect(voix.locuteurRef).not.toBe('b')

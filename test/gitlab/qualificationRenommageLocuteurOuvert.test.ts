@@ -30,6 +30,26 @@ async function deposer(p: Pile, f: ReturnType<typeof fixtureLocuteursDistants>) 
 }
 
 decrire('locuteurs depuis une session sur GitLab réel', () => {
+  it.each(['retrait', 'absente'] as const)('régulariser explicitement une association %s conserve les données et ne restaure pas le groupe', { timeout: 120_000 }, async (invalidite) => {
+    const f = fixtureLocuteursDistants(), cible = f.entretiens[0].data.participations[0]
+    cible.locuteurRef = invalidite === 'absente' ? 'disparu' : null
+    if (invalidite === 'retrait') cible.associationRetiree = true
+    const racine = await creerRacine(`regulariser-${invalidite}`, { corpus: f.corpus })
+    const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'regulariser', corpusLocal: f.corpus }), b = contexte(alice)
+    try {
+      await deposer(alice, f); await b.c.ouvrirEntretienPourEdition('A')
+      const regulariser = { locuteurRef: cible.locuteurRef, associationRetiree: !!cible.associationRetiree }
+      const apres = await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })
+      const { associationRetiree: _retrait, ...initial } = cible
+      expect(apres.participations).toEqual([{ ...initial, locuteurRef: expect.any(String) }])
+      expect(apres.participations[0].locuteurRef).not.toBe('a')
+      expect(apres.corpsTexte).toEqual(f.entretiens[0].data.corpsTexte)
+      expect(apres.notes).toEqual(f.entretiens[0].data.notes)
+      expect((await b.c.identifierParticipationAuNommage({ ...reference, nom: 'Alice A', regulariser })).participations[0].locuteurRef).toBe(apres.participations[0].locuteurRef)
+      expect(alice.commitsEnvoyes.filter((c) => c.message.includes('locuteurs-'))).toHaveLength(1)
+    } finally { await b.c.fermerEntretien('A').catch(() => {}); nettoyer(alice) }
+  })
+
   it('nommage et rapprochement : créer malgré les autres éditions, réunir seulement après libération et continuer la saisie', { timeout: 120_000 }, async () => {
     const f = fixtureLocuteursDistants(); f.entretiens[0].data.participations[0].locuteurRef = null
     const racine = await creerRacine('nommage', { corpus: f.corpus })

@@ -14,11 +14,13 @@ positions d’ouverture dans l’éditeur. Aucune transcription ni corps de note
 n’est transmis. Les ids natifs manquants ne sont jamais complétés à la lecture.
 Les définitions sans participation restent dans les détails, pas dans la liste.
 
-`repertoireLocuteurs.ts` réunit les identités connues et conserve chaque voix
-sans identité comme une entrée distincte, sans filtrer son nom. Les homonymes et
-références absentes ne sont jamais fusionnés implicitement. Les noms locaux et
-les titres restent disponibles pour la recherche. Une source illisible ne
-contribue ni à la liste ni aux comptes et reste signalée.
+`repertoireLocuteurs.ts` réunit les références valides dans la liste principale,
+y compris lorsqu’elles n’ont qu’une participation. Les participations sans référence
+valide, avec retrait volontaire ou sans nom sont exposées dans `aVerifier`, sans
+ligne sélectionnable. Un accès ouvre les locuteurs de leur entretien pour les
+régulariser. Les homonymes ne sont jamais réunis implicitement. Les noms locaux et
+les titres restent recherchables. Une source illisible ne contribue ni à la liste
+ni aux comptes et reste signalée séparément.
 
 Le découpage réutilise `statistiquesLocuteurs` après extraction des paragraphes
 enregistrés. Les marques ne séparent pas les mots ; les sauts de ligne conservent
@@ -26,11 +28,31 @@ leur place dans les coordonnées de l’éditeur. Les comptes portent sur les
 paragraphes de premier niveau, sans durée ou pourcentage présentés comme mesurés.
 
 `LocuteursCorpus.vue` assure la sélection simple, multiple et par plage, le clavier,
-la recherche et le filtre des entretiens. La recherche retire les sélections
-masquées. Le retour depuis une intervention conserve la sélection ; un changement
-de corpus la réinitialise. Les réponses tardives sont écartées. Le rendu initial
-est borné à 200 locuteurs et 20 entretiens, avec accès explicite aux suivants.
-Les barres utilisent un canvas, avec navigation précédente/suivante au clavier.
+la recherche par tags OU et le filtre des entretiens. La saisie en cours s’ajoute
+aux tags comme aperçu. Une recherche ne purge pas la sélection : son compteur
+signale les membres masqués. Les gestes additifs conservent ces membres ; Ctrl/⌘-A
+cible les résultats filtrés. Recherche, tags, sélection et périmètre persistent
+au retour depuis l’entretien, puis sont réinitialisés au changement de corpus.
+Une actualisation ne retire que les références disparues ou devenues invalides.
+Après correction, la sélection est réconciliée sans effacer les filtres.
+Les réponses tardives sont écartées. Le rendu initial est borné à 200 locuteurs
+et 20 entretiens, avec accès explicite aux suivants.
+
+`CadreOndeCorpus.vue` est partagé avec l’onglet Entretiens. Le canvas transparent
+de `BarreInterventionsLocuteurs.vue` ne dessine que les tours sélectionnés,
+positionnés sur le texte complet, et se superpose à l’image `urlWaveform` existante.
+Ce calque n’est pas une synchronisation audio. Les zones non sélectionnées
+n’ouvrent pas d’intervention ; précédente/suivante fournit un accès clavier.
+Les commandes de sélection sont à gauche ; ouvrir et naviguer restent locaux
+à chaque carte. La largeur du panneau gauche est mémorisée sur le poste.
+
+`StatistiquesSelectionLocuteurs.vue` compare les locuteurs par mots, tours et
+entretiens distincts, puis détaille les entretiens associés. La part d’un locuteur
+utilise les mots de la sélection comme dénominateur. La part dans l’entretien
+utilise `EntretienLocuteursCorpus.mots`, calculé sur tous les paragraphes de sa
+transcription, y compris sans attribution ou avec une référence non valide.
+Aucune nouvelle lecture de transcription n’est nécessaire dans le renderer.
+Les filtres d’affichage ne changent pas les statistiques de la sélection.
 
 ## Inventaire et détails
 
@@ -54,6 +76,8 @@ Une actualisation ratée conserve le contenu précédent avec avertissement.
 Les propositions, distinctions et identités sans entretien restent repliées. Le
 rendu et la recherche de propositions sont bornés, avec élargissement explicite.
 `detailsLocuteurs.ts` ne modifie ni les fichiers ni les associations à la lecture.
+Le composant ne propose une comparaison que si toutes ses références correspondent
+à des locuteurs valides de la liste principale.
 
 ## Corrections depuis la sélection corpus
 
@@ -65,8 +89,9 @@ complet, puis recontrôlées avant publication :
   ou d’uniformiser les noms locaux ;
 - `dissocierSelection` rend les participations choisies indépendantes, avec leurs
   noms actuels, sans créer de parole ni demander de nouveau nom ;
-- `individualiserSelection` donne une identité propre à chaque voix sélectionnée
-  sans identité valide, y compris après un retrait volontaire explicitement repris ;
+- `individualiserSelection` reste compris par le moteur pour les suivis existants,
+  mais n’est plus proposé par l’interface corpus ; les entrées non valides se
+  régularisent explicitement dans leur entretien ;
 - `ecarterRapprochement` mémorise une distinction réciproque, sans créer d’identité ;
 - `retablirRapprochement` retire les refus correspondants sans association et sans
   effacer les distinctions avec un tiers ;

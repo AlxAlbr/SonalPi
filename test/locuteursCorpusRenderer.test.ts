@@ -24,18 +24,18 @@ function donnees(): VueLocuteursCorpus {
         { entretienId: 'A', entretienTitre: 'Entretien A', participationId: 'a1', nom: 'A. Original' },
         { entretienId: 'B', entretienTitre: 'Entretien B', participationId: 'a2', nom: 'Alice' },
       ], mots: 7, interventions: 2 },
-      { cle: 'b', nom: 'Bob', locuteurId: null, participations: [{ entretienId: 'B', entretienTitre: 'Entretien B', participationId: 'b', nom: 'Bob' }], mots: 5, interventions: 1 },
-      ...['C', 'D'].map((id) => ({ cle: id, nom: 'Jean', locuteurId: null, participations: [{ entretienId: id, entretienTitre: `Entretien ${id}`, participationId: id, nom: 'Jean' }], mots: 2, interventions: 1 })),
+      { cle: 'b', nom: 'Bob', locuteurId: 'p2', participations: [{ entretienId: 'B', entretienTitre: 'Entretien B', participationId: 'b', nom: 'Bob' }], mots: 5, interventions: 1 },
+      ...['C', 'D'].map((id) => ({ cle: id, nom: 'Jean', locuteurId: `p${id}`, participations: [{ entretienId: id, entretienTitre: `Entretien ${id}`, participationId: id, nom: 'Jean' }], mots: 2, interventions: 1 })),
     ],
     entretiens: [
-      { id: 'A', titre: 'Entretien A', tours: [{ cle: 'a', nom: 'Alice', pos: 1, debut: 0, fin: 100, mots: 3 }] },
-      { id: 'B', titre: 'Entretien B', tours: [
+      { id: 'A', titre: 'Entretien A', mots: 6, tours: [{ cle: 'a', nom: 'Alice', pos: 1, debut: 0, fin: 100, mots: 3 }] },
+      { id: 'B', titre: 'Entretien B', mots: 9, tours: [
         { cle: 'a', nom: 'Alice', pos: 1, debut: 0, fin: 40, mots: 4 },
         { cle: 'b', nom: 'Bob', pos: 10, debut: 40, fin: 100, mots: 5 },
       ] },
-      ...['C', 'D'].map((id) => ({ id, titre: `Entretien ${id}`, tours: [{ cle: id, nom: 'Jean', pos: 1, debut: 0, fin: 100, mots: 2 }] })),
+      ...['C', 'D'].map((id) => ({ id, titre: `Entretien ${id}`, mots: 2, tours: [{ cle: id, nom: 'Jean', pos: 1, debut: 0, fin: 100, mots: 2 }] })),
     ],
-    indisponibles: [],
+    aVerifier: [], indisponibles: [],
   }
 }
 
@@ -48,6 +48,8 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
   const dernierTirage = ref<string | null>(null)
   injection.contexte = {
     lireLocuteursCorpus: lire, ouvrirAuSegment, actualiserDistant, dossierCourantDir: dossier,
+    urlWaveform: (id: string) => id === 'A' ? '/onde-A.png' : null,
+    allerLocuteurs: vi.fn(async () => {}),
     revisionLocuteursCorpus: revision, dernierTirage, vue, idDistantCourant: distant,
     lectureSeule: ref(false), lireApercuLocuteurs: vi.fn(), corrigerLocuteurs: vi.fn(),
     gesteDisponible: () => !distant.value,
@@ -84,7 +86,7 @@ test('liste unique, homonymes distingués par leur entretien, filtre des entreti
   bouton(b.host, 'Statistiques').click()
   await nextTick()
   expect(b.host.querySelector('.statistiques-selection')?.textContent).toContain('12 mots · 3 interventions')
-  const tous = b.host.querySelector<HTMLInputElement>('.actions-selection input')!
+  const tous = b.host.querySelectorAll<HTMLInputElement>('.perimetre-entretiens input')[1]!
   tous.checked = true
   tous.dispatchEvent(new Event('change'))
   await nextTick()
@@ -113,7 +115,7 @@ test('Maj-clic et clavier suivent les conventions de sélection d’une liste', 
   expect(selection(b.host)).toEqual([])
 })
 
-test('la recherche retrouve une variante locale et retire les sélections masquées', async () => {
+test('la recherche retrouve une variante locale et conserve les sélections masquées', async () => {
   const b = await monter()
   liste(b.host)[1].click()
   const recherche = b.host.querySelector<HTMLInputElement>('input[type=search]')!
@@ -123,11 +125,12 @@ test('la recherche retrouve une variante locale et retire les sélections masqu�
   expect(liste(b.host)).toHaveLength(1)
   expect(liste(b.host)[0].textContent).toContain('Alice')
   expect(selection(b.host)).toEqual([])
+  expect(b.host.querySelector('.compteur-selection')?.textContent).toContain('1 sélectionné, dont 1 masqué')
   recherche.value = ''
   recherche.dispatchEvent(new Event('input'))
   await nextTick()
   expect(liste(b.host)).toHaveLength(4)
-  expect(selection(b.host)).toEqual([])
+  expect(selection(b.host)).toEqual(['b'])
 })
 
 test('la navigation ouvre la bonne intervention et conserve la sélection au retour', async () => {
@@ -155,7 +158,7 @@ test('une ancienne réponse ne remplace pas les données d’un autre corpus', a
   await nextTick()
   await nextTick()
   expect(liste(b.host)).toHaveLength(4)
-  terminer({ locuteurs: [], entretiens: [], indisponibles: [] })
+  terminer({ locuteurs: [], entretiens: [], aVerifier: [], indisponibles: [] })
   await nextTick()
   await nextTick()
   expect(liste(b.host)).toHaveLength(4)
@@ -241,7 +244,7 @@ test('une réponse de l’ancienne destination ne peuple pas la nouvelle, même 
   b.distant.value = 'autre-destination'
   await nextTick(); await nextTick()
   expect(liste(b.host)).toHaveLength(4)
-  terminer({ locuteurs: [], entretiens: [], indisponibles: [] })
+  terminer({ locuteurs: [], entretiens: [], aVerifier: [], indisponibles: [] })
   await nextTick(); await nextTick()
   expect(liste(b.host)).toHaveLength(4)
 })
@@ -250,4 +253,125 @@ test('la sélection pure gère les plages additives et les ancres disparues', ()
   const ordre = ['a', 'b', 'c', 'd']
   expect(selectionnerLocuteurs({ cles: ['d'], ancre: 'a' }, ordre, 'b', { etendre: true, basculer: true })).toEqual({ cles: ['d', 'a', 'b'], ancre: 'a' })
   expect(selectionnerLocuteurs({ cles: ['ancienne'], ancre: 'ancienne' }, ordre, 'b', { etendre: true })).toEqual({ cles: ['b'], ancre: 'b' })
+  expect(selectionnerLocuteurs({ cles: ['masquee'], ancre: 'masquee' }, ordre, 'b', { basculer: true })).toEqual({ cles: ['masquee', 'b'], ancre: 'b' })
+})
+
+async function chercher(host: HTMLElement, texte: string, valider = false) {
+  const champ = host.querySelector<HTMLInputElement>('input[type=search]')!
+  champ.value = texte; champ.dispatchEvent(new Event('input')); await nextTick()
+  if (valider) { champ.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })); await nextTick() }
+}
+
+test('tags OU, aperçu de saisie, accents, doublons et retrait indépendant de la sélection', async () => {
+  const b = await monter()
+  liste(b.host)[1].click(); await nextTick()
+  await chercher(b.host, 'Original', true)
+  expect(liste(b.host)).toHaveLength(1)
+  await chercher(b.host, 'Bób')
+  expect(liste(b.host)).toHaveLength(2)
+  await chercher(b.host, 'Bób', true)
+  await chercher(b.host, 'BOB', true)
+  expect(b.host.querySelectorAll('.tags-recherche li')).toHaveLength(2)
+  expect(selection(b.host)).toEqual(['b'])
+  b.host.querySelector<HTMLButtonElement>('[aria-label="Retirer le tag Bób"]')!.click(); await nextTick()
+  expect(selection(b.host)).toEqual([])
+  expect(b.host.querySelector('.compteur-selection')?.textContent).toContain('1 masqué')
+  bouton(b.host, 'Effacer la recherche').click(); await nextTick()
+  expect(liste(b.host)).toHaveLength(4)
+  expect(selection(b.host)).toEqual(['b'])
+  expect(b.host.querySelector('.tags-recherche')).toBeNull()
+})
+
+test('sélection additive entre recherches et Ctrl-A limité aux résultats visibles', async () => {
+  const b = await monter()
+  liste(b.host)[0].click(); await nextTick()
+  await chercher(b.host, 'Bob')
+  liste(b.host)[0].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true })); await nextTick()
+  expect(b.host.querySelector('.compteur-selection')?.textContent).toContain('2 sélectionnés, dont 1 masqué')
+  liste(b.host)[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a', ctrlKey: true })); await nextTick()
+  expect(b.host.querySelector('.compteur-selection')?.textContent).toContain('1 sélectionné')
+  await chercher(b.host, '')
+  expect(selection(b.host)).toEqual(['b'])
+})
+
+test('les statistiques gardent les sélections masquées et le dénominateur complet de chaque entretien', async () => {
+  const b = await monter()
+  liste(b.host)[0].click(); await nextTick()
+  bouton(b.host, 'Statistiques').click(); await nextTick()
+  const stats = b.host.querySelector('.statistiques-selection')!
+  expect(stats.textContent).toContain('7 mots · 2 interventions')
+  expect(stats.textContent).toContain('50 %')
+  expect(stats.textContent).toContain('44,4 %')
+  await chercher(b.host, 'Bob')
+  expect(stats.textContent).toContain('7 mots · 2 interventions')
+  const tous = b.host.querySelectorAll<HTMLInputElement>('.perimetre-entretiens input')[1]
+  tous.checked = true; tous.dispatchEvent(new Event('change')); await nextTick()
+  expect(stats.textContent).toContain('7 mots · 2 interventions')
+  expect(b.host.querySelectorAll('.entretien-interventions')).toHaveLength(4)
+})
+
+test('le bilan trie les locuteurs et gère zéro mot et les sources indisponibles', async () => {
+  const vue = donnees()
+  vue.locuteurs.forEach((l) => { l.mots = 0; l.interventions = 0 })
+  vue.entretiens.forEach((e) => { e.mots = 0; e.tours.forEach((t) => { t.mots = 0 }) })
+  vue.indisponibles.push({ id: 'absent', titre: 'Absent', raison: 'Lecture impossible' })
+  const b = await monter({ lire: vi.fn(async () => vue) })
+  liste(b.host)[0].click()
+  liste(b.host)[1].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true })); await nextTick()
+  bouton(b.host, 'Statistiques').click(); await nextTick()
+  const stats = b.host.querySelector('.statistiques-selection')!
+  expect(stats.textContent).toContain('Bilan incomplet')
+  expect(stats.textContent).toContain('0 %')
+  expect(stats.textContent).not.toMatch(/NaN|Infinity/)
+  bouton(b.host, 'Locuteur').click(); await nextTick()
+  expect(stats.querySelector('tbody th')?.textContent).toContain('Alice')
+  bouton(b.host, 'Locuteur').click(); await nextTick()
+  expect(stats.querySelector('tbody th')?.textContent).toContain('Bob')
+})
+
+test('la validation pendant une composition ne crée pas de tag et le retrait rend le focus au champ', async () => {
+  const b = await monter()
+  await chercher(b.host, 'Alice')
+  const champ = b.host.querySelector<HTMLInputElement>('input[type=search]')!
+  const composition = new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', isComposing: true, cancelable: true })
+  champ.dispatchEvent(composition); await nextTick()
+  expect(composition.defaultPrevented).toBe(false)
+  expect(b.host.querySelector('.tags-recherche')).toBeNull()
+  await chercher(b.host, 'Alice', true)
+  b.host.querySelector<HTMLButtonElement>('[aria-label="Retirer le tag Alice"]')!.click(); await nextTick(); await nextTick()
+  expect(document.activeElement).toBe(champ)
+})
+
+test('les entrées à vérifier ouvrent les locuteurs de leur entretien sans correction dans le corpus', async () => {
+  const vue = donnees()
+  vue.aVerifier.push({ entretienId: 'A', entretienTitre: 'Entretien A', participationId: 'ancien', nom: 'Ancien' })
+  const b = await monter({ lire: vi.fn(async () => vue) })
+  expect(b.host.querySelector('.verification-locuteurs')?.textContent).toContain('vérification')
+  bouton(b.host, 'Ouvrir les locuteurs de Entretien A').click(); await nextTick()
+  expect(injection.contexte.allerLocuteurs).toHaveBeenCalledWith('A')
+  expect(injection.contexte.corrigerLocuteurs).not.toHaveBeenCalled()
+  expect(b.host.textContent).not.toContain('Conserver séparément')
+})
+
+test('les commandes sont à gauche et les cartes réutilisent les ondes disponibles', async () => {
+  const b = await monter()
+  liste(b.host)[0].click(); await nextTick()
+  expect(b.host.querySelector('.repertoire-locuteurs [title="Renommer…"]')).not.toBeNull()
+  expect(b.host.querySelector('.interventions-locuteurs [title="Renommer…"]')).toBeNull()
+  expect(b.host.querySelector('img.spectro')?.getAttribute('src')).toBe('/onde-A.png')
+  expect(b.host.querySelectorAll('.spectro-vide')).toHaveLength(1)
+  expect(b.host.querySelector('[role=separator]')).not.toBeNull()
+})
+
+test('actualiser retire les locuteurs disparus sans confondre les filtres et les changements de données', async () => {
+  const vue = donnees(), lire = vi.fn().mockResolvedValueOnce(vue)
+  const b = await monter({ lire })
+  liste(b.host)[0].click(); await nextTick()
+  await chercher(b.host, 'Bob', true)
+  lire.mockResolvedValue({ ...vue, locuteurs: vue.locuteurs.filter((l) => l.cle !== 'a') })
+  bouton(b.host, 'Actualiser').click(); await nextTick(); await nextTick()
+  expect(b.host.querySelector('.compteur-selection')?.textContent).toContain('0 sélectionné')
+  expect(b.host.querySelector('.tags-recherche')?.textContent).toContain('Bob')
+  b.dossier.value = '/autre'; await nextTick(); await nextTick()
+  expect(b.host.querySelector('.tags-recherche')).toBeNull()
 })

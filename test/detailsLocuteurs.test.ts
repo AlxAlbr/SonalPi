@@ -66,15 +66,20 @@ test('les notes de mêmes ids locaux restent dans leur entretien et ne sont pas 
   expect(b.fichiers()).toEqual(avant)
 })
 
-test('consultation, suggestions et aperçu ne créent rien ; chaque voix devient indépendante seulement après confirmation', () => {
+test('la consultation écarte les entrées à vérifier sans les créer ; leur enregistrement se fait dans l’entretien', () => {
   const b = banc(), inv = b.store.inventaireIdentitesLocuteurs(), avant = b.fichiers()
   const vue = b.store.locuteursInventaire()
-  const apercu = preparerApercuCorrectionLocuteurs('individualiserSelection', vue.locuteurs.slice(0, 2), inv)
-  expect(apercu.locuteurs).toEqual([])
+  expect(vue.locuteurs).toEqual([])
+  expect(vue.aVerifier).toHaveLength(3)
+  expect(() => preparerApercuCorrectionLocuteurs('renommerGlobal', vue.locuteurs, inv)).toThrow('nombre')
   expect(examinerLocuteurs(inv).propositions).toHaveLength(3)
   expect(b.fichiers()).toEqual(avant)
   const donnees = b.references.map((_, i) => sansAssociation(b.lire(i)))
-  b.individuel()
+  for (const reference of b.references.slice(0, 2)) {
+    b.store.ouvrirEntretienPourEdition(reference.entretienId)
+    b.store.identifierParticipationAuNommage({ ...reference, nom: 'Enquêteur', regulariser: { locuteurRef: null, associationRetiree: false } })
+    b.store.revoquerEcritureEntretien(reference.entretienId)
+  }
   const apres = b.store.inventaireIdentitesLocuteurs()
   expect(apres.locuteurs).toHaveLength(2)
   expect(b.lire(0).participations[0].locuteurRef).not.toBe(b.lire(1).participations[0].locuteurRef)
