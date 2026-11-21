@@ -3,7 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 
 const { demandeRenommageGlobal: demande, renommageGlobalOccupe: occupe, enregistrementRenommageGlobal: enregistrement,
-  erreurRenommageGlobal: erreur, confirmerRenommageGlobal, annulerRenommageGlobal } = utiliserSonal()
+  erreurRenommageGlobal: erreur, confirmerRenommageGlobal, confirmerRenommageLocal, annulerRenommageGlobal } = utiliserSonal()
 const dialogue = ref<HTMLDialogElement | null>(null)
 const annuler = ref<HTMLButtonElement | null>(null)
 const retour = [...document.querySelectorAll<HTMLInputElement>('.modale-locuteurs .nom-loc')]
@@ -19,11 +19,11 @@ onBeforeUnmount(() => {
 
 <template>
   <dialog ref="dialogue" aria-labelledby="titre-renommage-ouvert" :aria-busy="occupe" @cancel.prevent="annulerRenommageGlobal">
-    <form v-if="demande" @submit.prevent="confirmerRenommageGlobal">
+    <form v-if="demande" @submit.prevent="confirmerRenommageLocal">
       <h2 id="titre-renommage-ouvert">Renommer ce locuteur dans les entretiens</h2>
       <p v-if="!demande.apercu && occupe" role="status">Préparation des entretiens concernés…</p>
       <template v-if="demande.apercu">
-        <p>Le nouveau nom sera utilisé dans les {{ demande.apercu.participations.length }} entretien{{ demande.apercu.participations.length > 1 ? 's' : '' }} associés, y compris cet entretien.</p>
+        <p>Ce locuteur est associé aux entretiens suivants. Choisissez où appliquer le nouveau nom.</p>
         <ul><li v-for="p in demande.apercu.participations" :key="JSON.stringify([p.entretienId, p.participationId])">{{ p.entretienTitre }} · {{ p.nom }}</li></ul>
         <label>Nouveau nom<input v-model="demande.nom" type="text" required :disabled="occupe" /></label>
         <p>Les paroles, notes, pseudonymes, rôles, couleurs et données restent inchangés. Le texte courant est sauvegardé avant le renommage.</p>
@@ -31,7 +31,8 @@ onBeforeUnmount(() => {
       <p v-if="erreur" role="alert">{{ erreur }}</p>
       <div class="actions">
         <button ref="annuler" type="button" :disabled="enregistrement" @click="annulerRenommageGlobal">{{ erreur ? 'Fermer' : 'Annuler' }}</button>
-        <button type="submit" :disabled="occupe || !!erreur || !demande.apercu || !demande.nom.trim()">{{ enregistrement ? 'Enregistrement…' : 'Renommer dans tous les entretiens' }}</button>
+        <button type="submit" :disabled="occupe || !demande.localPossible || !demande.nom.trim()">Renommer dans cet entretien uniquement</button>
+        <button type="button" :disabled="occupe || !!erreur || !demande.apercu || !demande.nom.trim()" @click="confirmerRenommageGlobal">{{ enregistrement ? 'Enregistrement…' : 'Renommer dans tous les entretiens' }}</button>
       </div>
     </form>
   </dialog>

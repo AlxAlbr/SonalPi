@@ -60,6 +60,7 @@ test('plusieurs entretiens : la saisie seule ne publie rien et demande confirmat
   const b = banc()
   await b.outils.preparer(reference, 'Nouveau nom')
   expect(b.outils.demande.value?.confirmationRequise).toBe(true)
+  expect(b.outils.demande.value?.localPossible).toBe(true)
   expect(b.renommer).not.toHaveBeenCalled()
   expect(b.participations.value[0].nom).toBe('Nom local')
 })
@@ -71,6 +72,7 @@ test.each(['indisponible', 'association absente'] as const)('un seul entretien s
   await b.outils.preparer(reference, 'Nouveau nom')
   expect(b.renommer).not.toHaveBeenCalled()
   expect(b.outils.erreur.value).not.toBe('')
+  expect(b.outils.demande.value?.localPossible).toBe(cas === 'indisponible')
   expect(b.participations.value[0].nom).toBe('Nom local')
 })
 
@@ -121,6 +123,7 @@ test('une réponse perdue ne rejoue pas la commande et relit les noms avant de r
   expect(b.participations.value[0].nom).toBe('Nouveau nom')
   expect(b.outils.erreur.value).toContain('Réponse perdue')
   expect(b.outils.demande.value).not.toBeNull()
+  expect(b.outils.demande.value?.localPossible).toBe(false)
   await b.outils.confirmer()
   expect(b.renommer).toHaveBeenCalledOnce()
 })

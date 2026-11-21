@@ -46,9 +46,11 @@ Les protections de session, de publication et de reprise restent celles du nomma
 
 ### Choix de portée du renommage
 
-La gestion propose **Dans cet entretien uniquement** ou **Dans tous les entretiens
-de ce locuteur**, ce dernier restant sélectionné par défaut. Le choix reste actif
-tant que cet entretien est affiché et revient au défaut au changement d’entretien.
+Le champ Nom enregistre directement lorsqu’aucun autre entretien n’est associé.
+Sinon, la fenêtre de renommage propose **Renommer dans cet entretien uniquement**
+ou **Renommer dans tous les entretiens**. Aucun sélecteur permanent n’est affiché.
+Le choix local reste disponible si une autre source manque à l’aperçu, mais plus
+après un envoi dont le résultat doit être vérifié.
 
 Le choix local appelle `renommerParticipationDepuisEntretien`. Sa demande porte
 l’entretien, la participation, l’identité et les noms avant/après. Seul `nom` change :

@@ -149,8 +149,9 @@ Aucun texte ni note n’est copié.
 
 ### Renommage depuis l’entretien ouvert
 
-La gestion laisse choisir le nom de ce seul entretien ou le nom de tous les
-entretiens du locuteur. Le choix local utilise `renommerParticipationDepuisEntretien`
+Quand d’autres entretiens sont associés, la fenêtre de renommage laisse choisir
+ce seul entretien ou tous les entretiens. Sans autre association, le nom s’enregistre
+directement. Le choix local utilise `renommerParticipationDepuisEntretien`
 et vérifie les noms avant/après avec `verifierRelectureRenommageParticipation`.
 Il ne change ni le nom corpus ni l’association, et ne lit que l’entretien courant.
 Une source indisponible ailleurs diffère les suggestions, pas ce renommage.

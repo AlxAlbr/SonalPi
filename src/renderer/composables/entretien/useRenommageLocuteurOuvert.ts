@@ -9,6 +9,7 @@ interface DemandeRenommageOuvert {
   nom: string
   apercu: ApercuCorrectionLocuteurs | null
   confirmationRequise: boolean
+  localPossible: boolean
 }
 
 /** Préserve le nom courant et demande confirmation si d’autres entretiens sont concernés. */
@@ -43,7 +44,7 @@ export function useRenommageLocuteurOuvert(deps: {
     if (!participation?.locuteurRef) return
     reinitialiser()
     cible = participation
-    demande.value = { reference: { ...reference }, nom: nom ?? participation.nom, apercu: null, confirmationRequise: false }
+    demande.value = { reference: { ...reference }, nom: nom ?? participation.nom, apercu: null, confirmationRequise: false, localPossible: false }
     const jeton = generation
     const locuteurId = participation.locuteurRef
     occupe.value = true
@@ -58,6 +59,7 @@ export function useRenommageLocuteurOuvert(deps: {
       if (!membres.some((p) => p.entretienId === reference.entretienId && p.participationId === reference.participationId)) {
         throw new Error('L’association de ce locuteur a changé. Rouvrez le dialogue pour vérifier son nom.')
       }
+      demande.value!.localPossible = true
       demande.value!.confirmationRequise = nom === undefined || membres.some((p) => p.entretienId !== reference.entretienId)
       demande.value!.apercu = preparerApercuCorrectionLocuteurs('renommerGlobal', [{
         cle: locuteurId, nom: identite.nom.trim(), locuteurId, mots: 0, interventions: 0,
@@ -78,6 +80,7 @@ export function useRenommageLocuteurOuvert(deps: {
     const commande: CommandeRenommageLocuteur = { type: 'renommerGlobal', locuteurId, nom: initiale.nom.trim(), attendu: initiale.apercu.attendu }
     occupe.value = true
     enregistrement.value = true
+    initiale.localPossible = false
     let avant: PayloadEntretien | undefined
     let valide = false
     try {

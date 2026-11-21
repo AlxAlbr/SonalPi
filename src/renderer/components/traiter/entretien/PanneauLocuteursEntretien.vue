@@ -53,10 +53,9 @@ function detailsLocuteur(locuteur: ParticipationLocuteur): string {
 }
 
 const gestionOuverte = ref(false)
-const porteeRenommage = ref<'corpus' | 'entretien'>('corpus')
 const boutonGestion = ref<HTMLButtonElement | null>(null)
 const boutonFermerGestion = ref<HTMLButtonElement | null>(null)
-watch(ouvertId, () => { emit('update:statistiquesOuvertes', false); porteeRenommage.value = 'corpus' })
+watch(ouvertId, () => { emit('update:statistiquesOuvertes', false) })
 const nomsPersonnesLiees = ref<Record<string, string>>({})
 const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
@@ -201,15 +200,6 @@ watch(
               @click="fermerGestion"
             >✕</button>
           </div>
-          <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
-          <p class="aide-gestion-locuteurs">Pour changer un nom, appuyez sur Entrée ou quittez le champ modifié. Les noms identiques restent séparés tant que vous ne les réunissez pas.</p>
-          <label class="portee-renommage">Appliquer les changements de nom
-            <select v-model="porteeRenommage" :disabled="editionIndisponible">
-              <option value="entretien">Dans cet entretien uniquement</option>
-              <option value="corpus">Dans tous les entretiens de ce locuteur</option>
-            </select>
-          </label>
-          <p v-if="porteeRenommage === 'entretien'" class="aide-gestion-locuteurs">Le nom du corpus et les noms utilisés dans les autres entretiens restent inchangés.</p>
           <p v-if="renommageGlobalOccupe && !demandeRenommageGlobal?.confirmationRequise" role="status">Enregistrement du nom…</p>
           <div v-if="locuteurASupprimer" class="confirm-suppr">
             Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
@@ -262,8 +252,8 @@ watch(
                     :data-tour="i === 0 ? 'nom-locuteur' : undefined"
                     :value="l.nom"
                     :disabled="editionIndisponible || !l.id || renommageGlobalOccupe"
-                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event, porteeRenommage)"
-                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event, porteeRenommage)"
+                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
                   />
                 </div>
                 <div class="pseudo-cell">
@@ -340,8 +330,6 @@ watch(
   align-items: center;
   gap: 0.4rem;
 }
-.portee-renommage { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .8rem 0; font-size: 14px; }
-.portee-renommage select { min-width: 0; max-width: 100%; padding: .35rem; }
 .tableau-loc-tetes {
   font-size: 14px;
   letter-spacing: 0.04em;
@@ -551,12 +539,6 @@ watch(
   font-size: 1.15rem;
   min-width: 2.5rem;
   min-height: 2.5rem;
-}
-.aide-gestion-locuteurs {
-  margin: 0 0 0.7rem;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.5;
 }
 .attribuer .lbl {
   display: block;

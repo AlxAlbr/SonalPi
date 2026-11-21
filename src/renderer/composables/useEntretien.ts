@@ -640,6 +640,12 @@ export function useEntretien(deps: {
     locuteursEntretien.messagePersonnes.value = ''
     return renommageOuvert.preparer(reference, nom)
   }
+  function confirmerRenommageLocal() {
+    const demande = renommageOuvert.demande.value
+    if (!demande?.localPossible || !demande.nom.trim() || renommageOuvert.occupe.value) return
+    renommageOuvert.annuler()
+    locuteursEntretien.renommerParticipation(demande.reference, demande.nom, 'entretien')
+  }
   async function suspendrePourCorrectionLocuteurs(attendreNommages: boolean): Promise<PayloadEntretien> {
     const id = ouvertId.value, editeur = editor.value
     if (!id || !editeur || editionNomsSuspendue.value) throw new Error('Rouvrez cet entretien avant de renommer le locuteur.')
@@ -1059,6 +1065,7 @@ export function useEntretien(deps: {
     enregistrementRenommageGlobal: renommageOuvert.enregistrement,
     demanderRenommageGlobal,
     confirmerRenommageGlobal: renommageOuvert.confirmer,
+    confirmerRenommageLocal,
     annulerRenommageGlobal: renommageOuvert.annuler,
     messagePersonnes,
     rapprochementNommage,

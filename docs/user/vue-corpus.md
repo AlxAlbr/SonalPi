@@ -337,11 +337,11 @@ Les locuteurs apparaissent dans le corpus dès leur import ou leur ajout avec
 création. Ils restent indépendants, y compris lorsque leurs noms sont identiques.
 Entrée ou la sortie du champ modifié enregistre le nom et peut proposer un
 rapprochement avec un nom identique ou proche dans un autre entretien.
-Dans la gestion des locuteurs, **Appliquer les changements de nom** laisse choisir :
-- **Dans cet entretien uniquement** conserve le nom du corpus et ceux des autres
-  entretiens, sans changer les associations ;
-- **Dans tous les entretiens de ce locuteur** demande confirmation si d’autres
-  entretiens sont associés ; sinon, le changement s’enregistre directement.
+Sans autre entretien associé, le changement de nom s’enregistre directement.
+Si d’autres entretiens sont associés, une fenêtre propose :
+- **Renommer dans cet entretien uniquement**, pour conserver le nom du corpus et
+  ceux des autres entretiens, sans changer les associations ;
+- **Renommer dans tous les entretiens**, pour appliquer le nouveau nom partout.
 
 Une proposition **Est-ce le même locuteur ?** n’est jamais une association
 automatique. **Confirmer** réunit les identités après vérification et reprend les

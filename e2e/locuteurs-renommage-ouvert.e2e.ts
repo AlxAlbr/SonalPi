@@ -79,7 +79,7 @@ async function etatReponse(app: ElectronApplication, liberer = false) {
   }, liberer)
 }
 
-test('choisir cet entretien conserve les noms ailleurs ; choisir tous les entretiens conserve la confirmation globale', async () => {
+test('la fenêtre de renommage propose cet entretien ou tous les entretiens, sans sélecteur permanent', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-portee-nom-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
@@ -87,10 +87,10 @@ test('choisir cet entretien conserve les noms ailleurs ; choisir tous les entret
     await entrerEntretien(page)
     await page.evaluate((id) => window.sonal.corpus.ouvrirEntretienPourEdition(id), autreId)
     const avant = lire(dir, 'e1'), fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
-    const portee = fenetre.getByLabel('Appliquer les changements de nom')
-    await expect(portee).toHaveValue('corpus')
-    await portee.selectOption('entretien')
+    await expect(fenetre.getByLabel('Appliquer les changements de nom')).toHaveCount(0)
+    await expect(fenetre.getByText('Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.', { exact: true })).toHaveCount(0)
     await champ.fill('Nom réservé à cet entretien'); await champ.press('Enter')
+    await nomGlobal(page).getByRole('button', { name: 'Renommer dans cet entretien uniquement', exact: true }).click()
     await expect.poll(() => lire(dir, 'e1').participations[1].nom).toBe('Nom réservé à cet entretien')
     await expect(champ).toBeEnabled(); await expect(nomGlobal(page)).toHaveCount(0)
     expect(lire(dir, 'e1')).toEqual({ ...avant, lastModified: expect.any(String), participations: avant.participations.map((p, i) => i === 1 ? { ...p, nom: 'Nom réservé à cet entretien' } : p) })
@@ -98,7 +98,6 @@ test('choisir cet entretien conserve les noms ailleurs ; choisir tous les entret
     const corpus = () => JSON.parse(readFileSync(join(dir, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier
     expect(corpus().locuteurs[locuteurId].nom).toBe('Nom commun')
     await page.evaluate((id) => window.sonal.corpus.fermerEntretien(id), autreId)
-    await portee.selectOption('corpus')
     await champ.fill('Nom dans tous les entretiens'); await champ.press('Enter')
     const confirmation = nomGlobal(page)
     await expect(confirmation).toContainText('Autre entretien associé')
@@ -119,8 +118,8 @@ test('un nom local reste modifiable même si un autre entretien associé est abs
     unlinkSync(join(dir, 'corpus/entretiens', `${autreId}.json`))
     await entrerEntretien(page)
     const fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
-    await fenetre.getByLabel('Appliquer les changements de nom').selectOption('entretien')
     await champ.fill('Libellé local corrigé'); await champ.press('Tab')
+    await nomGlobal(page).getByRole('button', { name: 'Renommer dans cet entretien uniquement', exact: true }).click()
     await expect.poll(() => lire(dir, 'e1').participations[1].nom).toBe('Libellé local corrigé')
     await expect(champ).toBeEnabled(); await expect(nomGlobal(page)).toHaveCount(0)
     expect((JSON.parse(readFileSync(join(dir, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier).locuteurs[locuteurId].nom).toBe('Nom commun')
@@ -134,9 +133,9 @@ test('une réponse locale perdue est relue sans répéter le renommage ni rétab
     const { autreId, locuteurId } = await preparer(page), autreAvant = lire(dir, autreId)
     await entrerEntretien(page)
     const fenetre = await gestion(page), champ = fenetre.locator('.nom-loc').nth(1)
-    await fenetre.getByLabel('Appliquer les changements de nom').selectOption('entretien')
     await installerReponsePerdue(app, false, true)
     await champ.fill('Nom local après coupure'); await champ.press('Enter')
+    await nomGlobal(page).getByRole('button', { name: 'Renommer dans cet entretien uniquement', exact: true }).click()
     await expect.poll(async () => (await etatReponse(app))?.attente).toBe(true)
     await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
     await etatReponse(app, true)
@@ -272,6 +271,7 @@ test('réponse perdue : aucune autosave pendant le renommage, puis relecture des
     expect((await etatReponse(app))?.ecrituresPendant).toBe(0)
     await etatReponse(app, true)
     await expect(dialogue.getByRole('alert')).toContainText('Réponse perdue simulée')
+    await expect(dialogue.getByRole('button', { name: 'Renommer dans cet entretien uniquement', exact: true })).toBeDisabled()
     await dialogue.getByRole('button', { name: 'Fermer', exact: true }).click()
     await expect(fenetre.locator('.nom-loc').nth(1)).toHaveValue('Nom malgré réponse perdue')
     await fenetre.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()

@@ -497,7 +497,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <!-- La désignation d'un média existant est une capacité distincte.
                  GitLab la publie sous un bail d'entretien court. -->
             <button
-              v-if="gesteDisponible('designationMedia') && corpusSelId"
+              v-if="idDistantCourant && gesteDisponible('designationMedia') && corpusSelId"
               class="mini assigner-audio"
               :disabled="!designationMediaPossible(corpusSelId)"
               @click="ouvrirDesignationAudio(corpusSelId)"
