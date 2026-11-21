@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { installerIdentitesFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, lancer, ouvrirOrganisation } from './util'
 
 test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et identités persistantes', async () => {
@@ -10,12 +11,9 @@ test('30 personnes donnent 30 cas ou un collectif, avec aperçu annulable et ide
   try {
     let page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.evaluate(async () => {
-      const api = (window as any).sonal.corpus
-      for (let index = 0; index < 30; index++) {
-        await api.personnesCommander({ type: 'creerDefinition', nom: index < 2 ? 'Homonyme' : `Personne ${index}` }, true)
-      }
-    })
+    installerIdentitesFixture(join(userDataDir, 'corpus'), { locuteurs: Array.from({ length: 30 }, (_, index) => ({
+      id: `fixture-cas-${index}`, nom: index < 2 ? 'Homonyme' : `Personne ${index}`,
+    })) })
     await ouvrirOrganisation(page)
     let modale = page.locator('#contenu-cas-organisation')
     const fichier = join(userDataDir, 'corpus', 'corpus.crp')

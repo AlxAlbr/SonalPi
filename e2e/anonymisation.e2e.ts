@@ -22,6 +22,7 @@ import {
 
 import { fixturePseudonymisation } from '../test/fixtures/pseudonymisation'
 import { fixtureRenommageAnon } from '../test/fixtures/renommageAnon'
+import { importerFixtureNative } from './fixtures-natives'
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
 
@@ -118,11 +119,7 @@ test('renommage global local : annulation, source périmée, inventaire confirm�
   const { app, page } = await ouvrirSurCorpus('sonal-anon-renommage-')
   try {
     const fixture = fixtureRenommageAnon()
-    const ids = await page.evaluate(async ({ corpus, sources }) => {
-      const ids: string[] = []
-      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-      return ids
-    }, fixture)
+    const ids = await importerFixtureNative(page, fixture)
     const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
     await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
     const ouvrirRenommage = async () => {
@@ -212,12 +209,8 @@ test('ajout de variante local : annulation, définition périmée refusée puis 
   try {
     const fixture = fixtureRenommageAnon()
     fixture.corpus.reglesAnon.personne.pseudos = ['Claire']
-    for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === 'personne' && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
-    const ids = await page.evaluate(async ({ corpus, sources }) => {
-      const ids: string[] = []
-      for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-      return ids
-    }, fixture)
+    for (const s of fixture.sources) for (const a of s.data.annotations) if (a.regle === "personne" && a.pseudo === 'Rebecca') a.pseudo = 'Claire'
+    const ids = await importerFixtureNative(page, fixture)
     const avant = await page.evaluate(async (ids) => Promise.all(ids.map((id) => window.sonal.corpus.lireEntretien(id))), ids)
     await page.getByRole('button', { name: 'Pseudonymisation', exact: true }).click()
     const ouvrirAjout = () => page.getByRole('button', { name: 'Modifier les pseudonymes de Karine', exact: true }).click()
@@ -369,7 +362,7 @@ test('import ciblé local : confirmation, identité du locuteur et mémoire sans
     await modal.getByLabel('Fichiers JSON').setInputFiles({ name: 'cibles-locales.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'sonalpi-correspondances', version: 2, correspondances: [
       { nature: 'texte', portee: 'texte-local', entite: ['Alias sans occurrence', 'Autre graphie'], pseudos: ['Ville témoin'], categorie: 'LOC', etatLocal: 'declaration', entretienId: 'id-etranger' },
       { nature: 'texte', portee: 'texte-local', entite: ['Nom sans occurrence'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etatLocal: 'declaration' },
-      { nature: 'locuteur', nom: 'Karine', pseudo: 'Voix témoin', origines: [{ entretienId: 'id-etranger', locuteurIndex: 99, personneRef: 'identite-etrangere', pseudoEtat: 'confirme' }] },
+      { nature: 'locuteur', nom: 'Karine', pseudo: 'Voix témoin', origines: [{ entretienId: 'id-etranger', locuteurIndex: 99, locuteurRef: 'identite-etrangere', pseudoEtat: 'confirme' }] },
     ] })) })
     const cibles = modal.locator('table').nth(1).locator('tbody tr')
     await expect(cibles).toHaveCount(3)
@@ -395,7 +388,7 @@ test('import ciblé local : confirmation, identité du locuteur et mémoire sans
     if (!avant.ok || !apres.ok) throw new Error('Fixture illisible.')
     expect(apres.data.corpsTexte).toEqual(avant.data.corpsTexte)
     expect(apres.data.annotations).toEqual(avant.data.annotations)
-    expect(apres.data.locuteurs[1]).toEqual({ ...avant.data.locuteurs[1], pseudo: 'Voix témoin', pseudoEtat: 'confirme' })
+    expect(apres.data.participations[1]).toEqual({ ...avant.data.participations[1], pseudo: 'Voix témoin', pseudoEtat: 'confirme' })
     expect(apres.data.definitionsAnonLocales).toHaveLength(2)
     expect(apres.data.definitionsAnonLocales![1].pseudos).toEqual(['Claire', 'Rebecca'])
     expect(await page.evaluate(() => window.sonal.corpus.reglesAnon())).toEqual([])

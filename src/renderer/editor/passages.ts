@@ -1,5 +1,6 @@
 import { Schema, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { CorpusFichier, EntretienFichier } from '../../shared/format'
+import type { ParticipationLocuteur } from '../../shared/locuteurs'
 import { projeterPortionsAnon } from '../../shared/entretien/anon/projectionTexte'
 
 const schema = new Schema({
@@ -24,12 +25,12 @@ export type EtatResolutionPassage =
   | 'source-indisponible'
   | 'source-invalide'
 
-export type SourcePassageChargee =
-  | { ok: true; data: EntretienFichier }
+export type SourcePassageChargee<T = EntretienFichier> =
+  | { ok: true; data: T }
   | { ok: false; raison: string; invalide?: boolean }
 
-export type SourcePassagePreparee =
-  | { ok: true; data: EntretienFichier; doc: ProseMirrorNode }
+export type SourcePassagePreparee<T = EntretienFichier> =
+  | { ok: true; data: T; doc: ProseMirrorNode }
   | { ok: false; raison: string; invalide?: boolean }
 
 export interface SourcePassageReference {
@@ -60,7 +61,7 @@ export function diagnosticPassage(
 /** Extrait un passage selon les mêmes décisions visibles que les exports. */
 export function textePassage(
   doc: ProseMirrorNode,
-  data: EntretienFichier,
+  data: Pick<EntretienFichier, 'annotations'>,
   from: number,
   to: number,
   mode: ModeTextePassage,
@@ -88,10 +89,12 @@ export function textePassage(
   return morceaux.join('')
 }
 
+type ParticipationLibelle = Pick<ParticipationLocuteur, 'index' | 'nom' | 'pseudo' | 'pseudoEtat'>
+
 /** Liste les locuteurs d'une plage selon le même mode de confidentialité que son texte. */
 export function locuteursPassage(
   doc: ProseMirrorNode,
-  data: EntretienFichier,
+  participations: readonly ParticipationLibelle[],
   from: number,
   to: number,
   mode: ModeTextePassage,
@@ -103,7 +106,7 @@ export function locuteursPassage(
     }
   })
   return [...indexes].map((index) => {
-    const locuteur = data.locuteurs.find((candidat) => candidat.index === index)
+    const locuteur = participations.find((candidat) => candidat.index === index)
     if (!locuteur) return `loc ${index}`
     if (mode === 'pseudonymise' && locuteur.pseudoEtat !== 'refuse' && locuteur.pseudo?.trim()) {
       return locuteur.pseudo.trim()
@@ -113,10 +116,10 @@ export function locuteursPassage(
 }
 
 /** Parse chaque transcription chargée une seule fois pour toutes ses références. */
-export function preparerSourcesPassages(
-  sources: Map<string, SourcePassageChargee>,
-): Map<string, SourcePassagePreparee> {
-  const resultat = new Map<string, SourcePassagePreparee>()
+export function preparerSourcesPassages<T extends { corpsTexte: unknown }>(
+  sources: Map<string, SourcePassageChargee<T>>,
+): Map<string, SourcePassagePreparee<T>> {
+  const resultat = new Map<string, SourcePassagePreparee<T>>()
   for (const [id, source] of sources) {
     if (!source.ok) {
       resultat.set(id, source)
@@ -132,11 +135,12 @@ export function preparerSourcesPassages(
 }
 
 /** Résout une référence de passage sans modifier sa source ni son repère. */
-export function resoudrePassageReference(
+export function resoudrePassageReference<T extends Pick<EntretienFichier, 'annotations' | 'reperesPassages'>>(
   corpus: Pick<CorpusFichier, 'membership'>,
   reference: SourcePassageReference,
-  sources: Map<string, SourcePassagePreparee>,
+  sources: Map<string, SourcePassagePreparee<T>>,
   mode: ModeTextePassage,
+  participationsPour: (data: T) => readonly ParticipationLibelle[],
 ): PassageReferenceResolu {
   const titreEntretien = corpus.membership[reference.entretienId]?.titre ?? reference.entretienId
   const echec = (
@@ -162,7 +166,7 @@ export function resoudrePassageReference(
     etat: 'disponible',
     titreEntretien,
     texte: textePassage(source.doc, source.data, repere.from, repere.to, mode),
-    locuteurs: locuteursPassage(source.doc, source.data, repere.from, repere.to, mode),
+    locuteurs: locuteursPassage(source.doc, participationsPour(source.data), repere.from, repere.to, mode),
     from: repere.from,
     to: repere.to,
     diagnostic: null,

@@ -22,7 +22,7 @@ import {
 import { projeterExtraitsSynthese } from '../src/renderer/editor/synthese'
 import { projeterCelluleAnalyseCroisee } from '../src/renderer/editor/analysesCroisees'
 import { extraireOccurrencesLexico } from '../src/renderer/editor/lexico'
-import { projeterCas } from '../src/renderer/editor/cas'
+import { projeterCas } from "../src/renderer/editor/cas"
 import {
   entreeMatricePseudonymisation,
   EXCEPTION_TEXTE_SENTINELLE,
@@ -101,7 +101,7 @@ function fichierEntretien(entree: EntreeExport): { data: EntretienFichier; fin: 
       corpsTexte: copie.corpsTexte,
       annotations: copie.annotations,
       ancres: copie.ancres,
-      locuteurs: copie.locuteurs,
+      participations: copie.participations,
       meta: { valeursGen: copie.meta.valeursGen, audioRef: null },
       definitionsAnonLocales: copie.definitionsAnonLocales,
       reperesPassages: [{ id: 'p1', from: 1, to: fin }],
@@ -144,7 +144,7 @@ function sortiesPassages(): SortieMatrice[] {
         return JSON.stringify(projeterExtraitsSynthese([{
           id: 'x1', entretienId: 'e1', titreEntretien: 'Entretien synthétique',
           from: 1, to: fin, longueurSource: fin, themeIds: [], annotationIds: [],
-          locuteurIds: ['1'], personneIds: [], ordre: 0,
+          participationIds: ['1'], locuteurIds: [], ordre: 0,
         }], sources, 'pseudonymise'))
       },
     },
@@ -170,7 +170,7 @@ function sortiesPassages(): SortieMatrice[] {
         return JSON.stringify(projeterCas(
           {
             membership: { e1: { titre: 'Entretien synthétique', date: null, lastModified: '' } },
-            personnes: {},
+            locuteurs: {},
           },
           {
             id: 'c1', nom: 'Cas', memo: '', creeLe: '', modifieLe: '', regles: [],
@@ -189,7 +189,12 @@ function sortiesPassages(): SortieMatrice[] {
       produire: (entree) => {
         const { data } = fichierEntretien(entree)
         return JSON.stringify(extraireOccurrencesLexico(
-          'e1', { titre: 'Entretien synthétique', date: null, lastModified: '' }, data,
+          'e1', { titre: 'Entretien synthétique', date: null, lastModified: '' }, {
+            corpsTexte: data.corpsTexte, annotations: data.annotations, meta: data.meta,
+            participations: data.participations.map((p) => ({
+              index: p.index, locuteurRef: p.locuteurRef, interviewer: p.interviewer, valeursLoc: p.valeursLoc,
+            })),
+          },
         ))
       },
     },

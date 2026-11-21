@@ -8,6 +8,9 @@ import type { DemandeSuppressionAnon, ApercuSuppressionAnon, BilanSuppressionAno
 import type { DocumentCorrespondance, CorrectionCorrespondance, ApercuImportCorrespondance, ChoixImportCorrespondance, BilanImportCorrespondance, SuiviImportCorrespondances } from '../shared/corpus/importCorrespondances'
 import type { MemoireNavigationProjet, NavigationProjet } from '../shared/navigationProjet'
 import type { EtatMenuApplication } from '../shared/menuApplication'
+import type { VueLocuteursCorpus } from '../shared/corpus/repertoireLocuteurs'
+import type { DetailsLocuteurs } from '../shared/corpus/detailsLocuteurs'
+import type { SuiviCorrectionLocuteurs } from '../shared/corpus/suiviCorrectionsLocuteurs'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -24,6 +27,7 @@ import type {
   CorpusFichier,
   DossierCorpus,
   EntreeRecent,
+  EntretienFichier,
   ItemLotValeur,
   CibleRegleAnon,
   LectureEntretien,
@@ -36,6 +40,7 @@ import type {
   OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  PayloadImportEntretien,
   TranscriptionEntretien,
   RegleAnon,
   ResultatArchiveCorpus,
@@ -58,7 +63,9 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../shared/corpus/inventaireLocuteurs'
+import type { CommandeRenommageLocuteur, DemandeRenommageParticipation, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -146,7 +153,7 @@ declare global {
         ) => Promise<CorpusFichier>
         importer: (
           titre: string,
-          p: PayloadEntretien,
+          p: PayloadImportEntretien,
           codebook: Categorie[],
           variables: Variable[],
           reglesAnon?: RegleAnon[],
@@ -200,8 +207,20 @@ declare global {
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>
         notesCommander: (commande: CommandeNotes) => Promise<string | null>
-        personnesInventaire: () => Promise<InventairePersonnes>
-        personnesCommander: (commande: CommandePersonnes, depuisRepertoire?: boolean) => Promise<string | null>
+        inventaireIdentitesLocuteurs: () => Promise<InventaireIdentitesLocuteurs>
+        identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur) => Promise<EntretienFichier>
+        rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
+        inventaireLocuteursDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
+        apercuRenommageLocuteurDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
+        renommerLocuteurDepuisEntretien: (reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => Promise<EntretienFichier>
+        renommerParticipationDepuisEntretien: (demande: DemandeRenommageParticipation) => Promise<EntretienFichier>
+        locuteursInventaire: () => Promise<VueLocuteursCorpus>
+        detailsLocuteursInventaire: (pourCorrection?: boolean) => Promise<DetailsLocuteurs>
+        suiviCorrectionLocuteurs: () => Promise<SuiviCorrectionLocuteurs | null>
+        reprendreCorrectionLocuteurs: (id: string) => Promise<string | null>
+        verifierCorrectionLocuteurs: (id: string) => Promise<null>
+        arreterCorrectionLocuteurs: (id: string) => Promise<null>
+        corrigerLocuteurs: (commande: import('../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
@@ -242,9 +261,9 @@ declare global {
         compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,
-          portee: 'entretien' | 'locuteur',
+          portee: 'entretien' | 'participation',
         ) => Promise<{ id: string; corpus: CorpusFichier }>
-        modifierVariable: (id: string, patch: Partial<Variable>) => Promise<CorpusFichier>
+        modifierVariable: (id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) => Promise<CorpusFichier>
         usagesDonnee: (idVar: string, idMod?: string, exceptId?: string) => Promise<{ valeurs: number; cas: number }>
         supprimerVariable: (id: string, exceptId?: string, avecValeurs?: boolean) => Promise<ResultatSuppression>
         ajouterModalite: (idVar: string, lib: string) => Promise<CorpusFichier>

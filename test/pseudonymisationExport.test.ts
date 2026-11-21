@@ -14,7 +14,7 @@ import {
 } from '../src/shared/export/pseudonymisation'
 import { couleurCss, tailleCss, idCssCode } from '../src/shared/export/secuCss'
 import type { EntreeExport } from '../src/shared/export/types'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
 const OPTIONS = {
   entete: true,
@@ -157,10 +157,10 @@ describe('etablirRapportPseudonymisation', () => {
     expect(ligneSansNoms).toContain("Aucun nom de locuteur n'est inclus avec les options choisies")
 
     e.variables = [{
-      id: 'profession', lib: 'Profession', portee: 'locuteur', priv: false,
+      id: 'profession', lib: 'Profession', portee: "participation", priv: false,
       ordre: 0, vExport: 1, modalites: [{ id: 'm1', lib: 'Enquête', mExport: 1 }],
     }]
-    e.locuteurs = e.locuteurs.map((l) => ({
+    e.participations = e.participations.map((l) => ({
       ...l,
       valeursLoc: { profession: 'm1' },
     }))
@@ -225,11 +225,11 @@ describe('rapportEnTexte', () => {
 })
 
 describe('pseudoUtilisable', () => {
-  const loc = (partiel: Partial<Locuteur>): Locuteur => ({
+  const loc = (partiel: Partial<ParticipationLocuteur>): ParticipationLocuteur => ({ id: "loc-1",
     index: 1,
     nom: 'N',
     valeursLoc: {},
-    personneRef: null,
+    locuteurRef: null,
     ...partiel,
   })
   test('vide, refusé ou identique au nom : pas exploitable', () => {

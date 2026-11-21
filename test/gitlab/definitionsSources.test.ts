@@ -49,7 +49,7 @@ const CHEMIN_CORPUS = `${RACINE}/corpus.crp`
 
 function entretien(texte: string, reperes: string[] = [], lastModified = '2026-01-01T10:00:00.000Z') {
   return {
-    formatVersion: 8,
+    formatVersion: 10,
     lastModified,
     corpsTexte: {
       type: 'doc',
@@ -57,7 +57,7 @@ function entretien(texte: string, reperes: string[] = [], lastModified = '2026-0
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: reperes.map((id) => ({ id, from: 0, to: Math.max(1, texte.length) })),
   }

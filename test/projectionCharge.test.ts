@@ -42,9 +42,9 @@ function corpusCharge(blocs: number, anns: number): EntreeExport {
     corpsTexte: { type: 'doc', content: pm } as never,
     annotations,
     ancres,
-    locuteurs: [
-      { index: 1, nom: 'Karine', interviewer: false, pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Marc', interviewer: true, valeursLoc: {}, personneRef: null },
+    participations: [
+      { id: "loc-1", index: 1, nom: 'Karine', interviewer: false, pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2", index: 2, nom: 'Marc', interviewer: true, valeursLoc: {}, locuteurRef: null },
     ],
     codebook: [{ id: 'c1', nom: 'Lieu', couleur: '#ff0000', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' }],
     variables: [],

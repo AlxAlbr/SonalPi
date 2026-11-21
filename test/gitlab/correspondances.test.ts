@@ -30,7 +30,7 @@ function banc() {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-correspondances-gitlab-')); dossiers.push(dir)
   const corpus = corpusAvecEntretiens({ e1: 'Un', e2: 'Deux' })
   const entretien = JSON.parse(entretienPublie('Texte intact')) as EntretienFichier
-  entretien.locuteurs = [{ index: 1, nom: 'Karine', personneRef: 'personne-1' }]
+  entretien.participations = [{ id: "loc-1", index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: 'personne-1' }]
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
   const store = new CorpusStore(dir); store.lectureSeule = true
   const depot = new DepotMemoire()
@@ -63,7 +63,7 @@ describe('import ciblé GitLab gardé', () => {
     const apres = JSON.parse(b.depot.fichiers.get('racine/entretiens/e1.json')!.contenu)
     expect(apres.corpsTexte).toEqual(b.entretien.corpsTexte)
     expect(apres.annotations).toEqual(b.entretien.annotations)
-    expect(apres.locuteurs[0]).toMatchObject({ index: 1, nom: 'Karine', personneRef: 'personne-1', pseudo: 'Claire', pseudoEtat: 'confirme' })
+    expect(apres.participations[0]).toMatchObject({ id: "loc-1", index: 1, nom: 'Karine', locuteurRef: 'personne-1', pseudo: 'Claire', pseudoEtat: 'confirme' })
     expect(apres.definitionsAnonLocales[0]).toMatchObject({ entite: ['Alias sans occurrence', 'Autre graphie'], categorie: 'LOC' })
     expect(b.journal.lister()).toEqual([])
     const reprise = await preparer(b)

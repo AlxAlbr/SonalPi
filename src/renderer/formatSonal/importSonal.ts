@@ -5,7 +5,7 @@ import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs, scinderNomDescriptionTheme } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon, Note } from '../../shared/format'
+import type { Categorie, ParticipationImport, PayloadImportEntretien, Variable, BrouillonAnon, RegleAnon, Note } from '../../shared/format'
 import { scinderPseudos } from '../../shared/entretien/anon'
 import { cleEntite } from '../../shared/entretien/anon'
 import { genIdNote } from '../../shared/entretien/notes'
@@ -17,7 +17,7 @@ import type { LegacyBlobs } from '../../shared/export/types'
 export type { LegacyBlobs } from '../../shared/export/types'
 
 export interface ResultatImport {
-  payload: PayloadEntretien
+  payload: PayloadImportEntretien
   /** Codebook extrait de cat-json → fusionné dans le corpus (sas d'import). */
   codebook: Categorie[]
   /** Variables EAV extraites de var/dic-json → fusionnées dans le corpus. */
@@ -340,13 +340,13 @@ export function importerSonal(domDoc: Document): ResultatImport {
   // 4) Locuteurs depuis tabLoc (position dans le tableau = index du locuteur).
   //    Un « ? » dans le nom (convention SonalPi1) = INTERVIEWER → drapeau au
   //    modèle, nom nettoyé ; le « ? » est réintroduit à l'export seulement.
-  const locuteurs: Locuteur[] = tabLoc
+  const locuteurs: ParticipationImport[] = tabLoc
     .map((nom, index) => ({
       index,
       nom: nom.replaceAll('?', '').trim(),
       interviewer: nom.includes('?'),
       valeursLoc: {},
-      personneRef: null,
+      locuteurRef: null,
     }))
     .filter((l) => l.index > 0 && l.nom !== '')
 
@@ -384,7 +384,7 @@ export function importerSonal(domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, ...(locales.length ? { definitionsAnonLocales: locales } : {}), notes },
+    payload: { corpsTexte, annotations, ancres, participations: locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, ...(locales.length ? { definitionsAnonLocales: locales } : {}), notes },
     codebook,
     variables,
     reglesAnon,

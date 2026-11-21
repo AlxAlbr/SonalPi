@@ -38,8 +38,8 @@ function preparerCorpus(dossier: string) {
     },
   }
   entretien.meta.valeursGen = { v_contexte: 'm_individuel', v_interne: 'm_a17' }
-  entretien.locuteurs[1].pseudo = 'Nadia'
-  entretien.locuteurs[1].pseudoEtat = 'confirme'
+  entretien.participations[1].pseudo = 'Nadia'
+  entretien.participations[1].pseudoEtat = 'confirme'
   entretien.annotations = [
     {
       id: 'anon-karine', type: 'anon', auteur: 'Documentation', etat: 'anonymise', pseudo: 'Nadia',

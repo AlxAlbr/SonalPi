@@ -1,5 +1,5 @@
 {
-  "formatVersion": 9,
+  "formatVersion": 10,
   "lastModified": "2026-10-26T18:22:46.788Z",
   "corpsTexte": {
     "type": "doc",
@@ -1846,28 +1846,6 @@
       "t": 223.48
     }
   ],
-  "locuteurs": [
-    {
-      "index": 1,
-      "nom": "Réponse",
-      "interviewer": false,
-      "valeursLoc": {
-        "v3": "v3m1",
-        "v4": "v4m1",
-        "v5": "v5m1"
-      },
-      "personneRef": null,
-      "id": "loc-yZox9CwZeVSbfJwPf3MZCTCd6RFjvbFGMDas7Qjewao"
-    },
-    {
-      "index": 2,
-      "nom": "Question",
-      "interviewer": true,
-      "valeursLoc": {},
-      "personneRef": null,
-      "id": "loc-LdRBMzJy8liRNX5tPoeWoVBDPmpbNLbgqXtLWcghIQU"
-    }
-  ],
   "meta": {
     "valeursGen": {},
     "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/1Coordinatrice.mp3"
@@ -1886,5 +1864,27 @@
       "modifieLe": null
     }
   ],
-  "reperesPassages": []
+  "reperesPassages": [],
+  "participations": [
+    {
+      "index": 1,
+      "nom": "Réponse",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m1",
+        "v4": "v4m1",
+        "v5": "v5m1"
+      },
+      "id": "loc-yZox9CwZeVSbfJwPf3MZCTCd6RFjvbFGMDas7Qjewao",
+      "locuteurRef": "pers-demo-01"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "id": "loc-LdRBMzJy8liRNX5tPoeWoVBDPmpbNLbgqXtLWcghIQU",
+      "locuteurRef": "pers-demo-02"
+    }
+  ]
 }

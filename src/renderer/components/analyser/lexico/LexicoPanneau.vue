@@ -83,7 +83,7 @@ function choisirTri(colonne: typeof tri.value.colonne) {
 function modifierDepuisResume(index: number) {
   const ligne = lignesResumeLexico.value[index] ?? ''
   const cible: OngletFiltresLexico = ligne.startsWith('Entretiens') ? 'entretiens'
-    : ligne.startsWith('Personnes') ? 'personnes'
+    : ligne.startsWith('Locuteurs') ? 'locuteurs'
       : ligne.startsWith('Dans les thèmes') ? 'themes'
         : ligne.startsWith('Dans les matériaux') ? 'cas' : 'variables'
   ongletFiltresLexico.value = cible === 'cas' && !casDisponiblesLexico.value ? 'entretiens' : cible
@@ -93,7 +93,7 @@ function modifierDepuisResume(index: number) {
 function criteresExport(): string[] {
   const privees = variables.value.filter((variable) => variable.priv).map((variable) => variable.lib)
   const criteres = lignesResumeLexico.value.map((ligne) => {
-    if (ligne.startsWith('Personnes :')) return 'Filtre de personnes appliqué (identités non exportées)'
+    if (ligne.startsWith('Locuteurs :')) return 'Filtre de locuteurs appliqué (identités non exportées)'
     if (privees.some((nom) => ligne.includes(nom))) return 'Filtre sur une variable privée appliqué (détail non exporté)'
     return ligne
   })

@@ -86,21 +86,21 @@ describe('import .sonal — invariants (golden)', () => {
       <script id="loc-json">["", "Enquêteur", "Martin"]</script>
     </body></html>`
     const { payload } = importerSonal(parse(html))
-    const enqueteur = payload.locuteurs.find((x) => x.index === 1)
+    const enqueteur = payload.participations.find((x) => x.index === 1)
     expect(enqueteur?.pseudo).toBe('Chercheur')
     expect(enqueteur?.pseudoEtat).toBe('confirme')
-    const martin = payload.locuteurs.find((x) => x.index === 2)
+    const martin = payload.participations.find((x) => x.index === 2)
     expect(martin?.pseudoEtat).toBe('refuse')
     expect(martin?.pseudo ?? '').toBe('') // le refus ne porte AUCUN pseudo
   })
 
   test('les locuteurs viennent de loc-json (index + nom)', () => {
     const { payload } = importerSonal(parse(html1))
-    const noms = payload.locuteurs.map((l) => l.nom)
+    const noms = payload.participations.map((l) => l.nom)
     expect(noms).toContain('Interwiever1')
     expect(noms).toContain('Interwievé1')
     // l'index 0 (vide) est exclu.
-    expect(payload.locuteurs.every((l) => l.index > 0)).toBe(true)
+    expect(payload.participations.every((l) => l.index > 0)).toBe(true)
   })
 
   test('le codebook est extrait de cat-json (cat_005 = « Cat1 »)', () => {
@@ -141,7 +141,7 @@ describe('import .sonal — invariants (golden)', () => {
     expect(v1?.portee).toBe('entretien')
     expect(v1?.vExport).toBe(1)
     const v2 = variables.find((v) => v.id === 'v2')
-    expect(v2?.portee).toBe('locuteur')
+    expect(v2?.portee).toBe('participation')
     // modalités (v,m) → ids déterministes v2m1/v2m2…
     expect(v2?.modalites.map((m) => m.lib)).toContain('Homme')
     expect(v2?.modalites.find((m) => m.lib === 'Femme')?.id).toBe('v2m2')
@@ -183,16 +183,16 @@ describe('import .sonal — tolérance JSON SonalPi1 (virgules sauvages)', () =>
 
   test('virgules doublées ou collées aux crochets : réparées', () => {
     const r = importerSonal(parse(htmlSloppy('[, "", "A",, "B",]')))
-    expect(r.payload.locuteurs.map((l) => l.nom)).toEqual(['A', 'B'])
+    expect(r.payload.participations.map((l) => l.nom)).toEqual(['A', 'B'])
   })
 
   test('une virgule dans une string est préservée', () => {
     const r = importerSonal(parse(htmlSloppy('[, "", "A, B", "C",]')))
-    expect(r.payload.locuteurs.map((l) => l.nom)).toEqual(['A, B', 'C'])
+    expect(r.payload.participations.map((l) => l.nom)).toEqual(['A, B', 'C'])
   })
 
   test('JSON invalide pour une autre raison → locuteurs vides, pas d’exception', () => {
     const r = importerSonal(parse(htmlSloppy('["A" "B"]')))
-    expect(r.payload.locuteurs).toEqual([])
+    expect(r.payload.participations).toEqual([])
   })
 })

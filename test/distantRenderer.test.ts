@@ -78,7 +78,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
     },
   })
 
-  const ouvertId = ref<string | null>(null)
+  const ouvertId = ref<string | null>(null), correctionLocuteursEnCours = ref(false)
   const scope = effectScope()
   scopes.push(scope)
   const distant = scope.run(() => useDistantCorpus({
@@ -90,6 +90,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
       viderSauvegarde,
       preserverEtAnnulerSauvegarde: preserverSauvegarde,
       annulerEtAttendreSauvegarde: annulerSauvegarde,
+      correctionLocuteursEnCours: () => correctionLocuteursEnCours.value,
     },
     effets,
   }))!
@@ -98,6 +99,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
     distant,
     effets,
     ouvertId,
+    correctionLocuteursEnCours,
     preserverSauvegarde,
     annulerSauvegarde,
     viderSauvegarde,
@@ -121,6 +123,27 @@ const verrou = {
     acquiredAt: '2026-01-01T10:00:00.000Z',
   },
 }
+
+test('la reprise explicite peut réessayer le réseau, jamais contourner le mode consultation', () => {
+  const b = creerContexte(async () => null)
+  b.distant.activerDistant('destination', [], [], false, matriceCapacites('webdav'))
+  b.distant.enLigne.value = false
+  expect(b.distant.gesteDisponible('correctionsLocuteurs')).toBe(false)
+  expect(b.distant.repriseCorrectionLocuteursPossible()).toBe(true)
+  b.distant.activerDistant('destination', [], [], true, matriceCapacites('webdav'))
+  b.distant.enLigne.value = false
+  expect(b.distant.repriseCorrectionLocuteursPossible()).toBe(false)
+})
+
+test('le tirage automatique attend une correction depuis l’entretien sans déclarer le serveur hors ligne', async () => {
+  const tirer = vi.fn(async (): Promise<ResultatTiragePublic> => ({ telecharges: [], corbeille: [], verrous: [], presences: [], date: '2026-11-21' }))
+  const b = creerContexte(tirer); b.distant.activerDistant('destination', [], [])
+  b.correctionLocuteursEnCours.value = true
+  expect(await b.distant.actualiserDistant(true)).toBe(false)
+  expect(tirer).not.toHaveBeenCalled(); expect(b.distant.enLigne.value).toBe(true)
+  b.correctionLocuteursEnCours.value = false
+  expect(await b.distant.actualiserDistant(true)).toBe(true)
+})
 
 describe('orchestration distante du renderer', () => {
   test('le tirage automatique attend les publications sans déclarer le réseau hors ligne', async () => {
@@ -206,7 +229,7 @@ describe('orchestration distante du renderer', () => {
 
     expect(contexte.distant.lectureSeule.value).toBe(false)
     expect(contexte.distant.gesteDisponible('definitionsAvecSources')).toBe(true)
-    expect(contexte.distant.gesteDisponible('personnes')).toBe(true)
+    expect(contexte.distant.gesteDisponible('correctionsLocuteurs')).toBe(true)
     expect(contexte.distant.gesteDisponible('notes')).toBe(false)
     expect(contexte.distant.tableLigneEditable('e1')).toBe(true)
     expect(contexte.distant.metaEditables('e1')).toBe(true)

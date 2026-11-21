@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -89,18 +90,13 @@ test('cas dynamique créé depuis une personne, relu et ouvert dans sa source', 
   try {
     const page = await app.firstWindow()
     await entrerCorpus(page)
-    await page.evaluate(async () => {
-      const api = (window as any).sonal.corpus
-      const personneId = await api.personnesCommander({ type: 'creerDefinition', nom: 'Karine Dupont' }, true)
-      const inventaire = await api.personnesInventaire()
-      const locuteur = inventaire.locuteurs.find((courant: any) => courant.nom === 'Karine')
-      await api.personnesCommander({
-        type: 'lier',
-        entretienId: locuteur.entretienId,
-        locuteurId: locuteur.locuteurId,
-        personneId,
-      }, true)
+    const reference = await page.evaluate(async () => {
+      const inventaire = await window.sonal.corpus.inventaireIdentitesLocuteurs()
+      const locuteur = inventaire.participations.find((courant) => courant.nom === 'Karine')
+      if (!locuteur) throw new Error('Participation de Karine absente.')
+      return { entretienId: locuteur.entretienId, participationId: locuteur.participationId }
     })
+    creerLocuteurFixture(join(userDataDir, 'corpus'), 'Karine Dupont', [reference])
 
     await ouvrirOrganisation(page, 'recueils')
     await expect(page.locator('#contenu-recueils-organisation')).toBeVisible()

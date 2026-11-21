@@ -13,12 +13,12 @@ function dossierTemporaire(prefixe: string): string {
 
 function corpusVide(nom: string): CorpusFichier {
   return {
-    formatVersion: 3,
+    formatVersion: 10,
     nom,
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {},
   }
 }

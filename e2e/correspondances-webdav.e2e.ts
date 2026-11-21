@@ -147,7 +147,7 @@ for (const port of [8080, 8081]) test.describe(`correspondances WebDAV :${port}`
         const data = JSON.parse(await b.client.getTexte(`entretiens/${id}.json`))
         expect(data.corpsTexte).toEqual(JSON.parse(entretienImportWebDAV()).corpsTexte)
         expect(data.annotations).toEqual([])
-        expect(data.locuteurs[0]).toMatchObject({ personneRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
+        expect(data.participations[0]).toMatchObject({ locuteurRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
         expect(data.definitionsAnonLocales[0].entite).toEqual(['Alias sans occurrence', 'Autre graphie'])
       }
     } finally { await app?.close(); await b.nettoyer() }
@@ -164,7 +164,7 @@ for (const port of [8080, 8081]) test.describe(`correspondances WebDAV :${port}`
       await confirmer.click()
       await expect(modal).toContainText('Import WebDAV à reprendre', { timeout: 90_000 })
       const premier = await b.client.getTexte('entretiens/e1.json')
-      expect(JSON.parse(premier).locuteurs[0].pseudo).toBe('Claire')
+      expect(JSON.parse(premier).participations[0].pseudo).toBe('Claire')
       await app.close(); app = undefined
       app = await lancer(b.profil, { preserverSettings: true })
       await instrumenter(app, b.client.config.baseUrl)

@@ -21,7 +21,7 @@ function division(effacerSource = false): DemandeOperationTheme {
   }
 }
 function corpus(): CorpusFichier {
-  return { formatVersion: FORMAT_VERSION, codebook: {}, membership: {}, variables: {}, reglesAnon: {}, personnes: {} }
+  return { formatVersion: FORMAT_VERSION, codebook: {}, membership: {}, variables: {}, reglesAnon: {}, locuteurs: {} }
 }
 function banc() {
   let n = 0

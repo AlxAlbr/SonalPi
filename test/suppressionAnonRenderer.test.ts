@@ -34,7 +34,7 @@ test('bilan explicite, confirmation requise et aucune autorité de suppression a
   const b = await monter(); await preparer()
   expect(document.body.textContent).toContain('8 passage(s) concerné(s) dans 2 entretien(s)')
   expect(document.body.textContent).toContain('Les autres règles, vos choix indépendants')
-  expect(b.api.apercuSuppressionAnon).toHaveBeenCalledExactlyOnceWith({ regleId: 'personne' })
+  expect(b.api.apercuSuppressionAnon).toHaveBeenCalledExactlyOnceWith({ regleId: "personne" })
   expect(document.body.textContent).not.toContain('Préparer')
   expect(document.body.textContent).not.toContain('Protocole')
   expect(bouton('Confirmer la suppression globale').disabled).toBe(true)

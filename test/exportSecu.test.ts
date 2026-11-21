@@ -116,7 +116,7 @@ describe('codebook hostile — aucune injection dans la page autonome', () => {
 describe('.sonal — tables JSON et sélecteurs inertes', () => {
   test.each([false, true])('une valeur hostile ne ferme pas les blocs JSON ou CSS : pseudonymisé=%s', (anon) => {
     const e = entreePseudonymisable(), hostile = '</script><script>window.__sortieInjetee=1</script>'
-    e.locuteurs[0].nom = hostile; e.locuteurs[0].pseudo = hostile
+    e.participations[0].nom = hostile; e.participations[0].pseudo = hostile
     e.codebook[0].nom = hostile; e.codebook[0].codeExport = '</style><script>window.__sortieInjetee=2</script>'
     const avant = JSON.stringify(e), out = anon ? sonalPseudonymise(e) : exporterSonal(e)
     expect(out).not.toContain('</style><script>')
@@ -125,7 +125,7 @@ describe('.sonal — tables JSON et sélecteurs inertes', () => {
     expect(doc.querySelectorAll('script')).toHaveLength(6)
     expect(doc.getElementById('loc-json')!.textContent).toContain('\\u003c/script>')
     const importe = importerSonal(doc)
-    expect(importe.payload.locuteurs[0].nom).toBe(hostile); expect(importe.codebook[0].nom).toBe(hostile)
+    expect(importe.payload.participations[0].nom).toBe(hostile); expect(importe.codebook[0].nom).toBe(hostile)
     expect(JSON.stringify(e)).toBe(avant)
   })
 })

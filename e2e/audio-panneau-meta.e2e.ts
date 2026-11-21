@@ -57,12 +57,12 @@ function ecrireEntretienVide(dir: string, id: string): void {
     join(dir, 'corpus', 'entretiens', `${id}.json`),
     JSON.stringify(
       {
-        formatVersion: 3,
+        formatVersion: 10,
         lastModified: now,
         corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
         annotations: [],
         ancres: [],
-        locuteurs: [],
+        participations: [],
         meta: { valeursGen: {}, audioRef: null },
       },
       null,
@@ -89,6 +89,8 @@ test('audio : « Effacer l’audio » (rouge) détache le média — le texte re
   // « Assigner un audio… ».
   await page.locator('.carte-ent').first().click()
   await expect(page.locator('.meta-ent')).toBeVisible()
+  const boutonDistant = page.locator('.meta-ent').getByRole('button', { name: /désigner dans/i })
+  await expect(boutonDistant).toHaveCount(0)
   const boutonAudio = page.locator('.meta-ent .assigner-audio').first()
   await expect(boutonAudio).toContainText('Assigner un audio…')
 
@@ -100,6 +102,7 @@ test('audio : « Effacer l’audio » (rouge) détache le média — le texte re
   const effacer = page.locator('.meta-ent .audio-effacer')
   await expect(effacer).toContainText("Effacer l'audio")
   await expect(page.locator('.meta-ent .audio-actions .assigner-audio')).toContainText("Remplacer l'audio…")
+  await expect(boutonDistant).toHaveCount(0)
 
   // Effacer → le média est détaché : « — » dans le méta, la carte repasse au
   // placeholder, le bouton unique « Assigner un audio… » revient.
@@ -107,7 +110,7 @@ test('audio : « Effacer l’audio » (rouge) détache le média — le texte re
   await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('—', { timeout: 10_000 })
   await expect(page.locator('.meta-ent .audio-actions')).toHaveCount(0)
   await expect(page.locator('.carte-ent img.spectro').first()).toHaveCount(0)
-  await expect(page.locator('.carte-ent .spectro-vide').first()).toContainText("pas d'audio")
+  await expect(page.locator('.carte-ent .spectro-vide').first()).toContainText('pas d’audio')
   await expect(page.locator('.meta-ent .assigner-audio').first()).toContainText('Assigner un audio…')
 
   // Le TEXTE n'a pas bougé : ouvrir l'entretien, la transcription est intacte.

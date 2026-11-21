@@ -6,7 +6,8 @@ import MenuTheme from '../partages/themes/MenuTheme.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
-import PersonnesCorpus from './PersonnesCorpus.vue'
+import LocuteursCorpus from './LocuteursCorpus.vue'
+import CadreOndeCorpus from './CadreOndeCorpus.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
 import OngletsEspace from '../../app/OngletsEspace.vue'
@@ -344,7 +345,7 @@ function allerOccurrence(id: string, pos: number) {
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
   { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: 'personnes', libelle: 'Personnes', icone: icoPersonnes },
+  { id: "locuteurs", libelle: 'Locuteurs', icone: icoPersonnes },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
@@ -422,7 +423,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <AjoutEntretien v-if="ajoutEntretienPossible" />
       </BarreOngletCorpus>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'locuteurs' && ongletCorpus !== 'notes'" class="grille-corpus" :class="{ 'atelier-actif': ongletCorpus === 'themes', 'sans-panneau': ongletCorpus === 'accueil' && !extraitAffiche && !corpusSelId }">
         <!-- Colonne gauche : fiche de l'entretien, extrait, recherche ou codebook. -->
         <aside v-if="ongletCorpus !== 'accueil' || extraitAffiche || corpusSelId" class="colonne-g-corpus">
           <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
@@ -462,7 +463,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               />
             </label>
             <ul v-if="corpusSelMeta" class="meta-infos">
-              <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbLocuteurs }}</b></li>
+              <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbParticipations }}</b></li>
               <li><span>Valeurs saisies</span><b>{{ corpusSelMeta.nbValeurs }}</b></li>
               <li><span>Audio</span><b>{{ corpusSelMeta.audio ? 'lié' : '—' }}</b></li>
               <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
@@ -496,7 +497,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <!-- La désignation d'un média existant est une capacité distincte.
                  GitLab la publie sous un bail d'entretien court. -->
             <button
-              v-if="gesteDisponible('designationMedia') && corpusSelId"
+              v-if="idDistantCourant && gesteDisponible('designationMedia') && corpusSelId"
               class="mini assigner-audio"
               :disabled="!designationMediaPossible(corpusSelId)"
               @click="ouvrirDesignationAudio(corpusSelId)"
@@ -514,7 +515,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   <span class="val-var" :class="{ vide: !l.valeur }">{{ l.valeur ?? '—' }}</span>
                 </div>
               </template>
-              <div v-for="loc in corpusSelMeta.parLocuteur" :key="loc.nom" class="bloc-loc">
+              <div v-for="loc in corpusSelMeta.parParticipation" :key="loc.participationId !== null ? `id:${loc.participationId}` : `index:${loc.participationIndex}`" class="bloc-loc">
                 <h4>{{ loc.nom }}</h4>
                 <div v-for="l in loc.lignes" :key="l.id" class="ligne-var">
                   <span class="lbl-var" :title="l.lib">{{ l.lib }}</span>
@@ -735,9 +736,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                        superpose : un span par segment codé, positionné en % du
                        TEXTE ; clic = ouvrir l'entretien à cet endroit.
                        Les ondes empilées sur toute la largeur forment le « mur » d'ondes. -->
-                  <div class="spectro-cadre">
-                    <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
-                    <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
+                  <CadreOndeCorpus :source="urlWaveform(e.id)">
                     <span
                       v-for="(s, i) in resumes[e.id] ?? []"
                       :key="i"
@@ -758,14 +757,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       :title="'Afficher l’extrait — « ' + requete + ' »'"
                       @click.stop="afficherExtrait(e.id, m)"
                     ></span>
-                  </div>
+                  </CadreOndeCorpus>
               </li>
             </ul>
           </div>
         </section>
       </div>
 
-      <PersonnesCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
+      <LocuteursCorpus v-show="ongletCorpus === 'locuteurs'" :actif="ongletCorpus === 'locuteurs'" />
       <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />
@@ -1211,32 +1210,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   background: #e2ecff;
   color: #1d4fa1;
 }
-.spectro {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* pas de distorsion */
-  border-radius: 3px; /* conserve le coin arrondi du cadre (overflow visible désormais) */
-}
-/* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
-   en % de SA largeur — la même que l'onde ou le placeholder). Conteneur
-   compact : 25 px de haut, dégradé vertical (creux au centre), bord fin —
-   c'est lui qui donne la profondeur au « mur » d'ondes. */
-.spectro-cadre {
-  position: relative;
-  flex: none;
-  min-width: 0;
-  height: 25px;
-  border-radius: 3px;
-  border: 1px solid #cbcbcb;
-  background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
-  /* overflow VISIBLE : les marqueurs de recherche dépassent au-dessus/en dessous
-     du cadre. L'image .spectro, elle, est en absolute inset:0 → ne déborde
-     jamais ; ses coins sont arrondis par son propre border-radius (ci-dessous)
-     puisqu'on ne clippe plus ici. */
-  overflow: visible;
-}
 .xtr-graph {
   position: absolute;
   top: 1px;
@@ -1314,15 +1287,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .assigner-srt {
   margin-top: 0.6rem;
   width: 100%;
-}
-.spectro-vide {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.66rem;
-  color: #9a9aa8;
-  font-style: italic;
 }
 .carte-actions {
   display: flex;

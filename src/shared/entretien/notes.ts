@@ -1,4 +1,5 @@
-import type { Note, NoteCategory } from '../format'
+import type { NoteCategory } from '../format'
+import type { Note } from "../format"
 
 /**
  *  Notes d'entretien : typologie des catégories (définitions CORPUS, nom +
@@ -36,7 +37,7 @@ export function normaliserCategoriesNote(c?: NoteCategory[] | null): NoteCategor
  *  Garde de suppression au niveau corpus :
  *  une catégorie utilisée ne se supprime pas (parité thèmes). */
 export function compterUsagesCategorieNote(
-  entretiens: { notes?: Note[] }[],
+  entretiens: readonly { notes?: readonly Pick<Note, 'categorieId'>[] }[],
   categorieId: string,
 ): number {
   return entretiens.reduce(
@@ -48,35 +49,54 @@ export function compterUsagesCategorieNote(
 /** Normalise la liste de notes : on accepte l'absence (fichier non migré) → []. */
 export function normaliserNotes(n?: Note[] | null): Note[] {
   if (!Array.isArray(n)) return []
-  return n.map((x) => ({
-    id: String(x.id ?? ''),
-    categorieId: String(x.categorieId ?? '') || 'ncat_generale',
-    titre: String(x.titre ?? ''),
-    date: x.date ?? null,
-    statut: x.statut === 'public' ? 'public' : 'prive',
-    corps: String(x.corps ?? ''),
-    locuteurIds: [...new Set(Array.isArray(x.locuteurIds)
-      ? x.locuteurIds.filter((id): id is string => typeof id === 'string' && Boolean(id))
-      : [])],
-    rang: Number.isFinite(x.rang) ? x.rang : 0,
-    creeLe: String(x.creeLe ?? new Date().toISOString()),
-    modifieLe: x.modifieLe ?? null,
-  }))
+  return n.map((x) => {
+    if (Object.hasOwn(x, 'locuteurIds')) throw new Error('Les notes doivent référencer les participations locales.')
+    return {
+      id: String(x.id ?? ''),
+      categorieId: String(x.categorieId ?? '') || 'ncat_generale',
+      titre: String(x.titre ?? ''),
+      date: x.date ?? null,
+      statut: x.statut === 'public' ? 'public' : 'prive',
+      corps: String(x.corps ?? ''),
+      participationIds: [...new Set(Array.isArray(x.participationIds)
+        ? x.participationIds.filter((id): id is string => typeof id === 'string' && Boolean(id))
+        : [])],
+      rang: Number.isFinite(x.rang) ? x.rang : 0,
+      creeLe: String(x.creeLe ?? new Date().toISOString()),
+      modifieLe: x.modifieLe ?? null,
+    }
+  })
+}
+
+/** Une création reste annulable après un simple changement de rang ou de date de modification. */
+export function noteCreationInchangee(note: Note, initiale: Note): boolean {
+  if (Object.hasOwn(note, 'locuteurIds') || Object.hasOwn(initiale, 'locuteurIds')) {
+    throw new Error('Les notes doivent référencer les participations locales.')
+  }
+  return note.id === initiale.id && note.categorieId === initiale.categorieId && note.titre === initiale.titre
+    && note.date === initiale.date && note.statut === initiale.statut && note.corps === initiale.corps
+    && note.creeLe === initiale.creeLe && JSON.stringify(note.participationIds ?? []) === JSON.stringify(initiale.participationIds ?? [])
+}
+
+/** La restauration ne peut pas viser une participation disparue de cet entretien. */
+export function referencesNoteDisponibles(note: Note, participations: readonly { id?: string }[]): boolean {
+  if (Object.hasOwn(note, 'locuteurIds')) throw new Error('Les notes doivent référencer les participations locales.')
+  return (note.participationIds ?? []).every((id) => participations.some((p) => p.id === id))
 }
 
 /** Prochain rang d'insertion : « après la dernière » = max + 1 (0 si vide). */
-export function prochainRang(notes: Note[]): number {
+export function prochainRang(notes: readonly { rang: number }[]): number {
   return notes.reduce((m, n) => (n.rang > m ? n.rang : m), -1) + 1
 }
 
 /** Trie les notes par rang croissant (ordre d'affichage par défaut). */
-export function notesParRang(notes: Note[]): Note[] {
+export function notesParRang<T extends { rang: number }>(notes: readonly T[]): T[] {
   return [...notes].sort((a, b) => a.rang - b.rang)
 }
 
 /** Recalcule les rangs à partir de l'ordre du tableau fourni (après un glisser-déposer) : 0, 1, 2…
  *  — indices denses et stables. */
-export function renumeroterRangs(notes: Note[]): Note[] {
+export function renumeroterRangs<T extends { rang: number }>(notes: readonly T[]): T[] {
   return notes.map((n, i) => ({ ...n, rang: i }))
 }
 

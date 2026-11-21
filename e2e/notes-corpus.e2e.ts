@@ -14,15 +14,15 @@ test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note local
     boutons.map((bouton) => bouton.textContent?.trim()),
   )
   expect(ordre).toEqual([
-    'Entretiens', 'Notes', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Données',
+    'Entretiens', 'Notes', 'Locuteurs', 'Pseudonymisation', 'Thèmes', 'Données',
   ])
 
   await entrerEntretien(page)
   await page.locator('.onglets button[data-onglet="notes"]').click()
-  await page.locator('button.mini', { hasText: '+ Note' }).click()
-  await page.locator('.champ-titre-note input').fill('Note initiale')
-  await page.locator('.zone-corps-note').fill('Corps initial')
-  await page.locator('.modale-note-pied .principal').click()
+  const creation = page.locator('.panneau.notes .nouvelle-note-inline')
+  await creation.locator('.champ-titre-note input').fill('Note initiale')
+  await creation.locator('.zone-corps-note').fill('Corps initial')
+  await creation.getByRole('button', { name: 'Créer une note', exact: true }).click()
 
   // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()

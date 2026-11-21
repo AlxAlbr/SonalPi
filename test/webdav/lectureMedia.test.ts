@@ -243,7 +243,7 @@ describe('lecture d\'une plage', () => {
 
   test('un corps plus court qu\'annoncé est coupé, jamais complété', async () => {
     const { serveur, client } = banc()
-    serveur.variantes.corpTronque = true
+    serveur.variantes.corpsTronque = true
 
     const lecture = await lirePlage(client, MEDIA, { debut: 0, fin: 999 })
 

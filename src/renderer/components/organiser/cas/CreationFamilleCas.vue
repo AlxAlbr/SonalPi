@@ -4,7 +4,7 @@ import { utiliserSonal } from '../../../composables/sonal'
 import { normaliserNomCas } from '../../../../shared/corpus/cas'
 import type { ApercuFamilleCas } from '../../../composables/corpus/useCasCorpus'
 
-const props = defineProps<{ portee: 'locuteur' | 'entretien'; familleId?: string }>()
+const props = defineProps<{ portee: "participation" | 'entretien'; familleId?: string }>()
 const emit = defineEmits<{ cree: []; annuler: [] }>()
 const { variablesCas, famillesCas, listeCas, preparerFamilleCas, creerOuCompleterFamilleCas,
   creationFamilleEnAttente, abandonnerCreationFamilleCas, lectureSeule } = utiliserSonal()
@@ -60,7 +60,7 @@ function annuler() {
 <template>
   <section class="creation-famille-cas">
     <h2>{{ familleId ? 'Compléter la famille' : 'Créer une famille' }} {{ famille?.nom }}</h2>
-    <p v-if="portee === 'locuteur'">Interventions des locuteurs portant localement la modalité, même sans lien à une personne. Aucun ajout par voisinage.</p>
+    <p v-if="portee === 'participation'">Interventions des locuteurs portant localement la modalité, même sans lien à une personne. Aucun ajout par voisinage.</p>
     <p v-else>Entretiens entiers portant la modalité : questions, réponses et futurs ajouts.</p>
     <p>La famille organise les cas, sans créer un cas supplémentaire. Les ajouts manuels restent indépendants.</p>
     <fieldset v-if="!apercu && !creationFamilleEnAttente" :disabled="occupe || lectureSeule">
@@ -71,7 +71,7 @@ function annuler() {
           <option v-for="v in variables" :key="v.id" :value="v.id">{{ v.lib }} [{{ v.id }}]{{ v.priv ? ' — privée' : '' }}</option>
         </select></label>
         <label>Nom de la famille<input v-model="nom" placeholder="Nom de la variable par défaut" /></label>
-        <label v-if="portee === 'locuteur'"><input v-model="inclureEnqueteurs" type="checkbox" /> Inclure les enquêteurs (rôle local)</label>
+        <label v-if="portee === 'participation'"><input v-model="inclureEnqueteurs" type="checkbox" /> Inclure les enquêteurs (rôle local)</label>
         <p v-if="autresFamilles.length" class="avertissement">Familles existantes : {{ autresFamilles.map((f) => f.nom).join(', ') }}. Cette opération créera une autre famille indépendante ; choisissez un nom distinct.</p>
       </template>
       <button :disabled="!familleId && !variableId" @click="previsualiser">Prévisualiser la famille</button>

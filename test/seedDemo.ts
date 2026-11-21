@@ -10,14 +10,14 @@ import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
  *  blocs, 3 thèmes de démo (Famille/Travail/Lieu) + le bloc Pondérations
  *  (cat_004..007) — les ids/contenus historiques dont dépendent les specs.
  */
-export function ecrireSeedDemo(dirCorpus: string): void {
+export function ecrireSeedDemo(dirCorpus: string, avecIdsStables = false): void {
   // IDEMPOTENT : ne JAMAIS écraser un corpus existant — les tests de persistance relancent l'app sur le même dossier,
   // et doivent retrouver leur état.
   if (existsSync(join(dirCorpus, 'corpus.crp'))) return
   const now = new Date().toISOString()
   const blanc = '#ffffff'
   const corpus: CorpusFichier = {
-    formatVersion: 3,
+    formatVersion: 10,
     codebook: {
       cat_001: { id: 'cat_001', nom: 'Famille', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
       cat_002: { id: 'cat_002', nom: 'Travail', ordre: 1, parent: null, actif: true, codeExport: 'cat_002' },
@@ -29,11 +29,11 @@ export function ecrireSeedDemo(dirCorpus: string): void {
     },
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: { e1: { titre: 'Entretien Karine', date: null, lastModified: now } },
   }
   const e1: EntretienFichier = {
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: now,
     corpsTexte: {
       type: 'doc',
@@ -52,9 +52,9 @@ export function ecrireSeedDemo(dirCorpus: string): void {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [
-      { index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
+    participations: [
+      { id: "loc-1", ...(avecIdsStables ? { id: 'loc-demo-enqueteur' } : {}), index: 1, nom: 'Enquêteur', valeursLoc: {}, locuteurRef: null },
+      { id: "loc-2", ...(avecIdsStables ? { id: 'loc-demo-karine' } : {}), index: 2, nom: 'Karine', valeursLoc: {}, locuteurRef: null },
     ],
     meta: { valeursGen: {}, audioRef: null },
   }

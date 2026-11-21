@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   BailGitLab,
+  cheminBailDepuisEmpreinteGitLab,
   type BailObserveGitLab,
   type DepotCommitsGitLab,
   type DroitsEditionGitLab,
@@ -20,6 +21,14 @@ import {
 import { versionSupportee } from '../../shared/format'
 import type { RaisonDegradationSession } from '../../shared/distant'
 import { JournalSessionsGitLab, sha256Session } from './journalSession'
+import type { EntretienFichier, PayloadEntretien } from '../../shared/format'
+
+export interface CorrectionLocuteursSessionGitLab {
+  droit: DroitsEditionGitLab
+  avant: string
+  preparer(operationId: string, apres: string): void
+  confirmer(commitId: string, apres: string): Promise<void>
+}
 
 export interface StockageLocalSessionGitLab {
   lire(): Promise<string>
@@ -117,7 +126,12 @@ export class SessionGitLab {
           this.options.branche,
         )
         if (!distant) throw new Error('Entretien GitLab introuvable après acquisition.')
-        const reprise = this.options.journalSessions?.lire(this.options.ressource)
+        let reprise = this.options.journalSessions?.lire(this.options.ressource)
+        if (reprise?.correctionLocuteurs) {
+          if (!this.options.journal || this.options.journal.lireSiPresent(reprise.correctionLocuteurs.operationId)) throw new Error('La correction des locuteurs reste à vérifier. Actualisez ou rouvrez le corpus.')
+          this.options.journalSessions!.resoudreCorrectionLocuteurs(this.options.ressource, distant.commitId, distant.contenu)
+          reprise = this.options.journalSessions!.lire(this.options.ressource)
+        }
         if (reprise && (
           reprise.cheminRelatif !== this.options.cheminRelatif ||
           reprise.cheminDistant !== this.options.cheminDistant ||
@@ -276,6 +290,57 @@ export class SessionGitLab {
     return resultat
   }
 
+  async lireCandidatLocuteurs(): Promise<{ avant: string; candidat: string }> {
+    return this.serialiser(async () => {
+      const s = this.session
+      if (!s || this.etat().etat !== 'edition') throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+      await this.attendreMarques()
+      if (this.options.journalSessions?.lire(this.options.ressource)?.correctionLocuteurs) throw new Error('Une correction des locuteurs reste à vérifier.')
+      if (await this.options.stockageLocal.lire() !== s.contenuCapture) throw new Error('Attendez l’enregistrement des dernières saisies avant de renommer ce locuteur.')
+      return { avant: s.contenuPublie, candidat: s.contenuCapture }
+    })
+  }
+
+  /** Publie les saisies puis prête le droit courant, sans libérer ni rouvrir la session. */
+  async corrigerLocuteurs<T>(verifier: (avant: PayloadEntretien, apres: EntretienFichier) => void, executer: (session: CorrectionLocuteursSessionGitLab) => Promise<T>): Promise<T> {
+    return this.serialiser(async () => {
+      const s = this.session, journal = this.options.journalSessions
+      if (!s || this.etat().etat !== 'edition' || !journal || !this.options.journal) throw new Error('La session ne permet pas de modifier les locuteurs. Rouvrez cet entretien.')
+      const reprise = journal.lire(this.options.ressource)
+      if (!reprise) throw new Error('Le suivi de cet entretien est indisponible. Aucun nom modifié.')
+      if (reprise.correctionLocuteurs) throw new Error('Une correction des locuteurs reste à vérifier.')
+      const publication = await this.publierInterne()
+      if (publication.statut !== 'confirme') throw new Error('Les dernières saisies ne peuvent pas être publiées. Aucun nom modifié.')
+      await this.attendreMarques()
+      const avant = s.contenuPublie
+      if (s.contenuCapture !== avant || await this.options.stockageLocal.lire() !== avant) throw new Error('Les dernières saisies ont changé. Réessayez le renommage après leur enregistrement.')
+      let preparee = false, confirmee = false
+      try {
+        return await executer({ droit: s.droit, avant,
+          preparer: (operationId, apres) => {
+            const { formatVersion: _v, lastModified: _d, ...payload } = JSON.parse(avant) as EntretienFichier
+            verifier(payload, JSON.parse(apres) as EntretienFichier)
+            preparee = true
+            journal.preparerCorrectionLocuteurs(this.options.ressource, operationId, apres)
+          },
+          confirmer: async (commitId, apres) => {
+            if (s.contenuCapture !== avant || await this.options.stockageLocal.lire() !== avant) throw new Error('La copie locale a changé pendant la correction. Rouvrez le corpus.')
+            await this.options.stockageLocal.ecrire(apres)
+            const reprise = journal.lire(this.options.ressource)
+            if (!reprise?.correctionLocuteurs) throw new Error('Le suivi du renommage est indisponible. Rouvrez le corpus.')
+            journal.confirmerPublication(reprise.resourceHash, commitId, apres)
+            s.commitId = commitId; s.contenuPublie = apres; s.contenuCapture = apres
+            s.revisionPubliee = s.revisionCapturee; s.dernierePublication = this.maintenant()
+            confirmee = true
+          },
+        })
+      } catch (e) {
+        if (preparee && !confirmee) { s.degrade = true; s.raisonDegradation = 'indetermine' }
+        throw e
+      }
+    })
+  }
+
   async revalider(): Promise<boolean> {
     return this.serialiser(async () => {
       const session = this.session
@@ -354,7 +419,10 @@ export class SessionGitLab {
       const session = this.session
       if (!session) return { fermee: true }
       await this.attendreMarques()
-      if (session.degrade) return { fermee: false, raison: 'degrade' }
+      if (session.degrade) {
+        if (await this.fermerCorrectionIncertitude(session)) return { fermee: true }
+        return { fermee: false, raison: 'degrade' }
+      }
       if (session.contenuPublie !== session.contenuCapture) {
         const resultat = await this.publierInterne()
         if (resultat.statut !== 'confirme') {
@@ -369,6 +437,28 @@ export class SessionGitLab {
       this.session = null
       return { fermee: true }
     })
+  }
+
+  private async fermerCorrectionIncertitude(session: SessionOuverte): Promise<boolean> {
+    const journal = this.options.journalSessions, publications = this.options.journal
+    const correction = journal?.lire(this.options.ressource)?.correctionLocuteurs
+    if (!journal || !publications || !correction) return false
+    const entree = publications.lireSiPresent(correction.operationId)
+    if (entree) {
+      if (!this.options.reconciliateur) return false
+      const resultat = await this.options.reconciliateur.reconcilier(entree)
+      if (resultat.statut === 'indetermine') return false
+      for (const droit of entree.droits) await this.options.coordination.rendreBailNotre(cheminBailDepuisEmpreinteGitLab(droit.resourceHash), droit.generation)
+      publications.supprimer(entree.operationId)
+    }
+    const distant = await this.options.depot.lireFichier(this.options.cheminDistant, this.options.branche)
+    if (!distant) return false
+    journal.resoudreCorrectionLocuteurs(this.options.ressource, distant.commitId, distant.contenu)
+    let bail: ReturnType<BailGitLab['snapshot']> | null = null
+    try { bail = this.options.coordination.snapshot(session.droit) } catch { /* Un droit rendu n’est pas repris. */ }
+    if (bail) await this.options.coordination.rendreBailNotre(bail.chemin, bail.generation)
+    journal.supprimer(this.options.ressource); this.session = null
+    return true
   }
 
   async reconcilierOperationsPending(): Promise<Array<{

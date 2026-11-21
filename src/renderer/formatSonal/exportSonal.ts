@@ -13,7 +13,7 @@ import { nomThemePourSonal, ordreThemes } from '../../shared/corpus'
 import { couleurCss } from '../../shared/export/secuCss'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
+import type { Categorie, ParticipationLocuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
 import { cleEntite, scinderPseudos } from '../../shared/entretien/anon'
 
 /** Une règle d'anonymisation à la forme SonalPi1 (`remplacement`/`remplacementAlt`). */
@@ -70,9 +70,9 @@ function serialiserFragmentSonal(segments: SegmentProjete[]): string {
 function tablesSonal(e: EntreeExport, anonymer = false) {
   // tabLoc : tableau indexé par index de locuteur (position 0 = vide). Le « ? »
   // de l'interviewer (convention SonalPi1) est réintroduit ICI — jamais au modèle.
-  const maxIdx = e.locuteurs.reduce((m, l) => Math.max(m, l.index), 0)
+  const maxIdx = e.participations.reduce((m, l) => Math.max(m, l.index), 0)
   const tabLoc = Array.from({ length: maxIdx + 1 }, (_, i) => {
-    const l = e.locuteurs.find((x) => x.index === i)
+    const l = e.participations.find((x) => x.index === i)
     if (!l) return ''
     if (anonymer) {
       // La pseudonymisation applique les pseudos configurés sans masquer les
@@ -104,7 +104,7 @@ function tablesSonal(e: EntreeExport, anonymer = false) {
   // En pseudonymisé, les variables privées et leurs valeurs ne sortent pas.
   const visibles = anonymer ? e.variables.filter((v) => !v.priv) : e.variables
   const { tabVar, tabDic } = exporterVariables(visibles)
-  const tabDat = exporterValeurs(e.meta.valeursGen, e.locuteurs, visibles)
+  const tabDat = exporterValeurs(e.meta.valeursGen, e.participations, visibles)
   return { tabLoc, tabThm, tabVar, tabDic, tabDat }
 }
 

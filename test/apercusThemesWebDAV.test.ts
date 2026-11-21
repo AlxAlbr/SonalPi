@@ -159,13 +159,12 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     expect(b.requetes).toHaveLength(4)
   })
 
-  test('un entretien ancien est adapté en mémoire sans migration sur le serveur', async () => {
+  test('un entretien ancien est signalé comme incompatible sans modifier le serveur', async () => {
     const b = banc()
     const ancien = JSON.stringify({ ...entretien(), formatVersion: 2 })
     b.serveur.poser('entretiens/e1.json', ancien)
     const a = await b.apercus.analyser(transfert)
-    expect(a.obstacles).toEqual([])
-    expect(b.apercus.details(a.operationId, 'e1').codages).toHaveLength(2)
+    expect(a.obstacles).toContainEqual({ phase: 'entretiens', entretienId: 'e1', motif: expect.stringContaining('non supportée') })
     expect(b.serveur.contenuDe('entretiens/e1.json')).toBe(ancien)
   })
 

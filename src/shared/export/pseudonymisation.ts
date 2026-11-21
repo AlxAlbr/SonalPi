@@ -1,4 +1,5 @@
-import type { Note, Locuteur } from '../format'
+import type { ParticipationLocuteur } from '../format'
+import type { Note } from "../format"
 import type { EntreeExport, FormatExport, OptionsExport } from './types'
 import { optionsEfficaces } from './types'
 import { projeterSegments, type AnonFragment, type SegmentProjete } from './projectionEntretien'
@@ -28,7 +29,7 @@ export interface OptionsRapportPseudonymisation {
 }
 
 /** Pseudo exploitable : non vide, différent du vrai nom, non refusé. */
-export function pseudoUtilisable(l: Locuteur): boolean {
+export function pseudoUtilisable(l: ParticipationLocuteur): boolean {
   const p = l.pseudo?.trim() ?? ''
   return p !== '' && l.pseudoEtat !== 'refuse' && p !== l.nom.trim()
 }
@@ -52,15 +53,15 @@ function locuteursInclus(
   options: OptionsExport,
   segments: SegmentProjete[],
 ): Set<number> {
-  if (format === 'sonal') return new Set(e.locuteurs.map((l) => l.index))
+  if (format === 'sonal') return new Set(e.participations.map((l) => l.index))
 
   const inclus = new Set<number>()
   if (options.loc) {
     for (const index of locuteursDansLesSegments(segments)) inclus.add(index)
   }
   if (options.vars) {
-    const variablesLocuteur = e.variables.filter((v) => !v.priv && v.portee === 'locuteur')
-    for (const l of e.locuteurs) {
+    const variablesLocuteur = e.variables.filter((v) => !v.priv && v.portee === "participation")
+    for (const l of e.participations) {
       if (variablesLocuteur.some((v) => {
         const valeur = l.valeursLoc[v.id]
         return valeur != null && v.modalites.some((m) => m.id === valeur)
@@ -100,9 +101,9 @@ export function etablirRapportPseudonymisation(
   const exceptions = decisions.filter((decision) => decision.etat === 'exception').length
 
   const indicesLocuteurs = locuteursInclus(e, demande.format, options, segments)
-  const inclus = e.locuteurs.filter((l) => indicesLocuteurs.has(l.index))
-  const locuteursAvecPseudo = e.locuteurs.filter(pseudoUtilisable).length
-  const locuteursSansPseudo = e.locuteurs.length - locuteursAvecPseudo
+  const inclus = e.participations.filter((l) => indicesLocuteurs.has(l.index))
+  const locuteursAvecPseudo = e.participations.filter(pseudoUtilisable).length
+  const locuteursSansPseudo = e.participations.length - locuteursAvecPseudo
   const pseudosUtilises = inclus.filter(pseudoUtilisable).length
   const nomsEnClair = inclus.length - pseudosUtilises
   const detailPseudos = inclus.length === 0

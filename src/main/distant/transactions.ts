@@ -46,13 +46,17 @@ import type {
   ResultatLotAnon,
   ResultatMutationAnon,
   RegleAnon,
-  PayloadEntretien,
+  PayloadImportEntretien,
   Categorie,
   Variable,
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
-import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { SessionCorrectionLocuteursWebDAV, CopieSessionLocuteursWebDAV, ContexteSessionLocuteursWebDAV } from './sessionCorrectionLocuteurs'
+import type { CommandeRenommageLocuteur, OperationNommageLocuteurs, CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import { CorrectionsLocuteursWebDAV } from './correctionsLocuteursWebDAV'
+import { validerLotValeur } from '../../shared/corpus/valeursVariables'
+import { verifierVersionNative } from '../../shared/versionsNatives'
 import type { SourcePassageCas } from '../../shared/corpus/cas'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { DemandeOperationTheme, OptionsExecutionOperationTheme, ProgressionOperationTheme } from '../../shared/corpus/themes'
@@ -70,7 +74,7 @@ import { DissociationsAnonWebDAV } from './dissociationsAnonWebDAV'
 import { SuppressionsAnonWebDAV } from './suppressionsAnonWebDAV'
 import { RetraitsVarianteAnonWebDAV, type EtapeRetraitVarianteWebDAV } from './retraitsVarianteAnonWebDAV'
 import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
-import { exigerGeste } from '../gitlab/politiqueGestes'
+import { exigerGeste, gesteCorrectionLocuteurs } from '../gitlab/politiqueGestes'
 import type { DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
 import type { DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
 import type { PreparationRenommageDistant } from '../renommagesAnon'
@@ -100,6 +104,7 @@ export interface OptionsTransactions {
   gardePseudos?: GardePseudosWebDAV
   sessionsEnCours?: () => string[]
   verifierContexteRetrait?: (etape: EtapeRetraitVarianteWebDAV) => void
+  verifierContexteCorrection?: (session?: ContexteSessionLocuteursWebDAV, cibles?: readonly string[]) => void
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -123,6 +128,7 @@ export class TransactionsCorpus {
   private readonly retraitsVariante: RetraitsVarianteAnonWebDAV
   private readonly gardePseudos: GardePseudosWebDAV
   private readonly ajoutsVariante: AjoutsVarianteAnonWebDAV
+  private readonly correctionsLocuteurs: CorrectionsLocuteursWebDAV
   private mutationsEnCours = 0
 
   constructor(
@@ -134,6 +140,22 @@ export class TransactionsCorpus {
     private readonly identite: () => IdentiteSession,
     private readonly options: OptionsTransactions = {},
   ) {
+    const identiteCorrection = () => ({ ...this.identite(), sessionId: `locuteurs-${randomUUID()}` })
+    this.correctionsLocuteurs = new CorrectionsLocuteursWebDAV({ client, dirLocal: miroir.dirLocal,
+      utilisateur: () => this.identite().userId,
+      verifierContexte: (session, cibles) => options.verifierContexteCorrection?.(session, cibles),
+      sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? []), ...(options.sessionsEnCours?.() ?? [])],
+      miroir: (chemin, contenu, etag) => {
+        if (chemin === CHEMIN_CORPUS) this.ecrireCorpusLocal(contenu)
+        else this.ecrireEntretienLocal(chemin, contenu)
+        miroir.noterEtagPublie(chemin, etag)
+      },
+      verrouCorpus: () => { const id = identiteCorrection(); return { provider: new ProviderPutConditionnel(client, () => id), chemin: CHEMIN_VERROU_CORPUS } },
+      verrouEntretien: (id) => {
+        const propre = identiteCorrection()
+        return { provider: options.verrouNatif ? new ProviderFilesLock(client, () => propre) : new ProviderPutConditionnel(client, () => propre), chemin: this.cheminVerrouEntretien(id) }
+      },
+    })
     this.gardePseudos = options.gardePseudos ?? new GardePseudosWebDAV(client, identite, miroir.dirLocal,
       (chemin, contenu, etag) => {
         const sessions = options.getSessions?.()
@@ -264,6 +286,7 @@ export class TransactionsCorpus {
 
   /** Refuse les écritures ordinaires tant qu’un import est actif ou incomplet. */
   exigerSansImportCorrespondances(): void {
+    this.correctionsLocuteurs.exigerDisponible()
     if (this.correspondances.occupe || this.correspondances.lireSuivi()) {
       throw new Error('Un import WebDAV est en cours ou reste à reprendre. Aucune autre écriture n’est autorisée.')
     }
@@ -279,7 +302,7 @@ export class TransactionsCorpus {
 
   async reconcilierPublicationEntretien() { await this.gardePseudos.reconcilier() }
   lirePublicationEntretien() { return this.gardePseudos.lireEnvoi() }
-  exigerPublicationDisponible() { this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible() }
+  exigerPublicationDisponible() { this.correctionsLocuteurs.exigerDisponible(); this.exigerSansAjoutVariante(); this.gardePseudos.exigerDisponible() }
   exigerSansRenommage(): void {
     this.exigerSansDissociation()
     this.exigerPublicationDisponible()
@@ -301,7 +324,7 @@ export class TransactionsCorpus {
   }
   lireSuiviRenommageAnon() { return this.renommages.lireSuivi() }
   get renommageEnCours() { return this.renommages.occupe }
-  get mutationEnCours() { return this.mutationsEnCours > 0 }
+  get mutationEnCours() { return this.mutationsEnCours > 0 || this.correctionsLocuteurs.occupe }
   private exigerRenommageDisponible() {
     this.exigerSansDissociation()
     this.exigerPublicationDisponible()
@@ -374,6 +397,7 @@ export class TransactionsCorpus {
   cibleSuppressionProtegee(id: string) { return this.suppressions.cibleProtegee(id) }
 
   exigerSansRetraitVariante(): void {
+    this.correctionsLocuteurs.exigerDisponible()
     this.retraitsVariante.exigerMiroirComplet()
     if (this.retraitsVariante.occupe || this.retraitsVariante.lireSuivi()) throw new Error('Un retrait de variante WebDAV est engagé. Relisez son suivi avant cette mutation du corpus.')
   }
@@ -394,6 +418,48 @@ export class TransactionsCorpus {
   relireSuiviRetraitVarianteAnon(id: string) { return this.retraitsVariante.relireSuivi(id) }
   get retraitVarianteEnCours() { return this.retraitsVariante.occupe }
   cibleRetraitVarianteProtegee(id: string) { return this.retraitsVariante.cibleProtegee(id) }
+
+  private exigerAutresOperationsLocuteurs(): void {
+    this.renommages.exigerMiroirComplet(); this.dissociations.exigerMiroirComplet()
+    this.suppressions.exigerMiroirComplet(); this.retraitsVariante.exigerMiroirComplet()
+    if (this.mutationsEnCours || this.renommages.occupe || this.renommages.lireSuivi() || this.dissociations.occupe || this.dissociations.lireSuivi()
+      || this.suppressions.occupe || this.suppressions.lireSuivi() || this.retraitsVariante.occupe || this.retraitsVariante.lireSuivi()
+      || this.correspondances.occupe || this.correspondances.lireSuivi() || this.operationsThemes.occupe || this.operationsThemes.lireSuivi()
+      || this.ajoutsVariante.lireEnvoi() || this.gardePseudos.lireEnvoi()) throw new Error('Terminez les autres opérations du corpus avant de corriger ses locuteurs.')
+  }
+
+  lireDetailsLocuteursCorrection() {
+    this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.lireDetails()
+  }
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
+    exigerGeste('webdav', gesteCorrectionLocuteurs(commande)); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.appliquer(commande)
+  }
+  lireDetailsLocuteursSession(copie: CopieSessionLocuteursWebDAV) {
+    this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.lireDetails(copie)
+  }
+  corrigerLocuteursDepuisSession(commande: CommandeRenommageLocuteur | OperationNommageLocuteurs, session: SessionCorrectionLocuteursWebDAV) {
+    const geste = commande.type === 'identifierAuNommage' ? 'locuteurs.identifier-au-nommage'
+      : commande.type === 'rapprocherAuNommage' ? 'locuteurs.rapprocher-depuis-entretien' : 'locuteurs.renommer-depuis-entretien'
+    exigerGeste('webdav', geste); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.appliquerDepuisSession(commande, session)
+  }
+  sessionCorrectionLocuteursInterrompue() { return this.correctionsLocuteurs.sessionInterrompue() }
+  lireSuiviCorrectionLocuteurs() { return this.correctionsLocuteurs.lireSuivi() }
+  reprendreCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.reprendre-correction'); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.reprendre(id)
+  }
+  arreterCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.arreter-correction'); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.arreter(id)
+  }
+  reconcilierCorrectionLocuteurs(id: string) {
+    exigerGeste('webdav', 'locuteurs.verifier-correction'); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.reconcilier(id)
+  }
 
   private async avecMutation<T>(action: () => Promise<T>): Promise<T> {
     this.exigerSansImportCorrespondances()
@@ -643,20 +709,9 @@ export class TransactionsCorpus {
     }
   }
 
-  /** Migre corpus et entretiens sous leurs verrous avant de rendre le miroir éditable. */
-  async migrerFormatSiNecessaire(): Promise<CorpusFichier> {
-    const brut = JSON.parse(
-      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
-    ) as { formatVersion?: number }
-    if (brut.formatVersion === FORMAT_VERSION) return this.getStore().ouvrir()
-    const ids = () => Object.keys((JSON.parse(
-      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
-    ) as CorpusFichier).membership ?? {})
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: ids, ordreCorpus: 'avant' },
-      ids,
-      () => this.getStore().ouvrir(),
-    )
+  /** Valide le format du miroir sans publier de conversion sur le serveur. */
+  async ouvrirCorpusNatif(): Promise<CorpusFichier> {
+    return this.getStore().ouvrir()
   }
 
   /* ── Création et import — entretien puis corpus ───────────────────────────*/
@@ -667,7 +722,7 @@ export class TransactionsCorpus {
 
   async importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -701,8 +756,10 @@ export class TransactionsCorpus {
       const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
       const nouvellesRegles = Object.fromEntries(Object.entries(plan.corpusApres.reglesAnon ?? {})
         .filter(([id]) => !Object.hasOwn(plan.corpusAvant.reglesAnon ?? {}, id)))
+      const nouvellesIdentites = Object.fromEntries(Object.entries(plan.corpusApres.locuteurs)
+        .filter(([id]) => !Object.hasOwn(plan.corpusAvant.locuteurs, id)))
       const etagEntretien = await this.gardePseudos.publierSousVerrou(contenuEntretien, JSON.stringify({ annotations: [] }),
-        () => this.publierNouvelEntretien(cheminEntretien, contenuEntretien), provider, cheminEntretien, nouvellesRegles)
+        () => this.publierNouvelEntretien(cheminEntretien, contenuEntretien), provider, cheminEntretien, nouvellesRegles, nouvellesIdentites)
 
       let etagCorpusPublie = ''
       try {
@@ -856,92 +913,6 @@ export class TransactionsCorpus {
   }
 
   /** Garde une source fraîche et stable pendant la correction d'un autre entretien. */
-  async executerEntretienAvecSource<T>(
-    id: string,
-    sourceId: string,
-    mutation: () => T,
-  ): Promise<T> {
-    if (id === sourceId) throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    return this.executerCorrectionEntretiens(
-      { corpus: false, entretiens: [id] },
-      [id, sourceId],
-      mutation,
-    )
-  }
-
-  /** Publie une création éventuelle, puis le refus sur sa cible. */
-  async refuserRapprochement(
-    commande: Extract<CommandePersonnes, { type: 'refuser' }>,
-  ): Promise<string | null> {
-    if (commande.entretienId === commande.sourceEntretienId) {
-      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    }
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: [commande.entretienId] },
-      [commande.entretienId, commande.sourceEntretienId],
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Publie une création éventuelle, puis les associations source et cible. */
-  async rapprocherPersonnes(
-    commande: Extract<CommandePersonnes, { type: 'rapprocher' }>,
-  ): Promise<string | null> {
-    if (commande.entretienId === commande.sourceEntretienId) {
-      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    }
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: [commande.sourceEntretienId, commande.entretienId],
-      },
-      [commande.entretienId, commande.sourceEntretienId],
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Réunit les liens avant de retirer la définition absorbée. */
-  async fusionnerPersonnes(
-    commande: Extract<CommandePersonnes, { type: 'fusionner' }>,
-  ): Promise<string | null> {
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
-        ordreCorpus: 'apres',
-      },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Crée la définition séparée avant de déplacer ses locuteurs. */
-  async separerPersonne(
-    commande: Extract<CommandePersonnes, { type: 'separer' }>,
-  ): Promise<string | null> {
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
-        ordreCorpus: 'avant',
-      },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Supprime une définition après contrôle frais de tous les entretiens. */
-  async supprimerPersonneVide(personneId: string): Promise<null> {
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: [] },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => {
-        this.getStore().personnesCommander({ type: 'supprimer', personneId }, false)
-        return null
-      },
-    )
-  }
-
   private async executerCorrectionEntretiens<T>(
     cibles: {
       corpus: boolean
@@ -1152,29 +1123,6 @@ export class TransactionsCorpus {
     }
   }
 
-  /** Crée la définition avant le lien et conserve la fiche si le second commit échoue. */
-  async creerPersonneDepuisLocuteur(
-    entretienId: string,
-    locuteurId: string,
-    nom: string,
-  ): Promise<string> {
-    return this.avecMutation(() => this.creerEtLierPersonne(entretienId, locuteurId, nom))
-  }
-
-  private async creerEtLierPersonne(entretienId: string, locuteurId: string, nom: string): Promise<string> {
-    const personneId = await this.executer(() => this.getStore().creerDefinitionPersonne(nom))
-    try {
-      await this.executerEntretien(entretienId, () => this.getStore().personnesCommander({
-        type: 'lier', entretienId, locuteurId, personneId,
-      }, false))
-      return personneId
-    } catch (e) {
-      throw new ErreurTransaction(
-        `La personne a été créée, mais le lien a échoué. Retrouvez-la dans le répertoire pour réessayer. ${classifier(e).message}`,
-      )
-    }
-  }
-
   /* ── Lot de valeurs — un verrou court PAR ENTRETIEN ───────────────────*/
 
   /** Modification en lot des valeurs EAV (table de données, colonne) :
@@ -1187,6 +1135,7 @@ export class TransactionsCorpus {
    *  la matrice locale est fraîche sans pull complet, le prochain tirage devient no-op.
    *  JAMAIS de verrou global : un lot long ne doit pas geler le corpus. */
   async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
+    validerLotValeur(items)
     return this.avecMutation(() => this.poserValeurLotSousVerrous(items))
   }
 
@@ -1213,9 +1162,9 @@ export class TransactionsCorpus {
           const gardePrecedente = store.lectureSeule
           store.lectureSeule = false
           try {
-            for (const item of lot)
-              if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
-                throw new ErreurTransaction(`« ${item.entretienId} » est introuvable dans le corpus.`)
+            if (!store.poserValeursEntretien(id, lot)) {
+              throw new ErreurTransaction('Cet entretien ou le locuteur demandé n’est plus disponible. Actualisez la table.')
+            }
           } finally {
             store.lectureSeule = gardePrecedente
           }
@@ -1255,8 +1204,13 @@ export class TransactionsCorpus {
       else
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir
       const data = JSON.parse(brut) as EntretienFichier
-      // Mutation pure locale — parité `store.poserValeur`, sans toucher au membership.
-      for (const item of lot) corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)
+      verifierVersionNative(data, `entretien ${id}`)
+      // Mutation pure locale, sans toucher au membership.
+      for (const item of lot) {
+        if (!corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)) {
+          throw new ErreurTransaction('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
+        }
+      }
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
@@ -1603,14 +1557,15 @@ export async function poserValeurLotLocal(
   store: CorpusStore,
   items: ItemLotValeur[],
 ): Promise<ResultatLotValeur> {
+  validerLotValeur(items)
   const succes: string[] = []
   const echecs: { id: string; raison: string }[] = []
   const ids = [...new Set(items.map((i) => i.entretienId))]
   for (const id of ids) {
     try {
-      for (const item of items.filter((i) => i.entretienId === id))
-        if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
-          throw new Error(`« ${id} » est introuvable dans le corpus.`)
+      if (!store.poserValeursEntretien(id, items.filter((i) => i.entretienId === id))) {
+        throw new Error('Cet entretien ou le locuteur demandé n’est plus disponible. Actualisez la table.')
+      }
       succes.push(id)
     } catch (e) {
       echecs.push({ id, raison: classifier(e).message })

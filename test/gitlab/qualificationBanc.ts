@@ -445,7 +445,7 @@ export function entretienPublie(
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     reperesPassages: repereIds.map((id) => ({
       id,

@@ -24,10 +24,17 @@ import { useJournalEntretien } from './entretien/useJournalEntretien'
 import { useValeursEntretien } from './entretien/useValeursEntretien'
 import { useNotesEntretien } from './entretien/useNotesEntretien'
 import { useLocuteursEntretien } from './entretien/useLocuteursEntretien'
+import { useRenommageLocuteurOuvert } from './entretien/useRenommageLocuteurOuvert'
+import { verifierRelectureRenommage, verifierRelectureRenommageParticipation, signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
+import { payloadApresRapprochement, verifierPayloadRelecture, verifierRelectureIdentification } from '../../shared/entretien/identificationLocuteurs'
+import type { DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
+import type { PayloadEntretien, ReferenceParticipation } from '../../shared/format'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note, ReferenceMediaDistant } from '../../shared/format'
+import type { EntretienFichier, ParticipationLocuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, ReferenceMediaDistant } from '../../shared/format'
+import type { Note } from "../../shared/format"
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { creerReperePassage } from '../../shared/entretien/reperesPassages'
@@ -65,6 +72,7 @@ export function useEntretien(deps: {
   codeExtraits: () => string
   nomCode: (code: string) => string
   libelleValeur: (idVar: string, idMod: string) => string
+  modaliteParLibelle: (idVar: string, libelle: string) => Promise<string>
   themeExiste?: (id: string) => boolean
   valeurExiste?: (idVar: string, idMod: string | null) => boolean
   /** Catégories de note (définitions corpus) : nom d'une catégorie depuis
@@ -120,17 +128,20 @@ export function useEntretien(deps: {
   /** L'entretien ouvert est-il éditable ? (corpus local : toujours ; distant :
    *  seulement si NOUS tenons son verrou — état renvoyé par lireEntretien.) */
   entretienEditable?: () => boolean
+  renommageGlobalPossible?: () => boolean
+  identificationLocuteursPossible?: () => boolean
+  apresRenommageGlobal?: () => void
 }) {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
 
   // --- Modèle en session (LA vérité ; éditeur et disque = projections) ---
   const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
-  const locuteurs = ref<Locuteur[]>([])
+  const locuteurs = ref<ParticipationLocuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
   const notesEntretien = useNotesEntretien({
     entretien,
-    locuteurs,
+    participations: locuteurs,
     lireEditeur: () => editor.value ?? null,
     nomCategorieNote: deps.nomCategorieNote,
     categorieNoteDefaut: deps.categorieNoteDefaut,
@@ -180,6 +191,8 @@ export function useEntretien(deps: {
   // stockée — recalculée au moindre déplacement du curseur.
   // --- Recherche / remplacement (Ctrl+F) -------------------------------------
   const ouvertId = ref<string | null>(null)
+  const editionNomsSuspendue = ref(false)
+  const renommageEnCours = ref(false)
   const selectionPassage = ref<{
     entretienId: string
     from: number
@@ -265,7 +278,9 @@ export function useEntretien(deps: {
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journalEntretien = useJournalEntretien({
     entretien,
-    locuteurs,
+    ouvertId,
+    participations: locuteurs,
+    editable: () => !editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()),
     notes,
     lireValeursGen: () => meta.valeursGen,
     lireEditeur: () => editor.value ?? null,
@@ -289,11 +304,40 @@ export function useEntretien(deps: {
     reinitialiserJournal,
   } = journalEntretien
 
+  const renommageOuvert = useRenommageLocuteurOuvert({
+    participations: locuteurs, ouvertId,
+    disponible: () => !!deps.renommageGlobalPossible?.() && !deps.lectureSeule?.(),
+    sauver: async () => { await locuteursEntretien.attendreNommages(); await viderSauvegarde() },
+    suspendre: () => suspendrePourCorrectionLocuteurs(true),
+    appliquer: appliquerNomsRenommes,
+    terminer: terminerRenommage,
+    apresCorrection: () => deps.apresRenommageGlobal?.(),
+    apresValidation: (reference) => locuteursEntretien.proposerRapprochement(reference),
+  })
   const locuteursEntretien = useLocuteursEntretien({
     locuteurs,
     ouvertId,
     lireEditeur: () => editor.value ?? null,
-    lectureSeule: deps.lectureSeule,
+    lectureSeule: () => editionNomsSuspendue.value || renommageEnCours.value || !!deps.lectureSeule?.(),
+    identificationPossible: deps.identificationLocuteursPossible,
+    identifier: (reference, nom, regulariser) => corrigerAssociationAuNommage(reference,
+      () => window.sonal.corpus.identifierParticipationAuNommage({ ...reference, nom, ...(regulariser ? { regulariser } : {}) }),
+      (avant, apres, relecture) => verifierRelectureIdentification(avant, apres, reference, relecture, regulariser), false),
+    renommerLocal: (reference, nom) => {
+      const p = locuteurs.value.find((candidat) => candidat.id === reference.participationId)
+      if (!p?.locuteurRef) return Promise.reject(new Error('Le locuteur ou son association a changé.'))
+      const demande = { ...reference, locuteurId: p.locuteurRef, nomAvant: p.nom, nom }
+      return corrigerAssociationAuNommage(reference,
+        () => window.sonal.corpus.renommerParticipationDepuisEntretien(demande),
+        (avant, apres, relecture) => {
+          const { formatVersion: _v, lastModified: _d, ...payload } = apres
+          if (relecture && signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) return
+          verifierRelectureRenommageParticipation(avant, apres, demande)
+        }, false)
+    },
+    rapprocher: (demande, inventaire) => rapprocherAuNommage(demande, inventaire),
+    renommageGlobalPossible: deps.renommageGlobalPossible,
+    demanderRenommageGlobal: (reference, nom) => { void demanderRenommageGlobal(reference, nom) },
     effets: {
       enregistrerAction,
       rafraichirJournal,
@@ -301,7 +345,7 @@ export function useEntretien(deps: {
       rafraichirGouttiere,
       planifierSauvegarde,
       viderSauvegarde,
-      retirerLocuteurDesNotes: notesEntretien.retirerLocuteur,
+      retirerLocuteurDesNotes: notesEntretien.retirerParticipation,
     },
   })
   const {
@@ -310,8 +354,9 @@ export function useEntretien(deps: {
     rapprochementNommage,
     rapprochementOccupe,
     locuteurASupprimer,
+    regulariserLocuteur,
     attribuerLoc,
-    renommerLoc,
+    renommerParticipation,
     reporterRapprochement,
     deciderRapprochement,
     nouveauLocuteur,
@@ -320,12 +365,19 @@ export function useEntretien(deps: {
     choisirCouleurLoc,
     demanderSuppressionLocuteur,
     confirmerSuppressionLocuteur,
-  } = locuteursEntretien
+      } = locuteursEntretien
 
-  const { setValeurGen, setValeurLoc } = useValeursEntretien({
+  const {
+    poserValeurEntretien, poserValeurLibelleEntretien,
+    attendreSaisies: attendreSaisiesValeurs, annulerSaisies: annulerSaisiesValeurs,
+  } = useValeursEntretien({
+    ouvertId,
     meta,
-    locuteurs,
+    participations: locuteurs,
+    editable: () => !editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()),
+    valeurExiste: deps.valeurExiste,
     libelleValeur: deps.libelleValeur,
+    modaliteParLibelle: deps.modaliteParLibelle,
     enregistrerAction,
     rafraichirJournal,
     planifierSauvegarde,
@@ -530,7 +582,7 @@ export function useEntretien(deps: {
   let tid: ReturnType<typeof setTimeout> | undefined
   let sauvegardes = Promise.resolve()
   function planifierSauvegarde() {
-    if (chargement || !ouvertId.value) return
+    if (chargement || !ouvertId.value || editionNomsSuspendue.value) return
     etatSauvegarde.value = 'modifié'
     clearTimeout(tid)
     tid = setTimeout(() => {
@@ -542,7 +594,7 @@ export function useEntretien(deps: {
   function sauver(): Promise<void> {
     clearTimeout(tid)
     tid = undefined
-    if (!ouvertId.value || !editor.value) return sauvegardes
+    if (!ouvertId.value || !editor.value || editionNomsSuspendue.value) return sauvegardes
     const id = ouvertId.value
     const payload = payloadCourant()
     const operation = sauvegardes.then(async () => {
@@ -554,13 +606,20 @@ export function useEntretien(deps: {
     sauvegardes = operation.catch(() => {})
     return operation
   }
-  /** Vide le debounce et attend aussi une sauvegarde déjà en cours. */
+  /** Termine les saisies en cours, puis attend leur sauvegarde. */
   async function viderSauvegarde(): Promise<void> {
+    if (editionNomsSuspendue.value) {
+      if (renommageEnCours.value) throw new Error('Une mise à jour des locuteurs est en cours. Attendez sa fin avant de changer d’entretien ou de corpus.')
+      await sauvegardes
+      return
+    }
+    await attendreSaisiesValeurs()
     await sauver()
     await sauvegardes
   }
   /** Annule le debounce et préserve l'état courant hors du miroir publiable. */
   async function preserverEtAnnulerSauvegarde(): Promise<boolean> {
+    annulerSaisiesValeurs()
     clearTimeout(tid)
     tid = undefined
     const id = ouvertId.value
@@ -571,9 +630,126 @@ export function useEntretien(deps: {
   }
   /** Annule le debounce sans créer d'écriture, puis attend l'opération déjà partie. */
   async function annulerEtAttendreSauvegarde(): Promise<void> {
+    annulerSaisiesValeurs()
     clearTimeout(tid)
     tid = undefined
     await sauvegardes
+  }
+  function demanderRenommageGlobal(reference: ReferenceParticipation, nom?: string) {
+    locuteursEntretien.reporterRapprochement()
+    locuteursEntretien.messagePersonnes.value = ''
+    return renommageOuvert.preparer(reference, nom)
+  }
+  function confirmerRenommageLocal() {
+    const demande = renommageOuvert.demande.value
+    if (!demande?.localPossible || !demande.nom.trim() || renommageOuvert.occupe.value) return
+    renommageOuvert.annuler()
+    locuteursEntretien.renommerParticipation(demande.reference, demande.nom, 'entretien')
+  }
+  async function suspendrePourCorrectionLocuteurs(attendreNommages: boolean): Promise<PayloadEntretien> {
+    const id = ouvertId.value, editeur = editor.value
+    if (!id || !editeur || editionNomsSuspendue.value) throw new Error('Rouvrez cet entretien avant de renommer le locuteur.')
+    renommageEnCours.value = true
+    editeur.setEditable(false)
+    try {
+      if (attendreNommages) await locuteursEntretien.attendreNommages()
+      await viderSauvegarde()
+      if (ouvertId.value !== id || editor.value !== editeur) throw new Error('L’entretien a changé pendant la préparation du renommage.')
+      clearTimeout(tid); tid = undefined
+      editionNomsSuspendue.value = true
+      return payloadCourant()
+    } catch (e) {
+      if (ouvertId.value === id) terminerRenommage()
+      throw e
+    }
+  }
+  function appliquerNomsRenommes(avant: PayloadEntretien, apres: EntretienFichier, locuteurId: string) {
+    verifierRelectureRenommage(avant, apres, locuteurId)
+    verifierRelectureRenommage(avant, { formatVersion: FORMAT_VERSION, lastModified: '', ...payloadCourant() }, locuteurId)
+    const ids = new Set<string>()
+    for (const participation of locuteurs.value) {
+      if (participation.locuteurRef !== locuteurId) continue
+      participation.nom = apres.participations.find((p) => p.id === participation.id)!.nom
+      ids.add(participation.id)
+    }
+    journal.entrees = journal.entrees.filter((e) => e.inverse.type !== 'renommerParticipation' || !ids.has(e.inverse.reference.participationId))
+    editionNomsSuspendue.value = false
+    locuteursEntretien.messagePersonnes.value = ''
+    locuteursEntretien.rapprochementNommage.value = null
+    etatSauvegarde.value = 'à jour'
+    rafraichir(); rafraichirDecorations(); rafraichirGouttiere()
+  }
+  async function rapprocherAuNommage(demande: DemandeRapprochementNommage, inventaire: InventaireIdentitesLocuteurs) {
+    const requete = JSON.parse(JSON.stringify(demande)) as DemandeRapprochementNommage
+    const sources = JSON.parse(JSON.stringify(inventaire)) as InventaireIdentitesLocuteurs
+    return corrigerAssociationAuNommage(requete,
+      () => window.sonal.corpus.rapprocherLocuteurDepuisEntretien(requete),
+      (avant, apres, relecture) => {
+        if (relecture) {
+          const { formatVersion: _v, lastModified: _d, ...payload } = apres
+          if (signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) return
+        }
+        verifierPayloadRelecture(payloadApresRapprochement(avant, requete, sources), apres)
+      }, true)
+  }
+
+  async function corrigerAssociationAuNommage(
+    reference: ReferenceParticipation,
+    executer: () => Promise<EntretienFichier>,
+    verifier: (avant: PayloadEntretien, apres: EntretienFichier, relecture: boolean) => void,
+    attendreNommages: boolean,
+  ) {
+    const cible = locuteurs.value.find((p) => p.id === reference.participationId), editeur = editor.value
+    const courant = () => ouvertId.value === reference.entretienId && editor.value === editeur
+      && locuteurs.value.find((p) => p.id === reference.participationId) === cible
+    if (!cible || !courant() || !deps.identificationLocuteursPossible?.() || deps.lectureSeule?.()) throw new Error('Le nommage n’est pas disponible dans cet entretien. Vérifiez son accès en modification.')
+    let avant: PayloadEntretien | undefined
+    try {
+      avant = await suspendrePourCorrectionLocuteurs(attendreNommages)
+      if (!courant()) throw new Error('L’entretien a changé. Rouvrez le corpus pour vérifier les locuteurs.')
+      let apres: EntretienFichier, erreurInitiale: unknown
+      try { apres = await executer() }
+      catch (e) {
+        erreurInitiale = e
+        const relu = await window.sonal.corpus.ouvrirEntretienPourEdition(reference.entretienId)
+        if (!relu.ok || relu.acces !== 'edition') throw new Error('Les locuteurs ne peuvent pas être vérifiés. Rouvrez le corpus avant de poursuivre les modifications.')
+        apres = relu.data
+      }
+      if (!courant()) return
+      verifierPayloadRelecture(avant, { formatVersion: FORMAT_VERSION, lastModified: '', ...payloadCourant() })
+      verifier(avant, apres, erreurInitiale !== undefined)
+      for (const p of locuteurs.value) {
+        const frais = apres.participations.find((a) => a.id === p.id)!
+        p.nom = frais.nom
+        p.locuteurRef = frais.locuteurRef
+        for (const cle of ['associationRetiree', 'rapprochementsRefuses', 'pseudo', 'pseudoEtat', 'interviewer'] as const) {
+          if (signaturePayloadEntretien(p[cle]) === signaturePayloadEntretien(frais[cle])) continue
+          if (frais[cle] === undefined) delete p[cle]
+          else Object.assign(p, { [cle]: structuredClone(frais[cle]) })
+        }
+        if (signaturePayloadEntretien(p.valeursLoc) !== signaturePayloadEntretien(frais.valeursLoc)) {
+          for (const id of Object.keys(p.valeursLoc)) delete p.valeursLoc[id]
+          Object.assign(p.valeursLoc, frais.valeursLoc)
+        }
+      }
+      if (cible.locuteurRef) journal.entrees = journal.entrees.filter((e) => e.inverse.type !== 'renommerParticipation' || e.inverse.reference.participationId !== reference.participationId)
+      editionNomsSuspendue.value = false
+      etatSauvegarde.value = 'à jour'
+      rafraichir(); rafraichirDecorations(); rafraichirGouttiere()
+      deps.apresRenommageGlobal?.()
+      const { formatVersion: _v, lastModified: _d, ...payload } = apres
+      if (erreurInitiale !== undefined && signaturePayloadEntretien(avant) === signaturePayloadEntretien(payload)) throw erreurInitiale
+    } catch (e) {
+      if (courant() && editionNomsSuspendue.value) throw new Error(`Les locuteurs ne peuvent pas être vérifiés. Rouvrez le corpus avant de poursuivre les modifications. ${e instanceof Error ? e.message : String(e)}`)
+      throw e
+    } finally {
+      if (courant()) terminerRenommage()
+    }
+  }
+
+  function terminerRenommage() {
+    renommageEnCours.value = false
+    editor.value?.setEditable(!editionNomsSuspendue.value && (deps.entretienEditable?.() ?? !deps.lectureSeule?.()))
   }
   function payloadCourant() {
     const ed = editor.value!
@@ -584,7 +760,7 @@ export function useEntretien(deps: {
       reperesPassages: entretien.reperesPassages.map((repere) => ({ ...repere })),
       // Clone PLAT : locuteurs.value est un proxy réactif Vue, non clonable par l'IPC
       // Electron (structured clone) → on l'aplatit avant l'envoi.
-      locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
+      participations: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: JSON.parse(JSON.stringify(meta)),
       // Même raison : brouillonsAnon.value est un proxy réactif → aplatir.
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
@@ -614,8 +790,11 @@ export function useEntretien(deps: {
           : 'Entretien introuvable sur le disque.'
       return false
     }
+    annulerSaisiesValeurs()
     refusFormat.value = null
     chargement = true
+    editionNomsSuspendue.value = false; renommageEnCours.value = false
+    renommageOuvert.reinitialiser()
     recherche.reinitialiser()
     // Ordre : vider le modèle AVANT de remplacer le doc (le remap ne mappe rien),
     // puis recharger le doc, puis reposer les annotations (positions valides par
@@ -623,7 +802,7 @@ export function useEntretien(deps: {
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
     entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
-    locuteurs.value = res.data.locuteurs
+    locuteurs.value = res.data.participations
     locuteursEntretien.reinitialiser()
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
     for (const a of res.data.annotations) entretien.annotations.push(a)
@@ -664,7 +843,11 @@ export function useEntretien(deps: {
   }
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
+    annulerSaisiesValeurs()
     ouvertId.value = null
+    clearTimeout(tid); tid = undefined
+    editionNomsSuspendue.value = false; renommageEnCours.value = false
+    renommageOuvert.reinitialiser()
     selectionPassage.value = null
     recherche.reinitialiser()
     locuteursEntretien.reinitialiser()
@@ -709,7 +892,7 @@ export function useEntretien(deps: {
       annotations: JSON.parse(JSON.stringify(entretien.annotations)),
       ancres: [...entretien.ancres],
       reperesPassages: JSON.parse(JSON.stringify(entretien.reperesPassages)),
-      locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
+      participations: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: {
         valeursGen: { ...meta.valeursGen },
         audioRef: meta.audioRef,
@@ -723,7 +906,7 @@ export function useEntretien(deps: {
     entretien.annotations = fusion.annotations
     entretien.ancres = fusion.ancres
     entretien.reperesPassages = fusion.reperesPassages ?? []
-    locuteurs.value = fusion.locuteurs
+    locuteurs.value = fusion.participations
     Object.assign(meta.valeursGen, fusion.meta.valeursGen)
     brouillonsAnon.value = fusion.brouillonsAnon ?? []
     pseudosDeclares.value = fusion.pseudosDeclares ?? {}
@@ -797,7 +980,7 @@ export function useEntretien(deps: {
     corpsTexte: unknown
     annotations: Annotation[]
     ancres: Ancre[]
-    locuteurs: Locuteur[]
+    participations: ParticipationLocuteur[]
     meta: { valeursGen: Record<string, string>; audioRef: string | null }
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
@@ -809,7 +992,7 @@ export function useEntretien(deps: {
       corpsTexte: editor.value!.getJSON(),
       annotations: entretien.annotations.map((a) => ({ ...a })),
       ancres: entretien.ancres.map((a) => ({ ...a })),
-      locuteurs: locuteurs.value,
+      participations: locuteurs.value,
       meta: { valeursGen: meta.valeursGen, audioRef: meta.audioRef },
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,
@@ -821,6 +1004,7 @@ export function useEntretien(deps: {
 
   onBeforeUnmount(() => {
     clearTimeout(tid)
+    renommageOuvert.reinitialiser()
     editor.value?.destroy()
   })
 
@@ -871,7 +1055,18 @@ export function useEntretien(deps: {
     coderAvec,
     retirerCodagesDuCode,
     attribuerLoc,
-    renommerLoc,
+    renommerParticipation,
+    regulariserLocuteur,
+    editionNomsSuspendue,
+    renommageEnCours,
+    demandeRenommageGlobal: renommageOuvert.demande,
+    erreurRenommageGlobal: renommageOuvert.erreur,
+    renommageGlobalOccupe: renommageOuvert.occupe,
+    enregistrementRenommageGlobal: renommageOuvert.enregistrement,
+    demanderRenommageGlobal,
+    confirmerRenommageGlobal: renommageOuvert.confirmer,
+    confirmerRenommageLocal,
+    annulerRenommageGlobal: renommageOuvert.annuler,
     messagePersonnes,
     rapprochementNommage,
     rapprochementOccupe,
@@ -884,8 +1079,8 @@ export function useEntretien(deps: {
     locuteurASupprimer,
     demanderSuppressionLocuteur,
     confirmerSuppressionLocuteur,
-    setValeurGen,
-    setValeurLoc,
+    poserValeurEntretien,
+    poserValeurLibelleEntretien,
     // notes d'entretien
     ajouterNote,
     editerNote,

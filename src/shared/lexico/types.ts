@@ -1,4 +1,4 @@
-import type { Variable } from '../format'
+import type { Variable } from "../format"
 
 /** Une liste sans restriction se distingue d'une sélection explicite, même vide. */
 export type SelectionLexico =
@@ -11,16 +11,16 @@ export interface FiltreVariableLexico {
   nonRenseigne: boolean
 }
 
-export interface FiltrePersonnesLexico {
+export interface FiltreLocuteursLexico {
   selection: SelectionLexico
-  sansPersonne: boolean
-  sansLocuteur: boolean
+  sansIdentiteCommune: boolean
+  sansParticipation: boolean
 }
 
 export interface FiltresLexico {
   entretiens: SelectionLexico
   variables: Record<string, FiltreVariableLexico>
-  personnes: FiltrePersonnesLexico
+  locuteurs: FiltreLocuteursLexico
   themes: SelectionLexico
   cas: SelectionLexico
   inclureEnqueteurs: boolean
@@ -34,11 +34,11 @@ export interface OccurrenceLexico {
   titreEntretien: string
   from: number
   to: number
-  locuteurIndex: number | null
-  personneId: string | null
+  participationIndex: number | null
+  locuteurId: string | null
   interviewer: boolean
   valeursEntretien: Record<string, string>
-  valeursLocuteur: Record<string, string> | null
+  valeursParticipation: Record<string, string> | null
   themeIds: string[]
   avant: string
   apres: string
@@ -99,10 +99,10 @@ export function filtresLexicoParDefaut(): FiltresLexico {
   return {
     entretiens: selectionSansRestriction(),
     variables: {},
-    personnes: {
+    locuteurs: {
       selection: selectionSansRestriction(),
-      sansPersonne: false,
-      sansLocuteur: false,
+      sansIdentiteCommune: false,
+      sansParticipation: false,
     },
     themes: selectionSansRestriction(),
     cas: selectionSansRestriction(),

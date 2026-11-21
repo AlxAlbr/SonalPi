@@ -18,7 +18,7 @@ function payload(texte: string): PayloadEntretien {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }

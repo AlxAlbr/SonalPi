@@ -8,7 +8,7 @@ import type { Annotation } from '../src/shared/entretien/annotation'
 const options: OptionsExport = { entete: false, notes: false, vars: false, time: true, loc: false, thm: false, anon: true }
 function entree(annotations: Annotation[]): EntreeExport {
   return { corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Rue Karine. Karine.' }] }] }, annotations,
-    locuteurs: [], ancres: [{ pos: 1, t: 0 }, { pos: 20, t: 10 }], codebook: [], variables: [], meta: { valeursGen: {} }, legacy: { tabAnon: null, notes: '' } }
+    participations: [], ancres: [{ pos: 1, t: 0 }, { pos: 20, t: 10 }], codebook: [], variables: [], meta: { valeursGen: {} }, legacy: { tabAnon: null, notes: '' } }
 }
 const large: Annotation = { id: 'large', type: 'anon', from: 1, to: 11, etat: 'anonymise', pseudo: 'Quartier', auteur: 'test' }
 const interne: Annotation = { id: 'interne', type: 'anon', from: 5, to: 11, etat: 'exception', pseudo: 'Claire', auteur: 'test' }

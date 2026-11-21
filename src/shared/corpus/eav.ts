@@ -55,7 +55,7 @@ export function importerVariables(tabVar: unknown, tabDic: unknown): Variable[] 
     parId.set(id, {
       id,
       lib: rv.lib ?? '',
-      portee: rv.champ === 'gen' ? 'entretien' : 'locuteur',
+      portee: rv.champ === 'gen' ? 'entretien' : "participation",
       priv: rv.priv === true || rv.priv === 'true',
       ordre,
       vExport: rv.v,

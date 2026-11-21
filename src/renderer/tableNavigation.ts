@@ -13,22 +13,20 @@
  *  - les lignes NON ÉDITABLES (entretien verrouillé 🔒 par autrui en corpus
  *    distant) n'ont aucune cellule → la navigation les saute aussi.
  */
-import type { MatriceCorpus, Variable } from '../shared/format'
+import type { Variable } from '../shared/format'
 
 export type SensNav = 'bas' | 'haut' | 'droite' | 'gauche'
 
-/** Clés de cellules — MÊME convention que TableDonnees.vue (`cleGen`/`cleLoc`) :
- *  le registre de focus du composant et cette grille partagent l'espace. */
-export const cleGen = (entId: string, idVar: string) => `${entId}|${idVar}`
-export const cleLoc = (entId: string, index: number, idVar: string) => `${entId}|${index}|${idVar}`
+/** Clés de focus partagées avec la table ; elles ne sont jamais enregistrées dans les données. */
+export const cleGen = (entId: string, idVar: string) => JSON.stringify(['entretien', entId, idVar])
+export const cleParticipation = (entId: string, participationId: string | null, idVar: string) => JSON.stringify(['participation', entId, participationId, idVar])
 
 /** La grille : lignes dans l'ordre visuel, cellules = clé ou null (absente). */
 export type Grille = (string | null)[][]
 
-/** Entrées minimales pour construire la grille (structural typing sur
- *  `MatriceCorpus` et `Variable[]` — rien à convertir côté composant). */
+/** La navigation ne dépend que des références locales transmises par la matrice. */
 export interface SourceGrille {
-  entrees: Pick<MatriceCorpus[number], 'entretienId' | 'locuteurs'>[]
+  entrees: readonly { entretienId: string; participations: readonly { participationId: string | null }[] }[]
   variables: Pick<Variable, 'id' | 'portee'>[]
   /** Filtre de portée ≠ « entretien » : les lignes locuteurs apparaissent. */
   montrerLocuteurs: boolean
@@ -49,10 +47,10 @@ export function grilleCellules(o: SourceGrille): Grille {
       ),
     )
     if (o.montrerLocuteurs)
-      for (const l of e.locuteurs)
+      for (const p of e.participations)
         g.push(
           o.variables.map((v) =>
-            v.portee === 'locuteur' && editable ? cleLoc(e.entretienId, l.index, v.id) : null,
+            v.portee === "participation" && editable && p.participationId !== null ? cleParticipation(e.entretienId, p.participationId, v.id) : null,
           ),
         )
   }

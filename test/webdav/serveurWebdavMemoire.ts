@@ -274,8 +274,8 @@ export class ServeurWebDAVMemoire {
   }
 
   /** Le cœur du test-and-set : le serveur tranche. */
-  private octetsDe(e: Entree): Uint8Array {
-    return e.binaire ?? new TextEncoder().encode(e.contenu ?? '')
+  private octetsDe(e: Entree): Uint8Array<ArrayBuffer> {
+    return e.binaire ? new Uint8Array(e.binaire) : new TextEncoder().encode(e.contenu ?? '')
   }
 
   private entetesDe(chemin: string, e: Entree, taille: number): Record<string, string> {
@@ -319,7 +319,7 @@ export class ServeurWebDAVMemoire {
         'Content-Length': String(tranche.length),
       },
     }
-    if (this.variantes.corpTronque) {
+    if (this.variantes.corpsTronque) {
       return this.reponseSegmentee(tranche.subarray(0, Math.max(1, tranche.length - 1)), reponse)
     }
     if (this.variantes.corpsTropLong) {

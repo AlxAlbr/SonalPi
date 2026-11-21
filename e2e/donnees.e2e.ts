@@ -43,7 +43,9 @@ async function creerVariable(
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
 async function ongletDonnees(page: Page) {
-  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  const bouton = page.locator('.volet-notes [data-onglet="donnees"]')
+  if (await bouton.getAttribute('aria-expanded') !== 'true') await bouton.click()
+  await expect(page.locator('.volet-notes .panneau.donnees')).toBeVisible()
 }
 
 test('Notes et Données partagent le volet droit et se replient au second clic', async () => {
@@ -135,7 +137,7 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
   // Le fichier entretien : la valeur est sous le locuteur, PAS au niveau entretien.
   const brut = readFileSync(join(dir, 'corpus', 'entretiens', 'e1.json'), 'utf8')
   const data = JSON.parse(brut)
-  const loc1 = data.locuteurs.find((l: { index: number }) => l.index === 1)
+  const loc1 = data.participations.find((l: { index: number }) => l.index === 1)
   expect(Object.keys(loc1.valeursLoc)).toHaveLength(1) // valeur chez le locuteur
   expect(Object.keys(data.meta.valeursGen)).toHaveLength(0) // rien au niveau entretien
   expect(brut).not.toContain('"all"') // pas de sentinelle
@@ -224,7 +226,7 @@ for (const portee of ['entretien', 'locuteur'] as const) {
           if (!lecture.ok) throw new Error('Entretien absent')
           return {
             variables: Object.keys(c.variables).length,
-            valeurs: [...Object.values(lecture.data.meta.valeursGen), ...lecture.data.locuteurs.flatMap((l) => Object.values(l.valeursLoc))],
+            valeurs: [...Object.values(lecture.data.meta.valeursGen), ...lecture.data.participations.flatMap((l) => Object.values(l.valeursLoc))],
           }
         })
         expect(usages.variables).toBe(suppression === 'variable' ? 0 : 1)
@@ -291,7 +293,7 @@ test('sous-onglets « Locuteur » / « Entretien » : le crayon ouvre l’éditi
   // La création reste possible DEPUIS la fenêtre, et reste de portée locuteur.
   await page.locator('.modale-vars .corpus-tete .mini', { hasText: '+ var. de locuteur' }).click()
   await expect(page.locator('.modale-vars .liste-var > li')).toHaveCount(1)
-  await expect(page.locator('.modale-vars .portee.locuteur')).toHaveCount(1)
+  await expect(page.locator('.modale-vars .portee.participation')).toHaveCount(1)
   await expect(page.locator('.modale-vars .nom-var')).toBeFocused()
   await fermerEditionVariables(page)
 

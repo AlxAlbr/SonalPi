@@ -9,7 +9,7 @@ describe('suppression globale des seules décisions attribuées', () => {
     const r = preparerSuppressionAnon(f.corpus, f.sources, f.demande)
     expect(f).toEqual(original)
     expect(r.bilan).toEqual({ annotations: 8, anonymisees: 6, exceptions: 2, inclusesRetirees: 2, inclusesRevelees: 0, entretiens: 2, regleRetiree: true })
-    for (const e of r.entretiens) expect(e.apres).toEqual({ ...e.avant, annotations: e.avant.annotations.filter((a) => a.regle !== 'personne') })
+    for (const e of r.entretiens) expect(e.apres).toEqual({ ...e.avant, annotations: e.avant.annotations.filter((a) => a.regle !== "personne") })
     expect(r.corpusApres).toEqual({ ...f.corpus, reglesAnon: { autre: f.corpus.reglesAnon.autre, vide: f.corpus.reglesAnon.vide } })
     expect(r.entretiens.map((e) => e.id)).toEqual(['e1', 'e2'])
   })
@@ -18,7 +18,7 @@ describe('suppression globale des seules décisions attribuées', () => {
     f.corpus.reglesAnon.personne.entite = ['Rue Karine']
     for (const a of d.annotations) delete a.regle
     const grande = d.annotations.find((a) => a.id === 'englobante')!, interne = d.annotations.find((a) => a.id === 'a5')!
-    grande.regle = 'personne'; interne.etat = etat
+    grande.regle = "personne"; interne.etat = etat
     const original = structuredClone(interne)
     const r = preparerSuppressionAnon(f.corpus, f.sources, f.demande)
     expect(r.bilan).toMatchObject({ annotations: 1, inclusesRevelees: 1 })
@@ -65,7 +65,7 @@ describe('suppression globale des seules décisions attribuées', () => {
   test('refuse demande absente, identité forgée et barrière publiée', () => {
     const f = fixtureDissociationAnon()
     expect(() => inventorierSuppressionAnon(f.corpus, f.sources, { regleId: 'absente' })).toThrow('absente')
-    f.corpus.dissociationAnon = { operationId: 'dissociation-engagee', regleId: 'personne' }
+    f.corpus.dissociationAnon = { operationId: 'dissociation-engagee', regleId: "personne" }
     expect(() => inventorierSuppressionAnon(f.corpus, f.sources, f.demande)).toThrow('engagée')
     delete f.corpus.dissociationAnon; f.corpus.reglesAnon.personne.id = 'autre'
     expect(() => inventorierSuppressionAnon(f.corpus, f.sources, f.demande)).toThrow('Normalisez')

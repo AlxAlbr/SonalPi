@@ -65,7 +65,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       [ID]: { titre: 'Entretien divergence', date: null, lastModified: '2026-01-01T00:00:00Z' },
     },
@@ -87,7 +87,7 @@ function entretien(partiel: Partial<EntretienFichier>): string {
     corpsTexte: CORPS,
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     ...partiel,
   }

@@ -3,13 +3,10 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ouvrirSurCorpus, lancer } from './util'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
+import { importerFixtureNative } from './fixtures-natives'
 
 async function installer(page: Page) {
-  const ids = await page.evaluate(async ({ corpus, sources }) => {
-    const ids: string[] = []
-    for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-    return ids
-  }, fixtureDissociationAnon())
+  const ids = await importerFixtureNative(page, fixtureDissociationAnon())
   const regle = await page.evaluate(async () => (await window.sonal.corpus.reglesAnon()).find((r) => r.entite[0] === 'Karine')!)
   await page.reload(); await page.getByRole('button', { name: 'corpus', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pseudonymisation', exact: true })).toBeVisible()

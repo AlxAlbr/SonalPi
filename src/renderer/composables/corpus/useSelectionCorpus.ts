@@ -2,17 +2,17 @@ import { ref, type Ref } from 'vue'
 import type { EntretienFichier, LectureEntretien, Variable } from '../../../shared/format'
 import {
   detailsVariablesEntretien,
-  type BlocLocuteur,
+  type BlocParticipation,
   type LigneValeur,
-} from '../../../shared/corpus/variables'
+} from '../../../shared/corpus/lectureVariables'
 
 export interface DetailsSelectionCorpus {
-  nbLocuteurs: number
+  nbParticipations: number
   nbValeurs: number
   audio: boolean
   srt: boolean
   generales: LigneValeur[]
-  parLocuteur: BlocLocuteur[]
+  parParticipation: BlocParticipation[]
 }
 
 /** Gère l'entretien sélectionné et son panneau de métadonnées dans la vue Corpus. */
@@ -24,17 +24,17 @@ export function useSelectionCorpus(deps: {
   const corpusSelMeta = ref<DetailsSelectionCorpus | null>(null)
 
   function detailsDepuisLecture(data: EntretienFichier): DetailsSelectionCorpus {
-    const details = detailsVariablesEntretien(deps.variables.value, data)
+    const details = detailsVariablesEntretien(deps.variables.value, { meta: data.meta, participations: data.participations })
     const nbValeurs =
       Object.keys(data.meta.valeursGen).length +
-      data.locuteurs.reduce((somme, locuteur) => somme + Object.keys(locuteur.valeursLoc).length, 0)
+      data.participations.reduce((somme, locuteur) => somme + Object.keys(locuteur.valeursLoc).length, 0)
     return {
-      nbLocuteurs: data.locuteurs.length,
+      nbParticipations: data.participations.length,
       nbValeurs,
       audio: data.meta.audioRef != null,
       srt: (data.ancres?.length ?? 0) > 0,
       generales: details.generales,
-      parLocuteur: details.parLocuteur,
+      parParticipation: details.parParticipation,
     }
   }
 

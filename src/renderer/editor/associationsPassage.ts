@@ -153,7 +153,7 @@ export function resumerAssociationsPassage(params: {
           plages = [{ from: 0, to: preparee.doc.content.size }]
           raison = `règle sur « ${variable.lib} »`
         } else {
-          const retenus = new Set(params.source.locuteurs
+          const retenus = new Set(params.source.participations
             .filter((locuteur) => locuteur.valeursLoc?.[regle.variableId] === regle.modaliteId
               && (regle.inclureEnqueteurs || locuteur.interviewer !== true))
             .map((locuteur) => locuteur.index))
@@ -167,19 +167,19 @@ export function resumerAssociationsPassage(params: {
         }
         const retenus = new Set<number>()
         for (const membre of membresPersonnesRegle(regle)) {
-          if (!params.personnesConnues.has(membre.personneId)) {
+          if (!params.personnesConnues.has(membre.locuteurId)) {
             problemes.add(`Une personne du cas « ${courant.nom} » n’existe plus.`)
             continue
           }
-          for (const locuteur of params.source.locuteurs) {
-            if (locuteur.personneRef === membre.personneId
+          for (const locuteur of params.source.participations) {
+            if (locuteur.locuteurRef === membre.locuteurId
               && (membre.inclureEnqueteurs || locuteur.interviewer !== true)) {
               retenus.add(locuteur.index)
             }
           }
         }
         plages = interventions(preparee.doc, retenus)
-        raison = regle.type === 'personnes' ? 'règle de groupe de personnes' : 'règle de personne'
+        raison = regle.type === "locuteurs" ? 'règle de groupe de personnes' : 'règle de personne'
       }
 
       if (plages.some((plage) => ajouterCorrespondance(

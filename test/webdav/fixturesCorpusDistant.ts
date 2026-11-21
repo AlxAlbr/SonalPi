@@ -21,7 +21,7 @@ export function entretienDistantValide(
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     ...changements,
   }

@@ -32,7 +32,7 @@ for (const port of [8080, 8081]) {
       })
       await client.creerDossier('entretiens'); await client.creerDossier('verrous')
       const f = fixtureRenommageAnon(['e1', 'e2', 'e3']); f.sources[2].data.annotations = []
-      f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+      f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
       await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
       for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
       const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-renommage-contexte-nc-'))
@@ -117,11 +117,11 @@ for (const port of [8080, 8081]) {
         await expect(b.contexte.instantaneRenommageAnon()).rejects.toThrow('publication d’entretien')
         const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'autre', sessionId: 'sonde' }))
         expect((await provider.acquerir('verrous/corpus.lock.json')).ok).toBe(false)
-        data.locuteurs[0].pseudo = 'Autosave indépendante ultérieure'
+        data.participations[0].pseudo = 'Autosave indépendante ultérieure'
         writeFileSync(fichier, JSON.stringify(data)); b.contexte.sessions.noterSale('e3')
         b.pieges.apresE3 = false; b.pieges.lecturesPerdues = false
         await b.contexte.actualiser()
-        expect(JSON.parse(readFileSync(fichier, 'utf8')).locuteurs[0].pseudo).toBe('Autosave indépendante ultérieure')
+        expect(JSON.parse(readFileSync(fichier, 'utf8')).participations[0].pseudo).toBe('Autosave indépendante ultérieure')
         expect(b.publies).toEqual(['e3.json'])
         expect(await b.appliquer((await b.preparer()).token)).toMatchObject({ statut: 'partiel', annotations: 4 })
         expect(await b.contexte.fermerEntretien('e3')).toMatchObject({ fermee: true })
@@ -166,7 +166,7 @@ for (const port of [8080, 8081]) {
         expect(await b.client.getTexte('entretiens/e3.json')).toBe(avant)
         await expect(b.contexte.transactions.importerEntretien('Périmé', b.f.sources[0].data)).rejects.toThrow('variante choisie n’est plus déclarée')
         const data = structuredClone(b.f.sources[0].data)
-        for (const a of data.annotations) if (a.regle === 'personne' && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle'
+        for (const a of data.annotations) if (a.regle === "personne" && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle'
         expect(await b.contexte.transactions.importerEntretien('Courant', data)).toHaveProperty('id')
       } finally { await b.nettoyer() }
     })

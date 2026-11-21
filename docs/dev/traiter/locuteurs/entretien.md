@@ -6,13 +6,79 @@ ni de ProseMirror ; le composable orchestre l’éditeur et la sauvegarde.
 
 ## Ajouter et renommer
 
-Un nouveau locuteur reçoit un `id` opaque, l’index `max + 1`, des valeurs vides
-et aucun lien de personne. Renommer modifie uniquement son entrée : tous les
-paragraphes qui portent cet index retrouvent le nouveau nom par référence.
+Une nouvelle participation reçoit un `id` opaque, l’index `max + 1`, des valeurs
+vides, puis son identité corpus est enregistrée automatiquement dès le clic sur
+« + Locuteur », même avec le nom provisoire « Nouveau locuteur ». Les imports créent
+également une identité distincte par nouvelle participation dans leur transaction.
+Ces créations ne déclenchent ni notification de succès ni recherche de rapprochement.
+Entrée ou la sortie du champ modifié enregistrent le nom et déclenchent les
+propositions éventuelles, même pour une participation déjà identifiée à l’import.
+Un nom identique ne constitue jamais une preuve de rapprochement.
+Il n’existe pas de marqueur « nom validé ». L’entretien conserve également les
+participations non associées, même lorsqu’elles ne figurent pas dans la liste des
+locuteurs valides du corpus. Leur consultation et leur attribution restent possibles.
 
-Le nommage peut ensuite proposer un rapprochement avec les locuteurs d’autres
-entretiens. Ce parcours est distinct du renommage lui-même et ne transforme pas
-un nom en identifiant ; voir [personnes.md](personnes.md).
+`identifierParticipationAuNommage` enregistre identité et association ensemble.
+« Plus tard » garde cette identité indépendante. Confirmer une proposition réunit
+explicitement les identités via `rapprocherLocuteurDepuisEntretien`, sans fiche vide
+résiduelle ; seuls les champs locaux choisis peuvent être repris. Les retraits
+volontaires restent sans réassociation automatique. Le dialogue emploie uniquement
+le vocabulaire « locuteur » et porte le titre « Est-ce le même locuteur ? ».
+
+### Régularisation explicite
+
+Dans la gestion des locuteurs, **Enregistrer ce locuteur…** permet de traiter une
+référence absente ou disparue, ou un retrait volontaire. La confirmation explique
+que les paroles et informations restent inchangées et qu’aucune ancienne association
+ne sera restaurée. Un nom vide doit d’abord être renseigné.
+
+La demande `DemandeIdentificationLocuteur.regulariser` porte la référence et l’état
+de retrait attendus. Sans ce choix explicite, le nommage automatique continue à
+refuser les références disparues et les retraits volontaires. La transaction crée
+un locuteur distinct et ne reprend aucune association par déduction du nom.
+Les distinctions déjà enregistrées sont conservées.
+
+Ce parcours réutilise la transaction de nommage et le droit de l’entretien ouvert,
+sur les trois fournisseurs. La relecture autorise uniquement le changement de
+référence et la suppression explicite du marqueur de retrait, sans toucher au
+reste du payload. Une répétition reconnue conserve le locuteur déjà créé.
+Les protections de session, de publication et de reprise restent celles du nommage.
+
+### Choix de portée du renommage
+
+Le champ Nom enregistre directement lorsqu’aucun autre entretien n’est associé.
+Sinon, la fenêtre de renommage propose **Renommer dans cet entretien uniquement**
+ou **Renommer dans tous les entretiens**. Aucun sélecteur permanent n’est affiché.
+Le choix local reste disponible si une autre source manque à l’aperçu, mais plus
+après un envoi dont le résultat doit être vérifié.
+
+Le choix local appelle `renommerParticipationDepuisEntretien`. Sa demande porte
+l’entretien, la participation, l’identité et les noms avant/après. Seul `nom` change :
+l’identité commune, l’association et tous les autres champs sont conservés.
+Il ne demande ni inventaire complet ni droit sur un autre entretien. Un autre
+entretien associé absent ou en cours d’édition ne bloque donc pas ce changement.
+La validation peut ensuite proposer les rapprochements habituels, sans les appliquer.
+
+Pour le choix global, sur les trois fournisseurs, modifier le champ Nom prépare
+l’inventaire complet. Si d’autres entretiens sont associés, leur aperçu demande
+confirmation avant toute modification. Sinon, le renommage est enregistré directement
+par la même transaction protégée, sans ouvrir de dialogue. Un inventaire incomplet
+ou périmé bloque aussi ce parcours direct. Les index et les paragraphes ne sont
+jamais réécrits ; leur affichage retrouve le nouveau nom par référence.
+
+Ces raccords attendent les saisies et la sauvegarde, suspendent l’autosauvegarde
+pendant la transaction, puis actualisent uniquement les noms ou associations et
+informations explicitement choisies du modèle ouvert. Les autres
+données et l’historique de frappe sont conservés. Une relecture incertaine garde
+l’entretien en lecture seule jusqu’à réouverture du corpus. GitLab et WebDAV conservent
+le droit courant pendant ces corrections et adoptent la version confirmée
+comme base de session. Créer une identité indépendante ne nécessite pas de fermer
+les autres entretiens ; en distant, seules les autres éditions réellement modifiées
+par un renommage ou un rapprochement doivent être fermées.
+Sur WebDAV, une correction interrompue peut être fermée sans renvoyer l’ancien contenu,
+puis vérifiée et reprise depuis le corpus. Une ancienne protection native n’est jamais
+forcée automatiquement après redémarrage. Voir [fournisseurs.md](fournisseurs.md).
+Voir [corpus.md](corpus.md#renommage-depuis-lentretien-ouvert).
 
 ## Attribuer un tour de parole
 
@@ -91,13 +157,13 @@ Les noms sont affichés en clair : ce panneau n’est pas une vue pseudonymisée
 
 ## Valeurs et lecture seule
 
-Les valeurs des variables de portée locuteur vivent dans `valeursLoc`. Une
-personne liée ne devient pas propriétaire de ces valeurs ; deux entretiens
-peuvent conserver des valeurs différentes pour la même personne.
+Les valeurs des variables de portée participation vivent dans `valeursLoc`.
+L’identité commune ne devient pas propriétaire de ces valeurs ; deux entretiens
+peuvent conserver des valeurs différentes pour le même locuteur.
 
 L’édition du locuteur suit les droits de la session d’entretien. La consultation
-et le rendu restent possibles sans droit d’écriture. La disponibilité du
-répertoire Personnes est une question séparée des droits d’édition du texte.
+et le rendu restent possibles sans droit d’écriture. La disponibilité des
+corrections corpus est une question séparée des droits d’édition du texte.
 
 ## Carte du code et tests
 
@@ -113,10 +179,13 @@ répertoire Personnes est une question séparée des droits d’édition du text
 | Bilan et navigation | `src/renderer/components/traiter/entretien/StatistiquesLocuteurs.vue` |
 
 Tests principaux : `test/locuteurs.test.ts`, `test/locuteursGutter.test.ts`,
-`test/attribution.test.ts` et `e2e/locuteurs.e2e.ts`. Le test de gouttière vérifie
+`test/attribution.test.ts` et `e2e/locuteurs.e2e.ts`.
+`test/renommageParticipation.test.ts` couvre le renommage local, ses préconditions
+et la relecture limitée au nom. `e2e/locuteurs-renommage-ouvert.e2e.ts` vérifie le
+choix local/global et une réponse locale perdue. Le test de gouttière vérifie
 qu’un changement de couleur renouvelle les noms et pseudonymes déjà affichés,
 sans modifier le texte ni ses attributions. Les parcours de nommage et de
-rapprochement sont recensés dans [personnes.md](personnes.md).
+rapprochement sont recensés dans [corpus.md](corpus.md).
 
 Le bilan est couvert par `test/statistiquesLocuteurs.test.ts`,
 `test/statistiquesLocuteursRenderer.test.ts` et `e2e/statistiques-locuteurs.e2e.ts` :

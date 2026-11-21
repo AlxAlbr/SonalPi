@@ -19,7 +19,7 @@ export function entretienSuppressionDefinitions(usage?: DefinitionSupprimee): En
     formatVersion: FORMAT_VERSION, lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte conservé.' }] }] },
     annotations: usage === 'thème' ? [{ id: 'a', type: 'codage', code: 'theme', from: 1, to: 3, auteur: 'test' }] : [],
-    ancres: [], locuteurs: [], meta: { valeursGen: usage && usage !== 'thème' ? { v: 'm' } : {}, audioRef: null },
+    ancres: [], participations: [], meta: { valeursGen: usage && usage !== 'thème' ? { v: 'm' } : {}, audioRef: null },
   }
 }
 

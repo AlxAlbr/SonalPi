@@ -12,27 +12,27 @@ function outil() {
   const cas = ref(structuredClone(disque.cas!))
   const famillesCas = ref(structuredClone(disque.famillesCas!))
   const variables = ref(Object.values(structuredClone(disque.variables)))
-  const lirePersonnes = vi.fn()
+  const lireIdentitesLocuteurs = vi.fn()
   const lireEntretien = vi.fn(async (id: string) => ({ ok: true as const, data: sourceFamille(id === 'e2') }))
   const casCommander = vi.fn(async (commande: CommandeCas) => {
     disque.cas = appliquerCommandeCas(disque.cas, structuredClone(commande), {
-      maintenant: () => dateFamille, personneExiste: () => false, entretienExiste: () => true,
+      maintenant: () => dateFamille, locuteurExiste: () => false, entretienExiste: () => true,
       familles: disque.famillesCas, variables: disque.variables,
     })
     return structuredClone(disque)
   })
   ;(window as any).sonal = { corpus: { lireEntretien, casCommander, ouvrir: async () => structuredClone(disque) } }
   const api = useCasCorpus({ cas, famillesCas, variables, membership: ref(disque.membership), ouvertId: ref(null),
-    sourceOuverte: () => null, selectionCourante: () => null, enregistrerRepereSelection: vi.fn(), lirePersonnes,
-    ouvrirSource: vi.fn(), fermerRecueils: vi.fn() })
-  return { api, disque, casCommander, lireEntretien, lirePersonnes, variables }
+    sourceOuverte: () => null, selectionCourante: () => null, enregistrerRepereSelection: vi.fn(), lireIdentitesLocuteurs,
+    ouvrirSource: vi.fn(), fermerRecueils: vi.fn(), definitionsAvecSources: () => true })
+  return { api, disque, casCommander, lireEntretien, lireIdentitesLocuteurs, variables }
 }
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 const choix = { variableId: 'v', nom: 'Établissements', inclureEnqueteurs: false }
 
 test('aperçu sans écriture, membres muets observés, modalités non observées opt-in et lecture sans registre des personnes', async () => {
-  const { api, disque, lirePersonnes, casCommander } = outil()
+  const { api, disque, lireIdentitesLocuteurs, casCommander } = outil()
   const apercu = await api.preparerFamilleCas(choix)
   expect(apercu.cas.map((c) => c.selectionne)).toEqual([true, true, false])
   expect(apercu.cas[0].projection.observationsModalite).toMatchObject({ membres: 5, valeursAbsentes: 2 })
@@ -42,7 +42,7 @@ test('aperçu sans écriture, membres muets observés, modalités non observées
   await api.creerOuCompleterFamilleCas(ref(apercu).value)
   expect(Object.keys(disque.cas!)).toHaveLength(3)
   expect(Object.keys(api.famillesCas.value)).toHaveLength(1)
-  expect(lirePersonnes).not.toHaveBeenCalled()
+  expect(lireIdentitesLocuteurs).not.toHaveBeenCalled()
   const avant = structuredClone(disque)
   await api.rafraichirProjectionsCas()
   expect(disque).toEqual(avant)

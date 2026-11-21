@@ -172,7 +172,7 @@ function concatener(
       const correspond = candidats.length === sequence.length
         && candidats.every((occurrence, rang) => occurrence.forme === sequence[rang]
           && occurrence.entretienId === premier.entretienId
-          && occurrence.locuteurIndex === premier.locuteurIndex)
+          && occurrence.participationIndex === premier.participationIndex)
       if (!correspond) {
         suivant.push(resultat[index])
         index++
@@ -240,7 +240,7 @@ export function compterConcatenationsLexico(
     const premier = candidats[0]
     if (candidats.every((occurrence, rang) => occurrence.forme === sequence[rang]
       && occurrence.entretienId === premier.entretienId
-      && occurrence.locuteurIndex === premier.locuteurIndex)) total++
+      && occurrence.participationIndex === premier.participationIndex)) total++
   }
   return total
 }

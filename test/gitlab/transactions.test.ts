@@ -15,7 +15,7 @@ import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublicati
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
-import type { CorpusFichier, EntretienFichier, PayloadEntretien } from '../../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type PayloadEntretien } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
 import { decoderCorrespondances, preparerImportCorrespondances } from '../../src/shared/corpus/importCorrespondances'
 import { empreinteDefinitionsCorrespondance } from '../../src/main/tablesCorrespondance'
@@ -56,7 +56,7 @@ function nomDuTheme(corpus: CorpusFichier): string {
 
 function entretien(texte = 'Alice'): EntretienFichier {
   return {
-    formatVersion: 8,
+    formatVersion: 10,
     lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: {
       type: 'doc',
@@ -68,7 +68,7 @@ function entretien(texte = 'Alice'): EntretienFichier {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -106,7 +106,7 @@ function payload(texte: string): PayloadEntretien {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -412,6 +412,25 @@ describe('ajout et import GitLab', () => {
     expect(store.ouvrir().membership).toEqual(resultat.corpus.membership)
   })
 
+  test('les imports créent leurs identités dans le même commit, sans réunir les homonymes', async () => {
+    const { transactions, store, depot } = banc()
+    const source = payload('Texte importé')
+    source.participations = [1, 2].map((index) => ({ id: `p${index}`, index, nom: 'Alex importé', locuteurRef: null, valeursLoc: {} }))
+    const ids: string[] = []
+    for (const titre of ['Premier import', 'Second import']) {
+      const r = await transactions.importerEntretien(titre, source)
+      const data = JSON.parse(depot.fichiers.get(`${RACINE}/entretiens/${r.id}.json`)!.contenu) as EntretienFichier
+      for (const p of data.participations) {
+        expect(r.corpus.locuteurs[p.locuteurRef!]).toEqual({ id: p.locuteurRef, nom: p.nom })
+        ids.push(p.locuteurRef!)
+      }
+      expect(store.lireEntretien(r.id)).toEqual({ ok: true, data })
+    }
+    expect(new Set(ids).size).toBe(4)
+    expect(commitsDeDonnees(depot)).toHaveLength(2)
+    expect(store.locuteursInventaire().aVerifier).toEqual([])
+  })
+
   test('un miroir en retard accepte l’installation du plan local', async () => {
     const serveur = squeletteCorpus('Corpus partagé')
     const { transactions } = banc({ serveur, local: squeletteCorpus('copie très périmée') })
@@ -634,6 +653,43 @@ describe('écritures courtes d’entretien GitLab', () => {
     expect(actions.map((action) => action.file_path)).toContain(`${RACINE}/corpus.crp`)
     expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
     expect(b.journal.lister()).toHaveLength(0)
+  })
+
+  test('résout les ids locaux sur la source fraîche et refuse un lot incomplet sans publication', async () => {
+    const serveur = corpusAvecValeurs()
+    serveur.variables.v1.portee = "participation"
+    const b = banc({ serveur, local: structuredClone(serveur) })
+    const data = entretien()
+    data.formatVersion = FORMAT_VERSION
+    data.participations = [
+      { id: 'autre', index: 7, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
+      { id: '7', index: 11, nom: 'Même nom', valeursLoc: {}, locuteurRef: null },
+    ]
+    const chemin = `${RACINE}/entretiens/e1.json`
+    const brut = JSON.stringify(data)
+    b.depot.deposerHorsProtocole(chemin, brut)
+    const fichierLocal = join(b.dirLocal, 'entretiens/e1.json')
+    const perime = structuredClone(data)
+    perime.participations[0].index = 11
+    perime.participations[1].index = 7
+    const avantLocal = JSON.stringify(perime)
+    writeFileSync(fichierLocal, avantLocal)
+    const item = { entretienId: 'e1', cible: { type: 'participation' as const, participationId: '7' }, idVar: 'v1', idMod: 'm1' }
+    await expect(b.transactions.poserValeursEntretien('e1', [item,
+      { ...item, cible: { type: 'participation', participationId: 'disparue' } },
+    ])).rejects.toThrow('Actualisez')
+    expect(b.depot.fichiers.get(chemin)!.contenu).toBe(brut)
+    expect(readFileSync(fichierLocal, 'utf8')).toBe(avantLocal)
+    expect(actionsDeDonnees(b.depot)).toEqual([])
+
+    await b.transactions.poserValeursEntretien('e1', [item])
+    const publie = JSON.parse(b.depot.fichiers.get(chemin)!.contenu) as EntretienFichier
+    expect(publie.participations.map((p) => [p.id, p.index])).toEqual([['autre', 7], ['7', 11]])
+    expect(publie.participations[0]).toEqual(data.participations[0])
+    expect(publie.participations[1].valeursLoc).toEqual({ v1: 'm1' })
+    expect(JSON.parse(readFileSync(fichierLocal, 'utf8'))).toEqual(publie)
+    expect(JSON.parse(b.depot.fichiers.get(`${RACINE}/corpus.crp`)!.contenu)).toEqual(serveur)
+    expect(b.journal.lister()).toEqual([])
   })
 
   test('relit le corpus et refuse une modalité supprimée pendant la préparation', async () => {

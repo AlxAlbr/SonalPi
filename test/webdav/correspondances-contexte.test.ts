@@ -54,7 +54,7 @@ for (const natif of [false, true]) describe(`gardes du contexte d’import — $
     const b = await banc(natif)
     expect(() => b.contexte.exigerEcritureEntretien('e1')).toThrow('session WebDAV')
     expect((await b.contexte.importerCorrespondances(b.preparation)).entretiens?.entretiens).toBe(2)
-    expect(b.contexte.store.lireEntretien('e1')).toMatchObject({ ok: true, data: { locuteurs: [{ pseudo: 'Claire' }] } })
+    expect(b.contexte.store.lireEntretien('e1')).toMatchObject({ ok: true, data: { participations: [{ pseudo: 'Claire' }] } })
     await expect(b.contexte.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({ acces: 'edition' })
     expect(() => b.contexte.exigerEcritureEntretien('e1')).not.toThrow()
     await b.contexte.fermerEntretien('e1')

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ecrireSeedDemo, entrerCorpus, lancer } from './util'
+import { ecrireSeedDemo, entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
 
 test('les projections gardent leur dernier résultat et replient les entretiens indisponibles', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-fraicheur-'))
@@ -19,7 +19,7 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     date: null,
     statut: 'public',
     corps: 'Contenu conservé',
-    locuteurIds: [],
+    participationIds: [],
     rang: 0,
     creeLe: '2025-01-01T10:00:00.000Z',
     modifieLe: null,
@@ -32,6 +32,7 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     await entrerCorpus(page)
 
     renameSync(cheminCorpus, cheminSecours)
+    writeFileSync(cheminCorpus, '{', 'utf8')
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
     const notes = page.locator('.notes-corpus')
     await expect(notes.getByRole('button', { name: 'Réessayer' })).toBeVisible()
@@ -43,6 +44,7 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     await expect(notes.getByRole('alert')).toHaveCount(0)
 
     renameSync(cheminCorpus, cheminSecours)
+    writeFileSync(cheminCorpus, '{', 'utf8')
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
     await expect(notes.locator('.tableau-notes tbody tr', { hasText: 'Résultat lisible' })).toBeVisible()
@@ -61,10 +63,10 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
     }
     writeFileSync(cheminCorpus, JSON.stringify(corpus, null, 2), 'utf8')
 
-    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
-    const personnes = page.locator('.personnes-corpus')
-    const detailPersonnes = personnes.locator('details.inventaire-incomplet')
-    await expect(detailPersonnes.getByText('1 entretien indisponible', { exact: true })).toBeVisible()
+    await ouvrirDetailsLocuteurs(page)
+    const personnes = page.locator('.locuteurs-corpus')
+    const detailPersonnes = personnes.locator('details.sources-indisponibles')
+    await expect(detailPersonnes.locator('summary')).toContainText('1 entretien indisponible')
     await expect(detailPersonnes).not.toHaveAttribute('open', '')
     await detailPersonnes.locator('summary').click()
     await expect(detailPersonnes).toContainText('Entretien indisponible')

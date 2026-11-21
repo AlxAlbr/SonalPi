@@ -49,7 +49,7 @@ for (const natif of [false, true]) describe(`correspondances WebDAV — ${natif 
     const doc = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!)
     expect(doc.corpsTexte).toEqual(JSON.parse(entretienImportWebDAV()).corpsTexte)
     expect(doc.annotations).toEqual(JSON.parse(entretienImportWebDAV()).annotations)
-    expect(doc.locuteurs[0]).toMatchObject({ index: 1, nom: 'Karine', personneRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
+    expect(doc.participations[0]).toMatchObject({ id: "loc-1", index: 1, nom: 'Karine', locuteurRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
     expect(doc.definitionsAnonLocales[0].entite).toEqual(['Alias sans occurrence', 'Autre graphie'])
     expect(b.service.lireSuivi()).toBeNull()
     const avant = b.puts.length

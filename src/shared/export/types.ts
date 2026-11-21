@@ -8,7 +8,8 @@
 import type { Ancre } from '../entretien/audio'
 import type { Annotation } from '../entretien/annotation'
 import type { ReperePassage } from '../entretien/reperesPassages'
-import type { Categorie, Locuteur, Note, NoteCategory, Variable, RegleAnon, BrouillonAnon } from '../format'
+import type { Categorie, ParticipationLocuteur, NoteCategory, Variable, RegleAnon, BrouillonAnon } from '../format'
+import type { Note } from "../format"
 
 /** Blobs SonalPi1 non modélisés, re-émis tels quels (round-trip sans perte). */
 export interface LegacyBlobs {
@@ -24,7 +25,7 @@ export interface EntreeExport {
   annotations: Annotation[]
   /** Ancres temporelles → re-dérivées en data-deb/data-fin par segment. */
   ancres: Ancre[]
-  locuteurs: Locuteur[]
+  participations: ParticipationLocuteur[]
   codebook: Categorie[]
   /** Définitions de variables du corpus → tabVar/tabDic. */
   variables: Variable[]

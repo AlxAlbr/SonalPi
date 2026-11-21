@@ -15,6 +15,7 @@ import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'
+import { preparerContexteNextcloud } from '../../src/main/distant/contexte'
 import type { IdentiteSession } from '../../src/main/distant/sessions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../src/shared/format'
 import type { ImplementationFetch } from '../../src/main/webdav/client'
@@ -40,7 +41,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {
       e1: { titre: 'Entretien un', date: null, lastModified: '2026-01-01T00:00:00Z' },
     },
@@ -55,7 +56,7 @@ function entretienE1(): string {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null },
   })
@@ -97,16 +98,16 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
   return JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
 }
 
-describe('Migration distante vers le format courant', () => {
-  it.each([4, 5, 6, 7])('publie la v%i puis ses entretiens sous verrous sans perdre les recueils ou les cas', async (version) => {
+describe('Refus des anciens formats distants', () => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('refuse la v%i sans modifier le serveur ni installer de documents incompatibles', async (version) => {
     const serveur = new ServeurWebDAVMemoire()
     const corpusV4 = JSON.parse(corpusInitial()) as CorpusFichier
     corpusV4.formatVersion = version
     if (version >= 5) corpusV4.cas = { c1: {
       id: 'c1', nom: 'Existant', memo: 'Mémo', creeLe: '2026-01-01T00:00:00.000Z', modifieLe: '2026-01-01T00:00:00.000Z',
       regles: [
-        { type: 'personne', personneId: 'p1', inclureEnqueteurs: false },
-        { type: 'personne', personneId: 'p2', inclureEnqueteurs: true },
+        { type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false },
+        { type: "locuteur", locuteurId: 'p2', inclureEnqueteurs: true },
       ], rattachements: [{ id: 'r1', creeLe: '2026-01-01T00:00:00.000Z', provenance: 'manuel', source: { entretienId: 'e1', repereId: 'p1' } }],
     } }
     corpusV4.recueils = {
@@ -125,24 +126,13 @@ describe('Migration distante vers le format courant', () => {
       serveur.fetch,
     )
     const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-migration-v7-')))
-    await miroir.tirer()
-    const store = new CorpusStore(miroir.dirLocal)
-    store.lectureSeule = true
-    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
-
-    await tx.migrerFormatSiNecessaire()
-
-    expect(corpusServeur(serveur).formatVersion).toBe(FORMAT_VERSION)
-    expect(corpusServeur(serveur).recueils?.r1.nom).toBe('Synthèse')
-    expect(corpusServeur(serveur).cas).toEqual(corpusV4.cas ?? {})
-    expect(corpusServeur(serveur).famillesCas).toEqual({})
-    expect(corpusServeur(serveur).attributsCas).toEqual({})
-    const entretien = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(entretien.formatVersion).toBe(FORMAT_VERSION)
-    expect(entretien.reperesPassages).toEqual([{ id: 'p1', from: 1, to: 1 }])
+    const avant = [serveur.contenuDe('corpus.crp'), serveur.contenuDe('entretiens/e1.json')]
+    await expect(miroir.tirer()).rejects.toThrow('non supportée')
+    expect([serveur.contenuDe('corpus.crp'), serveur.contenuDe('entretiens/e1.json')]).toEqual(avant)
+    expect(existsSync(join(miroir.dirLocal, 'corpus.crp'))).toBe(false)
+    expect(existsSync(join(miroir.dirLocal, 'entretiens/e1.json'))).toBe(false)
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(serveur.contenuDe('verrous/entretiens/e1.lock.json')).toBeUndefined()
-    expect(store.lectureSeule).toBe(true)
   })
 })
 
@@ -325,6 +315,24 @@ describe('Création et import d’entretien — transaction multi-fichiers', () 
     expect(serveur.contenuDe(`entretiens/${resultat.id}.json`)).toContain('Importé')
   })
 
+  it('les imports publient leurs identités sans réunir les homonymes et sans nommage supplémentaire', async () => {
+    const { serveur, tx, store } = await banc()
+    const { formatVersion: _v, lastModified: _d, ...payload } = JSON.parse(entretienE1()) as EntretienFichier
+    payload.participations = [1, 2].map((index) => ({ id: `p${index}`, index, nom: 'Alex importé', locuteurRef: null, valeursLoc: {} }))
+    const ids: string[] = []
+    for (const titre of ['Premier import', 'Second import']) {
+      const r = await tx.importerEntretien(titre, payload)
+      const data = JSON.parse(serveur.contenuDe(`entretiens/${r.id}.json`)!) as EntretienFichier
+      for (const p of data.participations) {
+        expect(corpusServeur(serveur).locuteurs[p.locuteurRef!]).toEqual({ id: p.locuteurRef, nom: p.nom })
+        ids.push(p.locuteurRef!)
+      }
+      expect(store.lireEntretien(r.id)).toEqual({ ok: true, data })
+    }
+    expect(new Set(ids).size).toBe(4)
+    expect(store.locuteursInventaire().aVerifier).toEqual([])
+  })
+
   it('récupère une réponse perdue après la création exclusive de l’entretien', async () => {
     const { serveur, miroir, store } = await banc()
     let reponsePerdue = false
@@ -488,7 +496,7 @@ describe('Suppression d\u2019entretien — double verrou', () => {
         memo: '',
         creeLe: '2026-01-01T00:00:00.000Z',
         modifieLe: '2026-01-01T00:00:00.000Z',
-        regles: [{ type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false }],
+        regles: [{ type: "locuteur", locuteurId: 'personne-1', inclureEnqueteurs: false }],
         rattachements: [{
           id: 'r1',
           source: { entretienId: 'e1', repereId: 'p1' },
@@ -691,16 +699,14 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     // Un entretien AVEC un locuteur, posé sur le serveur APRÈS le tirage du miroir :
     // le GET frais post-verrou fait foi — la valeur partira du contenu SERVEUR,
     // pas de la copie miroir périmée.
-    const avecLoc = JSON.parse(entretienE1()) as {
-      locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
-    }
-    avecLoc.locuteurs.push({ index: 0, nom: 'Marie', valeursLoc: {} })
+    const avecLoc = JSON.parse(entretienE1()) as EntretienFichier
+    avecLoc.participations.push({ id: 'local-marie', index: 0, nom: 'Marie', locuteurRef: null, valeursLoc: {} })
     serveur.poser('entretiens/e1.json', JSON.stringify(avecLoc))
 
     const r = await tx.poserValeurLot([
       {
         entretienId: 'e1',
-        cible: { type: 'locuteur', index: 0 },
+        cible: { type: 'participation', participationId: 'local-marie' },
         idVar: 'var_ville',
         idMod: 'mod_lyon',
       },
@@ -713,13 +719,51 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     const attendu = (json: string) => {
       const e = JSON.parse(json) as {
         meta: { valeursGen: Record<string, string> }
-        locuteurs: { index: number; valeursLoc: Record<string, string> }[]
+        participations: { index: number; valeursLoc: Record<string, string> }[]
       }
-      expect(e.locuteurs[0].valeursLoc.var_ville).toBe('mod_lyon')
+      expect(e.participations[0].valeursLoc.var_ville).toBe('mod_lyon')
       expect(e.meta.valeursGen.var_ville).toBeUndefined()
     }
     attendu(serveur.contenuDe('entretiens/e1.json')!)
     attendu(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'))
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it.each([false, true])('une cible disparue ne laisse aucun lot partiel, avec session=%s', async (session) => {
+    const { serveur, clientMax, miroir, store, tx } = await banc()
+    const data = JSON.parse(entretienE1()) as EntretienFichier
+    data.participations = [
+      { id: 'autre', index: 7, nom: 'Marie', locuteurRef: null, valeursLoc: {} },
+      { id: '7', index: 11, nom: 'Marie', locuteurRef: null, valeursLoc: {} },
+    ]
+    serveur.poser('entretiens/e1.json', JSON.stringify(data))
+    if (session) await miroir.tirer()
+    const sales: string[] = []
+    const transactions = session ? new TransactionsCorpus(clientMax, miroir, () => store, IDENTITE_MAX, {
+      getSessions: () => ({ idsTenus: () => ['e1'], noterSale: (id) => sales.push(id) }),
+    }) : tx
+    const avantServeur = serveur.contenuDe('entretiens/e1.json')!
+    const fichier = join(miroir.dirLocal, 'entretiens/e1.json')
+    const avantLocal = readFileSync(fichier, 'utf8')
+    const item: ItemLotValeur = { entretienId: 'e1', cible: { type: 'participation', participationId: '7' },
+      idVar: 'var_ville', idMod: 'mod_lyon' }
+    const echec = await transactions.poserValeurLot([item, { ...item, cible: { type: 'participation', participationId: 'disparue' } }])
+    expect(echec.succes).toEqual([])
+    expect(echec.echecs).toHaveLength(1)
+    expect(readFileSync(fichier, 'utf8')).toBe(avantLocal)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(avantServeur)
+    expect(sales).toEqual([])
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+
+    expect(await transactions.poserValeurLot([item])).toEqual({ succes: ['e1'], echecs: [] })
+    const apres = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+    expect(apres.participations.map((p) => p.id)).toEqual(['autre', '7'])
+    expect(apres.participations[0]).toEqual(data.participations[0])
+    expect(apres.participations[1].valeursLoc.var_ville).toBe('mod_lyon')
+    if (session) {
+      expect(sales).toEqual(['e1'])
+      expect(serveur.contenuDe('entretiens/e1.json')).toBe(avantServeur)
+    } else expect(JSON.parse(serveur.contenuDe('entretiens/e1.json')!).participations).toEqual(apres.participations)
     expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
   })
 
@@ -855,7 +899,7 @@ function entretienKarine(): string {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null },
   })
@@ -1046,624 +1090,77 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
 describe('Correction courte d’un entretien distant', () => {
   function avecLocuteur(pseudo?: string): string {
     const data = JSON.parse(entretienE1()) as EntretienFichier
-    data.locuteurs = [{
+    data.participations = [{
       id: 'loc-1', index: 0, nom: 'Marie locale', interviewer: false,
-      valeursLoc: {}, personneRef: null, ...(pseudo ? { pseudo } : {}),
+      valeursLoc: {}, locuteurRef: null, ...(pseudo ? { pseudo } : {}),
     }]
     return JSON.stringify(data, null, 2)
   }
 
-  function entretienAvecLocuteur(
-    id: string,
-    nom: string,
-    personneRef: string | null = null,
-  ): string {
-    const data = JSON.parse(entretienE1()) as EntretienFichier
-    data.locuteurs = [{
-      id, index: 0, nom, interviewer: false, valeursLoc: {}, personneRef,
-    }]
-    return JSON.stringify(data, null, 2)
+  function changerPseudo(b: Banc) {
+    const lecture = b.store.lireEntretien('e1')
+    if (!lecture.ok) throw new Error('Source indisponible')
+    lecture.data.participations[0].pseudo = 'Pseudo choisi'
+    b.store.ecrireEntretien('e1', lecture.data)
   }
 
-  async function installerSource(b: Banc, contenu: string): Promise<void> {
-    const corpus = corpusServeur(b.serveur)
-    corpus.membership.e2 = {
-      titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z',
-    }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    b.serveur.poser('entretiens/e2.json', contenu)
-    await b.miroir.tirer()
-  }
-
-  async function creerPersonne(b: Banc): Promise<string> {
-    const id = await b.tx.executer(() => b.store.personnesCommander({ type: 'creerDefinition', nom: 'Marie Dupont' }))
-    if (!id) throw new Error('Personne non créée dans le banc.')
-    return id
-  }
-
-  it('GET frais puis PUT conditionnel conserve les modifications extérieures', async () => {
-    const b = await banc()
-    const personneId = await creerPersonne(b)
-    b.serveur.poser('entretiens/e1.json', avecLocuteur('Pseudo extérieur'))
-
-    await b.tx.executerEntretien('e1', () => b.store.personnesCommander({
-      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
-    }))
-
-    const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(serveur.locuteurs[0]).toMatchObject({ personneRef: personneId, pseudo: 'Pseudo extérieur' })
-    const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
-    expect(miroir.locuteurs[0]).toMatchObject({ personneRef: personneId, pseudo: 'Pseudo extérieur' })
+  it('GET frais puis PUT conditionnel conserve les autres modifications', async () => {
+    const b = await banc(), frais = JSON.parse(avecLocuteur()) as EntretienFichier
+    frais.meta.valeursGen.exterieur = 'conservé'; b.serveur.poser('entretiens/e1.json', JSON.stringify(frais))
+    await b.tx.executerEntretien('e1', () => changerPseudo(b))
+    const data = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(data.meta.valeursGen.exterieur).toBe('conservé')
+    expect(data.participations[0].pseudo).toBe('Pseudo choisi')
     expect(b.store.lectureSeule).toBe(true)
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
   })
 
-  it('refuse depuis une source fraîche maintenue sous verrou', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Interviewer'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Intervieweur'))
-
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Camille Martin' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    b.serveur.poser(
-      'entretiens/e2.json',
-      entretienAvecLocuteur('loc-source', 'Intervieweur', 'pers-source'),
-    )
-
-    await b.tx.executerEntretienAvecSource('e1', 'e2', () => b.store.refuserRapprochementSimple({
-      type: 'refuser',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-    }))
-
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0].rapprochementsRefuses).toEqual(['personne:pers-source'])
-    const sourceLocale = JSON.parse(
-      readFileSync(join(b.miroir.dirLocal, 'entretiens/e2.json'), 'utf8'),
-    ) as EntretienFichier
-    expect(sourceLocale.locuteurs[0].personneRef).toBe('pers-source')
-    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
-  })
-
-  it('libère les premiers verrous si la source est tenue par un tiers', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Interviewer'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Intervieweur'))
-    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
-    await olivier.acquerir('verrous/e2.lock.json')
-
-    await expect(b.tx.executerEntretienAvecSource('e1', 'e2', () =>
-      b.store.refuserRapprochementSimple({
-        type: 'refuser',
-        entretienId: 'e1',
-        locuteurId: 'loc-cible',
-        sourceEntretienId: 'e2',
-        sourceLocuteurId: 'loc-source',
-      }))).rejects.toThrow(/olivier/)
-
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
-    expect(await olivier.etat('verrous/e2.lock.json')).not.toBeNull()
-  })
-
-  it('crée une Personne distincte avec son lien et son refus', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
-
-    const personneId = await b.tx.refuserRapprochement({
-      type: 'refuser',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-    })
-
-    expect(personneId).toMatch(/^pers/)
-    expect(corpusServeur(b.serveur).personnes[personneId!]).toMatchObject({
-      id: personneId, nom: 'Marie Dupont',
-    })
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0]).toMatchObject({
-      personneRef: personneId,
-      rapprochementsRefuses: ['locuteur:loc-source'],
-    })
-  })
-
-  it('conserve la Personne distincte si la publication du refus échoue', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.refuserRapprochement({
-      type: 'refuser',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-    })).rejects.toThrow(/appliquée partiellement.*définition.*e1.*Actualisez/i)
-
-    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
-      expect.objectContaining({ nom: 'Marie Dupont' }),
-    ])
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0].personneRef).toBeNull()
-    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
-  })
-
-  it('refuse sans écriture une décision qui devrait aussi créer une personne', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
-
-    await expect(b.tx.executerEntretienAvecSource('e1', 'e2', () =>
-      b.store.refuserRapprochementSimple({
-        type: 'refuser',
-        entretienId: 'e1',
-        locuteurId: 'loc-cible',
-        sourceEntretienId: 'e2',
-        sourceLocuteurId: 'loc-source',
-      }))).rejects.toThrow(/créer une personne distincte.*composite/i)
-
-    expect(corpusServeur(b.serveur).personnes).toEqual({})
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0]).toMatchObject({ personneRef: null })
-    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
-  })
-
-  it('rapproche vers une Personne existante avec les données fraîches de la source', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    const source = JSON.parse(
-      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
-    ) as EntretienFichier
-    source.locuteurs[0].pseudo = 'Pseudo frais'
-    b.serveur.poser('entretiens/e2.json', JSON.stringify(source, null, 2))
-
-    const personneId = await b.tx.rapprocherPersonnes({
-      type: 'rapprocher',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-      reprise: { pseudo: true, variables: [] },
-    })
-
-    expect(personneId).toBe('pers-source')
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0]).toMatchObject({
-      personneRef: 'pers-source', pseudo: 'Pseudo frais', pseudoEtat: 'confirme',
-    })
-    const sourceServeur = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(sourceServeur.locuteurs[0]).toMatchObject({
-      personneRef: 'pers-source', pseudo: 'Pseudo frais',
-    })
-  })
-
-  it('refuse un aperçu de rapprochement devenu périmé', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    b.serveur.poser(
-      'entretiens/e2.json',
-      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
-    )
-    await b.miroir.tirer()
-    const attendu = JSON.stringify(b.store.personnesInventaire())
-    const sourceModifiee = JSON.parse(
-      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
-    ) as EntretienFichier
-    sourceModifiee.locuteurs[0].pseudo = 'Modification extérieure'
-    b.serveur.poser('entretiens/e2.json', JSON.stringify(sourceModifiee, null, 2))
-
-    await expect(b.tx.rapprocherPersonnes({
-      type: 'rapprocher',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-      attendu,
-    })).rejects.toThrow(/données ont changé/i)
-
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(cible.locuteurs[0].personneRef).toBeNull()
-  })
-
-  it('crée une Personne et lie deux locuteurs non associés', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    const source = JSON.parse(entretienAvecLocuteur('loc-source', 'Mme Dupont')) as EntretienFichier
-    source.locuteurs[0].pseudo = 'Marie D.'
-    await installerSource(b, JSON.stringify(source, null, 2))
-
-    const personneId = await b.tx.rapprocherPersonnes({
-      type: 'rapprocher',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-      reprise: { pseudo: true, variables: [] },
-    })
-
-    expect(personneId).toMatch(/^pers/)
-    expect(corpusServeur(b.serveur).personnes[personneId!]).toMatchObject({
-      id: personneId, nom: 'Mme Dupont',
-    })
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    const sourceFinale = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(cible.locuteurs[0]).toMatchObject({
-      personneRef: personneId, pseudo: 'Marie D.', pseudoEtat: 'confirme',
-    })
-    expect(sourceFinale.locuteurs[0].personneRef).toBe(personneId)
-  })
-
-  it('conserve la définition et le lien source après un échec du lien cible', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.rapprocherPersonnes({
-      type: 'rapprocher',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-    })).rejects.toThrow(/appliquée partiellement.*définition.*e2.*e1.*Actualisez/i)
-
-    const personnes = Object.values(corpusServeur(b.serveur).personnes)
-    expect(personnes).toHaveLength(1)
-    const personneId = personnes[0].id
-    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    const sourceFinale = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(cible.locuteurs[0].personneRef).toBeNull()
-    expect(sourceFinale.locuteurs[0].personneRef).toBe(personneId)
-  })
-
-  it('conserve seulement la définition après un échec du premier lien', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.rapprocherPersonnes({
-      type: 'rapprocher',
-      entretienId: 'e1',
-      locuteurId: 'loc-cible',
-      sourceEntretienId: 'e2',
-      sourceLocuteurId: 'loc-source',
-    })).rejects.toThrow(/appliquée partiellement.*définition.*e2.*Actualisez/i)
-
-    expect(Object.values(corpusServeur(b.serveur).personnes)).toHaveLength(1)
-    for (const id of ['e1', 'e2']) {
-      const entretien = JSON.parse(b.serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
-      expect(entretien.locuteurs[0].personneRef).toBeNull()
-    }
-  })
-
-  it('refuse sans écriture un rapprochement qui devrait créer une Personne', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
-    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
-
-    await expect(b.tx.executerEntretienAvecSource(
-      'e1',
-      'e2',
-      () => b.store.rapprocherPersonneSimple({
-        type: 'rapprocher',
-        entretienId: 'e1',
-        locuteurId: 'loc-cible',
-        sourceEntretienId: 'e2',
-        sourceLocuteurId: 'loc-source',
-      }),
-    )).rejects.toThrow(/plusieurs associations.*composite/i)
-
-    expect(corpusServeur(b.serveur).personnes).toEqual({})
-    for (const id of ['e1', 'e2']) {
-      const entretien = JSON.parse(b.serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
-      expect(entretien.locuteurs[0].personneRef).toBeNull()
-    }
-  })
-
-  it('réunit les entretiens avant de retirer la définition absorbée', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
-    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p2'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    await b.miroir.tirer()
-    const ordre: string[] = []
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.crp' || chemin.startsWith('entretiens/')) ordre.push(chemin)
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.fusionnerPersonnes({
-      type: 'fusionner',
-      conserverId: 'p1',
-      absorberId: 'p2',
-      attendu: JSON.stringify(b.store.personnesInventaire()),
-    })).resolves.toBe('p1')
-
-    expect(corpusServeur(b.serveur).personnes).toEqual({
-      p1: { id: 'p1', nom: 'Marie Dupont' },
-    })
-    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(entretien2.locuteurs[0].personneRef).toBe('p1')
-    expect(ordre.indexOf('entretiens/e2.json')).toBeLessThan(ordre.indexOf('corpus.crp'))
-  })
-
-  it('publie une session déjà tenue avant de terminer une réunion', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
-    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p2'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    await b.miroir.tirer()
-    const ordre: string[] = []
-    const txSession = new TransactionsCorpus(b.clientMax, b.miroir, () => b.store, IDENTITE_MAX, {
-      getSessions: () => ({
-        idsTenus: () => ['e2'],
-        noterSale: () => ordre.push('session-sale'),
-        publierSousVerrouCorpus: async () => {
-          ordre.push('session-publiee')
-          const contenu = readFileSync(join(b.miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
-          await b.clientMax.putTexte('entretiens/e2.json', contenu)
-          return { ok: true }
-        },
-      }),
-    })
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.crp') ordre.push('corpus')
-      return reel(chemin, contenu, options)
-    }
-
-    await txSession.fusionnerPersonnes({
-      type: 'fusionner',
-      conserverId: 'p1',
-      absorberId: 'p2',
-      attendu: JSON.stringify(b.store.personnesInventaire()),
-    })
-
-    expect(ordre).toEqual(['session-sale', 'session-publiee', 'corpus'])
-    expect(corpusServeur(b.serveur).personnes.p2).toBeUndefined()
-    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
-      .locuteurs[0].personneRef).toBe('p1')
-  })
-
-  it('conserve les deux définitions et reprend une réunion partielle', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie A', 'p2'))
-    await installerSource(b, entretienAvecLocuteur('loc-2', 'Marie B', 'p2'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
-    corpus.membership.e3 = {
-      titre: 'Entretien trois', date: null, lastModified: '2026-01-01T00:00:00Z',
-    }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    b.serveur.poser('entretiens/e3.json', entretienAvecLocuteur('loc-3', 'Marie C', 'p1'))
-    await b.miroir.tirer()
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.fusionnerPersonnes({
-      type: 'fusionner',
-      conserverId: 'p1',
-      absorberId: 'p2',
-      attendu: JSON.stringify(b.store.personnesInventaire()),
-    })).rejects.toThrow(/partiellement.*e1.*e2.*Actualisez/i)
-
-    expect(Object.keys(corpusServeur(b.serveur).personnes)).toEqual(['p1', 'p2'])
-    expect((JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier)
-      .locuteurs[0].personneRef).toBe('p1')
-    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
-      .locuteurs[0].personneRef).toBe('p2')
-
-    b.clientMax.putTexte = reel
-    await expect(b.tx.fusionnerPersonnes({
-      type: 'fusionner',
-      conserverId: 'p1',
-      absorberId: 'p2',
-      attendu: JSON.stringify(b.store.personnesInventaire()),
-    })).resolves.toBe('p1')
-    expect(Object.keys(corpusServeur(b.serveur).personnes)).toEqual(['p1'])
-    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
-      .locuteurs[0].personneRef).toBe('p1')
-  })
-
-  it('crée la définition séparée avant de déplacer ses locuteurs', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
-    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    await b.miroir.tirer()
-    const attendu = JSON.stringify(b.store.personnesInventaire())
-    const ordre: string[] = []
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'corpus.crp' || chemin.startsWith('entretiens/')) ordre.push(chemin)
-      return reel(chemin, contenu, options)
-    }
-
-    const nouvelleId = await b.tx.separerPersonne({
-      type: 'separer',
-      personneId: 'p1',
-      nom: 'Marie entretien 2',
-      locuteurs: [{ entretienId: 'e2', locuteurId: 'loc-2' }],
-      attendu,
-    })
-
-    expect(nouvelleId).toMatch(/^pers/)
-    expect(corpusServeur(b.serveur).personnes[nouvelleId!]).toMatchObject({
-      id: nouvelleId, nom: 'Marie entretien 2',
-    })
-    const entretien1 = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(entretien1.locuteurs[0].personneRef).toBe('p1')
-    expect(entretien2.locuteurs[0].personneRef).toBe(nouvelleId)
-    expect(ordre.indexOf('corpus.crp')).toBeLessThan(ordre.indexOf('entretiens/e2.json'))
-  })
-
-  it('conserve la nouvelle définition si un déplacement de séparation échoue', async () => {
-    const b = await banc()
-    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
-    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
-    const corpus = corpusServeur(b.serveur)
-    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
-    b.serveur.poser('corpus.crp', JSON.stringify(corpus, null, 2))
-    await b.miroir.tirer()
-    const attendu = JSON.stringify(b.store.personnesInventaire())
-    const reel = b.clientMax.putTexte.bind(b.clientMax)
-    b.clientMax.putTexte = async (chemin, contenu, options) => {
-      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
-      return reel(chemin, contenu, options)
-    }
-
-    await expect(b.tx.separerPersonne({
-      type: 'separer',
-      personneId: 'p1',
-      nom: 'Marie entretien 2',
-      locuteurs: [{ entretienId: 'e2', locuteurId: 'loc-2' }],
-      attendu,
-    })).rejects.toThrow(/partiellement.*définitions.*e2.*Actualisez/i)
-
-    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
-      { id: 'p1', nom: 'Marie Dupont' },
-      expect.objectContaining({ nom: 'Marie entretien 2' }),
-    ])
-    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
-    expect(entretien2.locuteurs[0].personneRef).toBe('p1')
-  })
-
-  it('supprime une Personne après contrôle frais de tous les entretiens', async () => {
-    const b = await banc()
-    const personneId = await creerPersonne(b)
-
-    await expect(b.tx.supprimerPersonneVide(personneId)).resolves.toBeNull()
-
-    expect(corpusServeur(b.serveur).personnes[personneId]).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
-    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
-  })
-
-  it('conserve une Personne qu’un entretien frais référence encore', async () => {
-    const b = await banc()
-    const personneId = await creerPersonne(b)
-    b.serveur.poser(
-      'entretiens/e1.json',
-      entretienAvecLocuteur('loc-cible', 'Marie Dupont', personneId),
-    )
-
-    await expect(b.tx.supprimerPersonneVide(personneId)).rejects.toThrow(/Déliez/)
-
-    expect(corpusServeur(b.serveur).personnes[personneId]).toBeDefined()
-    const miroir = JSON.parse(
-      readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8'),
-    ) as EntretienFichier
-    expect(miroir.locuteurs[0].personneRef).toBe(personneId)
-  })
-
-  it('ne supprime rien si un entretien de contrôle est verrouillé par un tiers', async () => {
-    const b = await banc()
-    const personneId = await creerPersonne(b)
-    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
-    await olivier.acquerir('verrous/e1.lock.json')
-
-    await expect(b.tx.supprimerPersonneVide(personneId)).rejects.toThrow(/olivier/)
-
-    expect(corpusServeur(b.serveur).personnes[personneId]).toBeDefined()
-    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
-    expect(await olivier.etat('verrous/e1.lock.json')).not.toBeNull()
-  })
-
-  it('crée une définition puis son premier lien', async () => {
+  it('nomme depuis la session courante, sans conserver l’ancien créateur en deux transactions', async () => {
     const b = await banc()
     b.serveur.poser('entretiens/e1.json', avecLocuteur())
-
-    const personneId = await b.tx.creerPersonneDepuisLocuteur('e1', 'loc-1', 'Marie Dupont')
-
-    expect(corpusServeur(b.serveur).personnes[personneId]).toMatchObject({
-      id: personneId, nom: 'Marie Dupont',
-    })
-    const entretien = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(entretien.locuteurs[0].personneRef).toBe(personneId)
+    const { contexte } = await preparerContexteNextcloud({ id: 'nommage', dirLocal: join(b.miroir.dirLocal, 'session-nommage'), client: b.clientMax, identite: IDENTITE_MAX, verrouNatif: false })
+    try {
+      expect('creerPersonneDepuisLocuteur' in contexte.transactions).toBe(false)
+      await contexte.ouvrirEntretienPourEdition('e1')
+      const apres = await contexte.identifierParticipationAuNommage({ entretienId: 'e1', participationId: 'loc-1', nom: 'Marie locale' })
+      const id = apres.participations[0].locuteurRef!
+      expect(corpusServeur(b.serveur).locuteurs[id]).toEqual({ id, nom: 'Marie locale' })
+      expect(JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!).participations[0].locuteurRef).toBe(id)
+      expect(contexte.sessions.etat('e1').etat).toBe('a-nous')
+    } finally { await contexte.fermer() }
   })
 
-  it('conserve la fiche vide et explique un échec du premier lien', async () => {
+  it('un entretien courant tenu par un tiers interdit le nommage sans créer de définition vide', async () => {
     const b = await banc()
     b.serveur.poser('entretiens/e1.json', avecLocuteur())
     const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
     await olivier.acquerir('verrous/e1.lock.json')
-
-    await expect(b.tx.creerPersonneDepuisLocuteur('e1', 'loc-1', 'Marie Dupont'))
-      .rejects.toThrow(/personne a été créée.*lien a échoué.*olivier/i)
-
-    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
-      expect.objectContaining({ nom: 'Marie Dupont' }),
-    ])
-    const entretien = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
-    expect(entretien.locuteurs[0].personneRef).toBeNull()
-    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    const { contexte } = await preparerContexteNextcloud({ id: 'nommage', dirLocal: join(b.miroir.dirLocal, 'session-nommage'), client: b.clientMax, identite: IDENTITE_MAX, verrouNatif: false })
+    try {
+      const ouverture = await contexte.ouvrirEntretienPourEdition('e1')
+      expect(ouverture.ok && ouverture.acces).not.toBe('edition')
+      await expect(contexte.identifierParticipationAuNommage({ entretienId: 'e1', participationId: 'loc-1', nom: 'Marie locale' })).rejects.toThrow()
+      expect(Object.values(corpusServeur(b.serveur).locuteurs)).toEqual([])
+      expect(JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!).participations[0].locuteurRef).toBeNull()
+      expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    } finally { await contexte.fermer(); await olivier.liberer('verrous/e1.lock.json') }
   })
 
   it('un verrou tiers refuse nominativement la correction et libère le verrou corpus', async () => {
     const b = await banc()
-    const personneId = await creerPersonne(b)
     b.serveur.poser('entretiens/e1.json', avecLocuteur())
     const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
     await olivier.acquerir('verrous/e1.lock.json')
 
-    await expect(b.tx.executerEntretien('e1', () => b.store.personnesCommander({
-      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
-    }))).rejects.toThrow(/olivier/)
+    await expect(b.tx.executerEntretien('e1', () => changerPseudo(b))).rejects.toThrow(/olivier/)
 
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(await olivier.etat('verrous/e1.lock.json')).not.toBeNull()
   })
 
-  it('une divergence ne laisse ni lien local anticipé ni verrou', async () => {
+  it('une divergence ne laisse ni pseudo local anticipé ni verrou', async () => {
     const b = await banc()
-    const personneId = await creerPersonne(b)
     b.serveur.poser('entretiens/e1.json', avecLocuteur())
     const reel = b.clientMax.putTexte.bind(b.clientMax)
     b.clientMax.putTexte = async (chemin, contenu, options) => {
@@ -1671,21 +1168,18 @@ describe('Correction courte d’un entretien distant', () => {
       return reel(chemin, contenu, options)
     }
 
-    await expect(b.tx.executerEntretien('e1', () => b.store.personnesCommander({
-      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
-    }))).rejects.toThrow(/divergence/i)
+    await expect(b.tx.executerEntretien('e1', () => changerPseudo(b))).rejects.toThrow(/divergence/i)
 
     const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
     const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
-    expect(serveur.locuteurs[0].personneRef).toBeNull()
-    expect(miroir.locuteurs[0].personneRef).toBeNull()
+    expect(serveur.participations[0].pseudo).toBeUndefined()
+    expect(miroir.participations[0].pseudo).toBeUndefined()
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
   })
 
   it('une session déjà tenue réutilise le store et diffère sa publication', async () => {
     const b = await banc()
-    const personneId = await creerPersonne(b)
     const contenu = avecLocuteur()
     b.serveur.poser('entretiens/e1.json', contenu)
     writeFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), contenu, 'utf8')
@@ -1694,14 +1188,12 @@ describe('Correction courte d’un entretien distant', () => {
       getSessions: () => ({ idsTenus: () => ['e1'], noterSale: (id) => sales.push(id) }),
     })
 
-    await txSession.executerEntretien('e1', () => b.store.personnesCommander({
-      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
-    }))
+    await txSession.executerEntretien('e1', () => changerPseudo(b))
 
     const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
     const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
-    expect(serveur.locuteurs[0].personneRef).toBeNull()
-    expect(miroir.locuteurs[0].personneRef).toBe(personneId)
+    expect(serveur.participations[0].pseudo).toBeUndefined()
+    expect(miroir.participations[0].pseudo).toBe('Pseudo choisi')
     expect(sales).toEqual(['e1'])
     expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
   })
@@ -1802,7 +1294,7 @@ describe('Familles de cas — transactions fraîches', () => {
     const courant = corpusServeur(serveur)
     courant.variables = corpusFamille().variables
     courant.variables.taille = {
-      id: 'taille', lib: 'Taille', portee: 'locuteur', priv: true, ordre: 1, vExport: 2,
+      id: 'taille', lib: 'Taille', portee: "participation", priv: true, ordre: 1, vExport: 2,
       modalites: [
         { id: 'petit', lib: 'Moins de 10', mExport: 1 },
         { id: 'grand', lib: '10 à 100', mExport: 2 },
@@ -1814,7 +1306,7 @@ describe('Familles de cas — transactions fraîches', () => {
     serveur.poser('corpus.crp', JSON.stringify(courant))
 
     const source = sourceFamille()
-    for (const locuteur of source.locuteurs) {
+    for (const locuteur of source.participations) {
       if (locuteur.index === 2 || locuteur.index === 6) locuteur.valeursLoc.taille = 'petit'
       if (locuteur.index === 3) locuteur.valeursLoc.taille = 'grand'
     }
@@ -1827,7 +1319,7 @@ describe('Familles de cas — transactions fraîches', () => {
     const commande = {
       type: 'ajouter-derivation-famille' as const,
       familleId: 'f', membresAttendus: ['cas-f-a'],
-      derivation: { attributId: definition.id, variableSourceId: 'taille', porteeSource: 'locuteur' as const },
+      derivation: { attributId: definition.id, variableSourceId: 'taille', porteeSource: "participation" as const },
       definition,
     }
     const executer = () => tx.executerDefinitionsAvecSources(
@@ -1839,7 +1331,7 @@ describe('Familles de cas — transactions fraîches', () => {
     expect(corpusServeur(serveur).attributsCas).toEqual({})
     expect(serveur.contenuDe('entretiens/e1.json')).toBe(contenuSourceConflictuel)
 
-    source.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'petit'
+    source.participations.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'petit'
     serveur.poser('entretiens/e1.json', JSON.stringify(source))
     const contenuSourceCorrige = serveur.contenuDe('entretiens/e1.json')
     await executer()

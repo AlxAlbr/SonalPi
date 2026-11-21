@@ -116,12 +116,12 @@ describe('projection — les incluses sont exclues des compteurs (comptage nulle
 describe('scan corpus — état « incl » pour une règle étroite absorbée', () => {
   function fichier(annotations: Annotation[]): EntretienScan['data'] {
     return {
-      formatVersion: 3,
+      formatVersion: 10,
       lastModified: new Date().toISOString(),
       corpsTexte: DOC,
       annotations,
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {} },
     }
   }

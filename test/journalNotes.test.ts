@@ -2,7 +2,8 @@
 import { describe, expect, test, vi } from 'vitest'
 import { effectScope, nextTick, reactive, ref } from 'vue'
 import type { Entretien } from '../src/shared/entretien/entretien'
-import type { Locuteur, Note } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
+import type { Note } from "../src/shared/format"
 import { annuler, appliquerInverse, estApplicable, type CtxInverse, type Inverse } from '../src/shared/entretien/journal'
 import { useJournalEntretien } from '../src/renderer/composables/entretien/useJournalEntretien'
 import { useNotesEntretien } from '../src/renderer/composables/entretien/useNotesEntretien'
@@ -11,14 +12,15 @@ function note(id: string, rang = 0): Note {
   return {
     id, rang, titre: id, categorieId: 'ncat_generale', date: '2026-09-01', statut: 'prive',
     corps: '<p>Un <mark>passage important</mark> et <em data-liens="c1">un lien</em>.</p>',
-    locuteurIds: ['l1'], creeLe: '2026-09-01T10:00:00Z', modifieLe: null,
+    participationIds: ['l1'], creeLe: '2026-09-01T10:00:00Z', modifieLe: null,
   }
 }
 
 function contexte(notes: Note[]): CtxInverse {
   return {
+    entretienId: 'e1',
     entretien: { annotations: [], ancres: [], reperesPassages: [] },
-    locuteurs: [{ id: 'l1', index: 1, nom: 'Karine', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: 'l1', index: 1, nom: 'Karine', valeursLoc: {} }],
     valeursGen: {}, notes,
   }
 }
@@ -27,16 +29,16 @@ describe('journal des notes — annulations', () => {
   test('annuler une création retire seulement la note visée et renumérote les rangs', () => {
     const creee = note('nouvelle', 0)
     const ctx = contexte([creee, note('autre', 1)])
-    const inverse: Inverse = { type: 'retirerNote', note: { ...creee, locuteurIds: ['l1'] } }
+    const inverse: Inverse = { type: 'retirerNote', note: { ...creee, participationIds: ['l1'] } }
     expect(appliquerInverse(inverse, ctx)).toBe(true)
     expect(ctx.notes!.map((n) => [n.id, n.rang])).toEqual([['autre', 0]])
     expect(estApplicable(inverse, ctx)).toBe(false)
   })
 
-  test.each(['titre', 'corps', 'statut', 'categorieId', 'date', 'locuteurIds'] as const)(
+  test.each(['titre', 'corps', 'statut', 'categorieId', 'date', 'participationIds'] as const)(
     'une modification de %s empêche de retirer la note par annulation de sa création', (champ) => {
       const initiale = note('n1')
-      const modifiee = { ...initiale, [champ]: champ === 'locuteurIds' ? [] : 'modifié' } as Note
+      const modifiee = { ...initiale, [champ]: champ === 'participationIds' ? [] : 'modifié' } as Note
       const ctx = contexte([modifiee])
       expect(appliquerInverse({ type: 'retirerNote', note: initiale }, ctx)).toBe(false)
       expect(ctx.notes).toEqual([modifiee])
@@ -52,8 +54,8 @@ describe('journal des notes — annulations', () => {
     expect(appliquerInverse(inverse, ctx)).toBe(true)
     expect(ctx.notes!.map((n) => [n.id, n.rang])).toEqual([['debut', 0], ['milieu', 1], ['fin', 2]])
     expect(ctx.notes![1]).toEqual(supprimee)
-    ctx.notes![1]!.locuteurIds!.push('l2')
-    expect(supprimee.locuteurIds).toEqual(['l1'])
+    ctx.notes![1]!.participationIds!.push('l2')
+    expect(supprimee.participationIds).toEqual(['l1'])
     expect(appliquerInverse(inverse, ctx)).toBe(false)
   })
 
@@ -64,7 +66,7 @@ describe('journal des notes — annulations', () => {
     const contextes = [
       contexte([note('fin', 0), note('debut', 1)]),
       contexte([note('debut', 0), note('milieu', 1), note('fin', 2)]),
-      { ...contexte([note('debut', 0), note('fin', 1)]), locuteurs: [] },
+      { ...contexte([note('debut', 0), note('fin', 1)]), participations: [] },
       { ...contexte([]), notes: undefined },
     ]
     for (const ctx of contextes) {
@@ -79,16 +81,16 @@ function preparer() {
   const scope = effectScope()
   const resultat = scope.run(() => {
     const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
-    const locuteurs = ref<Locuteur[]>(contexte([]).locuteurs)
+    const locuteurs = ref<ParticipationLocuteur[]>(contexte([]).participations.map((p) => ({ ...p, locuteurRef: null })))
     const sauvegarder = vi.fn()
     const notes = useNotesEntretien({
-      entretien, locuteurs, lireEditeur: () => null,
+      entretien, participations: locuteurs, lireEditeur: () => null,
       nomCategorieNote: () => 'générale', categorieNoteDefaut: () => 'ncat_generale',
       planifierSauvegarde: sauvegarder,
       enregistrerAction: (libelle, inverse) => journal.enregistrerAction(libelle, inverse),
     })
     const journal = useJournalEntretien({
-      entretien, locuteurs, notes: notes.notes, lireEditeur: () => null, lireValeursGen: () => ({}),
+      entretien, ouvertId: ref('e1'), participations: locuteurs, notes: notes.notes, lireEditeur: () => null, lireValeursGen: () => ({}),
       effetsAnnulation: {
         rafraichirProjections: vi.fn(), rafraichirDecorations: vi.fn(), rafraichirGouttiere: vi.fn(),
         rafraichirCompteursAnonymisation: vi.fn(), rafraichirReperage: vi.fn(),
@@ -102,7 +104,7 @@ function preparer() {
 
 async function creer(outils: ReturnType<typeof preparer>, titre = 'Nouvelle note') {
   outils.notes.ajouterNote()
-  Object.assign(outils.notes.brouillonNote.value!, { titre, corps: '<p>Texte de la note</p>', locuteurIds: ['l1'] })
+  Object.assign(outils.notes.brouillonNote.value!, { titre, corps: '<p>Texte de la note</p>', participationIds: ['l1'] })
   outils.notes.validerNote()
   await nextTick()
 }

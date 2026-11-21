@@ -17,14 +17,14 @@ function ajouterEntretien(dirCorpus: string): void {
   writeFileSync(chemin, JSON.stringify(corpus, null, 2))
   mkdirSync(join(dirCorpus, 'entretiens'), { recursive: true })
   writeFileSync(join(dirCorpus, 'entretiens', 'e2.json'), JSON.stringify({
-    formatVersion: 3,
+    formatVersion: 10,
     lastModified: new Date().toISOString(),
     corpsTexte: {
       type: 'doc',
       content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Deuxième entretien de test.' }] }],
     },
     annotations: [], ancres: [],
-    locuteurs: [{ index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Enquêteur', valeursLoc: {}, locuteurRef: null }],
     meta: { valeursGen: {}, audioRef: null },
   }), 'utf8')
 }

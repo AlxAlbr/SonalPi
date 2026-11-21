@@ -1,6 +1,6 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
 import type { EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
-import type { InventairePersonnes } from '../../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../../shared/corpus/inventaireLocuteurs'
 import {
   normaliserNomCas,
   compterUsagesAttributCas,
@@ -24,7 +24,7 @@ import {
   type AttributCasProjete,
   type DiagnosticAttributCas,
   type VariableCandidateFamille,
-} from '../../../shared/corpus/observationsAttributs'
+} from "../../../shared/corpus/observationsAttributs"
 import {
   projeterCas,
   projeterCasDepuisSourcesPreparees,
@@ -32,7 +32,7 @@ import {
   type ProjectionCas,
   type SourceCasChargee,
   type ModeMateriauxCas,
-} from '../../editor/cas'
+} from "../../editor/cas"
 import { preparerSourcesPassages, type ModeTextePassage } from '../../editor/passages'
 import { lancerOperationGlobale } from '../../operationGlobaleCorpus'
 
@@ -45,7 +45,7 @@ export interface ApercuPersonneCas {
 }
 
 export type ChoixLotCas =
-  | { type: 'personnes'; ids: string[]; inclureEnqueteurs: boolean }
+  | { type: "locuteurs"; ids: string[]; inclureEnqueteurs: boolean }
   | { type: 'entretiens'; ids: string[] }
 
 export interface ApercuFamilleCas {
@@ -67,10 +67,10 @@ export interface ApercuLotCas {
 
 function cleRegles(regles: RegleCas[]): string {
   return JSON.stringify(regles.flatMap((regle) => regle.type === 'modalite'
-    ? [`modalite:${regle.variableId}:${regle.modaliteId}:${regle.portee}:${regle.portee === 'locuteur' && regle.inclureEnqueteurs}`]
+    ? [`modalite:${regle.variableId}:${regle.modaliteId}:${regle.portee}:${regle.portee === "participation" && regle.inclureEnqueteurs}`]
     : regle.type === 'entretiens'
     ? regle.entretienIds.map((id) => `entretien:${id}`)
-    : membresPersonnesRegle(regle).map((membre) => `personne:${membre.personneId}:${membre.inclureEnqueteurs}`))
+    : membresPersonnesRegle(regle).map((membre) => `personne:${membre.locuteurId}:${membre.inclureEnqueteurs}`))
     .sort())
 }
 
@@ -97,7 +97,7 @@ export function useCasCorpus(deps: {
     from: number
     to: number
   }) => Promise<{ id: string; from: number; to: number }>
-  lirePersonnes: () => Promise<InventairePersonnes>
+  lireIdentitesLocuteurs: () => Promise<InventaireIdentitesLocuteurs>
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
   fermerRecueils: () => void
   /** Le fournisseur sait-il garder les sources qu'un rattachement ou une
@@ -117,7 +117,7 @@ export function useCasCorpus(deps: {
   const modeTexteCas = ref<ModeTextePassage>('pseudonymise')
   const modeMateriauxCas = ref<ModeMateriauxCas>('tous')
   const projectionsCas = ref<Record<string, ProjectionCas>>({})
-  const inventairePersonnesCas = ref<InventairePersonnes | null>(null)
+  const inventaireLocuteursCas = ref<InventaireIdentitesLocuteurs | null>(null)
   const chargementCas = ref(false)
   const messageCas = ref<string | null>(null)
   const etatSauvegardeCas = ref<'à jour' | 'enregistrement…' | 'conflit'>('à jour')
@@ -162,13 +162,13 @@ export function useCasCorpus(deps: {
     .map(([id, reference]) => ({ id, nom: reference.titre }))
     .sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.id.localeCompare(b.id)))
 
-  async function chargerInventairePersonnes(force = false): Promise<InventairePersonnes> {
-    if (!force && inventairePersonnesCas.value) return inventairePersonnesCas.value
+  async function chargerInventaireLocuteurs(force = false): Promise<InventaireIdentitesLocuteurs> {
+    if (!force && inventaireLocuteursCas.value) return inventaireLocuteursCas.value
     const corpusAttendu = generationCorpus
     const lecture = ++generationInventaire
-    const inventaire = await deps.lirePersonnes()
+    const inventaire = await deps.lireIdentitesLocuteurs()
     if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé pendant la lecture des personnes.')
-    if (lecture === generationInventaire) inventairePersonnesCas.value = inventaire
+    if (lecture === generationInventaire) inventaireLocuteursCas.value = inventaire
     return inventaire
   }
 
@@ -212,7 +212,7 @@ export function useCasCorpus(deps: {
   function corpusPourProjections() {
     return {
       membership: deps.membership.value,
-      personnes: {},
+      locuteurs: {},
       variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])),
       famillesCas: famillesCas.value,
       attributsCas: attributsCasRef.value,
@@ -232,17 +232,17 @@ export function useCasCorpus(deps: {
     chargementCas.value = true
     try {
       const inventaire = courants.some((courant) => courant.regles.some((regle) => membresPersonnesRegle(regle).length > 0))
-        ? await chargerInventairePersonnes()
+        ? await chargerInventaireLocuteurs()
         : null
       const sources = await chargerSources(idsSources(courants))
       if (maGeneration !== generation) return
-      const personnes = Object.fromEntries((inventaire?.personnes ?? []).map((personne) => [personne.id, personne]))
+      const personnes = Object.fromEntries((inventaire?.locuteurs ?? []).map((personne) => [personne.id, personne]))
       const preparees = preparerSourcesPassages(sources)
       const corpus = corpusPourProjections()
       projectionsCas.value = Object.fromEntries(courants.map((courant) => [
         courant.id,
         projeterCasDepuisSourcesPreparees(
-          { membership: deps.membership.value, personnes, variables: corpus.variables },
+          { membership: deps.membership.value, locuteurs: personnes, variables: corpus.variables },
           structuredClone(toRaw(courant)),
           preparees,
           modeTexteCas.value,
@@ -274,7 +274,7 @@ export function useCasCorpus(deps: {
     chargementCas.value = true
     messageCas.value = null
     try {
-      await chargerInventairePersonnes(true)
+      await chargerInventaireLocuteurs(true)
       if (corpusAttendu !== generationCorpus || actualisation !== generationActualisation) return
       await rafraichirProjections()
     } catch (erreur) {
@@ -325,7 +325,7 @@ export function useCasCorpus(deps: {
     modeTexteCas.value = 'pseudonymise'
     modeMateriauxCas.value = 'tous'
     projectionsCas.value = {}
-    inventairePersonnesCas.value = null
+    inventaireLocuteursCas.value = null
     chargementCas.value = false
     messageCas.value = null
     etatSauvegardeCas.value = 'à jour'
@@ -375,21 +375,21 @@ export function useCasCorpus(deps: {
     personneId: string,
     inclureEnqueteurs: boolean,
   ): Promise<ApercuPersonneCas> {
-    const inventaire = await chargerInventairePersonnes()
-    const personne = inventaire.personnes.find((candidate) => candidate.id === personneId)
+    const inventaire = await chargerInventaireLocuteurs()
+    const personne = inventaire.locuteurs.find((candidate) => candidate.id === personneId)
     if (!personne) throw new Error("Cette personne n'existe plus.")
     const sources = await chargerSources(Object.keys(deps.membership.value))
     const date = new Date().toISOString()
     const projection = projeterCas({
       membership: deps.membership.value,
-      personnes: { [personne.id]: personne },
+      locuteurs: { [personne.id]: personne },
     }, {
       id: 'apercu',
       nom: personne.nom,
       memo: '',
       creeLe: date,
       modifieLe: date,
-      regles: [{ type: 'personne', personneId, inclureEnqueteurs }],
+      regles: [{ type: "locuteur", locuteurId: personneId, inclureEnqueteurs }],
       rattachements: [],
     }, sources, modeTexteCas.value)
     const entretiens = new Set(projection.passages.map((passage) =>
@@ -400,7 +400,7 @@ export function useCasCorpus(deps: {
       entretiens: entretiens.size,
       passages: projection.passages.length,
       sourcesIndisponibles: projection.diagnosticsRegles
-        .filter((diagnostic) => diagnostic.type !== 'personne-introuvable').length,
+        .filter((diagnostic) => diagnostic.type !== 'locuteur-introuvable').length,
     }
   }
 
@@ -409,8 +409,8 @@ export function useCasCorpus(deps: {
       throw new Error('Choisissez au moins une source, sans doublon.')
     }
     const corpusAttendu = generationCorpus
-    const inventaire = choix.type === 'personnes' ? await chargerInventairePersonnes(true) : null
-    const candidats = choix.type === 'personnes' ? inventaire!.personnes : entretiensCas.value
+    const inventaire = choix.type === "locuteurs" ? await chargerInventaireLocuteurs(true) : null
+    const candidats = choix.type === "locuteurs" ? inventaire!.locuteurs : entretiensCas.value
     const parId = new Map(candidats.map((candidat) => [candidat.id, candidat.nom]))
     for (const id of choix.ids) {
       if (!parId.has(id)) throw new Error('Une source sélectionnée n’existe plus. Actualisez la sélection.')
@@ -419,12 +419,12 @@ export function useCasCorpus(deps: {
     const noms = new Set(Object.values(deps.cas.value).map((cas) => normaliserNomCas(cas.nom)))
     const date = new Date().toISOString()
     const nouveaux = groupes.map((ids): Cas => {
-      const base = ids.length === 1 ? parId.get(ids[0])! : choix.type === 'personnes' ? 'Groupe de personnes' : 'Groupe d’entretiens'
+      const base = ids.length === 1 ? parId.get(ids[0])! : choix.type === "locuteurs" ? 'Groupe de personnes' : 'Groupe d’entretiens'
       let nom = base
       for (let suffixe = 2; noms.has(normaliserNomCas(nom)); suffixe++) nom = `${base} (${suffixe})`
       noms.add(normaliserNomCas(nom))
-      const regle: RegleCas = choix.type === 'personnes'
-        ? { type: 'personnes', membres: ids.map((personneId) => ({ personneId, inclureEnqueteurs: choix.inclureEnqueteurs })) }
+      const regle: RegleCas = choix.type === "locuteurs"
+        ? { type: "locuteurs", membres: ids.map((locuteurId) => ({ locuteurId, inclureEnqueteurs: choix.inclureEnqueteurs })) }
         : { type: 'entretiens', entretienIds: [...ids] }
       return {
         id: nouvelId('cas'), nom, memo: '', creeLe: date, modifieLe: date,
@@ -433,16 +433,16 @@ export function useCasCorpus(deps: {
     })
     const sources = preparerSourcesPassages(await chargerSources(idsSources(nouveaux)))
     if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé. Recommencez la création.')
-    const personnes = Object.fromEntries((inventaire?.personnes ?? []).map((personne) => [personne.id, personne]))
+    const personnes = Object.fromEntries((inventaire?.locuteurs ?? []).map((personne) => [personne.id, personne]))
     return nouveaux.map((cas) => {
-      const personnesRetenues = new Set(cas.regles.flatMap(membresPersonnesRegle).map((membre) => membre.personneId))
-      const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, personnes, variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])) }, cas, sources, modeTexteCas.value)
+      const personnesRetenues = new Set(cas.regles.flatMap(membresPersonnesRegle).map((membre) => membre.locuteurId))
+      const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, locuteurs: personnes, variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])) }, cas, sources, modeTexteCas.value)
       return {
         cas,
-        membres: choix.type === 'personnes' ? personnesRetenues.size
+        membres: choix.type === "locuteurs" ? personnesRetenues.size
           : cas.regles.reduce((total, regle) => total + (regle.type === 'entretiens' ? regle.entretienIds.length : 0), 0),
-        enqueteursExclus: choix.type === 'personnes' && !choix.inclureEnqueteurs
-          ? (inventaire?.locuteurs ?? []).filter((locuteur) => locuteur.interviewer && locuteur.personneRef !== null && personnesRetenues.has(locuteur.personneRef)).length
+        enqueteursExclus: choix.type === "locuteurs" && !choix.inclureEnqueteurs
+          ? (inventaire?.participations ?? []).filter((locuteur) => locuteur.interviewer && locuteur.locuteurRef !== null && personnesRetenues.has(locuteur.locuteurRef)).length
           : 0,
         sources: projection.metriques.sourcesDistinctes,
         passages: projection.metriques.passagesDisponibles,
@@ -467,8 +467,8 @@ export function useCasCorpus(deps: {
     const date = new Date().toISOString()
     const famille: FamilleCas = existante ? structuredClone(toRaw(existante)) : {
       id: nouvelId('famille'), nom: params.nom.trim() || variable.lib, creeLe: date,
-      origine: variable.portee === 'locuteur'
-        ? { variableId: variable.id, portee: 'locuteur', inclureEnqueteurs: params.inclureEnqueteurs }
+      origine: variable.portee === "participation"
+        ? { variableId: variable.id, portee: "participation", inclureEnqueteurs: params.inclureEnqueteurs }
         : { variableId: variable.id, portee: 'entretien' },
     }
     const sources = preparerSourcesPassages(await chargerSources(Object.keys(deps.membership.value)))
@@ -480,7 +480,7 @@ export function useCasCorpus(deps: {
       noms.add(normaliserNomCas(nom))
       const cas: Cas = { id: nouvelId('cas'), nom, memo: '', creeLe: date, modifieLe: date,
         familleId: famille.id, regles: [{ type: 'modalite', ...famille.origine, modaliteId: modalite.id }], rattachements: [] }
-      const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, personnes: {},
+      const projection = projeterCasDepuisSourcesPreparees({ membership: deps.membership.value, locuteurs: {},
         variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])) }, cas, sources, modeTexteCas.value)
       const dejaPresent = Object.values(deps.cas.value).some((courant) => courant.familleId === famille.id
         && courant.regles.some((regle) => regle.type === 'modalite' && regle.modaliteId === modalite.id))
@@ -572,8 +572,8 @@ export function useCasCorpus(deps: {
     memo: string
     inclureEnqueteurs: boolean
   }): Promise<string> {
-    const inventaire = await chargerInventairePersonnes()
-    if (!inventaire.personnes.some((personne) => personne.id === params.personneId)) {
+    const inventaire = await chargerInventaireLocuteurs()
+    if (!inventaire.locuteurs.some((personne) => personne.id === params.personneId)) {
       throw new Error("Cette personne n'existe plus.")
     }
     const date = new Date().toISOString()
@@ -587,8 +587,8 @@ export function useCasCorpus(deps: {
         creeLe: date,
         modifieLe: date,
         regles: [{
-          type: 'personne',
-          personneId: params.personneId,
+          type: "locuteur",
+          locuteurId: params.personneId,
           inclureEnqueteurs: params.inclureEnqueteurs,
         }],
         rattachements: [],
@@ -967,7 +967,7 @@ export function useCasCorpus(deps: {
     actualiserMateriauxCas,
     projectionCas,
     projectionsCas,
-    inventairePersonnesCas,
+    inventaireLocuteursCas,
     modeTexteCas,
     modeMateriauxCas,
     vueMateriauxCas,

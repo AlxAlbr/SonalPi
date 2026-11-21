@@ -5,9 +5,10 @@ import { expect, _electron as electron, type ElectronApplication, type Page } fr
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ecrireSeedDemo } from '../test/seedDemo'
+import { ecrireSeedDemo as ecrireSeedUnitaire } from '../test/seedDemo'
 
-export { ecrireSeedDemo } // les specs qui pré-peuplent un dossier pické (multi-corpus)
+/** Les ids des fixtures d'interface sont fixés avant leur écriture, jamais lors de leur consultation. */
+export function ecrireSeedDemo(dir: string): void { ecrireSeedUnitaire(dir, true) }
 
 function launchEnv() {
   const env = { ...process.env }
@@ -67,6 +68,31 @@ export async function entrerCorpus(page: Page): Promise<void> {
   await attendreAccueil(page)
   await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
+}
+
+/** Ouvre les détails secondaires sans masquer les interventions locales. */
+export async function ouvrirDetailsLocuteurs(page: Page): Promise<void> {
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+  const details = page.getByRole('button', { name: 'Détails et vérifications…', exact: true })
+  if (await details.getAttribute('aria-expanded') !== 'true') await details.click()
+  await expect(page.locator('.details-locuteurs')).toBeVisible()
+}
+
+/** Vérifie une ancienne entrée dans son entretien, sans passer par une correction du corpus. */
+export async function regulariserDansEntretien(page: Page, titre: string, nom: string): Promise<void> {
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+  const verification = page.locator('.verification-locuteurs')
+  if (await verification.getAttribute('open') === null) await verification.locator('summary').click()
+  await verification.getByRole('button', { name: `Ouvrir les locuteurs de ${titre}`, exact: true }).click()
+  await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
+  const ligne = page.locator('.liste-loc li')
+  const index = await ligne.locator('.nom-loc').evaluateAll((inputs, nom) => inputs.findIndex((input) => (input as HTMLInputElement).value === nom), nom)
+  expect(index).toBeGreaterThanOrEqual(0)
+  page.once('dialog', (dialogue) => dialogue.accept())
+  await ligne.nth(index).getByRole('button', { name: 'Enregistrer ce locuteur…', exact: true }).click()
+  await expect(ligne.nth(index).getByRole('button', { name: 'Enregistrer ce locuteur…', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
+  await retourCorpus(page)
 }
 
 /** Ouvre la préparation sans recliquer sur l'onglet déjà repris par la barre. */

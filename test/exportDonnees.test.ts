@@ -6,13 +6,13 @@ function donnees(): OptionsExportDonnees {
   return {
     variables: [
       { id: 'v1', lib: 'Lieu', portee: 'entretien', priv: false, ordre: 0, vExport: 1, modalites: [{ id: 'm1', lib: 'À Lyon', mExport: 1 }] },
-      { id: 'v2', lib: 'Ancienneté', portee: 'locuteur', priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
+      { id: 'v2', lib: 'Ancienneté', portee: "participation", priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
       { id: 'v3', lib: 'Contact privé', portee: 'entretien', priv: true, ordre: 2, vExport: 3, modalites: [{ id: 'm3', lib: 'confidentiel', mExport: 1 }] },
-      { id: 'v4', lib: 'Note privée', portee: 'locuteur', priv: true, ordre: 3, vExport: 4, modalites: [{ id: 'm4', lib: 'personnel', mExport: 1 }] },
+      { id: 'v4', lib: 'Note privée', portee: "participation", priv: true, ordre: 3, vExport: 4, modalites: [{ id: 'm4', lib: 'personnel', mExport: 1 }] },
     ],
     matrice: [
-      { entretienId: 'e1', titre: 'Coordinatrice', valeursGen: { v1: 'm1', v3: 'm3' }, locuteurs: [{ index: 0, nom: 'Fatima', valeursLoc: { v2: 'm2', v4: 'm4' } }] },
-      { entretienId: 'e2', titre: 'Retraité', valeursGen: {}, locuteurs: [{ index: 0, nom: 'Paul', valeursLoc: {} }] },
+      { entretienId: 'e1', titre: 'Coordinatrice', valeursGen: { v1: 'm1', v3: 'm3' }, participations: [{ participationId: 'local', index: 0, nom: 'Fatima', valeursLoc: { v2: 'm2', v4: 'm4' } }] },
+      { entretienId: 'e2', titre: 'Retraité', valeursGen: {}, participations: [{ participationId: 'local', index: 0, nom: 'Paul', valeursLoc: {} }] },
     ],
     entretiensAttendus: ['e1', 'e2'], montrerLocuteurs: true,
   }
@@ -75,7 +75,7 @@ describe('CSV de la table de données', () => {
   test.each(['=1+1', '+SUM(A1)', '-1+2', '@SUM(A1)', '  =1+1', '\t=1+1', '\rtexte', '\ntexte', '\u0000=1+1'])('les formules potentielles sont neutralisées : %j', (valeur) => {
     const options = donnees()
     options.matrice[0].titre = valeur
-    options.matrice[0].locuteurs[0].nom = valeur
+    options.matrice[0].participations[0].nom = valeur
     options.variables[0].lib = valeur
     options.variables[0].modalites[0].lib = valeur
     const lignes = lireCsvDonnees(exporterDonneesCsv(options))

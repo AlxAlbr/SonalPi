@@ -1,7 +1,7 @@
 import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { FORMAT_VERSION } from '../../shared/format'
+import { validerEntretienNatif } from '../../shared/natif/validation'
 import { idImportWebDAVSain } from './journalCorrespondancesWebDAV'
 
 export interface EnvoiGardePseudosWebDAV {
@@ -40,6 +40,6 @@ export class JournalGardePseudosWebDAV {
     const id = /^entretiens\/([^/]+)\.json$/.exec(j?.chemin)?.[1]
     if (!j || j.version !== 1 || j.destination !== this.destination || !id || !idImportWebDAVSain(id) || typeof j.contenu !== 'string') throw new Error()
     const data = JSON.parse(j.contenu)
-    if (data?.formatVersion !== FORMAT_VERSION || !data.corpsTexte || !data.meta || !Array.isArray(data.annotations) || !Array.isArray(data.locuteurs)) throw new Error()
+    validerEntretienNatif(data)
   }
 }

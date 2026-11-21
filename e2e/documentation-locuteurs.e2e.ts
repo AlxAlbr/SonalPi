@@ -1,8 +1,8 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, retourCorpus, selectionner } from './util'
+import { lancer, attendreAccueil, retourCorpus, selectionner, ouvrirDetailsLocuteurs } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 async function texteTranscription(page: Page): Promise<string> {
@@ -11,6 +11,15 @@ async function texteTranscription(page: Page): Promise<string> {
     copie.querySelectorAll('.gouttiere-loc').forEach((libelle) => libelle.remove())
     return (copie.textContent ?? '').replace(/\s+/g, ' ').trim()
   })
+}
+
+async function nommer(page: Page, champ: Locator, nom: string) {
+  await champ.fill(nom); await champ.press('Enter')
+  await expect.poll(() => page.evaluate(async (nom) =>
+    (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.some((p) => p.nom === nom), nom)).toBe(true)
+  await expect(champ).toHaveValue(nom)
+  await expect(champ).toBeEnabled()
+  await expect(page.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)
 }
 
 test('manuel : identifier les voix, attribuer une sélection puis supprimer sans effacer les paroles', async () => {
@@ -41,8 +50,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.nom-loc').nth(1)).toHaveValue('Speaker 0')
     const texteInitial = await texteTranscription(page)
 
-    await liste.nth(0).locator('.nom-loc').fill('Enquêteur')
-    await liste.nth(0).locator('.nom-loc').press('Tab')
+    await nommer(page, liste.nth(0).locator('.nom-loc'), 'Enquêteur')
     await expect(liste.nth(0).locator('.interv input')).not.toBeChecked()
     await liste.nth(0).locator('.interv').click()
     await expect(liste.nth(0).locator('.interv input')).toBeChecked()
@@ -52,9 +60,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(0)
     await liste.nth(0).locator('.interv').click()
 
-    await liste.nth(1).locator('.nom-loc').fill('Fatima')
-    await liste.nth(1).locator('.nom-loc').press('Tab')
-    await expect(page.getByRole('status').filter({ hasText: 'Personne « Fatima » créée' })).toBeVisible()
+    await nommer(page, liste.nth(1).locator('.nom-loc'), 'Fatima')
     const pseudo = liste.nth(1).locator('.pseudo-loc')
     await pseudo.fill('Nadia')
     await pseudo.press('Tab')
@@ -73,7 +79,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.editeur .loc-anon .loc-nom').first()).toHaveCSS('color', 'rgb(33, 128, 90)')
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     expect(await texteTranscription(page)).toBe(texteInitial)
-    if (process.env.SONAL_DOC_CAPTURES === '1') {
+    if (['1', 'entretien'].includes(process.env.SONAL_DOC_CAPTURES ?? '')) {
       await page.locator('.modale-locuteurs').screenshot({ path: 'docs/user/medias/locuteurs-entretien.png' })
     }
 
@@ -95,12 +101,10 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.confirm-suppr')).toHaveCount(0)
     await page.getByRole('button', { name: '+ Locuteur', exact: true }).click()
-    await liste.nth(2).locator('.nom-loc').fill('Autre bénévole')
-    await liste.nth(2).locator('.nom-loc').press('Tab')
-    await expect(page.getByRole('status').filter({ hasText: 'Personne « Autre bénévole » créée' })).toBeVisible()
+    await nommer(page, liste.nth(2).locator('.nom-loc'), 'Autre bénévole')
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     const personneAvant = await page.evaluate(async () =>
-      (await window.sonal.corpus.personnesInventaire()).personnes.find((p) => p.nom === 'Autre bénévole')?.id)
+      (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.find((p) => p.nom === 'Autre bénévole')?.id)
     expect(personneAvant).toBeTruthy()
 
     const phrase = "surtout pour l'aide aux devoirs"
@@ -115,14 +119,23 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await attribue.locator('.gouttiere-loc').click()
     await page.locator('.boutons-loc').getByRole('button', { name: 'aucun', exact: true }).click()
     await expect(page.locator('.editeur p[data-loc="3"]')).toHaveCount(0)
-    await expect(liste).toHaveCount(3)
+    await expect(page.locator('.boutons-loc .choix-loc')).toHaveCount(3)
     await page.locator('.boutons-loc').getByRole('button', { name: 'Autre bénévole', exact: true }).click()
     await expect(attribue).toContainText(phrase)
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     await retourCorpus(page)
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Locuteurs', exact: true }).click()
+    const corpus = page.locator('.locuteurs-corpus')
+    await corpus.getByRole('option').filter({ has: page.getByText('Fatima', { exact: true }) }).click()
+    if (process.env.SONAL_DOC_CAPTURES === '1') await corpus.screenshot({ path: 'docs/user/medias/locuteurs-corpus.png' })
+    await ouvrirDetailsLocuteurs(page)
+    await expect(corpus.locator('.details-locuteurs')).toContainText('Fatima')
+    if (process.env.SONAL_DOC_CAPTURES === '1') await corpus.locator('.details-locuteurs').screenshot({ path: 'docs/user/medias/locuteurs-details.png' })
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click()
     await carte.locator('.crayon').click()
     await page.locator('[data-onglet="locuteurs"]').click()
     await expect(attribue).toContainText(phrase)
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await expect(liste.nth(0).locator('.nom-loc')).toHaveValue('Enquêteur')
     await expect(liste.nth(0).locator('.interv input')).toBeChecked()
     await expect(liste.nth(1).locator('.pseudo-loc')).toHaveValue('Nadia')
@@ -140,11 +153,13 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(page.locator('.editeur p[data-loc="3"]')).toHaveCount(0)
     expect(await texteTranscription(page)).toBe(texteInitial)
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     await retourCorpus(page)
     expect(await page.evaluate(async (id) =>
-      (await window.sonal.corpus.personnesInventaire()).personnes.some((p) => p.id === id), personneAvant)).toBe(true)
+      (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs.some((p) => p.id === id), personneAvant)).toBe(true)
     await carte.locator('.crayon').click()
     await page.locator('[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await expect(liste).toHaveCount(2)
     await expect(page.locator('.editeur p[data-loc="3"]')).toHaveCount(0)
     expect(await texteTranscription(page)).toBe(texteInitial)

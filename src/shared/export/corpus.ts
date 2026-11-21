@@ -38,7 +38,7 @@ export function assemblerInstantaneCorpus(
       corpsTexte: fichier.corpsTexte,
       annotations: fichier.annotations,
       ancres: fichier.ancres,
-      locuteurs: fichier.locuteurs,
+      participations: fichier.participations,
       codebook: Object.values(corpus.codebook ?? {}).sort((a, b) => a.ordre - b.ordre),
       variables: Object.values(corpus.variables ?? {}).sort((a, b) => a.ordre - b.ordre),
       meta: { valeursGen: fichier.meta.valeursGen ?? {} },

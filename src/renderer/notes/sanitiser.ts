@@ -1,4 +1,4 @@
-import type { Note } from '../../shared/format'
+import type { Note } from "../../shared/format"
 import { normaliserNotes } from '../../shared/entretien/notes'
 import { corpsNoteEnTexte as corpsNoteEnTexteSanitise } from '../../shared/export/notesTexte'
 

@@ -22,8 +22,8 @@ export function retenirOccurrenceLexico(
     if (!variable || variable.portee !== filtre.portee) return false
     const valeurs = filtre.portee === 'entretien'
       ? occurrence.valeursEntretien
-      : occurrence.valeursLocuteur
-    // L'absence de locuteur n'est pas une valeur manquante d'un locuteur.
+      : occurrence.valeursParticipation
+    // L'absence de participation n'est pas une valeur locale manquante.
     if (!valeurs) return false
     const valeur = valeurs[variableId]
     const modaliteValide = variable.modalites.some((modalite) => modalite.id === valeur)
@@ -31,13 +31,13 @@ export function retenirOccurrenceLexico(
     if (!(valeur ? filtre.modaliteIds.includes(valeur) : filtre.nonRenseigne)) return false
   }
 
-  const personnes = filtres.personnes
-  if (personnes.selection.mode === 'choix') {
-    const retient = occurrence.locuteurIndex === null
-      ? personnes.sansLocuteur
-      : occurrence.personneId === null
-        ? personnes.sansPersonne
-        : personnes.selection.ids.includes(occurrence.personneId)
+  const locuteurs = filtres.locuteurs
+  if (locuteurs.selection.mode === 'choix') {
+    const retient = occurrence.participationIndex === null
+      ? locuteurs.sansParticipation
+      : occurrence.locuteurId === null
+        ? locuteurs.sansIdentiteCommune
+        : locuteurs.selection.ids.includes(occurrence.locuteurId)
     if (!retient) return false
   }
 

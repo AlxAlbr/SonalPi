@@ -198,7 +198,7 @@ async function bancSuppression(suffixe: string) {
   const projet = await api<{ id: number }>('/projects', configuration.token1 as string, { method: 'POST', body: JSON.stringify({ name: `Sonal suppression ${suffixe} ${idExecution}`, path: `sonal-suppression-${suffixe}-${idExecution}`, initialize_with_readme: true, default_branch: 'main', visibility: 'private' }) })
   const f = fixtureDissociationAnon()
   f.corpus.nom = 'Suppression synthétique'
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable synthétique', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur synthétique', mExport: 1 }] }
   await api(`/projects/${projet.id}/repository/commits`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ branch: 'main', commit_message: 'qualification : suppression synthétique', actions: [
     { action: 'create', file_path: 'corpus.crp', content: JSON.stringify(f.corpus) }, ...f.sources.map((s) => ({ action: 'create', file_path: `entretiens/${s.id}.json`, content: JSON.stringify(s.data) })),
   ] }) })
@@ -246,7 +246,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
       expect(await app.evaluate(() => (globalThis as unknown as { sondeSuppression: SondeSuppression }).sondeSuppression.publies)).toEqual([])
       const consommation = await page.evaluate(async () => {
-        const a = await window.sonal.corpus.apercuSuppressionAnon({ regleId: 'personne' })
+        const a = await window.sonal.corpus.apercuSuppressionAnon({ regleId: "personne" })
         a.regle.pseudos = ['Forgerie']
         let premier = '', second = ''
         try { await window.sonal.corpus.supprimerRegleAnonPartout(a.token, false) } catch (e) { premier = String(e) }
@@ -282,7 +282,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       for (const source of b.f.sources) {
         const actuel = JSON.parse((await b.depot.lireFichier(`entretiens/${source.id}.json`, 'main'))!.contenu)
         const attendu = structuredClone(source.data); attendu.lastModified = actuel.lastModified
-        attendu.annotations = attendu.annotations.filter((a) => a.regle !== 'personne')
+        attendu.annotations = attendu.annotations.filter((a) => a.regle !== "personne")
         expect(actuel).toEqual(attendu)
       }
       expect(await app.evaluate(() => (globalThis as unknown as { sondeSuppression: SondeSuppression }).sondeSuppression.publies)).toEqual(['barriere', 'e1', 'e2', 'e3', 'retrait'])
@@ -310,7 +310,7 @@ test.describe('Suppression partout GitLab — qualification produit', () => {
       await frais.getByRole('button', { name: 'Confirmer la suppression globale' }).click()
       await expect(frais).toHaveCount(0, { timeout: 30_000 })
       const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu), attendu = JSON.parse(avant)
-      attendu.annotations = attendu.annotations.filter((a: { regle?: string }) => a.regle !== 'personne')
+      attendu.annotations = attendu.annotations.filter((a: { regle?: string }) => a.regle !== "personne")
       attendu.lastModified = actuel.lastModified
       expect(actuel).toEqual(attendu)
     } finally { await app.close(); await session.fermer(); shim.nettoyer(); rmSync(profil, { recursive: true, force: true }) }

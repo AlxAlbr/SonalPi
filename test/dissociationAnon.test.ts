@@ -14,10 +14,10 @@ describe('dissociation globale pure', () => {
     for (const e of r.entretiens) {
       const attendu = structuredClone(e.avant)
       attendu.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
-      for (const a of attendu.annotations) if (a.regle === 'personne') delete a.regle
+      for (const a of attendu.annotations) if (a.regle === "personne") delete a.regle
       expect(e.apres).toEqual(attendu)
-      expect(e.apres.annotations.some((a) => a.regle === 'personne')).toBe(false)
-      expect(e.apres.locuteurs).toEqual(e.avant.locuteurs)
+      expect(e.apres.annotations.some((a) => a.regle === "personne")).toBe(false)
+      expect(e.apres.participations).toEqual(e.avant.participations)
     }
     expect(r.entretiens.map((e) => e.id)).toEqual(['e1', 'e2'])
     expect(r.inventaire.entretiens[2].annotations).toBe(0)
@@ -44,7 +44,7 @@ describe('dissociation globale pure', () => {
   })
   test('exceptions seules : état et pseudo mémorisé inchangés, définition entière transférée', () => {
     const f = fixtureDissociationAnon()
-    for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === 'personne') { a.etat = 'exception'; delete a.pseudo }
+    for (const s of f.sources) for (const a of s.data.annotations) if (a.regle === "personne") { a.etat = 'exception'; delete a.pseudo }
     const r = preparerDissociationAnon(f.corpus, f.sources, f.demande)
     expect(r.bilan.exceptions).toBe(8)
     expect(r.entretiens[0].apres.annotations[0].pseudo).toBeUndefined()
@@ -71,7 +71,7 @@ describe('dissociation globale pure', () => {
     if (cas === 'pseudo') d.annotations[0].pseudo = ''
     if (cas === 'memoire') d.definitionsAnonLocales![0].pseudos = []
     if (cas === 'reference-autre-type') d.annotations[0].type = 'codage'
-    if (cas === 'reference-illisible') (f.sources[2].data.annotations as unknown[]).push({ type: 'anon', regle: { id: 'personne' } })
+    if (cas === 'reference-illisible') (f.sources[2].data.annotations as unknown[]).push({ type: 'anon', regle: { id: "personne" } })
     if (cas === 'id-absent') d.annotations[0].id = ''
     expect(inventorierDissociationAnon(f.corpus, f.sources, f.demande).faisable).toBe(false)
     expect(() => preparerDissociationAnon(f.corpus, f.sources, f.demande)).toThrow('Résolvez')

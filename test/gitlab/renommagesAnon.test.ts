@@ -23,7 +23,7 @@ const dossiers: string[] = [], portees = [...PORTEEES_OVERTES_GITLAB]
 afterEach(() => { vi.restoreAllMocks(); PORTEEES_OVERTES_GITLAB.splice(0, Infinity, ...portees); for (const d of dossiers.splice(0)) rmSync(d, { recursive: true, force: true }) })
 function banc(nombre = 3) {
   const f = fixtureRenommageAnon(Array.from({ length: nombre }, (_, i) => `e${i + 1}`))
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   f.sources.slice(2).forEach((s) => { s.data.annotations = [] })
   const dir = mkdtempSync(join(tmpdir(), 'renommage-cible-gitlab-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
   const miroir = structuredClone(f.corpus); miroir.reglesAnon.personne.pseudos = ['Miroir périmé', 'Rebecca']
@@ -134,6 +134,7 @@ describe('renommage GitLab par lot ciblé', () => {
   test('import d’un nouvel entretien : un ancien choix lié ne contourne pas la définition publiée', async () => {
     const b = banc(); await b.service.appliquer((await b.preparer()).preparation)
     const payload = structuredClone(b.sources[2].data); payload.annotations = [structuredClone(b.sources[0].data.annotations[0])]
+    payload.participations = payload.participations.map((p) => ({ ...p, locuteurRef: null }))
     const transactions = new TransactionsGitLab(b.options)
     await expect(transactions.importerEntretien('Import périmé', payload, [], [], [])).rejects.toThrow('variante choisie')
     expect(Object.keys(JSON.parse(b.depot.fichiers.get('racine/corpus.crp')!.contenu).membership)).toHaveLength(3)

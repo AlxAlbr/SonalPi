@@ -84,21 +84,34 @@ Le contrat est dans `src/shared/format.ts` : types de fichiers, `FORMAT_VERSION`
 et contrôle de version. Le numéro courant doit se lire dans le code, pas être
 recopié dans chaque document.
 
-Une évolution nécessitant une transformation structurelle du format demande un
-changement de version et une migration explicite. Un champ optionnel additif,
+Le format natif actif est **10** : `corpus.locuteurs`, `entretien.participations`,
+`locuteurRef`, notes en `participationIds` et variables de portée `participation`.
+Les formats V2 de développement **1 à 9 sont refusés sans réécriture**, en local,
+en miroir distant et dans les documents capturés par les reprises. Il n’existe
+plus d’adaptateur de stockage 9 ni de migration automatique à l’ouverture.
+L’import des `.crp` et `.sonal` V1 reste disponible : il produit directement du 10,
+avec une identité corpus distincte par participation importée.
+
+Les testeurs doivent recréer leurs anciens corpus V2 depuis leurs sources ou
+installer une nouvelle copie des exemples. Conserver les anciennes copies si
+elles contiennent un travail à récupérer ; changer leur seul numéro est interdit.
+Un journal actif bloque une remise à zéro d’exemple, sans être supprimé.
+
+Une évolution nécessitant une transformation structurelle du format demande une
+politique de compatibilité explicite et un changement de version. Un champ optionnel additif,
 avec un comportement défini quand il manque, n’impose pas à lui seul ce changement.
 Une version non prise en charge est refusée, jamais interprétée partiellement.
 Les caches et suivis peuvent avoir leur propre version, indépendante du format natif.
 
 Ne pas confondre `formatVersion` avec la
 [version livrée de l’application](developpement.md#vocabulaire-et-version-applicative).
-Pour une évolution du format, vérifier lecture ancienne, conversion, réouverture,
-aller-retour d’export et comportement distant ; la lecture d’un miroir ne doit
+Pour une évolution du format, vérifier refus ou reprise des versions anciennes,
+imports maintenus, réouverture, aller-retour d’export et comportement distant ; la lecture d’un miroir ne doit
 pas introduire une migration distante implicite.
 
 ## Où vérifier
 
 - `test/remap.test.ts` : positions, suppressions et annulation de frappe.
-- `test/corpusStore.test.ts` : lecture, enregistrement et migrations locales.
+- `test/corpusStore.test.ts` : lecture, enregistrement et refus sans réécriture des anciens formats.
 - `test/transitionContexte.test.ts` : changement de corpus et refus de fermeture.
 - Les tests métier et fournisseur référencés dans la page de la fonction modifiée.

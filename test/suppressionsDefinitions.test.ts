@@ -38,7 +38,7 @@ function banc() {
         { id: 'codage', type: 'codage', code: theme, from: 1, to: 2, auteur: 'test' },
         { id: 'commentaire', type: 'commentaire', texte: 'À conserver', from: 1, to: 2, auteur: 'test' },
       ],
-      ancres: [], locuteurs: [{ index: 1, nom: titre, valeursLoc: { [variable]: autre }, personneRef: null }],
+      ancres: [], participations: [{ id: "loc-1", index: 1, nom: titre, valeursLoc: { [variable]: autre }, locuteurRef: null }],
       meta: { valeursGen: { [variable]: modalite }, audioRef: '/audio/reference.wav' },
     }
     return store.importerEntretien(titre, payload, []).id
@@ -75,7 +75,7 @@ describe.each<TypeSuppression>(['thème', 'variable', 'modalité'])('Suppression
       expect(e.meta.audioRef).toBe('/audio/reference.wav')
       expect(e.annotations.some((a) => a.type === 'codage')).toBe(type !== 'thème')
       expect(e.meta.valeursGen[b.variable]).toBe(type === 'thème' ? b.modalite : undefined)
-      expect(e.locuteurs[0].valeursLoc[b.variable]).toBe(type === 'variable' ? undefined : b.autre)
+      expect(e.participations[0].valeursLoc[b.variable]).toBe(type === 'variable' ? undefined : b.autre)
       expect(corpus.membership[id].lastModified).toBe(e.lastModified)
     }
   })

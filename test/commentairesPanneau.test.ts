@@ -79,7 +79,7 @@ test('la liste reste consultable en lecture seule et le texte est affiché sans 
 test('les commentaires sont triés selon leur passage et les annotations orphelines sont exclues', () => {
   const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
   const notes = useNotesEntretien({
-    entretien, locuteurs: ref([]), lireEditeur: () => null,
+    entretien, participations: ref([]), lireEditeur: () => null,
     nomCategorieNote: () => '', categorieNoteDefaut: () => '',
     planifierSauvegarde: vi.fn(), enregistrerAction: vi.fn(),
   })

@@ -50,7 +50,7 @@ function sourceTeste(opts: {
         },
         annotations: [],
         ancres: [{ pos: 1, t: 1 }, { pos: 26, t: 2 }],
-        locuteurs: [{ index: 1, nom: 'Karine', interviewer: false, pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, personneRef: null }],
+        participations: [{ id: "loc-1", index: 1, nom: 'Karine', interviewer: false, pseudo: 'Claire', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null }],
         meta: { valeursGen: {}, audioRef: null },
         legacy: { tabAnon: null, notes: '' },
         brouillonsAnon: [],

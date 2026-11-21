@@ -1,6 +1,7 @@
 import type { CibleValeur, EntretienFichier, MatriceCorpus, SegmentThematique } from '../format'
 import { estOrpheline } from '../entretien/annotation'
 import { charVersPM, pmVersTranches } from '../entretien/positions'
+import * as valeursNatives from './valeursVariables'
 
 /**
  *  Requêtes de l'agrégat Corpus (« inventaires = requêtes ») :
@@ -30,65 +31,12 @@ export function usagesParCategorie(entretiens: EntretienFichier[]): Record<strin
   return out
 }
 
-/** Usages d'une variable = nombre de valeurs (entretiens + locuteurs) qui la portent. */
-export function compterUsagesVariable(entretiens: EntretienFichier[], idVar: string): number {
-  let n = 0
-  for (const e of entretiens) {
-    if (e.meta?.valeursGen?.[idVar] != null) n++
-    for (const l of e.locuteurs) if (l.valeursLoc?.[idVar] != null) n++
-  }
-  return n
-}
+export { compterUsagesVariable, compterValeursVariable, effacerValeursVariable, compterUsagesModalite } from './valeursVariables'
 
-/** Valeurs d'une variable dans un seul entretien, et chez ses locuteurs ;
- *  avec `idMod`, seulement celles égales à cette modalité. */
-type ValeursEntretien = { meta: { valeursGen: Record<string, string> }; locuteurs: Array<{ valeursLoc: Record<string, string> }> }
-const valeurVisee = (valeur: string | undefined, idMod?: string) => valeur != null && (idMod === undefined || valeur === idMod)
-
-export function compterValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
-  let n = valeurVisee(entretien.meta?.valeursGen?.[idVar], idMod) ? 1 : 0
-  for (const l of entretien.locuteurs) if (valeurVisee(l.valeursLoc?.[idVar], idMod)) n++
-  return n
-}
-
-/** Efface d'un entretien les valeurs d'une variable (ou d'une seule modalité) ; renvoie le nombre de valeurs effacées. */
-export function effacerValeursVariable(entretien: ValeursEntretien, idVar: string, idMod?: string): number {
-  let n = 0
-  if (valeurVisee(entretien.meta?.valeursGen?.[idVar], idMod)) {
-    delete entretien.meta.valeursGen[idVar]
-    n++
-  }
-  for (const l of entretien.locuteurs) {
-    if (valeurVisee(l.valeursLoc?.[idVar], idMod)) {
-      delete l.valeursLoc[idVar]
-      n++
-    }
-  }
-  return n
-}
-
-/** Usages d'une modalité = nombre de valeurs égales à `idMod` pour `idVar`. */
-export function compterUsagesModalite(entretiens: EntretienFichier[], idVar: string, idMod: string): number {
-  let n = 0
-  for (const e of entretiens) {
-    if (e.meta?.valeursGen?.[idVar] === idMod) n++
-    for (const l of e.locuteurs) if (l.valeursLoc?.[idVar] === idMod) n++
-  }
-  return n
-}
-
-/** Pose (ou efface, si `idMod` vide) une valeur EAV chez son propriétaire dans UN entretien —
- *  édition ciblée depuis la table de données. Transform PUR ; le store fait l'I/O.
- *  La valeur reste chez son propriétaire (`valeursGen` / `valeursLoc`),
- *  aucun nouveau lieu de stockage. Locuteur cible absent → no-op. */
-export function poserValeur(data: EntretienFichier, cible: CibleValeur, idVar: string, idMod: string): void {
-  const valeurs =
-    cible.type === 'entretien'
-      ? data.meta.valeursGen
-      : data.locuteurs.find((l) => l.index === cible.index)?.valeursLoc
-  if (!valeurs) return
-  if (idMod) valeurs[idVar] = idMod
-  else delete valeurs[idVar]
+/** Résout les ids déjà enregistrés, sans compléter ceux qui manquent dans le stockage actif. */
+export function poserValeur(data: EntretienFichier, cible: CibleValeur, idVar: string, idMod: string): boolean {
+  return valeursNatives.poserValeur({ meta: data.meta, participations: data.participations.flatMap((p) =>
+    p.id ? [{ id: p.id, valeursLoc: p.valeursLoc }] : []) }, cible, idVar, idMod)
 }
 
 /** Une entrée d'entretien pour la matrice (id + titre depuis le membership + data). */
@@ -189,6 +137,6 @@ export function matriceCorpus(entrees: EntreeMatrice[]): MatriceCorpus {
     entretienId: id,
     titre,
     valeursGen: data.meta?.valeursGen ?? {},
-    locuteurs: data.locuteurs.map((l) => ({ index: l.index, nom: l.nom, valeursLoc: l.valeursLoc ?? {} })),
+    participations: data.participations.map((p) => ({ participationId: p.id || null, index: p.index, nom: p.nom, valeursLoc: p.valeursLoc ?? {} })),
   }))
 }

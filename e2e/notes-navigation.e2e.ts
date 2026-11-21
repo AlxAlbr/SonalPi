@@ -13,7 +13,7 @@ function preparerNotes(sansResume = false): string {
   const entretien: EntretienFichier = JSON.parse(readFileSync(join(corpusDir, 'entretiens/e1.json'), 'utf8'))
   const note = (id: string, annee: number, date: string, resume: boolean, rang: number): Note => ({
     id, titre: id, categorieId: resume ? 'ncat_resume' : 'ncat_generale', date,
-    statut: 'public', corps: '<p>Note de test</p>', locuteurIds: [], rang,
+    statut: 'public', corps: '<p>Note de test</p>', participationIds: [], rang,
     creeLe: `${annee}-01-01T12:00:00.000Z`, modifieLe: null,
   })
   entretien.notes = [

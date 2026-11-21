@@ -1,5 +1,7 @@
-import { Schema, type Node as ProseMirrorNode } from '@tiptap/pm/model'
-import type { EntretienFichier, EntretienRef, Locuteur } from '../../shared/format'
+import { Schema } from '@tiptap/pm/model'
+import type { EntretienRef } from '../../shared/format'
+import type { EntretienFichier } from "../../shared/format"
+import type { ParticipationLocuteur } from '../../shared/locuteurs'
 import type { Annotation } from '../../shared/entretien/annotation'
 import { projeterPortionsAnon } from '../../shared/entretien/anon/projectionTexte'
 import type { OccurrenceLexico } from '../../shared/lexico/types'
@@ -15,11 +17,16 @@ const schemaLexico = new Schema({
 
 const MOT = /[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu
 
+type ParticipationLexico = Pick<ParticipationLocuteur, 'index' | 'locuteurRef' | 'interviewer' | 'valeursLoc'>
+export type SourceEntretienLexico = Pick<EntretienFichier, 'corpsTexte' | 'annotations' | 'meta'> & {
+  participations: readonly ParticipationLexico[]
+}
+
 interface FragmentTexte {
   from: number
   to: number
   texte: string
-  locuteurIndex: number | null
+  participationIndex: number | null
 }
 
 interface PlageAnon {
@@ -32,10 +39,10 @@ interface PlageAnon {
 interface PlageBloc {
   from: number
   to: number
-  locuteurIndex: number | null
+  participationIndex: number | null
 }
 
-function plagesAnon(data: EntretienFichier, from: number, to: number): PlageAnon[] {
+function plagesAnon(data: SourceEntretienLexico, from: number, to: number): PlageAnon[] {
   // Une décision visible reste une seule occurrence lexicale.
   const parAnnotation = new Map<Annotation, PlageAnon>()
   for (const portion of projeterPortionsAnon(data.annotations, { from, to })) {
@@ -54,22 +61,22 @@ function plagesAnon(data: EntretienFichier, from: number, to: number): PlageAnon
     a.from - b.from || a.to - b.to || a.annotation.id.localeCompare(b.annotation.id))
 }
 
-function locuteurPourIndex(data: EntretienFichier, index: number | null): Locuteur | null {
-  return index === null ? null : data.locuteurs.find((locuteur) => locuteur.index === index) ?? null
+function participationPourIndex(data: SourceEntretienLexico, index: number | null): ParticipationLexico | null {
+  return index === null ? null : data.participations.find((participation) => participation.index === index) ?? null
 }
 
 function creerOccurrence(params: {
   texte: string
   from: number
   to: number
-  locuteurIndex: number | null
+  participationIndex: number | null
   pseudonyme: boolean
   ordre: number
   entretienId: string
   reference: EntretienRef
-  data: EntretienFichier
+  data: SourceEntretienLexico
 }): OccurrenceLexico {
-  const locuteur = locuteurPourIndex(params.data, params.locuteurIndex)
+  const participation = participationPourIndex(params.data, params.participationIndex)
   const themeIds = [...new Set(params.data.annotations
     .filter((annotation) => annotation.type === 'codage'
       && annotation.code
@@ -84,11 +91,11 @@ function creerOccurrence(params: {
     titreEntretien: params.reference.titre,
     from: params.from,
     to: params.to,
-    locuteurIndex: params.locuteurIndex,
-    personneId: locuteur?.personneRef ?? null,
-    interviewer: locuteur?.interviewer === true,
+    participationIndex: params.participationIndex,
+    locuteurId: participation?.locuteurRef ?? null,
+    interviewer: participation?.interviewer === true,
     valeursEntretien: { ...(params.data.meta?.valeursGen ?? {}) },
-    valeursLocuteur: locuteur ? { ...(locuteur.valeursLoc ?? {}) } : null,
+    valeursParticipation: participation ? { ...(participation.valeursLoc ?? {}) } : null,
     themeIds,
     avant: '',
     apres: '',
@@ -100,7 +107,7 @@ function creerOccurrence(params: {
 export function extraireOccurrencesLexico(
   entretienId: string,
   reference: EntretienRef,
-  data: EntretienFichier,
+  data: SourceEntretienLexico,
 ): OccurrenceLexico[] {
   const doc = schemaLexico.nodeFromJSON(data.corpsTexte)
   const blocs: PlageBloc[] = []
@@ -110,7 +117,7 @@ export function extraireOccurrencesLexico(
       blocs.push({
         from: pos + 1,
         to: pos + 1 + node.content.size,
-        locuteurIndex: typeof node.attrs.loc === 'number' ? node.attrs.loc as number : null,
+        participationIndex: typeof node.attrs.loc === 'number' ? node.attrs.loc as number : null,
       })
       return true
     }
@@ -120,7 +127,7 @@ export function extraireOccurrencesLexico(
       from: pos,
       to: pos + node.text.length,
       texte: node.text,
-      locuteurIndex: bloc?.locuteurIndex ?? null,
+      participationIndex: bloc?.participationIndex ?? null,
     })
     return false
   })
@@ -143,7 +150,7 @@ export function extraireOccurrencesLexico(
           texte: match[0],
           from: from + match.index,
           to: from + match.index + match[0].length,
-          locuteurIndex: fragment.locuteurIndex,
+          participationIndex: fragment.participationIndex,
           pseudonyme: false,
           ordre: ordre++, entretienId, reference, data,
         }))
@@ -159,12 +166,12 @@ export function extraireOccurrencesLexico(
   for (const plage of anonymisations) {
     const fragmentsCouverts = fragments.filter((fragment) => fragment.from < plage.to && fragment.to > plage.from)
     if (!fragmentsCouverts.length) continue
-    const locuteurs = new Set(fragmentsCouverts.map((fragment) => fragment.locuteurIndex))
+    const participations = new Set(fragmentsCouverts.map((fragment) => fragment.participationIndex))
     occurrences.push(creerOccurrence({
       texte: plage.pseudo,
       from: plage.from,
       to: plage.to,
-      locuteurIndex: locuteurs.size === 1 ? [...locuteurs][0] : null,
+      participationIndex: participations.size === 1 ? [...participations][0] : null,
       pseudonyme: true,
       ordre: ordre++, entretienId, reference, data,
     }))

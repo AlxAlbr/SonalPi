@@ -24,7 +24,7 @@ function attente() {
 async function banc(natif: boolean) {
   const f = fixtureRenommageAnon(['e1', 'e2', 'e3'])
   f.sources[2].data.annotations = []
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }); serveur.creerDossierRelatif('verrous')
   serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
@@ -168,15 +168,18 @@ for (const natif of [false, true]) describe(`raccordement renommage WebDAV — $
       const source = b.contexte.store.lireEntretien('e3')
       if (source.ok) { source.data.annotations = [{ ...b.f.sources[0].data.annotations[0], id: 'nouvelle' }]; b.contexte.store.ecrireEntretien('e3', source.data) }
     })).rejects.toThrow('variante choisie')
-    await expect(b.contexte.transactions.importerEntretien('Import périmé', b.f.sources[0].data)).rejects.toThrow('variante choisie')
+    const sourceImport = structuredClone(b.f.sources[0].data)
+    for (const participation of sourceImport.participations) participation.locuteurRef = null
+    await expect(b.contexte.transactions.importerEntretien('Import périmé', sourceImport)).rejects.toThrow('variante choisie')
     expect(b.puts).toHaveLength(avant)
-    const actuel = structuredClone(b.f.sources[0].data)
-    for (const a of actuel.annotations) if (a.regle === 'personne' && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle'
+    const actuel = structuredClone(sourceImport)
+    for (const a of actuel.annotations) if (a.regle === "personne" && a.etat !== 'exception' && a.pseudo === 'Claire') a.pseudo = 'Nouvelle'
     expect(await b.contexte.transactions.importerEntretien('Import actuel', actuel)).toHaveProperty('id')
   })
   test('une nouvelle définition apportée par import reste permise, sans remplacer une définition publiée', async () => {
     const b = await banc(natif)
     const data = JSON.parse(JSON.stringify(b.f.sources[0].data).replaceAll('Karine', 'Nadine'))
+    for (const participation of data.participations) participation.locuteurRef = null
     data.annotations = [{ ...data.annotations[0], regle: 'nouvelle-regle', pseudo: 'Valide' }]
     const regle = { id: 'nouvelle-regle', entite: ['Nadine'], pseudos: ['Valide'] }
     expect(await b.contexte.transactions.importerEntretien('Nouvelle définition', data, [], [], [regle])).toHaveProperty('id')
@@ -196,11 +199,11 @@ for (const natif of [false, true]) describe(`raccordement renommage WebDAV — $
     expect(b.contexte.transactions.lirePublicationEntretien()).toMatchObject({ chemin: 'entretiens/e3.json' })
     await expect(b.appliquer(a.token)).rejects.toThrow('publication d’entretien WebDAV reste indéterminée')
     expect(b.puts).toEqual(['entretiens/e3.json'])
-    candidat.locuteurs[0].pseudo = 'Autosave ultérieure'
+    candidat.participations[0].pseudo = 'Autosave ultérieure'
     writeFileSync(fichier, JSON.stringify(candidat)); b.contexte.sessions.noterSale('e3')
     b.pieges.apres = async () => {}; b.pieges.avant = async () => {}
     await b.contexte.actualiser()
-    expect(JSON.parse(readFileSync(fichier, 'utf8')).locuteurs[0].pseudo).toBe('Autosave ultérieure')
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).participations[0].pseudo).toBe('Autosave ultérieure')
     expect(b.contexte.transactions.lirePublicationEntretien()).toBeNull()
     expect(await b.appliquer((await b.preparer()).token)).toMatchObject({ statut: 'partiel', annotations: 4 })
     expect(await b.contexte.publierEntretien('e3')).toEqual({ ok: true })

@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { CorpusStore } from './corpusStore'
+import { preparerModeleExempleNatif } from './modeleExempleNatif'
 import { FORMAT_VERSION, type CorpusFichier, type MarqueurDemo } from '../shared/format'
 import { CLEFS_SOURCES, EXEMPLES_PAR_PARCOURS, identiteExemple, type EtatExemples, type InstallationExemple, type MemoireExemples, type ResumeTravailExemple, type TravailExemple } from '../shared/exemples'
 
@@ -53,7 +54,7 @@ export class ExemplesLocaux {
       const corpus = lireJson<CorpusFichier>(join(dir, 'corpus.crp'))
       const identite = identiteExemple(corpus.demo)
       if (!identite || !corpus.demo || !Number.isInteger(corpus.formatVersion)
-        || corpus.formatVersion < 1 || corpus.formatVersion > FORMAT_VERSION
+        || corpus.formatVersion !== FORMAT_VERSION
         || !corpus.membership || typeof corpus.membership !== 'object' || !corpus.codebook) return null
       return {
         travail: {
@@ -195,6 +196,9 @@ export class ExemplesLocaux {
       || (demande.usage === 'libre' && (parcours || demande.recommencer))) {
       throw new Error('Cet exemple ne peut pas être préparé pour cet usage.')
     }
+    if (existsSync(join(dir, '.transaction-fichiers.json'))) {
+      throw new Error('Une modification de ce corpus est encore en cours. Rouvrez-le pour la terminer avant de recommencer cet exemple.')
+    }
     const remplace = demande.recommencer ? this.reconnaitre(dir) : null
     if (demande.recommencer && (!remplace || remplace.travail.usage !== 'apprentissage'
       || remplace.travail.parcoursApprentissage !== parcours)) {
@@ -215,6 +219,7 @@ export class ExemplesLocaux {
         parcours: parcours ? { [parcours]: { validees: [] } } : {},
       }
       if (demande.exemple === 'synth-annote') {
+        preparerModeleExempleNatif(this.deps.ressources)
         mkdirSync(stage, { recursive: true })
         for (const fichier of ['corpus.crp', 'entretiens', 'png']) {
           cpSync(join(this.deps.ressources, 'CorpusSynthAnnot', fichier), join(stage, fichier), { recursive: true })
@@ -234,7 +239,7 @@ export class ExemplesLocaux {
       store.poserNom(nom.trim() || (demande.exemple === 'synth-annote'
         ? 'Corpus annoté'
         : parcours === 'preparation' ? 'Préparer et suivre' : 'Importer et traiter'))
-      if (parcours === 'traitement') store.ajouterVariable('Ville', 'locuteur')
+      if (parcours === 'traitement') store.ajouterVariable('Ville', 'participation')
       if (demande.exemple === 'synth' && demande.usage === 'libre') {
         if (!demande.entretiens || demande.entretiens.length !== CLEFS_SOURCES.length
           || !CLEFS_SOURCES.every((cle) => demande.entretiens!.filter((e) => e.cle === cle).length === 1)) {

@@ -15,6 +15,9 @@ emplacement dans le dossier GitLab : elle classe les trois fournisseurs.
 | `tri-contenus` | Lecture de contenus publiés sur un corpus calme. |
 | `suppression-definition` | Décompte des usages publiés et fermeture des éditions avant retrait. |
 | `suppression-entretien` | Corpus, entretien retiré et archivage. |
+| `corrections-locuteurs-corpus` | Inventaire complet, corpus et tous les membres ; publication bornée et reprise par fournisseur. |
+| `corrections-locuteurs-reprise` | Suivi WebDAV privé : reconnaître sans PUT, reprendre explicitement ou arrêter un résultat connu sans compensation. |
+| `locuteur-session` | Corrections GitLab et WebDAV conservant le droit courant : création sur la seule source, renommage et rapprochement sur les membres nécessaires. |
 | `valeurs-entretien`, `pseudonymisation-entretiens` | Une source et les définitions qu’elle applique. |
 | Portées de pseudonymisation globale et de réaffectation thématique | Protocole spécialisé, inventaire, cibles et reprise propres à l’opération. |
 | `indisponible` | Geste refusé sur les fournisseurs distants. |
@@ -34,15 +37,27 @@ de chaque protocole restent applicables ; « ouvert » ne signifie pas « sans g
   La réaffectation avec suppression de la source est ouverte sur GitLab, pas WebDAV.
 - Les documents du projet et le téléversement média général sont proposés sur
   WebDAV, pas GitLab. La désignation d’un média existant est un parcours distinct.
-- `note.editer` depuis le corpus, `personnes.commande`, `journal.annuler` et le
+- Les gestes précis `locuteurs.*` de correction depuis le corpus sont ouverts
+  sur GitLab et WebDAV, avec les éditions fermées. GitLab utilise un commit gardé ;
+  WebDAV protège tous les membres et publie sous préconditions, avec suivi privé
+  et reprise explicite. Voir les [limites par fournisseur](../traiter/locuteurs/fournisseurs.md).
+  Le renommage global, la création au nommage et le rapprochement depuis une session
+  sont ouverts séparément sur les deux fournisseurs, sans second droit sur
+  l’entretien courant. La création ne ferme pas les autres éditions ; le renommage
+  et le rapprochement les exigent fermées. WebDAV conserve le suivi privé du lot en
+  cas d’interruption : fermeture sans ancien envoi, vérification puis reprise
+  explicitement séparées. Un ancien droit natif n’est jamais forcé automatiquement.
+- `note.editer` depuis le corpus, `journal.annuler` et le
   marquage d’un corpus de démonstration restent refusés sur les deux distants.
   Cela n’interdit pas l’édition des notes dans une session d’entretien autorisée.
 
 Ne pas recopier toute la matrice dans chaque page métier : `matriceCapacites`
 la construit depuis les portées et `PARCOURS_PAR_FOURNISSEUR`. Une différence
-actuelle mérite attention : WebDAV annonce la capacité publique `personnes`,
-mais le geste `personnes.commande` reste refusé. La présence d’un bouton ou d’une
-méthode de transaction ne prouve donc pas qu’une commande est livrée.
+historique est supprimée : le drapeau générique `locuteurs` et le canal
+`personnes.commande` n’existent plus. Un ancien geste est refusé comme tout geste
+inconnu, même en local. `correctionsLocuteurs`, `renommageLocuteurOuvert` et
+`nommageLocuteurs` décrivent les seuls parcours de correction qualifiés. La présence d’un bouton ou d’une méthode de transaction ne
+prouve donc pas qu’une commande est livrée.
 
 ## Les protections se complètent
 
@@ -52,7 +67,10 @@ méthode de transaction ne prouve donc pas qu’une commande est livrée.
    appel IPC direct. Un geste inconnu est refusé, même en local.
 3. Le store protège l’écriture ordinaire du miroir.
 4. La transaction ou session acquiert et contrôle les droits, les versions et
-   les références avant publication.
+   les références avant publication. Les associations et distinctions ne peuvent
+   pas viser une identité supprimée, même depuis une copie ancienne.
+5. Une réponse WebDAV inconnue conserve la protection du corpus jusqu’à
+   reconnaissance ; une ancienne protection n’est pas héritée pour publier la suite.
 
 Griser un bouton ne remplace aucune des protections suivantes. Inversement,
 une capacité générale `editionEntretien` ne dispense pas d’acquérir sa session.

@@ -16,7 +16,7 @@ afterEach(async () => {
 function attente() { let terminer!: () => void; const promise = new Promise<void>((r) => { terminer = r }); return { promise, terminer } }
 async function banc(natif: boolean) {
   const f = fixtureRenommageAnon(); f.corpus.reglesAnon.personne.pseudos = ['Claire']
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const serveur = new ServeurWebDAVMemoire(); serveur.creerDossierRelatif('verrous')
   serveur.poser('corpus.crp', JSON.stringify(f.corpus))
   for (const s of f.sources) serveur.poser(`entretiens/${s.id}.json`, JSON.stringify(s.data))
@@ -64,7 +64,7 @@ for (const natif of [false, true]) describe(`ajout de variante : contexte ${nati
       await expect(b.contexte.transactions.executer(() => null)).rejects.toThrow('ajout')
       await expect(b.contexte.actualiser()).rejects.toThrow('ajout')
       await expect(b.contexte.fermer()).rejects.toThrow('mutation')
-      await expect(b.contexte.preparerSuppressionAnon({ regleId: 'personne' })).rejects.toThrow('ajout')
+      await expect(b.contexte.preparerSuppressionAnon({ regleId: "personne" })).rejects.toThrow('ajout')
     } finally { suite.terminer() }
     expect(await publication).toMatchObject({ ajoute: true }); expect(b.puts).toHaveLength(1)
   })

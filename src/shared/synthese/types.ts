@@ -1,4 +1,4 @@
-import type { Variable } from '../format'
+import type { Variable } from "../format"
 
 /** Une sélection explicite vide ne signifie jamais « tout inclure ». */
 export type SelectionSynthese =
@@ -14,10 +14,10 @@ export interface FiltreVariableSynthese {
 export interface FiltresSynthese {
   entretiens: SelectionSynthese
   variables: Record<string, FiltreVariableSynthese>
-  personnes: {
+  locuteurs: {
     selection: SelectionSynthese
-    sansPersonne: boolean
-    sansLocuteur: boolean
+    sansIdentiteCommune: boolean
+    sansParticipation: boolean
   }
   themes: SelectionSynthese
   correspondanceThemes: 'au-moins-un' | 'tous-au-meme-endroit'
@@ -41,10 +41,11 @@ export interface PlageContributionSynthese {
 export interface TourSynthese {
   from: number
   to: number
+  participationIndex: number | null
+  participationId: string | null
   locuteurId: string | null
-  personneId: string | null
   interviewer: boolean
-  valeursLocuteur: Record<string, string> | null
+  valeursParticipation: Record<string, string> | null
 }
 
 export interface SourceMoteurSynthese {
@@ -71,8 +72,8 @@ export interface ExtraitSyntheseBrut {
   longueurSource: number
   themeIds: string[]
   annotationIds: string[]
+  participationIds: string[]
   locuteurIds: string[]
-  personneIds: string[]
   ordre: number
 }
 
@@ -91,10 +92,10 @@ export function filtresSyntheseParDefaut(): FiltresSynthese {
   return {
     entretiens: selectionSyntheseSansRestriction(),
     variables: {},
-    personnes: {
+    locuteurs: {
       selection: selectionSyntheseSansRestriction(),
-      sansPersonne: false,
-      sansLocuteur: false,
+      sansIdentiteCommune: false,
+      sansParticipation: false,
     },
     themes: selectionSyntheseSansRestriction(),
     correspondanceThemes: 'au-moins-un',

@@ -111,7 +111,7 @@ describe('export .sonal — couleur des codages (visibilité dans SonalPi1)', ()
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Karine habite Lyon.' }] }] },
     annotations: [{ id: 'a1', type: 'codage' as const, from: 15, to: 19, auteur: 'moi', code: 'cat_003' }],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     variables: [],
     meta: { valeursGen: {} },
     legacy: { tabAnon: null, notes: '' },
@@ -168,7 +168,7 @@ describe('export .sonal — un lblseg par intervalle d’ancres', () => {
         { pos: 10, t: 3 },
         { pos: 23, t: 5 },
       ],
-      locuteurs: [{ index: 1, nom: 'Speaker 3', valeursLoc: {}, personneRef: null }],
+      participations: [{ id: "loc-1", index: 1, nom: 'Speaker 3', valeursLoc: {}, locuteurRef: null }],
       codebook: [],
       variables: [],
       meta: { valeursGen: {} },
@@ -203,9 +203,9 @@ describe('interviewer — le « ? » SonalPi1 est un artefact d’export (drapea
       },
       annotations: [],
       ancres: [],
-      locuteurs: [
-        { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-        { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
+      participations: [
+        { id: "loc-1", index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+        { id: "loc-2", index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, locuteurRef: null },
       ],
       codebook: [],
       variables: [],
@@ -215,9 +215,9 @@ describe('interviewer — le « ? » SonalPi1 est un artefact d’export (drapea
     expect(out).toContain('Enquêteur?') // la convention SonalPi1, dans loc-json
 
     const r = importerSonal(parse(out))
-    expect(r.payload.locuteurs).toEqual([
-      { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
-      { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
+    expect(r.payload.participations).toEqual([
+      { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, locuteurRef: null },
+      { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, locuteurRef: null },
     ])
   })
 })
@@ -270,7 +270,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
   test('libellé de tour pseudonymisé : round-trip loc-anon + data-locpseudo sans perte', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(parse(html))
-    const l = r.payload.locuteurs.find((x) => x.index === 1)!
+    const l = r.payload.participations.find((x) => x.index === 1)!
     l.pseudo = 'Chercheur'
     l.pseudoEtat = 'confirme'
     const out = exporterSonal({
@@ -284,7 +284,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).toContain('data-locpseudo="Chercheur"')
     // ré-import : pseudo + état retrouvés.
     const r2 = importerSonal(parse(out))
-    const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
+    const l2 = r2.payload.participations.find((x) => x.index === 1)
     expect(l2?.pseudo).toBe('Chercheur')
     expect(l2?.pseudoEtat).toBe('confirme')
     // les autres marqueurs subsistent (ligloc nu sur les autres tours)
@@ -294,7 +294,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
   test('refus de libellé : loc-suggere-refuse à l\u2019export, JAMAIS de data-locpseudo', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(parse(html))
-    const l = r.payload.locuteurs.find((x) => x.index === 1)!
+    const l = r.payload.participations.find((x) => x.index === 1)!
     l.pseudo = 'Chercheur' // mémoire conservée (pseudo maintenu)…
     l.pseudoEtat = 'refuse' // …mais refus explicite : le nom reste en clair
     const out = exporterSonal({
@@ -306,7 +306,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).toContain('class="lblseg sautlig ligloc loc-suggere-refuse"')
     expect(out).not.toContain('data-locpseudo')
     const r2 = importerSonal(parse(out))
-    const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
+    const l2 = r2.payload.participations.find((x) => x.index === 1)
     expect(l2?.pseudoEtat).toBe('refuse')
     expect(l2?.pseudo ?? '').toBe('') // la mémoire ne traverse pas le .sonal d'un refus
   })
@@ -323,7 +323,7 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
       expect(texteDe(r2.payload.corpsTexte)).toBe(texteDe(r1.payload.corpsTexte))
       expect(comptesCodage(r2.payload.annotations)).toEqual(comptesCodage(r1.payload.annotations))
       expect(anonCount(r2.payload.annotations)).toBe(anonCount(r1.payload.annotations))
-      expect(r2.payload.locuteurs).toEqual(r1.payload.locuteurs)
+      expect(r2.payload.participations).toEqual(r1.payload.participations)
       // Ancres : re-dérivées en data-deb/data-fin à l'export, relues à l'import —
       // les timecodes mesurés survivent au round-trip.
       expect(r2.payload.ancres).toEqual(r1.payload.ancres)

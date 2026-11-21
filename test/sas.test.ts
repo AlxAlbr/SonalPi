@@ -61,7 +61,7 @@ Speaker 7: Klaus, je vous revois.
 
     // Les noms conservent la numérotation du fichier (pas de décalage +1),
     // et l'index des blocs pointe bien sur ces locuteurs (position = index).
-    expect(payload.locuteurs.map((l) => [l.index, l.nom])).toEqual([
+    expect(payload.participations.map((l) => [l.index, l.nom])).toEqual([
       [1, 'Speaker 3'],
       [2, 'Speaker 7'],
     ])

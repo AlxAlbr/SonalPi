@@ -69,7 +69,7 @@ describe('visibilité des critères Cas', () => {
     expect(lexico.calculeLeLexico.value).toBeNull()
   })
   test('le bilan du résultat calculé garde sa restriction jusqu’au calcul explicite suivant', async () => {
-    vi.stubGlobal('window', { sonal: { corpus: { personnesInventaire: async () => ({ personnes: [] }) } } })
+    vi.stubGlobal('window', { sonal: { corpus: { inventaireIdentitesLocuteurs: async () => ({ locuteurs: [] }) } } })
     const { cas, synthese } = creer()
     cas.value = { c1: casVide }
     synthese.filtresSynthese.value.cas = { mode: 'choix', ids: ['c1'] }

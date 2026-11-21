@@ -58,17 +58,17 @@ export function entreeSentinelle(): EntreeExport {
       { pos: 43, t: 2 },
       { pos: 71, t: 5 },
     ],
-    locuteurs: [
-      {
+    participations: [
+      { id: "loc-1",
         index: 1,
         nom: NOM_SENTINELLE,
         interviewer: false,
         pseudo: PSEUDO_SENTINELLE,
         pseudoEtat: 'confirme',
         valeursLoc: {},
-        personneRef: null,
+        locuteurRef: null,
       },
-      { index: 2, nom: NOM_SENTINELLE_2, interviewer: true, valeursLoc: {}, personneRef: null },
+      { id: "loc-2", index: 2, nom: NOM_SENTINELLE_2, interviewer: true, valeursLoc: {}, locuteurRef: null },
     ],
     codebook: [
       {
@@ -127,7 +127,7 @@ export function entreeSansPseudos(): EntreeExport {
     annotations: e.annotations.map((a) =>
       a.type === 'anon' ? { ...a, etat: 'exception' as const, pseudo: null } : a,
     ),
-    locuteurs: e.locuteurs.map((l) => ({ ...l, pseudo: '' })),
+    participations: e.participations.map((l) => ({ ...l, pseudo: '' })),
   }
 }
 
@@ -142,7 +142,7 @@ export function entreePseudonymisable(): EntreeExport {
         ? { ...a, pseudo: 'PseudoFaux-2' }
         : a,
     ),
-    locuteurs: e.locuteurs.map((l) => ({
+    participations: e.participations.map((l) => ({
       ...l,
       pseudo: l.index === 1 ? PSEUDO_SENTINELLE : 'PseudoFaux-3',
       pseudoEtat: 'confirme' as const,
@@ -194,13 +194,13 @@ export function entreeMatricePseudonymisation(): EntreeExport {
       { id: 'sans-pseudo', type: 'anon', ...sansPseudo, auteur: 'test', etat: 'anonymise' },
     ],
     ancres: [{ pos: 1, t: 0 }, { pos: texte.length + 1, t: 10 }],
-    locuteurs: [{
+    participations: [{ id: "loc-1",
       index: 1,
       nom: LOCUTEUR_ORIGINAL_SENTINELLE,
       pseudo: LOCUTEUR_PSEUDO_SENTINELLE,
       pseudoEtat: 'confirme',
       valeursLoc: {},
-      personneRef: null,
+      locuteurRef: null,
     }],
     codebook: [],
     variables: [],

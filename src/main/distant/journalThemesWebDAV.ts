@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CorpusFichier } from '../../shared/format'
+import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import { RefusOperationTheme, type BilanLotTheme, type DemandeOperationTheme } from '../../shared/corpus/themes'
 
 export interface PublicationThemeEnAttente {
@@ -76,10 +77,21 @@ export class JournalLocalThemesWebDAV {
         : p.chemin !== 'corpus.crp'))) {
       throw new RefusOperationTheme('L’intention de publication des thématiques WebDAV est invalide.')
     }
+    this.verifierDocuments(j)
     return j
   }
 
+  private verifierDocuments(journal: JournalThemesWebDAV): void {
+    validerCorpusNatif(journal.corpus)
+    const publication = journal.publication
+    if (!publication) return
+    const document: unknown = JSON.parse(publication.contenu)
+    if (publication.entretien) validerEntretienNatif(document)
+    else validerCorpusNatif(document)
+  }
+
   ecrire(journal: JournalThemesWebDAV): void {
+    this.verifierDocuments(journal)
     const temporaire = `${this.fichier}.tmp`
     writeFileSync(temporaire, JSON.stringify(journal, null, 2), { encoding: 'utf8', mode: 0o600, flush: true })
     renameSync(temporaire, this.fichier)

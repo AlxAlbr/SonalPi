@@ -20,6 +20,19 @@ const TAILLE_MAX = 3 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/
 const CANDIDAT = /^[a-f0-9]{64}\.bin$/
 
+interface CorrectionLocuteursSession {
+  operationId: string
+  apresSha256: string
+}
+
+function correctionLocuteursValide(v: unknown): v is CorrectionLocuteursSession | undefined {
+  if (v === undefined) return true
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  const c = v as CorrectionLocuteursSession
+  return typeof c.operationId === 'string' && /^locuteurs-[a-zA-Z0-9_-]{1,200}$/.test(c.operationId)
+    && typeof c.apresSha256 === 'string' && SHA256.test(c.apresSha256)
+}
+
 export interface EntreeSessionGitLab {
   version: 1
   destinationId: string
@@ -31,9 +44,11 @@ export interface EntreeSessionGitLab {
   baseSha256: string
   candidat: string
   ecritLe: string
+  correctionLocuteurs?: CorrectionLocuteursSession
 }
 
 export interface RepriseSessionGitLab {
+  correctionLocuteurs?: CorrectionLocuteursSession
   resourceHash: string
   cheminRelatif: string
   cheminDistant: string
@@ -107,6 +122,7 @@ export class JournalSessionsGitLab {
       commitId: entree.commitId,
       baseSha256: entree.baseSha256,
       candidat: entree.candidat,
+      ...(entree.correctionLocuteurs ? { correctionLocuteurs: entree.correctionLocuteurs } : {}),
     }
   }
 
@@ -140,11 +156,34 @@ export class JournalSessionsGitLab {
     const resourceHash = hacherRessource(ressource)
     const fichier = this.chemin(resourceHash)
     if (!existsSync(fichier)) throw new Error('Session GitLab absente du journal local.')
-    this.ecrireCandidat(`${resourceHash}.bin`, contenu)
     const entree = this.lireFichier(fichier, resourceHash)
+    if (entree.correctionLocuteurs) throw new Error('Une correction des locuteurs reste à vérifier avant de modifier cet entretien.')
+    this.ecrireCandidat(`${resourceHash}.bin`, contenu)
     entree.candidat = `${resourceHash}.bin`
     entree.ecritLe = this.maintenant().toISOString()
     this.ecrireEntree(fichier, entree)
+  }
+
+  preparerCorrectionLocuteurs(ressource: string, operationId: string, contenuApres: string): void {
+    const resourceHash = hacherRessource(ressource), fichier = this.chemin(resourceHash)
+    const entree = this.lireFichier(fichier, resourceHash)
+    if (entree.correctionLocuteurs) throw new Error('Une correction des locuteurs reste à vérifier.')
+    entree.correctionLocuteurs = { operationId, apresSha256: hacherContenu(contenuApres) }
+    this.ecrireEntree(fichier, entree)
+  }
+
+  /** Reconnaît la copie acceptée, seulement après résolution de la publication. */
+  resoudreCorrectionLocuteurs(ressource: string, commitId: string, contenuPublie: string): void {
+    const resourceHash = hacherRessource(ressource), fichier = this.chemin(resourceHash)
+    const entree = this.lireFichier(fichier, resourceHash), correction = entree.correctionLocuteurs
+    if (!correction) return
+    const sha = hacherContenu(contenuPublie)
+    if (sha === correction.apresSha256) this.confirmerPublication(resourceHash, commitId, contenuPublie)
+    else if (sha === entree.baseSha256) {
+      if (hacherContenu(this.chargerCandidat({ ...entree })) !== entree.baseSha256) throw new Error('La copie locale a changé. Elle est conservée avant toute reprise du renommage.')
+      delete entree.correctionLocuteurs
+      this.ecrireEntree(fichier, entree)
+    } else throw new Error('L’entretien a changé pendant la correction des locuteurs. La copie locale est conservée.')
   }
 
   /** Confirme une publication et change la base de reprise. */
@@ -156,6 +195,8 @@ export class JournalSessionsGitLab {
     const fichier = this.chemin(resourceHash)
     if (!existsSync(fichier)) return
     const entree = this.lireFichier(fichier, resourceHash)
+    if (entree.correctionLocuteurs && hacherContenu(contenuPublie) !== entree.correctionLocuteurs.apresSha256) throw new Error('La correction des locuteurs ne correspond pas au résultat attendu.')
+    delete entree.correctionLocuteurs
     entree.commitId = commitId
     entree.baseSha256 = hacherContenu(contenuPublie)
     entree.candidat = `${resourceHash}.bin`
@@ -197,6 +238,7 @@ export class JournalSessionsGitLab {
           commitId: valeur.commitId,
           baseSha256: valeur.baseSha256,
           candidat: valeur.candidat,
+          ...(valeur.correctionLocuteurs ? { correctionLocuteurs: valeur.correctionLocuteurs } : {}),
         }
       })
   }
@@ -216,6 +258,7 @@ export class JournalSessionsGitLab {
       commitId: brut.commitId,
       baseSha256: brut.baseSha256,
       candidat: brut.candidat,
+      ...(brut.correctionLocuteurs ? { correctionLocuteurs: brut.correctionLocuteurs } : {}),
     }
   }
 
@@ -250,7 +293,8 @@ export class JournalSessionsGitLab {
       typeof entree.candidat !== 'string' ||
       !CANDIDAT.test(entree.candidat) ||
       typeof entree.ecritLe !== 'string' ||
-      !Number.isFinite(Date.parse(entree.ecritLe))
+      !Number.isFinite(Date.parse(entree.ecritLe)) ||
+      !correctionLocuteursValide(entree.correctionLocuteurs)
     ) {
       throw new Error('Entrée de session GitLab invalide.')
     }
@@ -280,7 +324,8 @@ export class JournalSessionsGitLab {
       entree.destinationId !== this.destinationId ||
       !SHA256.test(entree.resourceHash) ||
       !SHA256.test(entree.baseSha256) ||
-      !CANDIDAT.test(entree.candidat)
+      !CANDIDAT.test(entree.candidat) ||
+      !correctionLocuteursValide(entree.correctionLocuteurs)
     ) {
       throw new Error('Entrée de session GitLab invalide.')
     }

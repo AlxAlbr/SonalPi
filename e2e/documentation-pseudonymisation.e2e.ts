@@ -75,7 +75,7 @@ test('manuel : pseudonymiser Fatima, poser une exception et contrôler la règle
     const apresEntretien = lire()
     expect(apresEntretien.corpsTexte).toEqual(avant.corpsTexte)
     expect(apresEntretien.ancres).toEqual(avant.ancres)
-    expect(apresEntretien.locuteurs).toEqual(avant.locuteurs)
+    expect(apresEntretien.participations).toEqual(avant.participations)
     expect(apresEntretien.annotations.filter((annotation) => annotation.type === 'anon')).toEqual([
       expect.objectContaining({ pseudo: 'Nadia', etat: 'anonymise', regle: expect.any(String) }),
       expect.objectContaining({ pseudo: 'Nadia', etat: 'exception', regle: expect.any(String) }),

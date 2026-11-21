@@ -91,7 +91,7 @@ function entretienPublie(titre: string): string {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
   return JSON.stringify(entretien, null, 2)

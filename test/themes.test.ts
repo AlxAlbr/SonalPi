@@ -16,7 +16,7 @@ import {
 
 function corpus(): CorpusFichier {
   const c: CorpusFichier = {
-    formatVersion: 1, codebook: {}, variables: {}, reglesAnon: {}, personnes: {},
+    formatVersion: 10, codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {},
     membership: {
       e1: { titre: 'Un', date: null, lastModified: 'hier' },
       e2: { titre: 'Deux', date: null, lastModified: 'hier' },
@@ -37,8 +37,8 @@ function codage(id: string, code = 'source', from = 1, to = 5): Annotation {
 
 function entretien(annotations: Annotation[]): EntretienFichier {
   return {
-    formatVersion: 2, lastModified: 'hier', corpsTexte: {}, annotations,
-    ancres: [], locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+    formatVersion: 10, lastModified: 'hier', corpsTexte: {}, annotations,
+    ancres: [], participations: [], meta: { valeursGen: {}, audioRef: null },
   }
 }
 

@@ -16,6 +16,7 @@ import { analyserCrp } from '../../src/shared/corpus/migrationCrp'
 import { matriceCapacites } from '../../src/main/gitlab/politiqueGestes'
 import type { BilanMigrationGitLab } from '../../src/shared/corpus/migrationGitLab'
 import type { OuvertureDistante } from '../../src/shared/distant'
+import { FORMAT_VERSION } from '../../src/shared/format'
 import { DepotMemoire } from './depotMemoire'
 
 const dossiers: string[] = []
@@ -122,6 +123,29 @@ describe('opération de migration sur transports simulés', () => {
     expect((await f.run(true)).etat).toBe('terminee')
     expect(f.telechargerFichier).toHaveBeenCalledTimes(2)
     expect(f.publications()).toHaveLength(1)
+  })
+
+  it.each(['corpus', 'entretien'] as const)('refuse un %s préparé dans une version incompatible avant toute copie ou publication', async (cible) => {
+    const f = await scenario()
+    const etat = f.suivi.lire()!
+    const index = etat.documents.findIndex((d) => cible === 'corpus' ? d.chemin === 'corpus.crp' : d.chemin.startsWith('entretiens/'))
+    const document = etat.documents[index]
+    const fichier = JSON.parse(f.suivi.lireContenu(document))
+    fichier.formatVersion = FORMAT_VERSION + 1
+    const contenu = JSON.stringify(fichier)
+    const sha256 = empreinte(Buffer.from(contenu))
+    etat.documents[index] = { ...document, sha256, blob: empreinteBlobMigration(contenu), octets: Buffer.byteLength(contenu) }
+    writeFileSync(join(f.dir, 'contenus', `${sha256}.bin`), contenu)
+    f.suivi.ecrire(etat)
+    const avant = readFileSync(f.suivi.fichier)
+    const observer = vi.spyOn(f.env, 'observer')
+    expect(await f.run(true)).toMatchObject({ etat: 'interrompue', message: expect.stringContaining('Version native non supportée') })
+    expect(observer).not.toHaveBeenCalled()
+    expect(f.uploads).toEqual([])
+    expect(f.telechargerFichier).not.toHaveBeenCalled()
+    expect(f.depot.commits).toHaveLength(0)
+    expect(f.ouvrir).not.toHaveBeenCalled()
+    expect(readFileSync(f.suivi.fichier)).toEqual(avant)
   })
 
   it('préserve le README et les attributs initiaux octet pour octet', async () => {

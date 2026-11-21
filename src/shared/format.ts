@@ -4,38 +4,17 @@ import type { Ancre } from './entretien/audio'
 import type { ReperePassage } from './entretien/reperesPassages'
 import type { Recueil } from './corpus/recueils'
 import type { Cas, FamilleCas, DefinitionAttributCas } from './corpus/cas'
+export type { Cas, FamilleCas, RegleCas, MembreLocuteurCas, DerivationAttributCas } from './corpus/cas'
 import type { TableauBord } from './corpus/tableaubord'
 import type { TraitementsLexico } from './lexico/types'
+import type { Locuteur, ParticipationLocuteur } from './locuteurs'
+export type { Locuteur, ParticipationLocuteur, ReferenceParticipation, RefusRapprochementLocuteur } from './locuteurs'
 
-/**
- *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
- *  Partagé main ⇄ renderer.
- *  Toute évolution de structure = bump de FORMAT_VERSION + migration explicite :
- *  une version inconnue est refusée, jamais lue à moitié.
- *
- *  formatVersion 2 : les timecodes quittent les attributs de bloc (`deb`/`fin`) et deviennent
- *  des ancres `{pos, t}` positionnées dans le texte (migration au store).
- *
- *  formatVersion 3 : `meta.audioRef` devient un chemin ABSOLU uniquement — l'audio est
- *  référencé sur place, plus de copie dans `<corpus>/audio/`. Migration au
- *  store : refs relatives résolues en absolues, PNG d'onde déplacés vers `png/`.
- *
- *  formatVersion 4 : les recueils partagés vivent dans `corpus.crp` et les
- *  repères de leurs passages vivent avec chaque entretien.
- *
- *  formatVersion 5 : les cas analytiques partagés vivent dans `corpus.crp` et
- *  réutilisent les repères de passage des entretiens.
- *
- *  formatVersion 6 : les règles de cas réunissent des personnes ou des entretiens entiers.
- */
-/** Format 7 : familles et règles de modalités, sans copie des textes projetés.
- *  Format 8 : définitions d'attributs de cas, valeurs saisies et recettes de dérivation.
- *  Format 9 : réglages Lexico partagés, sans copie de l'index ni des résultats. */
-export const FORMAT_VERSION = 9
+/** Format natif partagé entre processus ; les anciens formats de développement sont refusés. */
+export const FORMAT_VERSION = 10
 
 export function versionSupportee(v: unknown): boolean {
-  // Le format 9 est additif ; le format 8 reste lisible pour permettre sa migration.
-  return v === 8 || v === FORMAT_VERSION
+  return v === FORMAT_VERSION
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -102,7 +81,7 @@ export interface CorpusFichier {
   dissociationAnon?: { operationId: string; regleId: string; fournisseur?: 'webdav'; cibles?: string[] }
   suppressionAnon?: { operationId: string; regleId: string }
   retraitVarianteAnon?: { operationId: string; regleId: string; pseudoRetire: string; pseudoConserve: string }
-  personnes: Record<string, Personne>
+  locuteurs: Record<string, Locuteur>
   membership: Record<string, EntretienRef>
   /** Ordre courant des entretiens. Absent dans les anciens corpus. */
   ordreEntretiens?: string[]
@@ -274,7 +253,7 @@ export interface EntretienFichier {
   annotations: Annotation[]
   /** Ancres temporelles : positions PM triées, temps MESURÉS (secondes) — le reste est dérivé. */
   ancres: Ancre[]
-  locuteurs: Locuteur[]
+  participations: ParticipationLocuteur[]
   meta: MetaEntretien
   /** Brouillons d'anonymisation entretien-locaux (pas des règles) ; l'absence est normalisée en [] à l'ouverture.
    *  Champ ADDITIF optionnel. */
@@ -300,7 +279,7 @@ export interface PayloadEntretien {
   corpsTexte: unknown
   annotations: Annotation[]
   ancres: Ancre[]
-  locuteurs: Locuteur[]
+  participations: ParticipationLocuteur[]
   meta: MetaEntretien
   brouillonsAnon?: BrouillonAnon[]
   pseudosDeclares?: Record<string, string[]>
@@ -309,6 +288,10 @@ export interface PayloadEntretien {
   reperesPassages?: ReperePassage[]
   legacy?: Record<string, unknown>
 }
+
+/** Le parseur fournit les index ; le store fixe les ids avant toute publication. */
+export type ParticipationImport = Omit<ParticipationLocuteur, 'id'> & { id?: string }
+export type PayloadImportEntretien = Omit<PayloadEntretien, 'participations'> & { participations: ParticipationImport[] }
 
 /** Catégorie de note : définition au niveau CORPUS, référencée par les notes de tous les entretiens (comme une catégorie du codebook). */
 export interface NoteCategory {
@@ -327,7 +310,7 @@ export interface Note {
   statut: 'prive' | 'public'
   corps: string
   /** Locuteurs concernés dans cet entretien. Une liste vide désigne une note générale. */
-  locuteurIds?: string[]
+  participationIds?: string[]
   rang: number
   creeLe: string
   modifieLe: string | null
@@ -360,7 +343,7 @@ export interface TranscriptionEntretien {
   corpsTexte: unknown
   annotations: Annotation[]
   ancres: Ancre[]
-  locuteurs: Locuteur[]
+  participations: ParticipationImport[]
 }
 
 /** Qui tient le verrou — version affichable, sans détails techniques. */
@@ -371,40 +354,6 @@ export interface VerrouTenuParAutrui {
 }
 
 
-
-/** Identité transverse facultative, indépendante des noms locaux et des pseudonymes. */
-export interface Personne {
-  id: string
-  nom: string
-}
-
-/** Locuteur : indexé par entretien — le `loc` d'un bloc référence cet index. */
-export interface Locuteur {
-  /** Identité stable utilisée pour rapprocher plusieurs versions d'un entretien.
-   *  Absente dans les anciens fichiers jusqu'à leur prochaine édition. */
-  id?: string
-  index: number
-  nom: string
-  /** Interviewer (celui qui pose les questions) : tours affichés en italique.
-   *  Le « ? » porté par le nom est un artefact de format, réintroduit à
-   *  l'export seulement (comme `l="all"` EAV). Champ ADDITIF optionnel. */
-  interviewer?: boolean
-  /** Pseudonymise l'ÉTIQUETTE du locuteur : le tour s'affiche « Nom [Pseudo] »
-   *  (même idiome CSS que le texte anon). Champ ADDITIF optionnel. */
-  pseudo?: string
-  /** Couleur du NOM du locuteur dans l'éditeur. Absente = couleur auto par index (PALETTE_PASTILLES_LOCUTEURS) ;
-   *  champ ADDITIF optionnel. */
-  couleur?: string
-  /** Décision persistée sur la pseudonymisation du libellé : 'confirme'
-   *  (pseudo affiché) ou 'refuse' (libellé en clair + ⊘). Absent = aucune
-   *  décision ; le « suggéré » est une requête, jamais stockée. */
-  pseudoEtat?: 'confirme' | 'refuse'
-  valeursLoc: Record<string, string> // idVar → idMod
-  personneRef: string | null
-  /** Une déliaison volontaire interdit la recréation automatique au nommage. */
-  personneDeliee?: boolean
-  rapprochementsRefuses?: string[]
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // Codebook & variables EAV — définitions au niveau du corpus.
@@ -440,7 +389,7 @@ export interface Modalite {
 export interface Variable {
   id: string
   lib: string
-  portee: 'entretien' | 'locuteur'
+  portee: 'entretien' | 'participation'
   priv: boolean
   ordre: number
   vExport: number
@@ -473,19 +422,7 @@ export type ResultatSuppression =
   | { ok: false; usages: number }
 
 
-/** Cible d'une valeur EAV posée depuis la table de données : portée entretien,
- *  ou un locuteur donné (par son index). */
-export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
-
-/** Un item du LOT « modifier en lot » : UNE valeur EAV à poser dans un entretien.
- *  Cible entretien uniquement pour l'instant : les locuteurs diffèrent d'un entretien à l'autre. */
-export interface ItemLotValeur {
-  entretienId: string
-  cible: CibleValeur
-  idVar: string
-  /** '' = effacer la valeur (même sémantique que `poserValeur`). */
-  idMod: string
-}
+export type { CibleValeur, ItemLotValeur } from './corpus/valeursVariables'
 
 /** Retour du lot : succès par entretien (un seul cycle par fichier, même avec plusieurs valeurs) ;
  *  échecs nommés, raison affichable telle quelle. Un échec ponctuel ne bloque jamais les autres entretiens du lot. */
@@ -542,12 +479,12 @@ export interface SegmentThematique {
   codes: string[]
 }
 
-/** Matrice corpus (requête, jamais stockée) : par entretien, valeurs de portée entretien, et celles de ses locuteurs — le renderer aplatit tout en lignes pour la table de données. */
+/** Matrice calculée par entretien ; les ids locaux sont transmis tels qu'ils sont enregistrés. */
 export interface MatriceEntree {
   entretienId: string
   titre: string
   valeursGen: Record<string, string>
-  locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
+  participations: { participationId: string | null; index: number; nom: string; valeursLoc: Record<string, string> }[]
 }
 export type MatriceCorpus = MatriceEntree[]
 

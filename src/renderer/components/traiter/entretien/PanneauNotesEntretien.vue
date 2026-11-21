@@ -11,7 +11,7 @@ import {
 } from '../../../notes/sanitiser'
 import { utiliserSonal } from '../../../composables/sonal'
 import MenuLiensNote from './MenuLiensNote.vue'
-import LierPersonnesNote from './LierPersonnesNote.vue'
+import LierParticipationsNote from './LierParticipationsNote.vue'
 
 const props = defineProps<{ lectureSeule: boolean }>()
 
@@ -146,11 +146,11 @@ async function validerCreationCategorie() {
 const notesTriees = computed(() =>
   notes.value.slice().sort((a, b) => b.creeLe.localeCompare(a.creeLe) || b.rang - a.rang),
 )
-function nomsLocuteursNote(note: { locuteurIds?: string[] }): string[] {
-  const ids = new Set(note.locuteurIds ?? [])
+function nomsLocuteursNote(note: { participationIds?: string[] }): string[] {
+  const ids = new Set(note.participationIds ?? [])
   return locuteurs.value.filter((locuteur) => locuteur.id && ids.has(locuteur.id)).map((locuteur) => locuteur.nom)
 }
-const libelleLocuteursNote = (note: { locuteurIds?: string[] }) => nomsLocuteursNote(note).join(', ')
+const libelleLocuteursNote = (note: { participationIds?: string[] }) => nomsLocuteursNote(note).join(', ')
 const voletRechercheNotes = ref(false)
 const filtreNotes = ref('')
 const filtreCategorie = ref('')
@@ -351,7 +351,7 @@ function onDropNote(cibleId: string) {
           @click="marquerDansCorpsNote">✏ Marquer comme important</button>
         <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
           @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
-        <LierPersonnesNote v-model="brouillonNote.locuteurIds" :locuteurs="locuteurs" />
+        <LierParticipationsNote v-model="brouillonNote.participationIds" :participations="locuteurs" />
       </div>
       <details class="options-avancees-note">
         <summary>Options avancées</summary>
@@ -512,7 +512,7 @@ function onDropNote(cibleId: string) {
                 @click="marquerDansCorpsEditionNote">✏ Marquer comme important</button>
               <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
                 @click="zoneCorpsEditionNote && lierPassage($event, zoneCorpsEditionNote)">🔗 Lier à un commentaire</button>
-              <LierPersonnesNote v-model="brouillonEditionNote.locuteurIds" :locuteurs="locuteurs" />
+              <LierParticipationsNote v-model="brouillonEditionNote.participationIds" :participations="locuteurs" />
             </div>
             <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
             <div class="modale-note-meta">

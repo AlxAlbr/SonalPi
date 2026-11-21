@@ -24,7 +24,7 @@ afterEach(() => {
 describe('nom natif du corpus', () => {
   test('reste fixe, sans incrément de version', () => {
     expect(NOM_FICHIER_CORPUS).toBe('corpus.crp')
-    expect(FORMAT_VERSION).toBe(9)
+    expect(FORMAT_VERSION).toBe(10)
   })
 
   test('création, transactions et réouverture gardent les entretiens en JSON séparés', () => {
@@ -98,7 +98,7 @@ describe('nom natif distant', () => {
     serveur.poser('entretiens/e1.json', JSON.stringify({
       formatVersion: FORMAT_VERSION, lastModified: date,
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph' }] },
-      annotations: [], ancres: [], locuteurs: [],
+      annotations: [], ancres: [], participations: [],
       meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin } },
     }))
     const client = new ClientWebDAV({ baseUrl: serveur.baseUrl, identifiants: serveur.identifiants }, serveur.fetch)

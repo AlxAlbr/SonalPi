@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { reactive, ref } from 'vue'
 import { useAnonymisationEntretien } from '../src/renderer/composables/entretien/useAnonymisationEntretien'
 import type { Entretien } from '../src/shared/entretien/entretien'
-import type { Locuteur, RegleAnon } from '../src/shared/format'
+import type { ParticipationLocuteur, RegleAnon } from '../src/shared/format'
 
 const editeurs: Editor[] = []
 afterEach(() => {
@@ -38,7 +38,7 @@ function banc(
   } } })
   let anon!: ReturnType<typeof useAnonymisationEntretien>
   const sauvegarder = vi.fn()
-  const locuteurs = ref<Locuteur[]>([])
+  const locuteurs = ref<ParticipationLocuteur[]>([])
   anon = useAnonymisationEntretien({
     entretien, locuteurs, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => ed,
     reglesAnon: () => regles, prioriteAnon: () => 'corpus', demanderDissociationCorpus,
@@ -52,7 +52,7 @@ function banc(
 describe('affichage et applications réussies', () => {
   test('la bascule tient compte des pseudos des locuteurs et des annotations', () => {
     const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
-    const locuteurs = ref<Locuteur[]>([{ index: 0, nom: 'Karine' }])
+    const locuteurs = ref<ParticipationLocuteur[]>([{ index: 0, nom: 'Karine' }])
     const anon = useAnonymisationEntretien({
       entretien, locuteurs, ouvertId: ref('e1'), ongletDroite: ref('anon'), lireEditeur: () => null,
       reglesAnon: () => [], prioriteAnon: () => 'entretien',

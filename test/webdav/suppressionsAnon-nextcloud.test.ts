@@ -75,9 +75,9 @@ for (const port of [8080, 8081]) {
         expect(b.puts).toEqual(['corpus.crp', 'entretiens/e1.json', 'entretiens/e2.json', 'corpus.crp'])
         expect(await b.origin.getTexte('entretiens/e3.json')).toBe(avant)
         const apres = JSON.parse(await b.tiers.getTexte('entretiens/e1.json')) as EntretienFichier
-        expect(apres.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
+        expect(apres.participations).toEqual(b.f.sources[0].data.participations)
         expect(apres.definitionsAnonLocales).toEqual(b.f.sources[0].data.definitionsAnonLocales)
-        expect(apres.annotations).toEqual(b.f.sources[0].data.annotations.filter((a) => a.regle !== 'personne'))
+        expect(apres.annotations).toEqual(b.f.sources[0].data.annotations.filter((a) => a.regle !== "personne"))
         const c = JSON.parse(await b.origin.getTexte('corpus.crp')) as CorpusFichier
         expect(c.reglesAnon.personne).toBeUndefined(); expect(c.suppressionAnon).toBeUndefined()
       } finally { await rendre(); await b.nettoyer() }

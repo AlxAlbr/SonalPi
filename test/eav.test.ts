@@ -11,7 +11,7 @@ import {
 import { importerSonal } from '../src/renderer/formatSonal/importSonal'
 import { exporterSonal } from '../src/renderer/formatSonal/exportSonal'
 import { extractFichierSonal } from '../src/renderer/formatSonal/legacy/conversions.mjs'
-import type { Locuteur } from '../src/renderer/../shared/format'
+import type { ParticipationLocuteur } from '../src/renderer/../shared/format'
 
 function parse(html: string): Document {
   const inerte = html
@@ -22,8 +22,8 @@ function parse(html: string): Document {
 function fixture(nom: string): string {
   return readFileSync(join(process.cwd(), 'test/fixtures', nom), 'utf8')
 }
-function loc(index: number): Locuteur {
-  return { index, nom: `L${index}`, valeursLoc: {}, personneRef: null }
+function loc(index: number): ParticipationLocuteur {
+  return { index, nom: `L${index}`, valeursLoc: {}, locuteurRef: null }
 }
 
 describe('EAV — importerVariables (tabVar/tabDic → modèle, ids déterministes)', () => {
@@ -43,7 +43,7 @@ describe('EAV — importerVariables (tabVar/tabDic → modèle, ids déterminist
     const vars = importerVariables(tabVar, tabDic)
     expect(vars.map((v) => v.id)).toEqual(['v1', 'v2'])
     expect(vars[0].portee).toBe('entretien') // champ "gen"
-    expect(vars[1].portee).toBe('locuteur') // champ "loc"
+    expect(vars[1].portee).toBe('participation') // champ "loc"
     expect(vars[0].vExport).toBe(1)
     expect(vars[1].priv).toBe(true) // "true" → booléen
     expect(vars[0].priv).toBe(false)
@@ -136,9 +136,9 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
       // Valeurs de portée entretien.
       expect(r2.payload.meta.valeursGen).toEqual(r1.payload.meta.valeursGen)
       // Valeurs de portée locuteur (par index).
-      const parIndex = (ls: typeof r1.payload.locuteurs) =>
+      const parIndex = (ls: typeof r1.payload.participations) =>
         Object.fromEntries(ls.map((l) => [l.index, l.valeursLoc]))
-      expect(parIndex(r2.payload.locuteurs)).toEqual(parIndex(r1.payload.locuteurs))
+      expect(parIndex(r2.payload.participations)).toEqual(parIndex(r1.payload.participations))
     })
   }
 
@@ -146,7 +146,7 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
     const html = fixture('entretien2.sonal')
     const r = importerSonal(parse(html))
     expect(Object.keys(r.payload.meta.valeursGen).length).toBeGreaterThan(0)
-    expect(r.payload.locuteurs.some((l) => Object.keys(l.valeursLoc).length > 0)).toBe(true)
+    expect(r.payload.participations.some((l) => Object.keys(l.valeursLoc).length > 0)).toBe(true)
   })
 
   test('hiérarchie des thèmes : parent reconstruit à l’import + round-trip sans perte', () => {

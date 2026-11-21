@@ -70,7 +70,7 @@ async function banc(port: number) {
   const client = new ClientWebDAV({ ...parent.config, baseUrl: `${parent.config.baseUrl}/${dossier}` })
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureRenommageAnon(['e1', 'e2', 'e3']); f.sources[2].data.annotations = []
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-renommage-'))
@@ -135,7 +135,7 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
       expect(await b.client.getTexte('entretiens/e1.json')).toBe(premier)
       for (const id of ['e1', 'e2']) {
         const apres = JSON.parse(await b.client.getTexte(`entretiens/${id}.json`))
-        expect(apres.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
+        expect(apres.participations).toEqual(b.f.sources[0].data.participations)
         expect(apres.definitionsAnonLocales).toEqual(b.f.sources[0].data.definitionsAnonLocales)
         expect(apres.annotations.find((a: { id: string }) => a.id === 'a2').pseudo).toBe('Claire')
         expect(apres.annotations.find((a: { id: string }) => a.id === 'a3').pseudo).toBe('Claire')
@@ -173,12 +173,12 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
       expect(await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)).toEqual(['e3.json'])
       await page.evaluate(async () => {
         const r = await window.sonal.corpus.lireEntretien('e3'); if (!r.ok) throw new Error('Copie locale absente')
-        r.data.locuteurs[0].pseudo = 'Révision locale plus récente'
+        r.data.participations[0].pseudo = 'Révision locale plus récente'
         await window.sonal.corpus.ecrireEntretien('e3', r.data)
       })
       await app.evaluate(() => { (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.perte = false })
       await page.evaluate(() => window.sonal.distant.tirer())
-      expect(await page.evaluate(async () => { const r = await window.sonal.corpus.lireEntretien('e3'); return r.ok ? r.data.locuteurs[0].pseudo : '' })).toBe('Révision locale plus récente')
+      expect(await page.evaluate(async () => { const r = await window.sonal.corpus.lireEntretien('e3'); return r.ok ? r.data.participations[0].pseudo : '' })).toBe('Révision locale plus récente')
       await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
       modal = await ouvrirDialogue(page)
       await modal.getByRole('textbox', { name: 'Nouveau pseudonyme' }).fill('Nouvelle')
@@ -196,7 +196,7 @@ for (const port of [8080, 8081]) test.describe(`renommage WebDAV :${port}`, () =
       await expect(modal).not.toBeVisible({ timeout: 90_000 })
       const final = JSON.parse(await b.client.getTexte('entretiens/e3.json'))
       expect(final.annotations.find((a: { id: string }) => a.id === ann.id).pseudo).toBe('Nouvelle')
-      expect(final.locuteurs[0].pseudo).toBe('Révision locale plus récente')
+      expect(final.participations[0].pseudo).toBe('Révision locale plus récente')
       const publies = await app.evaluate(() => (globalThis as unknown as { sondeRenommage: Sonde }).sondeRenommage.publies)
       expect(publies).toEqual(['e3.json', 'corpus.crp', 'e1.json', 'e2.json', 'e3.json', 'e3.json'])
     } finally { await app?.close(); await b.nettoyer() }

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { entrerEntretien, fermerAiguillage, ouvrirAnalyse, ouvrirPreparation, ouvrirSurCorpus } from './util'
+import { entrerEntretien, fermerAiguillage, ouvrirAnalyse, ouvrirPreparation, ouvrirSurCorpus, retourCorpus } from './util'
 
 /** Les changements d'espace conservent le travail ; ceux de corpus le réinitialisent. */
 test('les brouillons du tableau survivent aux changements d’onglet et d’espace', async () => {
@@ -80,6 +80,7 @@ test('reprendre Lexico par la barre actualise l’index devenu périmé', async 
   const { app, page } = await ouvrirSurCorpus('sonal-espaces-index-')
   try {
     await entrerEntretien(page)
+    await retourCorpus(page)
     await ouvrirAnalyse(page, 'lexico')
     const panneau = page.locator('.panneau-lexico')
     await expect(panneau.locator('.table-wrap tbody tr').first()).toBeVisible()
@@ -88,10 +89,12 @@ test('reprendre Lexico par la barre actualise l’index devenu périmé', async 
     await expect(panneau.locator('.table-wrap tbody tr')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
+    await entrerEntretien(page)
     await page.locator('.editeur').press('Control+End')
     await page.keyboard.insertText(' motnavigationtest ')
     await expect(page.locator('.editeur')).toContainText('motnavigationtest')
     await expect(page.locator('h1 .etat')).toHaveText('à jour')
+    await retourCorpus(page)
 
     await page.locator('[data-tour="ouvrir-analyser"]').click()
     await expect(panneau.getByLabel('Rechercher une forme')).toHaveValue('motnavigationtest')

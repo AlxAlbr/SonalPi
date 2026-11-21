@@ -3,6 +3,7 @@ import {
   exigerGeste,
   PORTEEES_OVERTES_GITLAB,
   gesteAutorise,
+  gesteCorrectionLocuteurs,
   gestureCas,
   gestureRecueil,
   gestureTri,
@@ -14,6 +15,34 @@ import type { CommandeCas } from '../../src/shared/corpus/cas'
 import type { CommandeRecueils } from '../../src/shared/corpus/recueils'
 
 const FOURNISSEURS: FournisseurCorpus[] = ['local', 'webdav', 'gitlab']
+
+test('les nouvelles corrections sont nommées précisément et ne rouvrent pas les anciennes commandes', () => {
+  for (const type of ['renommerGlobal', 'regrouperSelection', 'dissocierSelection', 'individualiserSelection', 'supprimerVide', 'ecarterRapprochement', 'retablirRapprochement', 'reprendreInformations'] as const) {
+    const geste = gesteCorrectionLocuteurs({ type })
+    expect(geste.startsWith('locuteurs.')).toBe(true)
+    expect(gesteAutorise('local', geste)).toBe(true)
+    expect(gesteAutorise('gitlab', geste)).toBe(true)
+    expect(gesteAutorise('webdav', geste)).toBe(true)
+  }
+  expect(gesteAutorise('gitlab', 'personnes.commande')).toBe(false)
+  expect(gesteAutorise('webdav', 'personnes.commande')).toBe(false)
+  for (const action of ['verifier', 'reprendre', 'arreter']) {
+    expect(gesteAutorise('webdav', `locuteurs.${action}-correction`)).toBe(true)
+    expect(gesteAutorise('gitlab', `locuteurs.${action}-correction`)).toBe(false)
+  }
+  expect(matriceCapacites('gitlab').correctionsLocuteurs).toBe(true)
+  expect(matriceCapacites('webdav').correctionsLocuteurs).toBe(true)
+  expect(gesteAutorise('gitlab', 'locuteurs.renommer-depuis-entretien')).toBe(true)
+  expect(gesteAutorise('webdav', 'locuteurs.renommer-depuis-entretien')).toBe(true)
+  expect(matriceCapacites('gitlab').renommageLocuteurOuvert).toBe(true)
+  expect(matriceCapacites('webdav').renommageLocuteurOuvert).toBe(true)
+  for (const geste of ['locuteurs.identifier-au-nommage', 'locuteurs.rapprocher-depuis-entretien']) {
+    expect(gesteAutorise('gitlab', geste)).toBe(true)
+    expect(gesteAutorise('webdav', geste)).toBe(true)
+  }
+  expect(matriceCapacites('gitlab').nommageLocuteurs).toBe(true)
+  expect(matriceCapacites('webdav').nommageLocuteurs).toBe(true)
+})
 
 describe('portée des gestes du corpus', () => {
   function casSansPassage() {
@@ -38,7 +67,7 @@ describe('portée des gestes du corpus', () => {
       { type: 'definir-valeur-attribut', casId: 'c', attributId: 'a', attendu: null, valeur: 'x' },
       { type: 'ajouter-derivation-famille', familleId: 'f', membresAttendus: [], derivation: {} as never },
       { type: 'retirer-derivation-famille', familleId: 'f', membresAttendus: [], derivation: {} as never } as never,
-      { type: 'ajouter-derivation-cas', casId: 'c', membresAttendus: [], derivation: {} as never },
+      { type: 'ajouter-derivation-cas', casId: 'c', derivation: {} as never },
       { type: 'retirer-derivation-cas', casId: 'c', membresAttendus: [], derivation: {} as never } as never,
     ]
     for (const commande of commandesCas) {
@@ -177,13 +206,19 @@ describe('portée des gestes du corpus', () => {
   test('les gestes hors portée restent refusés sur tous les corpus distants', () => {
     for (const geste of [
       'note.editer',
-      'personnes.commande',
       'journal.annuler',
       'corpus.marquer-demo',
     ]) {
       expect(gesteAutorise('local', geste), geste).toBe(true)
       expect(gesteAutorise('webdav', geste), geste).toBe(false)
       expect(gesteAutorise('gitlab', geste), geste).toBe(false)
+    }
+  })
+
+  test('l’ancienne commande et sa capacité générique ont disparu, même en local', () => {
+    for (const fournisseur of FOURNISSEURS) {
+      expect(gesteAutorise(fournisseur, 'personnes.commande')).toBe(false)
+      expect(matriceCapacites(fournisseur)).not.toHaveProperty('locuteurs')
     }
   })
 
@@ -268,7 +303,9 @@ describe('portée des gestes du corpus', () => {
       fusionThemes: true,
       suppressionSourceThemes: true,
       notes: false,
-      personnes: false,
+      correctionsLocuteurs: true,
+      renommageLocuteurOuvert: true,
+      nommageLocuteurs: true,
       annulationJournal: false,
       designationMedia: true,
       televersementMedia: false,
@@ -309,7 +346,8 @@ describe('portée des gestes du corpus', () => {
     expect(() => exigerGeste('gitlab', 'anon.dissocier-globalement')).not.toThrow()
     expect(() => exigerGeste('local', 'anon.dissocier-globalement')).not.toThrow()
     expect(gesteAutorise('webdav', 'anon.renommer-variante')).toBe(true)
-    expect(webdav.personnes).toBe(true)
+    expect(webdav.correctionsLocuteurs).toBe(true)
+    expect(webdav).not.toHaveProperty('locuteurs')
     expect(webdav.designationMedia).toBe(true)
     expect(webdav.televersementMedia).toBe(true)
     const local = matriceCapacites('local')
@@ -318,7 +356,6 @@ describe('portée des gestes du corpus', () => {
       definitionsAvecSources: true,
       suppressionEntretien: true,
       notes: true,
-      personnes: true,
       annulationJournal: true,
     })
   })

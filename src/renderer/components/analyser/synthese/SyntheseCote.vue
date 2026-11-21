@@ -7,7 +7,7 @@ import { utiliserSonal } from '../../../composables/sonal'
 // Les résultats, le bilan et l'export sont dans SynthesePanneau.vue.
 const {
   filtresSynthese, ongletCriteresSynthese, ongletsCriteresSynthese, casDisponiblesSynthese,
-  personnesSynthese, membership, variables, codebook, cas,
+  locuteursSynthese, membership, variables, codebook, cas,
 } = utiliserSonal()
 
 const onglet = computed({
@@ -18,7 +18,7 @@ const onglet = computed({
 const libellesOnglets = {
   entretiens: 'Entretiens',
   variables: 'Variables',
-  personnes: 'Personnes',
+  locuteurs: 'Locuteurs',
   themes: 'Thèmes',
   cas: 'Cas',
 } as const
@@ -28,10 +28,10 @@ function nombreSelectionsOnglet(cle: keyof typeof libellesOnglets): number {
     return Object.keys(membership.value).length
   }
   if (cle === 'variables') return Object.keys(filtresSynthese.value.variables).length
-  if (cle === 'personnes') {
-    const filtre = filtresSynthese.value.personnes
+  if (cle === 'locuteurs') {
+    const filtre = filtresSynthese.value.locuteurs
     return (filtre.selection.mode === 'choix' ? filtre.selection.ids.length : 0)
-      + Number(filtre.sansPersonne) + Number(filtre.sansLocuteur)
+      + Number(filtre.sansIdentiteCommune) + Number(filtre.sansParticipation)
   }
   const selection = filtresSynthese.value[cle]
   return selection.mode === 'choix' ? selection.ids.length : 0
@@ -80,14 +80,14 @@ function entretienCoche(id: string) {
   return selection.mode === 'sans-restriction' || selection.ids.includes(id)
 }
 
-function personne(id: string) {
-  const actuel = filtresSynthese.value.personnes
+function locuteur(id: string) {
+  const actuel = filtresSynthese.value.locuteurs
   const ids = actuel.selection.mode === 'choix' ? actuel.selection.ids : []
   const nouveauxIds = ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
-  const sansChoixSpecial = !actuel.sansPersonne && !actuel.sansLocuteur
+  const sansChoixSpecial = !actuel.sansIdentiteCommune && !actuel.sansParticipation
   filtresSynthese.value = {
     ...filtresSynthese.value,
-    personnes: {
+    locuteurs: {
       ...actuel,
       selection: nouveauxIds.length || !sansChoixSpecial
         ? { mode: 'choix', ids: nouveauxIds }
@@ -96,12 +96,12 @@ function personne(id: string) {
   }
 }
 
-function personneSpeciale(cle: 'sansPersonne' | 'sansLocuteur') {
-  const actuel = filtresSynthese.value.personnes
+function selectionSpeciale(cle: 'sansIdentiteCommune' | 'sansParticipation') {
+  const actuel = filtresSynthese.value.locuteurs
   const nouvelleValeur = !actuel[cle]
-  const autreCle = cle === 'sansPersonne' ? 'sansLocuteur' : 'sansPersonne'
+  const autreCle = cle === 'sansIdentiteCommune' ? 'sansParticipation' : 'sansIdentiteCommune'
   const ids = actuel.selection.mode === 'choix' ? actuel.selection.ids : []
-  filtresSynthese.value = { ...filtresSynthese.value, personnes: {
+  filtresSynthese.value = { ...filtresSynthese.value, locuteurs: {
     ...actuel,
     selection: ids.length || nouvelleValeur || actuel[autreCle]
       ? { mode: 'choix', ids }
@@ -118,7 +118,7 @@ function modalite(variableId: string, modaliteId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
   const filtres = { ...filtresSynthese.value.variables }
-  const actuel = filtres[variableId] ?? { portee: variable.portee, modaliteIds: [], nonRenseigne: false }
+  const actuel = filtres[variableId] ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   const modaliteIds = actuel.modaliteIds.includes(modaliteId)
     ? actuel.modaliteIds.filter((item) => item !== modaliteId)
     : [...actuel.modaliteIds, modaliteId]
@@ -131,7 +131,7 @@ function nonRenseigne(variableId: string) {
   const variable = variables.value.find((item) => item.id === variableId)
   if (!variable) return
   const filtres = { ...filtresSynthese.value.variables }
-  const actuel = filtres[variableId] ?? { portee: variable.portee, modaliteIds: [], nonRenseigne: false }
+  const actuel = filtres[variableId] ?? { portee: variable.portee === "participation" ? 'participation' as const : variable.portee, modaliteIds: [], nonRenseigne: false }
   if (actuel.nonRenseigne && !actuel.modaliteIds.length) delete filtres[variableId]
   else filtres[variableId] = { ...actuel, nonRenseigne: !actuel.nonRenseigne }
   filtresSynthese.value = { ...filtresSynthese.value, variables: filtres }
@@ -196,14 +196,14 @@ function nonRenseigne(variableId: string) {
       <label v-for="item in Object.values(cas)" :key="item.id" class="choix"><input type="checkbox" :checked="coche(filtresSynthese.cas, item.id)" @change="choix('cas', item.id)"> {{ item.nom }}</label>
     </section>
 
-    <section v-if="onglet === 'personnes'" role="tabpanel">
-      <h3>Personnes</h3>
-      <p class="etat-selection" :class="{ applique: ongletFiltreActif('personnes') }">{{ nombreSelectionsOnglet('personnes') ? `${nombreSelectionsOnglet('personnes')} choix de personne appliqué(s).` : 'Aucun filtre de personne.' }}</p>
-      <div v-if="nombreSelectionsOnglet('personnes')" class="actions-liste"><button @click="filtresSynthese = { ...filtresSynthese, personnes: { selection: { mode: 'sans-restriction' }, sansPersonne: false, sansLocuteur: false } }">Effacer la sélection</button></div>
-      <label v-for="item in personnesSynthese" :key="item.id" class="choix"><input type="checkbox" :checked="coche(filtresSynthese.personnes.selection, item.id)" @change="personne(item.id)"> {{ item.nom }}</label>
+    <section v-if="onglet === 'locuteurs'" role="tabpanel">
+      <h3>Locuteurs</h3>
+      <p class="etat-selection" :class="{ applique: ongletFiltreActif('locuteurs') }">{{ nombreSelectionsOnglet('locuteurs') ? `${nombreSelectionsOnglet('locuteurs')} choix de locuteur appliqué(s).` : 'Aucun filtre de locuteur.' }}</p>
+      <div v-if="nombreSelectionsOnglet('locuteurs')" class="actions-liste"><button @click="filtresSynthese = { ...filtresSynthese, locuteurs: { selection: { mode: 'sans-restriction' }, sansIdentiteCommune: false, sansParticipation: false } }">Effacer la sélection</button></div>
+      <label v-for="item in locuteursSynthese" :key="item.id" class="choix"><input type="checkbox" :checked="coche(filtresSynthese.locuteurs.selection, item.id)" @change="locuteur(item.id)"> {{ item.nom }}</label>
       <hr>
-      <label class="choix"><input type="checkbox" :checked="filtresSynthese.personnes.sansPersonne" @change="personneSpeciale('sansPersonne')"> Locuteurs sans personne associée</label>
-      <label class="choix"><input type="checkbox" :checked="filtresSynthese.personnes.sansLocuteur" @change="personneSpeciale('sansLocuteur')"> Passages sans locuteur</label>
+      <label class="choix"><input type="checkbox" :checked="filtresSynthese.locuteurs.sansIdentiteCommune" @change="selectionSpeciale('sansIdentiteCommune')"> Locuteurs non associés</label>
+      <label class="choix"><input type="checkbox" :checked="filtresSynthese.locuteurs.sansParticipation" @change="selectionSpeciale('sansParticipation')"> Passages sans locuteur</label>
     </section>
 
     <section v-if="onglet === 'variables'" role="tabpanel">

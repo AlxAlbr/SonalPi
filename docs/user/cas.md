@@ -63,7 +63,7 @@ lorsque le locuteur est identifié comme enquêteur.
 La règle est dynamique : lors d’une actualisation, les corrections du texte et des
 associations entre locuteurs et personne sont prises en compte.
 Si la personne n’existe pas encore, commence par le répertoire
-[Personnes de la vue Corpus](vue-corpus.md#personnes).
+[Locuteurs de la vue Corpus](vue-corpus.md#locuteurs).
 
 ### Créer plusieurs cas en une seule opération
 

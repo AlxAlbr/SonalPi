@@ -1,5 +1,6 @@
-import type { Cas } from '../corpus/cas'
-import type { Categorie, Personne, Variable } from '../format'
+import type { Categorie } from '../format'
+import type { Locuteur } from '../locuteurs'
+import type { Cas, Variable } from "../format"
 import type { FiltresSynthese, SelectionSynthese } from './types'
 
 interface ElementNomme { id: string; nom: string }
@@ -7,7 +8,7 @@ interface ElementNomme { id: string; nom: string }
 export interface ContexteResumeSynthese {
   entretiens: ElementNomme[]
   variables: Variable[]
-  personnes: Personne[]
+  locuteurs: Locuteur[]
   themes: Pick<Categorie, 'id' | 'nom'>[]
   cas: Pick<Cas, 'id' | 'nom'>[]
 }
@@ -31,7 +32,13 @@ export function resumerFiltresSynthese(
     if (filtre.nonRenseigne) modalites.push('Non renseigné')
     lignes.push(`${variable?.lib ?? id} : ${modalites.join(', ') || 'Aucune modalité'}`)
   }
-  lignes.push(`Personnes : ${noms(filtres.personnes.selection, contexte.personnes, 'Aucun filtre')}`)
+  const selectionLocuteurs = filtres.locuteurs.selection
+  const choixLocuteurs = selectionLocuteurs.mode === 'sans-restriction' ? ['Aucun filtre'] : [
+    ...(selectionLocuteurs.ids.length ? [noms(selectionLocuteurs, contexte.locuteurs, '')] : []),
+    ...(filtres.locuteurs.sansIdentiteCommune ? ['Locuteurs non associés'] : []),
+    ...(filtres.locuteurs.sansParticipation ? ['Passages sans locuteur'] : []),
+  ]
+  lignes.push(`Locuteurs : ${choixLocuteurs.join(', ') || 'Aucun'}`)
   lignes.push(`Thèmes : ${noms(filtres.themes, contexte.themes, 'Aucun thème sélectionné')}`)
   if (filtres.themes.mode === 'choix') lignes.push(filtres.correspondanceThemes === 'tous-au-meme-endroit'
     ? 'Correspondance thématique : tous les thèmes sélectionnés au même endroit'
@@ -46,7 +53,7 @@ export function resumerFiltresSynthese(
 export function nombreCriteresSynthese(filtres: FiltresSynthese): number {
   return Number(filtres.entretiens.mode === 'choix')
     + Object.keys(filtres.variables).length
-    + Number(filtres.personnes.selection.mode === 'choix')
+    + Number(filtres.locuteurs.selection.mode === 'choix')
     + Number(filtres.themes.mode === 'choix')
     + Number(filtres.cas.mode === 'choix')
     + Number(!filtres.inclureEnqueteurs)

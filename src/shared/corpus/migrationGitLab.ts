@@ -1,6 +1,6 @@
 import type { ApercuCrp } from './migrationCrp'
 import type { ImportTraitementsLexicoV1 } from '../lexico/traitements'
-import type { Categorie, PayloadEntretien, RegleAnon, Variable } from '../format'
+import type { Categorie, PayloadImportEntretien, RegleAnon, Variable } from '../format'
 import type { DemandeConfigurationBaseMedia, DemandePreparationProjetGitLab, ProjetGitLabPrepare } from '../gitlab'
 import type { OuvertureDistante } from '../distant'
 import type { ConservationMigration } from './conservationMigration'
@@ -12,7 +12,7 @@ export const CONNEXION_MIGRATION_GITLAB_REQUISE = 'Reconnectez-vous à GitLab po
 export type DemandeSourceMigrationGitLab = DemandePreparationProjetGitLab | { destinationId: string }
 
 export interface ConversionEntretienMigrationGitLab {
-  payload: PayloadEntretien
+  payload: PayloadImportEntretien
   reglesAnon: RegleAnon[]
   codebook?: Categorie[]
   variables?: Variable[]

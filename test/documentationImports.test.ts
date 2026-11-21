@@ -26,14 +26,14 @@ describe('exemples de transcription du guide utilisateur', () => {
     const texte = JSON.stringify(payload.corpsTexte)
     expect(texte).toContain('Depuis quand êtes-vous bénévole')
     expect(texte).toContain('aide aux devoirs depuis cinq ans')
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(locuteurs)
+    expect(payload.participations.map((l) => l.nom)).toEqual(locuteurs)
     expect([...new Set(payload.ancres.map((a) => a.t))]).toEqual(temps)
-    expect(payload.locuteurs.every((l) => !l.interviewer)).toBe(true)
+    expect(payload.participations.every((l) => !l.interviewer)).toBe(true)
   })
 
   test.each(['docx', 'pdf'])('le texte extrait d’un %s suit les mêmes règles que le TXT', (extension) => {
     const contenu = page.querySelector('[data-fichier="exemple.txt"]')!.textContent!
     const { payload } = importerFichier(`entretien.${extension}`, contenu, parse)
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])
+    expect(payload.participations.map((l) => l.nom)).toEqual(['Enquêteur', 'Bénévole'])
   })
 })

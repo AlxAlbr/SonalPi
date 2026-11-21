@@ -115,7 +115,7 @@ async function banc(suffixe: string) {
 }
 function remplacer(avant: EntretienFichier, date: string) {
   const attendu = JSON.parse(JSON.stringify(avant)) as EntretienFichier
-  for (const a of attendu.annotations) if (a.type === 'anon' && a.regle === 'personne' && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
+  for (const a of attendu.annotations) if (a.type === 'anon' && a.regle === "personne" && a.pseudo === 'Claire') a.pseudo = 'Rebecca'
   attendu.lastModified = date
   return attendu
 }

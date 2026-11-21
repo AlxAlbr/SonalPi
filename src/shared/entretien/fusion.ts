@@ -73,10 +73,10 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
   }
 
   // Locuteurs : l'identité stable est l'INDEX (position ordinale du tour).
-  const indexesLocuteurs = new Set(courant.locuteurs.map((l) => l.index))
-  const locuteurs = structuredClone(courant.locuteurs)
+  const indexesLocuteurs = new Set(courant.participations.map((l) => l.index))
+  const locuteurs = structuredClone(courant.participations)
   let locuteursAjoutes = 0
-  for (const l of copie.locuteurs) {
+  for (const l of copie.participations) {
     if (!indexesLocuteurs.has(l.index)) {
       locuteurs.push(structuredClone(l))
       indexesLocuteurs.add(l.index)
@@ -96,7 +96,7 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
   }
   // valeursLoc : portées par chaque locuteur (par index).
   for (const l of locuteurs) {
-    const copieLoc = copie.locuteurs.find((x) => x.index === l.index)
+    const copieLoc = copie.participations.find((x) => x.index === l.index)
     if (!copieLoc?.valeursLoc || !l.valeursLoc) continue
     for (const [idVar, idMod] of Object.entries(copieLoc.valeursLoc)) {
       if (!(idVar in l.valeursLoc)) {
@@ -143,7 +143,7 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
       annotations,
       ancres,
       reperesPassages,
-      locuteurs,
+      participations: locuteurs,
       meta: { ...courant.meta, valeursGen },
       brouillonsAnon: brouillons,
       pseudosDeclares,

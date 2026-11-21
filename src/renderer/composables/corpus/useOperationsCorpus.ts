@@ -42,9 +42,10 @@ import type {
   RegleAnon,
   MetaEntretien,
   ModeTriEntretiens,
-  Note,
   Variable,
 } from '../../../shared/format'
+
+import type { Note } from "../../../shared/format"
 
 interface CorpusOperations {
   membership: Ref<Record<string, EntretienRef>>
@@ -53,7 +54,7 @@ interface CorpusOperations {
   attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
-  lirePersonnes: () => Promise<{ personnes: Array<{ id: string; nom: string }> }>
+  lireIdentitesLocuteurs: () => Promise<{ locuteurs: Array<{ id: string; nom: string }> }>
   categoriesNote: Ref<NoteCategory[]>
   reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
@@ -157,7 +158,7 @@ export function useOperationsCorpus(deps: {
           catch (erreur) { throw new Error(`Entretien illisible « ${source.nom} » : ${erreur instanceof Error ? erreur.message : String(erreur)}`) }
           await window.sonal.migrer.ajouterEntretien(index, resultat.payload, resultat.reglesAnon)
         } else {
-          const vide: PayloadEntretien = { corpsTexte: DOC_VIDE, annotations: [], ancres: [], locuteurs: [], brouillonsAnon: [], meta: { valeursGen: {}, audioRef: null } }
+          const vide: PayloadEntretien = { corpsTexte: DOC_VIDE, annotations: [], ancres: [], participations: [], brouillonsAnon: [], meta: { valeursGen: {}, audioRef: null } }
           await window.sonal.migrer.ajouterEntretien(index, vide, [])
         }
       }
@@ -362,7 +363,7 @@ export function useOperationsCorpus(deps: {
           reperesPassages: resultat.instantane.reperesPassages,
         })
       }
-      const inventaire = await deps.corpus.lirePersonnes()
+      const inventaire = await deps.corpus.lireIdentitesLocuteurs()
       const modele = assemblerModeleQualcoder({
         nom: deps.profil.dossierCourantNom.value.trim() || 'Corpus',
         selection: snapshots,
@@ -374,7 +375,7 @@ export function useOperationsCorpus(deps: {
           codebook: Object.fromEntries(deps.corpus.codebook.value.map((category) => [category.id, category])),
           cas: deps.corpus.cas.value,
         },
-        personnes: Object.fromEntries(inventaire.personnes.map((personne) => [personne.id, personne])),
+        locuteurs: Object.fromEntries(inventaire.locuteurs.map((locuteur) => [locuteur.id, locuteur])),
         casSelectionnes,
         owner: 'SonalPi',
       })

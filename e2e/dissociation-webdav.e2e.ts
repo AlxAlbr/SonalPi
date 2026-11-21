@@ -81,7 +81,7 @@ async function banc(port: number) {
   const client = new ClientWebDAV({ ...parent.config, baseUrl: `${parent.config.baseUrl}/${dossier}` })
   await client.creerDossier('entretiens'); await client.creerDossier('verrous')
   const f = fixtureDissociationAnon()
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   await client.putTexte('corpus.crp', JSON.stringify(f.corpus, null, 2), { ifNoneMatch: '*' })
   for (const s of f.sources) await client.putTexte(`entretiens/${s.id}.json`, JSON.stringify(s.data, null, 2), { ifNoneMatch: '*' })
   const profil = mkdtempSync(join(tmpdir(), 'sonal-electron-dissociation-'))
@@ -139,7 +139,7 @@ for (const port of [8080, 8081]) test.describe(`dissociation WebDAV :${port}`, (
       expect(await b.client.getTexte('entretiens/e1.json')).toBe(acquis)
       const e1 = JSON.parse(acquis)
       expect(e1.definitionsAnonLocales).toContainEqual({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
-      expect(e1.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
+      expect(e1.participations).toEqual(b.f.sources[0].data.participations)
       expect(await app.evaluate(() => (globalThis as unknown as { sondeDissociation: Sonde }).sondeDissociation.publies)).toEqual(['barriere', 'e1.json', 'barriere', 'e2.json', 'e3.json', 'retrait'])
     } finally { if (rendre) await rendre(); if (app) await app.close(); await b.nettoyer() }
   })

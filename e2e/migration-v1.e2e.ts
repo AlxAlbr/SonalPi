@@ -60,7 +60,7 @@ test('un seul nom, migration complète sans bilan, médias internes copiés et C
     expect(existsSync(source.cheminCrp)).toBe(false)
     expect(readFileSync(`${source.cheminCrp}.sauvegarde-v1`)).toEqual(source.original)
     const c = corpus(cible)
-    expect(c.formatVersion).toBe(9)
+    expect(c.formatVersion).toBe(10)
     expect(c.nom).toBe('MonCorpus')
     expect(c.meta).toEqual({ sourceV1: { cheminCrp: source.cheminCrp, dateCreation: null } })
     expect(Object.keys(c.codebook).sort()).toEqual(['cat_001', 'cat_002', 'cat_003', 'cat_005', 'cat_006'])
@@ -70,7 +70,13 @@ test('un seul nom, migration complète sans bilan, médias internes copiés et C
     ]))
     const es = entretiens(cible)
     expect(JSON.stringify(es.entretien1.corpsTexte)).toContain('Karine')
-    expect(es.entretien1.locuteurs.length).toBeGreaterThan(0)
+    expect(es.entretien1.participations.length).toBeGreaterThan(0)
+    const participations = Object.values(es).flatMap((e) => e.participations)
+    expect(Object.keys(c.locuteurs)).toHaveLength(participations.length)
+    expect(new Set(participations.map((p) => p.locuteurRef)).size).toBe(participations.length)
+    for (const participation of participations) {
+      expect(c.locuteurs[participation.locuteurRef!]?.nom).toBe(participation.nom)
+    }
     expect(es.entretien1.meta.sourceV1).toEqual({ rtrPath: 'entretien1.sonal' })
     expect(es.entretien1.meta.audioRef).toBe(es.entretien3.meta.audioRef)
     expect(readFileSync(es.entretien1.meta.audioRef!)).toEqual(readFileSync(source.audioInterne))

@@ -1,119 +1,82 @@
-import { compterUsagesCasVariable } from './cas'
-import type { CorpusFichier, Variable } from '../format'
+import { compterUsagesCasVariable, type SourcesUsagesVariable } from './cas'
+import type { CorpusFichier, Variable } from "../format"
+import { objet } from '../natif/validationCommune'
 
-/**
- *  Base de données EAV de l'agrégat Corpus. Le SCHÉMA
- *  (variables & leurs modalités dépendantes) est une DÉFINITION portée par le corpus ;
- *  les VALEURS vivent chez leur propriétaire côté entretien (cf. `corpus/requetes.ts`).
- *  Fonctions PURES ; les identités opaques sont injectées via `genId` → déterministe en test.
- */
+export type { Variable } from "../format"
+export { detailsVariablesEntretien, type BlocParticipation, type LigneValeur } from './lectureVariables'
 
-/** Prochain code d'export numérique (max + 1) pour variable ou modalité. */
-export function prochainExport(nums: number[]): number {
+export type PatchVariable = Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>
+type CorpusVariables = Pick<CorpusFichier, 'variables'> & SourcesUsagesVariable
+
+export function validerLibelleDonnee(lib: unknown): asserts lib is string {
+  if (typeof lib !== 'string') throw new Error('Le libellé doit être du texte.')
+}
+
+export function validerCreationVariable(lib: unknown, portee: unknown): void {
+  validerLibelleDonnee(lib)
+  if (portee !== 'entretien' && portee !== 'participation') throw new Error('La portée de cette variable est invalide.')
+}
+
+/** Les ids, codes d'export et modalités ne se remplacent pas par un changement de libellé. */
+export function validerPatchVariable(patch: unknown): asserts patch is PatchVariable {
+  if (!objet(patch) || Object.keys(patch).some((cle) => !['lib', 'portee', 'priv'].includes(cle))
+    || (Object.hasOwn(patch, 'lib') && typeof patch.lib !== 'string')
+    || (Object.hasOwn(patch, 'portee') && patch.portee !== 'entretien' && patch.portee !== 'participation')
+    || (Object.hasOwn(patch, 'priv') && typeof patch.priv !== 'boolean')) {
+    throw new Error('Les champs modifiables de cette variable sont invalides.')
+  }
+}
+
+/** Prochain code d'export numérique : maximum présent plus un. */
+export function prochainExport(nums: readonly number[]): number {
   return nums.reduce((m, n) => Math.max(m, n), 0) + 1
 }
 
-/** Ajoute une variable (id opaque injecté ; ordre + code d'export en fin). */
-export function ajouterVariable(
-  corpus: CorpusFichier,
-  lib: string,
-  portee: 'entretien' | 'locuteur',
-  genId: () => string,
-): string {
+/** Crée une définition ; les valeurs restent dans les entretiens et leurs participations. */
+export function ajouterVariable(corpus: CorpusVariables, lib: string, portee: Variable['portee'], genId: () => string): string {
+  validerCreationVariable(lib, portee)
   const id = genId()
+  if (!id || Object.hasOwn(corpus.variables, id)) throw new Error('Identifiant de variable déjà utilisé ou invalide.')
   const vs = Object.values(corpus.variables)
-  corpus.variables[id] = {
-    id,
-    lib,
-    portee,
-    priv: false,
+  const variable: Variable = { id, lib, portee, priv: false,
     ordre: vs.reduce((m, v) => Math.max(m, v.ordre), -1) + 1,
-    vExport: prochainExport(vs.map((v) => v.vExport)),
-    modalites: [],
-  }
+    vExport: prochainExport(vs.map((v) => v.vExport)), modalites: [] }
+  Object.defineProperty(corpus.variables, id, { value: variable, enumerable: true, configurable: true, writable: true })
   return id
 }
 
-export function modifierVariable(
-  corpus: CorpusFichier,
-  id: string,
-  patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>,
-): void {
-  if (patch.portee && patch.portee !== corpus.variables[id]?.portee && compterUsagesCasVariable(corpus, id)) throw new Error('Cette variable est utilisée par des cas ou familles.')
-  if (corpus.variables[id]) corpus.variables[id] = { ...corpus.variables[id], ...patch }
+export function modifierVariable(corpus: CorpusVariables, id: string, patch: PatchVariable): void {
+  validerPatchVariable(patch)
+  if (patch.portee && patch.portee !== corpus.variables[id]?.portee && compterUsagesCasVariable(corpus, id)) {
+    throw new Error('Cette variable est utilisée par des cas ou familles.')
+  }
+  if (Object.hasOwn(corpus.variables, id)) corpus.variables[id] = { ...corpus.variables[id], ...patch }
 }
 
-export function retirerVariable(corpus: CorpusFichier, id: string): void {
+export function retirerVariable(corpus: CorpusVariables, id: string): void {
   if (compterUsagesCasVariable(corpus, id)) throw new Error('Cette variable est utilisée par des cas ou familles.')
   delete corpus.variables[id]
 }
 
-/** Ajoute une modalité à une variable (id opaque injecté ; code d'export en fin). */
-export function ajouterModalite(
-  corpus: CorpusFichier,
-  idVar: string,
-  lib: string,
-  genId: () => string,
-): void {
-  const v = corpus.variables[idVar]
-  if (v) v.modalites.push({ id: genId(), lib, mExport: prochainExport(v.modalites.map((m) => m.mExport)) })
+export function ajouterModalite(corpus: CorpusVariables, idVar: string, lib: string, genId: () => string): void {
+  validerLibelleDonnee(lib)
+  if (!Object.hasOwn(corpus.variables, idVar)) return
+  const v = corpus.variables[idVar], id = genId()
+  if (!id || v.modalites.some((m) => m.id === id)) throw new Error('Identifiant de modalité déjà utilisé ou invalide.')
+  v.modalites.push({ id, lib, mExport: prochainExport(v.modalites.map((m) => m.mExport)) })
 }
 
-export function modifierModalite(corpus: CorpusFichier, idVar: string, idMod: string, lib: string): void {
-  const m = corpus.variables[idVar]?.modalites.find((x) => x.id === idMod)
+export function modifierModalite(corpus: CorpusVariables, idVar: string, idMod: string, lib: string): void {
+  validerLibelleDonnee(lib)
+  if (!Object.hasOwn(corpus.variables, idVar)) return
+  const m = corpus.variables[idVar].modalites.find((x) => x.id === idMod)
   if (m) m.lib = lib
 }
 
-export function retirerModalite(corpus: CorpusFichier, idVar: string, idMod: string): void {
+export function retirerModalite(corpus: CorpusVariables, idVar: string, idMod: string): void {
   if (compterUsagesCasVariable(corpus, idVar, idMod)) throw new Error('Cette modalité est utilisée par des cas.')
-  const v = corpus.variables[idVar]
-  if (v) v.modalites = v.modalites.filter((m) => m.id !== idMod)
-}
-
-// ── Lecture des valeurs d'un entretien (panneau métadonnées) ─────────────
-
-/** Une ligne affichable :
- *  le libellé de la variable et la valeur de l'entretien (libellé de la modalité pointée,
- *  ou null si pas de valeur). */
-export interface LigneValeur {
-  id: string
-  lib: string
-  valeur: string | null
-}
-
-/** Une section « locuteur » : son nom et ses variables de portée locuteur. */
-export interface BlocLocuteur {
-  nom: string
-  lignes: LigneValeur[]
-}
-
-/** Résout les valeurs EAV d'un entretien pour AFFICHAGE (lecture seule) :
- *  variables générales d'une part, bloc par locuteur d'autre part.
- *  Les définitions viennent du corpus,
- *  les valeurs de `meta.valeursGen` et des `valeursLoc` de chaque locuteur ;
- *  une valeur sans définition est ignorée. Parité SonalPi1 : les locuteurs interviewers (« ? »)
- *  ne portent pas de bloc de variables. */
-export function detailsVariablesEntretien(
-  definitions: Variable[],
-  entretien: { meta: { valeursGen: Record<string, string> }; locuteurs: { nom: string; interviewer?: boolean; valeursLoc: Record<string, string> }[] },
-): { generales: LigneValeur[]; parLocuteur: BlocLocuteur[] } {
-  const libMod = (idVar: string, idMod: string | undefined): string | null => {
-    if (!idMod) return null
-    return definitions.find((v) => v.id === idVar)?.modalites.find((m) => m.id === idMod)?.lib ?? null
+  if (Object.hasOwn(corpus.variables, idVar)) {
+    const v = corpus.variables[idVar]
+    v.modalites = v.modalites.filter((m) => m.id !== idMod)
   }
-  const tri = (a: Variable, b: Variable) => a.ordre - b.ordre
-  const generales: LigneValeur[] = definitions
-    .filter((v) => v.portee === 'entretien')
-    .sort(tri)
-    .map((v) => ({ id: v.id, lib: v.lib, valeur: libMod(v.id, entretien.meta.valeursGen[v.id]) }))
-  const parLocuteur: BlocLocuteur[] = entretien.locuteurs
-    .filter((l) => !l.interviewer && !l.nom.includes('?'))
-    .map((l) => ({
-      nom: l.nom,
-      lignes: definitions
-        .filter((v) => v.portee === 'locuteur')
-        .sort(tri)
-        .map((v) => ({ id: v.id, lib: v.lib, valeur: libMod(v.id, l.valeursLoc[v.id]) })),
-    }))
-  return { generales, parLocuteur }
 }

@@ -87,7 +87,7 @@ test.describe('Migration GitLab réelle, données synthétiques isolées', () =>
           expect.objectContaining({ type: 'codage', code: 'cat_001', from: 1, to: 5 }),
           expect.objectContaining({ type: 'commentaire', from: 1, to: 5, texte: 'Commentaire synthétique.' }),
         ]))
-        expect(e.locuteurs).toEqual(expect.arrayContaining([
+        expect(e.participations).toEqual(expect.arrayContaining([
           expect.objectContaining({ nom: 'Locuteur sans tour', valeursLoc: { v2: 'v2m1' } }),
         ]))
         expect(JSON.stringify(e)).toContain('Note synthétique conservée.')

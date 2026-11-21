@@ -36,13 +36,13 @@ function tourAdmis(
 ): boolean {
   if (!filtres.inclureEnqueteurs && tour?.interviewer) return false
   for (const [id, filtre] of Object.entries(filtres.variables)) {
-    if (filtre.portee === 'locuteur' && !valeurAdmise(tour?.valeursLocuteur ?? null, id, filtre, contexte)) return false
+    if (filtre.portee === 'participation' && !valeurAdmise(tour?.valeursParticipation ?? null, id, filtre, contexte)) return false
   }
-  const personnes = filtres.personnes
-  if (personnes.selection.mode === 'choix') {
-    if (!tour) return personnes.sansLocuteur
-    if (!tour.personneId) return personnes.sansPersonne
-    return personnes.selection.ids.includes(tour.personneId)
+  const locuteurs = filtres.locuteurs
+  if (locuteurs.selection.mode === 'choix') {
+    if (!tour) return locuteurs.sansParticipation
+    if (!tour.locuteurId) return locuteurs.sansIdentiteCommune
+    return locuteurs.selection.ids.includes(tour.locuteurId)
   }
   return true
 }
@@ -123,7 +123,7 @@ function calculerSource(
   const reunis: Segment[] = []
   for (const segment of segments) {
     const precedent = reunis.at(-1)
-    const memeTour = precedent?.tour?.locuteurId === segment.tour?.locuteurId
+    const memeTour = precedent?.tour?.participationIndex === segment.tour?.participationIndex
       && Boolean(precedent?.tour) === Boolean(segment.tour)
     const themeCommun = [...segment.themes].some((theme) => precedent?.themes.has(theme))
     // Les matériaux d'un cas sans thème peuvent rester continus dans un même tour.
@@ -149,8 +149,8 @@ function calculerSource(
       longueurSource: source.longueurSource,
       themeIds,
       annotationIds,
+      participationIds: segment.tour?.participationId ? [segment.tour.participationId] : [],
       locuteurIds: segment.tour?.locuteurId ? [segment.tour.locuteurId] : [],
-      personneIds: segment.tour?.personneId ? [segment.tour.personneId] : [],
       ordre: source.ordre,
     }
   })

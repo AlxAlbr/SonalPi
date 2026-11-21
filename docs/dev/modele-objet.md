@@ -18,15 +18,15 @@ classDiagram
     CorpusFichier "1" o-- "*" Categorie : codebook
     CorpusFichier "1" o-- "*" Variable : variables
     CorpusFichier "1" o-- "*" RegleAnon : reglesAnon
-    CorpusFichier "1" o-- "*" Personne : personnes
+    CorpusFichier "1" o-- "*" Locuteur : locuteurs
     CorpusFichier "1" o-- "*" Cas : cas
     CorpusFichier "1" o-- "*" Recueil : recueils
     EntretienFichier "1" *-- "*" Annotation : annotations
-    EntretienFichier "1" *-- "*" Locuteur : locuteurs
+    EntretienFichier "1" *-- "*" ParticipationLocuteur : participations
     EntretienFichier "1" *-- "*" Note : notes
     EntretienFichier "1" *-- "*" Ancre : ancres
     EntretienFichier "1" *-- "*" ReperePassage : reperesPassages
-    Locuteur ..> Personne : personneRef facultative
+    ParticipationLocuteur ..> Locuteur : locuteurRef
 ```
 
 Une référence `EntretienRef` permet de lister une source : titre, date et
@@ -41,7 +41,7 @@ nécessite une orchestration explicite, pas une simple mutation d’objet.
 | Thèmes, hiérarchie et descriptions du codebook. | Codages de plages référant les thèmes. |
 | Variables, modalités et portée. | Valeurs d’entretien ou de locuteur. |
 | Règles textuelles de pseudonymisation et paramètres partagés. | Décisions textuelles, brouillons et définitions locales. |
-| Personnes. | Locuteurs et liens vers les personnes. |
+| Identités de locuteurs. | Participations et liens vers les identités communes. |
 | Catégories de notes. | Notes et liens vers commentaires ou locuteurs. |
 | Cas, familles et attributs ; recueils et items éditoriaux. | Repères des passages référencés par les cas et recueils. |
 | Tableau de bord et réglages Lexico. | Aucun duplicata des résultats d’analyse. |
@@ -81,8 +81,8 @@ ni de son rang. `parent` et `ordre` portent explicitement la hiérarchie ;
 Voir [thématiques](traiter/thematiques/README.md).
 
 Une `Variable` définit sa portée et ses modalités. La valeur va chez son
-propriétaire : `meta.valeursGen` pour l’entretien, `Locuteur.valeursLoc` pour un
-locuteur. Les identifiants de variable et de modalité relient valeur et définition.
+propriétaire : `meta.valeursGen` pour l’entretien, `ParticipationLocuteur.valeursLoc`
+pour une participation (`portee: 'participation'`). Les identifiants de variable et de modalité relient valeur et définition.
 La table de données est une lecture de ces propriétaires, pas une seconde table
 persistée. Voir [variables](traiter/variables.md).
 
@@ -98,27 +98,29 @@ Les occurrences restant à traiter et leurs compteurs sont calculés à partir d
 texte, des règles et des décisions existantes. Voir
 [pseudonymisation](traiter/pseudonymisation/README.md).
 
-## Locuteurs et personnes
+## Locuteurs et participations
 
-Trois identifiants ont des usages distincts :
+Le format natif 10 distingue trois identifiants :
 
-- `Locuteur.index`, local à l’entretien, est référencé par l’attribut `loc` des
-  paragraphes ;
-- `Locuteur.id`, stable, sert notamment aux liens de notes et aux rapprochements
-  entre versions ; il peut manquer dans les anciens fichiers ;
-- `Personne.id`, au corpus, rapproche des locuteurs par `personneRef`.
+- `ParticipationLocuteur.index` est référencé par l’attribut `loc` des paragraphes ;
+- `ParticipationLocuteur.id`, obligatoire et stable dans son entretien, sert aux
+  notes et aux commandes contextualisées par `{ entretienId, participationId }` ;
+- `Locuteur.id` identifie l’identité commune du corpus, liée par `locuteurRef`.
 
-Un nom ou un index identique dans deux entretiens ne désigne pas une même personne.
-La personne ne possède ni les valeurs ni les notes de ses locuteurs et ne
-synchronise pas leurs pseudonymes. Renommer un locuteur ne réécrit pas les blocs
-qui référencent son index ; attribuer une sous-partie de paragraphe peut en
-revanche nécessiter de le scinder. Voir [locuteurs et personnes](traiter/locuteurs/README.md).
+Une identité commune ne possède ni les valeurs ni les notes de ses participations
+et ne synchronise pas leurs pseudonymes. Un nom ou un index identique ne rapproche
+jamais deux participations. L’import V1 crée une identité distincte par participation.
+Les ids absents sont attribués à l’import, jamais lors d’une consultation native.
+
+Renommer une participation ne réécrit pas les blocs qui référencent son index ;
+attribuer une sous-partie de paragraphe peut en revanche nécessiter de le scinder.
+Voir [locuteurs et participations](traiter/locuteurs/README.md).
 
 ## Notes, cas et recueils
 
 Une note est un document autonome, hors transcription, sans position ProseMirror.
-Elle référence une catégorie commune et peut viser des locuteurs ou des
-commentaires du même entretien. Son corps HTML est restreint et nettoyé par le
+Elle référence une catégorie commune et peut viser des participations par
+`participationIds`, ou des commentaires du même entretien. Son corps HTML est restreint et nettoyé par le
 renderer ; ses libellés de commentaires sont reconstruits à l’affichage.
 Voir [notes](traiter/notes/README.md).
 

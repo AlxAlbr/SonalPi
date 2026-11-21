@@ -133,7 +133,7 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     await expect(page.locator('.carte-note')).toHaveCount(2)
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     const noteResume = lire().notes!.find((n) => n.titre === titreResume)!
-    expect(noteResume.locuteurIds).toEqual([lire().locuteurs.find((l) => l.nom === 'Fatima')!.id])
+    expect(noteResume.participationIds).toEqual([lire().participations.find((l) => l.nom === 'Fatima')!.id])
     expect(noteResume.corps).toContain('<mark>un accompagnement des familles</mark>')
     expect(lire().notes!.find((n) => n.titre === titrePrive)!.corps).toContain('Vérifier lors de la prochaine rencontre.')
     expect(lire().notes!.slice().sort((a, b) => a.rang - b.rang).map((n) => n.titre)).toEqual([titrePrive, titreResume])
@@ -148,7 +148,7 @@ test('manuel : créer, relire et exporter les notes du terrain fictif sans modif
     await edition.getByRole('button', { name: 'Valider', exact: true }).click()
     await expect(notes.locator('.tableau-notes')).toContainText('Résumé — aide aux devoirs')
     const noteModifiee = lire().notes!.find((n) => n.id === noteResume.id)!
-    expect(noteModifiee.locuteurIds).toEqual(noteResume.locuteurIds)
+    expect(noteModifiee.participationIds).toEqual(noteResume.participationIds)
     expect(noteModifiee.rang).toBe(noteResume.rang)
     await notes.getByRole('button', { name: 'Résumés', exact: true }).click()
     await expect(notes.locator('.tableau-notes tbody tr')).toHaveCount(1)

@@ -258,7 +258,7 @@ function modalitesDe(definition: DefinitionAttributCas) {
               <p v-for="probleme in attribut.diagnostic?.problemes ?? []" :key="probleme" class="probleme">⚠ {{ probleme }}</p>
               <ul>
                 <li v-for="(observation, index) in attribut.diagnostic?.observations ?? []" :key="index">
-                  {{ observation.entretienId }}<template v-if="observation.locuteurIndex !== null"> · locuteur {{ observation.locuteurIndex }}</template>
+                  {{ observation.entretienId }}<template v-if="observation.participationIndex !== null"> · locuteur {{ observation.participationIndex }}</template>
                   : <b>{{ libelleValeurVariable(variableDe(attribut), observation.valeur) }}</b><template v-if="observation.invalide"> (modalité disparue)</template><template v-if="observation.sourceIllisible"> — source illisible</template>
                 </li>
               </ul>
@@ -327,7 +327,7 @@ function modalitesDe(definition: DefinitionAttributCas) {
             </p>
             <ul class="observations-apercu">
               <li v-for="(observation, index) in apercuDerivation.observations" :key="index">
-                {{ observation.entretienId }}<template v-if="observation.locuteurIndex !== null"> · locuteur {{ observation.locuteurIndex }}</template>
+                {{ observation.entretienId }}<template v-if="observation.participationIndex !== null"> · locuteur {{ observation.participationIndex }}</template>
                 : <b>{{ libelleValeurVariable(variableChoisie, observation.valeur) }}</b><template v-if="observation.invalide"> (modalité disparue)</template><template v-if="observation.sourceIllisible"> — source illisible</template>
               </li>
             </ul>

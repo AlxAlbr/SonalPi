@@ -15,7 +15,7 @@ const resultat: MatriceCorpus = [{
   entretienId: 'e1',
   titre: 'Entretien A',
   valeursGen: {},
-  locuteurs: [],
+  participations: [],
 }]
 
 describe('fraîcheur de la matrice du corpus', () => {

@@ -21,7 +21,7 @@ vi.mock('node:fs', async (original) => {
 const dossiers: string[] = []
 afterEach(() => { injection.destination = ''; for (const d of dossiers.splice(0)) rmSync(d, { recursive: true, force: true }) })
 const local = (entite = ['Alias sans occurrence', 'Autre alias'], pseudos = ['Substitut'], categorie = 'LOC') => ({ nature: 'texte', portee: 'texte-local', entite, pseudos, categorie, etatLocal: 'declaration', entretienId: 'id-etranger', usages: [{ entretienId: 'id-etranger', positions: [1, 4] }] })
-const locuteur = (pseudo = 'Voix importée') => ({ nature: 'locuteur', nom: 'Locuteur synthétique sans tour', pseudo, origines: [{ entretienId: 'etranger', locuteurIndex: 99, pseudoEtat: 'refuse', personneRef: 'personne-importee' }] })
+const locuteur = (pseudo = 'Voix importée') => ({ nature: 'locuteur', nom: 'Locuteur synthétique sans tour', pseudo, origines: [{ entretienId: 'etranger', locuteurIndex: 99, pseudoEtat: 'refuse', locuteurRef: 'personne-importee' }] })
 const documents = (correspondances: unknown[]) => [{ nom: 'synthetique.json', texte: JSON.stringify({ format: 'sonalpi-correspondances', version: 2, correspondances }) }]
 function banc() {
   const dir = mkdtempSync(join(tmpdir(), 'correspondances-ciblees-')); dossiers.push(dir)
@@ -32,8 +32,8 @@ function banc() {
   for (const id of ['e1', 'e2']) {
     corpus.membership[id] = { titre: id, date: null, lastModified: f.entretiens[0].data.lastModified }
     const data = structuredClone(f.entretiens[0].data)
-    data.locuteurs[0].personneRef = 'personne-locale'
-    data.locuteurs[0].valeursLoc = { v: 'm' }
+    data.participations[0].locuteurRef = 'personne-locale'
+    data.participations[0].valeursLoc = { v: 'm' }
     writeFileSync(join(dir, 'entretiens', `${id}.json`), JSON.stringify(data))
   }
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus))
@@ -64,7 +64,7 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
     const bilan = b.appliquer([locuteur()], (a) => [{ cibleId: a.cibles![0].id, action: 'remplacer', etat: 'refuse' }])
     const apres = b.lire()
     expect(bilan.entretiens).toEqual({ definitionsLocales: 0, locuteurs: 1, entretiens: 1 })
-    expect(apres.locuteurs[0]).toEqual({ ...avant.locuteurs[0], pseudo: 'Voix importée', pseudoEtat: 'refuse' })
+    expect(apres.participations[0]).toEqual({ ...avant.participations[0], pseudo: 'Voix importée', pseudoEtat: 'refuse' })
     expect(apres.annotations).toEqual(avant.annotations)
     expect(apres.corpsTexte).toEqual(avant.corpsTexte)
     expect(b.lire('e2')).toEqual(autre)
@@ -72,14 +72,14 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
   })
   test('les homonymes sont présentés séparément ; aucune création si le nom est absent', () => {
     const b = banc(); const data = b.lire()
-    data.locuteurs.push({ ...data.locuteurs[0], index: 4, pseudo: 'Autre voix' })
+    data.participations.push({ ...data.participations[0], id: 'homonyme-4', index: 4, pseudo: 'Autre voix' })
     writeFileSync(join(b.dir, 'entretiens/e1.json'), JSON.stringify(data))
     const a = b.preparer([locuteur(), { ...locuteur(), nom: 'Nom absent' }])
     expect(a.cibles!.filter((c) => c.entretienId === 'e1').map((c) => c.locuteurIndex)).toEqual([0, 4])
     const p = b.cache.consommerImport(a.token, {}, [{ cibleId: a.cibles![1].id, action: 'remplacer', etat: 'non-precise' }], true)
     b.store.importerCorrespondancesEntretiens(p)
-    expect(b.lire().locuteurs[0]).toEqual(data.locuteurs[0])
-    expect(b.lire().locuteurs[1]).toEqual({ ...data.locuteurs[1], pseudo: 'Voix importée', pseudoEtat: undefined })
+    expect(b.lire().participations[0]).toEqual(data.participations[0])
+    expect(b.lire().participations[1]).toEqual({ ...data.participations[1], pseudo: 'Voix importée', pseudoEtat: undefined })
   })
   test('mémoire complète sans occurrence : alias, catégorie et variante inutilisée persistent et s’exportent', () => {
     const b = banc(); const avant = b.lire()
@@ -161,7 +161,7 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
     const b = banc(); const a = b.preparer([locuteur()]); a.lignes[0].pseudos = ['Altération renderer']
     const preparation = b.cache.consommerImport(a.token, {}, [{ cibleId: a.cibles![0].id, action: 'remplacer', etat: 'confirme' }], true)
     b.store.importerCorrespondancesEntretiens(preparation)
-    expect(b.lire().locuteurs[0].pseudo).toBe('Voix importée')
+    expect(b.lire().participations[0].pseudo).toBe('Voix importée')
     const autre = b.preparer([locuteur()])
     expect(() => b.store.importerCorrespondancesEntretiens(b.cache.consommerImport(autre.token, {}, [{ cibleId: 'inventé', action: 'remplacer', etat: 'confirme' }], true))).toThrow('Cible inconnue')
   })
@@ -192,7 +192,7 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
     const b = banc(); const avant = b.lire('e2')
     injection.destination = join(b.dir, 'entretiens/e2.json')
     expect(() => b.appliquer([locuteur()], (a) => a.cibles!.map((c) => ({ cibleId: c.id, action: 'remplacer', etat: 'confirme' })))).toThrow('Interruption synthétique')
-    expect(b.lire().locuteurs[0].pseudo).toBe('Voix importée')
+    expect(b.lire().participations[0].pseudo).toBe('Voix importée')
     expect(b.lire('e2')).toEqual(avant)
     const journal = join(b.dir, '.transaction-fichiers.json')
     expect(existsSync(journal)).toBe(true)
@@ -207,7 +207,7 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
       expect(existsSync(journal)).toBe(true)
     } else {
       new CorpusStore(b.dir).ouvrir()
-      expect(b.lire('e2').locuteurs[0].pseudo).toBe('Voix importée')
+      expect(b.lire('e2').participations[0].pseudo).toBe('Voix importée')
       expect(b.lire('e2').annotations).toEqual(avant.annotations)
       expect(existsSync(journal)).toBe(false)
     }

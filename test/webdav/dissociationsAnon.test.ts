@@ -15,7 +15,7 @@ import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 
 const dirs: string[] = []
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
-const demande = { regleId: 'personne' }
+const demande = { regleId: "personne" }
 function banc(natif: boolean, maintenant = Date.now) {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }), source = fixtureDissociation()
   serveur.creerDossierRelatif('verrous')
@@ -75,7 +75,7 @@ for (const natif of [false, true]) describe(`dissociation WebDAV : verrous ${nat
     expect(b.corpus().dissociationAnon).toBeUndefined(); expect(b.corpus().reglesAnon.personne).toBeUndefined()
     for (const id of ['e1', 'e2']) {
       const apres = b.entretien(id), attendu = structuredClone(b.f.entretiens[id])
-      attendu.annotations.forEach((a) => { if (a.regle === 'personne') delete a.regle })
+      attendu.annotations.forEach((a) => { if (a.regle === "personne") delete a.regle })
       attendu.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
       attendu.lastModified = apres.lastModified
       expect(apres).toEqual(attendu)

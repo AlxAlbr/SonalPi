@@ -31,7 +31,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     expect(b.cp().reglesAnon.personne).toBeUndefined(); expect(b.cp().suppressionAnon).toBeUndefined()
     for (const source of b.sources.slice(0, 2)) {
       const attendu = structuredClone(source.data)
-      attendu.annotations = attendu.annotations.filter((a) => a.regle !== 'personne')
+      attendu.annotations = attendu.annotations.filter((a) => a.regle !== "personne")
       attendu.lastModified = b.lire(source.id).lastModified
       expect(b.lire(source.id)).toEqual(attendu)
     }
@@ -114,10 +114,10 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 })
   })
   test('cible modifiée : aucun écrasement ; nouvelle préparation conserve l’édition', async () => {
-    const b = banc(), p = await b.preparer(); b.changer('e2', (e) => { e.locuteurs[0].pseudo = 'Concurrent' })
+    const b = banc(), p = await b.preparer(); b.changer('e2', (e) => { e.participations[0].pseudo = 'Concurrent' })
     expect(await b.service.appliquer(p.token, true)).toMatchObject({ statut: 'partiel', entretiens: 1 })
-    expect(b.lire('e2').locuteurs[0].pseudo).toBe('Concurrent')
-    expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 }); expect(b.lire('e2').locuteurs[0].pseudo).toBe('Concurrent')
+    expect(b.lire('e2').participations[0].pseudo).toBe('Concurrent')
+    expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 }); expect(b.lire('e2').participations[0].pseudo).toBe('Concurrent')
   })
   test('nouveau lien en fin de lot : règle conservée, nouveau consentement requis', async () => {
     const b = banc()
@@ -140,7 +140,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     expect(await b.service.appliquer(p.token, true)).toMatchObject({ statut: 'termine', entretiens: 3 })
     const j = JSON.parse(readFileSync(fichierJournal(b), 'utf8'))
     expect(Object.hasOwn(j.corpusAvant.membership, '__proto__')).toBe(true)
-    expect(j.cibles.find((c: { id: string }) => c.id === '__proto__').apres.annotations.some((a: { regle?: string }) => a.regle === 'personne')).toBe(false)
+    expect(j.cibles.find((c: { id: string }) => c.id === '__proto__').apres.annotations.some((a: { regle?: string }) => a.regle === "personne")).toBe(false)
   })
   test('nouveaux liens dans un acquis : aucun second retrait implicite', async () => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)
@@ -227,11 +227,11 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
   test('miroir défaillant : compte acquis durable, relecture installe la source actuelle sans rejouer', async () => {
     const b = banc(), installer = vi.spyOn(b.store, 'installerEntretienDistant').mockImplementation(() => { throw new Error('Disque') })
     const r = await appliquer(b); expect(r).toMatchObject({ statut: 'partiel', entretiens: 1 }); expect(commits(b)).toHaveLength(2)
-    b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Plus récent' }); installer.mockRestore()
+    b.changer('e1', (e) => { e.participations[0].pseudo = 'Plus récent' }); installer.mockRestore()
     const s = new SuppressionsAnonGitLab(b.options, () => [])
     await expect(s.preparerReprise(r.operationId)).rejects.toThrow('miroir')
     await s.relireSuivi(r.operationId)
-    expect(JSON.parse(readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8')).locuteurs[0].pseudo).toBe('Plus récent')
+    expect(JSON.parse(readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8')).participations[0].pseudo).toBe('Plus récent')
     expect(await reprendre(b, s)).toMatchObject({ statut: 'termine' }); expect(commits(b)).toHaveLength(4)
   })
   test('retrait logique acquis mais miroir défaillant : suivi persistant, uniquement relecture', async () => {
@@ -261,11 +261,11 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
   test('acquis modifié pendant le transport final : version gardée, puis reprise sans restaurer les choix', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.action === 'update' && !JSON.parse(a.content!).reglesAnon.personne)) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Concurrent' })
+      if (actions.some((a) => a.file_path.endsWith('/corpus.crp') && a.action === 'update' && !JSON.parse(a.content!).reglesAnon.personne)) b.changer('e1', (e) => { e.participations[0].pseudo = 'Concurrent' })
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'partiel', annotations: 8, regleRetiree: false })
     expect(commits(b)).toHaveLength(3); b.depot.avantCommit = () => {}
-    expect(await reprendre(b)).toMatchObject({ statut: 'termine' }); expect(b.lire('e1').locuteurs[0].pseudo).toBe('Concurrent')
+    expect(await reprendre(b)).toMatchObject({ statut: 'termine' }); expect(b.lire('e1').participations[0].pseudo).toBe('Concurrent')
   })
   test('249 cibles : refus avant tout commit, jamais de découpage implicite', async () => {
     const b = banc(249)
@@ -287,7 +287,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     const c = b.cp()
     if (cas === 'operation') c.suppressionAnon!.operationId = 'faux'
     else if (cas === 'regle') c.suppressionAnon!.regleId = 'absente'
-    else if (cas === 'coexistence') c.dissociationAnon = { operationId: 'dissociation-x', regleId: 'personne' }
+    else if (cas === 'coexistence') c.dissociationAnon = { operationId: 'dissociation-x', regleId: "personne" }
     else c.formatVersion--
     expect(() => lireBarriereSuppressionAnon(c)).toThrow('invalide')
     expect(() => verifierReferencesDefinitions(b.lire('e3'), c)).toThrow('invalide')
@@ -295,7 +295,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
   test('aucune dissociation ou aucun renommage concurrent pendant une suppression', async () => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)
     await expect(new DissociationsAnonGitLab(b.options, () => []).preparer(b.demande)).rejects.toThrow('suppression')
-    expect(() => inventorierRenommageAnon(b.cp(), b.sources, { regleId: 'personne', ancienPseudo: 'Claire', nouveauPseudo: 'Alice' })).toThrow('suppression')
+    expect(() => inventorierRenommageAnon(b.cp(), b.sources, { regleId: "personne", ancienPseudo: 'Claire', nouveauPseudo: 'Alice' })).toThrow('suppression')
   })
   test('journal invalide à la réouverture : refus avant toute lecture réseau', async () => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)

@@ -30,8 +30,8 @@ function exercice() {
 }
 function extrait(entretienId: string): ExtraitSynthese {
   return { id: `extrait-${entretienId}`, entretienId, titreEntretien: entretienId, from: 1, to: 30,
-    longueurSource: 100, themeIds: [THEME_UTILITE], annotationIds: ['a1'], locuteurIds: ['l1'],
-    personneIds: [], ordre: 0, texte: 'Se sentir utile dans l’aide aux devoirs.', avant: '', apres: '', locuteurs: ['Bénévole'] }
+    longueurSource: 100, themeIds: [THEME_UTILITE], annotationIds: ['a1'], participationIds: ['l1'],
+    locuteurIds: [], ordre: 0, texte: 'Se sentir utile dans l’aide aux devoirs.', avant: '', apres: '', locuteurs: ['Bénévole'] }
 }
 function syntheseCalculee(deps: DepsParcoursAnalyse, ids = Object.keys(deps.membership.value)) {
   deps.sousEspaceAnalyse.value = 'synthese'
@@ -90,13 +90,23 @@ describe('parcours d’analyse du corpus annoté', () => {
     expect(parcours.etapes[0].cible()).toBe('[data-tour="afficher-criteres-synthese"]')
   })
 
+  it('guide une restriction de locuteurs vers le nouvel onglet sans la perdre', () => {
+    const { deps, parcours } = exercice()
+    syntheseCalculee(deps)
+    deps.synthese.filtresSynthese.value.locuteurs.selection = { mode: 'choix', ids: ['identite-corpus'] }
+    expect(parcours.etapes[0].fait()).toBe(false)
+    expect(parcours.etapes[0].cible()).toBe('[data-tour="onglet-locuteurs-synthese"]')
+    expect(parcours.etapes[0].texte()).toContain('Dans « Locuteurs »')
+    expect(deps.synthese.filtresSynthese.value.locuteurs.selection).toEqual({ mode: 'choix', ids: ['identite-corpus'] })
+  })
+
   it('demande les concordances du mot de l’exercice et non la simple ouverture de Lexico', () => {
     const { deps, parcours } = exercice()
     deps.sousEspaceAnalyse.value = 'lexico'
     expect(parcours.etapes[1].fait()).toBe(false)
     const occurrence: OccurrenceLexico = { id: 'o1', forme: 'enfants', texte: 'enfants',
-      entretienId: 'e0', titreEntretien: '1Coordinatrice', from: 1, to: 8, locuteurIndex: 1,
-      personneId: null, interviewer: false, valeursEntretien: {}, valeursLocuteur: {}, themeIds: [],
+      entretienId: 'e0', titreEntretien: '1Coordinatrice', from: 1, to: 8, participationIndex: 1,
+      locuteurId: null, interviewer: false, valeursEntretien: {}, valeursParticipation: {}, themeIds: [],
       avant: 'aider les', apres: 'à apprendre', pseudonyme: false }
     deps.lexico.lignesLexico.value = [{ forme: 'enfants', occurrences: 1, entretiens: 1, details: [occurrence] }]
     expect(parcours.etapes[1].fait()).toBe(false)

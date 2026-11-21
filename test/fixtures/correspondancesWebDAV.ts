@@ -18,7 +18,7 @@ export const documentsImportWebDAV = [{ nom: 'table.json', texte: JSON.stringify
 ] }) }]
 export const corpusImportWebDAV = () => corpusDistantValide(['e1', 'e2'])
 export const entretienImportWebDAV = () => entretienDistantValide({
-  locuteurs: [{ index: 1, nom: 'Karine', valeursLoc: {}, personneRef: 'personne-synthetique' }],
+  participations: [{ id: "loc-1", index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: 'personne-synthetique' }],
   corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte intact.' }] }] },
 })
 export function serviceImportWebDAV(client: ClientWebDAV, dir: string, natif: boolean, sessions: string[] = [], miroir = (_chemin: string, _contenu: string, _etag: string) => {}) {

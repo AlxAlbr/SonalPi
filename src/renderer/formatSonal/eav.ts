@@ -1,4 +1,4 @@
-import type { Locuteur, Variable } from '../../shared/format'
+import type { ParticipationLocuteur, Variable } from '../../shared/format'
 // Le cœur du mapping (ids déterministes + importerVariables) vit dans le
 // `shared` (une seule vérité pour `.sonal` ET `.crp` — migrationCrp.ts).
 // Ré-exporté ici pour compat : l'import `.sonal` et les tests consomment
@@ -44,7 +44,7 @@ interface DatLegacy {
  */
 export function distribuerValeurs(
   tabDat: unknown,
-  locuteurs: Locuteur[],
+  locuteurs: Pick<ParticipationLocuteur, 'index' | 'valeursLoc'>[],
 ): Record<string, string> {
   const valeursGen: Record<string, string> = {}
   const parIndex = new Map(locuteurs.map((l) => [l.index, l]))
@@ -85,7 +85,7 @@ export function exporterVariables(variables: Variable[]): { tabVar: VarLegacy[];
  */
 export function exporterValeurs(
   valeursGen: Record<string, string>,
-  locuteurs: Locuteur[],
+  locuteurs: ParticipationLocuteur[],
   variables: Variable[],
 ): DatLegacy[] {
   const vExp = new Map<string, number>()

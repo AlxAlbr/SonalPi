@@ -4,7 +4,7 @@ import { Schema } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
 import { gouttierePluginKey, pluginGouttiere } from '../src/renderer/editor/locuteursGutter'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
 const schema = new Schema({
   nodes: {
@@ -15,7 +15,7 @@ const schema = new Schema({
 })
 
 test.each([undefined, 'Nadia'])('changer la couleur rafraîchit les libellés déjà affichés (pseudo : %s)', (pseudo) => {
-  const locuteurs: Locuteur[] = [{ index: 1, nom: 'Fatima', pseudo, couleur: '#64b5f6', valeursLoc: {}, personneRef: null }]
+  const locuteurs: ParticipationLocuteur[] = [{ id: "loc-1", index: 1, nom: 'Fatima', pseudo, couleur: '#64b5f6', valeursLoc: {}, locuteurRef: null }]
   const hote = document.body.appendChild(document.createElement('div'))
   const vue = new EditorView(hote, {
     state: EditorState.create({

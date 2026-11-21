@@ -58,7 +58,7 @@ export class DocumentsMigrationGitLab {
         this.bilan.destinationMedia === 'depot' ? 'gitlab' : 'webdav')
     }
     payload.meta.sourceV1 = { rtrPath: mapperEntretiensV1(this.bilan.apercu.raw.tabEnt)[index]?.rtrPath ?? null }
-    const plan = this.store.preparerImportEntretien(entretien.titre, payload, conversion.codebook ?? [], conversion.variables ?? [], conversion.reglesAnon)
+    const plan = this.store.preparerImportEntretien(entretien.titre, payload, conversion.codebook ?? [], conversion.variables ?? [], conversion.reglesAnon, 'v1')
     const regles = Object.values(plan.corpusApres.reglesAnon)
     const plat = aplatir(payload.corpsTexte)
     // La fusion conserve les règles existantes, pas les identifiants temporaires de l'import.

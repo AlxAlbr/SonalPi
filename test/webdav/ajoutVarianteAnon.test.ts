@@ -95,8 +95,8 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
     if (cause === 'ancien-format') c.formatVersion--
     if (cause === 'membership') c.membership = []
     if (cause === 'regles') c.reglesAnon = []
-    if (cause === 'suppression') c.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: 'personne' }
-    if (cause === 'dissociation') c.dissociationAnon = { operationId: 'dissociation-fixture', regleId: 'personne' }
+    if (cause === 'suppression') c.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: "personne" }
+    if (cause === 'dissociation') c.dissociationAnon = { operationId: 'dissociation-fixture', regleId: "personne" }
     b.serveur.poser('corpus.crp', JSON.stringify(c))
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow(); expect(b.publies()).toHaveLength(0)
   })

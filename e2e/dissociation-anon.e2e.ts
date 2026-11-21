@@ -3,15 +3,12 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ouvrirSurCorpus, lancer } from './util'
 import { fixtureDissociationAnon } from '../test/fixtures/dissociationAnon'
+import { importerFixtureNative } from './fixtures-natives'
 
 async function installer(page: Page, sourcesGardees?: number[]) {
   const fixture = fixtureDissociationAnon()
   const sources = sourcesGardees ? fixture.sources.filter((_source, index) => sourcesGardees.includes(index)) : fixture.sources
-  const ids = await page.evaluate(async ({ corpus, sources }) => {
-    const ids: string[] = []
-    for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
-    return ids
-  }, { corpus: fixture.corpus, sources })
+  const ids = await importerFixtureNative(page, { corpus: fixture.corpus, sources })
   const regle = await page.evaluate(async () => (await window.sonal.corpus.reglesAnon()).find((r) => r.entite[0] === 'Karine')!)
   await page.reload()
   await page.getByRole('button', { name: 'corpus', exact: true }).click()
@@ -129,7 +126,8 @@ test('sortie du corpus utilisée seulement ici : retour en chantier direct et oc
     await expect(page.locator('.editeur')).toBeVisible()
     const chantier = page.locator('.ligne-anon.etat-brouillon', { hasText: 'Karine' }).first()
     await expect(chantier).toBeVisible()
-    await expect(chantier.locator('.cpt-aanon')).toContainText('À ')
+    await expect(chantier.locator('.cpt-aanon')).toHaveText('5')
+    await expect(chantier.locator('.cpt-aanon')).toHaveAttribute('title', 'Repérer les 5 occurrence(s) à anonymiser')
     await expect(page.getByRole('dialog', { name: 'Dissocier une règle du corpus', exact: true })).toHaveCount(0)
     expect(dialogues).toBe(0)
     expect((await page.evaluate(() => window.sonal.corpus.reglesAnon())).some((r) => r.id === regle.id)).toBe(false)

@@ -1,5 +1,5 @@
 {
-  "formatVersion": 9,
+  "formatVersion": 10,
   "lastModified": "2026-10-26T18:22:46.798Z",
   "corpsTexte": {
     "type": "doc",
@@ -1746,28 +1746,6 @@
       "t": 234.54
     }
   ],
-  "locuteurs": [
-    {
-      "index": 1,
-      "nom": "Réponse",
-      "interviewer": false,
-      "valeursLoc": {
-        "v3": "v3m3",
-        "v4": "v4m3",
-        "v5": "v5m7"
-      },
-      "personneRef": null,
-      "id": "loc-CFmToIDApeVa0YEPukb1JPneQzJd1HiWcsJBR-VGMpw"
-    },
-    {
-      "index": 2,
-      "nom": "Question",
-      "interviewer": true,
-      "valeursLoc": {},
-      "personneRef": null,
-      "id": "loc-lb3OyFF3Cc6Q99J1hBfpm0vhbRDQo60zBnjddGMRWmw"
-    }
-  ],
   "meta": {
     "valeursGen": {},
     "audioRef": "/home/belignem/Vscode/SonalPiTestV2/CorpusTest/CorpusSynth/audio/3Cuisinier.mp3"
@@ -1786,5 +1764,27 @@
       "modifieLe": null
     }
   ],
-  "reperesPassages": []
+  "reperesPassages": [],
+  "participations": [
+    {
+      "index": 1,
+      "nom": "Réponse",
+      "interviewer": false,
+      "valeursLoc": {
+        "v3": "v3m3",
+        "v4": "v4m3",
+        "v5": "v5m7"
+      },
+      "id": "loc-CFmToIDApeVa0YEPukb1JPneQzJd1HiWcsJBR-VGMpw",
+      "locuteurRef": "pers-demo-05"
+    },
+    {
+      "index": 2,
+      "nom": "Question",
+      "interviewer": true,
+      "valeursLoc": {},
+      "id": "loc-lb3OyFF3Cc6Q99J1hBfpm0vhbRDQo60zBnjddGMRWmw",
+      "locuteurRef": "pers-demo-06"
+    }
+  ]
 }

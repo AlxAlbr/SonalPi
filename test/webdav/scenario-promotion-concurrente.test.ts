@@ -46,7 +46,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: {},
   }
   return JSON.stringify(c, null, 2)

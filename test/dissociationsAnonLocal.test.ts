@@ -42,7 +42,7 @@ describe('dissociation locale scellée et journalée', () => {
     const r = b.cache.appliquer(a.token, true)
     expect(r).toMatchObject({ annotations: 8, exceptions: 2, incluses: 2, definitionsLocales: 2, entretiens: 2, regleRetiree: true })
     expect(b.lire().corpsTexte).toEqual(avant.corpsTexte)
-    expect(b.lire().locuteurs).toEqual(avant.locuteurs)
+    expect(b.lire().participations).toEqual(avant.participations)
     expect(b.lire().annotations.map((a) => a.pseudo)).toEqual(avant.annotations.map((a) => a.pseudo))
     expect(b.lire().definitionsAnonLocales!.at(-1)).toEqual({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
     expect(b.lire().lastModified).toBe('2026-10-10T00:00:00.000Z')
@@ -130,7 +130,7 @@ describe('dissociation locale scellée et journalée', () => {
     injection.destination = ''
     new CorpusStore(b.dir).ouvrir()
     expect(b.lire()).toEqual(acquis)
-    expect(b.lire('e2').annotations.some((a) => a.regle === 'personne')).toBe(false)
+    expect(b.lire('e2').annotations.some((a) => a.regle === "personne")).toBe(false)
     expect(b.corpus().reglesAnon.personne).toBeUndefined()
     expect(existsSync(journal)).toBe(false)
   })
@@ -165,7 +165,7 @@ describe('dissociation locale scellée et journalée', () => {
     expect(() => new CorpusStore(b.dir).ouvrir()).toThrow('De nouveaux liens')
     expect(b.lire()).toEqual(acquis); expect(b.lire('e3')).toEqual(tiers)
     expect(b.corpus().reglesAnon.personne).toBeDefined()
-    expect(b.lire('e2').annotations.some((a) => a.regle === 'personne')).toBe(true)
+    expect(b.lire('e2').annotations.some((a) => a.regle === "personne")).toBe(true)
   })
   test.each(['copie', 'categorie', 'garde', 'version', 'garde-supprimee', 'corpus-final-premature'] as const)('journal modifié ne donne aucune autorité supplémentaire : %s', (cas) => {
     const b = banc(); injection.destination = join(b.dir, 'entretiens/e2.json')
@@ -181,7 +181,7 @@ describe('dissociation locale scellée et journalée', () => {
     writeFileSync(chemin, JSON.stringify(j))
     expect(() => new CorpusStore(b.dir).ouvrir()).toThrow()
     expect(b.lire()).toEqual(acquis)
-    expect(b.lire('e2').annotations.some((a) => a.regle === 'personne')).toBe(true)
+    expect(b.lire('e2').annotations.some((a) => a.regle === "personne")).toBe(true)
   })
   test('une empreinte forgée ne dispense pas de prouver l’absence de nouveaux liens', () => {
     const b = banc(); injection.destination = join(b.dir, 'entretiens/e2.json')

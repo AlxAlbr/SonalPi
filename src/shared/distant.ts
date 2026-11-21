@@ -56,8 +56,10 @@ export interface CapacitesCorpus {
   suppressionSourceThemes: boolean
   /** Notes du corpus, par entretien. */
   notes: boolean
-  /** Corrections de personnes. */
-  personnes: boolean
+  /** Corrections des identités depuis le corpus, éditions fermées. */
+  correctionsLocuteurs: boolean
+  renommageLocuteurOuvert: boolean
+  nommageLocuteurs: boolean
   /** Annulation d'une action du journal du corpus. */
   annulationJournal: boolean
   /** Désignation d'un média déjà présent dans un stockage partagé. */

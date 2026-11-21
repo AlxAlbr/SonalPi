@@ -16,9 +16,9 @@ describe('correspondances des locuteurs indépendantes du texte', () => {
   test('déduplique les mêmes couples en conservant tous les entretiens et identités locales', () => {
     const { entretiens } = fixturePseudonymisation()
     const e1 = entretiens[0]
-    e1.data.locuteurs[0].id = 'loc-a'
+    e1.data.participations[0].id = 'loc-a'
     const e2 = { id: 'e2', data: structuredClone(e1.data) }
-    e2.data.locuteurs[0].id = 'loc-b'
+    e2.data.participations[0].id = 'loc-b'
     const inventaire = inventorierCorrespondancesLocuteurs([e2, e1, e1])
     expect(inventaire.correspondances).toHaveLength(1)
     expect(inventaire.correspondances[0].origines).toHaveLength(2)
@@ -29,7 +29,7 @@ describe('correspondances des locuteurs indépendantes du texte', () => {
     const { entretiens } = fixturePseudonymisation()
     const e1 = entretiens[0]
     const e2 = { id: 'e2', data: structuredClone(e1.data) }
-    e2.data.locuteurs[0].pseudoEtat = 'refuse'
+    e2.data.participations[0].pseudoEtat = 'refuse'
     const inventaire = inventorierCorrespondancesLocuteurs([e1, e2])
     expect(inventaire.correspondances).toHaveLength(1)
     expect(inventaire.correspondances[0].utilisee).toBe(true)
@@ -42,21 +42,21 @@ describe('correspondances des locuteurs indépendantes du texte', () => {
   test('signale une divergence de pseudo pour une personne et pour un nom, sans synchronisation', () => {
     const { entretiens } = fixturePseudonymisation()
     const e1 = entretiens[0]
-    e1.data.locuteurs[0].personneRef = 'personne-partagee'
+    e1.data.participations[0].locuteurRef = 'personne-partagee'
     const e2 = { id: 'e2', data: structuredClone(e1.data) }
-    e2.data.locuteurs[0].pseudo = 'Autre voix'
+    e2.data.participations[0].pseudo = 'Autre voix'
     const avant = structuredClone([e1, e2])
     const inventaire = inventorierCorrespondancesLocuteurs([e1, e2])
     expect(inventaire.correspondances).toHaveLength(2)
-    expect(inventaire.divergences.map((d) => d.nature)).toEqual(['nom', 'personne'])
+    expect(inventaire.divergences.map((d) => d.nature)).toEqual(['nom', "locuteur"])
     expect(inventaire.divergences[1]).toMatchObject({ cle: 'personne-partagee', pseudos: ['Autre voix', 'Voix témoin'] })
     expect([e1, e2]).toEqual(avant)
   })
 
   test('un refus ou un pseudo identique au nom ne produit pas réellement de pseudo', () => {
     const { entretiens } = fixturePseudonymisation()
-    const original = entretiens[0].data.locuteurs[0]
-    entretiens[0].data.locuteurs = [
+    const original = entretiens[0].data.participations[0]
+    entretiens[0].data.participations = [
       { ...original, index: 0, pseudoEtat: 'refuse' },
       { ...original, index: 1, pseudo: original.nom },
       { ...original, index: 2, pseudo: '   ' },

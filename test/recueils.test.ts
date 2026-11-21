@@ -189,7 +189,7 @@ function source(): EntretienFichier {
     ],
     ancres: [],
     reperesPassages: [{ id: 'p1', from: 1, to: 22 }],
-    locuteurs: [{ index: 1, nom: 'Alice', pseudo: 'Locutrice A', pseudoEtat: 'confirme', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'Alice', pseudo: 'Locutrice A', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null }],
     meta: { valeursGen: {}, audioRef: null },
   }
 }

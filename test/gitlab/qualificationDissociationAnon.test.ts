@@ -11,7 +11,7 @@ definirPrefixeBanc('dissociation-moteur')
 const donnees = (p: Pile) => p.commitsEnvoyes.filter((c) => c.message.startsWith('Sonal dissociation-'))
 async function banc(suffixe: string, fetchImpl?: typeof fetch) {
   const f = fixtureDissociationAnon()
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const racine = await creerRacine(suffixe, { corpus: f.corpus })
   const p = pile({ racine, jeton: configuration.token1!, userId: 'user1', sessionId: `dissociation-${suffixe}`, destinationId: 'qualification', corpusLocal: f.corpus, fetchImpl })
   await p.depot.publierCommit('main', 'qualification dissociation : sources synthétiques', f.sources.map((s) => ({ action: 'create', file_path: `${racine}/entretiens/${s.id}.json`, content: JSON.stringify(s.data) })))
@@ -38,7 +38,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
         if (source.id !== 'e3') {
           attendu.lastModified = apres.lastModified
           attendu.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
-          for (const a of attendu.annotations) if (a.regle === 'personne') delete a.regle
+          for (const a of attendu.annotations) if (a.regle === "personne") delete a.regle
         }
         expect(apres).toEqual(attendu)
       }
@@ -52,7 +52,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
       expect((await session.ouvrir()).etat).toBe('edition')
       expect(await s.appliquer(a.token, true)).toMatchObject({ statut: 'partiel', annotations: 4, regleRetiree: false })
       expect((await corpus()).reglesAnon.personne).toBeDefined()
-      const candidat = structuredClone(f.sources[1].data); candidat.locuteurs[0].pseudo = 'Édition concurrente'
+      const candidat = structuredClone(f.sources[1].data); candidat.participations[0].pseudo = 'Édition concurrente'
       await session.ecrire(JSON.stringify(candidat)); await session.marquerSale()
       expect(await session.publier()).toMatchObject({ statut: 'refuse', raison: 'references' })
       expect(await session.fermer()).toMatchObject({ fermee: false })
@@ -71,7 +71,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
     try {
       expect((await session.ouvrir()).etat).toBe('edition'); await cible.ouvrir()
       expect(await s.appliquer(a.token, true)).toMatchObject({ statut: 'partiel' })
-      const candidat = structuredClone(f.sources[2].data); candidat.locuteurs[0].pseudo = 'Choix indépendant'
+      const candidat = structuredClone(f.sources[2].data); candidat.participations[0].pseudo = 'Choix indépendant'
       await session.ecrire(JSON.stringify(candidat)); await session.marquerSale()
       expect((await session.publier()).statut).toBe('confirme')
       const importe = structuredClone(candidat); importe.annotations = [structuredClone(f.sources[0].data.annotations[0])]

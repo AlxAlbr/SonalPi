@@ -7,7 +7,6 @@
  *  • entretien.ts    — commandes de l'agrégat Entretien
  *  • journal.ts      — journal d'activité
  *  • locuteurs.ts    — locuteurs (dont pseudo/pseudoEtat)
- *  • migration.ts    — migration formatVersion 1→2 des entretiens
  *  • anon/           — DOMAINE anonymisation (moteur, brouillons, pseudos,
  *                      application en masse), voir anon/index.ts
  *
@@ -21,6 +20,5 @@ export * from './audio'
 export * from './entretien'
 export * from './journal'
 export * from './locuteurs'
-export * from './migration'
 export * from './reperesPassages'
 export * from './anon'

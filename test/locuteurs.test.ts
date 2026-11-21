@@ -3,7 +3,6 @@ import { describe, test, expect } from 'vitest'
 import {
   nomDeLocuteur,
   prochainIndex,
-  renommerLocuteur,
   ajouterLocuteur,
   genIdLocuteur,
   libelleGouttiere,
@@ -11,13 +10,14 @@ import {
   nomDeCouleur,
   PALETTE_PASTILLES_LOCUTEURS,
 } from '../src/shared/entretien/locuteurs'
+import { renommerParticipation } from '../src/shared/entretien/participations'
 import { construireLibelleGouttiere } from '../src/renderer/editor/locuteursGutter'
-import type { Locuteur } from '../src/shared/format'
+import type { ParticipationLocuteur } from '../src/shared/format'
 
-function locs(): Locuteur[] {
+function locs(): ParticipationLocuteur[] {
   return [
-    { index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
-    { index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
+    { id: "loc-1", index: 1, nom: 'Enquêteur', valeursLoc: {}, locuteurRef: null },
+    { id: "loc-2", index: 2, nom: 'Karine', valeursLoc: {}, locuteurRef: null },
   ]
 }
 
@@ -36,7 +36,9 @@ describe('modèle locuteurs (pur)', () => {
 
   test('renommer répercute par RÉFÉRENCE (l’index ne change pas)', () => {
     const l = locs()
-    renommerLocuteur(l, 2, 'K.')
+    l[1].id = 'id-existant'
+    expect(renommerParticipation(l, 'id-existant', 'K.')).toBe(true)
+    expect(l[1].id).toBe('id-existant')
     expect(l.find((x) => x.index === 2)?.nom).toBe('K.')
     // l'index (ce que les blocs référencent) est intact.
     expect(l.map((x) => x.index)).toEqual([1, 2])

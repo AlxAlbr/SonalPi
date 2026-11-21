@@ -3,7 +3,7 @@ import type { EditorState } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { libelleGouttiere, type LibelleGouttiere } from '../../shared/entretien/locuteurs'
-import type { Locuteur } from '../../shared/format'
+import type { ParticipationLocuteur } from '../../shared/format'
 
 export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
 
@@ -98,7 +98,7 @@ function elementGouttiere(
   return el
 }
 
-function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos: number) => void): DecorationSet {
+function construire(state: EditorState, locuteurs: ParticipationLocuteur[], onClicTour?: (pos: number) => void): DecorationSet {
   const decos: Decoration[] = []
   // Interviewers (ceux qui posent les questions) : leurs tours passent en italique —
   // le pendant du « ? » SonalPi1, sans teinte de fond (rendu neutre).
@@ -151,7 +151,7 @@ function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos
  *  changements ne touchent AUCUN bloc, seul le rendu se rafraîchit.
  */
 export function pluginGouttiere(
-  getLocuteurs: () => Locuteur[],
+  getLocuteurs: () => ParticipationLocuteur[],
   onClicTour?: (pos: number) => void,
 ): Plugin {
   return new Plugin({

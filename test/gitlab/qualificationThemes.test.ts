@@ -45,7 +45,7 @@ function entretien(id: string): EntretienFichier {
     formatVersion: FORMAT_VERSION, lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: `passage ${id}` }] }] },
     annotations: [{ id: `a-${id}`, type: 'codage', code: 'source', from: 0, to: 7, auteur: 'qualification' }],
-    ancres: [], locuteurs: [], meta: { valeursGen: {}, audioRef: null },
+    ancres: [], participations: [], meta: { valeursGen: {}, audioRef: null },
   }
 }
 

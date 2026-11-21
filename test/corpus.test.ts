@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import * as corpus from '../src/shared/corpus'
-import { detailsVariablesEntretien } from '../src/shared/corpus/variables'
-import type { CorpusFichier, EntretienFichier, Locuteur } from '../src/shared/format'
+import { detailsVariablesEntretien } from "../src/shared/corpus/variables"
+import type { CorpusFichier, EntretienFichier, ParticipationLocuteur } from '../src/shared/format'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
@@ -12,20 +12,20 @@ import type { Annotation } from '../src/shared/entretien/annotation'
  */
 
 function corpusVide(): CorpusFichier {
-  return { formatVersion: 1, codebook: {}, variables: {}, reglesAnon: {}, personnes: {}, membership: {} }
+  return { formatVersion: 10, codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {}, membership: {} }
 }
 function codage(code: string, from = 0, to = 1): Annotation {
   return { id: `a-${from}-${code}`, type: 'codage', from, to, auteur: 'm', code }
 }
-function loc(index: number, valeursLoc: Record<string, string> = {}): Locuteur {
-  return { index, nom: `L${index}`, valeursLoc, personneRef: null }
+function loc(index: number, valeursLoc: Record<string, string> = {}): ParticipationLocuteur {
+  return { index, nom: `L${index}`, valeursLoc, locuteurRef: null }
 }
 function ent(
   annotations: Annotation[] = [],
-  locuteurs: Locuteur[] = [],
+  locuteurs: ParticipationLocuteur[] = [],
   valeursGen: Record<string, string> = {},
 ): EntretienFichier {
-  return { formatVersion: 2, lastModified: '', corpsTexte: {}, annotations, ancres: [], locuteurs, meta: { valeursGen, audioRef: null } }
+  return { formatVersion: 10, lastModified: '', corpsTexte: {}, annotations, ancres: [], participations: locuteurs, meta: { valeursGen, audioRef: null } }
 }
 
 describe('corpus — codebook (règles pures)', () => {
@@ -117,13 +117,13 @@ describe('corpus — variables/modalités (id opaque injecté)', () => {
     let n = 0
     const gid = () => `var-${++n}`
     expect(corpus.ajouterVariable(c, 'Lieu', 'entretien', gid)).toBe('var-1')
-    expect(corpus.ajouterVariable(c, 'Sexe', 'locuteur', gid)).toBe('var-2')
-    expect(c.variables['var-2']).toMatchObject({ ordre: 1, vExport: 2, portee: 'locuteur' })
+    expect(corpus.ajouterVariable(c, 'Sexe', 'participation', gid)).toBe('var-2')
+    expect(c.variables['var-2']).toMatchObject({ ordre: 1, vExport: 2, portee: "participation" })
   })
 
   test('ajouterModalite : id injecté + mExport en fin', () => {
     const c = corpusVide()
-    const v = corpus.ajouterVariable(c, 'Sexe', 'locuteur', () => 'var-1')
+    const v = corpus.ajouterVariable(c, 'Sexe', 'participation', () => 'var-1')
     corpus.ajouterModalite(c, v, 'H', () => 'mod-1')
     corpus.ajouterModalite(c, v, 'F', () => 'mod-2')
     expect(c.variables[v].modalites.map((m) => m.mExport)).toEqual([1, 2])
@@ -137,9 +137,9 @@ describe('corpus — détails variables d’un entretien (panneau métadonnées,
     return [
       { id: 'v1', lib: 'Lieu', portee: 'entretien' as const, priv: false, ordre: 0, vExport: 1,
         modalites: [{ id: 'v1m1', lib: 'Lyon', mExport: 1 }, { id: 'v1m2', lib: 'Paris', mExport: 2 }] },
-      { id: 'v2', lib: 'Sexe', portee: 'locuteur' as const, priv: false, ordre: 1, vExport: 2,
+      { id: 'v2', lib: 'Sexe', portee: "participation" as const, priv: false, ordre: 1, vExport: 2,
         modalites: [{ id: 'v2m1', lib: 'H', mExport: 1 }, { id: 'v2m2', lib: 'F', mExport: 2 }] },
-      { id: 'v3', lib: 'Âge', portee: 'locuteur' as const, priv: false, ordre: 2, vExport: 3,
+      { id: 'v3', lib: 'Âge', portee: "participation" as const, priv: false, ordre: 2, vExport: 3,
         modalites: [] },
     ]
   }
@@ -147,15 +147,15 @@ describe('corpus — détails variables d’un entretien (panneau métadonnées,
   test('résout les libellés de modalités et respecte l’ordre des définitions', () => {
     const d = detailsVariablesEntretien(definitions(), {
       meta: { valeursGen: { v1: 'v1m2' } },
-      locuteurs: [
+      participations: [
         { nom: 'Karine', valeursLoc: { v2: 'v2m2' } },
       ],
     })
     expect(d.generales.map((l) => [l.lib, l.valeur])).toEqual([['Lieu', 'Paris']])
-    expect(d.parLocuteur).toHaveLength(1)
-    expect(d.parLocuteur[0].nom).toBe('Karine')
+    expect(d.parParticipation).toHaveLength(1)
+    expect(d.parParticipation[0].nom).toBe('Karine')
     // Les deux variables locuteurs, dans l'ordre ; « Âge » n'a pas de valeur.
-    expect(d.parLocuteur[0].lignes.map((l) => [l.lib, l.valeur])).toEqual([
+    expect(d.parParticipation[0].lignes.map((l) => [l.lib, l.valeur])).toEqual([
       ['Sexe', 'F'],
       ['Âge', null],
     ])
@@ -164,13 +164,13 @@ describe('corpus — détails variables d’un entretien (panneau métadonnées,
   test('les interviewers (« ? ») n’ont pas de bloc ; une valeur orpheline est ignorée', () => {
     const d = detailsVariablesEntretien(definitions(), {
       meta: { valeursGen: { v1: 'inconnu' } }, // idMod sans définition → pas de valeur affichée
-      locuteurs: [
+      participations: [
         { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité SonalPi1)
         { nom: 'Karine', valeursLoc: {} },
       ],
     })
     expect(d.generales[0].valeur).toBeNull()
-    expect(d.parLocuteur.map((b) => b.nom)).toEqual(['Karine'])
+    expect(d.parParticipation.map((b) => b.nom)).toEqual(['Karine'])
   })
 })
 
@@ -205,7 +205,7 @@ describe('corpus — requêtes calculées depuis une liste d’entretiens', () =
     const e = ent([], [loc(1, { v2: 'v2m1' })], { v1: 'v1m1' })
     const m = corpus.matriceCorpus([{ id: 'e1', titre: 'T', data: e }])
     expect(m[0]).toMatchObject({ entretienId: 'e1', titre: 'T', valeursGen: { v1: 'v1m1' } })
-    expect(m[0].locuteurs[0]).toMatchObject({ index: 1, valeursLoc: { v2: 'v2m1' } })
+    expect(m[0].participations[0]).toMatchObject({ participationId: null, index: 1, valeursLoc: { v2: 'v2m1' } })
   })
 })
 
@@ -365,15 +365,15 @@ describe('corpus — poserValeur (édition table de données)', () => {
   })
 
   test('portée locuteur → valeursLoc du bon locuteur (pas de sentinelle)', () => {
-    const e = ent([], [loc(1), loc(2)])
-    corpus.poserValeur(e, { type: 'locuteur', index: 2 }, 'v2', 'v2m1')
-    expect(e.locuteurs.find((l) => l.index === 2)!.valeursLoc).toEqual({ v2: 'v2m1' })
-    expect(e.locuteurs.find((l) => l.index === 1)!.valeursLoc).toEqual({})
+    const e = ent([], [{ ...loc(1), id: 'local-a' }, { ...loc(2), id: 'local-b' }])
+    corpus.poserValeur(e, { type: 'participation', participationId: 'local-b' }, 'v2', 'v2m1')
+    expect(e.participations.find((l) => l.index === 2)!.valeursLoc).toEqual({ v2: 'v2m1' })
+    expect(e.participations.find((l) => l.index === 1)!.valeursLoc).toEqual({})
   })
 
   test('locuteur cible absent → no-op (pas de fantôme)', () => {
     const e = ent([], [loc(1)])
-    corpus.poserValeur(e, { type: 'locuteur', index: 9 }, 'v2', 'v2m1')
-    expect(e.locuteurs[0].valeursLoc).toEqual({})
+    corpus.poserValeur(e, { type: 'participation', participationId: 'absente' }, 'v2', 'v2m1')
+    expect(e.participations[0].valeursLoc).toEqual({})
   })
 })

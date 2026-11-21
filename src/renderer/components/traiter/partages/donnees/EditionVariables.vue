@@ -24,7 +24,7 @@ defineEmits<{ fermer: [] }>()
  *  « + var. » correspondant — comme les autres crayons de l’app, elle ouvre
  *  l’édition SANS créer quoi que ce soit. Sans portée (table de données), tout
  *  est visible. */
-const props = defineProps<{ portee?: 'entretien' | 'locuteur' }>()
+const props = defineProps<{ portee?: 'entretien' | "participation" }>()
 
 const {
   variables,
@@ -153,7 +153,7 @@ function noterChampNom(el: HTMLInputElement | null, id: string) {
   if (el) champsNom.set(id, el)
   else champsNom.delete(id)
 }
-async function creerVariable(portee: 'entretien' | 'locuteur') {
+async function creerVariable(portee: 'entretien' | 'participation') {
   const id = await ajouterVariable(portee)
   nouveauId.value = id
   await nextTick() // attendre que la ligne (le champ nom) soit rendue
@@ -218,10 +218,10 @@ onMounted(() => {
           + var. d'entretien
         </button>
         <button
-          v-if="!portee || portee === 'locuteur'"
+          v-if="!portee || portee === 'participation'"
           class="mini"
           title="Créer une variable de locuteur (une valeur par locuteur)"
-          @click="creerVariable('locuteur')"
+          @click="creerVariable('participation')"
         >
           + var. de locuteur
         </button>
@@ -434,7 +434,7 @@ onMounted(() => {
 .portee.entretien {
   background: #5c6bc0;
 }
-.portee.locuteur {
+.portee.participation {
   background: #8a6d3b;
 }
 /* Nom de la variable : largeur RÉDUITE pour laisser la place au sélecteur

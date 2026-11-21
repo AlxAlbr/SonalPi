@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
-import type { Locuteur } from '../../../../shared/format'
+import { computed, nextTick, ref, watch } from 'vue'
+import type { ParticipationLocuteur } from '../../../../shared/format'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
+import RenommageLocuteurOuvert from './RenommageLocuteurOuvert.vue'
 import StatistiquesLocuteurs from './StatistiquesLocuteurs.vue'
 
 const props = defineProps<{ actif: boolean; lectureSeule: boolean; statistiquesOuvertes: boolean }>()
@@ -13,11 +14,17 @@ const emit = defineEmits<{
 }>()
 
 const {
-  lirePersonnes,
+  lireIdentitesLocuteurs,
   locuteurs,
   ouvertId,
   attribuerLoc,
-  renommerLoc,
+  renommerParticipation,
+  regulariserLocuteur,
+  demandeRenommageGlobal,
+  erreurRenommageGlobal,
+  renommageGlobalOccupe,
+  editionNomsSuspendue,
+  renommageEnCours,
   messagePersonnes,
   rapprochementNommage,
   rapprochementOccupe,
@@ -32,8 +39,14 @@ const {
   confirmerSuppressionLocuteur,
   vue,
 } = utiliserSonal()
+const editionIndisponible = computed(() => props.lectureSeule || editionNomsSuspendue.value || renommageEnCours.value)
 
-function detailsLocuteur(locuteur: Locuteur): string {
+function regulariser(locuteur: ParticipationLocuteur) {
+  if (!window.confirm(`Enregistrer « ${locuteur.nom} » comme locuteur distinct dans le corpus ? Les paroles et informations seront conservées. Aucune ancienne association ne sera rétablie.`)) return
+  regulariserLocuteur({ entretienId: ouvertId.value ?? '', participationId: locuteur.id })
+}
+
+function detailsLocuteur(locuteur: ParticipationLocuteur): string {
   const pseudo = locuteur.pseudo?.trim()
   const role = locuteur.interviewer ? 'Pose les questions' : 'Répond aux questions'
   return pseudo && pseudo !== locuteur.nom.trim() ? `${pseudo} · ${role}` : role
@@ -92,12 +105,12 @@ watch(
   },
 )
 
-// Ne relit les personnes que si les liens changent, pas à chaque ajout de locuteur.
+// Relit les locuteurs du corpus quand les associations changent.
 watch(
-  () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.personneRef).filter(Boolean)]),
+  () => JSON.stringify([props.actif, ouvertId.value, locuteurs.value.map((locuteur) => locuteur.locuteurRef).filter(Boolean)]),
   async () => {
     const lecture = ++lectureLiensPersonnes
-    const references = locuteurs.value.flatMap((locuteur) => locuteur.personneRef ?? [])
+    const references = locuteurs.value.flatMap((locuteur) => locuteur.locuteurRef ?? [])
     erreurLiensPersonnes.value = ''
     // Les noms déjà connus restent affichés pendant la relecture, pour éviter un clignotement.
     if (!references.every((reference) => nomsPersonnesLiees.value[reference])) {
@@ -106,16 +119,16 @@ watch(
     }
     if (!props.actif || !references.length) return
     try {
-      const inventaire = await lirePersonnes()
+      const inventaire = await lireIdentitesLocuteurs()
       if (lecture !== lectureLiensPersonnes) return
       nomsPersonnesLiees.value = Object.fromEntries(
-        inventaire.personnes.map((personne) => [personne.id, personne.nom]),
+        inventaire.locuteurs.map((personne) => [personne.id, personne.nom]),
       )
       liensPersonnesCharges.value = true
     } catch {
       if (lecture === lectureLiensPersonnes) {
         erreurLiensPersonnes.value =
-          'Le nom des personnes liées est indisponible. Consultez le répertoire Personnes.'
+          'Les associations des locuteurs ne peuvent pas être vérifiées pour le moment.'
       }
     }
   },
@@ -138,6 +151,7 @@ watch(
       </div>
     </div>
 
+    <p v-if="editionNomsSuspendue && !renommageEnCours" role="alert">Les dernières paroles sont sauvegardées. Rouvrez le corpus avant de modifier à nouveau cet entretien.</p>
     <div class="attribuer">
       <span class="lbl">Attribuer le bloc courant<br />ou la sélection :</span>
       <div class="boutons-loc">
@@ -146,7 +160,7 @@ watch(
             class="attr"
             :aria-label="l.nom"
             :aria-describedby="`details-locuteur-${l.index}`"
-            :disabled="lectureSeule"
+            :disabled="editionIndisponible"
             @click="attribuerLoc(l.index)"
           >
             <span class="pastille-locuteur" :style="{ background: l.couleur ?? couleurPourLocuteur(l.index) }"></span>
@@ -159,7 +173,7 @@ watch(
             {{ l.nom }} — {{ detailsLocuteur(l) }}
           </span>
         </div>
-        <button class="attr aucun" :disabled="lectureSeule" @click="attribuerLoc(null)">aucun</button>
+        <button class="attr aucun" :disabled="editionIndisponible" @click="attribuerLoc(null)">aucun</button>
       </div>
     </div>
 
@@ -177,7 +191,7 @@ watch(
         <section class="modale-locuteurs">
           <div class="corpus-tete">
             <h3 id="titre-gestion-locuteurs">Gestion des locuteurs</h3>
-            <button class="mini" @click="nouveauLocuteur">+ Locuteur</button>
+            <button class="mini" :disabled="editionIndisponible" @click="nouveauLocuteur">+ Locuteur</button>
             <button
               ref="boutonFermerGestion"
               class="fermer"
@@ -186,7 +200,7 @@ watch(
               @click="fermerGestion"
             >✕</button>
           </div>
-          <p class="aide-gestion-locuteurs">Modifiez les noms, couleurs, pseudos et rôles, ou ajoutez et supprimez des locuteurs.</p>
+          <p v-if="renommageGlobalOccupe && !demandeRenommageGlobal?.confirmationRequise" role="status">Enregistrement du nom…</p>
           <div v-if="locuteurASupprimer" class="confirm-suppr">
             Supprimer « {{ locuteurASupprimer.nom }} » ? Ses
             <b>{{ locuteurASupprimer.nbBlocs }} bloc(s)</b> passent à « aucun » — <b>irréversible</b>.
@@ -206,10 +220,10 @@ watch(
             <RapprochementNommage
               v-if="rapprochementNommage"
               :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
+              :entretien-id="rapprochementNommage.entretienId"
               :cible="rapprochementNommage.cible"
               :sources="rapprochementNommage.sources"
               :nom="rapprochementNommage.nom"
-              :lien-actuel="rapprochementNommage.lienActuel"
               :candidats="rapprochementNommage.candidats"
               :occupe="rapprochementOccupe"
               :message="messagePersonnes"
@@ -218,43 +232,46 @@ watch(
             />
             <p
               v-if="messagePersonnes"
-              :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
               role="status"
             >{{ messagePersonnes }}</p>
             <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
             <ul class="liste-loc">
-              <li v-for="(l, i) in locuteurs" :key="l.index">
+              <li v-for="(l, i) in locuteurs" :key="l.id ? `id:${l.id}` : `index:${l.index}`">
                 <input
                   type="color"
                   class="carre-couleur"
                   :value="l.couleur ?? couleurPourLocuteur(l.index)"
                   :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
-                  :disabled="lectureSeule"
-                  @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
+                  :disabled="editionIndisponible"
+                  @change="choisirCouleurLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                 />
-                <input
-                  class="nom-loc"
-                  :data-tour="i === 0 ? 'nom-locuteur' : undefined"
-                  :value="l.nom"
-                  :disabled="lectureSeule"
-                  @change="renommerLoc(l.index, $event)"
-                />
+                <div class="nom-cell">
+                  <input
+                    class="nom-loc"
+                    :data-participation-id="l.id"
+                    :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                    :value="l.nom"
+                    :disabled="editionIndisponible || !l.id || renommageGlobalOccupe"
+                    @change="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                    @keydown.enter.prevent="renommerParticipation({ entretienId: ouvertId ?? '', participationId: l.id }, $event)"
+                  />
+                </div>
                 <div class="pseudo-cell">
                   <input
                     class="pseudo-loc"
                     :value="l.pseudo ?? ''"
                     placeholder="pseudo…"
                     title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
-                    :disabled="lectureSeule"
-                    @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
+                    :disabled="editionIndisponible"
+                    @change="setPseudoLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                   />
                 </div>
                 <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
                   <input
                     type="checkbox"
                     :checked="l.interviewer ?? false"
-                    :disabled="lectureSeule"
-                    @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                    :disabled="editionIndisponible"
+                    @change="setInterviewer({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).checked)"
                   />
                   <span class="glisseur"></span>
                   <span class="q">?</span>
@@ -262,14 +279,16 @@ watch(
                 <button
                   v-if="!lectureSeule"
                   class="x-loc"
+                  :disabled="editionIndisponible"
                   title="Supprimer ce locuteur"
-                  @click="demanderSuppressionLocuteur(l.index)"
+                  @click="demanderSuppressionLocuteur({ entretienId: ouvertId ?? '', participationId: l.id ?? '' })"
                 >✕</button>
-                <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
-                  Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
+                <span v-if="!l.locuteurRef || l.associationRetiree || (liensPersonnesCharges && !nomsPersonnesLiees[l.locuteurRef])" class="lien-personne-loc reference-personne-absente">
+                  {{ l.nom.trim() ? 'Ce locuteur n’est pas encore disponible dans le corpus.' : 'Renseignez un nom pour enregistrer ce locuteur.' }}
+                  <button v-if="!lectureSeule && l.nom.trim()" type="button" :disabled="renommageGlobalOccupe || rapprochementOccupe || editionIndisponible" @click="regulariser(l)">Enregistrer ce locuteur…</button>
                 </span>
-                <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
-                  Association à « {{ l.personneRef }} » en cours de vérification.
+                <span v-else-if="l.locuteurRef && !liensPersonnesCharges" class="lien-personne-loc">
+                  Association à « {{ l.locuteurRef }} » en cours de vérification.
                 </span>
               </li>
             </ul>
@@ -277,6 +296,7 @@ watch(
         </section>
       </div>
     </Teleport>
+    <RenommageLocuteurOuvert v-if="demandeRenommageGlobal && (demandeRenommageGlobal.confirmationRequise || erreurRenommageGlobal)" />
     <details
       class="statistiques-locuteurs"
       :open="statistiquesOuvertes"
@@ -324,9 +344,6 @@ watch(
 .liste-loc li {
   min-width: 0;
 }
-.message-personne-creation {
-  font-size: 14px;
-}
 .lien-personne-loc {
   grid-column: 2 / -1;
   color: #595969;
@@ -337,6 +354,7 @@ watch(
   color: #a82020;
   font-weight: 600;
 }
+.nom-cell { min-width: 0; }
 .nom-loc {
   width: 100%;
   box-sizing: border-box;
@@ -521,12 +539,6 @@ watch(
   font-size: 1.15rem;
   min-width: 2.5rem;
   min-height: 2.5rem;
-}
-.aide-gestion-locuteurs {
-  margin: 0 0 0.7rem;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.5;
 }
 .attribuer .lbl {
   display: block;

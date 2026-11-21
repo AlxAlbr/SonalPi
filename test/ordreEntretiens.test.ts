@@ -15,7 +15,7 @@ function corpus(titres: Array<[string, string]>): CorpusFichier {
     codebook: {},
     variables: {},
     reglesAnon: {},
-    personnes: {},
+    locuteurs: {},
     membership: Object.fromEntries(titres.map(([id, titre]) => [
       id,
       { titre, date: null, lastModified: '2000-01-01T00:00:00.000Z' },
@@ -30,7 +30,7 @@ function entretien(lastModified: string, corpsTexte: unknown): EntretienFichier 
     corpsTexte,
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }

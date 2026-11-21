@@ -13,15 +13,17 @@ function storeSeed() {
 }
 
 describe('CorpusStore — recueils et repères', () => {
-  test('migre explicitement v3 vers le format courant avec collections normalisées', () => {
+  test('ouvre le format natif sans ajouter des collections optionnelles sur disque', () => {
     const { dir, store } = storeSeed()
+    const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8')
     const corpus = store.ouvrir()
     expect(corpus.formatVersion).toBe(FORMAT_VERSION)
-    expect(corpus.recueils).toEqual({})
-    expect(corpus.cas).toEqual({})
+    expect(corpus.recueils).toBeUndefined()
+    expect(corpus.cas).toBeUndefined()
+    expect(readFileSync(join(dir, 'corpus.crp'), 'utf8')).toBe(avant)
     const entretien = JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
     expect(entretien.formatVersion).toBe(FORMAT_VERSION)
-    expect(entretien.reperesPassages).toEqual([])
+    expect(entretien.reperesPassages).toBeUndefined()
   })
 
   test('persiste les commandes ciblées et revalide la présence du repère', () => {
@@ -65,7 +67,7 @@ describe('CorpusStore — recueils et repères', () => {
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Nouveau' }] }] },
       annotations: [],
       ancres: [],
-      locuteurs: [],
+      participations: [],
     })
     const lecture = store.lireEntretien('e1')
     expect(lecture.ok && lecture.data.reperesPassages).toEqual([{ id: 'p1', from: 0, to: 0 }])

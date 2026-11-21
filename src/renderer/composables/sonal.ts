@@ -71,7 +71,7 @@ export function creerSonal() {
   let etatBasePourMedias: () => 'sans-objet' | 'configuree' | 'non-configuree' | 'secret-indisponible' = () => 'sans-objet'
   let actualiserDistantPourMedias: (silencieux?: boolean) => Promise<boolean> = async () => false
   let reinitialiserOutilsCorpus: () => void = () => {}
-  const corpus = useCorpus({ flush: () => sauverEntretien() })
+  const corpus = useCorpus({ flush: () => sauverEntretien(), revision: () => revisionCorpus.value })
 
   // Scope AUDIO : le lecteur de l'entretien ouvert.
   // Les trois consommateurs (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur)
@@ -89,6 +89,7 @@ export function creerSonal() {
       corpus.perimerScanAnon()
       await corpus.rafraichirUsages()
     },
+    modaliteParLibelle: corpus.modaliteParLibelle,
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     themeExiste: (id) => corpus.codebook.value.some((theme) => theme.id === id),
@@ -115,6 +116,9 @@ export function creerSonal() {
     },
     lectureSeule: () => !distant.entretienEditable.value, // aucune écriture d'entretien si la session n'est pas éditable
     entretienEditable: () => distant.entretienEditable.value,
+    renommageGlobalPossible: () => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value,
+    identificationLocuteursPossible: () => distant.gesteDisponible('nommageLocuteurs') && distant.entretienEditable.value,
+    apresRenommageGlobal: () => { corpus.revisionLocuteursCorpus.value++; corpus.reinitialiserMatrice() },
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -405,6 +409,7 @@ export function creerSonal() {
       viderSauvegarde: ent.viderSauvegarde,
       preserverEtAnnulerSauvegarde: ent.preserverEtAnnulerSauvegarde,
       annulerEtAttendreSauvegarde: ent.annulerEtAttendreSauvegarde,
+      correctionLocuteursEnCours: () => ent.renommageEnCours.value || ent.renommageGlobalOccupe.value,
     },
     effets: {
       annulerPreparation: () => annulerMigration(),
@@ -442,6 +447,7 @@ export function creerSonal() {
     actualiserDistant,
     capacites,
     gesteDisponible,
+    repriseCorrectionLocuteursPossible,
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
@@ -608,7 +614,7 @@ export function creerSonal() {
     vue,
     corpus: {
       ...corpus,
-      lirePersonnes: corpus.lirePersonnes,
+      lireIdentitesLocuteurs: corpus.lireIdentitesLocuteurs,
     },
     entretien: {
       ouvertId: ent.ouvertId,
@@ -708,7 +714,7 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     selectionCourante: ent.selectionPassageCourante,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
-    lirePersonnes: corpus.lirePersonnes,
+    lireIdentitesLocuteurs: corpus.lireIdentitesLocuteurs,
     ouvrirSource: ouvrirSourceLiee,
     fermerRecueils: recueilsCorpus.fermerRecueils,
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
@@ -816,15 +822,15 @@ export function creerSonal() {
     const generationCourante = ++generationAssociations
     etatAssociationsPassage.value = 'chargement'
     const utilisePersonnes = Object.values(corpus.cas.value).some((courant) =>
-      courant.regles.some((regle) => regle.type === 'personne' || regle.type === 'personnes'))
+      courant.regles.some((regle) => regle.type === "locuteur" || regle.type === "locuteurs"))
     let personnesConnues: Set<string> | null = new Set<string>()
     if (utilisePersonnes) {
-      const cle = `${revisionCorpus.value}:${corpus.revisionPersonnesCorpus.value}:${dernierTirage.value ?? ''}`
+      const cle = `${revisionCorpus.value}:${corpus.revisionLocuteursCorpus.value}:${dernierTirage.value ?? ''}`
       if (cachePersonnes?.cle === cle) personnesConnues = cachePersonnes.ids
       else {
         try {
-          const inventaire = await window.sonal.corpus.personnesInventaire()
-          personnesConnues = new Set(inventaire.personnes.map((personne) => personne.id))
+          const inventaire = await window.sonal.corpus.inventaireIdentitesLocuteurs()
+          personnesConnues = new Set(inventaire.locuteurs.map((personne) => personne.id))
           cachePersonnes = { cle, ids: personnesConnues }
         } catch {
           if (generationCourante !== generationAssociations) return
@@ -855,7 +861,7 @@ export function creerSonal() {
     corpus.cas,
     corpus.recueils,
     corpus.variables,
-    corpus.revisionPersonnesCorpus,
+    corpus.revisionLocuteursCorpus,
     dernierTirage,
     revisionCorpus,
     vue,
@@ -1084,7 +1090,7 @@ export function creerSonal() {
   }
 
   // --- Suppression d'une variable ou d'une modalité (même logique que les thèmes) ---
-  const valeursOuvertes = () => ({ meta: ent.meta, locuteurs: ent.locuteurs.value })
+  const valeursOuvertes = () => ({ meta: ent.meta, participations: ent.locuteurs.value })
   /** Compte les valeurs et vérifie que l'entretien concerné n'est plus en édition. */
   async function demanderSuppressionDonnee(idVar: string, idMod?: string) {
     corpus.messageVar.value = null
@@ -1126,7 +1132,7 @@ export function creerSonal() {
     })
   }
 
-  watch([dernierTirage, corpus.revisionPersonnesCorpus], () => {
+  watch([dernierTirage, corpus.revisionLocuteursCorpus], () => {
     if (casCorpus.casActifs.value) void casCorpus.actualiserCas()
   })
 
@@ -1675,6 +1681,7 @@ export function creerSonal() {
     verrousIndisponibles,
     capacites,
     gesteDisponible,
+    repriseCorrectionLocuteursPossible,
     tableLigneEditable,
     pseudonymisationLigneEditable,
     metaEditables,
@@ -1699,7 +1706,8 @@ export function creerSonal() {
     voirParcours,
     naviguerGuide,
     enregistrerNavigationParcours,
-    entretienEditable,
+    entretienEditable: computed(() => entretienEditable.value && !ent.editionNomsSuspendue.value && !ent.renommageEnCours.value),
+    renommageGlobalDisponible: computed(() => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value),
     divergenceProposee,
     confirmerFusion,
     jeterDivergence,

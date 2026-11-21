@@ -34,7 +34,7 @@ function payload(marqueur: string): PayloadEntretien {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }
@@ -60,7 +60,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(enfants.every((c) => c.couleur === '#ffffff')).toBe(true) // soulignement invisible
   })
 
-  test('migre le format 8 avec des réglages Lexico vides', () => {
+  test('refuse le format 8 sans réécrire ses réglages Lexico', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-lexico-v8-'))
     new CorpusStore(dir).ouvrir()
     const chemin = join(dir, 'corpus.crp')
@@ -69,9 +69,9 @@ describe('CorpusStore — amorçage & round-trip', () => {
     delete ancien.lexico
     writeFileSync(chemin, JSON.stringify(ancien, null, 2))
 
-    const migre = new CorpusStore(dir).ouvrir()
-    expect(migre.formatVersion).toBe(FORMAT_VERSION)
-    expect(migre.lexico).toEqual({ motsOutils: [], regroupements: [], concatenations: [] })
+    const avant = readFileSync(chemin, 'utf8')
+    expect(() => new CorpusStore(dir).ouvrir()).toThrow('non supportée')
+    expect(readFileSync(chemin, 'utf8')).toBe(avant)
   })
 
   test('enregistre les traitements Lexico et refuse une base devenue obsolète', () => {
@@ -111,7 +111,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(lu.ok).toBe(true)
     if (lu.ok) {
       expect(JSON.stringify(lu.data.corpsTexte)).toContain('Karine habite Lyon')
-      expect(lu.data.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur', 'Karine'])
+      expect(lu.data.participations.map((l) => l.nom)).toEqual(['Enquêteur', 'Karine'])
     }
   })
 
@@ -124,25 +124,21 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(lu.ok && JSON.stringify(lu.data.corpsTexte)).toContain('CONTENU-MODIFIÉ')
   })
 
-  test('les anciens locuteurs reçoivent des ids déterministes à la prochaine édition', () => {
+  test('les ids natifs sont conservés à la consultation, à l’ouverture et à la sauvegarde', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.every((l) => !l.id)).toBe(true)
-
+    const fichier = join(dir, 'entretiens/e1.json')
+    const avant = readFileSync(fichier, 'utf8')
+    const ids = lireFichier(dir, 'entretiens/e1.json').participations.map((p) => p.id)
     const premiere = store.ouvrirEntretienPourEdition('e1')
     const seconde = new CorpusStore(dir).ouvrirEntretienPourEdition('e1')
     expect(premiere.ok && seconde.ok).toBe(true)
-    if (!premiere.ok || !seconde.ok) return
-
-    const ids = premiere.data.locuteurs.map((l) => l.id)
-    expect(ids.every((id) => /^loc-[A-Za-z0-9_-]{43}$/.test(id ?? ''))).toBe(true)
-    expect(new Set(ids).size).toBe(ids.length)
-    expect(seconde.data.locuteurs.map((l) => l.id)).toEqual(ids)
-    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.every((l) => !l.id)).toBe(true)
-
-    const { formatVersion: _formatVersion, lastModified: _lastModified, ...aEcrire } = premiere.data
-    store.ecrireEntretien('e1', aEcrire)
-    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.map((l) => l.id)).toEqual(ids)
+    if (!premiere.ok || !seconde.ok) throw new Error('Fixture native indisponible')
+    expect(premiere.data.participations.map((p) => p.id)).toEqual(ids)
+    expect(seconde.data.participations.map((p) => p.id)).toEqual(ids)
+    expect(readFileSync(fichier, 'utf8')).toBe(avant)
+    store.ecrireEntretien('e1', premiere.data)
+    expect(lireFichier(dir, 'entretiens/e1.json').participations.map((p) => p.id)).toEqual(ids)
   })
 
   test('brouillonsAnon : écrits puis relus tels quels (champ additif, pas de bump de version)', () => {
@@ -249,51 +245,17 @@ describe('CorpusStore — version du format natif', () => {
     expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
   })
 
-  test('un entretien formatVersion 1 est adapté en mémoire à la lecture', () => {
+  test.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('un entretien natif de développement %i est refusé sans conversion', (formatVersion) => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const f = join(dir, 'entretiens', 'e1.json')
-    const donneesFormatV1 = {
-      formatVersion: 1,
-      lastModified: '2020-01-01T00:00:00.000Z',
-      corpsTexte: {
-        type: 'doc',
-        content: [
-          { type: 'paragraph', attrs: { loc: 1, deb: 0, fin: 2.5 }, content: [{ type: 'text', text: 'Un deux.' }] },
-          { type: 'paragraph', attrs: { loc: 1, deb: null, fin: null }, content: [{ type: 'text', text: 'Trois.' }] },
-          { type: 'paragraph', attrs: { loc: 2, deb: 4, fin: 6 }, content: [{ type: 'text', text: 'Quatre.' }] },
-        ],
-      },
-      annotations: [],
-      locuteurs: [],
-      meta: { valeursGen: {}, audioRef: null },
-    }
-    writeFileSync(f, JSON.stringify(donneesFormatV1), 'utf8')
-
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok).toBe(true)
-    if (lu.ok) {
-      expect(lu.data.formatVersion).toBe(FORMAT_VERSION)
-      // « Un deux. » (8 car.) → deb pos 1, fin pos 9 ; bloc scindé (nulls) → rien ;
-      // « Quatre. » (7 car.) : début de bloc 1+(2+8)+(2+6)=19, fin 26.
-      expect(lu.data.ancres).toEqual([
-        { pos: 1, t: 0 },
-        { pos: 9, t: 2.5 },
-        { pos: 19, t: 4 },
-        { pos: 26, t: 6 },
-      ])
-      const doc = lu.data.corpsTexte as { content: Array<{ attrs: unknown }> }
-      expect(doc.content.map((b) => b.attrs)).toEqual([{ loc: 1 }, { loc: 1 }, { loc: 2 }])
-      expect(lu.data.lastModified).toBe('2020-01-01T00:00:00.000Z') // migrer ≠ éditer
-    }
-    // Une lecture analytique ne réécrit pas le fichier.
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(1)
-    const edition = store.ouvrirEntretienPourEdition('e1')
-    if (edition.ok) {
-      const { formatVersion: _formatVersion, lastModified: _lastModified, ...p } = edition.data
-      store.ecrireEntretien('e1', p)
-    }
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(FORMAT_VERSION)
+    const fichier = join(dir, 'entretiens/e1.json')
+    const donnees = { ...lireFichier(dir, 'entretiens/e1.json'), formatVersion }
+    writeFileSync(fichier, JSON.stringify(donnees), 'utf8')
+    const avant = readFileSync(fichier, 'utf8')
+    expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
+    expect(store.ouvrirEntretienPourEdition('e1')).toEqual({ ok: false, raison: 'version' })
+    expect(readFileSync(fichier, 'utf8')).toBe(avant)
+    expect(existsSync(`${fichier}.bak1`)).toBe(false)
   })
 
   test('un corpus de version inconnue fait échouer l’ouverture', () => {
@@ -577,113 +539,22 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
   })
 })
 
-describe('CorpusStore — migration formatVersion 2→3', () => {
-  test('audioRef relatif → absolu + PNG audio/ → png/ + bump formatVersion', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-'))
-    const now = new Date().toISOString()
-    // Corpus formatVersion 2 avec un entretien dont l'audio est copié dans `audio/` (legacy).
-    const corpus: CorpusFichier = {
-      formatVersion: 2,
-      codebook: {},
-      variables: {},
-      reglesAnon: {},
-      personnes: {},
-      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
-    }
-    const e1: EntretienFichier = {
-      formatVersion: 2,
-      lastModified: now,
-      corpsTexte: { type: 'doc', content: [] },
-      annotations: [],
-      ancres: [],
-      locuteurs: [],
-      meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
-    }
-    mkdirSync(join(dir, 'entretiens'), { recursive: true })
-    mkdirSync(join(dir, 'audio'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
-    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
-    writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
-    writeFileSync(join(dir, 'audio', 'e1.png'), 'fake-png', 'utf8')
-
-    const store = new CorpusStore(dir)
-    const c = store.ouvrir() // déclenche la migration formatVersion 2→3
-
-    // Corpus bumpé à formatVersion 3.
-    expect(c.formatVersion).toBe(FORMAT_VERSION)
-    // audioRef résolu en absolu vers le fichier existant dans `audio/`.
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.data.formatVersion).toBe(FORMAT_VERSION)
-    expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
-    // Le mp3 legacy reste dans `audio/` (référencé en absolu).
-    expect(existsSync(join(dir, 'audio', 'e1.mp3'))).toBe(true)
-    // Le PNG waveform a déménagé vers `png/`.
-    expect(existsSync(join(dir, 'audio', 'e1.png'))).toBe(false)
-    expect(existsSync(join(dir, 'png', 'e1.png'))).toBe(true)
-  })
-
-  test('migration formatVersion 2→3 idempotente (re-ouvrir ne recasse rien)', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-idem-'))
-    const now = new Date().toISOString()
-    const corpus: CorpusFichier = {
-      formatVersion: 2,
-      codebook: {},
-      variables: {},
-      reglesAnon: {},
-      personnes: {},
-      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
-    }
-    const e1: EntretienFichier = {
-      formatVersion: 2,
-      lastModified: now,
-      corpsTexte: { type: 'doc', content: [] },
-      annotations: [],
-      ancres: [],
-      locuteurs: [],
-      meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
-    }
-    mkdirSync(join(dir, 'entretiens'), { recursive: true })
-    mkdirSync(join(dir, 'audio'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
-    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
-    writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
-
-    const store = new CorpusStore(dir)
-    store.ouvrir() // 1re ouverture → migration
-    store.ouvrir() // 2e ouverture → déjà v3, rien à faire
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.data.formatVersion).toBe(FORMAT_VERSION)
-    expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
-  })
-
-  test('audioRef null reste null après migration', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-null-'))
-    const now = new Date().toISOString()
-    const corpus: CorpusFichier = {
-      formatVersion: 2,
-      codebook: {},
-      variables: {},
-      reglesAnon: {},
-      personnes: {},
-      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
-    }
-    const e1: EntretienFichier = {
-      formatVersion: 2,
-      lastModified: now,
-      corpsTexte: { type: 'doc', content: [] },
-      annotations: [],
-      ancres: [],
-      locuteurs: [],
-      meta: { valeursGen: {}, audioRef: null },
-    }
-    mkdirSync(join(dir, 'entretiens'), { recursive: true })
-    writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(corpus, null, 2), 'utf8')
-    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
-
-    const store = new CorpusStore(dir)
+describe('CorpusStore — refus des corpus de développement', () => {
+  test.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('le format %i ne déplace ni audio ni forme d’onde et ne modifie aucun document', (formatVersion) => {
+    const { store, dir } = storeNeuf()
     store.ouvrir()
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.data.meta.audioRef).toBeNull()
+    const chemin = join(dir, 'corpus.crp')
+    const corpus = { ...store.ouvrir(), formatVersion }
+    writeFileSync(chemin, JSON.stringify(corpus))
+    mkdirSync(join(dir, 'audio'), { recursive: true })
+    writeFileSync(join(dir, 'audio/e1.mp3'), 'audio synthétique')
+    writeFileSync(join(dir, 'audio/e1.png'), 'forme synthétique')
+    const avant = [readFileSync(chemin, 'utf8'), readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')]
+    expect(() => new CorpusStore(dir).ouvrir()).toThrow('non supportée')
+    expect([readFileSync(chemin, 'utf8'), readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')]).toEqual(avant)
+    expect(readFileSync(join(dir, 'audio/e1.mp3'), 'utf8')).toBe('audio synthétique')
+    expect(readFileSync(join(dir, 'audio/e1.png'), 'utf8')).toBe('forme synthétique')
+    expect(existsSync(join(dir, 'png/e1.png'))).toBe(false)
   })
 })
 
@@ -700,7 +571,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: marqueur }] }] },
     annotations: [],
     ancres: [],
-    locuteurs: [{ index: 1, nom: 'A', valeursLoc: {}, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'A', valeursLoc: {}, locuteurRef: null }],
     meta: { valeursGen: {}, audioRef: null },
     legacy: { notes: 'n' },
   })
@@ -712,7 +583,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     const lu = store.lireEntretien(id)
     expect(lu.ok && JSON.stringify(lu.data.corpsTexte)).toContain('TEXTE-IMPORTÉ')
     expect(lu.ok && lu.data.legacy).toEqual({ notes: 'n' })
-    expect(lu.ok && lu.data.locuteurs[0].id).toMatch(/^loc-[A-Za-z0-9_-]{43}$/)
+    expect(lu.ok && lu.data.participations[0].id).toBe('loc-1')
     expect(store.ouvrir().membership[id].titre).toBe('Importé')
   })
 
@@ -734,7 +605,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     store.ouvrir()
     const vars = [
       { id: 'v1', lib: 'Lieu', portee: 'entretien' as const, priv: false, ordre: 0, vExport: 1, modalites: [] },
-      { id: 'v2', lib: 'sexe', portee: 'locuteur' as const, priv: false, ordre: 1, vExport: 2, modalites: [] },
+      { id: 'v2', lib: 'sexe', portee: "participation" as const, priv: false, ordre: 1, vExport: 2, modalites: [] },
     ]
     store.importerEntretien('A', payload('A'), [], vars)
     store.importerEntretien('A-bis', payload('A'), [], vars) // même fichier réimporté
@@ -776,7 +647,7 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [{ id: 'a', type: 'codage', from: 1, to: 3, auteur: 'x', code: 'cat_001' }],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
     const avant = readFileSync(join(dir, 'corpus.crp'), 'utf8') // Pour repérage.
@@ -822,7 +693,7 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
         { id: 'b', type: 'codage', from: 4, to: 6, auteur: 'x', code: 'cat_002' },
       ],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
     expect(store.compterUsagesCategorie('cat_002')).toBe(2)
@@ -837,7 +708,7 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [{ id: 'a', type: 'codage', from: 1, to: 3, auteur: 'x', code: 'cat_002' }],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
     expect(store.supprimerCategorie('cat_002')).toEqual({ ok: false, usages: 1 })
@@ -859,7 +730,7 @@ describe('CorpusStore — catégories de note (définitions corpus)', () => {
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     meta: { valeursGen: {}, audioRef: null },
     notes: categorieIds.map((categorieId, i) => ({
       id: `note_${i}`,
@@ -936,15 +807,15 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],
     ancres: [],
-    locuteurs: [{ index: 1, nom: 'A', valeursLoc: { [varLoc]: modLoc }, personneRef: null }],
+    participations: [{ id: "loc-1", index: 1, nom: 'A', valeursLoc: { [varLoc]: modLoc }, locuteurRef: null }],
     meta: { valeursGen: { [varGen]: modGen }, audioRef: null },
   })
 
   test('ajouter variable + modalités (définitions au corpus)', () => {
     const { store } = storeNeuf()
     store.ouvrir()
-    const { id, corpus } = store.ajouterVariable('Sexe', 'locuteur')
-    expect(corpus.variables[id].portee).toBe('locuteur')
+    const { id, corpus } = store.ajouterVariable('Sexe', 'participation')
+    expect(corpus.variables[id].portee).toBe('participation')
     expect(corpus.variables[id].vExport).toBe(1)
     const c2 = store.ajouterModalite(id, 'F')
     const c3 = store.ajouterModalite(id, 'M')
@@ -959,7 +830,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
     const { id: vGen } = store.ajouterVariable('Terrain', 'entretien')
     const cg = store.ajouterModalite(vGen, 'Lyon')
     const mGen = cg.variables[vGen].modalites[0].id
-    const { id: vLoc } = store.ajouterVariable('Sexe', 'locuteur')
+    const { id: vLoc } = store.ajouterVariable('Sexe', 'participation')
     const cl = store.ajouterModalite(vLoc, 'F')
     const mLoc = cl.variables[vLoc].modalites[0].id
 
@@ -968,7 +839,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
     const mat = store.matriceCorpus()
     const ligne = mat.find((e) => e.titre === 'E')!
     expect(ligne.valeursGen[vGen]).toBe(mGen) // valeur entretien chez l'entretien
-    expect(ligne.locuteurs[0].valeursLoc[vLoc]).toBe(mLoc) // valeur locuteur chez le locuteur
+    expect(ligne.participations[0].valeursLoc[vLoc]).toBe(mLoc) // valeur locuteur chez le locuteur
     // Aucun sentinelle « all » nulle part.
     expect(JSON.stringify(mat)).not.toContain('"all"')
   })
@@ -976,14 +847,14 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
   test('supprimer une modalité UTILISÉE est refusée (avec compteur)', () => {
     const { store } = storeNeuf()
     store.ouvrir()
-    const { id: v } = store.ajouterVariable('Sexe', 'locuteur')
+    const { id: v } = store.ajouterVariable('Sexe', 'participation')
     const c = store.ajouterModalite(v, 'F')
     const m = c.variables[v].modalites[0].id
     store.importerEntretien('E', {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],
       ancres: [],
-      locuteurs: [{ index: 1, nom: 'A', valeursLoc: { [v]: m }, personneRef: null }],
+      participations: [{ id: "loc-1", index: 1, nom: 'A', valeursLoc: { [v]: m }, locuteurRef: null }],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
     expect(store.supprimerModalite(v, m)).toEqual({ ok: false, usages: 1 })
@@ -1003,7 +874,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],
       ancres: [],
-      locuteurs: [],
+      participations: [],
       meta: { valeursGen: { [v]: m }, audioRef: null },
     }, [])
     expect(store.supprimerVariable(v)).toEqual({ ok: false, usages: 1 })
@@ -1012,7 +883,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
   test('sur demande, la suppression efface aussi les valeurs saisies dans tous les entretiens', () => {
     const { store } = storeNeuf()
     store.ouvrir()
-    const { id: v } = store.ajouterVariable('Statut', 'locuteur')
+    const { id: v } = store.ajouterVariable('Statut', 'participation')
     store.ajouterModalite(v, 'A')
     const c = store.ajouterModalite(v, 'B')
     const [a, b] = c.variables[v].modalites.map((m) => m.id)
@@ -1020,7 +891,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
       corpsTexte: { type: 'doc' as const, content: [] },
       annotations: [],
       ancres: [],
-      locuteurs: [{ index: 1, nom: 'A', valeursLoc: { [v]: valeur }, personneRef: null }],
+      participations: [{ id: "loc-1", index: 1, nom: 'A', valeursLoc: { [v]: valeur }, locuteurRef: null }],
       meta: { valeursGen: {}, audioRef: null },
     })
     store.importerEntretien('E1', entretien(a), [])

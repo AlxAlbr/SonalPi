@@ -40,7 +40,7 @@ describe('suppression locale privée et journal version 4', () => {
     const b = banc(), avant = b.lire(), tiers = readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8'), a = b.preparer()
     a.demande.regleId = 'autre'; a.entretiens = []; a.bilan.annotations = 0
     expect(b.cache.appliquer(a.token, true)).toMatchObject({ annotations: 8, exceptions: 2, inclusesRetirees: 2, entretiens: 2 })
-    expect(b.lire()).toEqual({ ...avant, annotations: avant.annotations.filter((a) => a.regle !== 'personne'), lastModified: '2026-10-11T00:00:00.000Z' })
+    expect(b.lire()).toEqual({ ...avant, annotations: avant.annotations.filter((a) => a.regle !== "personne"), lastModified: '2026-10-11T00:00:00.000Z' })
     expect(b.corpus().membership.e1.lastModified).toBe(b.lire().lastModified)
     expect(b.corpus().reglesAnon.personne).toBeUndefined(); expect(b.corpus().reglesAnon.autre).toEqual(b.f.corpus.reglesAnon.autre)
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toBe(tiers)

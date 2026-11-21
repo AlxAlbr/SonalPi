@@ -1,7 +1,7 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import type {
   EntretienRef,
-  Locuteur,
+  ParticipationLocuteur,
   MarqueurDemo,
   Variable,
   Note,
@@ -31,7 +31,7 @@ export interface DepsGuide {
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
   membership: Ref<Record<string, EntretienRef>>
   entretien: { annotations: Annotation[] } // reactive (useEntretien)
-  locuteurs: Ref<Locuteur[]>
+  locuteurs: Ref<ParticipationLocuteur[]>
   meta: { valeursGen: Record<string, string> } // reactive (useEntretien)
   ouvertId: Ref<string | null>
   /** Onglet actif de l'entretien (useEntretien) :

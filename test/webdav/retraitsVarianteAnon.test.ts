@@ -67,7 +67,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
     expect(b.serveur.contenuDe('entretiens/e3.json')).toBe(avant)
     for (const s of b.f.sources.slice(0, 2)) {
       const attendu = JSON.parse(JSON.stringify(s.data)) as EntretienFichier, actuel = b.entretien(s.id)
-      for (const a of attendu.annotations) if (a.regle === 'personne' && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
+      for (const a of attendu.annotations) if (a.regle === "personne" && a.pseudo?.trim().toLowerCase() === 'claire') a.pseudo = 'Rebecca'
       attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
     }
     expect(b.corpus().reglesAnon.personne.pseudos).toEqual(['Rebecca']); expect(b.corpus().retraitVarianteAnon).toBeUndefined()
@@ -144,7 +144,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
   })
   it('ancien choix réapparu dans un acquis bloque sans second remplacement ni restauration', async () => {
     const b = banc(natif), rendre = await b.tenir('e2'), p = await b.service.preparer(b.f.demande), r = await b.service.appliquer(p.token, true)
-    const e = b.entretien('e1'); e.annotations.find((a) => a.regle === 'personne')!.pseudo = 'Claire'; b.serveur.poser('entretiens/e1.json', JSON.stringify(e))
+    const e = b.entretien('e1'); e.annotations.find((a) => a.regle === "personne")!.pseudo = 'Claire'; b.serveur.poser('entretiens/e1.json', JSON.stringify(e))
     await rendre(); await expect(b.service.preparerReprise(r.operationId)).rejects.toThrow('déjà traité')
     expect(b.puts.filter((p) => p === 'entretiens/e1.json')).toHaveLength(1)
   })

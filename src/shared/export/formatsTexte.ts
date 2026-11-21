@@ -6,7 +6,8 @@ import {
   ContexteExport,
   optionsEfficaces,
 } from './types'
-import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../format'
+import type { Categorie, ParticipationLocuteur, NoteCategory, Variable } from '../format'
+import type { Note } from "../format"
 import { couleurCss, tailleCss, idCssCode } from './secuCss'
 import {
   texteDocument,
@@ -36,7 +37,7 @@ function segmentsExport(e: EntreeExport, anon: boolean): SegmentProjete[] {
  *  l'option est posée : `[Pseudo]` comme la V1, sinon le nom en clair. */
 function nomsAffiches(e: EntreeExport, anon: boolean): Map<number, string> {
   const out = new Map<number, string>()
-  for (const l of e.locuteurs) {
+  for (const l of e.participations) {
     const reel = l.nom.trim()
     const aff = anon && pseudoUtilisable(l) ? `[${l.pseudo!.trim()}]` : reel
     out.set(l.index, aff)
@@ -98,8 +99,8 @@ export function indexCodebook(codebook: Categorie[]): Map<string, Categorie> {
 }
 
 /** Index des locuteurs par index d'affichage (premier homonyme gagnant). */
-export function indexLocuteurs(locuteurs: Locuteur[]): Map<number, Locuteur> {
-  const out = new Map<number, Locuteur>()
+export function indexLocuteurs(locuteurs: ParticipationLocuteur[]): Map<number, ParticipationLocuteur> {
+  const out = new Map<number, ParticipationLocuteur>()
   for (const l of locuteurs) {
     if (!out.has(l.index)) out.set(l.index, l)
   }
@@ -136,7 +137,7 @@ export function texteNotesPubliques(
 export function texteVariablesPubliques(
   variables: Variable[],
   valeursGen: Record<string, string>,
-  locuteurs: Locuteur[],
+  locuteurs: ParticipationLocuteur[],
   noms: Map<number, string>,
 ): string {
   const lignes: string[] = []
@@ -164,7 +165,7 @@ function sectionsContexte(ctx: ContexteExport, opts: OptionsExport, noms: Map<nu
   const e = ctx.entree
   const notes = opts.notes ? texteNotesPubliques(ctx.notes ?? [], ctx.categoriesNote) : ''
   const vars = opts.vars
-    ? texteVariablesPubliques(e.variables, e.meta.valeursGen, e.locuteurs, noms)
+    ? texteVariablesPubliques(e.variables, e.meta.valeursGen, e.participations, noms)
     : ''
   return { notes, vars }
 }
@@ -202,7 +203,7 @@ function corpsDocument(
           .join(', ')
       : ''
   const parCode = indexCodebook(e.codebook)
-  const interviewerDe = indexLocuteurs(e.locuteurs)
+  const interviewerDe = indexLocuteurs(e.participations)
   const blocs: BlocDocumentExport[] = []
   let ligne: RunTexteExport[] = []
   const cloturer = (): void => {

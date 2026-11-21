@@ -1,7 +1,7 @@
-export type OrigineJournalCorpus = 'personnes' | 'notes' | 'themes' | 'donnees' | 'anon' | 'corpus'
+export type OrigineJournalCorpus = "locuteurs" | 'notes' | 'themes' | 'donnees' | 'anon' | 'corpus'
 
 export type ProjectionJournalCorpus =
-  | 'personnes'
+  | "locuteurs"
   | 'notes'
   | 'matrice'
   | 'usages'

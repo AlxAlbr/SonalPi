@@ -17,7 +17,7 @@ afterEach(() => { vi.restoreAllMocks(); for (const dir of dossiers.splice(0)) rm
 function banc(nombre = 3) {
   const f = fixtureDissociationAnon(Array.from({ length: nombre }, (_, i) => `e${i + 1}`))
   f.sources.slice(2).forEach((s) => { s.data.annotations = [] })
-  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: 'locuteur', priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
+  f.corpus.variables.modalite = { id: 'modalite', lib: 'Variable', portee: "participation", priv: false, ordre: 0, vExport: 0, modalites: [{ id: 'Valeur', lib: 'Valeur', mExport: 1 }] }
   const dir = mkdtempSync(join(tmpdir(), 'dissociation-gitlab-')); dossiers.push(dir); mkdirSync(join(dir, 'entretiens'))
   const miroir = structuredClone(f.corpus); miroir.reglesAnon.personne.pseudos = ['Miroir périmé']
   writeFileSync(join(dir, 'corpus.crp'), JSON.stringify(miroir))
@@ -55,7 +55,7 @@ describe('moteur technique de dissociation GitLab', () => {
     for (const s of b.sources.slice(0, 2)) {
       const attendu = structuredClone(s.data)
       attendu.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER', etat: 'declaration' })
-      for (const a of attendu.annotations) if (a.regle === 'personne') delete a.regle
+      for (const a of attendu.annotations) if (a.regle === "personne") delete a.regle
       attendu.lastModified = b.lire(s.id).lastModified
       expect(b.lire(s.id)).toEqual(attendu)
     }
@@ -115,11 +115,11 @@ describe('moteur technique de dissociation GitLab', () => {
     expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 })
   })
   test('cible changée : aucun écrasement, reprise fraîche conserve l’édition', async () => {
-    const b = banc(), a = await b.preparer(); b.changer('e2', (e) => { e.locuteurs[0].pseudo = 'Concurrent' })
+    const b = banc(), a = await b.preparer(); b.changer('e2', (e) => { e.participations[0].pseudo = 'Concurrent' })
     expect(await b.service.appliquer(a.token, true)).toMatchObject({ statut: 'partiel', entretiens: 1 })
-    expect(b.lire('e2').locuteurs[0].pseudo).toBe('Concurrent')
+    expect(b.lire('e2').participations[0].pseudo).toBe('Concurrent')
     expect(await reprendre(b)).toMatchObject({ statut: 'termine', entretiens: 2 })
-    expect(b.lire('e2').locuteurs[0].pseudo).toBe('Concurrent')
+    expect(b.lire('e2').participations[0].pseudo).toBe('Concurrent')
   })
   test('nouveaux usages au contrôle final : gardés pour un nouveau consentement', async () => {
     const b = banc()
@@ -143,7 +143,7 @@ describe('moteur technique de dissociation GitLab', () => {
     const a = await b.service.preparerReprise(b.service.lireSuivi()!.operationId)
     expect(a.ciblesRetirees).toEqual(['e2'])
     expect(await b.service.appliquer(a.token, true)).toMatchObject({ statut: 'termine', entretiens: 1 })
-    expect(b.lire('e2').annotations[0].regle).toBe('personne')
+    expect(b.lire('e2').annotations[0].regle).toBe("personne")
   })
   test.each(['categorie', 'barriere'])('divergence de %s : reprise refusée sans écrasement', async (cas) => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)
@@ -299,18 +299,18 @@ describe('moteur technique de dissociation GitLab', () => {
   test('édition indépendante d’un acquis conserve la mémoire complète : finalisation sans écrasement', async () => {
     const b = banc()
     b.depot.avantCommit = (actions) => {
-      if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/e2.json'))) b.changer('e1', (e) => { e.locuteurs[0].pseudo = 'Choix indépendant'; e.annotations[0].pseudo = 'Choix local indépendant' })
+      if (actions.some((a) => a.action === 'update' && a.file_path.endsWith('/e2.json'))) b.changer('e1', (e) => { e.participations[0].pseudo = 'Choix indépendant'; e.annotations[0].pseudo = 'Choix local indépendant' })
     }
     expect(await appliquer(b)).toMatchObject({ statut: 'termine', entretiens: 2 })
     expect(b.lire('e1').annotations[0].pseudo).toBe('Choix local indépendant')
-    expect(b.lire('e1').locuteurs[0].pseudo).toBe('Choix indépendant')
+    expect(b.lire('e1').participations[0].pseudo).toBe('Choix indépendant')
   })
   test('barrière publiée refuse même un ancien lien inchangé ; décisions indépendantes et autres règles autorisées', async () => {
     const b = banc(); b.sessions.push('e2'); await appliquer(b)
     expect(() => verifierReferencesDefinitions(b.lire('e2'), b.cp(), b.lire('e2'))).toThrow('dissociation')
     expect(() => verifierReferencesDefinitions(b.lire('e1'), b.cp(), b.sources[0].data)).not.toThrow()
     expect(() => verifierReferencesDefinitions(b.lire('e3'), b.cp(), b.lire('e3'))).not.toThrow()
-    const c = b.cp(); c.dissociationAnon = { regleId: 'personne', operationId: 'forgerie' }
+    const c = b.cp(); c.dissociationAnon = { regleId: "personne", operationId: 'forgerie' }
     expect(() => verifierReferencesDefinitions(b.lire('e3'), c, b.lire('e3'))).toThrow('invalide')
   })
 })

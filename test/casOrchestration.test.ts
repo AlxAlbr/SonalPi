@@ -120,7 +120,7 @@ describe('orchestration main des commandes de cas', () => {
     const commande: CommandeCas = {
       type: 'ajouter-derivation-cas',
       casId: 'cas-1',
-      derivation: { attributId: 'taille', variableSourceId: 'v-taille', porteeSource: 'locuteur' },
+      derivation: { attributId: 'taille', variableSourceId: 'v-taille', porteeSource: "participation" },
     }
     const resultat = await executerCommandeCas(commande, {
       sessionsTenues: () => ['e2', 'e1'],

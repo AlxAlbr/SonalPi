@@ -8,10 +8,11 @@ import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
 import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
-import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
+import type { SuiviCorrectionLocuteurs } from '../../shared/corpus/suiviCorrectionsLocuteurs'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -23,7 +24,12 @@ import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
  *  avant un compte d'usages (les codages/valeurs doivent être sur disque) —
  *  dépendance de scope déclarée sans connaître l'éditeur.
  */
-export function useCorpus(opts: { flush: () => Promise<void> }) {
+export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => number }) {
+  const suiviLocuteurs = ref<SuiviCorrectionLocuteurs | null>(null)
+  const erreurSuiviLocuteurs = ref('')
+  const suiviLocuteursCharge = ref(false)
+  const revisionSuiviLocuteurs = ref(0)
+  let lectureSuivi = 0
   const membership = ref<Record<string, EntretienRef>>({})
   const recueils = ref<Record<string, Recueil>>({})
   const cas = ref<Record<string, Cas>>({})
@@ -50,19 +56,72 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     return window.sonal.corpus.notesCommander(toRaw(commande))
   }
 
-  async function lirePersonnes() {
+  async function lireIdentitesLocuteurs() {
     await opts.flush()
-    return window.sonal.corpus.personnesInventaire()
+    return window.sonal.corpus.inventaireIdentitesLocuteurs()
   }
 
-  async function commanderPersonnes(commande: CommandePersonnes) {
+  async function lireDetailsLocuteurs(pourCorrection = false) {
     await opts.flush()
-    return window.sonal.corpus.personnesCommander(toRaw(commande), true)
+    return window.sonal.corpus.detailsLocuteursInventaire(pourCorrection)
+  }
+
+  async function lireApercuLocuteurs() {
+    return (await lireDetailsLocuteurs(true)).inventaire
+  }
+
+  async function lireLocuteursCorpus() {
+    await opts.flush()
+    return window.sonal.corpus.locuteursInventaire()
+  }
+
+  async function corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
+    const revision = opts.revision?.()
+    await opts.flush()
+    if (revision !== opts.revision?.()) throw new Error('Le corpus a changé. Vérifiez votre sélection dans le corpus courant.')
+    try {
+      const id = await window.sonal.corpus.corrigerLocuteurs(toRaw(commande))
+      if (revision === opts.revision?.()) {
+        journal.revisionLocuteursCorpus.value++
+        variables.reinitialiserMatrice()
+      }
+      return id
+    } finally { if (revision === opts.revision?.()) revisionSuiviLocuteurs.value++ }
+  }
+
+  async function rafraichirSuiviLocuteurs() {
+    const revision = opts.revision?.(), jeton = ++lectureSuivi
+    try {
+      const resultat = await window.sonal.corpus.suiviCorrectionLocuteurs()
+      if (revision !== opts.revision?.() || jeton !== lectureSuivi) return
+      suiviLocuteurs.value = resultat; erreurSuiviLocuteurs.value = ''; suiviLocuteursCharge.value = true
+    } catch (e) {
+      if (revision === opts.revision?.() && jeton === lectureSuivi) { erreurSuiviLocuteurs.value = e instanceof Error ? e.message : String(e); suiviLocuteursCharge.value = true }
+    }
+  }
+
+  function oublierSuiviLocuteurs() {
+    lectureSuivi++; suiviLocuteurs.value = null; erreurSuiviLocuteurs.value = ''; suiviLocuteursCharge.value = false
+  }
+
+  async function agirSurCorrectionLocuteurs(id: string, action: 'verifier' | 'reprendre' | 'arreter') {
+    const revision = opts.revision?.()
+    try {
+      const resultat = await (action === 'verifier' ? window.sonal.corpus.verifierCorrectionLocuteurs(id)
+        : action === 'arreter' ? window.sonal.corpus.arreterCorrectionLocuteurs(id) : window.sonal.corpus.reprendreCorrectionLocuteurs(id))
+      if (revision === opts.revision?.()) { journal.revisionLocuteursCorpus.value++; variables.reinitialiserMatrice() }
+      return resultat
+    } finally { if (revision === opts.revision?.()) revisionSuiviLocuteurs.value++ }
   }
 
   return {
     // état
     membership,
+    suiviLocuteurs, erreurSuiviLocuteurs, suiviLocuteursCharge, revisionSuiviLocuteurs,
+    rafraichirSuiviLocuteurs, oublierSuiviLocuteurs,
+    reprendreCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'reprendre'),
+    verifierCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'verifier'),
+    arreterCorrectionLocuteurs: (id: string) => agirSurCorrectionLocuteurs(id, 'arreter'),
     recueils,
     cas,
     famillesCas,
@@ -123,7 +182,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     supprimerCategorieNote: categoriesNotes.supprimerCategorieNote,
     // Journal du corpus.
     entreesJournalCorpus: journal.entreesJournalCorpus,
-    revisionPersonnesCorpus: journal.revisionPersonnesCorpus,
+    revisionLocuteursCorpus: journal.revisionLocuteursCorpus,
     revisionNotesCorpus: journal.revisionNotesCorpus,
     rafraichirJournalCorpus: journal.rafraichirJournalCorpus,
     annulerEntreeJournalCorpus: journal.annulerEntreeJournalCorpus,
@@ -135,8 +194,11 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     migrerTheme: themes.migrerTheme,
     lireNotes,
     commanderNotes,
-    lirePersonnes,
-    commanderPersonnes,
+    lireIdentitesLocuteurs,
+    lireDetailsLocuteurs,
+    lireApercuLocuteurs,
+    lireLocuteursCorpus,
+    corrigerLocuteurs,
     // variables/modalités
     ajouterVariable: variables.ajouterVariable,
     renommerVariable: variables.renommerVariable,
@@ -150,9 +212,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     importerModeleUtilisateur: variables.importerModeleUtilisateur,
     // table de données / saisie libre
     poserGen: variables.poserGen,
-    poserLoc: variables.poserLoc,
+    poserParticipation: variables.poserParticipation,
     poserGenLibelle: variables.poserGenLibelle,
-    poserLocLibelle: variables.poserLocLibelle,
+    poserParticipationLibelle: variables.poserParticipationLibelle,
     modaliteParLibelle: variables.modaliteParLibelle,
     poserValeurLot: variables.poserValeurLot,
   }

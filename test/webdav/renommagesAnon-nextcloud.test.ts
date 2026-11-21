@@ -87,7 +87,7 @@ for (const port of [8080, 8081]) {
         expect(b.puts).toHaveLength(3)
         expect(b.puts[1]).toBe('entretiens/e1.json'); expect(b.puts[2]).toBe('entretiens/e2.json')
         const apres = JSON.parse(await b.tiers.getTexte('entretiens/e1.json'))
-        expect(apres.locuteurs).toEqual(b.f.sources[0].data.locuteurs)
+        expect(apres.participations).toEqual(b.f.sources[0].data.participations)
         expect(apres.definitionsAnonLocales).toEqual(b.f.sources[0].data.definitionsAnonLocales)
         expect(await b.origin.getTexte('entretiens/e3.json')).toBe(nonCible)
       } finally { await liberer(); await b.nettoyer() }

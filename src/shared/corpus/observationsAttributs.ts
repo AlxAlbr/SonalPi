@@ -1,30 +1,22 @@
-import type { CorpusFichier, EntretienFichier, Variable } from '../format'
-import {
-  porteeObservationsCas,
-  type Cas,
-  type DefinitionAttributCas,
-  type DerivationAttributCas,
-  type FamilleCas,
-} from './cas'
+import type { CorpusFichier, Variable, Cas, DerivationAttributCas, FamilleCas } from "../format"
+import { porteeObservationsCas, type EntretienLectureCas } from '../natif/lectureCas'
+import type { DefinitionAttributCas } from './cas'
 
-/**
- *  Résolution des attributs de cas : les recettes ne stockent jamais de
- *  valeur ; chaque lecture recalcule les observations depuis les membres de
- *  la règle, jamais depuis les ajouts manuels.
- *  Fonctions PURES, utilisées par le renderer (fiches et aperçus) et par le
- *  main (recontrôle avant validation d'une recette).
+/** Recalcule les attributs depuis les membres des règles, jamais depuis les ajouts manuels.
+ *  Partagé par la consultation et les contrôles avant enregistrement.
  */
 
-/** Une source lue pour ses valeurs : locuteurs et valeurs générales suffisent. */
+/** Une lecture de valeurs n'a besoin ni du texte ni de ses annotations. */
 export type LectureSourceAttributs =
-  | { ok: true; data: EntretienFichier }
+  | { ok: true; data: Pick<EntretienLectureCas, 'meta' | 'participations'> }
   | { ok: false; raison: string }
 
 /** Une observation de la variable source, portée par un propriétaire admissible. */
 export interface ObservationAttributCas {
   entretienId: string
-  /** Index du locuteur porteur ; null pour une observation d'entretien. */
-  locuteurIndex: number | null
+  /** Index local, distinct de l'id stable ; null pour une observation d'entretien. */
+  participationIndex: number | null
+  participationId: string | null
   /** Modalité de la variable source ; null si la valeur est absente. */
   valeur: string | null
   /** La valeur pointe une modalité disparue de la variable source. */
@@ -40,17 +32,17 @@ export interface DiagnosticAttributCas {
   valeurLibelle: string | null
   observations: ObservationAttributCas[]
   problemes: string[]
-  /** La valeur locale est masquée parce qu'un autre membre rend la recette
-   *  indisponible pour toute la famille. Les diagnostics locaux restent
-   *  consultables pour permettre la correction des données. */
+  /** Un autre membre peut suspendre la recette pour toute la famille.
+   *  Les diagnostics locaux restent consultables pour corriger les données.
+   */
   suspensionFamille?: { problemes: string[] }
 }
 
 /** Un propriétaire de valeurs admissible par la règle, sans texte requis. */
 interface Proprietaire {
   entretienId: string
-  /** Index du locuteur pour une portée locuteur ; null pour une portée entretien. */
-  locuteurIndex: number | null
+  participationIndex: number | null
+  participationId: string | null
   /** La source n'a pas pu être lue : le propriétaire reste compté, sa valeur non. */
   illisible: boolean
   valeurs: Record<string, string> | null
@@ -79,7 +71,7 @@ function proprietairesCas(
       const cle = `${entretienId}\0illisible`
       if (!vus.has(cle)) {
         vus.add(cle)
-        proprietaires.push({ entretienId, locuteurIndex: null, illisible: true, valeurs: null })
+        proprietaires.push({ entretienId, participationIndex: null, participationId: null, illisible: true, valeurs: null })
       }
       continue
     }
@@ -89,7 +81,7 @@ function proprietairesCas(
         const cle = `${entretienId}\0entretien`
         if (!vus.has(cle)) {
           vus.add(cle)
-          proprietaires.push({ entretienId, locuteurIndex: null, illisible: false, valeurs: source.data.meta.valeursGen })
+          proprietaires.push({ entretienId, participationIndex: null, participationId: null, illisible: false, valeurs: source.data.meta.valeursGen })
         }
         continue
       }
@@ -98,27 +90,28 @@ function proprietairesCas(
         const cle = `${entretienId}\0entretien`
         if (!vus.has(cle)) {
           vus.add(cle)
-          proprietaires.push({ entretienId, locuteurIndex: null, illisible: false, valeurs: source.data.meta.valeursGen })
+          proprietaires.push({ entretienId, participationIndex: null, participationId: null, illisible: false, valeurs: source.data.meta.valeursGen })
         }
         continue
       }
-      const membresLocuteurs = source.data.locuteurs.filter((locuteur) => {
+      const membresParticipations = source.data.participations.filter((participation) => {
         if (regle.type === 'modalite') {
-          return locuteur.valeursLoc?.[regle.variableId] === regle.modaliteId
-            && (regle.inclureEnqueteurs || locuteur.interviewer !== true)
+          return participation.valeursLoc?.[regle.variableId] === regle.modaliteId
+            && (regle.inclureEnqueteurs || participation.interviewer !== true)
         }
-        const membre = regle.type === 'personne'
-          ? (regle.personneId === locuteur.personneRef ? regle : undefined)
-          : regle.type === 'personnes'
-            ? regle.membres.find((courant) => courant.personneId === locuteur.personneRef)
+        const membre = regle.type === 'locuteur'
+          ? (regle.locuteurId === participation.locuteurRef ? regle : undefined)
+          : regle.type === 'locuteurs'
+            ? regle.membres.find((courant) => courant.locuteurId === participation.locuteurRef)
             : undefined
-        return Boolean(membre) && (membre!.inclureEnqueteurs || locuteur.interviewer !== true)
+        return Boolean(membre) && (membre!.inclureEnqueteurs || participation.interviewer !== true)
       })
-      for (const locuteur of membresLocuteurs) {
-        const cle = `${entretienId}\0${locuteur.index}`
+      for (const participation of membresParticipations) {
+        const cle = `${entretienId}\0${participation.index}`
         if (vus.has(cle)) continue
         vus.add(cle)
-        proprietaires.push({ entretienId, locuteurIndex: locuteur.index, illisible: false, valeurs: locuteur.valeursLoc ?? {} })
+        proprietaires.push({ entretienId, participationIndex: participation.index, participationId: participation.id ?? null,
+          illisible: false, valeurs: participation.valeursLoc ?? {} })
       }
     }
   }
@@ -149,12 +142,13 @@ export function resoudreDerivationCas(
   }
   const observations = proprietairesCas(corpus.membership, cas, sources).map((proprietaire): ObservationAttributCas => {
     if (proprietaire.illisible) {
-      return { entretienId: proprietaire.entretienId, locuteurIndex: null, valeur: null, invalide: false, sourceIllisible: true }
+      return { entretienId: proprietaire.entretienId, participationIndex: null, participationId: null, valeur: null, invalide: false, sourceIllisible: true }
     }
     const valeur = proprietaire.valeurs?.[derivation.variableSourceId] ?? null
     return {
       entretienId: proprietaire.entretienId,
-      locuteurIndex: proprietaire.locuteurIndex,
+      participationIndex: proprietaire.participationIndex,
+      participationId: proprietaire.participationId,
       valeur,
       invalide: valeur !== null && !variable.modalites.some((modalite) => modalite.id === valeur),
       sourceIllisible: false,
@@ -195,8 +189,7 @@ export interface DiagnosticDerivationFamille {
   problemes: string[]
 }
 
-/** Applique la politique familiale stricte : un conflit sur un cas suspend
- *  la recette pour toute la famille, sans option par cas. */
+/** Un conflit sur un cas suspend la recette pour toute sa famille. */
 export function evaluerDerivationFamille(
   corpus: Pick<CorpusFichier, 'variables' | 'membership'> & { cas?: Record<string, Cas> },
   famille: FamilleCas,
@@ -233,8 +226,9 @@ export interface AttributCasProjete {
   diagnostic: DiagnosticAttributCas | null
 }
 
-/** Réunit, pour un cas, les valeurs saisies et les recettes de sa famille et
- *  de lui-même, avec le diagnostic recalculé de chaque dérivation. */
+/** Réunit les valeurs saisies et les recettes du cas ou de sa famille.
+ *  Les diagnostics sont recalculés depuis les mêmes sources.
+ */
 export function projeterAttributsCas(
   corpus: Pick<CorpusFichier, 'variables' | 'membership' | 'famillesCas' | 'attributsCas'> & { cas?: Record<string, Cas> },
   cas: Cas,

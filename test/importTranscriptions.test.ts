@@ -30,7 +30,7 @@ describe('import TXT tabulé', () => {
       '',
       '73.90\tSPEAKER_01\tSalut !',
     ].join(separateur))
-    expect(payload.locuteurs.map((l) => [l.index, l.nom])).toEqual([[1, 'SPEAKER_00'], [2, 'SPEAKER_01']])
+    expect(payload.participations.map((l) => [l.index, l.nom])).toEqual([[1, 'SPEAKER_00'], [2, 'SPEAKER_01']])
     expect(blocs(payload)).toEqual([{ loc: 1, texte: 'Bonjour tout le monde.' }, { loc: 2, texte: 'Salut !' }])
     expect(payload.ancres.map((a) => a.t)).toEqual([0, 73.9, 73.9])
     expect(payload.ancres.at(-1)?.t).toBe(73.9)
@@ -46,7 +46,7 @@ describe('import TXT tabulé', () => {
   test('les décimales à virgule, les tabulations dans le texte et les temps égaux sont conservés', () => {
     const payload = importer('entretien.txt', '0,25\tÉlodie Martin\tUn\tmot\n0,25\tBob\tOui')
     expect(blocs(payload)[0].texte).toBe('Un\tmot')
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(['Élodie Martin', 'Bob'])
+    expect(payload.participations.map((l) => l.nom)).toEqual(['Élodie Martin', 'Bob'])
     expect(payload.ancres.every((a) => a.t === 0.25)).toBe(true)
   })
 
@@ -59,7 +59,7 @@ describe('import TXT tabulé', () => {
     const nom = 'Alice </script><script>intrus</script>'
     const texte = 'Un <exemple> & des entités &lt;mot&gt;.'
     const payload = importer('entretien.txt', `0\t${nom}\t${texte}`)
-    expect(payload.locuteurs[0].nom).toBe(nom)
+    expect(payload.participations[0].nom).toBe(nom)
     expect(blocs(payload)[0].texte).toBe(texte)
   })
 
@@ -91,7 +91,7 @@ describe('import TXT tabulé', () => {
     ['00:00:01\t\tAlice\nBonjour\n00:00:04\t\tBob\nSalut', ['Alice', 'Bob'], ['Bonjour', 'Salut']],
   ])('les formats TXT existants restent reconnus : %s', (contenu, noms, textes) => {
     const payload = importer('entretien.txt', contenu)
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(noms)
+    expect(payload.participations.map((l) => l.nom)).toEqual(noms)
     expect(blocs(payload).map((b) => b.texte)).toEqual(textes)
   })
 })
@@ -99,7 +99,7 @@ describe('import TXT tabulé', () => {
 describe('locuteurs et lignes de sous-titres', () => {
   test.each(['Alice', 'Élodie Martin', 'Jean Pierre de la Tour', 'SPEAKER_00', 'Anne-Marie', 'O’Neill', "O'Neill", 'Speaker 12'])('le préfixe %s devient un locuteur', (nom) => {
     const payload = importer('entretien.srt', sousTitres([`${nom} : Bonjour`, 'Bob: Salut']))
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual([nom, 'Bob'])
+    expect(payload.participations.map((l) => l.nom)).toEqual([nom, 'Bob'])
     expect(blocs(payload)).toEqual([{ loc: 1, texte: 'Bonjour' }, { loc: 2, texte: 'Salut' }])
     expect(payload.ancres.map((a) => a.t)).toEqual([0, 1, 1, 2])
   })
@@ -108,7 +108,7 @@ describe('locuteurs et lignes de sous-titres', () => {
     const payload = importer('entretien.srt', sousTitres([
       'Alice: Bonjour', 'Un passage sans nom', 'None: Sans personne identifiée', 'Bob : Salut',
     ]))
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(['Alice', 'Bob'])
+    expect(payload.participations.map((l) => l.nom)).toEqual(['Alice', 'Bob'])
     expect(blocs(payload).map((b) => b.loc)).toEqual([1, null, null, 2])
     expect(blocs(payload)[2].texte).toBe('Sans personne identifiée')
   })
@@ -126,7 +126,7 @@ describe('locuteurs et lignes de sous-titres', () => {
 
   test('un horaire ou une URL ne devient pas un locuteur', () => {
     const payload = importer('entretien.srt', sousTitres(['12:30 rendez-vous', 'https://exemple.fr']))
-    expect(payload.locuteurs).toEqual([])
+    expect(payload.participations).toEqual([])
     expect(blocs(payload).map((b) => b.texte)).toEqual(['12:30 rendez-vous', 'https://exemple.fr'])
   })
 
@@ -137,7 +137,7 @@ describe('locuteurs et lignes de sous-titres', () => {
 
   test('WebVTT garde les voix, les espaces et les temps malgré les paramètres et les commentaires', () => {
     const payload = importer('entretien.vtt', `WEBVTT\n\nNOTE un commentaire\nà ignorer\n\nSTYLE\n::cue { color: red; }\n\npassage-1\n00:00.000 --> 00:02.000 align:start\n<v Alice>Bonjour\ntout le monde</v>\n\npassage-2\n00:02.000 --> 00:04.000\n<v Bob>Salut</v>\n`)
-    expect(payload.locuteurs.map((l) => l.nom)).toEqual(['Alice', 'Bob'])
+    expect(payload.participations.map((l) => l.nom)).toEqual(['Alice', 'Bob'])
     expect(blocs(payload)).toEqual([{ loc: 1, texte: 'Bonjour tout le monde' }, { loc: 2, texte: 'Salut' }])
     expect(payload.ancres.map((a) => a.t)).toEqual([0, 2, 2, 4])
   })

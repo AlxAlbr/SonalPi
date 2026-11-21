@@ -1,4 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CorrectionLocuteursSessionGitLab } from './session'
+import { preparerNommageLocuteurs, type PlanCorrectionLocuteurs, type SourceCorrectionLocuteurs, preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
+import type { DetailsLocuteurs } from '../../shared/corpus/detailsLocuteurs'
+import { inventorierLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
+import { normaliserCategoriesNote } from '../../shared/entretien/notes'
+import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { CorpusStore } from '../corpusStore'
 import type { ConfigDestinationGitLab } from '../distant/coffre'
 import { normaliserRacineGitLab } from '../distant/coffre'
@@ -11,18 +18,20 @@ import type {
   EntretienFichier,
   ItemLotValeur,
   ModeTriEntretiens,
-  PayloadEntretien,
+  PayloadImportEntretien,
   RegleAnon,
   Variable,
 } from '../../shared/format'
 import { referenceMediaDistant, versionSupportee } from '../../shared/format'
 import { normaliserOrdreEntretiens } from '../../shared/corpus/ordreEntretiens'
 import { poserValeur } from '../../shared/corpus/requetes'
+import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
 import { analyserImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 import {
   cleRessourceBailGitLab,
+  cheminBailRessourceGitLab,
   type BailGitLab,
   type DepotCommitsGitLab,
   type DroitsEditionGitLab,
@@ -38,7 +47,7 @@ import { RenommagesAnonGitLab } from './renommagesAnon'
 import { DissociationsAnonGitLab } from './dissociationsAnon'
 import { SuppressionsAnonGitLab } from './suppressionsAnon'
 import { RetraitsVarianteAnonGitLab, type EtapeContexteRetraitVariante } from './retraitsVarianteAnon'
-import { reprendreAjoutsVarianteGitLab } from './reprise'
+import { reprendreAjoutsVarianteGitLab, reprendreCorrectionsLocuteursGitLab } from './reprise'
 import { exigerAbsenceDissociationGitLab } from './referencesDefinitions'
 import { verifierReferencesDefinitions } from './referencesDefinitions'
 import {
@@ -220,6 +229,12 @@ export class TransactionsGitLab {
     })
   }
 
+  async relireCorrectionsLocuteursDansFile(): Promise<void> {
+    if (!this.options.journal) return
+    await reprendreCorrectionsLocuteursGitLab({ depot: this.options.depot, coordination: this.options.coordination,
+      journal: this.options.journal, dirMiroir: this.options.store.repertoire })
+  }
+
   /** Mutation de définitions qui écrit une référence ou une recette.
    *
    *  Chaque source nécessaire est lue sur un même instantané Git que
@@ -325,6 +340,105 @@ export class TransactionsGitLab {
         return { valeur: preparation.valeur, corpus: installe }
       } finally {
         for (const droitEntretien of droitsEntretiens.reverse()) await this.libererBail(droitEntretien)
+        await this.libererBail(droit)
+      }
+    })
+  }
+
+  /** Prépare un aperçu depuis un instantané publié, sans prendre de droit d’écriture. */
+  lireDetailsLocuteurs(session?: { entretienId: string; avant: string; candidat: string }): Promise<DetailsLocuteurs> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      const sha = await this.options.depot.resoudreTete(this.branche)
+      const frais = await this.lireBase(sha)
+      validerCorpusNatif(frais.corpus)
+      exigerAbsenceDissociationGitLab(frais.corpus)
+      const ids = Object.keys(frais.corpus.membership)
+      const sources = await this.lireSources(ids, sha, frais.corpus)
+      const entretiens = sources.map((s) => {
+        if (s.id === session?.entretienId && s.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Rouvrez-le avant de renommer ses locuteurs.')
+        const data: unknown = JSON.parse(s.id === session?.entretienId ? session.candidat : s.contenu)
+        validerEntretienNatif(data)
+        return { id: s.id, titre: frais.corpus.membership[s.id].titre, data }
+      })
+      if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
+      return { inventaire: { ...inventorierLocuteurs(frais.corpus, entretiens), indisponibles: [] },
+        variables: Object.values(frais.corpus.variables), categories: normaliserCategoriesNote(frais.corpus.categoriesNote) }
+    })
+  }
+
+  /** Protège les seuls entretiens modifiés et conserve le droit de la session fournie. */
+  corrigerLocuteurs(commande: CommandeCorrectionLocuteurs, verifierSessionsFermees: (cibles?: readonly string[]) => void,
+    session?: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
+    return this.publierCorrectionLocuteurs((corpus, sources) => preparerCorrectionLocuteurs(corpus, sources, commande), verifierSessionsFermees, session)
+  }
+
+  nommerLocuteurDepuisEntretien(operation: OperationNommageLocuteurs, verifierSession: (cibles?: readonly string[]) => void, session: CorrectionLocuteursSessionGitLab & { entretienId: string }): Promise<string> {
+    validerOperationNommageLocuteurs(operation)
+    if (operation.demande.entretienId !== session.entretienId) throw new Error('La demande ne correspond pas à cet entretien.')
+    return this.publierCorrectionLocuteurs((corpus, sources) => preparerNommageLocuteurs(corpus, sources, operation), verifierSession, session,
+      operation.type !== 'rapprocherAuNommage' ? session.entretienId : undefined)
+  }
+
+  private publierCorrectionLocuteurs(preparer: (corpus: string, sources: SourceCorrectionLocuteurs[]) => PlanCorrectionLocuteurs,
+    verifierSessionsFermees: (cibles?: readonly string[]) => void, session?: CorrectionLocuteursSessionGitLab & { entretienId: string }, entretienUnique?: string): Promise<string> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      if (!this.options.journal) throw new Error('Le suivi de la correction est indisponible. Aucun locuteur modifié.')
+      verifierSessionsFermees()
+      if (session && this.options.coordination.snapshot(session.droit).chemin !== cheminBailRessourceGitLab(cleRessourceBailGitLab(this.branche, this.cheminDistant(`entretiens/${session.entretienId}.json`)))) throw new Error('Le droit fourni ne correspond pas à cet entretien.')
+      const droit = await this.acquerirBailCorpus()
+      const droitsEntretiens: DroitsEditionGitLab[] = [], droitsAcquis: DroitsEditionGitLab[] = []
+      try {
+        const sha = await this.options.depot.resoudreTete(this.branche)
+        const frais = await this.lireBase(sha)
+        exigerAbsenceDissociationGitLab(frais.corpus)
+        const ids = entretienUnique === undefined ? Object.keys(frais.corpus.membership).sort() : [entretienUnique]
+        if (session && !Object.hasOwn(frais.corpus.membership, session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
+        const sources = await this.lireSources(ids, sha, frais.corpus)
+        if (session && sources.find((s) => s.id === session.entretienId)?.contenu !== session.avant) throw new Error('La version publiée de cet entretien a changé. Aucun nom modifié.')
+        const plan = preparer(frais.fichier.contenu, sources)
+        const modifies = new Map(plan.entretiens.map((e) => [e.id, e.apres]))
+        const cibles = [...modifies.keys()].sort()
+        if (2 * cibles.length + 2 > MAX_ACTIONS_PUBLICATION) {
+          throw new Error('Cette correction modifie trop d’entretiens pour un seul envoi. Aucun locuteur modifié.')
+        }
+        verifierSessionsFermees(cibles)
+        for (const id of cibles) {
+          if (id === session?.entretienId) droitsEntretiens.push(session.droit)
+          else { const acquis = await this.acquerirBailEntretien(id); droitsAcquis.push(acquis); droitsEntretiens.push(acquis) }
+        }
+        verifierSessionsFermees(cibles)
+        const corpusModifie = JSON.stringify(plan.corpusAvant) !== JSON.stringify(plan.corpusApres)
+        // Un retrait doit aussi empêcher l’ajout concurrent d’une référence dans un autre entretien.
+        const retraitIdentite = Object.keys(plan.corpusAvant.locuteurs).some((id) => !Object.hasOwn(plan.corpusApres.locuteurs, id))
+        const operationId = `locuteurs-${this.nouvelleOperation()}`
+        if (corpusModifie || modifies.size) {
+          const actions: ActionPlanGitLab[] = [corpusModifie ? this.actionCorpus(frais, plan) : {
+            action: 'garde', chemin: this.cheminCorpus, commitId: frais.fichier.commitId, executable: frais.fichier.executable,
+          }, ...sources.filter((s) => modifies.has(s.id)).map((s): ActionPlanGitLab => ({
+            action: 'update', chemin: this.cheminDistant(`entretiens/${s.id}.json`),
+            contenu: JSON.stringify(modifies.get(s.id), null, 2), commitId: s.commitId,
+          })), ...sources.filter((s) => retraitIdentite && !modifies.has(s.id)).map((s): ActionPlanGitLab => ({
+            action: 'garde', chemin: this.cheminDistant(`entretiens/${s.id}.json`), commitId: s.commitId, executable: s.executable,
+          }))]
+          this.verifierBornes(operationId, actions, droitsEntretiens.length + 1)
+          verifierSessionsFermees(cibles)
+          const attenduSession = session ? modifies.has(session.entretienId) ? JSON.stringify(modifies.get(session.entretienId), null, 2) : session.avant : null
+          if (session && attenduSession !== null) session.preparer(operationId, attenduSession)
+          const resultat = await this.options.publication.publierSousDroits({ operationId, nature: 'transaction-corpus', actions }, [droit, ...droitsEntretiens])
+          this.verifierPublication(resultat, 'La correction des locuteurs')
+          if (session && attenduSession !== null) {
+            const confirme = await this.options.depot.lireFichier(this.cheminDistant(`entretiens/${session.entretienId}.json`), this.branche)
+            if (!confirme || confirme.contenu !== attenduSession) throw new Error('Le renommage a été envoyé mais sa relecture reste à vérifier. Rouvrez le corpus.')
+            await session.confirmer(confirme.commitId, confirme.contenu)
+          }
+        }
+        for (const [id, apres] of modifies) if (id !== session?.entretienId) this.options.store.installerEntretienDistant(id, apres)
+        this.installer(operationId, plan.corpusApres)
+        return plan.locuteurId
+      } finally {
+        for (const tenu of droitsAcquis.reverse()) await this.libererBail(tenu)
         await this.libererBail(droit)
       }
     })
@@ -517,7 +631,7 @@ export class TransactionsGitLab {
 
   importerEntretien(
     titre: string,
-    payload: PayloadEntretien,
+    payload: PayloadImportEntretien,
     codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
@@ -532,6 +646,7 @@ export class TransactionsGitLab {
     entretienId: string,
     items: readonly ItemLotValeur[],
   ): Promise<void> {
+    validerLotValeur(items)
     if (items.some((item) => item.entretienId !== entretienId)) {
       throw new Error('Le lot de valeurs mélange plusieurs entretiens.')
     }
@@ -545,17 +660,13 @@ export class TransactionsGitLab {
           if (!variable.modalites.some((modalite) => modalite.id === item.idMod)) {
             throw new Error(`La modalité « ${item.idMod} » n’existe plus sur GitLab.`)
           }
-          if (variable.portee !== item.cible.type) {
+          if ((variable.portee === "participation" ? 'participation' : variable.portee) !== item.cible.type) {
             throw new Error(`La variable « ${variable.lib} » ne correspond pas à cette cellule.`)
           }
         }
-        if (item.cible.type === 'locuteur') {
-          const index = item.cible.index
-          if (!entretien.locuteurs.some((locuteur) => locuteur.index === index)) {
-            throw new Error(`Le locuteur ${index} n’existe plus dans cet entretien.`)
-          }
+        if (!poserValeur(entretien, item.cible, item.idVar, item.idMod)) {
+          throw new Error('Ce locuteur n’existe plus dans cet entretien. Actualisez la table.')
         }
-        poserValeur(entretien, item.cible, item.idVar, item.idMod)
       }
     })
   }

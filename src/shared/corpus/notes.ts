@@ -1,4 +1,5 @@
-import type { CorpusFichier, EntretienFichier, Note } from '../format'
+import type { EntretienFichier, Note } from "../format"
+import { objet } from '../natif/validationCommune'
 import { projeterAncres, tempsAuPoint } from '../entretien/audio'
 import { normaliserNotes, notesParRang } from '../entretien/notes'
 
@@ -56,6 +57,36 @@ export type CommandeNotes =
       attendu: EtatNoteJournal
     }
 
+const identifiant = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0
+const dateOuNull = (v: unknown) => v === null || typeof v === 'string'
+const statutValide = (v: unknown) => v === 'public' || v === 'prive'
+
+function champsExacts(v: Record<string, unknown>, champs: readonly string[]): boolean {
+  return Object.keys(v).length === champs.length && Object.keys(v).every((cle) => champs.includes(cle))
+}
+
+/** Le contenu modifiable ne peut pas remplacer les références de la note. */
+export function validerCommandeNotes(v: unknown): asserts v is CommandeNotes {
+  const erreur = () => new Error('Cette demande de modification des notes est invalide. Actualisez puis vérifiez votre sélection.')
+  if (!objet(v) || (v.type !== 'modifier' && v.type !== 'supprimer') || !identifiant(v.entretienId)
+    || !identifiant(v.noteId) || !objet(v.attendu)) throw erreur()
+  const a = v.attendu
+  const champsEtat = ['id', 'categorieId', 'titre', 'date', 'statut', 'corps', 'rang', 'creeLe']
+  if (!champsEtat.every((cle) => Object.hasOwn(a, cle)) || Object.keys(a).some((cle) => ![...champsEtat, 'participationIds'].includes(cle))
+    || a.id !== v.noteId || !identifiant(a.categorieId) || typeof a.titre !== 'string' || !dateOuNull(a.date)
+    || !statutValide(a.statut) || typeof a.corps !== 'string' || typeof a.rang !== 'number' || !Number.isFinite(a.rang)
+    || typeof a.creeLe !== 'string' || (a.participationIds !== undefined
+      && (!Array.isArray(a.participationIds) || !a.participationIds.every(identifiant)))) throw erreur()
+  if (v.type === 'supprimer') {
+    if (!champsExacts(v, ['type', 'entretienId', 'noteId', 'attendu'])) throw erreur()
+  } else {
+    if (!champsExacts(v, ['type', 'entretienId', 'noteId', 'attendu', 'champs']) || !objet(v.champs)) throw erreur()
+    const c = v.champs
+    if (!champsExacts(c, ['categorieId', 'titre', 'date', 'statut', 'corps']) || !identifiant(c.categorieId)
+      || typeof c.titre !== 'string' || !dateOuNull(c.date) || !statutValide(c.statut) || typeof c.corps !== 'string') throw erreur()
+  }
+}
+
 export type CritereTriNotes =
   | 'creeLe'
   | 'date'
@@ -66,6 +97,7 @@ export type CritereTriNotes =
   | 'titre'
 
 export function etatNoteJournal(note: Note): EtatNoteJournal {
+  if (Object.hasOwn(note, 'locuteurIds')) throw new Error('Les notes doivent référencer les participations locales.')
   const { modifieLe: _ignore, ...etat } = note
   return structuredClone(etat)
 }
@@ -84,7 +116,7 @@ export function memeEtatNote(a: EtatNoteJournal, b: EtatNoteJournal): boolean {
   return JSON.stringify(valeurCanonique(a)) === JSON.stringify(valeurCanonique(b))
 }
 
-export function memesChampsEditables(note: Note, champs: ChampsNote): boolean {
+export function memesChampsEditables<T extends ChampsNote>(note: T, champs: ChampsNote): boolean {
   return note.categorieId === champs.categorieId &&
     note.titre === champs.titre &&
     note.date === champs.date &&
@@ -92,7 +124,7 @@ export function memesChampsEditables(note: Note, champs: ChampsNote): boolean {
     note.corps === champs.corps
 }
 
-export function trouverNote(entretien: EntretienFichier, noteId: string): Note {
+export function trouverNote<T extends { id: string }>(entretien: { notes?: readonly T[] }, noteId: string): T {
   const note = entretien.notes?.find((candidate) => candidate.id === noteId)
   if (!note) throw new Error('Cette note n’existe plus. Actualisez la liste des notes.')
   return note
@@ -122,7 +154,9 @@ function longueursDuDocument(corpsTexte: unknown): number[] {
   )
 }
 
-function timecodeCommentaire(data: EntretienFichier, position: number): number | null {
+type EntretienNotes = Pick<EntretienFichier, 'corpsTexte' | 'annotations' | 'ancres' | 'notes'>
+
+function timecodeCommentaire(data: EntretienNotes, position: number): number | null {
   const longueurs = longueursDuDocument(data.corpsTexte)
   if (!longueurs.length || !data.ancres?.length) return null
   const point = projeterAncres([{ pos: position, t: 0 }], longueurs)[0]
@@ -131,8 +165,7 @@ function timecodeCommentaire(data: EntretienFichier, position: number): number |
 
 /** Projette les notes et résout uniquement les commentaires de leur entretien. */
 export function inventorierNotes(
-  _corpus: CorpusFichier,
-  entretiens: Array<{ id: string; titre: string; data: EntretienFichier }>,
+  entretiens: readonly { id: string; titre: string; data: EntretienNotes }[],
 ): InventaireNotes {
   const notes = entretiens.flatMap(({ id: entretienId, titre: entretienTitre, data }) => {
     const commentaires = new Map(data.annotations

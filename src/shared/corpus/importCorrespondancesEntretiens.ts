@@ -63,10 +63,10 @@ export function preparerCiblesCorrespondances(apercu: Apercu, corpus: CorpusFich
       if (ligne.nature === 'locuteur') {
         if (entite.length !== 1) continue
         const nom = entite[0]
-        for (const loc of data.locuteurs.filter((l) => normaliserNom(l.nom) === normaliserNom(nom))) {
+        for (const loc of data.participations.filter((l) => normaliserNom(l.nom) === normaliserNom(nom))) {
           let motif = 'Correspondance du nom uniquement : choisissez le locuteur local. Les identités importées ne sont jamais réassignées.'
           let valide = !ligne.erreur && pseudos.length === 1 && !!pseudos[0].trim()
-          if (data.locuteurs.filter((l) => l.index === loc.index).length !== 1) { valide = false; motif = 'Index local ambigu : corrigez les locuteurs avant d’importer.' }
+          if (data.participations.filter((l) => l.index === loc.index).length !== 1) { valide = false; motif = 'Index local ambigu : corrigez les locuteurs avant d’importer.' }
           if (!valide && !motif.startsWith('Index')) motif = 'Un locuteur exige exactement un pseudonyme non vide.'
           const origine = ligne.originesLocuteurs?.find((o) => o.entretienId === id && o.locuteurIndex === loc.index)
           const etats = new Set(ligne.originesLocuteurs?.map((o) => o.pseudoEtat ?? 'non-precise') ?? [])
@@ -115,7 +115,7 @@ export function appliquerCorrespondancesEntretiens(apercu: Apercu, corpus: Corpu
     let intention: unknown
     if (cible.nature === 'locuteur') {
       if (!decision.etat || !['confirme', 'refuse', 'non-precise'].includes(decision.etat)) throw new Error('Choisissez explicitement la décision du locuteur.')
-      const loc = data.locuteurs.find((l) => l.index === cible.locuteurIndex)
+      const loc = data.participations.find((l) => l.index === cible.locuteurIndex)
       if (!loc || normaliserNom(loc.nom) !== normaliserNom(entite[0])) throw new Error('L’identité locale du locuteur a changé.')
       intention = { pseudo: pseudos[0], etat: decision.etat }
       if (intentions.has(identite) && intentions.get(identite) !== JSON.stringify(intention)) throw new Error('Deux correspondances contradictoires ciblent le même locuteur.')

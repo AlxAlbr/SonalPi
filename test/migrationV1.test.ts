@@ -37,7 +37,7 @@ function banc() {
 function payload(): PayloadEntretien {
   return {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texte converti.' }] }] },
-    annotations: [], ancres: [], locuteurs: [], brouillonsAnon: [],
+    annotations: [], ancres: [], participations: [], brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null },
   }
 }

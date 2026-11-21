@@ -17,16 +17,16 @@ function preparer() {
   const corpus = JSON.parse(readFileSync(corpusFile, 'utf8')) as CorpusFichier
   corpus.variables = {
     v1: { id: 'v1', lib: 'Lieu', portee: 'entretien', priv: false, ordre: 0, vExport: 1, modalites: [{ id: 'm1', lib: 'À Lyon; "Centre"\nassociation', mExport: 1 }] },
-    v2: { id: 'v2', lib: 'Ancienneté', portee: 'locuteur', priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
+    v2: { id: 'v2', lib: 'Ancienneté', portee: "participation", priv: false, ordre: 1, vExport: 2, modalites: [{ id: 'm2', lib: 'Depuis 2012', mExport: 1 }] },
     v3: { id: 'v3', lib: 'Contact privé', portee: 'entretien', priv: true, ordre: 2, vExport: 3, modalites: [{ id: 'm3', lib: 'secret@example.test', mExport: 1 }] },
     v4: { id: 'v4', lib: 'À masquer', portee: 'entretien', priv: false, ordre: 3, vExport: 4, modalites: [{ id: 'm4', lib: 'Ne pas exporter', mExport: 1 }] },
   }
   const premier = JSON.parse(readFileSync(premierFile, 'utf8')) as EntretienFichier
   premier.meta.valeursGen = { v1: 'm1', v3: 'm3', v4: 'm4' }
-  premier.locuteurs[1].valeursLoc = { v2: 'm2' }
+  premier.participations[1].valeursLoc = { v2: 'm2' }
   const second = structuredClone(premier)
   second.meta.valeursGen = {}
-  second.locuteurs = []
+  second.participations = []
   corpus.membership.e2 = { titre: '=1+1', date: null, lastModified: second.lastModified }
   corpus.ordreEntretiens = ['e1', 'e2']
   writeFileSync(corpusFile, JSON.stringify(corpus))

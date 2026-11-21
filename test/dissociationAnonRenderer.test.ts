@@ -19,7 +19,7 @@ async function monter(fournisseurInitial?: string, suiviInitial?: SuiviDissociat
   if (fournisseurInitial === 'gitlab' || fournisseurInitial === 'webdav') apercu.lecture = fournisseurInitial
   const fournisseur = ref(fournisseurInitial)
   const suivi: SuiviDissociationAnon = { ...apercu.bilan, annotations: 4, entretiens: 1, definitionsLocales: 1,
-    operationId: 'dissociation-privee', statut: 'partiel', regleRetiree: false, differes: [{ id: 'e2', motif: 'Cible tenue.' }], nouvellesCibles: [], demande: { regleId: 'personne' } }
+    operationId: 'dissociation-privee', statut: 'partiel', regleRetiree: false, differes: [{ id: 'e2', motif: 'Cible tenue.' }], nouvellesCibles: [], demande: { regleId: "personne" } }
   const api = { apercuDissociationAnon: vi.fn(async () => structuredClone(apercu)), dissocierRegleAnon: vi.fn(async () => apercu.bilan),
     apercuRepriseDissociationAnon: vi.fn(async (_id: string) => ({ ...structuredClone(apercu), reprise: suivi.operationId })),
     suiviDissociationAnon: vi.fn(async (): Promise<SuiviDissociationAnon | null> => structuredClone(suivi)),
@@ -39,7 +39,7 @@ async function confirmer() { document.querySelector<HTMLInputElement>('input[typ
 
 test('bilan attribué, mémoire entière, consentement et double envoi bloqué', async () => {
   const b = await monter(); await preparer()
-  expect(b.api.apercuDissociationAnon).toHaveBeenCalledExactlyOnceWith({ regleId: 'personne' })
+  expect(b.api.apercuDissociationAnon).toHaveBeenCalledExactlyOnceWith({ regleId: "personne" })
   expect(document.body.textContent).toContain('8 passage(s) concerné(s) dans 2 entretien(s)')
   expect(document.body.textContent).toContain('Claire / Rebecca ; catégorie PER')
   expect(document.body.textContent).not.toContain('Préparer')

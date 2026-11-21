@@ -30,7 +30,7 @@ async function banc(suffixe: string, fetchImpl?: typeof fetch) {
   const racine = await creerRacine(suffixe, { corpus })
   const p = pile({ racine, jeton: configuration.token1!, userId: 'user1', sessionId: `correspondances-${suffixe}`, corpusLocal: corpus, fetchImpl })
   const entretien = JSON.parse(entretienPublie('Texte synthétique intact'))
-  entretien.locuteurs = [{ index: 1, nom: 'Karine', personneRef: 'personne-synthetique' }]
+  entretien.participations = [{ id: 'loc-1', index: 1, nom: 'Karine', valeursLoc: {}, locuteurRef: 'personne-synthetique' }]
   await p.depot.publierCommit('main', 'qualification correspondances : entretiens', ['e1', 'e2'].map((id) => ({ action: 'create', file_path: `${racine}/entretiens/${id}.json`, content: JSON.stringify(entretien) })))
   const s = service(p)
   const tables = new TablesCorrespondance({ store: () => p.store, lecture: () => 'miroir' })
@@ -52,7 +52,7 @@ decrire('correspondances GitLab — qualification à deux comptes', () => {
         const source = await p.depot.lireFichier(`${p.racine}/entretiens/${id}.json`, 'main')
         const apres = JSON.parse(source!.contenu)
         expect(apres.corpsTexte).toEqual(entretien.corpsTexte); expect(apres.annotations).toEqual(entretien.annotations)
-        expect(apres.locuteurs[0]).toMatchObject({ personneRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
+        expect(apres.participations[0]).toMatchObject({ locuteurRef: 'personne-synthetique', pseudo: 'Claire', pseudoEtat: 'confirme' })
         expect(apres.definitionsAnonLocales[0].entite).toEqual(['Alias sans occurrence', 'Autre graphie'])
       }
       expect(p.journal.lister()).toEqual([])
@@ -130,7 +130,7 @@ decrire('correspondances GitLab — qualification à deux comptes', () => {
       const instantane = new InstantaneLectureGitLab(relance.client, 'main', p.racine)
       const miroir = new MiroirDistant(p.dossier, () => instantane.ouvrir(), { fournisseur: 'gitlab', destinationId: 'qualification' })
       await miroir.tirer([])
-      expect(JSON.parse(readFileSync(join(p.dossier, 'entretiens/e2.json'), 'utf8')).locuteurs[0].pseudo).toBe('Claire')
+      expect(JSON.parse(readFileSync(join(p.dossier, 'entretiens/e2.json'), 'utf8')).participations[0].pseudo).toBe('Claire')
       expect(p.journal.lister()).toEqual([]); expect(donnees(p)).toHaveLength(1)
     } finally { nettoyer(p) }
   })

@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -47,7 +48,7 @@ function corpusInitial(): string {
     codebook: {},
     variables: {},
     reglesAnon: { 'reg-1': { id: 'reg-1', entite: [ENTITE], pseudos: ['Marie'] } },
-    personnes: {},
+    locuteurs: {},
     membership: {
       e1: { titre: 'Entretien un', date: null, lastModified: '2026-01-01T00:00:00Z' },
       e2: { titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z' },
@@ -71,7 +72,7 @@ function entretien(): string {
     },
     annotations: [],
     ancres: [],
-    locuteurs: [],
+    participations: [],
     brouillonsAnon: [],
     meta: { valeursGen: {}, audioRef: null },
   })
@@ -103,12 +104,10 @@ function creerPoste(
   return { client, miroir, store, tx }
 }
 
-async function amorcerServeur(base: string): Promise<void> {
-  const client = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`, identifiants: MAX })
-  // Verrous résiduels éventuels (passage interrompu) : libérer sans précondition.
-  await client.supprimer('verrous/corpus.lock.json').catch(() => {})
-  for (const id of ['e1', 'e2', 'e3']) await client.supprimer(`verrous/${id}.lock.json`).catch(() => {})
-  for (const id of ['e1', 'e2', 'e3']) await client.deverrouiller(`entretiens/${id}.json`).catch(() => {})
+async function amorcerServeur(baseUrl: string): Promise<void> {
+  const client = new ClientWebDAV({ baseUrl, identifiants: MAX })
+  await client.creerDossier('entretiens')
+  await client.creerDossier('verrous')
   await client.putTexte('corpus.crp', corpusInitial())
   for (const id of ['e1', 'e2', 'e3']) await client.putTexte(`entretiens/${id}.json`, entretien())
 }
@@ -116,10 +115,22 @@ async function amorcerServeur(base: string): Promise<void> {
 /* ── LA TRAME commune — variante A sur la pile A, variante B sur la pile B ──*/
 
 async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise<void> {
-  const davMax = `${base}/remote.php/dav/files/max/MonCorpus`
-  const davOlivier = `${base}/remote.php/dav/files/olivier/MonCorpus`
-  await amorcerServeur(base)
+  const racine = `${base}/remote.php/dav/files/max/MonCorpus`
+  const parent = new ClientWebDAV({ baseUrl: racine, identifiants: MAX })
+  const dossier = `sonde/anon-masse-${randomUUID()}`
+  await parent.creerDossier('sonde')
+  await parent.creerDossier(dossier)
+  const davMax = `${racine}/${dossier}`
+  const davOlivier = `${base}/remote.php/dav/files/olivier/MonCorpus/${dossier}`
+  try {
+    await amorcerServeur(davMax)
+    await jouerScenarioMasseDeuxPostes(davMax, davOlivier, verrouNatif)
+  } finally {
+    await parent.supprimer(dossier).catch(() => {})
+  }
+}
 
+async function jouerScenarioMasseDeuxPostes(davMax: string, davOlivier: string, verrouNatif: boolean): Promise<void> {
   const max = creerPoste(davMax, MAX, 's-MAX-MASSE', verrouNatif)
   const olivier = creerPoste(davOlivier, OLIVIER, 's-OLI-MASSE', verrouNatif)
   await max.miroir.tirer()

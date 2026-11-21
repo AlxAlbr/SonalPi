@@ -16,7 +16,7 @@ import { preparerContexteNextcloud } from '../../src/main/distant/contexte'
 
 const dirs: string[] = []
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
-const demande = { regleId: 'personne' }
+const demande = { regleId: "personne" }
 function banc(natif: boolean, maintenant = Date.now) {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' }), source = fixtureSuppression()
   serveur.creerDossierRelatif('verrous')
@@ -76,7 +76,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     expect(b.corpus().suppressionAnon).toBeUndefined(); expect(b.corpus().reglesAnon.personne).toBeUndefined()
     for (const id of ['e1', 'e2']) {
       const apres = b.entretien(id), attendu = structuredClone(b.f.entretiens[id])
-      attendu.annotations = attendu.annotations.filter((a) => a.regle !== 'personne')
+      attendu.annotations = attendu.annotations.filter((a) => a.regle !== "personne")
       attendu.lastModified = apres.lastModified
       expect(apres).toEqual(attendu)
     }
@@ -94,7 +94,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     expect(p.bilan.inclusesRevelees).toBe(1)
     expect((await b.service.appliquer(p.token, true)).statut).toBe('termine')
     const actuel = b.entretien('e1'), attendu = structuredClone(e)
-    attendu.annotations = attendu.annotations.filter((a) => a.regle !== 'personne'); attendu.lastModified = actuel.lastModified
+    attendu.annotations = attendu.annotations.filter((a) => a.regle !== "personne"); attendu.lastModified = actuel.lastModified
     expect(actuel).toEqual(attendu)
   })
   it('retire une règle inutilisée sans écrire ni verrouiller un entretien', async () => {
@@ -203,7 +203,7 @@ for (const natif of [false, true]) describe(`suppression WebDAV : verrous ${nati
     const b = banc(natif), rendre = await b.tenir('e2')
     const p = await b.service.preparer(demande), r = await b.service.appliquer(p.token, true)
     expect(r).toMatchObject({ statut: 'partiel', annotations: 4, regleRetiree: false })
-    expect(b.corpus().suppressionAnon).toMatchObject({ operationId: r.operationId, regleId: 'personne' })
+    expect(b.corpus().suppressionAnon).toMatchObject({ operationId: r.operationId, regleId: "personne" })
     const acquis = b.serveur.contenuDe('entretiens/e1.json')
     expect(JSON.stringify(b.service.lireSuivi())).not.toContain('corpsTexte')
     await rendre()
@@ -402,7 +402,7 @@ it('un membre nommé __proto__ reste une propriété propre lors de la reprise c
   const reprise = await b.service.preparerReprise(r.operationId)
   expect(reprise.entretiens.some((e) => e.id === '__proto__' && e.annotations === 4)).toBe(true)
   await rendre(); expect((await b.service.appliquer(reprise.token, true)).statut).toBe('termine')
-  expect(b.entretien('__proto__').annotations.some((a) => a.regle === 'personne')).toBe(false)
+  expect(b.entretien('__proto__').annotations.some((a) => a.regle === "personne")).toBe(false)
 })
 it('l’ouverture produit retrouve le suivi partiel et refuse un journal falsifié avant tout accès serveur', async () => {
   const b = banc(false), rendre = await b.tenir('e2'), p = await b.service.preparer(demande)

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { FORMAT_VERSION } from '../../shared/format'
+import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { EntreeLectureDistante } from './lecture'
 
 interface OptionsValidationCandidatsMiroir {
@@ -20,15 +20,7 @@ export function validerCandidatsMiroir(options: OptionsValidationCandidatsMiroir
   }
 
   const corpus = parserObjet(contenuDisponible('corpus.crp', options), 'corpus.crp')
-  validerVersion(corpus, 'corpus.crp')
-  for (const champ of ['codebook', 'variables', 'reglesAnon', 'membership'] as const) {
-    if (!estObjet(corpus[champ])) {
-      throw new Error(`Le fichier corpus.crp ne contient pas un bloc ${champ} valide.`)
-    }
-  }
-  if (corpus.personnes !== undefined && !estObjet(corpus.personnes)) {
-    throw new Error('Le fichier corpus.crp ne contient pas un bloc personnes valide.')
-  }
+  validerCorpusNatif(corpus)
 
   const membership = corpus.membership as ObjetJson
   for (const [id, reference] of Object.entries(membership)) {
@@ -82,30 +74,10 @@ function parserObjet(contenu: string, chemin: string): ObjetJson {
   return valeur
 }
 
-function validerVersion(valeur: ObjetJson, chemin: string): void {
-  const version = valeur.formatVersion
-  if (!Number.isInteger(version) || (version as number) < 1 || (version as number) > FORMAT_VERSION) {
-    throw new Error(`Le candidat ${chemin} utilise une version non supportée.`)
-  }
-}
-
 function validerEntretien(entretien: ObjetJson, chemin: string): void {
-  validerVersion(entretien, chemin)
-  if (
-    typeof entretien.lastModified !== 'string' ||
-    !estObjet(entretien.corpsTexte) ||
-    !Array.isArray(entretien.annotations) ||
-    !Array.isArray(entretien.locuteurs) ||
-    !estObjet(entretien.meta)
-  ) {
-    throw new Error(`Le candidat ${chemin} ne contient pas un entretien valide.`)
-  }
-  if ((entretien.formatVersion as number) >= 2 && !Array.isArray(entretien.ancres)) {
-    throw new Error(`Le candidat ${chemin} ne contient pas des ancres valides.`)
-  }
-  const meta = entretien.meta as ObjetJson
-  if (!estObjet(meta.valeursGen) || (meta.audioRef !== null && typeof meta.audioRef !== 'string')) {
-    throw new Error(`Le candidat ${chemin} ne contient pas des métadonnées valides.`)
+  try { validerEntretienNatif(entretien) }
+  catch (erreur) {
+    throw new Error(`Le candidat ${chemin} ne contient pas un entretien valide : ${erreur instanceof Error ? erreur.message : String(erreur)}`)
   }
 }
 

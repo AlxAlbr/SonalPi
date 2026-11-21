@@ -29,6 +29,10 @@ import { MigrationV1, proposerDestinationMigration } from './migrationV1'
 import type { DemandePreparationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
+import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, validerRenommageParticipation, type CommandeRenommageLocuteur, type DemandeRenommageParticipation, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import type { ReferenceParticipation } from '../shared/locuteurs'
+import { validerCommandeNotes, type CommandeNotes } from '../shared/corpus/notes'
+import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { ExemplesLocaux } from './exemples'
 import type { DossierFichiersExercice, ExempleId, MemoireExemples, InstallationExemple } from '../shared/exemples'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
@@ -53,6 +57,7 @@ import type { ConversionEntretienMigrationGitLab, DemandeBilanMigrationGitLab, D
 import {
   exigerGeste,
   gesteAutorise,
+  gesteCorrectionLocuteurs,
   gestureCas,
   gestureRecueil,
   gestureTri,
@@ -103,6 +108,7 @@ import type {
   OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  PayloadImportEntretien,
   TranscriptionEntretien,
   RegleAnon,
   ResultatArchiveCorpus,
@@ -260,7 +266,7 @@ function estNavigationProjet(navigation: unknown): navigation is NavigationProje
   }
   if (n.vue === 'organiser') return ['accueil', 'cas', 'recueils', 'export'].includes(String(n.onglet))
   if (n.vue === 'corpus') {
-    return ['accueil', 'themes', 'personnes', 'notes', 'donnees', 'anon'].includes(String(n.onglet))
+    return ['accueil', 'themes', "locuteurs", 'notes', 'donnees', 'anon'].includes(String(n.onglet))
   }
   return false
 }
@@ -1208,7 +1214,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle(
     'corpus:importer',
-    (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
+    (_e, titre: string, payload: PayloadImportEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
       executerSelonFournisseur(
         (contexte) => contexte.transactions.importerEntretien(
           titre,
@@ -1449,70 +1455,92 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:notesInventaire', () => store.notesInventaire())
   ipcMain.handle('corpus:notesCommander', (
     _e,
-    commande: import('../shared/corpus/notes').CommandeNotes,
+    commande: CommandeNotes,
   ) => {
     exigerGeste(fournisseurCourant(), 'note.editer')
+    validerCommandeNotes(commande)
     return store.notesCommander(commande, true)
   })
-  ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
-  ipcMain.handle('corpus:personnesCommander', async (
-    _e,
-    commande: import('../shared/corpus/personnes').CommandePersonnes,
-    depuisRepertoire = false,
-  ) => {
-    const magasin = store
-    if (contextesDistants.actuel instanceof ContexteGitLab) {
-      exigerGeste('gitlab', 'personnes.commande')
-    }
-    exigerGeste(fournisseurCourant(), 'personnes.commande')
-    const execution = executerContexteDistant(async (contexte) => {
-      const transactions = contexte.transactions
-      if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
-        return transactions.executer(() => magasin.personnesCommander(commande, false))
-      }
-      if (commande.type === 'lier' || commande.type === 'annulerRefus') {
-        return transactions.executerEntretien(
-          commande.entretienId,
-          () => magasin.personnesCommander(commande, false),
-        )
-      }
-      if (commande.type === 'refuser') {
-        return transactions.refuserRapprochement(commande)
-      }
-      if (commande.type === 'rapprocher') {
-        return transactions.rapprocherPersonnes(commande)
-      }
-      if (commande.type === 'creer') {
-        return transactions.creerPersonneDepuisLocuteur(
-          commande.entretienId,
-          commande.locuteurId,
-          commande.nom,
-        )
-      }
-      if (commande.type === 'supprimer') {
-        return transactions.supprimerPersonneVide(commande.personneId)
-      }
-      if (commande.type === 'fusionner') {
-        return transactions.fusionnerPersonnes(commande)
-      }
-      if (commande.type === 'separer') {
-        return transactions.separerPersonne(commande)
-      }
-      throw new Error(
-        'Cette correction de personnes n’est pas encore disponible dans les corpus distants.',
-      )
+  ipcMain.handle('corpus:inventaireIdentitesLocuteurs', () => store.inventaireIdentitesLocuteurs())
+  ipcMain.handle('corpus:locuteursInventaire', () => store.locuteursInventaire())
+  ipcMain.handle('corpus:detailsLocuteursInventaire', async (_e, pourCorrection = false) => {
+    if (typeof pourCorrection !== 'boolean') throw new Error('La demande de consultation est invalide.')
+    if (!pourCorrection) return store.detailsLocuteursInventaire()
+    const execution = executerContexteCommun(async (contexte) => {
+      return contexte.lireDetailsLocuteursCorrection()
     })
-    if (!execution) {
-      if (magasin.lectureSeule) {
-        throw new Error(
-          'Le corpus distant est hors ligne. La correction n’a pas été enregistrée.',
-        )
-      }
-      return magasin.personnesCommander(commande, depuisRepertoire)
-    }
+    if (!execution) return store.detailsLocuteursInventaire()
     const resultat = await execution
-    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la préparation.')
     return resultat.valeur
+  })
+  ipcMain.handle('corpus:corrigerLocuteurs', async (_e, commande: unknown) => {
+    validerCommandeCorrectionLocuteurs(commande)
+    exigerGeste(fournisseurCourant(), gesteCorrectionLocuteurs(commande))
+    const execution = executerContexteCommun(async (contexte) => {
+      return contexte.corrigerLocuteurs(commande)
+    })
+    if (!execution) return store.corrigerLocuteurs(commande)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la correction. Actualisez sa liste de locuteurs.')
+    return resultat.valeur
+  })
+  ipcMain.handle('corpus:suiviCorrectionLocuteurs', async () => {
+    const execution = executerContexteCommun(async (contexte) => estContexteNextcloud(contexte) ? contexte.lireSuiviCorrectionLocuteurs() : null)
+    if (!execution) return null
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la lecture du suivi.')
+    return resultat.valeur
+  })
+  const agirCorrectionLocuteurs = async (id: unknown, action: 'verifier' | 'reprendre' | 'arreter') => {
+    if (typeof id !== 'string' || !id.trim()) throw new Error('La correction demandée est invalide.')
+    exigerGeste(fournisseurCourant(), `locuteurs.${action}-correction`)
+    const execution = executerContexteDistant(async (contexte) => {
+      if (action === 'verifier') { await contexte.reconcilierCorrectionLocuteurs(id); return null }
+      if (action === 'arreter') { await contexte.arreterCorrectionLocuteurs(id); return null }
+      return contexte.reprendreCorrectionLocuteurs(id)
+    })
+    if (!execution) throw new Error('Aucune correction distante à reprendre.')
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la correction.')
+    return resultat.valeur
+  }
+  ipcMain.handle('corpus:reprendreCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'reprendre'))
+  ipcMain.handle('corpus:verifierCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'verifier'))
+  ipcMain.handle('corpus:arreterCorrectionLocuteurs', (_e, id: unknown) => agirCorrectionLocuteurs(id, 'arreter'))
+  ipcMain.handle('corpus:identifierParticipationAuNommage', (_e, demande: DemandeIdentificationLocuteur) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.identifier-au-nommage')
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.identifierParticipationAuNommage(demande), (c) => c.identifierParticipationAuNommage(demande))
+    return store.identifierParticipationAuNommage(demande)
+  })
+  ipcMain.handle('corpus:rapprocherLocuteurDepuisEntretien', (_e, demande: DemandeRapprochementNommage) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.rapprocher-depuis-entretien')
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.rapprocherLocuteurDepuisEntretien(demande), (c) => c.rapprocherLocuteurDepuisEntretien(demande))
+    return store.rapprocherLocuteurDepuisEntretien(demande)
+  })
+  ipcMain.handle('corpus:inventaireLocuteursDepuisEntretien', (_e, reference: ReferenceParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.identifier-au-nommage')
+    validerReferenceLocuteurOuvert(reference)
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.inventaireLocuteursDepuisEntretien(reference), (c) => c.inventaireLocuteursDepuisEntretien(reference))
+    return store.inventaireIdentitesLocuteurs()
+  })
+  ipcMain.handle('corpus:apercuRenommageLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-depuis-entretien')
+    validerReferenceLocuteurOuvert(reference)
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.apercuRenommageLocuteurDepuisEntretien(reference), (c) => c.apercuRenommageLocuteurDepuisEntretien(reference))
+    return store.inventaireIdentitesLocuteurs()
+  })
+  ipcMain.handle('corpus:renommerLocuteurDepuisEntretien', (_e, reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-depuis-entretien')
+    validerReferenceLocuteurOuvert(reference); validerCommandeCorrectionLocuteurs(commande)
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.renommerLocuteurDepuisEntretien(reference, commande), (c) => c.renommerLocuteurDepuisEntretien(reference, commande))
+    return store.renommerLocuteurDepuisEntretien(reference, commande)
+  })
+  ipcMain.handle('corpus:renommerParticipationDepuisEntretien', (_e, demande: DemandeRenommageParticipation) => {
+    exigerGeste(fournisseurCourant(), 'locuteurs.renommer-participation')
+    validerRenommageParticipation(demande)
+    if (contextesDistants.actuel) return executerSelonFournisseur((c) => c.renommerParticipationDepuisEntretien(demande), (c) => c.renommerParticipationDepuisEntretien(demande))
+    return store.renommerParticipationDepuisEntretien(demande)
   })
   ipcMain.handle('corpus:journalLister', () => store.journalCorpusLister())
   ipcMain.handle('corpus:journalAnnuler', (_e, id: string) => {
@@ -1788,10 +1816,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
 
   // Variables & modalités (EAV) — définitions : sous transaction distant.
-  ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
+  ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'participation') =>
     executerDefinitions('variable.creer', (cible) => cible.ajouterVariable(lib, portee)),
   )
-  ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Variable>) =>
+  ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>) =>
     executerDefinitions('variable.modifier', (cible) => cible.modifierVariable(id, patch)),
   )
   ipcMain.handle('corpus:usagesDonnee', (_e, idVar: string, idMod?: string, exceptId?: string) =>
@@ -1911,10 +1939,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
           data.annotations = transcription.annotations
           data.ancres = transcription.ancres
           data.reperesPassages = rendreReperesOrphelins(data.reperesPassages)
-          data.locuteurs = completerIdsLocuteurs(
+          data.participations = completerIdsLocuteurs(
             id,
-            transcription.locuteurs,
-            data.locuteurs,
+            transcription.participations,
+            data.participations,
           )
           return true
         })
@@ -2738,7 +2766,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
   })
   ipcMain.handle('migrer:lireEntretien', (e, index: number) => obtenirMigration(e).lireEntretien(index))
-  ipcMain.handle('migrer:ajouterEntretien', (e, index: number, payload: PayloadEntretien, regles: RegleAnon[]) => {
+  ipcMain.handle('migrer:ajouterEntretien', (e, index: number, payload: PayloadImportEntretien, regles: RegleAnon[]) => {
     obtenirMigration(e).ajouterEntretien(index, payload, regles)
   })
   ipcMain.handle('migrer:annuler', async (e) => {
@@ -2853,6 +2881,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // échecs nommés) ; local → boucle directe du store. Mêmes résultats dans les deux modes.
   ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) => {
     exigerGeste(fournisseurCourant(), 'valeurs.lot')
+    validerLotValeur(items)
     return executerSelonFournisseur(
       (contexte) => contexte.transactions.poserValeurLot(items),
       (contexte) => contexte.poserValeurLot(items),

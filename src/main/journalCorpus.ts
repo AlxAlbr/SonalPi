@@ -7,36 +7,7 @@ import type {
   ResultatAnnulationCorpus,
 } from '../shared/corpus/journal'
 
-export interface EtatLienJournalCorpus {
-  personneRef: string | null
-  personneDeliee?: boolean
-}
-
-export interface EtatRefusJournalCorpus {
-  rapprochementsRefuses?: string[]
-}
-
 export type InverseJournalCorpus =
-  | {
-      type: 'personneRenommer'
-      personneId: string
-      avant: string
-      apres: string
-    }
-  | {
-      type: 'personneLier'
-      entretienId: string
-      locuteurId: string
-      avant: EtatLienJournalCorpus
-      apres: EtatLienJournalCorpus
-    }
-  | {
-      type: 'personneRefus'
-      entretienId: string
-      locuteurId: string
-      avant: EtatRefusJournalCorpus
-      apres: EtatRefusJournalCorpus
-    }
   | {
       type: 'noteModifier'
       entretienId: string
