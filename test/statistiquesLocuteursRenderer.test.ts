@@ -27,7 +27,7 @@ async function monter() {
   injection.contexte = {
     blocsParole, locuteurs, entretien, allerAuTexte, tempsAuTexte: () => 4, audio: { url, seek }, ouvertId,
     vue: ref('entretien'), locuteurASupprimer: ref(null), messagePersonnes: ref(''),
-    rapprochementNommage: ref(null), rapprochementOccupe: ref(false), lirePersonnes: async () => ({ locuteurs: [] }),
+    rapprochementNommage: ref(null), rapprochementOccupe: ref(false), lireIdentitesLocuteurs: async () => ({ locuteurs: [] }),
   }
   const host = document.body.appendChild(document.createElement('div'))
   const ouvert = ref(false)

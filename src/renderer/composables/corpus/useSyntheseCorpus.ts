@@ -99,7 +99,7 @@ export function useSyntheseCorpus(deps: {
       const diagnostics: DiagnosticSynthese[] = []
       let locuteurs: Locuteur[] = []
       try {
-        locuteurs = (await window.sonal.corpus.personnesInventaire()).locuteurs
+        locuteurs = (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs
       } catch (erreur) {
         diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }

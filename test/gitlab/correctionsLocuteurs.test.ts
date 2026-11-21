@@ -84,7 +84,7 @@ test('réunion et suppression vide passent par le même commit complet sans copi
   expect(b.store.ouvrir().locuteurs.b).toBeUndefined()
   const c = b.store.lireEntretien('C'); if (!c.ok) throw new Error('Source absente')
   expect(c.data.participations[0]).toEqual({ ...b.fixture.entretiens[2].data.participations[0], locuteurRef: 'a' })
-  await b.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(b.store.personnesInventaire()) }, () => {})
+  await b.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(b.store.inventaireIdentitesLocuteurs()) }, () => {})
   expect(b.donnees()).toHaveLength(2); expect(b.store.ouvrir().locuteurs.vide).toBeUndefined()
 })
 

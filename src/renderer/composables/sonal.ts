@@ -118,7 +118,7 @@ export function creerSonal() {
     entretienEditable: () => distant.entretienEditable.value,
     renommageGlobalPossible: () => distant.gesteDisponible('renommageLocuteurOuvert') && distant.entretienEditable.value,
     identificationLocuteursPossible: () => distant.gesteDisponible('nommageLocuteurs') && distant.entretienEditable.value,
-    apresRenommageGlobal: () => { corpus.revisionPersonnesCorpus.value++; corpus.reinitialiserMatrice() },
+    apresRenommageGlobal: () => { corpus.revisionLocuteursCorpus.value++; corpus.reinitialiserMatrice() },
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -409,6 +409,7 @@ export function creerSonal() {
       viderSauvegarde: ent.viderSauvegarde,
       preserverEtAnnulerSauvegarde: ent.preserverEtAnnulerSauvegarde,
       annulerEtAttendreSauvegarde: ent.annulerEtAttendreSauvegarde,
+      correctionLocuteursEnCours: () => ent.renommageEnCours.value || ent.renommageGlobalOccupe.value,
     },
     effets: {
       annulerPreparation: () => annulerMigration(),
@@ -613,7 +614,7 @@ export function creerSonal() {
     vue,
     corpus: {
       ...corpus,
-      lirePersonnes: corpus.lirePersonnes,
+      lireIdentitesLocuteurs: corpus.lireIdentitesLocuteurs,
     },
     entretien: {
       ouvertId: ent.ouvertId,
@@ -713,7 +714,7 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     selectionCourante: ent.selectionPassageCourante,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
-    lirePersonnes: corpus.lirePersonnes,
+    lireIdentitesLocuteurs: corpus.lireIdentitesLocuteurs,
     ouvrirSource: ouvrirSourceLiee,
     fermerRecueils: recueilsCorpus.fermerRecueils,
     definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
@@ -824,11 +825,11 @@ export function creerSonal() {
       courant.regles.some((regle) => regle.type === "locuteur" || regle.type === "locuteurs"))
     let personnesConnues: Set<string> | null = new Set<string>()
     if (utilisePersonnes) {
-      const cle = `${revisionCorpus.value}:${corpus.revisionPersonnesCorpus.value}:${dernierTirage.value ?? ''}`
+      const cle = `${revisionCorpus.value}:${corpus.revisionLocuteursCorpus.value}:${dernierTirage.value ?? ''}`
       if (cachePersonnes?.cle === cle) personnesConnues = cachePersonnes.ids
       else {
         try {
-          const inventaire = await window.sonal.corpus.personnesInventaire()
+          const inventaire = await window.sonal.corpus.inventaireIdentitesLocuteurs()
           personnesConnues = new Set(inventaire.locuteurs.map((personne) => personne.id))
           cachePersonnes = { cle, ids: personnesConnues }
         } catch {
@@ -860,7 +861,7 @@ export function creerSonal() {
     corpus.cas,
     corpus.recueils,
     corpus.variables,
-    corpus.revisionPersonnesCorpus,
+    corpus.revisionLocuteursCorpus,
     dernierTirage,
     revisionCorpus,
     vue,
@@ -1131,7 +1132,7 @@ export function creerSonal() {
     })
   }
 
-  watch([dernierTirage, corpus.revisionPersonnesCorpus], () => {
+  watch([dernierTirage, corpus.revisionLocuteursCorpus], () => {
     if (casCorpus.casActifs.value) void casCorpus.actualiserCas()
   })
 

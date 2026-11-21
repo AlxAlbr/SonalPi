@@ -10,10 +10,9 @@ import type { Inverse } from '../../../shared/entretien/journal'
 import { participationParId, renommerParticipation as renommerNomParticipation, supprimerParticipation } from '../../../shared/entretien/participations'
 import type { ReferenceParticipation } from '../../../shared/locuteurs'
 import type { ParticipationLocuteur } from '../../../shared/format'
-import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../shared/corpus/personnes'
-import type { DemandeRapprochementNommage } from '../../../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from '../../../shared/corpus/inventaireLocuteurs'
+import type { DemandeRapprochementNommage, ChoixRepriseParticipation } from '../../../shared/corpus/contratsLocuteurs'
 import {
-  type ChoixRepriseLocuteur,
   natureNomLocuteur,
   peutCreerLocuteurAuNommage,
   refuserRapprochementLocuteurs,
@@ -34,7 +33,7 @@ type RapprochementNommage = {
   entretienId: string
   locuteurId: string
   nom: string
-  personneRef: string | null
+  locuteurRef: string | null
   attendu: string
   cible: ParticipationLocuteur
   sources: VueParticipationLocuteur[]
@@ -132,7 +131,7 @@ export function useLocuteursEntretien(deps: {
     sourceId: string,
     sourceEntretienId: string,
     decision: 'lier' | 'refuser' | 'refuserTous',
-    reprise?: ChoixRepriseLocuteur,
+    reprise?: ChoixRepriseParticipation,
   ) {
     const demande = rapprochementNommage.value
     if (!demande || rapprochementOccupe.value || deps.lectureSeule?.()) return
@@ -143,7 +142,7 @@ export function useLocuteursEntretien(deps: {
             (locuteur) =>
               locuteur.id === demande.locuteurId &&
               locuteur.nom === demande.nom &&
-              locuteur.locuteurRef === demande.personneRef,
+              locuteur.locuteurRef === demande.locuteurRef,
           )
         : undefined
     if (!courant()) {
@@ -264,7 +263,7 @@ export function useLocuteursEntretien(deps: {
           messagePersonnes.value += ' Les propositions sont différées : certains entretiens sont indisponibles.'
           return
         }
-        const personneRef = courant()!.locuteurRef
+        const locuteurRef = courant()!.locuteurRef
         const candidats = suggestionsLocuteurs(
           { entretienId: idEntretien, participation: courant()! },
           inventaire.participations.map((source) => ({
@@ -277,7 +276,7 @@ export function useLocuteursEntretien(deps: {
             entretienId: idEntretien,
             locuteurId: idLocuteur,
             nom,
-            personneRef,
+            locuteurRef,
             attendu: JSON.stringify(inventaire),
             cible: JSON.parse(JSON.stringify(courant()!)),
             sources: inventaire.participations,

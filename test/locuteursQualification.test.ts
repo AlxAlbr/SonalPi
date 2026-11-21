@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { examinerLocuteurs, notesSelectionLocuteurs } from '../src/shared/corpus/detailsLocuteurs'
-import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/inventaireLocuteurs'
 import { analyserRapprochementLocuteur, calculerSuggestionsLocuteurs, rapprochementLocuteursRefuse } from '../src/shared/corpus/rapprochementsLocuteurs'
 
 function inventaire(nombre = 2000): InventaireIdentitesLocuteurs {

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { ouvrir, retourCorpus, ouvrirDetailsLocuteurs } from './util'
 
 test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunion explicite regroupe', async () => {
@@ -9,20 +10,21 @@ test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunio
     const gestion = page.getByRole('dialog', { name: 'Gestion des locuteurs', exact: true }), nom = gestion.locator('.nom-loc').first()
     await nom.fill('Marie Dupont'); await nom.press('Enter')
     await expect(page.getByRole('status').filter({ hasText: 'Locuteur « Marie Dupont » créé' })).toBeVisible()
-    const avant = await page.evaluate(() => window.sonal.corpus.personnesInventaire()), cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
-    const sourceId = await page.evaluate(async () => {
+    const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs()), cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
+    const source = await page.evaluate(async () => {
       const api = window.sonal.corpus, { id } = await api.creerEntretienVide('Autre identité'), r = await api.lireEntretien(id)
       if (!r.ok) throw new Error('Source absente')
       const { formatVersion: _v, lastModified: _d, ...payload } = r.data
       payload.participations = [{ id: 'source', index: 0, nom: 'Paul Martin', valeursLoc: {}, locuteurRef: null }]
       await api.ecrireEntretien(id, payload)
-      return api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'source', nom: 'Paul Martin' })
+      return { entretienId: id, participationId: 'source', dir: (await api.dossierCourant()).dir }
     })
+    const sourceId = creerLocuteurFixture(source.dir, 'Paul Martin', [source])
     await nom.fill('Paul Martin'); await nom.press('Enter')
     const renommage = page.getByRole('dialog', { name: 'Renommer ce locuteur dans les entretiens', exact: true })
     await expect(nom).toHaveValue('Paul Martin'); await expect(nom).toBeEnabled()
     await expect(renommage).toHaveCount(0)
-    const apresNom = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const apresNom = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(apresNom.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual({ ...cible, nom: 'Paul Martin' })
     expect(apresNom.locuteurs).toHaveLength(2); expect(cible.locuteurRef).not.toBe(sourceId)
     await expect(page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })).toHaveCount(0)
@@ -35,7 +37,7 @@ test('renommer comme un autre locuteur ne déplace aucun lien ; seule la réunio
     const reunir = page.getByRole('dialog', { name: 'Réunir les locuteurs sélectionnés' })
     await reunir.getByRole('radio', { name: 'Conserver les noms actuels', exact: true }).check()
     await reunir.getByRole('button', { name: 'Réunir les locuteurs', exact: true }).click(); await expect(reunir).toHaveCount(0)
-    const apres = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const apres = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(apres.locuteurs).toHaveLength(1)
     expect(apres.participations.filter((p) => p.nom === 'Paul Martin').every((p) => p.locuteurRef === apres.locuteurs[0].id)).toBe(true)
     await expect(page.locator('.locuteurs-corpus').getByLabel('Associer à')).toHaveCount(0)

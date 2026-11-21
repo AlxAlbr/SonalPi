@@ -4,7 +4,7 @@ import type { CommandeCorrectionLocuteurs, OperationNommageLocuteurs } from '../
 import { validerCommandeCorrectionLocuteurs, validerOperationNommageLocuteurs } from '../shared/corpus/contratsLocuteurs'
 import { appliquerCorrectionLocuteurs } from '../shared/corpus/correctionsLocuteurs'
 import { identifierParticipationNommage, rapprocherParticipationsNommage } from '../shared/corpus/nommageLocuteurs'
-import { inventorierPersonnes } from '../shared/corpus/personnes'
+import { inventorierLocuteurs } from '../shared/corpus/inventaireLocuteurs'
 import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
 
 export interface SourceCorrectionLocuteurs {
@@ -66,7 +66,7 @@ export function preparerNommageLocuteurs(
 
 function genererId(): string { return `pers-${randomUUID()}` }
 function verifierInventaire(corpus: CorpusFichier, fichiers: FichierPreparation[], attendu: string) {
-  const inventaire = { ...inventorierPersonnes(corpus, fichiers), indisponibles: [] }
+  const inventaire = { ...inventorierLocuteurs(corpus, fichiers), indisponibles: [] }
   if (JSON.stringify(inventaire) !== attendu) {
     throw new Error('Les locuteurs ou les entretiens ont changé. Actualisez puis vérifiez à nouveau la correction.')
   }

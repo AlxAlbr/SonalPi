@@ -63,8 +63,8 @@ import type {
   SuiviOperationTheme,
   PreparationRepriseOperationTheme,
 } from '../shared/corpus/themes'
-import type { InventaireIdentitesLocuteurs } from '../shared/corpus/personnes'
-import type { CommandeLocuteurs, CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../shared/corpus/inventaireLocuteurs'
+import type { CommandeRenommageLocuteur, DemandeIdentificationLocuteur, DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
 import type { ReferenceParticipation } from '../shared/locuteurs'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
@@ -207,7 +207,7 @@ declare global {
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>
         notesCommander: (commande: CommandeNotes) => Promise<string | null>
-        personnesInventaire: () => Promise<InventaireIdentitesLocuteurs>
+        inventaireIdentitesLocuteurs: () => Promise<InventaireIdentitesLocuteurs>
         identifierParticipationAuNommage: (demande: DemandeIdentificationLocuteur) => Promise<EntretienFichier>
         rapprocherLocuteurDepuisEntretien: (demande: DemandeRapprochementNommage) => Promise<EntretienFichier>
         inventaireLocuteursDepuisEntretien: (reference: ReferenceParticipation) => Promise<InventaireIdentitesLocuteurs>
@@ -220,7 +220,6 @@ declare global {
         verifierCorrectionLocuteurs: (id: string) => Promise<null>
         arreterCorrectionLocuteurs: (id: string) => Promise<null>
         corrigerLocuteurs: (commande: import('../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) => Promise<string | null>
-        personnesCommander: (commande: CommandeLocuteurs, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>
         journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>

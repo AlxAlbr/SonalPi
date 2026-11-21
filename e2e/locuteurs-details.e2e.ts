@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { creerLocuteurFixture, installerIdentitesFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
 
 function fichiers(dir: string, ids: string[]) { return [join(dir, 'corpus', 'corpus.crp'), ...ids.map((id) => join(dir, 'corpus', 'entretiens', `${id}.json`))].map((f) => readFileSync(f, 'utf8')) }
@@ -10,10 +11,10 @@ test('les détails restent secondaires et les notes de mêmes ids ne traversent 
   const dir = mkdtempSync(join(tmpdir(), 'sonal-details-notes-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
-    const autre = await page.evaluate(async () => {
+    const a = creerLocuteurFixture(join(dir, 'corpus'), 'Alice'), b = creerLocuteurFixture(join(dir, 'corpus'), 'Bob')
+    const autre = await page.evaluate(async ({ a, b }) => {
       const api = window.sonal.corpus, variable = await api.ajouterVariable('Donnée locale', 'participation')
       const corpus = await api.ajouterModalite(variable.id, 'Valeur conservée'), mod = corpus.variables[variable.id].modalites[0].id
-      const a = await api.personnesCommander({ type: 'creerDefinition', nom: 'Alice' }), b = await api.personnesCommander({ type: 'creerDefinition', nom: 'Bob' })
       const { id } = await api.creerEntretienVide('Autre entretien')
       for (const [entretienId, identite, titre] of [['e1', a, 'Note sélectionnée'], [id, b, 'Note étrangère']] as const) {
         const r = await api.lireEntretien(entretienId)
@@ -26,7 +27,7 @@ test('les détails restent secondaires et les notes de mêmes ids ne traversent 
         await api.ecrireEntretien(entretienId, payload)
       }
       return id
-    })
+    }, { a, b })
     const avant = fichiers(dir, ['e1', autre])
     await ouvrirDetailsLocuteurs(page)
     const panneau = page.locator('.locuteurs-corpus'), details = panneau.locator('.details-locuteurs')
@@ -59,15 +60,15 @@ test('suppression d’une définition vide : annulation, suppression libre et re
   const dir = mkdtempSync(join(tmpdir(), 'sonal-details-vides-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
-    await page.evaluate(async () => {
+    creerLocuteurFixture(join(dir, 'corpus'), 'Vide libre')
+    const utilise = creerLocuteurFixture(join(dir, 'corpus'), 'Vide utilisé')
+    await page.evaluate(async (id) => {
       const api = window.sonal.corpus
-      await api.personnesCommander({ type: 'creerDefinition', nom: 'Vide libre' })
-      const id = (await api.personnesCommander({ type: 'creerDefinition', nom: 'Vide utilisé' }))!
       const r = await api.lireEntretien('e1'); if (!r.ok) throw new Error('Fixture absente')
       const { formatVersion: _v, lastModified: _d, ...payload } = r.data
       payload.participations[0].rapprochementsRefuses = [{ type: 'locuteur', locuteurId: id }]
       await api.ecrireEntretien('e1', payload)
-    })
+    }, utilise)
     await ouvrirDetailsLocuteurs(page)
     const details = page.locator('.details-locuteurs')
     await details.locator('summary').filter({ hasText: 'Locuteurs sans entretien (2)' }).click()
@@ -77,13 +78,13 @@ test('suppression d’une définition vide : annulation, suppression libre et re
     const dialogue = page.getByRole('dialog', { name: 'Supprimer ce locuteur sans entretien' })
     await expect(dialogue.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
     await page.keyboard.press('Escape'); await expect(dialogue).toHaveCount(0)
-    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toHaveLength(2)
+    expect((await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs).toHaveLength(2)
     await libre.click(); await dialogue.getByRole('button', { name: 'Supprimer ce locuteur', exact: true }).click(); await expect(dialogue).toHaveCount(0)
     await expect(libres).not.toContainText('Vide libre')
     await libres.locator('article').filter({ hasText: 'Vide utilisé' }).getByRole('button', { name: 'Supprimer ce locuteur…' }).click()
     await dialogue.getByRole('button', { name: 'Supprimer ce locuteur', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('rapprochements refusés')
-    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs.map((l) => l.nom)).toEqual(['Vide utilisé'])
+    expect((await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs.map((l) => l.nom)).toEqual(['Vide utilisé'])
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 
@@ -91,12 +92,12 @@ test('un changement après l’aperçu refuse la suppression sans écriture supp
   const dir = mkdtempSync(join(tmpdir(), 'sonal-details-perime-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
-    const id = await page.evaluate(() => window.sonal.corpus.personnesCommander({ type: 'creerDefinition', nom: 'Vide initial' }))
+    const id = creerLocuteurFixture(join(dir, 'corpus'), 'Vide initial')
     await ouvrirDetailsLocuteurs(page)
     const details = page.locator('.details-locuteurs')
     await details.locator('summary').filter({ hasText: 'Locuteurs sans entretien (1)' }).click()
     await details.getByRole('button', { name: 'Supprimer ce locuteur…' }).click()
-    await page.evaluate((id) => window.sonal.corpus.personnesCommander({ type: 'modifier', locuteurId: id!, nom: 'Nom changé ailleurs' }), id)
+    installerIdentitesFixture(join(dir, 'corpus'), { locuteurs: [{ id, nom: 'Nom changé ailleurs' }] })
     const avant = fichiers(dir, ['e1'])
     const dialogue = page.getByRole('dialog', { name: 'Supprimer ce locuteur sans entretien' })
     await dialogue.getByRole('button', { name: 'Supprimer ce locuteur', exact: true }).click()
@@ -136,7 +137,7 @@ test('régulariser un retrait ou un lien absent est explicite et conserve sépar
     expect(fichiers(dir, ['e1', autre])).toEqual(avant)
     await panneau.getByRole('button', { name: 'Conserver séparément…' }).click()
     await dialogue.getByRole('button', { name: 'Conserver séparément', exact: true }).click(); await expect(dialogue).toHaveCount(0)
-    const inv = await page.evaluate(() => window.sonal.corpus.personnesInventaire()), voix = inv.participations.filter((p) => p.nom === 'X')
+    const inv = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs()), voix = inv.participations.filter((p) => p.nom === 'X')
     expect(inv.locuteurs).toHaveLength(2); expect(new Set(voix.map((p) => p.locuteurRef)).size).toBe(2)
     expect(voix.every((p) => !!p.locuteurRef && !p.associationRetiree)).toBe(true)
     await expect(lignes).toHaveCount(2)

@@ -1,6 +1,6 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
 import type { EntretienFichier, EntretienRef, Variable } from '../../../shared/format'
-import type { InventaireIdentitesLocuteurs } from '../../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../../shared/corpus/inventaireLocuteurs'
 import {
   normaliserNomCas,
   compterUsagesAttributCas,
@@ -97,7 +97,7 @@ export function useCasCorpus(deps: {
     from: number
     to: number
   }) => Promise<{ id: string; from: number; to: number }>
-  lirePersonnes: () => Promise<InventaireIdentitesLocuteurs>
+  lireIdentitesLocuteurs: () => Promise<InventaireIdentitesLocuteurs>
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
   fermerRecueils: () => void
   /** Le fournisseur sait-il garder les sources qu'un rattachement ou une
@@ -117,7 +117,7 @@ export function useCasCorpus(deps: {
   const modeTexteCas = ref<ModeTextePassage>('pseudonymise')
   const modeMateriauxCas = ref<ModeMateriauxCas>('tous')
   const projectionsCas = ref<Record<string, ProjectionCas>>({})
-  const inventairePersonnesCas = ref<InventaireIdentitesLocuteurs | null>(null)
+  const inventaireLocuteursCas = ref<InventaireIdentitesLocuteurs | null>(null)
   const chargementCas = ref(false)
   const messageCas = ref<string | null>(null)
   const etatSauvegardeCas = ref<'à jour' | 'enregistrement…' | 'conflit'>('à jour')
@@ -162,13 +162,13 @@ export function useCasCorpus(deps: {
     .map(([id, reference]) => ({ id, nom: reference.titre }))
     .sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.id.localeCompare(b.id)))
 
-  async function chargerInventairePersonnes(force = false): Promise<InventaireIdentitesLocuteurs> {
-    if (!force && inventairePersonnesCas.value) return inventairePersonnesCas.value
+  async function chargerInventaireLocuteurs(force = false): Promise<InventaireIdentitesLocuteurs> {
+    if (!force && inventaireLocuteursCas.value) return inventaireLocuteursCas.value
     const corpusAttendu = generationCorpus
     const lecture = ++generationInventaire
-    const inventaire = await deps.lirePersonnes()
+    const inventaire = await deps.lireIdentitesLocuteurs()
     if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé pendant la lecture des personnes.')
-    if (lecture === generationInventaire) inventairePersonnesCas.value = inventaire
+    if (lecture === generationInventaire) inventaireLocuteursCas.value = inventaire
     return inventaire
   }
 
@@ -232,7 +232,7 @@ export function useCasCorpus(deps: {
     chargementCas.value = true
     try {
       const inventaire = courants.some((courant) => courant.regles.some((regle) => membresPersonnesRegle(regle).length > 0))
-        ? await chargerInventairePersonnes()
+        ? await chargerInventaireLocuteurs()
         : null
       const sources = await chargerSources(idsSources(courants))
       if (maGeneration !== generation) return
@@ -274,7 +274,7 @@ export function useCasCorpus(deps: {
     chargementCas.value = true
     messageCas.value = null
     try {
-      await chargerInventairePersonnes(true)
+      await chargerInventaireLocuteurs(true)
       if (corpusAttendu !== generationCorpus || actualisation !== generationActualisation) return
       await rafraichirProjections()
     } catch (erreur) {
@@ -325,7 +325,7 @@ export function useCasCorpus(deps: {
     modeTexteCas.value = 'pseudonymise'
     modeMateriauxCas.value = 'tous'
     projectionsCas.value = {}
-    inventairePersonnesCas.value = null
+    inventaireLocuteursCas.value = null
     chargementCas.value = false
     messageCas.value = null
     etatSauvegardeCas.value = 'à jour'
@@ -375,7 +375,7 @@ export function useCasCorpus(deps: {
     personneId: string,
     inclureEnqueteurs: boolean,
   ): Promise<ApercuPersonneCas> {
-    const inventaire = await chargerInventairePersonnes()
+    const inventaire = await chargerInventaireLocuteurs()
     const personne = inventaire.locuteurs.find((candidate) => candidate.id === personneId)
     if (!personne) throw new Error("Cette personne n'existe plus.")
     const sources = await chargerSources(Object.keys(deps.membership.value))
@@ -409,7 +409,7 @@ export function useCasCorpus(deps: {
       throw new Error('Choisissez au moins une source, sans doublon.')
     }
     const corpusAttendu = generationCorpus
-    const inventaire = choix.type === "locuteurs" ? await chargerInventairePersonnes(true) : null
+    const inventaire = choix.type === "locuteurs" ? await chargerInventaireLocuteurs(true) : null
     const candidats = choix.type === "locuteurs" ? inventaire!.locuteurs : entretiensCas.value
     const parId = new Map(candidats.map((candidat) => [candidat.id, candidat.nom]))
     for (const id of choix.ids) {
@@ -572,7 +572,7 @@ export function useCasCorpus(deps: {
     memo: string
     inclureEnqueteurs: boolean
   }): Promise<string> {
-    const inventaire = await chargerInventairePersonnes()
+    const inventaire = await chargerInventaireLocuteurs()
     if (!inventaire.locuteurs.some((personne) => personne.id === params.personneId)) {
       throw new Error("Cette personne n'existe plus.")
     }
@@ -967,7 +967,7 @@ export function useCasCorpus(deps: {
     actualiserMateriauxCas,
     projectionCas,
     projectionsCas,
-    inventairePersonnesCas,
+    inventaireLocuteursCas,
     modeTexteCas,
     modeMateriauxCas,
     vueMateriauxCas,

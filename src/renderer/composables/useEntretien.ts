@@ -28,7 +28,7 @@ import { useRenommageLocuteurOuvert } from './entretien/useRenommageLocuteurOuve
 import { verifierRelectureRenommage, signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
 import { payloadApresRapprochement, verifierPayloadRelecture, verifierRelectureIdentification } from '../../shared/entretien/identificationLocuteurs'
 import type { DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
-import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import type { PayloadEntretien, ReferenceParticipation } from '../../shared/format'
 import { useAnonymisationEntretien } from './entretien/useAnonymisationEntretien'
 import { useAnnotationsEntretien } from './entretien/useAnnotationsEntretien'

@@ -65,7 +65,7 @@ import {
 import type { ResultatPublicationGitLab } from './publication'
 import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
 import { verifierRelectureIdentification, verifierPayloadRelecture, payloadApresRapprochement } from '../../shared/entretien/identificationLocuteurs'
-import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage, validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, type CommandeRenommageLocuteur, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
 import type { ResultatTransactionDefinitions, TransactionsGitLab } from './transactions'

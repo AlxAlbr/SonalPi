@@ -1,4 +1,3 @@
-export type { ChoixRepriseLocuteur } from './contratsLocuteurs'
 import type { ParticipationLocuteur, RefusRapprochementLocuteur } from '../locuteurs'
 import type { ChoixRepriseParticipation } from './contratsLocuteurs'
 export type { ChoixRepriseParticipation } from './contratsLocuteurs'

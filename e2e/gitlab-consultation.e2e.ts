@@ -473,11 +473,9 @@ test.describe('Consultation GitLab à deux profils', () => {
         const apres = JSON.parse(Buffer.from(fichier.content, 'base64').toString('utf8'))
         expect(apres).toEqual(e.id === 'C' ? e.data : { ...e.data, lastModified: expect.any(String), participations: [{ ...e.data.participations[0], nom: 'Alice publiée' }] })
       }
-      const refus = await page.evaluate(async () => {
-        try { await window.sonal.corpus.personnesCommander({ type: 'modifier', locuteurId: 'a', nom: 'Ancien chemin' }); return null }
-        catch (e) { return String(e) }
-      })
-      expect(refus).toContain('Cette opération n’est pas disponible sur un corpus distant.')
+      expect(await page.evaluate(() => Object.hasOwn(window.sonal.corpus, 'personnesCommander'))).toBe(false)
+      expect(await app.evaluate(({ ipcMain }) =>
+        (ipcMain as unknown as { _invokeHandlers: Map<string, unknown> })._invokeHandlers.has('corpus:personnesCommander'))).toBe(false)
       await details.getByRole('button', { name: 'Ouvrir les locuteurs de Entretien A', exact: true }).click()
       await expect(page.locator('.entretien-ecran')).toBeVisible()
       await page.locator('.editeur').click(); await page.keyboard.press('Control+Home'); await page.keyboard.insertText('SAISIES RÉCENTES ')

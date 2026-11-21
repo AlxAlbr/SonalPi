@@ -8,7 +8,7 @@ import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
 import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
-import type { CommandeCorrectionLocuteurs, CommandeLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 import { traitementsLexicoParDefaut } from '../../shared/lexico/traitements'
@@ -56,9 +56,9 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     return window.sonal.corpus.notesCommander(toRaw(commande))
   }
 
-  async function lirePersonnes() {
+  async function lireIdentitesLocuteurs() {
     await opts.flush()
-    return window.sonal.corpus.personnesInventaire()
+    return window.sonal.corpus.inventaireIdentitesLocuteurs()
   }
 
   async function lireDetailsLocuteurs(pourCorrection = false) {
@@ -75,11 +75,6 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     return window.sonal.corpus.locuteursInventaire()
   }
 
-  async function commanderPersonnes(commande: CommandeLocuteurs) {
-    await opts.flush()
-    return window.sonal.corpus.personnesCommander(toRaw(commande), true)
-  }
-
   async function corrigerLocuteurs(commande: CommandeCorrectionLocuteurs) {
     const revision = opts.revision?.()
     await opts.flush()
@@ -87,7 +82,7 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     try {
       const id = await window.sonal.corpus.corrigerLocuteurs(toRaw(commande))
       if (revision === opts.revision?.()) {
-        journal.revisionPersonnesCorpus.value++
+        journal.revisionLocuteursCorpus.value++
         variables.reinitialiserMatrice()
       }
       return id
@@ -114,7 +109,7 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     try {
       const resultat = await (action === 'verifier' ? window.sonal.corpus.verifierCorrectionLocuteurs(id)
         : action === 'arreter' ? window.sonal.corpus.arreterCorrectionLocuteurs(id) : window.sonal.corpus.reprendreCorrectionLocuteurs(id))
-      if (revision === opts.revision?.()) { journal.revisionPersonnesCorpus.value++; variables.reinitialiserMatrice() }
+      if (revision === opts.revision?.()) { journal.revisionLocuteursCorpus.value++; variables.reinitialiserMatrice() }
       return resultat
     } finally { if (revision === opts.revision?.()) revisionSuiviLocuteurs.value++ }
   }
@@ -187,7 +182,7 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     supprimerCategorieNote: categoriesNotes.supprimerCategorieNote,
     // Journal du corpus.
     entreesJournalCorpus: journal.entreesJournalCorpus,
-    revisionPersonnesCorpus: journal.revisionPersonnesCorpus,
+    revisionLocuteursCorpus: journal.revisionLocuteursCorpus,
     revisionNotesCorpus: journal.revisionNotesCorpus,
     rafraichirJournalCorpus: journal.rafraichirJournalCorpus,
     annulerEntreeJournalCorpus: journal.annulerEntreeJournalCorpus,
@@ -199,11 +194,10 @@ export function useCorpus(opts: { flush: () => Promise<void>; revision?: () => n
     migrerTheme: themes.migrerTheme,
     lireNotes,
     commanderNotes,
-    lirePersonnes,
+    lireIdentitesLocuteurs,
     lireDetailsLocuteurs,
     lireApercuLocuteurs,
     lireLocuteursCorpus,
-    commanderPersonnes,
     corrigerLocuteurs,
     // variables/modalités
     ajouterVariable: variables.ajouterVariable,

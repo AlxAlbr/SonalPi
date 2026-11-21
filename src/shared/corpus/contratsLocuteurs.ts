@@ -8,8 +8,6 @@ export interface ChoixRepriseParticipation {
   remplacer?: boolean
 }
 
-export type ChoixRepriseLocuteur = ChoixRepriseParticipation
-
 export interface DemandeIdentificationLocuteur extends ReferenceParticipation { nom: string }
 
 export function validerIdentificationLocuteur(v: unknown): asserts v is DemandeIdentificationLocuteur {
@@ -49,11 +47,6 @@ function repriseValide(r: unknown): r is ChoixRepriseParticipation {
     && new Set(r.variables).size === r.variables.length
     && Object.keys(r).every((c) => ['pseudo', 'interviewer', 'variables', 'remplacer'].includes(c))
     && ['pseudo', 'interviewer', 'remplacer'].every((c) => r[c] === undefined || typeof r[c] === 'boolean')
-}
-
-export interface ParticipationASeparer {
-  entretienId: string
-  participationId: string
 }
 
 export type CommandeCorrectionLocuteurs =
@@ -121,16 +114,3 @@ export function validerCommandeCorrectionLocuteurs(v: unknown): asserts v is Com
     if (new Set(cles).size !== cles.length) throw erreur()
   }
 }
-
-export type CommandeLocuteurs =
-  | CommandeCorrectionLocuteurs
-  | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string; choix: ChoixRepriseLocuteur } }
-  | { type: 'separer'; locuteurId: string; nom: string; participations: ParticipationASeparer[]; attendu: string }
-  | { type: 'creerDefinition'; nom: string }
-  | { type: 'refuser'; entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string }
-  | { type: 'annulerRefus'; entretienId: string; participationId: string; cible: RefusRapprochementLocuteur }
-  | { type: 'rapprocher'; entretienId: string; participationId: string; sourceEntretienId: string; sourceParticipationId: string; attendu?: string; reprise?: ChoixRepriseLocuteur }
-  | { type: 'creer'; entretienId: string; participationId: string; nom: string }
-  | { type: 'lier'; entretienId: string; participationId: string; locuteurId: string | null }
-  | { type: 'modifier'; locuteurId: string; nom: string }
-  | { type: 'supprimer'; locuteurId: string }

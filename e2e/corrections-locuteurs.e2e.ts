@@ -12,9 +12,14 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
     await entrerCorpus(page)
     const resultat = await page.evaluate(async () => {
       const api = window.sonal.corpus
-      const initial = await api.personnesInventaire()
+      const initial = await api.inventaireIdentitesLocuteurs()
       const base = initial.participations.find((p) => p.nom === 'Karine')!
-      const commun = await api.personnesCommander({ type: 'creer', entretienId: base.entretienId, participationId: base.participationId, nom: 'Karine' })
+      const identifier = async (entretienId: string, participationId: string, nom: string) => {
+        await api.ouvrirEntretienPourEdition(entretienId)
+        try { return (await api.identifierParticipationAuNommage({ entretienId, participationId, nom })).participations.find((p) => p.id === participationId)!.locuteurRef! }
+        finally { await api.fermerEntretien(entretienId) }
+      }
+      const commun = await identifier(base.entretienId, base.participationId, 'Karine')
       if (!commun) throw new Error('Identité commune absente')
       const ids = [commun]
       const sources: string[] = []
@@ -28,7 +33,7 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
         data.notes = [{ id: 'note-locale', categorieId: 'ncat_generale', titre: '', date: null, statut: 'prive', corps: 'Note de cet entretien',
           participationIds: ['participation-partagee'], rang: 0, creeLe: data.lastModified, modifieLe: null }]
         await api.ecrireEntretien(id, data)
-        const identite = await api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'participation-partagee', nom })
+        const identite = await identifier(id, 'participation-partagee', nom)
         if (!identite) throw new Error('Identité source absente')
         ids.push(identite); sources.push(id)
       }
@@ -38,22 +43,28 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
         return lecture.data
       }
       const avant = await Promise.all(sources.map(lire))
-      const attendu = JSON.stringify(await api.personnesInventaire())
+      const attendu = JSON.stringify(await api.inventaireIdentitesLocuteurs())
       let ancienRefuse = false
       try {
-        await api.personnesCommander(JSON.parse(JSON.stringify({ type: 'renommerGlobal', personneId: commun, nom: 'Ancien message', attendu })))
+        await api.corrigerLocuteurs(JSON.parse(JSON.stringify({ type: 'renommerGlobal', personneId: commun, nom: 'Ancien message', attendu })))
       } catch (e) { ancienRefuse = String(e).includes('demande de correction') }
-      const intact = JSON.stringify(await api.personnesInventaire()) === attendu
-      await api.personnesCommander({ type: 'regrouperSelection', locuteurIds: ids, conserverId: commun, nom: 'Nom regroupé', uniformiserNoms: false, attendu })
+      const intact = JSON.stringify(await api.inventaireIdentitesLocuteurs()) === attendu
+      await api.corrigerLocuteurs({ type: 'regrouperSelection', locuteurIds: ids, conserverId: commun, nom: 'Nom regroupé', uniformiserNoms: false, attendu })
       const regroupes = await Promise.all(sources.map(lire))
-      await api.personnesCommander({ type: 'renommerGlobal', locuteurId: commun, nom: 'Nom aligné', attendu: JSON.stringify(await api.personnesInventaire()) })
+      await api.corrigerLocuteurs({ type: 'renommerGlobal', locuteurId: commun, nom: 'Nom aligné', attendu: JSON.stringify(await api.inventaireIdentitesLocuteurs()) })
       const renommes = await Promise.all(sources.map(lire))
-      await api.personnesCommander({ type: 'dissocierSelection', locuteurId: commun,
+      await api.corrigerLocuteurs({ type: 'dissocierSelection', locuteurId: commun,
         participations: [{ entretienId: sources[0], participationId: 'participation-partagee' }],
-        attendu: JSON.stringify(await api.personnesInventaire()) })
+        attendu: JSON.stringify(await api.inventaireIdentitesLocuteurs()) })
       const dissocies = await Promise.all(sources.map(lire))
-      return { commun, avant, regroupes, renommes, dissocies, ancienRefuse, intact }
+      return { commun, avant, regroupes, renommes, dissocies, ancienRefuse, intact, ancienneLectureRetiree: !Object.hasOwn(api, 'personnesInventaire'), ancienneCommandeRetiree: !Object.hasOwn(api, 'personnesCommander') }
     })
+    expect(await app.evaluate(({ ipcMain }) => {
+      const handlers = ipcMain as unknown as { _invokeHandlers: Map<string, unknown> }
+      return { ancien: handlers._invokeHandlers.has('corpus:personnesInventaire'), commande: handlers._invokeHandlers.has('corpus:personnesCommander'), actuel: handlers._invokeHandlers.has('corpus:inventaireIdentitesLocuteurs') }
+    })).toEqual({ ancien: false, commande: false, actuel: true })
+    expect(resultat.ancienneLectureRetiree).toBe(true)
+    expect(resultat.ancienneCommandeRetiree).toBe(true)
     expect(resultat.ancienRefuse).toBe(true)
     expect(resultat.intact).toBe(true)
     expect(resultat.regroupes.map((e) => e.participations[0].locuteurRef)).toEqual([resultat.commun, resultat.commun])

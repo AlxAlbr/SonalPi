@@ -3,7 +3,7 @@ import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, type 
 import type { CorrectionLocuteursSessionGitLab } from './session'
 import { preparerNommageLocuteurs, type PlanCorrectionLocuteurs, type SourceCorrectionLocuteurs, preparerCorrectionLocuteurs } from '../preparationCorrectionsLocuteurs'
 import type { DetailsLocuteurs } from '../../shared/corpus/detailsLocuteurs'
-import { inventorierPersonnes } from '../../shared/corpus/personnes'
+import { inventorierLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { CorpusStore } from '../corpusStore'
@@ -362,7 +362,7 @@ export class TransactionsGitLab {
         return { id: s.id, titre: frais.corpus.membership[s.id].titre, data }
       })
       if (session && !ids.includes(session.entretienId)) throw new Error('Cet entretien ne fait plus partie du corpus.')
-      return { inventaire: { ...inventorierPersonnes(frais.corpus, entretiens), indisponibles: [] },
+      return { inventaire: { ...inventorierLocuteurs(frais.corpus, entretiens), indisponibles: [] },
         variables: Object.values(frais.corpus.variables), categories: normaliserCategoriesNote(frais.corpus.categoriesNote) }
     })
   }

@@ -17,7 +17,7 @@ const {
   casOuvertId,
   projectionCas,
   projectionsCas,
-  inventairePersonnesCas,
+  inventaireLocuteursCas,
   entretiensCas,
   modeTexteCas,
   modeMateriauxCas,
@@ -63,7 +63,7 @@ onBeforeUnmount(enregistrerContextePanneau('organiser-cas', () => {
   return () => { recherche.value = etat.recherche; filtreFamille.value = etat.famille }
 }))
 
-const personnes = computed(() => inventairePersonnesCas.value?.locuteurs ?? [])
+const personnes = computed(() => inventaireLocuteursCas.value?.locuteurs ?? [])
 const casFiltres = computed(() => {
   const cle = recherche.value.trim().toLocaleLowerCase('fr')
   const candidats = listeCas.value.filter((cas) => !filtreFamille.value || cas.familleId === filtreFamille.value)

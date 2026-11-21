@@ -52,7 +52,8 @@ import type {
 } from '../../shared/format'
 import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
-import type { CommandeLocuteurs, CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { SessionCorrectionLocuteursWebDAV, CopieSessionLocuteursWebDAV, ContexteSessionLocuteursWebDAV } from './sessionCorrectionLocuteurs'
+import type { CommandeRenommageLocuteur, OperationNommageLocuteurs, CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 import { CorrectionsLocuteursWebDAV } from './correctionsLocuteursWebDAV'
 import { validerLotValeur } from '../../shared/corpus/valeursVariables'
 import { verifierVersionNative } from '../../shared/versionsNatives'
@@ -103,7 +104,7 @@ export interface OptionsTransactions {
   gardePseudos?: GardePseudosWebDAV
   sessionsEnCours?: () => string[]
   verifierContexteRetrait?: (etape: EtapeRetraitVarianteWebDAV) => void
-  verifierContexteCorrection?: () => void
+  verifierContexteCorrection?: (session?: ContexteSessionLocuteursWebDAV) => void
   /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
    *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
    *  Une réunion publie la session avant de retirer une définition encore référencée. */
@@ -142,7 +143,7 @@ export class TransactionsCorpus {
     const identiteCorrection = () => ({ ...this.identite(), sessionId: `locuteurs-${randomUUID()}` })
     this.correctionsLocuteurs = new CorrectionsLocuteursWebDAV({ client, dirLocal: miroir.dirLocal,
       utilisateur: () => this.identite().userId,
-      verifierContexte: () => options.verifierContexteCorrection?.(),
+      verifierContexte: (session) => options.verifierContexteCorrection?.(session),
       sessionsLocales: () => [...(options.getSessions?.()?.idsTenus() ?? []), ...(options.getSessions?.()?.idsRecuperablesLocalement?.() ?? []), ...(options.sessionsEnCours?.() ?? [])],
       miroir: (chemin, contenu, etag) => {
         if (chemin === CHEMIN_CORPUS) this.ecrireCorpusLocal(contenu)
@@ -435,6 +436,17 @@ export class TransactionsCorpus {
     exigerGeste('webdav', gesteCorrectionLocuteurs(commande)); this.exigerAutresOperationsLocuteurs()
     return this.correctionsLocuteurs.appliquer(commande)
   }
+  lireDetailsLocuteursSession(copie: CopieSessionLocuteursWebDAV) {
+    this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.lireDetails(copie)
+  }
+  corrigerLocuteursDepuisSession(commande: CommandeRenommageLocuteur | OperationNommageLocuteurs, session: SessionCorrectionLocuteursWebDAV) {
+    const geste = commande.type === 'identifierAuNommage' ? 'locuteurs.identifier-au-nommage'
+      : commande.type === 'rapprocherAuNommage' ? 'locuteurs.rapprocher-depuis-entretien' : 'locuteurs.renommer-depuis-entretien'
+    exigerGeste('webdav', geste); this.exigerAutresOperationsLocuteurs()
+    return this.correctionsLocuteurs.appliquerDepuisSession(commande, session)
+  }
+  sessionCorrectionLocuteursInterrompue() { return this.correctionsLocuteurs.sessionInterrompue() }
   lireSuiviCorrectionLocuteurs() { return this.correctionsLocuteurs.lireSuivi() }
   reprendreCorrectionLocuteurs(id: string) {
     exigerGeste('webdav', 'locuteurs.reprendre-correction'); this.exigerAutresOperationsLocuteurs()
@@ -442,7 +454,7 @@ export class TransactionsCorpus {
   }
   arreterCorrectionLocuteurs(id: string) {
     exigerGeste('webdav', 'locuteurs.arreter-correction'); this.exigerAutresOperationsLocuteurs()
-    this.correctionsLocuteurs.arreter(id)
+    return this.correctionsLocuteurs.arreter(id)
   }
   reconcilierCorrectionLocuteurs(id: string) {
     exigerGeste('webdav', 'locuteurs.verifier-correction'); this.exigerAutresOperationsLocuteurs()
@@ -899,92 +911,6 @@ export class TransactionsCorpus {
   }
 
   /** Garde une source fraîche et stable pendant la correction d'un autre entretien. */
-  async executerEntretienAvecSource<T>(
-    id: string,
-    sourceId: string,
-    mutation: () => T,
-  ): Promise<T> {
-    if (id === sourceId) throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    return this.executerCorrectionEntretiens(
-      { corpus: false, entretiens: [id] },
-      [id, sourceId],
-      mutation,
-    )
-  }
-
-  /** Publie une création éventuelle, puis le refus sur sa cible. */
-  async refuserRapprochement(
-    commande: Extract<CommandeLocuteurs, { type: 'refuser' }>,
-  ): Promise<string | null> {
-    if (commande.entretienId === commande.sourceEntretienId) {
-      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    }
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: [commande.entretienId] },
-      [commande.entretienId, commande.sourceEntretienId],
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Publie une création éventuelle, puis les associations source et cible. */
-  async rapprocherPersonnes(
-    commande: Extract<CommandeLocuteurs, { type: 'rapprocher' }>,
-  ): Promise<string | null> {
-    if (commande.entretienId === commande.sourceEntretienId) {
-      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
-    }
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: [commande.sourceEntretienId, commande.entretienId],
-      },
-      [commande.entretienId, commande.sourceEntretienId],
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Réunit les liens avant de retirer la définition absorbée. */
-  async fusionnerPersonnes(
-    commande: Extract<CommandeLocuteurs, { type: 'fusionner' }>,
-  ): Promise<string | null> {
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
-        ordreCorpus: 'apres',
-      },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Crée la définition séparée avant de déplacer ses locuteurs. */
-  async separerPersonne(
-    commande: Extract<CommandeLocuteurs, { type: 'separer' }>,
-  ): Promise<string | null> {
-    return this.executerCorrectionEntretiens(
-      {
-        corpus: true,
-        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
-        ordreCorpus: 'avant',
-      },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => this.getStore().personnesCommander(commande, false),
-    )
-  }
-
-  /** Supprime une définition après contrôle frais de tous les entretiens. */
-  async supprimerPersonneVide(personneId: string): Promise<null> {
-    return this.executerCorrectionEntretiens(
-      { corpus: true, entretiens: [] },
-      () => Object.keys(this.getStore().ouvrir().membership),
-      () => {
-        this.getStore().personnesCommander({ type: 'supprimer', locuteurId: personneId }, false)
-        return null
-      },
-    )
-  }
-
   private async executerCorrectionEntretiens<T>(
     cibles: {
       corpus: boolean
@@ -1192,29 +1118,6 @@ export class TransactionsCorpus {
         await verrou.provider.liberer(verrou.chemin).catch(() => {})
       }
       if (verrouCorpusTenu && !this.gardePseudos.verrouIncertain(providerCorpus)) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
-    }
-  }
-
-  /** Crée la définition avant le lien et conserve la fiche si le second commit échoue. */
-  async creerPersonneDepuisLocuteur(
-    entretienId: string,
-    locuteurId: string,
-    nom: string,
-  ): Promise<string> {
-    return this.avecMutation(() => this.creerEtLierPersonne(entretienId, locuteurId, nom))
-  }
-
-  private async creerEtLierPersonne(entretienId: string, locuteurId: string, nom: string): Promise<string> {
-    const personneId = await this.executer(() => this.getStore().creerDefinitionPersonne(nom))
-    try {
-      await this.executerEntretien(entretienId, () => this.getStore().personnesCommander({
-        type: 'lier', entretienId, participationId: locuteurId, locuteurId: personneId,
-      }, false))
-      return personneId
-    } catch (e) {
-      throw new ErreurTransaction(
-        `La personne a été créée, mais le lien a échoué. Retrouvez-la dans le répertoire pour réessayer. ${classifier(e).message}`,
-      )
     }
   }
 

@@ -3,16 +3,17 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, entrerEntretien, lancer, retourCorpus } from './util'
 
 function lire(dir: string, id: string): EntretienFichier {
   return JSON.parse(readFileSync(join(dir, 'corpus/entretiens', `${id}.json`), 'utf8'))
 }
 async function preparer(page: Page) {
-  return page.evaluate(async () => {
+  const { dir } = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+  const locuteurId = creerLocuteurFixture(dir, 'Nom commun')
+  return page.evaluate(async (locuteurId) => {
     const api = window.sonal.corpus
-    const locuteurId = await api.personnesCommander({ type: 'creerDefinition', nom: 'Nom commun' })
-    if (!locuteurId) throw new Error('Identité absente')
     const variable = await api.ajouterVariable('Donnée locale', 'participation')
     const corpus = await api.ajouterModalite(variable.id, 'Valeur conservée')
     const modalite = corpus.variables[variable.id].modalites[0].id
@@ -31,7 +32,7 @@ async function preparer(page: Page) {
     lecture.data.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: cible.index }, content: [{ type: 'text', text: 'Paroles de l’autre entretien.' }] }] }
     await api.ecrireEntretien(autre.id, lecture.data)
     return { autreId: autre.id, locuteurId }
-  })
+  }, locuteurId)
 }
 async function gestion(page: Page) {
   await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()

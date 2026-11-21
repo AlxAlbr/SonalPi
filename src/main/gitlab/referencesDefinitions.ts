@@ -1,4 +1,5 @@
 import { lireBarriereRetraitVarianteAnon, memeVarianteAnon } from '../../shared/corpus/barriereRetraitVarianteAnon'
+import { verifierReferencesLocuteurs } from '../../shared/corpus/identitesLocuteurs'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
 import { exigerAbsenceSuppressionAnon, lireBarriereSuppressionAnon } from '../../shared/corpus/barriereSuppressionAnon'
@@ -37,6 +38,9 @@ export function verifierReferencesDefinitions(
   ) {
     throw new ReferencesDefinitionsInvalidesError('L’entretien à publier est incomplet.')
   }
+
+  try { verifierReferencesLocuteurs(entretien, corpus) }
+  catch (e) { throw new ReferencesDefinitionsInvalidesError(e instanceof Error ? e.message : 'Les associations des locuteurs ont changé.') }
 
   const barriere = corpus.dissociationAnon
   if (barriere !== undefined && (!barriere || typeof barriere !== 'object'

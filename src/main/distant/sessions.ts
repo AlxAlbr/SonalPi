@@ -29,6 +29,9 @@ import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { GardePseudosWebDAV } from './gardePseudosWebDAV'
 import type { VerrouProvider } from '../verrous/types'
+import type { SessionCorrectionLocuteursWebDAV, IdentiteCorrectionSession } from './sessionCorrectionLocuteurs'
+import { signaturePayloadEntretien } from '../../shared/entretien/renommageGlobal'
+import { verifierPayloadRelecture } from '../../shared/entretien/identificationLocuteurs'
 import type { ResultatObservationVerrous } from './coordination'
 import type {
   EntreeVerrouPublic,
@@ -69,6 +72,7 @@ interface SessionInterne {
   /** Limite locale au-delà de laquelle une panne de renouvellement suspend l'édition. */
   droitValideJusqua: number
   degrade: boolean
+  correctionLocuteurs?: { avant: string }
 }
 
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
@@ -239,6 +243,83 @@ export class SessionsDEntretien {
     if (!s.dernierPubli) s.dernierPubli = new Date().toISOString()
   }
 
+  async lireCandidatLocuteurs(id: string) {
+    return this.serialiser(id, async () => {
+      const s = this.sessions.get(id)
+      if (!s || s.degrade || s.envoiIncertain || !s.contenuPublie || !s.etagServeur) throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+      return { entretienId: id, avant: s.contenuPublie, etag: s.etagServeur, candidat: readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8') }
+    })
+  }
+
+  /** Prête le droit courant après publication des saisies, sans fermer ni rouvrir l’entretien. */
+  async corrigerLocuteurs(id: string, verifier: (avant: PayloadEntretien, apres: EntretienFichier) => void,
+    executer: (session: SessionCorrectionLocuteursWebDAV) => Promise<{ contenu: string; etag: string }>): Promise<EntretienFichier> {
+    return this.serialiser(id, async () => {
+      const s = this.sessions.get(id)
+      if (!s || s.degrade || s.correctionLocuteurs) throw new Error('Rouvrez cet entretien avant de modifier ses locuteurs.')
+      const traceLocale = this.lireJournal()[id]
+      if (!traceLocale) throw new Error('Le suivi de cet entretien est indisponible. Aucun locuteur modifié.')
+      const publication = await this.publierInterne(id)
+      if (!publication.ok || !s.contenuPublie || !s.etagServeur) throw new Error('Les dernières saisies ne peuvent pas être publiées. Aucun locuteur modifié.')
+      const fichier = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), avant = s.contenuPublie, revision = s.revision
+      if (signaturePayloadEntretien(JSON.parse(readFileSync(fichier, 'utf8'))) !== signaturePayloadEntretien(JSON.parse(avant))) throw new Error('Les dernières saisies ont changé. Attendez leur enregistrement avant de poursuivre.')
+      const { formatVersion: _v, lastModified: _d, ...payload } = JSON.parse(avant) as EntretienFichier
+      s.correctionLocuteurs = { avant }
+      let engagee = false
+      try {
+        const resultat = await executer({ identite: { entretienId: id, ...this.identite(), traceLocale }, avant, etag: s.etagServeur,
+          engager: () => { engagee = true },
+          verifier: () => {
+            if (this.sessions.get(id) !== s || s.degrade || s.revision !== revision || this.maintenant() >= s.droitValideJusqua) throw new Error('Le droit de modifier cet entretien a changé. Rouvrez le corpus avant de poursuivre.')
+          },
+          verifierResultat: (apres) => verifier(payload, apres),
+          reservation: { provider: s.provider, chemin: s.cheminVerrou, empruntee: true,
+            battre: async () => {
+              const debut = this.maintenant(), preuve = await s.provider.battre(s.cheminVerrou)
+              if (preuve.ok) s.droitValideJusqua = debut + preuve.dureeGarantieMs
+              return preuve
+            },
+          },
+        })
+        const apres = JSON.parse(resultat.contenu) as EntretienFichier
+        verifier(payload, apres)
+        const actuel = signaturePayloadEntretien(JSON.parse(readFileSync(fichier, 'utf8')))
+        if (s.revision !== revision || (actuel !== signaturePayloadEntretien(JSON.parse(avant)) && actuel !== signaturePayloadEntretien(apres))) throw new Error('La copie locale a changé. Elle est conservée avant toute reprise.')
+        this.ecrireLocalFichier(fichier, resultat.contenu); this.miroir.noterEtagPublie(CHEMIN_ENTRETIEN(id), resultat.etag)
+        s.contenuPublie = resultat.contenu; s.etagServeur = resultat.etag; s.revisionPubliee = revision
+        s.dernierPubli = new Date(this.maintenant()).toISOString(); delete s.correctionLocuteurs
+        return apres
+      } catch (e) {
+        if (engagee) { s.degrade = true; this.revoquerEcriture?.(id); this.onRetrogradation?.(id) }
+        else delete s.correctionLocuteurs
+        throw e
+      }
+    })
+  }
+
+  correctionLocuteursEnAttente(id: string): boolean { return !!this.sessions.get(id)?.correctionLocuteurs }
+
+  /** Écarte seulement une ancienne session dont toutes les saisies étaient déjà publiées. */
+  async isolerCorrectionInterrompue(trace: { session: IdentiteCorrectionSession; avant: string; apres: string; terminee: boolean }): Promise<void> {
+    const { session, avant, apres } = trace, id = session.entretienId
+    if (this.sessions.has(id) || this.lireJournal()[id] !== session.traceLocale) return
+    if (session.userId !== this.identite().userId || session.machineId !== this.identite().machineId) throw new Error('La session conservée appartient à un autre poste. Conservez sa copie pour l’assistance.')
+    const fichier = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), contenu = signaturePayloadEntretien(JSON.parse(readFileSync(fichier, 'utf8')))
+    if (contenu !== signaturePayloadEntretien(JSON.parse(avant)) && contenu !== signaturePayloadEntretien(JSON.parse(apres))) {
+      if (trace.terminee) return
+      throw new Error('Des saisies locales restent à préserver. La correction ne peut pas reprendre automatiquement.')
+    }
+    if (!this.options.verrouNatif) {
+      const chemin = this.cheminVerrouDe(id)
+      try {
+        const source = await this.client.getTexteAvecEtag(chemin), verrou = JSON.parse(source.contenu) as IdentiteSession
+        if (source.etag && verrou.userId === session.userId && verrou.machineId === session.machineId && verrou.sessionId === session.sessionId) await this.client.supprimer(chemin, source.etag)
+      } catch (e) { if (!(e instanceof ErreurHttp && [404, 412].includes(e.statut))) throw e }
+    }
+    // Un verrou natif ne permet pas de distinguer deux postes du même compte.
+    this.journalRetirer(id)
+  }
+
   /** Publication : PUT If-Match sous verrou toujours tenu. */
   async publier(id: string): Promise<{ ok: boolean; raison?: string }> {
     return this.serialiser(id, () => this.publierInterne(id))
@@ -360,7 +441,7 @@ export class SessionsDEntretien {
       this.sessionsDegradees.delete(id)
       return { fermee: true }
     }
-    while (!s.degrade && s.revision > s.revisionPubliee) {
+    while (!s.correctionLocuteurs && !s.degrade && s.revision > s.revisionPubliee) {
       try {
         const publication = await this.publierInterne(id)
         if (!publication.ok && publication.raison !== 'divergence') {
@@ -618,6 +699,10 @@ export class SessionsDEntretien {
 
   /** Préserve le dernier état du renderer sans le remettre dans le miroir publiable. */
   preserverRecuperation(id: string, payload: PayloadEntretien): boolean {
+    const correction = this.sessions.get(id)?.correctionLocuteurs
+    if (correction) {
+      try { verifierPayloadRelecture(payload, JSON.parse(correction.avant) as EntretienFichier); return true } catch { return false }
+    }
     if (!this.sessionsDegradees.has(id)) return false
     const fichier: EntretienFichier = {
       ...payload,

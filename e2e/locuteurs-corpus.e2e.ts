@@ -12,9 +12,12 @@ test('Locuteurs : liste unifiée, sélection multiple, interventions et retour a
     await entrerCorpus(page)
     await page.evaluate(async () => {
       const api = window.sonal.corpus
-      const inventaire = await api.personnesInventaire()
+      const inventaire = await api.inventaireIdentitesLocuteurs()
       const karine = inventaire.participations.find((l) => l.nom === 'Karine')!
-      const personneId = await api.personnesCommander({ type: 'creer', entretienId: karine.entretienId, participationId: karine.participationId, nom: 'Karine' })
+      await api.ouvrirEntretienPourEdition(karine.entretienId)
+      const identifie = await api.identifierParticipationAuNommage({ entretienId: karine.entretienId, participationId: karine.participationId, nom: 'Karine' })
+      const personneId = identifie.participations.find((p) => p.id === karine.participationId)!.locuteurRef
+      await api.fermerEntretien(karine.entretienId)
       for (const [titre, nom, lien] of [
         ['Deuxième entretien', 'Mme Dupont', personneId],
         ['Homonyme indépendant', 'Karine', null],

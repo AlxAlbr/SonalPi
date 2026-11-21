@@ -39,8 +39,8 @@ decrire('corrections des locuteurs sur GitLab réel', () => {
       expect(alice.store.ouvrir().locuteurs.b).toBeUndefined()
       const avant = contenuDe(await lireFichier(`${racine}/entretiens/C.json`, configuration.token1 as string))
       expect(JSON.parse(avant).participations[0]).toEqual({ ...f.entretiens[2].data.participations[0], locuteurRef: 'a' })
-      await expect(alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'a', attendu: JSON.stringify(alice.store.personnesInventaire()) }, () => {})).rejects.toThrow('Déliez')
-      await alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(alice.store.personnesInventaire()) }, () => {})
+      await expect(alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'a', attendu: JSON.stringify(alice.store.inventaireIdentitesLocuteurs()) }, () => {})).rejects.toThrow('Déliez')
+      await alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(alice.store.inventaireIdentitesLocuteurs()) }, () => {})
       expect(alice.store.ouvrir().locuteurs.vide).toBeUndefined()
       expect(contenuDe(await lireFichier(`${racine}/entretiens/C.json`, configuration.token1 as string))).toBe(avant)
     } finally { nettoyer(alice) }

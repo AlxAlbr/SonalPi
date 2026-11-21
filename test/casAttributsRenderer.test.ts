@@ -90,7 +90,7 @@ function outil() {
     sourceOuverte: () => null,
     selectionCourante: () => null,
     enregistrerRepereSelection: vi.fn(),
-    lirePersonnes: vi.fn(async () => ({ locuteurs: [], participations: [] })),
+    lireIdentitesLocuteurs: vi.fn(async () => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] })),
     ouvrirSource: vi.fn(),
     fermerRecueils: vi.fn(),
     definitionsAvecSources: () => true,

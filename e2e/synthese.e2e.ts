@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { ouvrir, coderTheme, ouvrirAnalyse, retourCorpus } from './util'
 
 test('calcule les extraits après une sélection modifiée dans l’espace d’analyse', async () => {
@@ -11,15 +12,13 @@ test('calcule les extraits après une sélection modifiée dans l’espace d’a
     await expect.poll(() => editeur.locator('.annot').count()).toBeGreaterThan(0)
     await retourCorpus(page)
 
-    await page.evaluate(async () => {
-      const inventaire = await window.sonal.corpus.personnesInventaire()
+    const fixture = await page.evaluate(async () => {
+      const inventaire = await window.sonal.corpus.inventaireIdentitesLocuteurs()
       const participation = inventaire.participations.find((p) => p.nom === 'Karine')
       if (!participation) throw new Error('Participation de Karine absente du corpus de test.')
-      await window.sonal.corpus.personnesCommander({
-        type: 'creer', entretienId: participation.entretienId, participationId: participation.participationId,
-        nom: 'Identité corpus de Karine',
-      })
+      return { dir: (await window.sonal.corpus.dossierCourant()).dir, reference: { entretienId: participation.entretienId, participationId: participation.participationId } }
     })
+    creerLocuteurFixture(fixture.dir, 'Identité corpus de Karine', [fixture.reference])
 
     await ouvrirAnalyse(page, 'synthese')
     const cote = page.locator('.espace-analyse .cote-synthese')

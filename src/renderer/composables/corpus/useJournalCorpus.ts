@@ -16,7 +16,7 @@ export function useJournalCorpus(
 ) {
   let generation = 0
   const entreesJournalCorpus = ref<EntreeJournalCorpusVue[]>([])
-  const revisionPersonnesCorpus = ref(0)
+  const revisionLocuteursCorpus = ref(0)
   const revisionNotesCorpus = ref(0)
 
   async function rafraichirJournalCorpus(): Promise<void> {
@@ -34,7 +34,7 @@ export function useJournalCorpus(
     const resultat = await window.sonal.corpus.journalAnnuler(id)
     if (attendue !== generation) return { ok: false, raison: 'Le corpus a changé.', temporaire: false }
     if (resultat.ok) {
-      if (resultat.impact.projections.includes("locuteurs")) revisionPersonnesCorpus.value++
+      if (resultat.impact.projections.includes("locuteurs")) revisionLocuteursCorpus.value++
       if (resultat.impact.projections.includes('notes')) revisionNotesCorpus.value++
       if (resultat.impact.projections.includes('matrice')) await effets.rafraichirMatrice()
       if (resultat.impact.projections.includes('scanAnon')) effets.perimerScanAnon()
@@ -46,13 +46,13 @@ export function useJournalCorpus(
   function reinitialiser() {
     generation++
     entreesJournalCorpus.value = []
-    revisionPersonnesCorpus.value = 0
+    revisionLocuteursCorpus.value = 0
     revisionNotesCorpus.value = 0
   }
 
   return {
     entreesJournalCorpus,
-    revisionPersonnesCorpus,
+    revisionLocuteursCorpus,
     revisionNotesCorpus,
     rafraichirJournalCorpus,
     annulerEntreeJournalCorpus,

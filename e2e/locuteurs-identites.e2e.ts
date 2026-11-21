@@ -75,7 +75,7 @@ test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissoc
     await expect(nom).toHaveValue('Karine Durand'); await expect(nom).toBeEnabled()
     await expect(global).toHaveCount(0)
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click(); await retourCorpus(page)
-    const inv = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const inv = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(inv.locuteurs).toHaveLength(2)
     const karine = inv.participations.find((p) => p.nom === 'Karine Durand')!, autre = inv.participations.find((p) => p.nom === 'Mme Dupont')!
     expect(karine.locuteurRef).toBeTruthy(); expect(karine.locuteurRef).not.toBe(autre.locuteurRef)

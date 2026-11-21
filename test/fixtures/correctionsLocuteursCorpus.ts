@@ -1,4 +1,4 @@
-import type { InventaireIdentitesLocuteurs } from '../../src/shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../src/shared/corpus/inventaireLocuteurs'
 import type { LigneRepertoireLocuteurs } from '../../src/shared/corpus/repertoireLocuteurs'
 
 export function inventaireCorrections(): InventaireIdentitesLocuteurs {

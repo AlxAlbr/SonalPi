@@ -10,6 +10,9 @@ import type {
 } from '../../shared/distant'
 import type {
   CorpusFichier,
+  EntretienFichier,
+  PayloadEntretien,
+  ReferenceParticipation,
   OuvertureEntretienEdition,
 } from '../../shared/format'
 import type { ClientWebDAV } from '../webdav/client'
@@ -42,6 +45,11 @@ import { JournalGardePseudosWebDAV } from './journalGardePseudosWebDAV'
 import { JournalAjoutVarianteAnonWebDAV } from './journalAjoutVarianteAnonWebDAV'
 import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon'
 import type { DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
+import type { ContexteSessionLocuteursWebDAV } from './sessionCorrectionLocuteurs'
+import { validerReferenceLocuteurOuvert, validerCommandeCorrectionLocuteurs, validerOperationNommageLocuteurs, type CommandeRenommageLocuteur, type OperationNommageLocuteurs, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../../shared/corpus/contratsLocuteurs'
+import { verifierRelectureRenommage } from '../../shared/entretien/renommageGlobal'
+import { verifierPayloadRelecture, verifierRelectureIdentification, payloadApresRapprochement } from '../../shared/entretien/identificationLocuteurs'
+import type { InventaireIdentitesLocuteurs } from '../../shared/corpus/inventaireLocuteurs'
 import { JournalRetraitVarianteAnonWebDAV } from './journalRetraitVarianteAnonWebDAV'
 
 /** Services d'un corpus distant assemblés pour une même destination. */
@@ -58,6 +66,7 @@ export class ContexteCorpusDistant {
   private lecturesSuppression = 0
   private readonly retraitVarianteCibles = new Set<string>()
   private lecturesRetraitVariante = 0
+  private correctionSessionEnCours: string | null = null
 
   constructor(
     public readonly id: string,
@@ -77,9 +86,11 @@ export class ContexteCorpusDistant {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
   }
 
-  private async avecSession<T>(action: () => Promise<T>, id?: string): Promise<T> {
+  private async avecSession<T>(action: () => Promise<T>, id?: string, fermetureCorrection = false): Promise<T> {
     this.exigerOuvert()
-    this.transactions.exigerSansImportCorrespondances()
+    if (this.correctionSessionEnCours) throw new Error('Attendez la fin de la correction des locuteurs avant de modifier les sessions.')
+    if (!fermetureCorrection) this.transactions.exigerSansImportCorrespondances()
+    else if (!id || !this.sessions.correctionLocuteursEnAttente(id)) throw new Error('La session à fermer ne correspond pas à cette correction.')
     if (id && this.retraitVarianteCibles.has(id)) throw new Error('Cette cible participe au retrait de variante. Attendez son bilan avant de modifier ou fermer la session.')
     if (id && this.suppressionCibles.has(id)) throw new Error('Cette cible participe à la suppression en cours. Attendez son bilan avant de modifier ou fermer la session.')
     if (id && this.dissociationCibles.has(id)) throw new Error('Cette cible participe à la dissociation en cours. Attendez son bilan avant de modifier ou fermer la session.')
@@ -215,13 +226,74 @@ export class ContexteCorpusDistant {
 
   idsOperationsSessions(): string[] { return [...this.operationsParEntretien.keys()] }
   verifierContexteRetraitVariante(): void { this.exigerOuvert() }
-  verifierContexteCorrectionLocuteurs(): void {
+  verifierContexteCorrectionLocuteurs(session?: ContexteSessionLocuteursWebDAV): void {
     this.exigerOuvert()
-    if (this.operationsSessions || this.lecturesRenommage || this.lecturesDissociation || this.lecturesSuppression || this.lecturesRetraitVariante
-      || this.sessions.idsTenus().length || this.sessions.idsRecuperablesLocalement().length) {
+    const ids = [...this.sessions.idsTenus(), ...this.sessions.idsRecuperablesLocalement()]
+    const operationsSansCible = this.operationsSessions - [...this.operationsParEntretien.values()].reduce((n, v) => n + v, 0)
+    const operations = session?.creation ? operationsSansCible || this.operationsParEntretien.has(session.entretienId) : this.operationsSessions
+    const bloque = session ? (!session.creation && ids.some((id) => id !== session.entretienId)) || this.sessions.etat(session.entretienId).etat !== 'a-nous' : ids.length > 0
+    if (operations || this.lecturesRenommage || this.lecturesDissociation || this.lecturesSuppression || this.lecturesRetraitVariante || bloque) {
       throw new Error('Enregistrez et fermez les entretiens et terminez les autres opérations avant de corriger les locuteurs du corpus partagé.')
     }
   }
+  private verifierReferenceSession(reference: ReferenceParticipation, creation: boolean): void {
+    validerReferenceLocuteurOuvert(reference)
+    this.verifierContexteCorrectionLocuteurs({ entretienId: reference.entretienId, creation })
+    const lecture = this.store.lireEntretien(reference.entretienId)
+    const cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
+    if (!cible || (!creation && !cible.locuteurRef)) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+  }
+
+  private async inventaireSession(reference: ReferenceParticipation, creation: boolean) {
+    if (this.correctionSessionEnCours) throw new Error('Attendez la fin de la correction en cours.')
+    this.verifierReferenceSession(reference, creation)
+    const copie = await this.sessions.lireCandidatLocuteurs(reference.entretienId)
+    const details = await this.transactions.lireDetailsLocuteursSession({ ...copie, creation })
+    this.verifierReferenceSession(reference, creation)
+    return details.inventaire
+  }
+
+  apercuRenommageLocuteurDepuisEntretien(reference: ReferenceParticipation) {
+    exigerGeste('webdav', 'locuteurs.renommer-depuis-entretien')
+    return this.inventaireSession(reference, false)
+  }
+  inventaireLocuteursDepuisEntretien(reference: ReferenceParticipation) {
+    exigerGeste('webdav', 'locuteurs.identifier-au-nommage')
+    return this.inventaireSession(reference, true)
+  }
+  identifierParticipationAuNommage(demande: DemandeIdentificationLocuteur) { return this.modifierLocuteursSession({ type: 'identifierAuNommage', demande }) }
+  rapprocherLocuteurDepuisEntretien(demande: DemandeRapprochementNommage) { return this.modifierLocuteursSession({ type: 'rapprocherAuNommage', demande }) }
+  renommerLocuteurDepuisEntretien(reference: ReferenceParticipation, commande: CommandeRenommageLocuteur) { return this.modifierLocuteursSession(commande, reference) }
+
+  private async modifierLocuteursSession(commande: CommandeRenommageLocuteur | OperationNommageLocuteurs, referenceRenommage?: ReferenceParticipation): Promise<EntretienFichier> {
+    if (commande.type === 'renommerGlobal') validerCommandeCorrectionLocuteurs(commande)
+    else validerOperationNommageLocuteurs(commande)
+    const creation = commande.type === 'identifierAuNommage'
+    const geste = creation ? 'locuteurs.identifier-au-nommage' : commande.type === 'rapprocherAuNommage' ? 'locuteurs.rapprocher-depuis-entretien' : 'locuteurs.renommer-depuis-entretien'
+    exigerGeste('webdav', geste)
+    const reference = commande.type === 'renommerGlobal' ? referenceRenommage! : { entretienId: commande.demande.entretienId, participationId: commande.demande.participationId }
+    if (this.correctionSessionEnCours) throw new Error('Attendez la fin de la correction en cours.')
+    this.verifierReferenceSession(reference, creation)
+    const id = reference.entretienId
+    const lecture = this.store.lireEntretien(id), cible = lecture.ok ? lecture.data.participations.find((p) => p.id === reference.participationId) : null
+    if (commande.type === 'identifierAuNommage' && (!cible || cible.nom !== commande.demande.nom || cible.associationRetiree)) throw new Error('Le nom ou l’association a changé. Vérifiez ce locuteur avant de poursuivre.')
+    if (commande.type === 'renommerGlobal' && cible?.locuteurRef !== commande.locuteurId) throw new Error('Le locuteur ou son association a changé. Rouvrez l’aperçu.')
+    const sources = commande.type === 'rapprocherAuNommage' ? JSON.parse(commande.demande.attendu) as InventaireIdentitesLocuteurs : null
+    const verifier = (avant: PayloadEntretien, apres: EntretienFichier) => {
+      if (commande.type === 'renommerGlobal') verifierRelectureRenommage(avant, apres, commande.locuteurId)
+      else if (commande.type === 'identifierAuNommage') {
+        if (avant.participations.find((p) => p.id === reference.participationId)?.locuteurRef) verifierPayloadRelecture(avant, apres)
+        else verifierRelectureIdentification(avant, apres, reference)
+      } else verifierPayloadRelecture(payloadApresRapprochement(avant, commande.demande, sources!), apres)
+    }
+    this.correctionSessionEnCours = id; this.store.revoquerEcritureEntretien(id)
+    try { return await this.sessions.corrigerLocuteurs(id, verifier, (session) => this.transactions.corrigerLocuteursDepuisSession(commande, session)) }
+    finally {
+      this.correctionSessionEnCours = null
+      if (this.sessions.etat(id).etat === 'a-nous') { this.store.protegerLocuteursSession(id); this.store.autoriserEcritureEntretien(id) }
+    }
+  }
+
   lireDetailsLocuteursCorrection() { this.exigerOuvert(); return this.transactions.lireDetailsLocuteursCorrection() }
   corrigerLocuteurs(commande: import('../../shared/corpus/contratsLocuteurs').CommandeCorrectionLocuteurs) {
     this.verifierContexteCorrectionLocuteurs(); return this.transactions.corrigerLocuteurs(commande)
@@ -229,7 +301,7 @@ export class ContexteCorpusDistant {
   lireSuiviCorrectionLocuteurs() { this.exigerOuvert(); return this.transactions.lireSuiviCorrectionLocuteurs() }
   reprendreCorrectionLocuteurs(id: string) { this.verifierContexteCorrectionLocuteurs(); return this.transactions.reprendreCorrectionLocuteurs(id) }
   reconcilierCorrectionLocuteurs(id: string) { this.verifierContexteCorrectionLocuteurs(); return this.transactions.reconcilierCorrectionLocuteurs(id) }
-  arreterCorrectionLocuteurs(id: string) { this.exigerOuvert(); this.transactions.arreterCorrectionLocuteurs(id) }
+  arreterCorrectionLocuteurs(id: string) { this.exigerOuvert(); return this.transactions.arreterCorrectionLocuteurs(id) }
   private async avecLectureRetraitVariante<T>(action: () => Promise<T>): Promise<T> {
     this.exigerOuvert(); this.lecturesRetraitVariante++
     try { return await action() } finally { this.lecturesRetraitVariante-- }
@@ -388,7 +460,7 @@ export class ContexteCorpusDistant {
 
   /** Publie puis ferme la session d'un entretien. */
   async fermerEntretien(id: string): Promise<ResultatFermetureSession> {
-    return this.avecSession(() => this.publierEtFermerEntretien(id), id)
+    return this.avecSession(() => this.publierEtFermerEntretien(id), id, this.sessions.correctionLocuteursEnAttente(id))
   }
 
   private async publierEtFermerEntretien(id: string): Promise<ResultatFermetureSession> {
@@ -554,6 +626,7 @@ export class ContexteCorpusDistant {
   /** Publie et libère toutes les sessions avant de terminer le contexte. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    if (this.correctionSessionEnCours) throw new Error('Attendez la fin de la correction des locuteurs avant de changer de corpus.')
     if (this.lecturesRetraitVariante || this.transactions.retraitVarianteEnCours) throw new Error('Attendez la fin du retrait de variante avant le changement de corpus.')
     if (this.lecturesSuppression || this.transactions.suppressionEnCours) throw new Error('Attendez la fin de la suppression globale avant le changement de corpus.')
     if (this.lecturesDissociation || this.transactions.dissociationEnCours) throw new Error('Attendez la fin de la dissociation globale avant le changement de corpus.')
@@ -689,9 +762,11 @@ export async function preparerContexteNextcloud(
       getSessions: () => sessions,
       sessionsEnCours: () => contexte?.idsOperationsSessions() ?? [],
       verifierContexteRetrait: () => contexte?.verifierContexteRetraitVariante(),
-      verifierContexteCorrection: () => contexte?.verifierContexteCorrectionLocuteurs(),
+      verifierContexteCorrection: (session) => contexte?.verifierContexteCorrectionLocuteurs(session),
     },
   )
+  const sessionInterrompue = transactions.sessionCorrectionLocuteursInterrompue()
+  if (sessionInterrompue) await sessions.isolerCorrectionInterrompue(sessionInterrompue)
   await transactions.reconcilierAjoutVariante()
   const presence = new PresenceDistante(options.client, options.identite)
   const coordination = new ObservationVerrousWebDAV(

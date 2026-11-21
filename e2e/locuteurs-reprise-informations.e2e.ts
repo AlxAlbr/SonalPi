@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { ouvrir } from './util'
 
 test('le nommage affiche les informations divergentes et reprend la source choisie', async () => {
   const { app, page } = await ouvrir('sonal-nommage-donnees-')
   try {
-    await page.evaluate(async () => {
+    const references = await page.evaluate(async () => {
       const api = (window as any).sonal.corpus
-      let personneId: string | null = null
+      const references: { entretienId: string; participationId: string }[] = []
       for (const [titre, pseudo, interviewer] of [
         ['Source A', 'Alice', true],
         ['Source B', 'Lou', false],
@@ -15,10 +16,11 @@ test('le nommage affiche les informations divergentes et reprend la source chois
         const { data } = await api.lireEntretien(id)
         data.participations = [{ id: `loc-${id}`, index: 0, nom: 'Marie Dupont', pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, data)
-        if (!personneId) personneId = await api.personnesCommander({ type: 'creer', entretienId: id, participationId: `loc-${id}`, nom: 'Marie Dupont' })
-        else await api.personnesCommander({ type: 'lier', entretienId: id, participationId: `loc-${id}`, locuteurId: personneId })
+        references.push({ entretienId: id, participationId: `loc-${id}` })
       }
+      return references
     })
+    creerLocuteurFixture((await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir, 'Marie Dupont', references)
     await page.locator('.onglets button[data-onglet="locuteurs"]').click()
     await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     const nom = page.locator('.nom-loc').first()
@@ -36,7 +38,7 @@ test('le nommage affiche les informations divergentes et reprend la source chois
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
+    const vue = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     const cible = vue.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
     expect(vue.locuteurs).toHaveLength(1)
     expect(cible.pseudo).toBe('Alice')
@@ -66,12 +68,12 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await expect(dialogue).toContainText('Des personnes portent déjà ce nom.')
     await expect(dialogue.getByRole('radio')).toHaveCount(2)
     await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toHaveCount(0)
-    const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
+    const avant = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     expect(avant.locuteurs).toHaveLength(1)
     expect(avant.participations.find((p: any) => p.entretienId === 'e1' && p.nom === 'Marie Dupont').locuteurRef).toBe(avant.locuteurs[0].id)
     await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
-    const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
+    const apres = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     const cible = apres.participations.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
     expect(cible.rapprochementsRefuses).toHaveLength(2)
     expect(apres.locuteurs).toHaveLength(1)
@@ -84,7 +86,7 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
-    const persiste = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
+    const persiste = await page.evaluate(async () => (window as any).sonal.corpus.inventaireIdentitesLocuteurs())
     expect(persiste.participations.find((l: any) => l.participationId === cible.participationId).rapprochementsRefuses).toHaveLength(2)
   } finally { await app.close() }
 })

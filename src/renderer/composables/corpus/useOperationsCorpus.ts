@@ -54,7 +54,7 @@ interface CorpusOperations {
   attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
-  lirePersonnes: () => Promise<{ locuteurs: Array<{ id: string; nom: string }> }>
+  lireIdentitesLocuteurs: () => Promise<{ locuteurs: Array<{ id: string; nom: string }> }>
   categoriesNote: Ref<NoteCategory[]>
   reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
@@ -363,7 +363,7 @@ export function useOperationsCorpus(deps: {
           reperesPassages: resultat.instantane.reperesPassages,
         })
       }
-      const inventaire = await deps.corpus.lirePersonnes()
+      const inventaire = await deps.corpus.lireIdentitesLocuteurs()
       const modele = assemblerModeleQualcoder({
         nom: deps.profil.dossierCourantNom.value.trim() || 'Corpus',
         selection: snapshots,

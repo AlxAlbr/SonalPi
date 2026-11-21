@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { utiliserSonal } from '../../../composables/sonal'
 import type { LigneRepertoireLocuteurs } from '../../../../shared/corpus/repertoireLocuteurs'
 import type { Variable, NoteCategory } from '../../../../shared/format'
-import type { InventaireIdentitesLocuteurs } from '../../../../shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../../../../shared/corpus/inventaireLocuteurs'
 import type { ReferenceParticipation } from '../../../../shared/locuteurs'
 import type { CommandeCorrectionLocuteurs } from '../../../../shared/corpus/contratsLocuteurs'
 import { examinerLocuteurs, notesSelectionLocuteurs } from '../../../../shared/corpus/detailsLocuteurs'
@@ -12,7 +12,7 @@ import { corpsNoteEnTexte } from '../../../../shared/export/notesTexte'
 
 const props = defineProps<{ actif: boolean; selection: LigneRepertoireLocuteurs[] }>()
 const emit = defineEmits<{ fermer: []; selectionner: [references: ReferenceParticipation[]]; termine: [references: ReferenceParticipation[]] }>()
-const { lireDetailsLocuteurs, corrigerLocuteurs, dossierCourantDir, revisionPersonnesCorpus, dernierTirage, vue, idDistantCourant,
+const { lireDetailsLocuteurs, corrigerLocuteurs, dossierCourantDir, revisionLocuteursCorpus, dernierTirage, vue, idDistantCourant,
   lectureSeule, gesteDisponible, suiviLocuteurs, erreurSuiviLocuteurs, suiviLocuteursCharge, allerNotes, allerLocuteurs } = utiliserSonal()
 const vide = (): InventaireIdentitesLocuteurs => ({ locuteurs: [], participations: [], notes: [], indisponibles: [] })
 const inventaire = ref(vide()), charge = ref(false), lecture = ref(false), preparation = ref(false), enregistrement = ref(false)
@@ -110,7 +110,7 @@ watch([visible, dossierCourantDir, idDistantCourant], () => {
   erreur.value = ''; message.value = ''; limite.value = 100
   if (visible.value) void actualiser()
 }, { immediate: true })
-watch([revisionPersonnesCorpus, dernierTirage], () => { if (visible.value && !enregistrement.value) void actualiser() })
+watch([revisionLocuteursCorpus, dernierTirage], () => { if (visible.value && !enregistrement.value) void actualiser() })
 watch([suiviLocuteurs, erreurSuiviLocuteurs, enregistrement], () => {
   if ((suiviLocuteurs.value || erreurSuiviLocuteurs.value) && !enregistrement.value) fermerConfirmation()
 })

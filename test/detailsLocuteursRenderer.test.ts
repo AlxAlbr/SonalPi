@@ -2,7 +2,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
 import DetailsLocuteursCorpus from '../src/renderer/components/traiter/corpus/DetailsLocuteursCorpus.vue'
-import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/inventaireLocuteurs'
 import { inventaireCorrections, lignesCorrections } from './fixtures/correctionsLocuteursCorpus'
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
@@ -33,7 +33,7 @@ async function monter(options: { inventaire?: InventaireIdentitesLocuteurs; lire
   injection.contexte = { lireDetailsLocuteurs, corrigerLocuteurs: corriger, dossierCourantDir: dossier, vue, idDistantCourant: distant, lectureSeule,
     gesteDisponible: () => !distant.value || correctionsDistantes.value,
     suiviLocuteurs: ref(null), erreurSuiviLocuteurs: ref(''), suiviLocuteursCharge: ref(true),
-    revisionPersonnesCorpus: revision, dernierTirage, variables: ref([{ id: 'v', lib: 'Donnée conservée', modalites: [{ id: 'm', lib: 'Valeur conservée' }] }]),
+    revisionLocuteursCorpus: revision, dernierTirage, variables: ref([{ id: 'v', lib: 'Donnée conservée', modalites: [{ id: 'm', lib: 'Valeur conservée' }] }]),
     nomCategorieNote: () => 'Catégorie', allerNotes, allerLocuteurs }
   const host = document.body.appendChild(document.createElement('div'))
   const app = createApp({ render: () => h(DetailsLocuteursCorpus, { actif: actif.value, selection: lignesCorrections(inv).slice(0, 1), onTermine: termine, onSelectionner: selectionner }) })

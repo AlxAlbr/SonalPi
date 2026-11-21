@@ -126,7 +126,7 @@ test('réponse perdue après acceptation : vérification sans PUT, puis reprise 
   await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
   const suivi = b.service.lireSuivi()!; expect(suivi.etat).toBe('a-verifier')
   await expect(b.service.reprendre(suivi.operationId)).rejects.toThrow('Vérifiez')
-  expect(() => b.service.arreter(suivi.operationId)).toThrow('Vérifiez')
+  await expect(b.service.arreter(suivi.operationId)).rejects.toThrow('Vérifiez')
   await expect(b.service.appliquer(b.commande())).rejects.toThrow('reste à terminer')
   const repris = b.recreer(), avant = b.puts().length
   await repris.reconcilier(suivi.operationId)
@@ -143,6 +143,78 @@ test('réponse inconnue sans candidat observé : aucun rejeu ni retrait de défi
   const suivi = b.service.lireSuivi()!, avant = b.puts().length
   await expect(b.recreer().reconcilier(suivi.operationId)).rejects.toThrow('n’est pas confirmée')
   expect(b.puts()).toHaveLength(avant); expect(b.service.lireSuivi()?.etat).toBe('a-verifier')
+})
+
+test.each([false, true])('réponse perdue avant finalisation natif=%s : les autres postes restent bloqués jusqu’à acceptation reconnue', async (natif) => {
+  const b = banc(natif); let retard: Request | undefined
+  b.intercepter(async (r) => {
+    if (r.method === 'PUT' && new URL(r.url).pathname.endsWith('/corpus.crp') && !JSON.parse(await r.clone().text()).locuteurs.b) {
+      retard = r.clone(); throw new Error('Requête toujours en cours sur le serveur')
+    }
+    return undefined
+  })
+  await expect(b.service.appliquer({ type: 'regrouperSelection', locuteurIds: ['a', 'b'], conserverId: 'a', nom: 'Réunis', uniformiserNoms: false, attendu: b.fixture.attendu() })).rejects.toThrow('vérifié')
+  expect(retard).toBeDefined()
+  const j = b.journal(), verrou = b.serveur.contenuDe('verrous/corpus.lock.json')
+  expect(j.verrouCorpus.contenu).toBe(verrou)
+  const autre = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'autre-poste', sessionId: 'autre-session' }))
+  expect((await autre.acquerir('verrous/corpus.lock.json')).ok).toBe(false)
+  const repris = b.recreer(), avant = b.puts().length
+  await expect(repris.reconcilier(j.operationId)).rejects.toThrow('n’est pas confirmée')
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBe(verrou)
+  expect(b.puts()).toHaveLength(avant)
+  expect((await b.serveur.fetch(retard!)).ok).toBe(true)
+  await repris.reconcilier(j.operationId)
+  expect(repris.lireSuivi()).toBeNull(); expect(b.puts()).toHaveLength(avant)
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  expect(JSON.parse(b.serveur.contenuDe('corpus.crp')!).locuteurs.b).toBeUndefined()
+  expect(JSON.parse(b.serveur.contenuDe('entretiens/C.json')!).participations[0].locuteurRef).toBe('a')
+})
+
+test('réponse de libération perdue : le résultat reconnu reste acquis sans répéter sa publication', async () => {
+  const b = banc(); let perdu = false, liberationPerdue = false
+  b.intercepter(async (r) => {
+    if (!perdu && r.method === 'PUT' && b.cible(r, 'A')) { perdu = true; await b.serveur.fetch(r.clone()); throw new Error('Réponse perdue') }
+    if (!liberationPerdue && perdu && r.method === 'DELETE' && new URL(r.url).pathname.endsWith('/verrous/corpus.lock.json')) {
+      liberationPerdue = true; await b.serveur.fetch(r.clone()); throw new Error('Libération inconnue')
+    }
+    return undefined
+  })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const id = b.journal().operationId
+  await expect(b.recreer().reconcilier(id)).rejects.toThrow('Libération inconnue')
+  expect(b.journal().envoi).toBeUndefined(); expect(b.journal().verrouCorpus).toBeDefined()
+  await b.recreer().reprendre(id)
+  expect(b.puts().filter((r) => b.cible(r, 'A'))).toHaveLength(1)
+  expect(b.service.lireSuivi()).toBeNull()
+})
+
+test('une protection remplacée ne peut être reprise, forcée ni supprimée pour reconnaître un envoi', async () => {
+  const b = banc(); let perte = true
+  b.intercepter(async (r) => {
+    if (perte && r.method === 'PUT' && b.cible(r, 'A')) { perte = false; await b.serveur.fetch(r.clone()); throw new Error('Réponse perdue') }
+    return undefined
+  })
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const j = b.journal(), autre = JSON.stringify({ userId: 'max', machineId: 'autre-poste', sessionId: 'autre-generation', acquiredAt: '', refreshedAt: '', ttl: 300 })
+  b.serveur.poser('verrous/corpus.lock.json', autre)
+  const avant = b.puts().length, suppressions = b.requetes.filter((r) => r.method === 'DELETE').length
+  await expect(b.recreer().reconcilier(j.operationId)).rejects.toThrow('protection de cette correction a changé')
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBe(autre)
+  expect(b.puts()).toHaveLength(avant); expect(b.requetes.filter((r) => r.method === 'DELETE')).toHaveLength(suppressions)
+})
+
+test('ancien suivi sans preuve conservée : la vérification protège les définitions sans répéter l’envoi', async () => {
+  const b = banc()
+  b.intercepter(async (r) => r.method === 'PUT' && b.cible(r, 'A') ? Promise.reject(new Error('Réponse inconnue')) : undefined)
+  await expect(b.service.appliquer(b.commande())).rejects.toThrow('vérifié')
+  const j = b.journal(), preuve = j.verrouCorpus
+  await b.client.supprimer('verrous/corpus.lock.json', preuve.etag)
+  delete j.verrouCorpus; writeFileSync(join(b.dir, '.corrections-locuteurs-webdav.json'), JSON.stringify(j))
+  await expect(b.recreer().reconcilier(j.operationId)).rejects.toThrow('n’est pas confirmée')
+  expect(b.journal().verrouCorpus).toBeDefined()
+  expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeDefined()
+  expect(b.puts()).toHaveLength(1)
 })
 
 test('une édition extérieure après un progrès confirmé suspend la reprise sans l’écraser', async () => {
@@ -163,7 +235,7 @@ test('arrêt explicite d’un lot connu : aucun PUT de plus, aucun retour des é
   b.intercepter(async (r) => r.method === 'PUT' && b.cible(r, 'B') ? new Response('refus', { status: 412 }) : undefined)
   await expect(b.service.appliquer(b.commande())).rejects.toThrow()
   const suivi = b.service.lireSuivi()!, avant = b.puts().length
-  b.recreer().arreter(suivi.operationId)
+  await b.recreer().arreter(suivi.operationId)
   expect(b.service.lireSuivi()).toBeNull()
   expect(b.puts()).toHaveLength(avant)
   expect(JSON.parse(b.serveur.contenuDe('entretiens/A.json')!).participations[0].nom).toBe('Alice publiée')

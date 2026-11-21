@@ -55,7 +55,7 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 | Types et validation | `src/shared/format.ts`, `src/shared/locuteurs.ts`, `src/shared/natif/validation.ts` |
 | Opérations d’identité | `src/shared/corpus/identitesLocuteurs.ts` |
 | Création au nommage et rapprochement communs | `src/shared/corpus/nommageLocuteurs.ts` |
-| Inventaire et contrats | `src/shared/corpus/personnes.ts`, `contratsLocuteurs.ts` |
+| Inventaire et contrats | `src/shared/corpus/inventaireLocuteurs.ts`, `contratsLocuteurs.ts` |
 | Suggestions et reprise | `src/shared/corpus/rapprochementsLocuteurs.ts` |
 | Répertoire calculé | `src/shared/corpus/repertoireLocuteurs.ts` |
 | Attribution et gouttière | `src/renderer/editor/attribution.ts`, `locuteursGutter.ts` |
@@ -65,9 +65,12 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 La consultation utilise désormais la vue commune, y compris en distant. Le nouveau
 parcours de corrections corpus est raccordé sur GitLab et WebDAV, avec protections
 et reprise propres à chaque fournisseur. Depuis l’entretien ouvert, renommage,
-création et rapprochement sont également raccordés sur GitLab, pas encore WebDAV.
-Les noms et composants historiques encore présents seront traités par le nettoyage
-final, sans adaptation du stockage 9. Voir le bilan courant par fournisseur.
+création et rapprochement sont également raccordés sur GitLab et WebDAV, sans second
+droit sur l’entretien courant.
+Les deux anciens composants corpus et le module de relais métier sont supprimés.
+La lecture est harmonisée sous `inventaireIdentitesLocuteurs`, sans ancien alias.
+Les anciennes commandes, leurs relais et leur point d’entrée sont supprimés, sans
+alias ni adaptation de stockage. Voir le bilan courant par fournisseur.
 
 ## Parcours de lecture
 
@@ -75,7 +78,7 @@ final, sans adaptation du stockage 9. Voir le bilan courant par fournisseur.
 - [fournisseurs.md](fournisseurs.md) : raccord distant, garanties et étapes restantes.
 
 - [entretien.md](entretien.md) : attribution, suppression, rôle et pseudonyme.
-- [personnes.md](personnes.md) : parcours historiques de correction et droits distants.
+- [corpus.md](corpus.md) : inventaire, corrections, droits et retrait historique.
 - [variables.md](../variables.md) : valeurs portées par chaque participation.
 - [Notes](../notes/README.md) : liens locaux et agrégation.
 - [Modèle objet](../../modele-objet.md#locuteurs-et-participations) : relations du format.

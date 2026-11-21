@@ -2,13 +2,14 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, lancer, ouvrirDetailsLocuteurs } from './util'
 
 test('propositions secondaires : distinction révocable, regroupement explicite puis reprise depuis la source choisie', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-propositions-')), app = await lancer(dir)
   try {
     const page = await app.firstWindow(); await entrerCorpus(page)
-    await page.evaluate(async () => {
+    const ids = await page.evaluate(async () => {
       const api = window.sonal.corpus, ids: string[] = []
       for (const [titre, nom, pseudo, interviewer] of [['Source A', 'Marie Dupont', 'Alice', true], ['Source B', 'Mme Dupont', 'Lou', false], ['Cible', 'Marie Dupont', '', false]] as const) {
         const { id } = await api.creerEntretienVide(titre), r = await api.lireEntretien(id)
@@ -17,9 +18,9 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
         payload.participations = [{ id: 'local', index: 0, nom, pseudo, interviewer, valeursLoc: {}, locuteurRef: null }]
         await api.ecrireEntretien(id, payload); ids.push(id)
       }
-      const id = await api.personnesCommander({ type: 'creer', entretienId: ids[0], participationId: 'local', nom: 'Marie Dupont' })
-      await api.personnesCommander({ type: 'lier', entretienId: ids[1], participationId: 'local', locuteurId: id })
+      return ids
     })
+    creerLocuteurFixture(join(dir, 'corpus'), 'Marie Dupont', ids.slice(0, 2).map((entretienId) => ({ entretienId, participationId: 'local' })))
     await ouvrirDetailsLocuteurs(page)
     const panneau = page.locator('.locuteurs-corpus'), details = panneau.locator('.details-locuteurs')
     await details.locator('summary').filter({ hasText: 'Propositions présentées' }).click()
@@ -31,7 +32,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
     await expect(distincts.getByRole('button', { name: 'Annuler', exact: true })).toBeFocused()
     await distincts.getByRole('button', { name: 'Garder distincts', exact: true }).click(); await expect(distincts).toHaveCount(0)
     await expect(suggestions.locator('article')).toHaveCount(0)
-    expect((await page.evaluate(() => window.sonal.corpus.personnesInventaire())).locuteurs).toHaveLength(1)
+    expect((await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())).locuteurs).toHaveLength(1)
     await details.locator('summary').filter({ hasText: 'Distinctions enregistrées (1)' }).click()
     await details.getByRole('button', { name: 'Réexaminer cette distinction…' }).click()
     const revoir = page.getByRole('dialog', { name: 'Réexaminer cette distinction' })
@@ -48,7 +49,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
     await reunir.getByLabel('Nom commun', { exact: true }).fill('Marie Dupont')
     await reunir.getByRole('radio', { name: 'Conserver les noms actuels', exact: true }).check()
     await reunir.getByRole('button', { name: 'Réunir les locuteurs', exact: true }).click(); await expect(reunir).toHaveCount(0)
-    const avant = await page.evaluate(() => window.sonal.corpus.personnesInventaire()), cible = avant.participations.find((p) => p.entretienTitre === 'Cible')!
+    const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs()), cible = avant.participations.find((p) => p.entretienTitre === 'Cible')!
     expect(avant.locuteurs).toHaveLength(1); expect(cible.pseudo).toBe(''); expect(cible.interviewer).toBe(false)
     const article = details.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Marie Dupont · Cible', exact: true }) })
     await article.getByRole('button', { name: 'Reprendre des informations…' }).click()
@@ -59,7 +60,7 @@ test('propositions secondaires : distinction révocable, regroupement explicite 
     await expect(reprise.getByRole('button', { name: 'Reprendre les informations' })).toBeDisabled()
     await select.selectOption((await option.getAttribute('value'))!)
     await reprise.getByRole('button', { name: 'Reprendre les informations' }).click(); await expect(reprise).toHaveCount(0)
-    const apres = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const apres = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(apres.participations.find((p) => p.entretienTitre === 'Cible')).toMatchObject({ nom: 'Marie Dupont', pseudo: 'Lou', pseudoEtat: 'confirme', interviewer: false, locuteurRef: cible.locuteurRef })
     expect(apres.participations.filter((p) => p.entretienTitre.startsWith('Source'))).toEqual(avant.participations.filter((p) => p.entretienTitre.startsWith('Source')))
     expect(apres.locuteurs).toHaveLength(1)
@@ -90,7 +91,7 @@ test('écarter une paire sans créer de fiche conserve les propositions avec le 
     await page.getByRole('dialog').getByRole('button', { name: 'Garder distincts', exact: true }).click()
     await expect(suggestions.locator('article')).toHaveCount(2)
     await expect(suggestions).toContainText('Entretien C')
-    const inv = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const inv = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(inv.locuteurs).toHaveLength(0)
     expect(inv.participations.filter((p) => p.rapprochementsRefuses?.length)).toHaveLength(2)
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }

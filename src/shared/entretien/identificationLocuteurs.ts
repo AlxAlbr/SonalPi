@@ -1,7 +1,7 @@
 import { FORMAT_VERSION, type EntretienFichier, type ParticipationLocuteur, type PayloadEntretien } from '../format'
 import type { ReferenceParticipation } from '../locuteurs'
 import type { DemandeRapprochementNommage } from '../corpus/contratsLocuteurs'
-import type { InventaireIdentitesLocuteurs } from '../corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../corpus/inventaireLocuteurs'
 import { associerParticipation, regrouperLocuteurs } from '../corpus/identitesLocuteurs'
 import { reprendreDonneesParticipation } from '../corpus/rapprochementsLocuteurs'
 import { signaturePayloadEntretien } from './renommageGlobal'

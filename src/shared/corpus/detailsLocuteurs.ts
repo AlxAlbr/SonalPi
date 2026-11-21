@@ -1,6 +1,6 @@
 import type { ReferenceParticipation, RefusRapprochementLocuteur } from '../locuteurs'
 import type { Variable, NoteCategory } from '../format'
-import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from './personnes'
+import type { InventaireIdentitesLocuteurs, VueParticipationLocuteur } from './inventaireLocuteurs'
 import { cleParticipationCorrection } from './apercusCorrectionsLocuteurs'
 import { suggestionsLocuteurs } from './rapprochementsLocuteurs'
 

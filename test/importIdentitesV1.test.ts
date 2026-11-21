@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { CorpusStore, completerIdsLocuteurs } from '../src/main/corpusStore'
+import { creerLocuteurFixture } from './fixtures/identitesLocuteurs'
 import { preparerIdentitesImportV1 } from '../src/shared/corpus/importIdentitesV1'
 import type { Locuteur, ParticipationLocuteur, ReferenceParticipation, RefusRapprochementLocuteur } from '../src/shared/locuteurs'
 import type { PayloadEntretien } from '../src/shared/format'
@@ -118,7 +119,7 @@ describe('contrats des identités et participations', () => {
 describe('préparation commune des imports V1', () => {
   test('prépare ensemble les nouvelles identités et les associations, sans écrire ni modifier la source', () => {
     const { dir, store } = banc()
-    store.personnesCommander({ type: 'creerDefinition', nom: 'Alex' })
+    creerLocuteurFixture(dir, 'Alex')
     const source = payload()
     const avant = structuredClone(source)
     const fichierCorpus = join(dir, 'corpus.crp')
@@ -144,7 +145,7 @@ describe('préparation commune des imports V1', () => {
     const { store } = banc()
     const a = store.importerEntretien('Premier', payload(), [], [], [], 'v1')
     const b = store.importerEntretien('Second', payload(), [], [], [], 'v1')
-    const inventaire = store.personnesInventaire()
+    const inventaire = store.inventaireIdentitesLocuteurs()
     expect(inventaire.locuteurs).toHaveLength(10)
     expect(new Set(inventaire.participations.map((l) => l.locuteurRef)).size).toBe(10)
     expect(inventaire.participations.filter((l) => l.participationId === 'loc-conserve').map((l) => l.entretienId).sort()).toEqual([a.id, b.id].sort())
@@ -154,7 +155,10 @@ describe('préparation commune des imports V1', () => {
     const { store } = banc()
     const source = payload()
     source.participations[0].associationRetiree = true
-    source.participations[0].rapprochementsRefuses = ['personne:historique', 'locuteur:autre']
+    source.participations[0].rapprochementsRefuses = [
+      { type: 'locuteur', locuteurId: 'historique' },
+      { type: 'participation', entretienId: 'autre', participationId: 'autre' },
+    ]
     const avant = structuredClone(source)
     const plan = store.preparerImportEntretien('Autre import', source)
     expect(plan.corpusApres.locuteurs).toEqual({})
@@ -177,8 +181,8 @@ describe('préparation commune des imports V1', () => {
     expect(relu.ouvrir()).toEqual(plan.corpusApres)
     const lecture = relu.lireEntretien(plan.id)
     expect(lecture.ok && lecture.data).toEqual(plan.entretien)
-    expect(relu.personnesInventaire().locuteurs).toHaveLength(5)
+    expect(relu.inventaireIdentitesLocuteurs().locuteurs).toHaveLength(5)
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(false)
-    expect(new CorpusStore(dir).personnesInventaire()).toEqual(relu.personnesInventaire())
+    expect(new CorpusStore(dir).inventaireIdentitesLocuteurs()).toEqual(relu.inventaireIdentitesLocuteurs())
   })
 })

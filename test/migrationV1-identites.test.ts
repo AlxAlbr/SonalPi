@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { MigrationV1 } from '../src/main/migrationV1'
 import { CorpusStore } from '../src/main/corpusStore'
 import { importerFichier } from '../src/renderer/formatSonal/sas'
-import type { PayloadEntretien } from '../src/shared/format'
+import type { PayloadImportEntretien } from '../src/shared/format'
 
 const dossiers: string[] = []
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
@@ -30,7 +30,7 @@ test('la migration locale des fichiers V1 conserve les données et crée une ide
   const job = new MigrationV1({ cheminCrp, dossier, nom: 'Terrain' })
   try {
     expect(await job.preparer()).toEqual({ nbEntretiens: 3 })
-    const imports: PayloadEntretien[] = []
+    const imports: PayloadImportEntretien[] = []
     for (const index of noms.keys()) {
       const lecture = job.lireEntretien(index)!
       const conversion = importerFichier(lecture.nom, lecture.contenu, parseur)
@@ -60,7 +60,7 @@ test('la migration locale des fichiers V1 conserve les données et crée une ide
       expect(entretien.legacy).toEqual(payload.legacy)
       expect(entretien.meta.valeursGen).toEqual(payload.meta.valeursGen)
       expect(entretien.meta.sourceV1).toEqual({ rtrPath: noms[index] })
-      const sansAssociation = ({ id: _id, locuteurRef: _ref, ...local }: PayloadEntretien['participations'][number]) => local
+      const sansAssociation = ({ id: _id, locuteurRef: _ref, ...local }: PayloadImportEntretien['participations'][number]) => local
       expect(entretien.participations.map(sansAssociation)).toEqual(payload.participations.map(sansAssociation))
       for (const participation of entretien.participations) {
         expect(participation.id).toBeTruthy()
@@ -75,7 +75,7 @@ test('la migration locale des fichiers V1 conserve les données et crée une ide
     expect(existsSync(cheminCrp)).toBe(false)
     expect(readFileSync(`${cheminCrp}.sauvegarde-v1`)).toEqual(contenusAvant[0])
     expect(sources.slice(1).map((fichier) => readFileSync(fichier))).toEqual(contenusAvant.slice(1))
-    expect(new CorpusStore(dossier, true).personnesInventaire()).toEqual(store.personnesInventaire())
+    expect(new CorpusStore(dossier, true).inventaireIdentitesLocuteurs()).toEqual(store.inventaireIdentitesLocuteurs())
   } finally {
     await job.nettoyer()
   }

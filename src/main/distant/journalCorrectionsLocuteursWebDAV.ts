@@ -2,7 +2,8 @@ import { chmodSync, existsSync, readFileSync, renameSync, statSync, writeFileSyn
 import { join } from 'node:path'
 import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import { membresLocuteursRegle } from '../../shared/natif/lectureCas'
-import { validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
+import type { IdentiteCorrectionSession } from './sessionCorrectionLocuteurs'
+import { validerOperationNommageLocuteurs, type OperationNommageLocuteurs, validerCommandeCorrectionLocuteurs, type CommandeCorrectionLocuteurs } from '../../shared/corpus/contratsLocuteurs'
 
 export const MAX_ENTRETIENS_CORRECTION_WEBDAV = 100
 const MAX_OCTETS_JOURNAL = 128 * 1024 * 1024
@@ -17,7 +18,8 @@ export interface JournalCorrectionLocuteursWebDAV {
   version: 1
   destination: string
   operationId: string
-  commande: CommandeCorrectionLocuteurs
+  commande: CommandeCorrectionLocuteurs | OperationNommageLocuteurs
+  sessionLocale?: IdentiteCorrectionSession
   locuteurId: string
   corpusAvant: string
   corpusApres: string
@@ -27,6 +29,7 @@ export interface JournalCorrectionLocuteursWebDAV {
   envoi?: number
   termine: boolean
   abandonne?: boolean
+  verrouCorpus?: { contenu: string; etag: string }
 }
 
 export function idSourceLocuteursValide(id: unknown): id is string {
@@ -68,12 +71,26 @@ export class JournalCorrectionsLocuteursWebDAV {
       || (j.termine && (j.envoi !== undefined || j.position !== j.etapes.length))
       || typeof j.corpusAvant !== 'string' || typeof j.corpusApres !== 'string' || !Array.isArray(j.sources)
       || j.sources.length > MAX_ENTRETIENS_CORRECTION_WEBDAV || j.etapes.length > j.sources.length + 2) throw new Error('Suivi invalide')
-    validerCommandeCorrectionLocuteurs(j.commande)
+    if (j.verrouCorpus !== undefined) {
+      const p = j.verrouCorpus
+      if (!p || typeof p !== 'object' || typeof p.contenu !== 'string' || Buffer.byteLength(p.contenu) > 16 * 1024
+        || typeof p.etag !== 'string' || !p.etag || /^W\//i.test(p.etag) || /["\s*]/.test(p.etag) || j.termine || j.abandonne) throw new Error('Protection invalide')
+      const identite: unknown = JSON.parse(p.contenu)
+      if (!identite || typeof identite !== 'object' || !('sessionId' in identite) || typeof identite.sessionId !== 'string' || !identite.sessionId
+        || !('userId' in identite) || typeof identite.userId !== 'string' || !identite.userId) throw new Error('Protection invalide')
+    }
+    if (j.commande?.type === 'identifierAuNommage' || j.commande?.type === 'rapprocherAuNommage') {
+      validerOperationNommageLocuteurs(j.commande)
+      if (!j.sessionLocale || j.sessionLocale.entretienId !== j.commande.demande.entretienId) throw new Error('Session absente')
+    } else validerCommandeCorrectionLocuteurs(j.commande)
     const avant: unknown = JSON.parse(j.corpusAvant), apres: unknown = JSON.parse(j.corpusApres)
     validerCorpusNatif(avant); validerCorpusNatif(apres)
-    const ids = Object.keys(avant.membership).sort(), recus = j.sources.map((s) => s.id).sort()
-    if (JSON.stringify(ids) !== JSON.stringify(Object.keys(apres.membership).sort()) || JSON.stringify(ids) !== JSON.stringify(recus)
+    const membres = Object.keys(avant.membership).sort(), recus = j.sources.map((s) => s.id).sort()
+    const ids = j.commande.type === 'identifierAuNommage' ? [j.commande.demande.entretienId] : membres
+    if (JSON.stringify(membres) !== JSON.stringify(Object.keys(apres.membership).sort()) || JSON.stringify(ids) !== JSON.stringify(recus) || ids.some((id) => !membres.includes(id))
       || new Set(recus).size !== recus.length || !recus.every(idSourceLocuteursValide)) throw new Error('Sources invalides')
+    if (j.sessionLocale && (!idSourceLocuteursValide(j.sessionLocale.entretienId) || !ids.includes(j.sessionLocale.entretienId)
+      || ![j.sessionLocale.userId, j.sessionLocale.machineId, j.sessionLocale.sessionId, j.sessionLocale.traceLocale].every((v) => typeof v === 'string' && !!v.trim()))) throw new Error('Session invalide')
     const retires = new Set(Object.keys(avant.locuteurs).filter((id) => !Object.hasOwn(apres.locuteurs, id)))
     if (Object.values(apres.cas ?? {}).some((cas) => cas.regles.flatMap(membresLocuteursRegle).some((m) => retires.has(m.locuteurId)))) throw new Error('Un cas référence une identité retirée')
     const chemins = new Set(['corpus.crp', ...ids.map((id) => `entretiens/${id}.json`)])
@@ -91,7 +108,7 @@ export class JournalCorrectionsLocuteursWebDAV {
         || courants.get(etape.chemin) !== etape.avant) throw new Error('Étape invalide')
       if (etape.chemin === 'corpus.crp') {
         const corpus: unknown = JSON.parse(etape.apres); validerCorpusNatif(corpus)
-        if (JSON.stringify(Object.keys(corpus.membership).sort()) !== JSON.stringify(ids)) throw new Error('Membership invalide')
+        if (JSON.stringify(Object.keys(corpus.membership).sort()) !== JSON.stringify(membres)) throw new Error('Membership invalide')
         if (j.etapes.slice(index + 1).some((e) => e.chemin !== 'corpus.crp')
           && Object.keys(avant.locuteurs).some((id) => !Object.hasOwn(corpus.locuteurs, id))) throw new Error('Retrait prématuré d’une identité')
         corpusCourant = corpus

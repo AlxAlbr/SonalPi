@@ -5,7 +5,7 @@ export interface OrigineLocuteur {
   entretienId: string
   index: number
   locuteurId?: string
-  personneRef: string | null
+  locuteurRef: string | null
   pseudoEtat?: 'confirme' | 'refuse'
   utilisee: boolean
 }
@@ -42,7 +42,7 @@ export function inventorierCorrespondancesLocuteurs(entretiens: EntretienScan[])
       const couple = couples.get(cle) ?? { nom, pseudo, utilisee: false, origines: [] }
       couple.utilisee ||= pseudoUtilisable(locuteur)
       if (!couple.origines.some((o) => o.entretienId === id && o.index === locuteur.index)) {
-        couple.origines.push({ entretienId: id, index: locuteur.index, locuteurId: locuteur.id, personneRef: locuteur.locuteurRef ?? null, pseudoEtat: locuteur.pseudoEtat, utilisee: pseudoUtilisable(locuteur) })
+        couple.origines.push({ entretienId: id, index: locuteur.index, locuteurId: locuteur.id, locuteurRef: locuteur.locuteurRef ?? null, pseudoEtat: locuteur.pseudoEtat, utilisee: pseudoUtilisable(locuteur) })
       }
       couples.set(cle, couple)
       const identites: ["locuteur" | 'nom', string][] = [['nom', nom.normalize('NFC').toLocaleLowerCase('fr')]]

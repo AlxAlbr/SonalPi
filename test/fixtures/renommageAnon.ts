@@ -4,6 +4,7 @@ import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 /** Toutes les identités et décisions de ce corpus sont synthétiques. */
 export function fixtureRenommageAnon(ids = ['e1', 'e2'], couverture: 'anonymise' | 'exception' = 'anonymise') {
   const corpus = squeletteCorpus('Renommage synthétique')
+  corpus.locuteurs['personne-independante'] = { id: 'personne-independante', nom: 'Karine' }
   corpus.reglesAnon = { personne: { id: "personne", entite: ['Karine'], pseudos: ['Claire', 'Rebecca'], categorie: 'PER' },
     autre: { id: 'autre', entite: ['Ailleurs'], pseudos: ['Nouvelle'] }, vide: { id: 'vide', entite: ['Absente'], pseudos: ['Inutilisée'] } }
   const texte = 'Karine. Karine. Karine. Karine. Karine. Rue Karine. Local.'

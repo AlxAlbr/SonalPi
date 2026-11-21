@@ -3,7 +3,9 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { JournalCorpus } from '../src/main/journalCorpus'
+import { JournalCorpus, type InverseJournalCorpus } from '../src/main/journalCorpus'
+import { creerLocuteurFixture, installerIdentitesFixture } from './fixtures/identitesLocuteurs'
+import type { ImpactJournalCorpus } from '../src/shared/corpus/journal'
 import { ecrireSeedDemo } from './seedDemo'
 import type { ChampsNote, CommandeNotes } from '../src/shared/corpus/notes'
 import type { EntretienFichier, Note } from '../src/shared/format'
@@ -323,158 +325,91 @@ describe('Journal du corpus — commandes Notes', () => {
   })
 })
 
-describe('Journal du corpus — commandes Personnes', () => {
-  test('annule deux renommages successifs sans écraser un état inattendu', () => {
-    const { store } = preparer()
-    const locuteur = store.personnesInventaire().participations[0]
-    const personneId = store.personnesCommander({
-      type: 'creer',
-      entretienId: locuteur.entretienId,
-      participationId: locuteur.participationId,
-      nom: 'Marie',
-    }, true)!
-    expect(store.journalCorpusLister()).toEqual([])
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Marie' }, true)
-    expect(store.journalCorpusLister()).toEqual([])
+type AncienInverseLocuteur = Extract<InverseJournalCorpus, { type: 'personneRenommer' | 'personneLier' | 'personneRefus' }>
 
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Maria' }, true)
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Marie D.' }, true)
+/** Installe un ancien inverse pour tester sa lecture sans recréer sa commande d’origine. */
+function ancienInverse(store: CorpusStore, inverse: AncienInverseLocuteur) {
+  const journal = Reflect.get(store, 'journalCorpus') as JournalCorpus
+  const impact: ImpactJournalCorpus = inverse.type === 'personneRenommer'
+    ? { corpus: true, entretiens: [], projections: ['locuteurs'] }
+    : { corpus: false, entretiens: [inverse.entretienId], projections: inverse.type === 'personneLier' ? ['locuteurs', 'notes'] : ['locuteurs'] }
+  journal.enregistrer('Action antérieure', 'locuteurs', inverse, impact)
+}
+
+describe('Journal du corpus — lecture des anciens inverses de locuteurs', () => {
+  test('annule deux renommages successifs sans changer le format des inverses', () => {
+    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Marie D.')
+    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
+    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Maria', apres: 'Marie D.' })
     let journal = store.journalCorpusLister()
-    expect(journal.map((entree) => entree.etat)).toEqual(['annulable', 'inapplicable'])
-
-    expect(store.journalCorpusAnnuler(journal[0].id)).toEqual({
-      ok: true,
-      impact: { corpus: true, entretiens: [], projections: ["locuteurs"] },
-    })
+    expect(journal.map((e) => e.etat)).toEqual(['annulable', 'inapplicable'])
+    expect(store.journalCorpusAnnuler(journal[0].id)).toEqual({ ok: true, impact: { corpus: true, entretiens: [], projections: ['locuteurs'] } })
     journal = store.journalCorpusLister()
-    expect(journal).toHaveLength(1)
-    expect(journal[0].etat).toBe('annulable')
+    expect(journal).toHaveLength(1); expect(journal[0].etat).toBe('annulable')
     expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    expect(store.personnesInventaire().locuteurs.find((personne) => personne.id === personneId)?.nom).toBe('Marie')
-
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Marie externe' }, false)
+    expect(store.ouvrir().locuteurs[id].nom).toBe('Marie')
     expect(store.journalCorpusLister()).toEqual([])
   })
 
-  test('restaure exactement une liaison, une déliaison et le marqueur volontaire', () => {
-    const { store } = preparer()
-    const premier = store.personnesInventaire().participations[0]
-    const personneId = store.personnesCommander({
-      type: 'creer',
-      entretienId: premier.entretienId,
-      participationId: premier.participationId,
-      nom: 'Marie',
-    })!
+  test('restaure exactement les associations et leur marqueur sans écraser une autre saisie', () => {
+    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Marie')
     const autre = store.creerEntretienVide('Autre entretien')
     store.ecrireEntretien(autre.id, entretien('Mme Marie'))
-
-    store.personnesCommander({ type: 'lier', entretienId: autre.id, participationId: 'loc-source', locuteurId: personneId }, true)
-    const modificationSansRapport = store.lireEntretien(autre.id)
-    if (!modificationSansRapport.ok) throw new Error('Entretien indisponible')
-    modificationSansRapport.data.meta.valeursGen.sansRapport = 'modalite'
-    store.ecrireEntretien(autre.id, modificationSansRapport.data)
-    let entree = store.journalCorpusLister()[0]
-    expect(entree).toMatchObject({ etat: 'annulable' })
-    expect(entree.libelle).toContain('associé')
-    expect(store.journalCorpusAnnuler(entree.id).ok).toBe(true)
-    let cible = store.personnesInventaire().participations.find((locuteur) => locuteur.participationId === 'loc-source')!
-    expect(cible.locuteurRef).toBeNull()
-    const reluApresLiaison = store.lireEntretien(autre.id)
-    expect(reluApresLiaison.ok && reluApresLiaison.data.participations[0].associationRetiree).toBeUndefined()
-
-    store.personnesCommander({ type: 'lier', entretienId: autre.id, participationId: 'loc-source', locuteurId: personneId })
-    store.personnesCommander({ type: 'lier', entretienId: autre.id, participationId: 'loc-source', locuteurId: null }, true)
-    entree = store.journalCorpusLister()[0]
-    expect(entree.libelle).toContain('dissocié')
-    expect(store.journalCorpusAnnuler(entree.id).ok).toBe(true)
-    cible = store.personnesInventaire().participations.find((locuteur) => locuteur.participationId === 'loc-source')!
-    expect(cible.locuteurRef).toBe(personneId)
-    const reluApresDeliaison = store.lireEntretien(autre.id)
-    expect(reluApresDeliaison.ok && reluApresDeliaison.data.participations[0].associationRetiree).toBeUndefined()
+    const reference = { entretienId: autre.id, participationId: 'loc-source' }
+    installerIdentitesFixture(dir, { associations: [{ ...reference, locuteurRef: id }] })
+    ancienInverse(store, { type: 'personneLier', entretienId: autre.id, locuteurId: 'loc-source', avant: { locuteurRef: null }, apres: { locuteurRef: id } })
+    const courant = store.lireEntretien(autre.id)
+    if (!courant.ok) throw new Error('Entretien indisponible')
+    courant.data.meta.valeursGen.sansRapport = 'modalite'; store.ecrireEntretien(autre.id, courant.data)
+    expect(store.journalCorpusAnnuler(store.journalCorpusLister()[0].id).ok).toBe(true)
+    const apres = store.lireEntretien(autre.id)
+    expect(apres.ok && apres.data.participations[0]).toMatchObject({ locuteurRef: null })
+    expect(apres.ok && apres.data.participations[0].associationRetiree).toBeUndefined()
+    expect(apres.ok && apres.data.meta.valeursGen.sansRapport).toBe('modalite')
+    installerIdentitesFixture(dir, { associations: [{ ...reference, locuteurRef: null }] })
+    ancienInverse(store, { type: 'personneLier', entretienId: autre.id, locuteurId: 'loc-source', avant: { locuteurRef: id }, apres: { locuteurRef: null, associationRetiree: true } })
+    expect(store.journalCorpusAnnuler(store.journalCorpusLister()[0].id).ok).toBe(true)
+    const retabli = store.lireEntretien(autre.id)
+    expect(retabli.ok && retabli.data.participations[0].locuteurRef).toBe(id)
+    expect(retabli.ok && retabli.data.participations[0].associationRetiree).toBeUndefined()
   })
 
   test('reste en mémoire et disparaît avec l’instance du corpus', () => {
-    const { dir, store } = preparer()
-    const locuteur = store.personnesInventaire().participations[0]
-    const personneId = store.personnesCommander({
-      type: 'creer',
-      entretienId: locuteur.entretienId,
-      participationId: locuteur.participationId,
-      nom: 'Marie',
-    })!
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Maria' }, true)
+    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Maria')
+    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
     expect(store.journalCorpusLister()).toHaveLength(1)
     expect(new CorpusStore(dir).journalCorpusLister()).toEqual([])
     expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))).not.toHaveProperty('journal')
   })
 
   test('grise une entrée si sa cible a changé et ne l’écrase pas', () => {
-    const { store } = preparer()
-    const locuteur = store.personnesInventaire().participations[0]
-    const personneId = store.personnesCommander({
-      type: 'creer',
-      entretienId: locuteur.entretienId,
-      participationId: locuteur.participationId,
-      nom: 'Marie',
-    })!
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Maria' }, true)
-    store.personnesCommander({ type: 'modifier', locuteurId: personneId, nom: 'Modification extérieure' })
+    const { dir, store } = preparer(), id = creerLocuteurFixture(dir, 'Maria')
+    ancienInverse(store, { type: 'personneRenommer', personneId: id, avant: 'Marie', apres: 'Maria' })
+    installerIdentitesFixture(dir, { locuteurs: [{ id, nom: 'Modification extérieure' }] })
     const entree = store.journalCorpusLister()[0]
     expect(entree).toMatchObject({ etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' })
-    expect(store.journalCorpusAnnuler(entree.id)).toEqual({
-      ok: false,
-      raison: 'La personne a été modifiée depuis cette action.',
-      temporaire: false,
-    })
-    expect(store.personnesInventaire().locuteurs[0].nom).toBe('Modification extérieure')
+    expect(store.journalCorpusAnnuler(entree.id)).toEqual({ ok: false, raison: 'La personne a été modifiée depuis cette action.', temporaire: false })
+    expect(store.ouvrir().locuteurs[id].nom).toBe('Modification extérieure')
   })
 
-  test('annule un refus simple mais ignore le refus composite qui crée une fiche', () => {
+  test('relit deux inverses de refus successifs avec leurs références contextualisées', () => {
     const { store } = preparer()
-    const cible = store.personnesInventaire().participations.find((locuteur) => locuteur.nom === 'Karine')!
-    const personneId = store.personnesCommander({
-      type: 'creer',
-      entretienId: cible.entretienId,
-      participationId: cible.participationId,
-      nom: cible.nom,
-    })!
-    expect(personneId).toBeTruthy()
-    const autre = store.creerEntretienVide('Autre entretien')
-    store.ecrireEntretien(autre.id, entretien(cible.nom))
-
-    store.personnesCommander({
-      type: 'refuser',
-      entretienId: cible.entretienId,
-      participationId: cible.participationId,
-      sourceEntretienId: autre.id,
-      sourceParticipationId: 'loc-source',
-    }, true)
+    const cible = store.inventaireIdentitesLocuteurs().participations.find((p) => p.nom === 'Karine')!
+    const autre = store.creerEntretienVide('Autre entretien'); store.ecrireEntretien(autre.id, entretien(cible.nom))
+    const reference = { entretienId: cible.entretienId, locuteurId: cible.participationId }
+    const refus = { type: 'participation' as const, entretienId: autre.id, participationId: 'loc-source' }
+    const avant = { rapprochementsRefuses: [] }, apres = { rapprochementsRefuses: [refus] }
+    const data = store.lireEntretien(cible.entretienId)
+    if (!data.ok) throw new Error('Entretien indisponible')
+    data.data.participations.find((p) => p.id === cible.participationId)!.rapprochementsRefuses = []
+    store.ecrireEntretien(cible.entretienId, data.data)
+    ancienInverse(store, { type: 'personneRefus', ...reference, avant, apres })
+    ancienInverse(store, { type: 'personneRefus', ...reference, avant: apres, apres: avant })
     let journal = store.journalCorpusLister()
-    expect(journal[0].libelle).toContain('écarté')
-    const refus = store.personnesInventaire().participations
-      .find((locuteur) => locuteur.participationId === cible.participationId)?.rapprochementsRefuses?.[0]
-    expect(refus).toBeTruthy()
-    store.personnesCommander({
-      type: 'annulerRefus',
-      entretienId: cible.entretienId,
-      participationId: cible.participationId,
-      cible: refus!,
-    }, true)
-    journal = store.journalCorpusLister()
-    expect(journal.map((entree) => entree.etat)).toEqual(['annulable', 'inapplicable'])
+    expect(journal.map((e) => e.etat)).toEqual(['annulable', 'inapplicable'])
     expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    journal = store.journalCorpusLister()
-    expect(journal[0].etat).toBe('annulable')
+    journal = store.journalCorpusLister(); expect(journal[0].etat).toBe('annulable')
     expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
-    expect(store.personnesInventaire().participations.find((locuteur) => locuteur.participationId === cible.participationId)?.rapprochementsRefuses).toEqual([])
-
-    store.personnesCommander({
-      type: 'refuser',
-      entretienId: autre.id,
-      participationId: 'loc-source',
-      sourceEntretienId: cible.entretienId,
-      sourceParticipationId: cible.participationId,
-    }, true)
-    expect(store.journalCorpusLister()).toEqual([])
+    expect(store.inventaireIdentitesLocuteurs().participations.find((p) => p.participationId === cible.participationId)?.rapprochementsRefuses).toEqual([])
   })
 })

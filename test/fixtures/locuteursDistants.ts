@@ -1,6 +1,6 @@
 import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
-import { inventorierPersonnes } from '../../src/shared/corpus/personnes'
+import { inventorierLocuteurs } from '../../src/shared/corpus/inventaireLocuteurs'
 
 export function fixtureLocuteursDistants() {
   const corpus: CorpusFichier = squeletteCorpus('Locuteurs partagés')
@@ -19,6 +19,6 @@ export function fixtureLocuteursDistants() {
     return { id, titre: `Entretien ${id}`, data }
   })
   const sources = () => entretiens.map((e) => ({ id: e.id, contenu: JSON.stringify(e.data) }))
-  const attendu = () => JSON.stringify({ ...inventorierPersonnes(corpus, entretiens), indisponibles: [] })
+  const attendu = () => JSON.stringify({ ...inventorierLocuteurs(corpus, entretiens), indisponibles: [] })
   return { corpus, entretiens, sources, attendu }
 }

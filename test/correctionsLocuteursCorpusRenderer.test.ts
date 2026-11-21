@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { createApp, h, nextTick, ref, type App } from 'vue'
 import CorrectionsLocuteursCorpus from '../src/renderer/components/traiter/corpus/CorrectionsLocuteursCorpus.vue'
 import { inventaireCorrections, lignesCorrections } from './fixtures/correctionsLocuteursCorpus'
-import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/inventaireLocuteurs'
 
 const injection = vi.hoisted(() => ({ contexte: {} as Record<string, unknown> }))
 vi.mock('../src/renderer/composables/sonal', () => ({ utiliserSonal: () => injection.contexte }))

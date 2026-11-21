@@ -16,9 +16,14 @@ async function banc(port: number, avecTiers = false) {
   const parent = new ClientWebDAV({ baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`, identifiants: { utilisateur: 'max', motDePasse: 'max-max-1234' } })
   const dossier = `sonde/locuteurs-${randomUUID()}`
   await parent.creerDossier('sonde'); await parent.creerDossier(dossier)
-  let perte = false, perdu = false, putsA = 0, finalisationBloquee = false
+  let perte = false, perdu = false, putsA = 0, finalisationBloquee = false, finalisationRetardee = false
+  let requeteRetardee: Request | undefined
   const client = new ClientWebDAV({ ...parent.config, baseUrl: `${parent.config.baseUrl}/${dossier}` }, async (input, init) => {
     const req = new Request(input, init)
+    if (finalisationRetardee && req.method === 'PUT' && new URL(req.url).pathname.endsWith('/corpus.crp') && !JSON.parse(await req.clone().text()).locuteurs.b) {
+      requeteRetardee = new Request(req, { signal: new AbortController().signal })
+      throw new Error('Réponse inconnue, requête toujours en cours sur le serveur')
+    }
     if (finalisationBloquee && req.method === 'PUT' && new URL(req.url).pathname.endsWith('/corpus.crp') && !JSON.parse(await req.clone().text()).locuteurs.b) return new Response('Refus de finalisation', { status: 412 })
     const reponse = await fetch(input, init)
     if (req.method === 'PUT' && new URL(req.url).pathname.endsWith('/entretiens/A.json')) {
@@ -49,6 +54,8 @@ async function banc(port: number, avecTiers = false) {
   }
   const commande = () => ({ type: 'renommerGlobal' as const, locuteurId: 'a', nom: 'Alice publiée', attendu: f.attendu() })
   return { client, tiers, f, store, tx: recreer(), recreer, reserve, chemin: natif ? 'entretiens/A.json' : 'verrous/A.lock.json', commande,
+    retarderFinalisation: () => { finalisationRetardee = true },
+    accepterRequeteRetardee: async () => { if (!requeteRetardee) throw new Error('Requête absente'); const r = await fetch(requeteRetardee); if (!r.ok) throw new Error(`Publication retardée refusée (${r.status})`) },
     perdre: () => { perte = true }, bloquerFinalisation: (valeur: boolean) => { finalisationBloquee = valeur }, putsA: () => putsA, nettoyer: async () => { await parent.supprimer(dossier).catch(() => {}); rmSync(dir, { recursive: true, force: true }) } }
 }
 
@@ -89,10 +96,32 @@ for (const port of [8080, 8081]) {
         expect(corpus.cas.suivi.regles).toEqual([{ type: 'locuteurs', membres: [{ locuteurId: 'a', inclureEnqueteurs: true }] }])
         expect(JSON.parse(await b.client.getTexte('entretiens/D.json')).participations[0].rapprochementsRefuses).toEqual([{ type: 'locuteur', locuteurId: 'a' }])
         const avant = await b.client.getTexte('entretiens/C.json')
-        await repris.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(b.store.personnesInventaire()) })
+        await repris.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(b.store.inventaireIdentitesLocuteurs()) })
         expect(JSON.parse(await b.client.getTexte('corpus.crp')).locuteurs.vide).toBeUndefined()
         expect(await b.client.getTexte('entretiens/C.json')).toBe(avant)
       } finally { await b.nettoyer() }
+    })
+
+    test('requête retardée : protection conservée après recréation, autre poste bloqué, aucun renvoi après acceptation tardive', { timeout: 120_000 }, async () => {
+      const b = await banc(port, true), autre = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'autre-poste', sessionId: randomUUID() }))
+      try {
+        b.retarderFinalisation()
+        await expect(b.tx.corrigerLocuteurs({ type: 'regrouperSelection', locuteurIds: ['a', 'b'], conserverId: 'a', nom: 'Identité commune', uniformiserNoms: false, attendu: b.f.attendu() })).rejects.toThrow('doit être vérifié')
+        const suivi = b.tx.lireSuiviCorrectionLocuteurs()!, repris = b.recreer()
+        expect((await autre.acquerir('verrous/corpus.lock.json')).ok).toBe(false)
+        await expect(repris.reconcilierCorrectionLocuteurs(suivi.operationId)).rejects.toThrow('n’est pas confirmée')
+        expect((await autre.acquerir('verrous/corpus.lock.json')).ok).toBe(false)
+        expect(JSON.parse(await b.client.getTexte('corpus.crp')).locuteurs.b).toBeDefined()
+        await b.accepterRequeteRetardee()
+        await repris.reconcilierCorrectionLocuteurs(suivi.operationId)
+        expect(repris.lireSuiviCorrectionLocuteurs()).toBeNull()
+        const corpus = JSON.parse(await b.client.getTexte('corpus.crp'))
+        expect(corpus.locuteurs.b).toBeUndefined()
+        expect(corpus.cas.suivi.regles).toEqual([{ type: 'locuteurs', membres: [{ locuteurId: 'a', inclureEnqueteurs: true }] }])
+        expect(JSON.parse(await b.client.getTexte('entretiens/D.json')).participations[0].rapprochementsRefuses).toEqual([{ type: 'locuteur', locuteurId: 'a' }])
+        expect((await autre.acquerir('verrous/corpus.lock.json')).ok).toBe(true)
+        await autre.liberer('verrous/corpus.lock.json')
+      } finally { await autre.liberer('verrous/corpus.lock.json').catch(() => {}); await b.nettoyer() }
     })
 
     test('réponse perdue : reprise du suivi après redémarrage, vérification sans PUT puis fin sans doublon', { timeout: 120_000 }, async () => {

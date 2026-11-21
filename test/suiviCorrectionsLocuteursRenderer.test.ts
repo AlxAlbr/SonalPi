@@ -88,7 +88,7 @@ test('la réponse d’une ancienne destination ne modifie pas le suivi de la nou
   b.revision.value++; b.dossier.value = '/autre'; b.setSuivi(null); await attendre()
   finir(); await attendre()
   expect(b.corpus.suiviLocuteurs.value).toBeNull()
-  expect(b.corpus.revisionPersonnesCorpus.value).toBe(0)
+  expect(b.corpus.revisionLocuteursCorpus.value).toBe(0)
   expect(b.termine).not.toHaveBeenCalled()
 })
 

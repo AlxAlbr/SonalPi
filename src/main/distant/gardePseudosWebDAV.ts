@@ -4,6 +4,7 @@ import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import type { IdentiteSession } from './sessions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type RegleAnon } from '../../shared/format'
 import { verifierBarriereDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
+import { verifierReferencesLocuteurs } from '../../shared/corpus/identitesLocuteurs'
 import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
 import { etagImportWebDAVFort } from './journalCorrespondancesWebDAV'
 import { JournalGardePseudosWebDAV, type EnvoiGardePseudosWebDAV } from './journalGardePseudosWebDAV'
@@ -81,6 +82,7 @@ export class GardePseudosWebDAV {
       || !Array.isArray(avant.annotations) || !Array.isArray(candidat.annotations)) throw new Error('La publication n’est pas prise en charge dans ce format.')
     const id = /^entretiens\/([^/]+)\.json$/.exec(chemin)?.[1]
     if (!id) throw new Error('La destination de publication d’entretien est invalide.')
+    verifierReferencesLocuteurs(candidat, corpus)
     verifierBarriereDissociationWebDAV(corpus, candidat, id)
     const regles: Record<string, RegleAnon> = Object.assign(Object.create(null), corpus.reglesAnon ?? {})
     for (const [id, regle] of Object.entries(nouvellesRegles)) {

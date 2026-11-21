@@ -21,6 +21,16 @@ function nomValide(nom: string): string {
   return valeur
 }
 
+/** Aucun enregistrement ne peut réintroduire une identité retirée du corpus. */
+export function verifierReferencesLocuteurs(entretien: { participations: readonly Pick<ParticipationLocuteur, 'locuteurRef' | 'rapprochementsRefuses'>[] }, corpus: CorpusIdentites): void {
+  for (const p of entretien.participations) {
+    const ids = [p.locuteurRef, ...(p.rapprochementsRefuses ?? []).flatMap((r) => r.type === 'locuteur' ? [r.locuteurId] : [])]
+    if (ids.some((id) => id && (!corpus.locuteurs || !Object.hasOwn(corpus.locuteurs, id)))) {
+      throw new Error('Les associations des locuteurs ont changé. Rouvrez cet entretien avant de poursuivre les modifications.')
+    }
+  }
+}
+
 export function creerLocuteur(corpus: CorpusIdentites, id: string, nom: string): Locuteur {
   const valeur = nomValide(nom)
   if (!id || Object.hasOwn(corpus.locuteurs, id)) throw new Error('Identifiant de locuteur déjà utilisé ou invalide.')

@@ -14,7 +14,7 @@ function entretien(): EntretienFichier {
   return {
     formatVersion: FORMAT_VERSION, lastModified: '', ancres: [],
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: 'Paroles conservées.' }] }] },
-    annotations: [{ id: 'codage', type: 'codage', code: 'theme', from: 1, to: 20 }],
+    annotations: [{ id: 'codage', type: 'codage', auteur: 'Qualification', code: 'theme', from: 1, to: 20 }],
     participations: [{ id: 'participation-stable', index: 7, nom: 'Nom local', locuteurRef: 'identite-corpus', valeursLoc: { age: 'adulte' } }],
     meta: { valeursGen: {}, audioRef: null },
   }
@@ -25,7 +25,7 @@ function banc() {
   const lire = vi.fn(async (_id: string) => ({ ok: true as const, data: structuredClone(data) }))
   vi.stubGlobal('window', { sonal: { corpus: {
     lireEntretien: lire,
-    personnesInventaire: async () => ({ locuteurs: structuredClone(personnes) }),
+    inventaireIdentitesLocuteurs: async () => ({ locuteurs: structuredClone(personnes) }),
   } } })
   const deps = {
     membership: ref({ e1: { titre: 'Entretien', date: null, lastModified: '' } }),

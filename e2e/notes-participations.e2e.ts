@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, entrerEntretien, lancer, retourCorpus } from './util'
 
 test('les liens créés dans l’éditeur restent locaux après annulation, sauvegarde et réouverture', async () => {
@@ -59,10 +60,9 @@ test('les notes et leurs annulations gardent les participations dans leur entret
   try {
     const page = await app.firstWindow()
     await entrerCorpus(page)
-    const resultat = await page.evaluate(async () => {
+    const commun = creerLocuteurFixture(join(dir, 'corpus'), 'Identité commune')
+    const resultat = await page.evaluate(async (commun) => {
       const api = window.sonal.corpus
-      const commun = await api.personnesCommander({ type: 'creerDefinition', nom: 'Identité commune' })
-      if (!commun) throw new Error('Identité absente')
       const ids: string[] = []
       for (const titre of ['Notes A', 'Notes B']) {
         const { id } = await api.creerEntretienVide(titre)
@@ -101,7 +101,7 @@ test('les notes et leurs annulations gardent les participations dans leur entret
       const final = await Promise.all(ids.map(lire))
       return { commun, avant, attendu: note.attendu, refus, apresRefus, apresModification,
         apresSuppression, restauration, apresRestauration, annulation, final }
-    })
+    }, commun)
     expect(resultat.attendu.participationIds).toEqual([resultat.commun])
     expect(resultat.attendu).not.toHaveProperty('locuteurIds')
     expect(resultat.refus).toBe(true)

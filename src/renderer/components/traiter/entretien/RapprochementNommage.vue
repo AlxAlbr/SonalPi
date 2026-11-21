@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { VueParticipationLocuteur } from '../../../../shared/corpus/personnes'
+import type { VueParticipationLocuteur } from '../../../../shared/corpus/inventaireLocuteurs'
 import type { ParticipationLocuteur } from '../../../../shared/format'
-import { analyserRapprochementLocuteur, type ChoixRepriseLocuteur, natureNomLocuteur } from "../../../../shared/corpus/rapprochementsLocuteurs"
+import { analyserRapprochementLocuteur, type ChoixRepriseParticipation, natureNomLocuteur } from "../../../../shared/corpus/rapprochementsLocuteurs"
 
 const props = defineProps<{ entretienId: string; nom: string; cible: ParticipationLocuteur; sources: VueParticipationLocuteur[]; candidats: VueParticipationLocuteur[]; occupe: boolean; message: string }>()
 const emit = defineEmits<{
   reporter: []
-  decider: [locuteurId: string, entretienId: string, decision: 'lier' | 'refuser' | 'refuserTous', reprise?: ChoixRepriseLocuteur]
+  decider: [locuteurId: string, entretienId: string, decision: 'lier' | 'refuser' | 'refuserTous', reprise?: ChoixRepriseParticipation]
 }>()
 const dialogue = ref<HTMLDialogElement | null>(null)
 const plusTard = ref<HTMLButtonElement | null>(null)
@@ -39,7 +39,7 @@ watch(selection, () => {
 function confirmer() {
   const l = source.value ?? candidat.value
   if (!l || (reprendreInformations.value && !source.value)) return
-  const reprise: ChoixRepriseLocuteur | undefined = reprendreInformations.value
+  const reprise: ChoixRepriseParticipation | undefined = reprendreInformations.value
     ? { pseudo: true, interviewer: true, variables: [], remplacer: false }
     : undefined
   emit('decider', l.participationId, l.entretienId, 'lier', reprise)

@@ -2,7 +2,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { ref } from 'vue'
 import type { ParticipationLocuteur } from '../src/shared/format'
-import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/personnes'
+import type { InventaireIdentitesLocuteurs } from '../src/shared/corpus/inventaireLocuteurs'
 import { useLocuteursEntretien } from '../src/renderer/composables/entretien/useLocuteursEntretien'
 
 const reference = { entretienId: 'courant', participationId: 'local' }
@@ -18,7 +18,7 @@ function banc(nomSource = 'Autre nom') {
       { ...source, entretienId: 'autre', entretienTitre: 'Source', participationId: source.id, interviewer: true },
     ], notes: [], indisponibles: [],
   })
-  const api = { inventaireLocuteursDepuisEntretien: vi.fn(async () => inventaire()), personnesCommander: vi.fn() }
+  const api = { inventaireLocuteursDepuisEntretien: vi.fn(async () => inventaire()) }
   vi.stubGlobal('sonal', undefined)
   Object.assign(window, { sonal: { corpus: api } })
   const effets = { enregistrerAction: vi.fn(), rafraichirJournal: vi.fn(), rafraichirProjections: vi.fn(), rafraichirGouttiere: vi.fn(),
@@ -40,7 +40,7 @@ test.each(['Enquêteur', 'Participant 1', 'Inconnu', 'X', 'Nouveau locuteur'])('
   await b.attendreNommages()
   expect(b.identifier).toHaveBeenCalledExactlyOnceWith(reference, nom)
   expect(b.locuteurs.value[0]).toEqual({ ...avant, nom, locuteurRef: 'nouvelle' })
-  expect(b.api.personnesCommander).not.toHaveBeenCalled()
+  expect(b.api).not.toHaveProperty('personnesCommander')
 })
 
 test('ajouter une entrée provisoire ne crée aucune identité, la validation du même libellé la crée', async () => {
@@ -56,7 +56,7 @@ test('ajouter une entrée provisoire ne crée aucune identité, la validation du
 test('plus tard conserve une identité distincte ; une seconde validation ne crée ni fiche ni nouvelle demande', async () => {
   const b = banc('Marie Dupont')
   b.renommerParticipation(reference, 'Marie Dupont'); await b.attendreNommages()
-  expect(b.rapprochementNommage.value?.personneRef).toBe('nouvelle')
+  expect(b.rapprochementNommage.value?.locuteurRef).toBe('nouvelle')
   expect(b.rapprochementNommage.value?.candidats).toHaveLength(1)
   b.reporterRapprochement()
   b.renommerParticipation(reference, 'Marie Dupont'); await b.attendreNommages()
@@ -74,7 +74,7 @@ test('seule la confirmation explicite utilise le rapprochement transactionnel', 
   const demande = b.rapprocher.mock.calls[0] as unknown as [unknown, unknown]
   expect(() => structuredClone(demande[0])).not.toThrow()
   expect(demande[0]).toMatchObject({ ...reference, source: { entretienId: 'autre', participationId: 'local' }, attendu: expect.any(String) })
-  expect(b.api.personnesCommander).not.toHaveBeenCalled()
+  expect(b.api).not.toHaveProperty('personnesCommander')
 })
 
 test('aucune de ces personnes mémorise le refus sans supprimer ni recréer l’identité distincte', async () => {

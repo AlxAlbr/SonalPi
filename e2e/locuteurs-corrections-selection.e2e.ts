@@ -3,15 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, lancer } from './util'
 
 async function preparer(page: Page) {
-  return page.evaluate(async () => {
+  const { dir } = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+  const alpha = creerLocuteurFixture(dir, 'Alpha'), beta = creerLocuteurFixture(dir, 'Beta'), gamma = creerLocuteurFixture(dir, 'Gamma')
+  return page.evaluate(async ({ alpha, beta, gamma }) => {
     const api = window.sonal.corpus
-    const alpha = await api.personnesCommander({ type: 'creerDefinition', nom: 'Alpha' })
-    const beta = await api.personnesCommander({ type: 'creerDefinition', nom: 'Beta' })
-    const gamma = await api.personnesCommander({ type: 'creerDefinition', nom: 'Gamma' })
-    if (!alpha || !beta || !gamma) throw new Error('Identités de test indisponibles')
     const variable = await api.ajouterVariable('Donnée locale conservée', 'participation')
     const corpus = await api.ajouterModalite(variable.id, 'Valeur locale')
     const modalite = corpus.variables[variable.id].modalites[0].id
@@ -35,7 +34,7 @@ async function preparer(page: Page) {
     await api.casCommander({ type: 'creer', cas: { id: 'cas-beta', nom: 'Cas Beta', memo: '', creeLe: '2026-01-01T00:00:00.000Z', modifieLe: '2026-01-01T00:00:00.000Z',
       regles: [{ type: 'locuteur', locuteurId: beta, inclureEnqueteurs: true }], rattachements: [] } })
     return { ids, alpha, beta, gamma }
-  })
+  }, { alpha, beta, gamma })
 }
 function lire(dir: string, id: string): EntretienFichier {
   return JSON.parse(readFileSync(join(dir, 'corpus/entretiens', `${id}.json`), 'utf8'))

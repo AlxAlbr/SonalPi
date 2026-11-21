@@ -148,7 +148,7 @@ export function useLexicoCorpus(deps: {
       try {
         // L'inventaire ne force pas la publication de l'entretien ouvert.
         // Ses locuteurs seront relus depuis l'instantané en mémoire ci-dessous.
-        locuteurs = (await window.sonal.corpus.personnesInventaire()).locuteurs
+        locuteurs = (await window.sonal.corpus.inventaireIdentitesLocuteurs()).locuteurs
       } catch (erreur) {
         diagnostics.push({ titre: 'Locuteurs', message: erreur instanceof Error ? erreur.message : String(erreur) })
       }

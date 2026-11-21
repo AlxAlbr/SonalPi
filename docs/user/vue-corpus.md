@@ -270,35 +270,64 @@ Dans un corpus distant, l’onglet consulte les notes du dernier miroir synchron
 
 Les filtres, le tri, le mode d’affichage et la largeur du panneau sont conservés pendant un changement d’onglet ou un aller-retour dans un entretien. La largeur est mémorisée sur le poste et les panneaux s’empilent dans une fenêtre étroite.
 
-## Personnes
+## Locuteurs
 
-Le répertoire distingue les **personnes du corpus** et les **locuteurs locaux**. Choisissez un locuteur non lié pour créer une personne, ou pour l’associer à une personne existante. Deux homonymes peuvent rester distincts. Une personne ne peut être associée qu’à un locuteur par entretien.
+L’onglet **Locuteurs** présente toutes les voix du corpus, associées ou non à d’autres
+entretiens. Deux homonymes restent distincts tant que vous ne les réunissez pas.
+La même vue est proposée en local, sur GitLab et sur Nextcloud.
 
-Le panneau de gauche présente d’abord la recherche, puis les **Personnes identifiées**, les **Locuteurs à associer** et les **Rapprochements à vérifier**. De courtes explications distinguent les personnes déjà constituées des noms utilisés dans les entretiens qui restent à associer. Les deux premières listes peuvent être repliées pour faciliter la consultation des corpus volumineux. **À vérifier** se concentre sur les associations à corriger et les rapprochements proposés ; **Écartées** affiche uniquement les décisions écartées. Les titres de section restent plus discrets que le titre principal. L’aide générale de l’onglet est accessible à côté du bouton **Actualiser**.
+Sélectionnez un ou plusieurs locuteurs pour consulter leurs interventions ou leurs
+statistiques. La recherche peut porter sur leurs noms et sur les entretiens. Ouvrir
+une intervention ne modifie ni ses paroles ni ses associations ; le retour au corpus
+conserve la sélection.
 
-La personne sélectionnée possède un nom de référence modifiable. Les noms locaux, pseudonymes et valeurs des variables ne sont jamais modifiés par cette opération. Les variables de locuteur sont présentées côte à côte : une différence d’âge ou de profession entre entretiens peut être légitime.
+Les corrections partent de cette sélection :
 
-**C’est la même personne…** ouvre une confirmation depuis un rapprochement proposé. Si des entretiens désignent déjà séparément la même personne, utilisez **Réunir…**, choisissez la personne correspondante, puis le nom à conserver. La personne réunie s’ouvre après réussite. L’opération est bloquée si plusieurs locuteurs du même entretien seraient rattachés à cette personne.
+- **Renommer…** change le nom commun et les noms des participations associées ;
+- **C’est le même locuteur…** réunit les entrées choisies, après vérification des
+  entretiens concernés et choix de conserver ou d’uniformiser leurs noms ;
+- **Dissocier…** rend indépendantes les voix cochées, sans demander de nouveau nom.
+  Au moins un entretien doit rester associé au locuteur d’origine ;
+- **Conserver séparément…** donne une identité propre aux voix encore sans identité
+  commune, sans les réunir.
 
-**Séparer…** corrige le cas inverse : sélectionnez les locuteurs placés par erreur sur une même fiche, puis nommez la nouvelle personne. Au moins un locuteur doit rester sur la fiche d’origine. La séparation change uniquement les associations ; les noms locaux, pseudonymes, rôles, données et notes restent inchangés.
+La confirmation précise les conséquences avant toute modification. Annuler ou Échap
+conserve les données actuelles. Les paroles, notes, couleurs, pseudonymes, rôles et
+valeurs ne sont pas copiés ou harmonisés implicitement. Un conflit dans un même
+entretien bloque le regroupement.
 
-Lorsque des informations diffèrent réellement, la confirmation propose de **reprendre toutes les informations disponibles** depuis un entretien source vers le locuteur affiché. Cette copie ponctuelle remplace son pseudonyme, son statut et les valeurs de variables disponibles, sans modifier les autres membres de la personne ni créer de synchronisation future. Si aucune information ne changerait, cette option n’est pas affichée.
+**Détails et vérifications…** affiche les informations et les notes de la sélection,
+ainsi que les rapprochements à examiner et les distinctions déjà mémorisées. Les
+notes restent dans leurs entretiens, même si plusieurs participations portent le
+même identifiant local. Une reprise d’informations copie seulement les champs choisis,
+avec remplacement des valeurs existantes uniquement sur demande. Une définition sans
+entretien n’est supprimable qu’après vérification de tous ses usages.
 
-Un locuteur sans lien propose directement deux choix : créer une personne ou l’associer à une personne existante. Pour un locuteur déjà associé, **Modifier l’association…** permet de choisir une autre personne ou de supprimer l’association, après confirmation. Cette modification concerne uniquement le locuteur sélectionné. Après une dissociation volontaire, renommer le locuteur ne recrée pas automatiquement une personne ; vous pouvez toujours l’associer explicitement. Une personne sans entretien peut être examinée ou supprimée lorsque tous les entretiens sont lisibles. **À vérifier** affiche chaque rapprochement une seule fois entre deux identités, avec les entretiens déjà réunis de chaque côté. Son panneau présente uniquement la décision à prendre et des boutons pour ouvrir chacun des entretiens concernés. Après **Personne différente**, la décision s’ouvre dans **Écartées**, où l’association manuelle reste disponible. Ce filtre signale aussi les références absentes et les personnes possédant plusieurs locuteurs dans un même entretien. Aucune association incorrecte n’est supprimée automatiquement.
+Dans un entretien ouvert, saisir un nom non vide crée d’abord un locuteur indépendant,
+y compris pour « Enquêteur », « Inconnu » ou « X ». Ajouter une ligne provisoire seule
+ne crée rien. Entrée ou la sortie du champ modifié enregistre le nom. Si le locuteur
+est déjà associé à d’autres entretiens, un changement de nom demande confirmation de
+ses effets sur ces entretiens ; sinon, il s’enregistre directement.
 
-Dans l’onglet Notes d’un entretien, **Concerne** associe une note à un ou plusieurs locuteurs. La section **Notes liées** d’une personne agrège ces notes sans les copier : leur contenu, leur catégorie, leur date et leur statut restent propres à l’entretien. Une association modifiée actualise automatiquement cette liste. **Ouvrir l’entretien dans Notes** permet de modifier la note dans son contexte.
+Une proposition **Une personne déjà rencontrée ?** n’est jamais une association
+automatique. **Confirmer** réunit les identités après vérification et reprend les
+seules informations choisies. **Plus tard** conserve l’identité indépendante déjà
+créée. Un retrait volontaire d’association n’est pas annulé par un nouveau nom.
 
-**Ouvrir l’entretien** accède directement à son onglet Locuteurs ; le retour conserve la sélection du répertoire et actualise les données. Dans l’éditeur, si la définition d’une Personne référencée a disparu, la ligne signale explicitement la référence absente et invite à corriger l’association dans Personnes. **Actualiser** permet aussi de relire le corpus. Le séparateur est redimensionnable à la souris ou au clavier, avec une largeur mémorisée ; les panneaux s’empilent dans une fenêtre étroite.
+Sur un corpus partagé, fermez les éditions avant une correction depuis le corpus.
+Depuis l’entretien ouvert, créer un locuteur indépendant ne nécessite pas de fermer
+les autres éditions ; renommer globalement ou rapprocher le nécessite. Les dernières
+saisies sont enregistrées avant la correction. Hors ligne, la consultation reste
+possible sans permettre de modification.
 
-Dans un **corpus local**, toutes ces corrections sont disponibles. La réunion et la séparation de personnes utilisent un journal technique pour être terminées après une interruption ; une modification extérieure inconnue bloque leur reprise plutôt que d’être écrasée. Ce mécanisme est distinct du Journal visible du corpus.
+Sur Nextcloud, une interruption peut laisser une correction à terminer. Revenez au
+corpus, dans **Locuteurs**, puis utilisez **Vérifier le résultat** avant de choisir
+**Reprendre la correction**. Si le résultat est connu, **Arrêter cette correction…**
+conserve les étapes enregistrées sans appliquer la suite ; cela ne rétablit pas les
+anciens noms ni les anciennes associations. Ne relancez pas une nouvelle correction
+pour remplacer un suivi encore en attente.
 
-Dans un **corpus distant connecté**, les corrections du répertoire sont disponibles sous verrous : création, renommage, association, refus, suppression d’une fiche vide, rapprochement, réunion et séparation. Les entretiens concernés sont verrouillés dans un ordre stable et relus depuis le serveur avant la modification. Un entretien déjà ouvert par votre session conserve sa sauvegarde habituelle. Un verrou détenu par une autre personne ou une modification concurrente provoque un refus explicite sans écrasement.
-
-Les opérations composées publient les données dans un ordre qui évite les références absentes. Une création ou une séparation publie d’abord la nouvelle définition, puis les associations. Une réunion modifie d’abord les entretiens et retire seulement ensuite la définition absorbée. Si une publication intermédiaire échoue, les éléments déjà confirmés sont conservés et le message les nomme. Actualisez alors le répertoire : une réunion peut être relancée, tandis que les associations restant après une création ou une séparation peuvent être corrigées directement. La suppression d’une fiche vide contrôle préalablement tous les entretiens dans leur état frais. Hors ligne, le répertoire reste consultable sans écriture.
-
-Au nommage local, un nom spécifique sans candidat crée une personne ; un nom identique, une graphie proche stricte ou un rôle équivalent dans un autre entretien ouvre une proposition sans choix présélectionné. Chaque proposition indique sa raison, par exemple « même nom », « une lettre différente » ou « mêmes mots dans un ordre différent ». Une identité déjà reliée à plusieurs entretiens apparaît sur une seule ligne, accompagnée des titres de ces entretiens. Un prénom ou un nom seul n’est jamais proposé sur la seule base d’une ressemblance approximative. Sélectionnez la bonne personne : la reprise de son pseudonyme et de son statut interviewer/interviewé est cochée par défaut. Seules les informations manquantes sont complétées ; les valeurs déjà renseignées et les autres variables restent inchangées. Décochez la case pour effectuer uniquement le rapprochement. Si plusieurs entretiens sources possèdent les mêmes informations, aucune sélection supplémentaire n’est demandée. Lorsqu’elles diffèrent, le pseudonyme et le statut de chaque entretien sont affichés avant de choisir la source.
-
-Seul **Confirmer** applique l’association et la reprise proposée. **Plus tard** et Échap ne prennent aucune décision ; **Ce n’est pas cette personne** ou **Aucune de ces personnes** mémorise le refus des propositions affichées, révocable dans le répertoire. Lorsqu’un locuteur est déjà associé, la confirmation indique que seule son association sera modifiée ; pour réunir tous les entretiens, utilisez le répertoire Personnes.
+Voir le guide [Locuteurs](traiter/locuteurs.html) pour les étapes détaillées.
 
 ## Cas
 

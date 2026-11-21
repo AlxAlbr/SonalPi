@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { ouvrir } from './util'
 
 async function nommer(page: Page) {
@@ -7,7 +8,7 @@ async function nommer(page: Page) {
   await page.locator('.nom-loc').first().fill('Marie Dupont'); await page.locator('.nom-loc').first().press('Enter')
   const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
   await expect(dialogue).toBeVisible()
-  const avant = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+  const avant = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
   const cible = avant.participations.find((p) => p.entretienId === 'e1' && p.nom === 'Marie Dupont')!
   expect(cible.locuteurRef).toBeTruthy()
   return { dialogue, cible }
@@ -40,7 +41,7 @@ test('des données source modifiées bloquent la reprise et gardent l’identit�
     }, id)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('ont changé')
-    const vue = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const vue = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(vue.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual(cible)
     expect(vue.participations.find((p) => p.entretienId === id)).toMatchObject({ locuteurRef: null, pseudo: 'Alice modifiée' })
     expect(vue.locuteurs).toHaveLength(1)
@@ -52,10 +53,11 @@ test('une source liée pendant le dialogue bloque la réunion sans modifier l’
   try {
     const [id] = await sources(page), { dialogue, cible } = await nommer(page)
     await dialogue.getByRole('radio').check()
-    const sourceId = await page.evaluate((id) => window.sonal.corpus.personnesCommander({ type: 'creer', entretienId: id, participationId: 'local', nom: 'Marie Dupont' }), id)
+    const dir = (await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir
+    const sourceId = creerLocuteurFixture(dir, 'Marie Dupont', [{ entretienId: id, participationId: 'local' }])
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('ont changé')
-    const vue = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const vue = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(vue.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual(cible)
     expect(cible.locuteurRef).not.toBe(sourceId); expect(vue.locuteurs).toHaveLength(2)
   } finally { await app.close() }
@@ -66,10 +68,11 @@ test('des propositions modifiées empêchent un refus en masse sans supprimer l�
   try {
     const ids = await sources(page, 2), { dialogue, cible } = await nommer(page)
     await expect(dialogue.getByRole('radio')).toHaveCount(2)
-    await page.evaluate((id) => window.sonal.corpus.personnesCommander({ type: 'creer', entretienId: id, participationId: 'local', nom: 'Marie Dupont' }), ids[0])
+    const dir = (await page.evaluate(() => window.sonal.corpus.dossierCourant())).dir
+    creerLocuteurFixture(dir, 'Marie Dupont', [{ entretienId: ids[0], participationId: 'local' }])
     await dialogue.getByRole('button', { name: 'Aucune de ces personnes', exact: true }).click()
     await expect(dialogue.getByRole('alert')).toContainText('ont changé')
-    const vue = await page.evaluate(() => window.sonal.corpus.personnesInventaire())
+    const vue = await page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
     expect(vue.participations.find((p) => p.entretienId === 'e1' && p.participationId === cible.participationId)).toEqual(cible)
     expect(cible.rapprochementsRefuses).toHaveLength(0); expect(vue.locuteurs).toHaveLength(2)
   } finally { await app.close() }

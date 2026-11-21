@@ -1,5 +1,5 @@
 import type { Locuteur, ReferenceParticipation } from '../locuteurs'
-import type { InventaireIdentitesLocuteurs } from './personnes'
+import type { InventaireIdentitesLocuteurs } from './inventaireLocuteurs'
 import type { LigneRepertoireLocuteurs } from './repertoireLocuteurs'
 import type { CommandeCorrectionLocuteurs } from './contratsLocuteurs'
 

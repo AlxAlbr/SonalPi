@@ -48,7 +48,7 @@ async function monter(options: { actif?: boolean; distant?: boolean; lire?: Retu
   const dernierTirage = ref<string | null>(null)
   injection.contexte = {
     lireLocuteursCorpus: lire, ouvrirAuSegment, actualiserDistant, dossierCourantDir: dossier,
-    revisionPersonnesCorpus: revision, dernierTirage, vue, idDistantCourant: distant,
+    revisionLocuteursCorpus: revision, dernierTirage, vue, idDistantCourant: distant,
     lectureSeule: ref(false), lireApercuLocuteurs: vi.fn(), corrigerLocuteurs: vi.fn(),
     gesteDisponible: () => !distant.value,
     suiviLocuteurs: ref(null), erreurSuiviLocuteurs: ref(''), suiviLocuteursCharge: ref(true),

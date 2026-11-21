@@ -7,7 +7,7 @@ import type { ApercuLotCas } from '../../../composables/corpus/useCasCorpus'
 const props = defineProps<{ type: "locuteurs" | 'entretiens' }>()
 const emit = defineEmits<{ cree: []; annuler: [] }>()
 const {
-  inventairePersonnesCas, entretiensCas, listeCas, lectureSeule,
+  inventaireLocuteursCas, entretiensCas, listeCas, lectureSeule,
   preparerLotCas, creerLotCas, creationCasEnAttente, abandonnerCreationCas,
 } = utiliserSonal()
 const ids = ref<string[]>([])
@@ -19,7 +19,7 @@ const occupe = ref(false)
 const erreur = ref<string | null>(null)
 
 const candidats = computed(() => props.type === "locuteurs"
-  ? inventairePersonnesCas.value?.locuteurs ?? []
+  ? inventaireLocuteursCas.value?.locuteurs ?? []
   : entretiensCas.value)
 const visibles = computed(() => candidats.value.filter((candidat) =>
   candidat.nom.toLocaleLowerCase('fr').includes(recherche.value.trim().toLocaleLowerCase('fr'))))

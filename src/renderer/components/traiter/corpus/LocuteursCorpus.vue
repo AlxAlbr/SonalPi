@@ -14,7 +14,7 @@ import type { ReferenceParticipation } from '../../../../shared/locuteurs'
 import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCorrectionsLocuteurs'
 
 const props = defineProps<{ actif: boolean }>()
-const { lireLocuteursCorpus, ouvrirAuSegment, dossierCourantDir, revisionPersonnesCorpus,
+const { lireLocuteursCorpus, ouvrirAuSegment, dossierCourantDir, revisionLocuteursCorpus,
   dernierTirage, vue, idDistantCourant, gesteDisponible, actualiserDistant } = utiliserSonal()
 const vide = (): VueLocuteursCorpus => ({ locuteurs: [], entretiens: [], indisponibles: [] })
 const donnees = ref<VueLocuteursCorpus>(vide())
@@ -177,7 +177,7 @@ watch([dossierCourantDir, idDistantCourant], () => {
   tousEntretiens.value = false; statistiques.value = false; charge.value = false; erreur.value = ''
   limiteLocuteurs.value = 200; limiteEntretiens.value = 20; indices.value = {}
 })
-watch([visible, dossierCourantDir, idDistantCourant, revisionPersonnesCorpus, dernierTirage], () => {
+watch([visible, dossierCourantDir, idDistantCourant, revisionLocuteursCorpus, dernierTirage], () => {
   if (visible.value) void actualiser()
   else { generation++; occupe.value = false }
 }, { immediate: true })

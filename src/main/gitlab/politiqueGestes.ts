@@ -104,6 +104,7 @@ export const PORTEES_OUVERTES_WEBDAV: PorteeGesteCorpus[] = [
   'pseudonymisation-retrait-variante',
   'corrections-locuteurs-corpus',
   'corrections-locuteurs-reprise',
+  'locuteur-session',
 ]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
@@ -249,7 +250,6 @@ const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
 
   // Parcours refusés sur un corpus distant, quel que soit le fournisseur.
   'note.editer': 'indisponible',
-  'personnes.commande': 'indisponible',
   'journal.annuler': 'indisponible',
   'corpus.marquer-demo': 'indisponible',
 }
@@ -378,7 +378,6 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     renommageEntretien: true,
     metadonneesEntretien: true,
     notes: true,
-    locuteurs: true,
     annulationJournal: true,
     designationMedia: false,
     televersementMedia: false,
@@ -388,7 +387,6 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     renommageEntretien: true,
     metadonneesEntretien: true,
     notes: false,
-    locuteurs: true,
     annulationJournal: false,
     designationMedia: true,
     televersementMedia: true,
@@ -401,7 +399,6 @@ const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
     renommageEntretien: true,
     metadonneesEntretien: false,
     notes: false,
-    locuteurs: false,
     annulationJournal: false,
     designationMedia: true,
     televersementMedia: false,

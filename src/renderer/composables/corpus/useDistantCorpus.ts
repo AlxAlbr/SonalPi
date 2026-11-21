@@ -34,7 +34,6 @@ const TOUTES_CAPACITES: CapacitesCorpus = {
   fusionThemes: true,
   suppressionSourceThemes: true,
   notes: true,
-  locuteurs: true,
   correctionsLocuteurs: true,
   renommageLocuteurOuvert: true,
   nommageLocuteurs: true,
@@ -61,6 +60,7 @@ interface EntretienDistantCorpus {
   viderSauvegarde: () => Promise<void>
   preserverEtAnnulerSauvegarde: () => Promise<boolean>
   annulerEtAttendreSauvegarde: () => Promise<void>
+  correctionLocuteursEnCours?: () => boolean
 }
 
 /** Le tri par contenu se calcule sur les versions publiées de tous les
@@ -244,7 +244,7 @@ export function useDistantCorpus(deps: {
   }
 
   async function actualiserDistant(silencieux = false): Promise<boolean> {
-    if (!idDistantCourant.value || tirageEnCours.value || (silencieux && tirageAutomatiqueSuspendu.value)) return false
+    if (!idDistantCourant.value || tirageEnCours.value || (silencieux && (tirageAutomatiqueSuspendu.value || deps.entretien.correctionLocuteursEnCours?.()))) return false
     tirageEnCours.value = true
     try {
       const tirage = await window.sonal.distant.tirer()

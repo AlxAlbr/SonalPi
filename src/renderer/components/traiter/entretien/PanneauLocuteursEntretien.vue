@@ -14,7 +14,7 @@ const emit = defineEmits<{
 }>()
 
 const {
-  lirePersonnes,
+  lireIdentitesLocuteurs,
   locuteurs,
   ouvertId,
   attribuerLoc,
@@ -112,7 +112,7 @@ watch(
     }
     if (!props.actif || !references.length) return
     try {
-      const inventaire = await lirePersonnes()
+      const inventaire = await lireIdentitesLocuteurs()
       if (lecture !== lectureLiensPersonnes) return
       nomsPersonnesLiees.value = Object.fromEntries(
         inventaire.locuteurs.map((personne) => [personne.id, personne.nom]),

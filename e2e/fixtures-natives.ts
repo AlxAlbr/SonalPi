@@ -1,26 +1,28 @@
 import type { Page } from '@playwright/test'
-import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
+import { randomUUID } from 'node:crypto'
+import type { CorpusFichier, EntretienFichier, Locuteur } from '../src/shared/format'
+import { installerIdentitesFixture } from '../test/fixtures/identitesLocuteurs'
 
 /** Installe les identités synthétiques avant d'importer les entretiens qui les référencent. */
 export async function importerFixtureNative(page: Page, fixture: {
   corpus: Pick<CorpusFichier, 'reglesAnon'>
   sources: readonly { titre: string; data: EntretienFichier }[]
 }): Promise<string[]> {
-  return page.evaluate(async ({ corpus, sources }) => {
-    const api = window.sonal.corpus, identites = new Map<string, string>(), ids: string[] = []
-    for (const s of sources) {
-      const data = structuredClone(s.data)
-      for (const p of data.participations) if (p.locuteurRef) {
-        const ancienne = p.locuteurRef
-        if (!identites.has(ancienne)) {
-          const id = await api.personnesCommander({ type: 'creerDefinition', nom: p.nom })
-          if (!id) throw new Error('Identité de fixture absente')
-          identites.set(ancienne, id)
-        }
-        p.locuteurRef = identites.get(ancienne)!
-      }
-      ids.push((await api.importer(s.titre, data, [], [], Object.values(corpus.reglesAnon))).id)
+  const { dir } = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+  const sources = structuredClone([...fixture.sources]), identites = new Map<string, Locuteur>()
+  for (const s of sources) for (const p of s.data.participations) if (p.locuteurRef && !identites.has(p.locuteurRef)) {
+    identites.set(p.locuteurRef, { id: `fixture-${randomUUID()}`, nom: p.nom })
+  }
+  installerIdentitesFixture(dir, { locuteurs: [...identites.values()] })
+  for (const s of sources) for (const p of s.data.participations) {
+    if (p.locuteurRef) p.locuteurRef = identites.get(p.locuteurRef)!.id
+    for (const refus of p.rapprochementsRefuses ?? []) if (refus.type === 'locuteur' && identites.has(refus.locuteurId)) {
+      refus.locuteurId = identites.get(refus.locuteurId)!.id
     }
+  }
+  return page.evaluate(async ({ corpus, sources }) => {
+    const ids: string[] = []
+    for (const s of sources) ids.push((await window.sonal.corpus.importer(s.titre, s.data, [], [], Object.values(corpus.reglesAnon))).id)
     return ids
-  }, { corpus: fixture.corpus, sources: [...fixture.sources] })
+  }, { corpus: fixture.corpus, sources })
 }

@@ -56,8 +56,6 @@ export interface CapacitesCorpus {
   suppressionSourceThemes: boolean
   /** Notes du corpus, par entretien. */
   notes: boolean
-  /** Ancien parcours des personnes ; distinct des corrections corpus actuelles. */
-  locuteurs: boolean
   /** Corrections des identités depuis le corpus, éditions fermées. */
   correctionsLocuteurs: boolean
   renommageLocuteurOuvert: boolean

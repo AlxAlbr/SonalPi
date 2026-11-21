@@ -2,6 +2,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
 import { entrerCorpus, entrerEntretien, lancer, ouvrir, retourCorpus } from './util'
 
 async function gestion(page: Page) {
@@ -10,17 +11,19 @@ async function gestion(page: Page) {
   return page.getByRole('dialog', { name: 'Gestion des locuteurs', exact: true })
 }
 const propositions = (page: Page) => page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?', exact: true })
-const inventaire = (page: Page) => page.evaluate(() => window.sonal.corpus.personnesInventaire())
+const inventaire = (page: Page) => page.evaluate(() => window.sonal.corpus.inventaireIdentitesLocuteurs())
 async function ajouterSource(page: Page) {
-  return page.evaluate(async () => {
+  const { dir } = await page.evaluate(() => window.sonal.corpus.dossierCourant())
+  const id = await page.evaluate(async () => {
     const api = window.sonal.corpus, { id } = await api.creerEntretienVide('Source homonyme')
     const lecture = await api.lireEntretien(id)
     if (!lecture.ok) throw new Error('Source absente')
     const { formatVersion: _v, lastModified: _d, ...data } = lecture.data
     data.participations = [{ id: 'source', index: 0, nom: 'Marie Dupont', pseudo: 'Pseudo source', interviewer: true, valeursLoc: {}, locuteurRef: null }]
     await api.ecrireEntretien(id, data)
-    return api.personnesCommander({ type: 'creer', entretienId: id, participationId: 'source', nom: 'Marie Dupont' })
+    return id
   })
+  return creerLocuteurFixture(dir, 'Marie Dupont', [{ entretienId: id, participationId: 'source' }])
 }
 
 test('tous les noms non vides créent une identité, mais ajouter une entrée provisoire ne suffit pas', async () => {
