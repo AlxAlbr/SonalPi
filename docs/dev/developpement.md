@@ -97,6 +97,8 @@ Distinguer les dimensions plutôt qu’écrire « v1/v2 » sans contexte :
 
 Les abréviations historiques de noms de fonctions ou de fichiers ne doivent pas
 faire confondre migration SonalPi1 et migration du format natif.
+La version applicative est `2.0.0` et le format natif de référence est `2`.
+Ces numéros évoluent indépendamment : une version applicative `2.1.0` peut conserver le format `2`.
 La version applicative évolue aux jalons de livraison ; changer cette version
 ne migre aucun corpus. La fabrication des paquets et les tags de livraison sont
 décrits dans [empaquetage et CI](outillage/empaquetage-ci.md).

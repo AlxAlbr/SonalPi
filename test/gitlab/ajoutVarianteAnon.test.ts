@@ -146,7 +146,7 @@ test('même compte et génération mais autre propriétaire : droit non rendu', 
   expect(b.depot.fichiers.get(b.bail)).toEqual(garde)
 })
 test('format distant rétrogradé : aucune migration ni publication implicite', async () => {
-  const b = banc(), corpus = structuredClone(b.f.corpus); corpus.formatVersion = 7
+  const b = banc(), corpus = structuredClone(b.f.corpus); corpus.formatVersion = 99
   b.depot.modifierHorsProtocole('racine/corpus.crp', JSON.stringify(corpus))
   await expect(b.ajouter()).rejects.toThrow('version du corpus'); expect(b.corpus()).toEqual(corpus); expect(b.commits()).toEqual([])
 })

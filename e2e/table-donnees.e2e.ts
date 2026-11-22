@@ -199,7 +199,7 @@ function poserSecondEntretien(dir: string) {
   writeFileSync(
     join(dir, 'corpus', 'entretiens', 'e2.json'),
     JSON.stringify({
-      formatVersion: 10,
+      formatVersion: 2,
       lastModified: new Date().toISOString(),
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
       annotations: [],

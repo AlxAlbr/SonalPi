@@ -1,15 +1,6 @@
 /**
- *  Mapping offset-caractère ↔ position ProseMirror.
- *  Le parseur `.sonal` raisonne en offsets caractère dans un texte plat par bloc ;
- *  le modèle attend des positions ProseMirror, qui comptent les frontières de blocs
- *  (chaque paragraphe = un token d'ouverture + son  contenu + un token de fermeture).
- *
- *  Pour des blocs de longueurs de texte `longueurs` :
- *   - on entre dans le 1er bloc → +1 ;
- *   - chaque bloc pèse `2 + len` (open + contenu + close).
- *
- *  Vit dans shared/ (arithmétique pure, aucune dépendance ProseMirror) :
- *  la migration formatVersion 1→2 du store (main) et l'import/export (renderer) s'en servent.
+ *  Convertit les positions des imports et exports entre texte brut et ProseMirror.
+ *  Chaque paragraphe ajoute deux positions aux caractères de son texte.
  */
 
 /** Position PM du début du CONTENU du bloc k (avant son 1er caractère). */

@@ -6,7 +6,7 @@ import type { Annotation } from '../src/shared/entretien/annotation'
 /** Construit un entretien mono-paragraphe (PM : contenu démarrant à 1). */
 function entretien(texte: string, annotations: Annotation[] = [], id = 'e1'): EntretienScan {
   const data: EntretienFichier = {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: texte }] }] },
     annotations,
@@ -106,7 +106,7 @@ import { scannerRegleDetaille } from '../src/shared/corpus/scanAnon'
 describe('scannerRegleDetaille — vue vérification (contexte par occurrence)', () => {
   function fichier(corpsTexte: unknown, annotations: EntretienFichier['annotations']): EntretienScan['data'] {
     return {
-      formatVersion: 3,
+      formatVersion: 2,
       lastModified: new Date().toISOString(),
       corpsTexte,
       annotations,

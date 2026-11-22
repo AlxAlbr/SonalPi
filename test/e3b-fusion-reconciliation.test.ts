@@ -19,7 +19,7 @@ const DOC = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }
 
 function entretien(partiel: Partial<EntretienFichier>): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '2026-01-01T00:00:00Z',
     corpsTexte: DOC,
     annotations: [],

@@ -14,7 +14,7 @@ function banc(nom = 'Marie Dupont') {
   const store = new CorpusStore(dir); store.ouvrir()
   const ajouter = (nom: string, titre: string) => {
     const { id } = store.creerEntretienVide(titre)
-    const data: EntretienFichier = { formatVersion: 10, lastModified: '',
+    const data: EntretienFichier = { formatVersion: 2, lastModified: '',
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: 'Paroles conservées.' }] }] },
       annotations: [{ id: 'a', type: 'codage', auteur: 'test', code: 'theme', from: 1, to: 4 }], ancres: [{ pos: 1, t: 0 }],
       meta: { valeursGen: {}, audioRef: null },
@@ -93,7 +93,7 @@ test.each(['vide', 'nom changé', 'retrait', 'lecture seule', 'session fermée',
   if (cas === 'session fermée') b.store.revoquerEcritureEntretien(b.cible.entretienId)
   if (cas === 'journal') writeFileSync(join(b.dir, '.transaction-fichiers.json'), '{}')
   if (cas === 'préparation') b.store.activerModePreparation([b.cible.entretienId], true)
-  if (cas === 'format refusé') writeFileSync(join(b.dir, 'entretiens', `${b.cible.entretienId}.json`), JSON.stringify({ ...b.lire(), formatVersion: 9 }))
+  if (cas === 'format refusé') writeFileSync(join(b.dir, 'entretiens', `${b.cible.entretienId}.json`), JSON.stringify({ ...b.lire(), formatVersion: 99 }))
   const avant = b.fichiers()
   expect(() => cas === 'préparation' ? b.store.avecEcritureCorpus(() => b.identifier()) : b.identifier()).toThrow()
   expect(b.fichiers()).toEqual(avant)
@@ -189,7 +189,7 @@ test('un aperçu périmé, une source du même entretien et une reprise invalide
 test('les relectures refusent les changements de texte, notes, nom, rôle et données même si la référence paraît correcte', () => {
   const b = banc(), avant = b.payload(), apres = b.identifier()
   const mutations = [
-    (e: EntretienFichier) => { e.formatVersion = 9 },
+    (e: EntretienFichier) => { e.formatVersion = 99 },
     (e: EntretienFichier) => { e.corpsTexte = { type: 'doc', content: [] } },
     (e: EntretienFichier) => { e.notes![0].corps = 'Autre note' },
     (e: EntretienFichier) => { e.participations[0].nom = 'Autre nom' },

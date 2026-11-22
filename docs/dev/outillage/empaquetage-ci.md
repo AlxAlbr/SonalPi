@@ -76,8 +76,8 @@ ou `sonalpi-macos` dans la section **Artifacts**. Ces archives servent à tester
 les applications ; elles ne sont pas envoyées à l'updater des utilisateurs V1.
 
 Un build de validation produit donc des artefacts sans créer de release stable.
-La future livraison V2 vise `2.0.0`, mais ni la version applicative ni les tags
-n'ont été modifiés pendant l'import. Ne pas créer de tag V2 dans le circuit stable
+La version applicative est `2.0.0`, sans tag ni release associés à ce changement.
+Le format natif `2` est indépendant de cette version. Ne pas créer de tag V2 dans le circuit stable
 V1 avant d'avoir validé la politique de publication et le passage des utilisateurs
 vers la V2. La continuité des mises à jour et la migration des corpus sont des
 chantiers distincts du déplacement du code source.

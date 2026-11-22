@@ -56,11 +56,11 @@ describe('renommage protégé d’une variante', () => {
     f.corpus.reglesAnon.personne.pseudos = ['Claire', 'claire']
     expect(() => inventorierRenommageAnon(f.corpus, f.sources, f.demande)).toThrow('normalisée')
   })
-  test.each(['absente', 'ancien', 'orpheline', 'texte', 'pseudo', 'doublon', 'recouvrement', 'memoire'] as const)('refuse les sources non résolues : %s', (cas) => {
+  test.each(['absente', 'version inconnue', 'orpheline', 'texte', 'pseudo', 'doublon', 'recouvrement', 'memoire'] as const)('refuse les sources non résolues : %s', (cas) => {
     const f = fixtureRenommageAnon(['e1'])
     const d = f.sources[0].data
     if (cas === 'absente') f.sources = []
-    if (cas === 'ancien') d.formatVersion = 3
+    if (cas === 'version inconnue') d.formatVersion = 99
     if (cas === 'orpheline') d.annotations[0].to = d.annotations[0].from
     if (cas === 'texte') d.annotations[0].to--
     if (cas === 'pseudo') d.annotations[0].pseudo = 'Non déclaré'
@@ -69,6 +69,7 @@ describe('renommage protégé d’une variante', () => {
     if (cas === 'memoire') d.definitionsAnonLocales!.push({ entite: ['Karine'], pseudos: ['Indépendante'], etat: 'declaration' })
     const i = inventorierRenommageAnon(f.corpus, f.sources, f.demande)
     expect(i.faisable).toBe(false); expect(i.obstacles.length).toBeGreaterThan(0)
+    if (cas === 'version inconnue') expect(i.obstacles).toContainEqual({ code: 'format-incompatible', entretienId: 'e1' })
     expect(() => preparerRenommageAnon(f.corpus, f.sources, f.demande)).toThrow('Aucun renommage')
   })
   test('accepte les alias Unicode canoniques sans déplacer la transcription originale', () => {

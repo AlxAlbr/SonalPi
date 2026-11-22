@@ -19,7 +19,8 @@ const boite = ref<HTMLDivElement | null>(null)
 let vivant = true
 let focusAvant: HTMLElement | null = null
 const motifs: Record<MotifRefusRenommage, string> = {
-  indisponible: 'Source indisponible : inventaire incomplet.', 'ancien-format': 'Entretien à enregistrer au format actuel.',
+  indisponible: 'Source indisponible : inventaire incomplet.',
+  'format-incompatible': 'Entretien incompatible avec la V2 : recréez-le depuis ses fichiers d’origine.',
   'annotation-invalide': 'Décision liée avec plage ou texte incohérent.', 'pseudo-divergent': 'Variante choisie absente de la définition actuelle.',
   'memoire-locale-recouvrante': 'Mémoire locale indépendante recouvrant les alias : résolution explicite nécessaire.',
   'annotations-ambigues': 'Identités ou recouvrements d’annotations ambigus.',

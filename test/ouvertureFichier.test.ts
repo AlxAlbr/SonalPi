@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -20,14 +20,14 @@ function dossier() {
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 
 describe('classification pure des CRP', () => {
-  test.each([10])('reconnaît V2 formatVersion %i sans perdre les champs optionnels', (formatVersion) => {
-    const c = { ...squeletteCorpus(), formatVersion, nom: 'Été', meta: { libre: true } }
+  test('reconnaît V2 sans perdre les champs optionnels', () => {
+    const c = { ...squeletteCorpus(), nom: 'Été', meta: { libre: true } }
     expect(classifierCorpus(JSON.stringify(c))).toEqual({ type: 'v2', corpus: c })
   })
-  test('refuse un ancien corpus sans registre natif de locuteurs', () => {
+  test('refuse un corpus annoncé V2 sans son registre natif de locuteurs', () => {
     const { locuteurs: _personnes, ...ancien } = squeletteCorpus()
-    const corpus = { ...ancien, formatVersion: 3 }
-    expect(() => classifierCorpus(JSON.stringify(corpus))).toThrow('non supportée')
+    const corpus = { ...ancien, formatVersion: 2 }
+    expect(() => classifierCorpus(JSON.stringify(corpus))).toThrow('Répertoire de locuteurs invalide')
   })
   test('préserve les options absentes, nulles ou partielles normalisées par le store', () => {
     const c = { ...squeletteCorpus(), categoriesNote: null, demo: null, paramsAnon: { motsLiaison: { actif: false } } }
@@ -46,7 +46,7 @@ describe('classification pure des CRP', () => {
     '{cassé', 'null', '[]', '{}', '{"formatVersion":99,"tabEnt":[]}',
     JSON.stringify({ ...squeletteCorpus(), tabEnt: [] }),
     JSON.stringify({ ...squeletteCorpus(), formatVersion: 99 }),
-    JSON.stringify({ formatVersion: 10, corpsTexte: {}, annotations: [] }),
+    JSON.stringify({ formatVersion: 2, corpsTexte: {}, annotations: [] }),
     JSON.stringify({ ...squeletteCorpus(), membership: [] }),
     JSON.stringify({ ...squeletteCorpus(), membership: { '../secret': { titre: 'X', date: null, lastModified: '' } } }),
     JSON.stringify({ ...squeletteCorpus(), variables: { x: { modalites: null } } }),
@@ -56,6 +56,15 @@ describe('classification pure des CRP', () => {
 })
 
 describe('lecture stricte sans écriture', () => {
+  test.each([1, 99])('refuse une version native incompatible %i sans réécrire ni créer de fichiers', (formatVersion) => {
+    const dir = dossier(), chemin = join(dir, 'corpus.crp')
+    const contenu = JSON.stringify({ ...squeletteCorpus('Ancien travail'), formatVersion }, null, 2) + '\n'
+    writeFileSync(chemin, contenu)
+    expect(() => lireFichierCorpus(chemin)).toThrow('non supportée')
+    expect(() => new CorpusStore(dir, true).ouvrir()).toThrow('non supportée')
+    expect(readFileSync(chemin, 'utf8')).toBe(contenu)
+    expect(readdirSync(dir)).toEqual(['corpus.crp'])
+  })
   test('un V2 mal nommé ne substitue pas le corpus du dossier', () => {
     const dir = dossier()
     writeFileSync(join(dir, 'Autre.crp'), JSON.stringify(squeletteCorpus('Autre')))

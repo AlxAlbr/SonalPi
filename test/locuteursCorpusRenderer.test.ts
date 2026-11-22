@@ -133,12 +133,12 @@ test('la recherche retrouve une variante locale et conserve les sélections masq
   expect(selection(b.host)).toEqual(['b'])
 })
 
-test('la navigation ouvre la bonne intervention et conserve la sélection au retour', async () => {
+test('la barre ouvre la bonne intervention et conserve la sélection au retour', async () => {
   const b = await monter()
   liste(b.host)[1].click()
   await nextTick()
-  const suivant = b.host.querySelector<HTMLButtonElement>('[aria-label="Intervention suivante dans Entretien B"]')!
-  suivant.click()
+  const barre = b.host.querySelector<HTMLButtonElement>('[aria-label="Ouvrir une intervention sélectionnée dans Entretien B"]')!
+  barre.click()
   await nextTick()
   expect(b.ouvrirAuSegment).toHaveBeenCalledWith('B', 10)
   b.vue.value = 'entretien'
@@ -355,9 +355,16 @@ test('les entrées à vérifier ouvrent les locuteurs de leur entretien sans cor
 
 test('les commandes sont à gauche et les cartes réutilisent les ondes disponibles', async () => {
   const b = await monter()
+  expect(b.host.textContent).not.toContain('Ctrl ou ⌘ pour plusieurs')
+  b.host.querySelector<HTMLButtonElement>('[aria-label="Raccourcis clavier de la sélection"]')!.click(); await nextTick()
+  expect(b.host.querySelector('.repertoire-locuteurs')?.textContent).toContain('Ctrl ou ⌘ pour plusieurs ; Maj pour une plage.')
   liste(b.host)[0].click(); await nextTick()
   expect(b.host.querySelector('.repertoire-locuteurs [title="Renommer…"]')).not.toBeNull()
+  expect(b.host.querySelector('.repertoire-locuteurs [title="Détails et vérifications…"]')).toBeNull()
   expect(b.host.querySelector('.interventions-locuteurs [title="Renommer…"]')).toBeNull()
+  expect(b.host.querySelector('[data-entretien-id="A"] h3')?.textContent).toBe('Entretien A (1 intervention)')
+  expect(b.host.querySelector('[data-entretien-id="A"]')?.textContent).not.toContain('Ouvrir')
+  expect(b.host.querySelector('[data-entretien-id="A"]')?.textContent).not.toContain('de la sélection')
   expect(b.host.querySelector('img.spectro')?.getAttribute('src')).toBe('/onde-A.png')
   expect(b.host.querySelectorAll('.spectro-vide')).toHaveLength(1)
   expect(b.host.querySelector('[role=separator]')).not.toBeNull()

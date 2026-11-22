@@ -10,8 +10,8 @@ import type { TraitementsLexico } from './lexico/types'
 import type { Locuteur, ParticipationLocuteur } from './locuteurs'
 export type { Locuteur, ParticipationLocuteur, ReferenceParticipation, RefusRapprochementLocuteur } from './locuteurs'
 
-/** Format natif partagé entre processus ; les anciens formats de développement sont refusés. */
-export const FORMAT_VERSION = 10
+/** Format natif V2 partagé entre processus ; les corpus V1 passent par l'import. */
+export const FORMAT_VERSION = 2
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
@@ -108,7 +108,7 @@ export interface CorpusFichier {
   cas?: Record<string, Cas>
   famillesCas?: Record<string, FamilleCas>
   /** Définitions d'attributs de cas, partagées par tout le corpus ;
-   *  les valeurs, elles, vivent sur chaque cas. Champ ADDITIF optionnel (format 8). */
+   *  les valeurs, elles, vivent sur chaque cas. Champ optionnel. */
   attributsCas?: Record<string, DefinitionAttributCas>
   /** Tableau de bord d'avancement (suivi d'étapes par entretien suivi). Un corpus ancien sans ce champ est normalisé vers le tableau par défaut.
    *  Champ ADDITIF optionnel — corpus-ONLY, sans bump de version (comme `categoriesNote`). */
@@ -233,10 +233,10 @@ export function referenceMediaDistant(
   return { chemin, fournisseur }
 }
 
-/** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration SonalPi1 — champ ADDITIF optionnel, sans bump de formatVersion. */
+/** Métadonnées d'un entretien : valeurs locales, référence audio et origine V1 éventuelle. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
-  audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
+  audioRef: string | null // Chemin absolu, ou null si aucun audio.
   /** Média partagé dont la référence indique la destination.
    *  Champ additif optionnel.
    */

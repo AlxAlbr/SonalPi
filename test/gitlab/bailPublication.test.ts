@@ -23,7 +23,7 @@ import { DepotMemoire } from './depotMemoire'
 /** Un entretien de la taille demandée, au format réel : c'est la taille qui
  *  est en jeu dans les bornes, pas la forme du contenu. */
 function entretienLong(octets: number): string {
-  const entretien = { formatVersion: 8, texte: 'x'.repeat(octets) }
+  const entretien = { formatVersion: 2, texte: 'x'.repeat(octets) }
   return JSON.stringify(entretien, null, 2)
 }
 

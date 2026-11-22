@@ -12,7 +12,7 @@ import type { Annotation } from '../src/shared/entretien/annotation'
  */
 
 function corpusVide(): CorpusFichier {
-  return { formatVersion: 10, codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {}, membership: {} }
+  return { formatVersion: 2, codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {}, membership: {} }
 }
 function codage(code: string, from = 0, to = 1): Annotation {
   return { id: `a-${from}-${code}`, type: 'codage', from, to, auteur: 'm', code }
@@ -25,7 +25,7 @@ function ent(
   locuteurs: ParticipationLocuteur[] = [],
   valeursGen: Record<string, string> = {},
 ): EntretienFichier {
-  return { formatVersion: 10, lastModified: '', corpsTexte: {}, annotations, ancres: [], participations: locuteurs, meta: { valeursGen, audioRef: null } }
+  return { formatVersion: 2, lastModified: '', corpsTexte: {}, annotations, ancres: [], participations: locuteurs, meta: { valeursGen, audioRef: null } }
 }
 
 describe('corpus — codebook (règles pures)', () => {

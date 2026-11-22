@@ -7,7 +7,7 @@ import { preparerAjoutEntretienNatif } from '../src/main/preparationsNatives'
 import { TransactionsFichiersCorpus } from '../src/main/transactionsFichiers'
 import { validerCorpusNatif, validerEntretienNatif } from '../src/shared/natif/validation'
 import { projeterRepertoireLocuteurs } from '../src/shared/corpus/repertoireLocuteurs'
-import type { CorpusFichier as CorpusFormat9, EntretienFichier as EntretienFormat9 } from '../src/shared/format'
+import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 
 const ressources = join(process.cwd(), 'CorpusTest')
 const dossiers: string[] = []
@@ -27,17 +27,17 @@ describe('modèle exemple et préparation native', () => {
   test('prépare le format cible en conservant les neuf ids locaux, valeurs, textes et notes', () => {
     const racine = join(ressources, 'CorpusSynthAnnot')
     const avant = fichiers(racine)
-    const source = lire<CorpusFormat9>(join(racine, 'corpus.crp'))
+    const source = lire<CorpusFichier>(join(racine, 'corpus.crp'))
     const modele = preparerModeleExempleNatif(ressources)
     validerCorpusNatif(modele.corpus)
-    expect(modele.corpus.formatVersion).toBe(10)
+    expect(modele.corpus.formatVersion).toBe(2)
     expect(modele.corpus.locuteurs).toEqual(source.locuteurs)
     expect(Object.keys(modele.corpus.locuteurs)).toHaveLength(9)
     expect(modele.corpus.codebook).toEqual(source.codebook)
     for (const [id, entretien] of Object.entries(modele.entretiens)) {
-      const ancien = lire<EntretienFormat9>(join(racine, 'entretiens', `${id}.json`))
+      const ancien = lire<EntretienFichier>(join(racine, 'entretiens', `${id}.json`))
       validerEntretienNatif(entretien)
-      expect(entretien.formatVersion).toBe(10)
+      expect(entretien.formatVersion).toBe(2)
       expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.participations.map(({ locuteurRef: _ref, ...local }) => local))
         .toEqual(ancien.participations.map(({ locuteurRef: _ref, ...local }) => local))
@@ -82,10 +82,10 @@ describe('modèle exemple et préparation native', () => {
     const dir = temporaire()
     const racine = join(dir, 'CorpusSynthAnnot')
     cpSync(join(ressources, 'CorpusSynthAnnot'), racine, { recursive: true })
-    const corpus = lire<CorpusFormat9>(join(racine, 'corpus.crp'))
+    const corpus = lire<CorpusFichier>(join(racine, 'corpus.crp'))
     const id = corpus.ordreEntretiens![1]
     const chemin = join(racine, 'entretiens', `${id}.json`)
-    const entretien = lire<EntretienFormat9>(chemin)
+    const entretien = lire<EntretienFichier>(chemin)
     entretien.participations[0].locuteurRef = 'pers-demo-01'
     entretien.participations[1].locuteurRef = null
     entretien.participations[1].associationRetiree = true

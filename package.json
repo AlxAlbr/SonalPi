@@ -1,6 +1,6 @@
 {
   "name": "sonalpi2",
-  "version": "0.2.0",
+  "version": "2.0.0",
   "description": "SonalPi2 — set minimum SonalPi1 : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
   "main": "./out/main/index.js",
   "author": {

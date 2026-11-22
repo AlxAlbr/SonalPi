@@ -53,19 +53,27 @@ describe('contrat du format natif des locuteurs', () => {
     expect((e.corpsTexte as { content: { attrs: { loc: number | null } }[] }).content.map((p) => p.attrs.loc)).toEqual([7, null])
   })
 
-  test.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 11])('refuse le format natif %s sans le promouvoir ni le modifier', (formatVersion) => {
+  test.each([0, 1, 99])('refuse une version native incompatible %s sans modifier le document', (formatVersion) => {
     const c = { ...corpus(), formatVersion }
     const e = { ...entretien(), formatVersion }
     const avant = JSON.stringify([c, e])
-    expect(() => validerCorpusNatif(c)).toThrow('format natif 10 attendu')
-    expect(() => validerEntretienNatif(e)).toThrow('format natif 10 attendu')
+    expect(() => validerCorpusNatif(c)).toThrow('format natif 2 attendu')
+    expect(() => validerEntretienNatif(e)).toThrow('format natif 2 attendu')
     expect(JSON.stringify([c, e])).toBe(avant)
   })
 
-  test('changer uniquement le numéro d’un corpus de développement ne suffit pas', () => {
+  test('un numéro V2 ne rend pas une structure de corpus compatible', () => {
     const { locuteurs, ...commun } = squeletteCorpus()
     const ancien = { ...commun, formatVersion: FORMAT_VERSION, personnes: locuteurs }
     expect(() => validerCorpusNatif(ancien)).toThrow('Répertoire de locuteurs invalide')
+  })
+
+  test('un numéro V2 ne rend pas une structure d’entretien compatible', () => {
+    const { participations, ...commun } = entretien()
+    const ancien = { ...commun, formatVersion: 2, locuteurs: participations }
+    const avant = JSON.stringify(ancien)
+    expect(() => validerEntretienNatif(ancien)).toThrow('Participations de l’entretien invalides')
+    expect(JSON.stringify(ancien)).toBe(avant)
   })
 
   test('ne transforme pas une source V1 en corpus natif', () => {

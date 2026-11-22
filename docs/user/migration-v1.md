@@ -14,7 +14,12 @@ Le dossier complet et les médias nécessaires restent indispensables.
    l'emplacement du nouveau dossier, dont le nom reprend celui du fichier sans
    extension suivi de `V2`. Vous pouvez choisir un autre emplacement. Le nom du
    corpus dans SonalPi2 reste celui du fichier d'origine.
-3. Fermez les applications utilisant la V1 et cliquez sur
+3. Les fichiers sont vérifiés automatiquement. Si une transcription est à retrouver,
+   utilisez **« Localiser le fichier… »** en face de l’entretien et choisissez son
+   fichier `.sonal`. Les anciens chemins sont disponibles dans **« Emplacements du fichier »**.
+   **« Vérifier à nouveau les fichiers »** permet aussi de vérifier une copie ou un
+   téléchargement terminé entre-temps. Les choix ne modifient pas le corpus SonalPi1.
+4. Fermez les applications utilisant la V1 et cliquez sur
    **« Créer le corpus SonalPi2 »**.
    Le nouveau corpus est préparé et vérifié avant de remplacer le corpus courant.
    Il s'ouvre directement et rejoint les récents, sans bilan de réussites à valider.
@@ -39,10 +44,20 @@ non vide n'est fusionné ou écrasé.
   portables sont écartés de cette copie documentaire. Le contenu des documents
   n'est pas analysé pour détecter tous les secrets : conservez l'ensemble V1.
 
-Un entretien ou un média **référencé mais manquant ou illisible bloque le passage**.
-Le message indique les sources à corriger avant de réessayer. Un entretien sans
-média déclaré est autorisé ; une transcription référencée absente n'est pas remplacée
-silencieusement par un entretien vide.
+Une **transcription référencée mais manquante ou illisible bloque le passage**.
+La fenêtre indique les entretiens concernés et permet de choisir leurs fichiers,
+notamment lorsqu’ils ont été déplacés ou proviennent d’un autre ordinateur.
+Choisissez de préférence le `.sonal` utilisé dans SonalPi1, qui contient aussi les
+codages et les notes, et non le document texte initial. Une transcription absente
+n’est jamais remplacée silencieusement par un entretien vide.
+
+Un **média manquant ou inaccessible ne bloque pas la conversion des entretiens**.
+Un avertissement indique les enregistrements à reconnecter dans SonalPi2 pour les
+écouter ou les regarder. Leur ancienne référence est conservée. Aucun fichier
+n’est recherché automatiquement ailleurs sur l’ordinateur.
+
+Les fichiers sont revérifiés avant la création. Si le CRP V1 a changé depuis la
+vérification, fermez la fenêtre et rouvrez-le avant de choisir à nouveau les fichiers.
 
 La V2 ne dépend plus du dossier V1 pour ses fichiers de travail, mais elle peut
 encore dépendre de médias externes. Elle n'est pas une archive autonome : déplacer

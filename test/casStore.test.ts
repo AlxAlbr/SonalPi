@@ -6,12 +6,12 @@ import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 import type { Cas } from '../src/shared/corpus/cas'
 
-function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to: number } } {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-cas-v4-'))
+function ecrireCorpusAvecCas(): { dir: string; repere: { id: string; from: number; to: number } } {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-cas-'))
   const maintenant = '2026-09-01T10:00:00.000Z'
   const repere = { id: 'repere-1', from: 1, to: 8 }
   const corpus: CorpusFichier = {
-    formatVersion: 10,
+    formatVersion: 2,
     codebook: {},
     variables: {},
     reglesAnon: {},
@@ -37,7 +37,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
     },
   }
   const entretien: EntretienFichier = {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: maintenant,
     corpsTexte: {
       type: 'doc',
@@ -61,7 +61,7 @@ function ecrireCorpusV4(): { dir: string; repere: { id: string; from: number; to
 
 describe('CorpusStore — ouverture des cas natifs', () => {
   test('conserve les règles individuelles, filtres, identités et rattachements sans réécriture', () => {
-    const { dir, repere } = ecrireCorpusV4()
+    const { dir, repere } = ecrireCorpusAvecCas()
     const cheminCorpus = join(dir, 'corpus.crp')
     const cheminEntretien = join(dir, 'entretiens', 'entretien-1.json')
     const corpus = JSON.parse(readFileSync(cheminCorpus, 'utf8')) as CorpusFichier
@@ -93,7 +93,7 @@ describe('CorpusStore — ouverture des cas natifs', () => {
   })
 
   test('ouvre le corpus natif sans perdre les recueils ni les repères', () => {
-    const { dir, repere } = ecrireCorpusV4()
+    const { dir, repere } = ecrireCorpusAvecCas()
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture()
 
@@ -131,7 +131,7 @@ function casPersonne(id: string, nom: string): Cas {
 }
 
 function storePret(): { dir: string; store: CorpusStore } {
-  const { dir } = ecrireCorpusV4()
+  const { dir } = ecrireCorpusAvecCas()
   const store = new CorpusStore(dir)
   const corpus = store.ouvrir()
   corpus.locuteurs['personne-1'] = { id: 'personne-1', nom: 'Marie' }

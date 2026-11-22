@@ -100,7 +100,7 @@ texte, des règles et des décisions existantes. Voir
 
 ## Locuteurs et participations
 
-Le format natif 10 distingue trois identifiants :
+Le format natif 2 distingue trois identifiants :
 
 - `ParticipationLocuteur.index` est référencé par l’attribut `loc` des paragraphes ;
 - `ParticipationLocuteur.id`, obligatoire et stable dans son entretien, sert aux

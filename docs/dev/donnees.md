@@ -84,17 +84,24 @@ Le contrat est dans `src/shared/format.ts` : types de fichiers, `FORMAT_VERSION`
 et contrôle de version. Le numéro courant doit se lire dans le code, pas être
 recopié dans chaque document.
 
-Le format natif actif est **10** : `corpus.locuteurs`, `entretien.participations`,
-`locuteurRef`, notes en `participationIds` et variables de portée `participation`.
-Les formats V2 de développement **1 à 9 sont refusés sans réécriture**, en local,
-en miroir distant et dans les documents capturés par les reprises. Il n’existe
-plus d’adaptateur de stockage 9 ni de migration automatique à l’ouverture.
-L’import des `.crp` et `.sonal` V1 reste disponible : il produit directement du 10,
-avec une identité corpus distincte par participation importée.
+Le code distingue deux générations de corpus :
 
-Les testeurs doivent recréer leurs anciens corpus V2 depuis leurs sources ou
-installer une nouvelle copie des exemples. Conserver les anciennes copies si
-elles contiennent un travail à récupérer ; changer leur seul numéro est interdit.
+- **V1** : modèle de SonalPi1, conservé dans `main`. Ses fichiers `.crp` et `.sonal`
+  passent par un import explicite qui crée un corpus V2 distinct.
+- **V2** : modèle natif de `baseV2`, identifié par `formatVersion: 2`.
+  Il utilise `corpus.locuteurs`, `entretien.participations`, `locuteurRef`,
+  les notes en `participationIds` et les variables de portée `participation`.
+
+La reconnaissance V1 repose sur la structure du fichier, pas sur un numéro natif `1`.
+L’ouverture directe, les miroirs et les reprises exigent des documents V2 compatibles.
+Leur numéro et leur structure sont validés, sans conversion implicite ni réécriture
+lors d’un refus. L’import V1 crée une identité corpus distincte par participation.
+Les corpus exemples livrés et leurs entretiens sont déjà en V2 ;
+leur installation ne convertit pas les copies de travail existantes.
+
+Un corpus incompatible doit être recréé depuis ses sources, ou remplacé par une
+nouvelle copie d’exemple. Conserver l’original s’il contient un travail à récupérer ;
+changer son seul numéro ne le rend pas compatible.
 Un journal actif bloque une remise à zéro d’exemple, sans être supprimé.
 
 Une évolution nécessitant une transformation structurelle du format demande une
@@ -105,13 +112,13 @@ Les caches et suivis peuvent avoir leur propre version, indépendante du format 
 
 Ne pas confondre `formatVersion` avec la
 [version livrée de l’application](developpement.md#vocabulaire-et-version-applicative).
-Pour une évolution du format, vérifier refus ou reprise des versions anciennes,
-imports maintenus, réouverture, aller-retour d’export et comportement distant ; la lecture d’un miroir ne doit
-pas introduire une migration distante implicite.
+Pour une évolution du format, vérifier l’import V1, l’ouverture V2,
+le refus sans réécriture des documents incompatibles, les reprises, les exports
+et le comportement distant ; la lecture d’un miroir ne doit pas introduire de conversion implicite.
 
 ## Où vérifier
 
 - `test/remap.test.ts` : positions, suppressions et annulation de frappe.
-- `test/corpusStore.test.ts` : lecture, enregistrement et refus sans réécriture des anciens formats.
+- `test/corpusStore.test.ts` : lecture V2, enregistrement et refus sans réécriture des documents incompatibles.
 - `test/transitionContexte.test.ts` : changement de corpus et refus de fermeture.
 - Les tests métier et fournisseur référencés dans la page de la fonction modifiée.

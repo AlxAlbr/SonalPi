@@ -8,7 +8,7 @@ import type { EntretienFichier } from '../../src/shared/format'
 
 function entretien(): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '2026-01-01T00:00:00.000Z',
     corpsTexte: { type: 'doc', content: [] },
     annotations: [],

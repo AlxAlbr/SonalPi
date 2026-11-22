@@ -28,8 +28,17 @@ function installer(
     usage,
     ...(usage === 'apprentissage' ? { parcoursApprentissage } : {}),
   })
-  try { const store = preparation.publier(); service.selectionner(dir); return store.ouvrir() }
-  finally { preparation.nettoyer() }
+  try {
+    const store = preparation.publier()
+    service.selectionner(dir)
+    const corpus = store.ouvrir()
+    expect(corpus.formatVersion).toBe(2)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).formatVersion).toBe(2)
+    for (const id of Object.keys(corpus.membership)) {
+      expect(JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')).formatVersion).toBe(2)
+    }
+    return corpus
+  } finally { preparation.nettoyer() }
 }
 
 describe('installation et reprise des corpus exemples', () => {
@@ -314,7 +323,7 @@ describe('installation et reprise des corpus exemples', () => {
     expect(service.etat().travaux).toHaveLength(1)
     expect(service.etat().travaux[0].dir).toBe(dir)
   })
-  test.each([9, 999])('refuse une version de corpus %i sans perdre son accès ni remplacer ses fichiers', (formatVersion) => {
+  test.each([1, 99])('refuse une version de corpus %i sans perdre son accès ni remplacer ses fichiers', (formatVersion) => {
     const dir = join(racine, 'exercice')
     const corpus = installer(dir)
     const avant = JSON.stringify({ ...corpus, formatVersion })

@@ -10,7 +10,7 @@ function banc() {
   const ouvertId = ref<string | null>('A'), local = ref(true)
   const avant: PayloadEntretien = { corpsTexte: { type: 'doc', content: [] }, annotations: [], ancres: [],
     participations: structuredClone(participations.value.map((p) => ({ ...p, valeursLoc: {} }))), meta: { valeursGen: {}, audioRef: null } }
-  const apres: EntretienFichier = { ...structuredClone(avant), formatVersion: 10, lastModified: '2026-01-01T00:00:00Z' }
+  const apres: EntretienFichier = { ...structuredClone(avant), formatVersion: 2, lastModified: '2026-01-01T00:00:00Z' }
   apres.participations[0].nom = 'Nouveau nom'
   const inventaire = { locuteurs: [{ id: 'p', nom: 'Nom commun' }], participations: [
     { ...avant.participations[0], participationId: 'local', entretienId: 'A', entretienTitre: 'Courant', interviewer: false },

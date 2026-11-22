@@ -288,8 +288,9 @@ même masqués : le compteur les signale. **Effacer la recherche** et **Effacer 
 sélection** sont deux actions distinctes.
 
 Les commandes sont regroupées en icônes en haut du panneau gauche ; leur infobulle
-indique leur fonction. La largeur de ce panneau se règle avec le séparateur, à la
-souris ou avec les flèches du clavier. Elle est mémorisée sur le poste.
+indique leur fonction. Le bouton en forme de clavier affiche le rappel pour les
+sélections multiples et par plage. La largeur de ce panneau se règle avec le
+séparateur, à la souris ou avec les flèches du clavier. Elle est mémorisée sur le poste.
 
 Les cartes reprennent la forme d’onde de l’onglet **Entretiens**, ou un fond neutre
 sans audio. Seuls les tours de parole sélectionnés sont colorés en superposition,
@@ -298,9 +299,10 @@ pas un temps audio exact. **Avec la sélection** limite les entretiens aux locut
 choisis ; **Tous les entretiens** conserve aussi les cartes sans intervention de
 la sélection. Sans sélection, toutes les cartes sont affichées sans calque.
 
-Un clic sur un tour coloré ou **Précédente / Suivante** ouvre le passage dans
-l’entretien. Cette consultation ne modifie ni les paroles ni les associations ;
-le retour au corpus conserve recherche, tags, sélection et réglage d’affichage.
+Un clic sur un tour coloré ouvre le passage dans l’entretien. Le nombre
+d’interventions de la sélection est indiqué à la suite de son titre. Cette
+consultation ne modifie ni les paroles ni les associations ; le retour au corpus
+conserve recherche, tags, sélection et réglage d’affichage.
 
 **Statistiques** affiche les mots, tours de parole et entretiens distincts de toute
 la sélection, y compris les locuteurs masqués par la recherche. La comparaison par
@@ -437,13 +439,13 @@ Les champs permettent de corriger une combinaison invalide sans troncature. **Re
 
 Les définitions textuelles locales se retiennent dans les seuls entretiens sélectionnés, avec leurs alias, variantes et catégories, y compris un brouillon sans pseudo. Elles ne posent, ne retirent et ne renomment aucune occurrence. Un remplacement doit conserver les pseudos déjà choisis ; les chevauchements partiels et les alias déjà déclarés au corpus nécessitent une résolution de portée et sont refusés dans ce parcours.
 
-Cochez la confirmation des seuls entretiens et décisions choisis, puis **Confirmer l’import ciblé**. Modifier une cible annule cette confirmation. Fermez les entretiens ouverts et recalculez l’aperçu ; une modification du corpus ou d’un fichier cible impose également un nouvel aperçu. Les très anciens formats doivent d’abord être enregistrés dans le format actuel.
+Cochez la confirmation des seuls entretiens et décisions choisis, puis **Confirmer l’import ciblé**. Modifier une cible annule cette confirmation. Fermez les entretiens ouverts et recalculez l’aperçu ; une modification du corpus ou d’un fichier cible impose également un nouvel aperçu. L’import ciblé s’utilise dans un corpus V2. Si vos données sont en V1, importez d’abord votre corpus dans Sonal V2.
 
 Toutes les mutations sont préparées avant une transaction locale à journal durable. Après interruption, la réouverture du corpus reprend l’intention ; une modification concurrente n’est jamais écrasée. Ce mécanisme de reprise n’est pas une action annulable du Journal utilisateur. Le bilan distingue définitions partagées, définitions locales, libellés de locuteurs et entretiens réellement modifiés.
 
-**Sur GitLab**, l’aperçu d’import lit un commit publié, pas les sauvegardes du miroir. Les cibles doivent déjà être enregistrées au format actuel et leurs sessions locales/récupérables fermées. Le corpus et les fichiers choisis sont relus sous baux, puis publiés dans **un seul commit de données** ; une version changée ou un bail tiers refuse tout le groupe. La sélection est limitée à 124 entretiens, avec une borne supplémentaire de taille. Un résultat de publication indéterminé impose de **rouvrir le corpus pour réconcilier**, jamais de rejouer l’import. Si seul le miroir n’a pas pu être installé, la publication reste acquise : rouvrez le corpus pour le tirer.
+**Sur GitLab**, l’aperçu d’import lit un commit publié, pas les sauvegardes du miroir. Les entretiens choisis doivent appartenir à un corpus V2 compatible et leurs sessions locales/récupérables être fermées. Le corpus et les fichiers choisis sont relus sous baux, puis publiés dans **un seul commit de données** ; une version changée ou un bail tiers refuse tout le groupe. La sélection est limitée à 124 entretiens, avec une borne supplémentaire de taille. Un résultat de publication indéterminé impose de **rouvrir le corpus pour réconcilier**, jamais de rejouer l’import. Si seul le miroir n’a pas pu être installé, la publication reste acquise : rouvrez le corpus pour le tirer.
 
-**Sur WebDAV/Nextcloud**, l’aperçu d’import lit le **serveur**, jamais les sauvegardes du miroir. Fermez toutes les sessions locales ou récupérables avant de confirmer. Les cibles doivent déjà être au format actuel ; la sélection est limitée à 100 entretiens, avec une borne supplémentaire de taille. Les copies sont préparées sous verrous avant publication, puis envoyées **fichier par fichier avec garde de version** : le groupe n’est pas atomique.
+**Sur WebDAV/Nextcloud**, l’aperçu d’import lit le **serveur**, jamais les sauvegardes du miroir. Fermez toutes les sessions locales ou récupérables avant de confirmer. Les entretiens choisis doivent appartenir à un corpus V2 compatible ; la sélection est limitée à 100 entretiens, avec une borne supplémentaire de taille. Les copies sont préparées sous verrous avant publication, puis envoyées **fichier par fichier avec garde de version** : le groupe n’est pas atomique.
 
 Une interruption conserve les succès acquis. Rouvrez le même corpus et choisissez **Import règles 📥** : le dialogue **Import WebDAV à reprendre** indique les fichiers confirmés, restants ou indéterminés, les cibles et le bilan prévu. Relisez-les, cochez la confirmation puis **Reprendre l’import WebDAV**. Les publications déjà reconnues ne sont pas rejouées et aucune compensation n’est appliquée. Un contenu modifié depuis, même déjà confirmé, refuse la reprise sans écrasement. La confirmation doit être renouvelée après un refus. Un suivi indisponible interdit toute application jusqu’à **Relire le suivi WebDAV**.
 

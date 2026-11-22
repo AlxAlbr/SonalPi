@@ -45,8 +45,9 @@ Les variables locales ont la portée `participation` et leurs valeurs restent da
 3. Un regroupement ou une séparation ne déplace ni les notes ni les valeurs.
 4. Les pseudonymes de participation restent indépendants des règles textuelles.
 5. Seuls les liens et les refus décidés sont persistés ; les suggestions sont calculées.
-6. Seul le format natif 10 est accepté. Les formats V2 de développement 1 à 9 sont
-   refusés sans conversion ni réécriture ; les imports de fichiers V1 restent disponibles.
+6. L’ouverture directe exige le format natif V2 et sa structure complète.
+   Les fichiers V1 passent par l’import ; les documents incompatibles sont refusés
+   sans conversion ni réécriture.
 
 ## Carte du code
 

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { lancer, attendreAccueil } from './util'
 
-for (const formatVersion of [2, 9]) {
-  test(`le format natif de développement ${formatVersion} est refusé sans convertir les documents ni déplacer les médias`, async () => {
+for (const formatVersion of [2, 99]) {
+  test(`un document incompatible annoncé en version ${formatVersion} est refusé sans réécriture ni déplacement des médias`, async () => {
     const profil = mkdtempSync(join(tmpdir(), 'sonal-refus-natif-'))
     const dir = join(profil, 'ancien-corpus')
     mkdirSync(join(dir, 'entretiens'), { recursive: true })

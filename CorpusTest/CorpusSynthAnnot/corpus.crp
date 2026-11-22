@@ -1,5 +1,5 @@
 {
-  "formatVersion": 10,
+  "formatVersion": 2,
   "codebook": {
     "cat_001": {
       "id": "cat_001",

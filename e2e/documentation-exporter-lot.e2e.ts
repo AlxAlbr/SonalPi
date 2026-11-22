@@ -13,7 +13,7 @@ function ajouterEntretien(dossier: string, id: string, titre: string, texte: str
   corpus.membership[id] = { titre, date: null, lastModified: new Date().toISOString() }
   writeFileSync(chemin, JSON.stringify(corpus, null, 2), 'utf8')
   const entretien: EntretienFichier = {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: new Date().toISOString(),
     corpsTexte: {
       type: 'doc',

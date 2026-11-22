@@ -90,9 +90,9 @@ describe('ajout de variante WebDAV : publication corpus uniquement', () => {
     b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && (init?.method ?? 'GET') === 'GET') { const headers = new Headers(r.headers); headers.set('etag', 'W/"faible"'); return new Response(await r.text(), { status: r.status, headers }) } return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('ETag fort'); expect(b.publies()).toHaveLength(0)
   })
-  test.each(['ancien-format', 'membership', 'regles', 'suppression', 'dissociation'])('source incompatible : %s', async (cause) => {
+  test.each(['format-incompatible', 'membership', 'regles', 'suppression', 'dissociation'])('source incompatible : %s', async (cause) => {
     const b = await banc(), c = b.lire()
-    if (cause === 'ancien-format') c.formatVersion--
+    if (cause === 'format-incompatible') c.formatVersion--
     if (cause === 'membership') c.membership = []
     if (cause === 'regles') c.reglesAnon = []
     if (cause === 'suppression') c.suppressionAnon = { operationId: 'suppression-anon-fixture', regleId: "personne" }

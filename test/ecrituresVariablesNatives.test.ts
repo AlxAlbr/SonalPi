@@ -98,7 +98,7 @@ describe('écriture des définitions de variables natives', () => {
     expect(variable.modalites).toEqual([{ id: 'a', lib: 'A renommée', mExport: 1 }])
     modifierVariable(corpus, 'v', { lib: 'Locale renommée', priv: true })
     expect(corpus.variables.v.portee).toBe('participation')
-    expect(corpus.formatVersion).toBe(10)
+    expect(corpus.formatVersion).toBe(2)
     validerCorpusNatif(corpus)
   })
 })

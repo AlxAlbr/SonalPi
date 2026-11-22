@@ -46,15 +46,15 @@ test('supprimer une définition vide ne modifie aucun entretien', () => {
   expect(plan.entretiens).toEqual([]); expect(plan.corpusApres.locuteurs.vide).toBeUndefined()
 })
 
-test.each(['manquant', 'doublon', 'étranger', 'format ancien', 'id absent', 'aperçu périmé', 'commande invalide', 'génération en collision'] as const)('%s : préparation refusée sans mutation', (cas) => {
+test.each(['manquant', 'doublon', 'étranger', 'version inconnue', 'id absent', 'aperçu périmé', 'commande invalide', 'génération en collision'] as const)('%s : préparation refusée sans mutation', (cas) => {
   const b = fixtureLocuteursDistants(), sources = b.sources()
   let commande: CommandeCorrectionLocuteurs = { type: 'renommerGlobal', locuteurId: 'a', nom: 'Après', attendu: b.attendu() }
   if (cas === 'manquant') sources.pop()
   if (cas === 'doublon') sources.push(sources[0])
   if (cas === 'étranger') sources[0] = { ...sources[0], id: 'inconnu' }
-  if (cas === 'format ancien' || cas === 'id absent') {
+  if (cas === 'version inconnue' || cas === 'id absent') {
     const data = JSON.parse(sources[0].contenu)
-    if (cas === 'format ancien') data.formatVersion = 9
+    if (cas === 'version inconnue') data.formatVersion = 99
     else delete data.participations[0].id
     sources[0].contenu = JSON.stringify(data)
   }

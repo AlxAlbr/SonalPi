@@ -115,11 +115,11 @@ describe('lecture GitLab à commit fixé', () => {
 
   test('lit le texte brut au commit fixé sans suivre la branche', async () => {
     const { client, requetes } = clientAvec(() =>
-      new Response('{"formatVersion":3}', { status: 200 }))
+      new Response('{"formatVersion":2}', { status: 200 }))
     const lecteur = new LecteurGitLab(client, SHA)
 
     await expect(lecteur.lireTexte('entretiens/e1.json'))
-      .resolves.toBe('{"formatVersion":3}')
+      .resolves.toBe('{"formatVersion":2}')
 
     expect(requetes[0].url.pathname).toContain(
       '/repository/files/entretiens%2Fe1.json/raw',

@@ -6,7 +6,7 @@ import { annotationVisible, classerPlage, matchesAliases, textePlage } from '../
 import { aliasesCommuns, validerDefinitionAnon } from './definitionsAnon'
 
 export interface DemandeRenommageAnon { regleId: string; ancienPseudo: string; nouveauPseudo: string }
-export type MotifRefusRenommage = 'indisponible' | 'ancien-format' | 'annotation-invalide' | 'pseudo-divergent' | 'memoire-locale-recouvrante' | 'annotations-ambigues'
+export type MotifRefusRenommage = 'indisponible' | 'format-incompatible' | 'annotation-invalide' | 'pseudo-divergent' | 'memoire-locale-recouvrante' | 'annotations-ambigues'
 export interface ObstacleRenommageAnon { code: MotifRefusRenommage; entretienId: string; annotationId?: string }
 export interface UsageRenommageAnon {
   annotationId: string; from: number; to: number; extrait: string
@@ -40,7 +40,7 @@ export type SourceRenommageAnon = { id: string; titre: string; data?: EntretienF
 const cle = (v: string) => v.trim().normalize('NFC').toLocaleLowerCase('fr')
 
 function definirRenommage(corpus: CorpusFichier, demande: DemandeRenommageAnon) {
-  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Ouvrez et enregistrez le corpus au format actuel avant un renommage global.')
+  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Cette opération nécessite un corpus V2 compatible.')
   if (!demande || typeof demande.regleId !== 'string' || typeof demande.ancienPseudo !== 'string' || typeof demande.nouveauPseudo !== 'string'
     || !Object.hasOwn(corpus.reglesAnon ?? {}, demande.regleId)) throw new Error('La règle du renommage est absente ou la demande est invalide.')
   const regle = structuredClone(corpus.reglesAnon[demande.regleId])
@@ -83,7 +83,7 @@ export function inventorierRenommageAnon(corpus: CorpusFichier, sources: SourceR
       inclusesRenommees: 0, exceptions: 0, autresVariantes: 0, independantes: 0, attentes: 0, usages: [] }
     inventaire.entretiens.push(ligne)
     if (!data || !Array.isArray(data.annotations)) { inventaire.obstacles.push({ code: 'indisponible', entretienId: id }); continue }
-    if (data.formatVersion !== FORMAT_VERSION) inventaire.obstacles.push({ code: 'ancien-format', entretienId: id })
+    if (data.formatVersion !== FORMAT_VERSION) inventaire.obstacles.push({ code: 'format-incompatible', entretienId: id })
     const liees = data.annotations.filter((a) => a.type === 'anon' && a.regle === regle.id)
     const plat = aplatir(data.corpsTexte)
     const texteDe = (from: number, to: number) => textePlage(plat, from, to)

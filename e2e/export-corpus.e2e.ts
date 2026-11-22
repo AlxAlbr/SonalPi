@@ -17,7 +17,7 @@ function ajouterEntretien(dirCorpus: string): void {
   writeFileSync(chemin, JSON.stringify(corpus, null, 2))
   mkdirSync(join(dirCorpus, 'entretiens'), { recursive: true })
   writeFileSync(join(dirCorpus, 'entretiens', 'e2.json'), JSON.stringify({
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: new Date().toISOString(),
     corpsTexte: {
       type: 'doc',

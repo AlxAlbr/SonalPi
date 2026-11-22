@@ -6,7 +6,7 @@
 - `CorpusSynthAnnot/` : corpus SonalPi2 enregistré pour découvrir l'espace
   **Analyser et interpréter**, avec les quatre entretiens annotés, 30 thèmes,
   trois variables et les notes issues des fichiers `.sonal`.
-  Son fichier principal est `corpus.crp`, au format natif 10 ; les entretiens sont dans `entretiens/`
+  Son fichier principal est `corpus.crp`, au format natif 2 ; les entretiens sont dans `entretiens/`
   et les formes d'onde dans `png/`.
   Ses neuf participations conservent leurs ids et index et possèdent neuf identités
   corpus distinctes, sans rapprochement des noms égaux.
@@ -15,8 +15,8 @@
 **Explorer les corpus exemples** propose les entretiens déjà importés et le corpus
 annoté. L'application crée une nouvelle copie de travail ; elle ne modifie pas ces
 modèles fournis. La reprise conserve les modifications sans réinstaller le contenu.
-Les anciennes copies V2 au format 9 ne sont pas converties : créer une nouvelle copie
-et conserver l’ancienne si elle contient du travail. Une modification en cours bloque
+Une copie incompatible n’est pas convertie : créer une nouvelle copie
+et conserver l’originale si elle contient du travail. Une modification en cours bloque
 la remise à zéro ; rouvrir d’abord le corpus pour la terminer.
 Le parcours **Analyser et interpréter** prépare sa propre copie de `CorpusSynthAnnot`,
 distincte de l’exploration libre, pour apprendre Tri et synthèse, Lexico et Analyses croisées.

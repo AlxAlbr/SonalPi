@@ -159,9 +159,9 @@ describe('aperçus de thèmes depuis WebDAV', () => {
     expect(b.requetes).toHaveLength(4)
   })
 
-  test('un entretien ancien est signalé comme incompatible sans modifier le serveur', async () => {
+  test('une version native inconnue est signalée sans modifier le serveur', async () => {
     const b = banc()
-    const ancien = JSON.stringify({ ...entretien(), formatVersion: 2 })
+    const ancien = JSON.stringify({ ...entretien(), formatVersion: 99 })
     b.serveur.poser('entretiens/e1.json', ancien)
     const a = await b.apercus.analyser(transfert)
     expect(a.obstacles).toContainEqual({ phase: 'entretiens', entretienId: 'e1', motif: expect.stringContaining('non supportée') })

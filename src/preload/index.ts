@@ -83,7 +83,7 @@ import type {
   ProgressionTransfert,
   ResultatFermetureSession,
 } from '../shared/distant'
-import type { DemandePreparationMigration } from '../shared/migrationV1'
+import type { DemandePreparationMigration, DemandeVerificationMigration } from '../shared/migrationV1'
 import type { DemandeOuvertureExterne, PontOuvertureFichier } from '../shared/ouvertureFichier'
 import type { DossierFichiersExercice, EtatExemples, InstallationExemple, TravailExemple } from '../shared/exemples'
 import type { ApiMigrationGitLab, ProgressionMigrationGitLab } from '../shared/corpus/migrationGitLab'
@@ -650,6 +650,8 @@ contextBridge.exposeInMainWorld('sonal', {
     } satisfies ApiMigrationGitLab,
     choisirCrp: () => ipcRenderer.invoke('migrer:choisirCrp'),
     choisirEmplacement: (emplacement?: string) => ipcRenderer.invoke('migrer:choisirEmplacement', emplacement),
+    choisirTranscription: () => ipcRenderer.invoke('migrer:choisirTranscription'),
+    verifier: (req: DemandeVerificationMigration) => ipcRenderer.invoke('migrer:verifier', req),
     destination: (chemin: string, nomDossier: string, emplacement?: string) => ipcRenderer.invoke('migrer:destination', chemin, nomDossier, emplacement),
     preparer: (req: DemandePreparationMigration) => ipcRenderer.invoke('migrer:preparer', req),
     lireEntretien: (index: number) => ipcRenderer.invoke('migrer:lireEntretien', index),

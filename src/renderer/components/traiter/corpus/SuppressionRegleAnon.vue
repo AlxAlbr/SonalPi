@@ -16,7 +16,7 @@ const plafondEntretiens = computed(() => /limitée à (\d+) entretiens/.exec(ape
 let vivant = true, generation = 0, focusAvant: HTMLElement | null = null, reprendreTirage: (() => void) | null = null
 const motifs: Record<MotifRefusSuppressionAnon, string> = {
   indisponible: 'Cet entretien ne peut pas être lu. Vérifiez qu’il est accessible',
-  'ancien-format': 'Ouvrez puis enregistrez cet entretien pour le mettre à jour',
+  'format-incompatible': 'Entretien incompatible avec la V2 : recréez-le depuis ses fichiers d’origine.',
   'annotation-invalide': 'Un passage marqué doit être vérifié dans cet entretien',
   'pseudo-divergent': 'Un pseudonyme doit être vérifié dans cet entretien',
   'memoire-locale-recouvrante': 'Les noms et pseudonymes enregistrés dans cet entretien doivent être vérifiés',

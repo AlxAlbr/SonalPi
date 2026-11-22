@@ -1,4 +1,4 @@
-import type { CorpusFichier, EntretienFichier, Locuteur, Variable } from '../../shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier, type Locuteur, type Variable } from '../../shared/format'
 import type { Cas, DefinitionAttributCas } from '../../shared/corpus/cas'
 import type { AttributCasProjete } from '../../shared/corpus/observationsAttributs'
 import type { InstantaneEntretienExport } from '../../shared/export/types'
@@ -28,7 +28,7 @@ export interface DemandeModeleQualcoder {
 
 function sourceNative(instantane: InstantaneEntretienExport): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: FORMAT_VERSION,
     lastModified: new Date().toISOString(),
     corpsTexte: instantane.entretien.corpsTexte,
     annotations: instantane.entretien.annotations,

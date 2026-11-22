@@ -29,12 +29,12 @@ const liste = ref<HTMLElement | null>(null)
 const tousEntretiens = ref(false)
 const statistiques = ref(false)
 const details = ref(false)
+const raccourcisOuverts = ref(false)
 const occupe = ref(false)
 const charge = ref(false)
 const erreur = ref('')
 const limiteLocuteurs = ref(200)
 const limiteEntretiens = ref(20)
-const indices = ref<Record<string, number>>({})
 let generation = 0
 const visible = computed(() => props.actif && vue.value === 'corpus')
 const normaliser = (texte: string) => texte.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr')
@@ -107,9 +107,6 @@ async function retirerTag(tag: string) {
 }
 async function ouvrirVerification(id: string) {
   try { await allerLocuteurs(id) } catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
-}
-function ouvrirCarte(entretien: EntretienLocuteursCorpus) {
-  void ouvrir(entretien.id, toursSelectionnes(entretien)[0] ?? entretien.tours[0] ?? { pos: 1 })
 }
 const nombreEntretiens = (participations: { entretienId: string }[]) => new Set(participations.map((p) => p.entretienId)).size
 
@@ -199,14 +196,6 @@ async function ouvrir(entretienId: string, tour: Pick<TourLocuteurCorpus, 'pos'>
   try { await ouvrirAuSegment(entretienId, tour.pos) }
   catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
 }
-function naviguer(entretien: EntretienLocuteursCorpus, sens: -1 | 1) {
-  const tours = toursSelectionnes(entretien)
-  if (!tours.length) return
-  const courant = indices.value[entretien.id] ?? (sens === 1 ? -1 : 0)
-  const index = (courant + sens + tours.length) % tours.length
-  indices.value[entretien.id] = index
-  void ouvrir(entretien.id, tours[index])
-}
 watch(() => donnees.value.locuteurs, (locuteurs) => {
   const presentes = new Set(locuteurs.map((l) => l.cle))
   selection.value = {
@@ -223,17 +212,15 @@ watch(panneau, (element) => {
   observateur = new ResizeObserver(() => { if (element.clientWidth > 720) largeur.value = borner(largeur.value) })
   observateur.observe(element)
 })
-watch(() => selection.value.cles.join('\n'), () => {
-  indices.value = {}; limiteEntretiens.value = 20
-})
+watch(() => selection.value.cles.join('\n'), () => { limiteEntretiens.value = 20 })
 watch(tousEntretiens, () => { limiteEntretiens.value = 20 })
 watch([dossierCourantDir, idDistantCourant], () => {
   generation++
   donnees.value = vide()
   selection.value = { cles: [], ancre: null }
-  effacerRecherche(); focus.value = null; details.value = false
+  effacerRecherche(); focus.value = null; details.value = false; raccourcisOuverts.value = false
   tousEntretiens.value = false; statistiques.value = false; charge.value = false; erreur.value = ''
-  limiteLocuteurs.value = 200; limiteEntretiens.value = 20; indices.value = {}
+  limiteLocuteurs.value = 200; limiteEntretiens.value = 20
 })
 watch([visible, dossierCourantDir, idDistantCourant, revisionLocuteursCorpus, dernierTirage], () => {
   if (visible.value) void actualiser()
@@ -244,7 +231,9 @@ onBeforeUnmount(() => { generation++; observateur?.disconnect() })
 
 <template>
   <section class="locuteurs-corpus" aria-label="Locuteurs du corpus" :aria-busy="occupe">
-      <BarreOngletCorpus titre="Locuteurs" aide="Sélectionnez un ou plusieurs locuteurs pour retrouver leurs tours de parole dans les entretiens." />
+      <BarreOngletCorpus titre="Locuteurs" aide="Sélectionnez un ou plusieurs locuteurs pour retrouver leurs tours de parole dans les entretiens.">
+        <button type="button" :aria-expanded="details" @click="details = !details">Détails et vérifications…</button>
+      </BarreOngletCorpus>
       <BandeauRetourCorpus v-if="erreur" type="erreur" @fermer="erreur = ''">
         {{ erreur }}<template v-if="charge"> La liste affichée est le dernier état lisible.</template>
         <template #actions><button type="button" :disabled="occupe" @click="actualiser(true)">Réessayer</button></template>
@@ -263,15 +252,15 @@ onBeforeUnmount(() => { generation++; observateur?.disconnect() })
             <CorrectionsLocuteursCorpus v-if="visible" :key="dossierCourantDir ?? ''" :selection="selectionnes" :indisponible="occupe || !!erreur || !!donnees.indisponibles.length"
               @termine="apresCorrection" @ouvrir="ouvrirConflit" />
             <button v-if="selectionnes.length" type="button" title="Statistiques" :aria-expanded="statistiques" @click="statistiques = !statistiques"><IconeActionLocuteur action="statistiques" /><span class="sr-only">Statistiques</span></button>
-            <button type="button" title="Détails et vérifications…" :aria-expanded="details" @click="details = !details"><IconeActionLocuteur action="details" /><span class="sr-only">Détails et vérifications…</span></button>
+            <button type="button" title="Raccourcis clavier" aria-label="Raccourcis clavier de la sélection" :aria-expanded="raccourcisOuverts" @click="raccourcisOuverts = !raccourcisOuverts"><IconeActionLocuteur action="clavier" /></button>
             <button type="button" title="Actualiser" :disabled="occupe" @click="actualiser(true)"><IconeActionLocuteur action="actualiser" /><span class="sr-only">Actualiser</span></button>
           </div>
+          <p v-if="raccourcisOuverts" class="aide-selection">Ctrl ou ⌘ pour plusieurs ; Maj pour une plage.</p>
           <label class="recherche-locuteurs">Rechercher un nom ou un entretien<input ref="champRecherche" v-model="recherche" type="search" placeholder="Entrée pour ajouter un tag" @keydown.enter="ajouterTag" /></label>
           <ul v-if="tags.length" class="tags-recherche" aria-label="Recherches combinées avec OU"><li v-for="tag in tags" :key="tag">{{ tag }}<button type="button" :aria-label="`Retirer le tag ${tag}`" @click="retirerTag(tag)">×</button></li></ul>
           <p v-if="tags.length > 1" class="aide-selection">Résultats correspondant à au moins un tag.</p>
           <button v-if="tags.length || recherche" class="effacer-recherche" type="button" @click="effacerRecherche">Effacer la recherche</button>
           <p class="compteur-selection" role="status">{{ filtres.length }} résultat{{ filtres.length > 1 ? 's' : '' }} · {{ selectionnes.length }} sélectionné{{ selectionnes.length > 1 ? 's' : '' }}<template v-if="nombreMasques">, dont {{ nombreMasques }} masqué{{ nombreMasques > 1 ? 's' : '' }} par la recherche</template></p>
-          <p class="aide-selection">Ctrl ou ⌘ pour plusieurs ; Maj pour une plage.</p>
           <fieldset class="perimetre-entretiens"><legend>Afficher les entretiens</legend>
             <label><input v-model="tousEntretiens" type="radio" :value="false" /> Avec la sélection</label>
             <label><input v-model="tousEntretiens" type="radio" :value="true" /> Tous les entretiens</label>
@@ -305,14 +294,9 @@ onBeforeUnmount(() => { generation++; observateur?.disconnect() })
           <StatistiquesSelectionLocuteurs v-if="statistiques && selectionnes.length" :selection="selectionnes" :entretiens="donnees.entretiens" :couleurs="couleurs" :incomplet="!!donnees.indisponibles.length" @ouvrir="ouvrirConflit" />
           <p class="axe-texte">Les couleurs suivent le déroulement du texte, pas le temps audio exact.</p>
           <article v-for="entretien in entretiensAffiches" :key="entretien.id" class="entretien-interventions" :data-entretien-id="entretien.id">
-            <div class="carte-entete"><h3>{{ entretien.titre }}</h3><button type="button" :aria-label="`Ouvrir ${entretien.titre}`" @click="ouvrirCarte(entretien)">Ouvrir</button></div>
+            <h3><span class="titre-entretien">{{ entretien.titre }}</span><span v-if="selectionnes.length" class="compte-interventions"> ({{ toursSelectionnes(entretien).length }} intervention{{ toursSelectionnes(entretien).length !== 1 ? 's' : '' }})</span></h3>
             <BarreInterventionsLocuteurs :titre="entretien.titre" :tours="entretien.tours" :couleurs="couleurs" :source="urlWaveform(entretien.id)" @ouvrir="ouvrir(entretien.id, $event)" />
             <p v-if="!entretien.tours.length">Aucune prise de parole à afficher.</p>
-            <div v-else-if="selectionnes.length" class="navigation-interventions">
-              <span>{{ toursSelectionnes(entretien).length }} intervention{{ toursSelectionnes(entretien).length > 1 ? 's' : '' }} de la sélection</span>
-              <button type="button" :disabled="!toursSelectionnes(entretien).length" :aria-label="`Intervention précédente dans ${entretien.titre}`" @click="naviguer(entretien, -1)">◄ Précédente</button>
-              <button type="button" :disabled="!toursSelectionnes(entretien).length" :aria-label="`Intervention suivante dans ${entretien.titre}`" @click="naviguer(entretien, 1)">Suivante ►</button>
-            </div>
           </article>
           <p v-if="!entretiens.length">{{ donnees.indisponibles.length ? 'Aucun entretien lisible à afficher.' : 'Aucun entretien à afficher.' }}</p>
           <button v-if="entretiensAffiches.length < entretiens.length" type="button" @click="limiteEntretiens += 20">Afficher les entretiens suivants ({{ entretiens.length - entretiensAffiches.length }})</button>
@@ -355,16 +339,14 @@ onBeforeUnmount(() => { generation++; observateur?.disconnect() })
 .actions-selection > button[type=button], .actions-selection :deep(.actions-correction > button) { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: .3rem; border: 1px solid #bfcbdc; border-radius: 5px; background: #fff; }
 .actions-selection > button:hover, .actions-selection :deep(.actions-correction > button:hover) { background: #f0f5fc; }
 .actions-selection button[aria-expanded=true] { background: #e8effb; border-color: #7197cf; }
-.actions-selection, .navigation-interventions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; font-size: .8rem; }
-.actions-selection { gap: .3rem; }
+.actions-selection { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; font-size: .8rem; }
 .legende-locuteurs { padding: 0; margin: .7rem 0 0; list-style: none; display: flex; flex-wrap: wrap; gap: .7rem; font-size: .85rem; }
 .legende-locuteurs li { display: flex; align-items: center; gap: .3rem; }
 .pastille { display: inline-block; width: .75rem; height: .75rem; border-radius: 50%; }
 .entretien-interventions { margin-top: .5rem; padding: .3rem .5rem; border: 1px solid #e0e0ea; border-radius: 6px; background: #fff; }
-.carte-entete { display: flex; align-items: center; gap: .5rem; margin-bottom: .3rem; }
-.entretien-interventions h3 { margin: 0; font-size: .85rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.carte-entete button { font-size: .75rem; }
-.navigation-interventions { margin-top: .6rem; }
+.entretien-interventions h3 { display: flex; margin: 0 0 .3rem; font-size: .85rem; min-width: 0; }
+.titre-entretien { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compte-interventions { flex: none; white-space: nowrap; }
 .sources-indisponibles { margin-top: .7rem; }
 button:not([role=option]) { padding: .4rem .6rem; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid #356ac3; outline-offset: 2px; }

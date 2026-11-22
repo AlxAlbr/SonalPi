@@ -6,7 +6,7 @@ import type { Annotation } from '../src/shared/entretien/annotation'
 /** Un entretien mono-paragraphe (PM : contenu démarrant à 1). */
 function entretien(texte: string, annotations: Annotation[] = []): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: texte }] }] },
     annotations,

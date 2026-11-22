@@ -25,8 +25,9 @@ Le dossier local d'origine a été renommé `SonalPiTestV2_ARCHIVE` ; poursuivre
 V2 dans `SonalPi`, sur la branche choisie. Voir les
 [consignes Git](docs/dev/outillage/git-remotes.md).
 
-La livraison stable V2 vise `2.0.0`. L'import des branches ne change ni la version
-applicative actuelle ni les mises à jour reçues par les utilisateurs de la V1.
+La version applicative V2 est `2.0.0` ; le format natif des corpus et entretiens est `2`.
+Ces versions évoluent indépendamment. Leur numérotation ne publie aucune release
+et ne change pas les mises à jour reçues par les utilisateurs de la V1.
 
 ## En bref
 

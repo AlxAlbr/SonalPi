@@ -86,7 +86,7 @@ export class CorrespondancesGitLab {
           if (!Object.hasOwn(avant.membership, id)) throw new Error('Un entretien cible ne fait plus partie du corpus.')
           const source = await this.lire(`entretiens/${id}.json`, sha)
           const data = this.decoderEntretien(source.contenu)
-          if (data.formatVersion !== FORMAT_VERSION) throw new Error('Enregistrez cet ancien entretien dans le format actuel avant l’import GitLab.')
+          if (data.formatVersion !== FORMAT_VERSION) throw new Error('Cet entretien n’est pas compatible. Recréez le corpus à partir de ses sources.')
           if (empreinteCorrespondance(data) !== preparation.empreintesEntretiens[id]) throw new Error('Un entretien cible a changé depuis l’aperçu. Recalculez avant d’importer.')
           this.options.store.adapterEntretienOperationTheme(structuredClone(data))
           sources.set(id, source)

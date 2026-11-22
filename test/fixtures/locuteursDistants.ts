@@ -1,4 +1,4 @@
-import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../src/shared/format'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import { inventorierLocuteurs } from '../../src/shared/corpus/inventaireLocuteurs'
 
@@ -8,7 +8,7 @@ export function fixtureLocuteursDistants() {
   corpus.codebook.theme = { id: 'theme', nom: 'Thème conservé', ordre: 0, parent: null, actif: true, codeExport: 'theme' }
   const entretiens = ['A', 'B', 'C'].map((id, i) => {
     corpus.membership[id] = { titre: `Entretien ${id}`, date: null, lastModified: '2026-01-01T00:00:00.000Z' }
-    const data: EntretienFichier = { formatVersion: 10, lastModified: '2026-01-01T00:00:00.000Z',
+    const data: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: '2026-01-01T00:00:00.000Z',
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: `Paroles conservées ${id}.` }] }] },
       annotations: [{ id: 'codage', type: 'codage', from: 1, to: 4, code: 'theme', auteur: 'Qualification' }], ancres: [{ pos: 1, t: 0 }],
       meta: { valeursGen: {}, audioRef: null },
