@@ -73,6 +73,15 @@ ambiguïtés restent visibles dans le bilan avant confirmation d'un envoi distan
 empreintes des documents. Avant exécution, il relit l’inventaire et vérifie les
 parents des chemins pour empêcher une substitution par lien symbolique.
 
+`sourcesMigrationV1.ts` fournit la vérification locale, sans écriture, via
+`migrer:verifier`. Les transcriptions indisponibles bloquent la création ; les
+médias indisponibles sont signalés sans empêcher la conversion. Le sélecteur
+`migrer:choisirTranscription` permet de remplacer une référence pour cette seule
+tentative. Les choix sont indexés dans le CRP et liés à son empreinte SHA-256 :
+un changement du CRP impose de rouvrir la fenêtre, sans réutiliser les associations.
+Les références d’origine restent dans `meta.sourceV1` et le CRP V1 reste inchangé.
+La vérification porte sur l’accès aux fichiers ; la conversion valide leur contenu.
+
 `MigrationV1` construit un store non actif dans un dossier temporaire voisin de
 la destination. Il vérifie les transcriptions et médias déclarés avant écriture,
 distingue les chemins réels internes/externes et contrôle les sources avant la
@@ -147,6 +156,7 @@ sont refusées ; WebDAV et GitLab ne forment pas une transaction atomique commun
 |---|---|
 | Conversion du corpus et réglages Lexico | `src/shared/corpus/migrationCrp.ts`, `src/main/migrationLexicoV1.ts` |
 | Classement et exclusions des documents | `src/shared/corpus/conservationMigration.ts`, `src/main/conservationMigration.ts` |
+| Vérification et localisation des fichiers locaux | `src/main/sourcesMigrationV1.ts`, `src/renderer/components/accueil/MigrationCorpus.vue`, `src/shared/migrationV1.ts` |
 | Préparation et installation locale | `src/main/migrationV1.ts`, `src/main/conservationMigrationLocale.ts`, `src/main/transitionContexte.ts` |
 | Préparation et conversion GitLab | `src/main/gitlab/preparationMigration.ts`, `src/main/gitlab/documentsMigration.ts` |
 | Lecture et copies GitLab | `src/main/gitlab/lectureV1.ts`, `src/main/gitlab/copieMediasMigration.ts` |

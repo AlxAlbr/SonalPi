@@ -6,6 +6,7 @@ import {
 import { basename, join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { MigrationV1, proposerDestinationMigration } from '../src/main/migrationV1'
+import { inspecterSourcesMigration } from '../src/main/sourcesMigrationV1'
 import { CorpusStore, normaliserCheminAudio } from '../src/main/corpusStore'
 import { lireFichierCorpus } from '../src/main/ouvertureFichier'
 import iconv from 'iconv-lite'
@@ -137,7 +138,7 @@ describe('migration V1 dans une cible non active', () => {
     const b = banc()
     b.raw.tabEnt[0].rtrPath = 'absent.sonal'
     b.ecrire()
-    expect(() => new MigrationV1(b.req)).toThrow(/Fichiers référencés manquants ou illisibles/)
+    expect(() => new MigrationV1(b.req)).toThrow(/Localiser le fichier/)
     expect(existsSync(b.req.dossier)).toBe(false)
     expect(existsSync(b.cheminCrp)).toBe(true)
     expect(temporaires(b.base)).toEqual([])
@@ -158,7 +159,9 @@ describe('migration V1 dans une cible non active', () => {
     const ids = Object.keys(store.ouvrir().membership)
     const e = store.lireEntretien(ids[0])
     if (!e.ok) throw new Error('absent')
-    expect(e.data.meta.audioRef).toBe(resolve(b.source, normaliserCheminAudio(absent)))
+    const attendu = process.platform !== 'win32' && absent.startsWith('C:')
+      ? absent : resolve(b.source, normaliserCheminAudio(absent))
+    expect(e.data.meta.audioRef).toBe(attendu)
     expect(store.verifierAudios()[ids[0]]).toBe('manquant')
     expect(store.verifierAudios()[ids[1]]).toBe('ok')
     expect(existsSync(join(b.req.dossier, 'medias'))).toBe(false)
@@ -184,6 +187,59 @@ describe('migration V1 dans une cible non active', () => {
     const store = publier(job)
     expect(Object.keys(store.ouvrir().membership)).toHaveLength(1)
     await job.annuler()
+    expect(existsSync(b.cheminCrp)).toBe(true)
+  })
+
+  test('utilise la transcription choisie sans modifier les références et les fichiers V1', async () => {
+    const b = banc()
+    b.raw.tabEnt[0].rtrPath = 'C:\\Users\\ancien\\Entretien.Sonal'
+    b.ecrire()
+    const original = readFileSync(b.cheminCrp)
+    const choisi = join(b.base, 'retrouve.sonal')
+    writeFileSync(choisi, '<div id="contenuText">Transcription retrouvée.</div>')
+    const { bilan } = inspecterSourcesMigration(b.req)
+    const demande = { ...b.req, empreinteCrp: bilan.empreinteCrp, transcriptions: [{ index: 0, chemin: choisi }] }
+    expect(inspecterSourcesMigration(demande).bilan.transcriptions[0].etat).toBe('ok')
+    const job = new MigrationV1(demande)
+    await job.preparer()
+    expect(job.lireEntretien(0)?.contenu).toContain('Transcription retrouvée')
+    job.ajouterEntretien(0, payload(), [])
+    job.ajouterEntretien(1, payload(), [])
+    const store = publier(job)
+    const id = Object.keys(store.ouvrir().membership)[0]
+    const entretien = store.lireEntretien(id)
+    if (!entretien.ok) throw new Error('Entretien absent')
+    expect(entretien.data.meta.sourceV1).toEqual({ rtrPath: b.raw.tabEnt[0].rtrPath })
+    expect(readFileSync(b.cheminCrp)).toEqual(original)
+    expect(readFileSync(choisi, 'utf8')).toContain('Transcription retrouvée')
+    expect(job.terminer()).toBeNull()
+    expect(readFileSync(`${b.cheminCrp}.sauvegarde-v1`)).toEqual(original)
+    expect(existsSync(choisi)).toBe(true)
+  })
+
+  test('une transcription choisie reste protégée contre les changements pendant la préparation', async () => {
+    const b = banc()
+    const choisi = join(b.base, 'retrouve.sonal')
+    writeFileSync(choisi, '<div id="contenuText">Avant.</div>')
+    const { bilan } = inspecterSourcesMigration(b.req)
+    const demande = { ...b.req, empreinteCrp: bilan.empreinteCrp, transcriptions: [{ index: 0, chemin: choisi }] }
+    const job = new MigrationV1(demande)
+    await preparer(job)
+    writeFileSync(choisi, 'Autre version')
+    expect(() => job.verifierAvantBascule()).toThrow(/source a changé/)
+    await job.annuler()
+    expect(existsSync(b.cheminCrp)).toBe(true)
+    expect(existsSync(b.req.dossier)).toBe(false)
+  })
+
+  test('un fichier choisi supprimé depuis la vérification bloque encore la préparation', () => {
+    const b = banc()
+    const choisi = join(b.source, 'e.sonal')
+    const { bilan } = inspecterSourcesMigration(b.req)
+    rmSync(choisi)
+    expect(() => new MigrationV1({ ...b.req, empreinteCrp: bilan.empreinteCrp,
+      transcriptions: [{ index: 0, chemin: choisi }] })).toThrow(/Localiser le fichier/)
+    expect(existsSync(b.req.dossier)).toBe(false)
     expect(existsSync(b.cheminCrp)).toBe(true)
   })
 

@@ -3,12 +3,13 @@ import {
   lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync,
   rmdirSync, rmSync, statSync, unlinkSync,
 } from 'node:fs'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { CorpusStore, normaliserCheminAudio } from './corpusStore'
-import { cheminCanonique, lireFichierCorpus } from './ouvertureFichier'
+import { CorpusStore } from './corpusStore'
+import { cheminCanonique } from './ouvertureFichier'
+import { inspecterSourcesMigration } from './sourcesMigrationV1'
 import { decoderCrp } from './encodage'
 import { lireReglagesLexicoV1 } from './migrationLexicoV1'
 import { ConservationMigrationLocale } from './conservationMigrationLocale'
@@ -109,38 +110,37 @@ export class MigrationV1 {
 
   constructor(req: DemandePreparationMigration) {
     if (typeof req.nom !== 'string' || !req.nom.trim()) throw new Error('Le nom du corpus ne peut pas être vide.')
-    const lecture = lireFichierCorpus(req.cheminCrp)
+    const { lecture, bilan } = inspecterSourcesMigration(req)
     if (lecture.classification.type !== 'v1') throw new Error('La source n’est pas un corpus SonalPi1.')
     this.apercu = lecture.classification.apercu
     this.sourceDir = dirname(lecture.chemin)
     this.req = { ...req, nom: req.nom.trim(), cheminCrp: lecture.chemin }
     this.sourceCrp = this.referencer(lecture.chemin, true)
-    if (readFileSync(lecture.chemin, 'utf8') !== lecture.contenu) throw new Error('La source a changé pendant sa lecture.')
+    if (this.sourceCrp.empreinte !== bilan.empreinteCrp) throw new Error('Le corpus SonalPi1 a changé. Vérifiez à nouveau les fichiers.')
     this.dossier = verifierDestinationMigration(req.dossier, this.sourceDir)
     this.parentInitial = identite(dirname(this.dossier))
     this.destinationInitiale = present(this.dossier) ? identite(this.dossier) : null
 
     const medias = new Map<string, CopieMedia>()
     const erreurs: string[] = []
-    const tabEnt = this.apercu.raw.tabEnt ?? []
-    if (tabEnt.some((e) => !e || typeof e !== 'object' || Array.isArray(e)
-      || (e.rtrPath != null && typeof e.rtrPath !== 'string')
-      || (e.audioPath != null && typeof e.audioPath !== 'string'))) {
-      throw new Error('Les références des entretiens V1 sont invalides.')
-    }
-    for (const e of mapperEntretiensV1(tabEnt)) {
+    const transcriptions = new Map(bilan.transcriptions.map((f) => [f.index, f]))
+    const fichiersMedias = new Map(bilan.medias.map((f) => [f.index, f]))
+    for (const [index, e] of mapperEntretiensV1(this.apercu.raw.tabEnt).entries()) {
       let source: Source | null = null
       let audioRef: string | null = null
       try {
-        if (e.rtrPath) source = this.referencer(resolve(this.sourceDir, e.rtrPath.replace(/[\\/]/g, sep)), true)
-      } catch { erreurs.push(`Entretien « ${e.titre} » : ${e.rtrPath}`) }
+        const fichier = transcriptions.get(index)
+        if (fichier) {
+          if (fichier.etat !== 'ok') throw new Error('Transcription indisponible')
+          source = this.referencer(fichier.chemin, true)
+        }
+      } catch { erreurs.push(`Transcription de « ${e.titre} » à retrouver avec « Localiser le fichier… ».`) }
       try {
         if (e.audioRef) {
-          const attendu = resolve(this.sourceDir, normaliserCheminAudio(e.audioRef))
-          // Un média introuvable ne bloque pas : l'ancien chemin est gardé,
-          // et SonalPi2 proposera de réassigner le fichier à l'ouverture.
-          const ref = present(attendu) ? this.referencer(attendu) : null
-          audioRef = ref ? ref.chemin : attendu
+          const fichier = fichiersMedias.get(index)!
+          // Un média indisponible pourra être réassigné après la migration.
+          const ref = fichier.etat === 'ok' ? this.referencer(fichier.chemin) : null
+          audioRef = ref ? ref.chemin : fichier.chemin
           if (ref && sousDossier(ref.chemin, this.sourceDir)) {
             let copie = medias.get(ref.chemin)
             if (!copie) {
@@ -155,7 +155,7 @@ export class MigrationV1 {
       this.entretiens.push({ titre: e.titre, rtrPath: e.rtrPath, source, audioRef })
     }
     this.copies = [...medias.values()]
-    if (erreurs.length) throw new Error(`Fichiers référencés manquants ou illisibles. Corrigez les sources puis réessayez :\n${erreurs.join('\n')}`)
+    if (erreurs.length) throw new Error(`La migration ne peut pas continuer : certains fichiers ne sont plus accessibles. Vérifiez à nouveau les fichiers dans la fenêtre de migration. Votre corpus SonalPi1 n’a pas été modifié.\n${erreurs.join('\n')}`)
     const base = this.req.cheminCrp.replace(/\.crp$/i, '')
     for (const extension of ['.out', '.lem', '.cnct', '.lexaf.json']) {
       if (present(base + extension)) this.referencer(base + extension, true)

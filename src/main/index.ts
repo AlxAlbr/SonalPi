@@ -26,7 +26,8 @@ import { executerFermetureApplication } from './fermetureApplication'
 import { OuvertureInitiale, demandeDepuisFichiers, fichiersDesArguments } from './demandesOuverture'
 import { cheminCanonique, compteDuMiroir, lireFichierCorpus } from './ouvertureFichier'
 import { MigrationV1, proposerDestinationMigration } from './migrationV1'
-import type { DemandePreparationMigration } from '../shared/migrationV1'
+import { inspecterSourcesMigration } from './sourcesMigrationV1'
+import type { DemandePreparationMigration, DemandeVerificationMigration } from '../shared/migrationV1'
 import type { CibleOuvertureFichier } from '../shared/ouvertureFichier'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
 import { validerCommandeCorrectionLocuteurs, validerReferenceLocuteurOuvert, validerRenommageParticipation, type CommandeRenommageLocuteur, type DemandeRenommageParticipation, type DemandeIdentificationLocuteur, type DemandeRapprochementNommage } from '../shared/corpus/contratsLocuteurs'
@@ -2774,10 +2775,16 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     verifierCibleLocale(dossier)
     return dossier
   })
+  ipcMain.handle('migrer:verifier', (_e, req: DemandeVerificationMigration) => {
+    verifierCibleLocale(req.cheminCrp)
+    for (const fichier of req.transcriptions ?? []) verifierCibleLocale(fichier.chemin)
+    return inspecterSourcesMigration(req).bilan
+  })
   ipcMain.handle('migrer:preparer', async (e, req: DemandePreparationMigration) => {
     if (migrationActive) throw new Error('Une migration est déjà en cours.')
     verifierCibleLocale(req.dossier)
     verifierCibleLocale(req.cheminCrp)
+    for (const fichier of req.transcriptions ?? []) verifierCibleLocale(fichier.chemin)
     const migration = new MigrationV1(req)
     migrationActive = { migration, proprietaire: e.sender }
     try { return await migration.preparer() }
@@ -3152,6 +3159,13 @@ function enregistrerIpcMigration(): void {
     if (compteDuMiroir(lecture.chemin, join(app.getPath('userData'), 'miroirs')) !== null) throw new Error('Ce fichier appartient à un miroir géré.')
     if (lecture.classification.type !== 'v1') throw new Error('Ce fichier n’est pas un corpus SonalPi1.')
     return lecture.chemin
+  })
+  ipcMain.handle('migrer:choisirTranscription', async (e) => {
+    const r = await montrerOuvrir(e, {
+      title: 'Retrouver la transcription de l’entretien', properties: ['openFile'],
+      filters: [{ name: 'Transcriptions', extensions: ['sonal', 'Sonal', 'SONAL', 'txt', 'srt', 'vtt'] }],
+    })
+    return r.canceled ? null : r.filePaths[0] ?? null
   })
   ipcMain.handle('migrer:choisirEmplacement', async (e, emplacement?: string) => {
     const r = await montrerOuvrir(e, { defaultPath: emplacement ?? app.getPath('documents'), properties: ['openDirectory'] })

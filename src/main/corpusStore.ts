@@ -2288,6 +2288,12 @@ export class CorpusStore {
     for (const [id, ref] of this.audiosResolus()) {
       out[id] = existsSync(ref) ? 'ok' : 'manquant'
     }
+    // Les anciens chemins d'un autre système restent à reconnecter, sans être servis comme fichiers locaux.
+    for (const id of Object.keys(this.ouvrir().membership)) {
+      if (id in out) continue
+      const entretien = this.lireEntretien(id)
+      if (entretien.ok && entretien.data.meta.audioRef) out[id] = 'manquant'
+    }
     return out
   }
 

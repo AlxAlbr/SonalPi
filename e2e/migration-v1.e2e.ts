@@ -7,14 +7,16 @@ import { lancer, attendreAccueil, attendreCorpus, entrerCorpus, entrerEntretien 
 import { ecrireSeedMigrationV1 } from '../test/seedMigrationV1'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 
-async function stuberDialogs(app: ElectronApplication, crp: string, emplacement: string) {
+async function stuberDialogs(app: ElectronApplication, crp: string, emplacement: string, transcription?: string) {
   await app.evaluate(({ dialog }, args) => {
     dialog.showOpenDialog = async (...a: unknown[]) => {
       const options = a[a.length - 1] as { filters?: { extensions: string[] }[] }
-      const fichier = options.filters?.some((f) => f.extensions.includes('crp'))
-      return { canceled: false, filePaths: [fichier ? args.crp : args.emplacement] }
+      const corpus = options.filters?.some((f) => f.extensions.includes('crp'))
+      const texte = options.filters?.some((f) => f.extensions.includes('sonal'))
+      const chemin = corpus ? args.crp : texte ? args.transcription : args.emplacement
+      return { canceled: !chemin, filePaths: chemin ? [chemin] : [] }
     }
-  }, { crp, emplacement })
+  }, { crp, emplacement, transcription })
 }
 async function choisirSource(page: Page) {
   await page.locator('.carte-demo.ouvrir-corpus').click()
@@ -203,7 +205,7 @@ test('un nettoyage refusé protège les fichiers apparus et libère la migration
   }
 })
 
-test('une source manquante bloque la migration sans bascule et sans entretien vide', async () => {
+test('une transcription manquante est signalée avant la création, sans bascule ni entretien vide', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1-manquant-'))
   const source = ecrireSeedMigrationV1(profil)
   rmSync(join(source.dossierV1, 'entretien1.sonal'))
@@ -212,9 +214,11 @@ test('une source manquante bloque la migration sans bascule et sans entretien vi
   try {
     const page = await app.firstWindow()
     await stuberDialogs(app, source.cheminCrp, profil)
-    await choisirSource(page)
-    await page.locator('.modale-migration .valider').click()
-    await expect(page.locator('.msg-migration')).toContainText('Fichiers référencés manquants ou illisibles')
+    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await expect(page.locator('.verification-fichiers')).toContainText('1 transcription est à retrouver')
+    await expect(page.locator('.modale-migration .valider')).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Localiser le fichier de entretien1', exact: true })).toBeVisible()
+    await expect(page.locator('.msg-migration')).toHaveCount(0)
     expect(existsSync(cible)).toBe(false)
     expect(readFileSync(source.cheminCrp)).toEqual(source.original)
     expect(readdirSync(profil).filter((f) => f.startsWith('.sonal-migration-'))).toEqual([])
@@ -222,6 +226,58 @@ test('une source manquante bloque la migration sans bascule et sans entretien vi
     await page.locator('.modale-migration .annuler').click()
     await expect(page.locator('.ecran.accueil')).toBeVisible()
   } finally { await app.close() }
+})
+
+test('une transcription déplacée peut être choisie sans modifier le CRP V1 et les médias absents ne bloquent pas', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-v1-localiser-'))
+  const source = ecrireSeedMigrationV1(profil)
+  const retrouve = join(profil, 'transcription-retrouvee.Sonal')
+  renameSync(join(source.dossierV1, 'entretien1.sonal'), retrouve)
+  const texteOriginal = readFileSync(retrouve)
+  const brut = JSON.parse(readFileSync(source.cheminCrp, 'utf8'))
+  brut.tabEnt[0].rtrPath = 'C:\\Users\\autre-poste\\Documents\\entretien1.sonal'
+  brut.tabEnt[0].audioPath = 'C:\\Users\\autre-poste\\Documents\\voix.mp3'
+  writeFileSync(source.cheminCrp, JSON.stringify(brut))
+  const original = readFileSync(source.cheminCrp)
+  const app = await lancer(profil)
+  try {
+    const page = await app.firstWindow()
+    await attendreAccueil(page)
+    await stuberDialogs(app, source.cheminCrp, profil)
+    await page.locator('.carte-demo.ouvrir-corpus').click()
+    const modale = page.locator('.modale-migration')
+    await expect(modale).toContainText('1 transcription est à retrouver')
+    await expect(modale).toContainText('1 enregistrement à reconnecter')
+    const bouton = page.getByRole('button', { name: 'Localiser le fichier de entretien1', exact: true })
+    await bouton.click()
+    await expect(modale.locator('.valider')).toBeDisabled()
+    expect(readFileSync(source.cheminCrp)).toEqual(original)
+    await stuberDialogs(app, source.cheminCrp, profil, retrouve)
+    await bouton.click()
+    await expect(modale.locator('.valider')).toBeEnabled()
+    await expect(modale).toContainText('fichier choisi pour cette migration')
+    expect(readFileSync(source.cheminCrp)).toEqual(original)
+    expect(readFileSync(retrouve)).toEqual(texteOriginal)
+    await modale.locator('.annuler').click()
+    await expect(modale).not.toBeVisible()
+    expect(readFileSync(source.cheminCrp)).toEqual(original)
+    expect(existsSync(join(profil, 'MonCorpusV2'))).toBe(false)
+    await page.locator('.carte-demo.ouvrir-corpus').click()
+    await expect(modale).toContainText('1 transcription est à retrouver')
+    await expect(modale.locator('.valider')).toBeDisabled()
+    await bouton.click()
+    await expect(modale.locator('.valider')).toBeEnabled()
+    await modale.locator('.valider').click()
+    await attendreCorpus(page)
+    await expect(modale).not.toBeVisible()
+    const cible = join(profil, 'MonCorpusV2')
+    const es = entretiens(cible)
+    expect(JSON.stringify(es.entretien1.corpsTexte)).toContain('Karine')
+    expect(es.entretien1.meta.sourceV1).toEqual({ rtrPath: brut.tabEnt[0].rtrPath })
+    expect(readFileSync(`${source.cheminCrp}.sauvegarde-v1`)).toEqual(original)
+    expect(readFileSync(retrouve)).toEqual(texteOriginal)
+    await expect(page.locator('.bandeau-audio')).toContainText('introuvable')
+  } finally { await app.close(); rmSync(profil, { recursive: true, force: true }) }
 })
 
 test('une transcription illisible bloque et nettoie la cible non active', async () => {
