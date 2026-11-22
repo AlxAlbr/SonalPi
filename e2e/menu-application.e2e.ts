@@ -17,13 +17,14 @@ async function lireMenu(app: ElectronApplication) {
       enregistrer: corpus.items.find((item) => item.label === 'Enregistrer')!.enabled,
       sauvegarder: corpus.items.find((item) => item.label.startsWith('Faire une copie'))!.enabled,
       exporter: corpus.items.find((item) => item.label === 'Exporter le corpus…')!.enabled,
+      exporterEntretien: entretiens.submenu!.items.find((item) => item.label === 'Exporter cet entretien…')!.enabled,
     }
   })
 }
 
 const MENU_INACTIF = {
   entretiens: false, ajouter: false, trier: false,
-  enregistrer: false, sauvegarder: false, exporter: false,
+  enregistrer: false, sauvegarder: false, exporter: false, exporterEntretien: false,
 }
 
 test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le contexte aux récents', async () => {
@@ -34,21 +35,22 @@ test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le
     await expect.poll(() => lireMenu(app)).toEqual(MENU_INACTIF)
 
     await app.evaluate(({ BrowserWindow }) => {
-      for (const action of ['ajouter-entretien', 'enregistrer', 'exporter-corpus', 'sauvegarde-zip']) {
+      for (const action of ['ajouter-entretien', 'enregistrer', 'exporter-corpus', 'exporter-entretien', 'sauvegarde-zip']) {
         BrowserWindow.getAllWindows()[0].webContents.send('menu:action', action)
       }
     })
     await attendreAccueil(page)
     await expect(page.locator('.modale-ajout')).not.toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Exporter', exact: true })).not.toBeVisible()
     await expect.poll(() => lireMenu(app)).toEqual(MENU_INACTIF)
 
     await entrerCorpus(page)
     await expect.poll(() => lireMenu(app)).toEqual({
       entretiens: true, ajouter: true, trier: false,
-      enregistrer: false, sauvegarder: true, exporter: true,
+      enregistrer: false, sauvegarder: true, exporter: true, exporterEntretien: false,
     })
     await entrerEntretien(page)
-    await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: true })
+    await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: true, exporterEntretien: true })
     await retourCorpus(page)
     for (const nom of ['Préparer & Suivre', 'Analyser & Interpréter', 'Organiser & Exporter', 'Importer & Traiter']) {
       await page.getByRole('button', { name: nom, exact: true }).click()
@@ -90,7 +92,7 @@ test('sans corpus puis avec un corpus vide, les commandes inutilisables restent 
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await expect.poll(() => lireMenu(app)).toEqual({
       entretiens: true, ajouter: true, trier: false,
-      enregistrer: false, sauvegarder: true, exporter: false,
+      enregistrer: false, sauvegarder: true, exporter: false, exporterEntretien: false,
     })
   } finally {
     await app.close()

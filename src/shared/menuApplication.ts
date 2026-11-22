@@ -5,6 +5,7 @@ export interface EtatMenuApplication {
   enregistrer: boolean
   sauvegarder: boolean
   exporter: boolean
+  exporterEntretien: boolean
   ajouter: boolean
   trier: boolean
   trierContenu: boolean
@@ -16,6 +17,7 @@ export const MENU_ACCUEIL: EtatMenuApplication = {
   enregistrer: false,
   sauvegarder: false,
   exporter: false,
+  exporterEntretien: false,
   ajouter: false,
   trier: false,
   trierContenu: false,

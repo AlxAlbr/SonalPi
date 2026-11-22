@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { corpusDistantValide } from '../test/webdav/fixturesCorpusDistant'
-import { attendreAccueil, lancer, ouvrirPreparation } from './util'
+import { attendreAccueil, fermerAiguillage, lancer, ouvrirPreparation } from './util'
 
 type SondeDocs = { horsLigne: boolean; methodes: string[]; urlOuverte: string }
 for (const port of [8080, 8081]) {
@@ -52,6 +52,7 @@ for (const port of [8080, 8081]) {
       for (let i = 0; i < await secrets.count(); i++) await secrets.nth(i).fill('max-max-1234')
       await page.locator('.modale-distant .mini.ouvrir').first().click()
       await expect(page.locator('.modale-distant')).toBeHidden({ timeout: 30_000 })
+      await fermerAiguillage(page, 'projet', 30_000)
       await ouvrirPreparation(page, 'docs-cadre')
       const cote = page.locator('.cote-docs')
       await expect(cote.getByRole('button', { name: /Ajouter un fichier|Nouveau dossier|Ouvrir ce dossier/ })).toHaveCount(0)

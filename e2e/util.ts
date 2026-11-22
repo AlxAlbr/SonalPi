@@ -7,6 +7,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ecrireSeedDemo as ecrireSeedUnitaire } from '../test/seedDemo'
 
+/** Ouvre l’export individuel par le menu natif, dès que l’entretien est disponible. */
+export async function ouvrirExportEntretien(app: ElectronApplication, page: Page): Promise<void> {
+  await expect.poll(() => app.evaluate(({ Menu }) => {
+    const entretiens = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Entretiens')!
+    return entretiens.submenu!.items.find((item) => item.label === 'Exporter cet entretien…')!.enabled
+  })).toBe(true)
+  await app.evaluate(({ Menu }) => {
+    const entretiens = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Entretiens')!
+    entretiens.submenu!.items.find((item) => item.label === 'Exporter cet entretien…')!.click()
+  })
+  await expect(page.getByRole('dialog', { name: 'Exporter', exact: true })).toBeVisible()
+}
+
 /** Les ids des fixtures d'interface sont fixés avant leur écriture, jamais lors de leur consultation. */
 export function ecrireSeedDemo(dir: string): void { ecrireSeedUnitaire(dir, true) }
 

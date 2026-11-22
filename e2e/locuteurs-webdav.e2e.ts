@@ -141,10 +141,11 @@ for (const port of [8080, 8081]) test.describe(`locuteurs WebDAV :${port}`, () =
       const nouveau = gestion.locator('.nom-loc').last()
       await expect(nouveau).toHaveValue('Nouveau locuteur')
       const participationId = await nouveau.getAttribute('data-participation-id')
-      await expect.poll(async () => {
+      // La lecture peut être momentanément indisponible pendant l’enregistrement.
+      await expect(async () => {
         const data = JSON.parse(await client.getTexte('entretiens/A.json'))
-        return data.participations.find((p: { id: string }) => p.id === participationId)?.locuteurRef
-      }, { timeout: 60_000 }).toBeTruthy()
+        expect(data.participations.find((p: { id: string }) => p.id === participationId)?.locuteurRef).toBeTruthy()
+      }).toPass({ timeout: 60_000 })
       const creation = JSON.parse(await client.getTexte('entretiens/A.json')).participations.at(-1)
       expect(JSON.parse(await client.getTexte('corpus.crp')).locuteurs[creation.locuteurRef].nom).toBe('Nouveau locuteur')
       await expect(gestion.getByRole('status').filter({ hasText: /créé au niveau du corpus/ })).toHaveCount(0)

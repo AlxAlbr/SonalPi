@@ -11,6 +11,7 @@ import {
   ouvrirSurCorpus,
   retourCorpus,
   selectionner,
+  ouvrirExportEntretien,
 } from './util'
 
 /**
@@ -522,8 +523,8 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
   await expect(page.locator('.editeur .anon').first()).toBeVisible()
   await expect(page.locator('.editeur .anon-exception').first()).toBeVisible()
 
-  // --- EXPORT --- (l'entretien est ouvert → bouton « Exporter .sonal »)
-  await page.locator('.exporter').click()
+  // L’export individuel passe par le menu Entretiens.
+  await ouvrirExportEntretien(app, page)
   // Fenêtre d'export en deux étapes : format `.sonal`, puis bouton Exporter.
   await page.locator('.ligne-format', { hasText: '.sonal' }).click()
   await page.locator('.actions .exporter').click()

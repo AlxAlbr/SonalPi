@@ -25,7 +25,7 @@ import { MENU_ACCUEIL } from '../src/shared/menuApplication'
 
 const MENU_TRAVAIL = {
   travail: true, naviguer: true, enregistrer: true, sauvegarder: true,
-  exporter: true, ajouter: true, trier: true, trierContenu: true,
+  exporter: true, exporterEntretien: true, ajouter: true, trier: true, trierContenu: true,
 }
 
 function sousMenu(item: MenuItemConstructorOptions): MenuItemConstructorOptions[] {
@@ -37,6 +37,18 @@ describe('menu applicatif des entretiens', () => {
     electron.send.mockClear()
     electron.setApplicationMenu.mockClear()
     appliquerMenu([])
+  })
+
+  test('l’export individuel transmet sa commande et reste indépendant de l’écriture', () => {
+    appliquerMenu([], undefined, { ...MENU_TRAVAIL, enregistrer: false })
+    const entretiens = sousMenu(electron.template.find((item) => item.label === 'Entretiens')!)
+    const exporter = entretiens.find((item) => item.label === 'Exporter cet entretien…')!
+    expect(exporter.enabled).toBe(true)
+    ;(exporter.click as () => void)()
+    expect(electron.send).toHaveBeenCalledWith('menu:action', 'exporter-entretien')
+    appliquerMenu([], undefined, MENU_ACCUEIL)
+    const inactif = sousMenu(electron.template.find((item) => item.label === 'Entretiens')!)
+    expect(inactif.find((item) => item.label === 'Exporter cet entretien…')!.enabled).toBe(false)
   })
 
   test('les quatre tris transmettent leur mode au renderer', () => {

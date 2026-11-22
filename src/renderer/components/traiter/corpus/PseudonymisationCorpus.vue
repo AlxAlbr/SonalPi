@@ -1055,21 +1055,23 @@ onUnmounted(() => {
   background: #fff;
   border-radius: 8px;
   padding: 1rem 1.2rem;
-  /* Le cadre s'arrête au bas de la fenêtre ; ses deux colonnes défilent indépendamment. */
+  /* Les colonnes défilent séparément ; le cadre grandit si l’aide réduit trop leur espace. */
   box-sizing: border-box;
   width: 100%;
   height: var(--hauteur-disponible, calc(100dvh - 270px));
   min-height: 22rem;
   border: 1px solid #e0e0ea;
 }
-/* Grille 2×2 : ligne 1 = en-tête sur toute la largeur ; ligne 2 = les deux
- * colonnes, chacune avec son propre défilement (minmax(0, 1fr) obligatoire
- * pour que le contenu long ne force pas la hauteur du panneau). */
+/* L’aide occupe la première ligne, les deux colonnes la suivante.
+ *  Leur hauteur minimale conserve une table utilisable dans une fenêtre réduite.
+ */
 .pseudo-deux-col {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: var(--pseudo-gauche-w, 520px) 8px minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  /* La table garde de la place sous les filtres, même lorsque l’aide est dépliée. */
+  grid-template-rows: auto minmax(24rem, 1fr);
+  min-height: min-content;
 }
 .pseudo-haut { grid-column: 1 / -1; grid-row: 1; }
 .pseudo-vide { grid-column: 1 / -1; grid-row: 2; }

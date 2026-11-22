@@ -1455,6 +1455,7 @@ export function creerSonal() {
         && (!idDistantCourant.value || (!lectureSeule.value && entretienEditable.value)),
       sauvegarder: disponible && idDistantCourant.value === null,
       exporter: disponible && nombreEntretiens > 0,
+      exporterEntretien: disponible && vue.value === 'entretien' && ent.ouvertId.value !== null,
       ajouter: disponible && ajoutEntretienPossible.value,
       trier,
       trierContenu: trier && gesteDisponible('triContenu')
@@ -1473,11 +1474,15 @@ export function creerSonal() {
       'ajouter-entretien': etatMenu.value.ajouter,
       'trier-entretiens': etatMenu.value.trier,
       'exporter-corpus': etatMenu.value.exporter,
+      'exporter-entretien': etatMenu.value.exporterEntretien,
       'sauvegarde-zip': etatMenu.value.sauvegarder,
     }
     if (disponibles[action] === false) return
     try {
       switch (action) {
+        case 'exporter-entretien':
+          ouvrirExport()
+          break
         case 'annuler-frappe':
         case 'retablir-frappe': {
           const editeur = ent.editor.value

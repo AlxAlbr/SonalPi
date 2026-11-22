@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ajouterParModale } from './util'
+import { lancer, entrerCorpus, ajouterParModale, ouvrirExportEntretien } from './util'
 
 /**
  *  Sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
@@ -47,7 +47,7 @@ test('importer un .sonal réel → entretien éditable + codebook fusionné, pui
   await expect(page.locator('.liste-coder .theme-nom', { hasText: /^Cat2$/ })).toHaveCount(1)
 
   // --- EXPORT ---
-  await page.locator('.exporter').click()
+  await ouvrirExportEntretien(app, page)
   // Fenêtre d'export en deux étapes : format `.sonal`, puis bouton Exporter.
   await page.locator('.ligne-format', { hasText: '.sonal' }).click()
   await page.locator('.actions .exporter').click()

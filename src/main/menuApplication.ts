@@ -118,6 +118,12 @@ export function appliquerMenu(
           },
         ],
       },
+      { type: 'separator' },
+      {
+        label: 'Exporter cet entretien…',
+        enabled: etat.exporterEntretien,
+        click: () => envoyer('menu:action', 'exporter-entretien'),
+      },
     ],
   }
 

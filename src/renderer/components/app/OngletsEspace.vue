@@ -29,7 +29,8 @@ const emit = defineEmits<{ choisir: [id: T] }>()
 <style scoped>
 .onglets-espace {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   gap: 0.25rem;
   min-width: 0;
   border-bottom: 1px solid #e2e4ec;

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import JSZip from 'jszip'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import { ecrireSeedDemo, entrerCorpus, entrerEntretien, lancer } from './util'
+import { ecrireSeedDemo, entrerCorpus, entrerEntretien, lancer, ouvrirExportEntretien } from './util'
 
 function preparerCorpus(dossier: string) {
   mkdirSync(dossier, { recursive: true })
@@ -83,8 +83,8 @@ async function destination(app: ElectronApplication, chemin: string) {
   }, chemin)
 }
 
-async function choisirFormat(page: Page, extension: string) {
-  await page.getByRole('button', { name: 'Exporter cet entretien', exact: true }).click()
+async function choisirFormat(app: ElectronApplication, page: Page, extension: string) {
+  await ouvrirExportEntretien(app, page)
   await page.locator('.ligne-format', { has: page.locator('.ext', { hasText: extension }) }).click()
 }
 
@@ -105,7 +105,7 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     await entrerEntretien(page)
 
     const html = join(racine, 'Entretien-Karine-pseudonymise.html')
-    await choisirFormat(page, '.html')
+    await choisirFormat(app, page, '.html')
     await page.getByLabel(/En-tête/).check()
     await expect(page.getByLabel('Appliquer la pseudonymisation')).toBeChecked()
     if (process.env.SONAL_DOC_CAPTURES === '1') {
@@ -145,8 +145,8 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
 
     const rapport = join(racine, 'rapport-pseudonymisation.txt')
     const txt = join(racine, 'entretien-pseudonymise.txt')
-    await choisirFormat(page, '.txt')
-    await page.getByLabel('Locuteurs', { exact: true }).check()
+    await choisirFormat(app, page, '.txt')
+    await page.getByRole('dialog', { name: 'Exporter', exact: true }).getByRole('checkbox', { name: 'Locuteurs', exact: true }).check()
     await page.getByLabel('Catégories thématiques', { exact: true }).check()
     await page.getByLabel(/Consulter le rapport de pseudonymisation/).check()
     await page.locator('.actions .exporter').click()
@@ -168,7 +168,7 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     expect(readFileSync(rapport, 'utf8')).toContain("ne constitue pas une garantie d'anonymat")
 
     const sonal = join(racine, 'entretien.sonal')
-    await choisirFormat(page, '.sonal')
+    await choisirFormat(app, page, '.sonal')
     await destination(app, sonal)
     await page.locator('.actions .exporter').click()
     await attendreFichier(sonal)
@@ -179,7 +179,7 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     expect(contenuSonal).not.toContain('Karine évoque son déménagement.')
 
     const srt = join(racine, 'entretien.srt')
-    await choisirFormat(page, '.srt')
+    await choisirFormat(app, page, '.srt')
     await destination(app, srt)
     await page.locator('.actions .exporter').click()
     await attendreFichier(srt)
@@ -189,7 +189,7 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     expect(contenuSrt).toContain('Karine: Elle parle souvent')
 
     const vtt = join(racine, 'entretien.vtt')
-    await choisirFormat(page, '.vtt')
+    await choisirFormat(app, page, '.vtt')
     await destination(app, vtt)
     await page.locator('.actions .exporter').click()
     await attendreFichier(vtt)
@@ -200,7 +200,7 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     expect(contenuVtt).not.toContain('Adresse privée')
 
     const docx = join(racine, 'entretien.docx')
-    await choisirFormat(page, '.docx')
+    await choisirFormat(app, page, '.docx')
     await destination(app, docx)
     await page.locator('.actions .exporter').click()
     await attendreFichier(docx)
@@ -213,13 +213,42 @@ test('manuel : choisir un format, contrôler les contenus et exporter les sept f
     expect(xmlDocx).not.toContain('Code interne')
 
     const pdf = join(racine, 'entretien.pdf')
-    await choisirFormat(page, '.pdf')
+    await choisirFormat(app, page, '.pdf')
     await destination(app, pdf)
     await page.locator('.actions .exporter').click()
     await attendreFichier(pdf)
     const contenuPdf = readFileSync(pdf)
     expect(contenuPdf.subarray(0, 5).toString()).toBe('%PDF-')
     expect(contenuPdf.length).toBeGreaterThan(5_000)
+  } finally {
+    await app.close()
+  }
+})
+
+test('l’export individuel reste disponible en lecture seule sans modifier l’entretien', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-export-lecture-'))
+  preparerCorpus(join(profil, 'corpus'))
+  const app = await lancer(profil)
+  try {
+    const page = await app.firstWindow()
+    await entrerCorpus(page)
+    const fichier = join(profil, 'corpus/entretiens/e1.json')
+    const avant = readFileSync(fichier, 'utf8')
+    await app.evaluate(({ ipcMain }, data) => {
+      ipcMain.removeHandler('corpus:ouvrirEntretienPourEdition')
+      ipcMain.handle('corpus:ouvrirEntretienPourEdition', () => ({
+        ok: true, acces: 'lecture-seule', verrouTenuParAutrui: null, data,
+      }))
+    }, JSON.parse(avant))
+    await entrerEntretien(page)
+    await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
+    await choisirFormat(app, page, '.txt')
+    const sortie = join(profil, 'export-lecture.txt')
+    await destination(app, sortie)
+    await page.locator('.actions .exporter').click()
+    await attendreFichier(sortie)
+    expect(readFileSync(sortie, 'utf8')).toContain('Nadia')
+    expect(readFileSync(fichier, 'utf8')).toBe(avant)
   } finally {
     await app.close()
   }

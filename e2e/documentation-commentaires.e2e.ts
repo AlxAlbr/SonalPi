@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import { lancer, attendreAccueil, selectionner, retourCorpus, entrerCorpus, entrerEntretien } from './util'
+import { lancer, attendreAccueil, selectionner, retourCorpus, entrerCorpus, entrerEntretien, ouvrirExportEntretien } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 const passage = 'ça devait être en 2012'
@@ -42,7 +42,7 @@ async function exporterSonal(app: Awaited<ReturnType<typeof lancer>>, page: Page
   await app.evaluate(({ dialog }, sortie) => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: sortie })
   }, chemin)
-  await page.getByRole('button', { name: 'Exporter cet entretien', exact: true }).click()
+  await ouvrirExportEntretien(app, page)
   await page.locator('.ligne-format', { hasText: '.sonal' }).click()
   await page.locator('.actions .exporter').click()
   await expect.poll(() => existsSync(chemin)).toBe(true)
