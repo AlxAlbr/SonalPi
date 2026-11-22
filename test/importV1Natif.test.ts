@@ -29,7 +29,7 @@ describe('préparation privée des imports V1 au format natif cible', () => {
     const avant = structuredClone({ source, definitions, regles, params })
     const corpus = preparerCorpusImportV1('Mon terrain', source, definitions.codebook, definitions.variables, regles, params)
     validerCorpusNatif(corpus)
-    expect(corpus.formatVersion).toBe(10)
+    expect(corpus.formatVersion).toBe(2)
     expect(corpus).not.toHaveProperty("personnes")
     expect(corpus.locuteurs).toEqual({})
     expect(corpus.meta?.sourceV1).toEqual(source)
@@ -54,7 +54,7 @@ describe('préparation privée des imports V1 au format natif cible', () => {
       const preparation = preparerEntretienImportV1({}, source, date, () => `identite-${++numero}`)
       const entretien = preparation.entretien
       validerEntretienNatif(entretien)
-      expect(entretien.formatVersion).toBe(10)
+      expect(entretien.formatVersion).toBe(2)
       expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.lastModified).toBe(date)
       expect(preparation.locuteurs).toHaveLength(source.participations.length)

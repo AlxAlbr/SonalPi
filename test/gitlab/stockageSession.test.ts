@@ -9,9 +9,9 @@ describe('stockage local de session GitLab', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-stockage-session-'))
     try {
       const stockage = new StockageLocalEntretienGitLab(dir, 'entretiens/e1.json')
-      await stockage.ecrire('{"formatVersion":8}')
-      await expect(stockage.lire()).resolves.toBe('{"formatVersion":8}')
-      expect(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).toBe('{"formatVersion":8}')
+      await stockage.ecrire('{"formatVersion":2}')
+      await expect(stockage.lire()).resolves.toBe('{"formatVersion":2}')
+      expect(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).toBe('{"formatVersion":2}')
       expect(statSync(join(dir, 'entretiens/e1.json')).mode & 0o777).toBe(0o600)
     } finally {
       rmSync(dir, { recursive: true, force: true })

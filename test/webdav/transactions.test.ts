@@ -98,34 +98,34 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
   return JSON.parse(serveur.contenuDe('corpus.crp')!) as CorpusFichier
 }
 
-describe('Refus des anciens formats distants', () => {
-  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('refuse la v%i sans modifier le serveur ni installer de documents incompatibles', async (version) => {
+describe('Refus des documents distants incompatibles', () => {
+  it.each([1, 99])('refuse une version native incompatible %i sans modifier le serveur ni installer les documents', async (formatVersion) => {
     const serveur = new ServeurWebDAVMemoire()
-    const corpusV4 = JSON.parse(corpusInitial()) as CorpusFichier
-    corpusV4.formatVersion = version
-    if (version >= 5) corpusV4.cas = { c1: {
+    const corpusIncompatible = JSON.parse(corpusInitial()) as CorpusFichier
+    corpusIncompatible.formatVersion = formatVersion
+    corpusIncompatible.cas = { c1: {
       id: 'c1', nom: 'Existant', memo: 'Mémo', creeLe: '2026-01-01T00:00:00.000Z', modifieLe: '2026-01-01T00:00:00.000Z',
       regles: [
         { type: "locuteur", locuteurId: 'p1', inclureEnqueteurs: false },
         { type: "locuteur", locuteurId: 'p2', inclureEnqueteurs: true },
       ], rattachements: [{ id: 'r1', creeLe: '2026-01-01T00:00:00.000Z', provenance: 'manuel', source: { entretienId: 'e1', repereId: 'p1' } }],
     } }
-    corpusV4.recueils = {
+    corpusIncompatible.recueils = {
       r1: {
         id: 'r1', nom: 'Synthèse', creeLe: '2026-01-01T00:00:00.000Z',
         modifieLe: '2026-01-01T00:00:00.000Z', modeTexte: 'pseudonymise', items: [],
       },
     }
-    const entretienV4 = JSON.parse(entretienE1()) as EntretienFichier
-    entretienV4.formatVersion = version
-    entretienV4.reperesPassages = [{ id: 'p1', from: 1, to: 1 }]
-    serveur.poser('corpus.crp', JSON.stringify(corpusV4))
-    serveur.poser('entretiens/e1.json', JSON.stringify(entretienV4))
+    const entretienIncompatible = JSON.parse(entretienE1()) as EntretienFichier
+    entretienIncompatible.formatVersion = formatVersion
+    entretienIncompatible.reperesPassages = [{ id: 'p1', from: 1, to: 1 }]
+    serveur.poser('corpus.crp', JSON.stringify(corpusIncompatible))
+    serveur.poser('entretiens/e1.json', JSON.stringify(entretienIncompatible))
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       serveur.fetch,
     )
-    const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-migration-v7-')))
+    const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-refus-miroir-')))
     const avant = [serveur.contenuDe('corpus.crp'), serveur.contenuDe('entretiens/e1.json')]
     await expect(miroir.tirer()).rejects.toThrow('non supportée')
     expect([serveur.contenuDe('corpus.crp'), serveur.contenuDe('entretiens/e1.json')]).toEqual(avant)

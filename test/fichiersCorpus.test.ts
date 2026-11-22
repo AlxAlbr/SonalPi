@@ -24,7 +24,7 @@ afterEach(() => {
 describe('nom natif du corpus', () => {
   test('reste fixe, sans incrément de version', () => {
     expect(NOM_FICHIER_CORPUS).toBe('corpus.crp')
-    expect(FORMAT_VERSION).toBe(10)
+    expect(FORMAT_VERSION).toBe(2)
   })
 
   test('création, transactions et réouverture gardent les entretiens en JSON séparés', () => {

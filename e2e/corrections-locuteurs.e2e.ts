@@ -74,7 +74,7 @@ test('les corrections traversent IPC avec des ids corpus et des participations c
     expect(resultat.dissocies[0].participations[0].locuteurRef).not.toBe(resultat.commun)
     expect(resultat.dissocies[1].participations[0].locuteurRef).toBe(resultat.commun)
     for (const [i, entretien] of resultat.dissocies.entries()) {
-      expect(entretien.formatVersion).toBe(10)
+      expect(entretien.formatVersion).toBe(2)
       expect(entretien).not.toHaveProperty('locuteurs')
       expect(entretien.corpsTexte).toEqual(resultat.avant[i].corpsTexte)
       expect(entretien.notes).toEqual(resultat.avant[i].notes)

@@ -103,7 +103,7 @@ import {
   type InverseJournalCorpus,
 } from './journalCorpus'
 
-/** Les documents sont validés avant écriture ; l'ouverture ne convertit aucun ancien format natif. */
+/** Les documents V2 sont validés avant écriture ; l'import V1 reste une action distincte. */
 
 import {
   FORMAT_VERSION,
@@ -415,7 +415,7 @@ export class CorpusStore {
     return join(this.entretiensDir, `${id}.json`)
   }
 
-  /** Dossier des dérivés PNG (waveform) : `<corpus>/png/` (v3 ; ex-`audio/`). */
+  /** Dossier des formes d'onde dérivées : `<corpus>/png/`. */
   private get pngDir() {
     return join(this.dir, 'png')
   }
@@ -1738,7 +1738,7 @@ export class CorpusStore {
       if (this.ecrituresAutorisees.has(id)) throw new Error('Un entretien cible est ouvert en édition. Fermez-le et recalculez l’aperçu.')
       const source = instantane.entretiens.find((e) => e.id === id)
       if (!source?.ok || empreinteCorrespondance(source.avant) !== preparation.empreintesEntretiens[id]) throw new Error('Un entretien cible a changé ou est indisponible. Recalculez avant d’importer.')
-      if (source.avant.formatVersion < 3) throw new Error('Enregistrez cet ancien entretien dans le format actuel avant d’importer des correspondances locales.')
+      if (!versionSupportee(source.avant.formatVersion)) throw new Error('Cet entretien n’est pas compatible. Recréez le corpus avant d’importer des correspondances locales.')
       entretiens[id] = source.avant
     }
     const global = appliquerImportCorrespondances(instantane.corpus.reglesAnon, preparation.lignes, preparation.choix, () => genId('reg'))

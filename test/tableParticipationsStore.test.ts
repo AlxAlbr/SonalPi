@@ -129,8 +129,8 @@ describe('table et écritures locales par participation', () => {
     expect(readFileSync(b.fichier, 'utf8')).toBe(avant)
   })
 
-  test('la table ne publie pas un document d’un ancien format de développement', () => {
-    const b = banc(), data = { ...b.lire(), formatVersion: 9 }
+  test('la table ne publie pas un document de version native inconnue', () => {
+    const b = banc(), data = { ...b.lire(), formatVersion: 99 }
     writeFileSync(b.fichier, JSON.stringify(data))
     const avant = readFileSync(b.fichier, 'utf8')
     expect(() => b.store.poserValeur('e1', b.item().cible, b.idVar, b.idMod)).toThrow('Version native non supportée')

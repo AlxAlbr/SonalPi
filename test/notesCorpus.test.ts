@@ -7,7 +7,7 @@ import { etatNoteJournal, inventorierNotes } from '../src/shared/corpus/notes'
 import type { CorpusFichier, EntretienFichier, Note } from '../src/shared/format'
 
 const corpus: CorpusFichier = {
-  formatVersion: 10,
+  formatVersion: 2,
   nom: 'Corpus',
   codebook: {},
   variables: {},
@@ -34,7 +34,7 @@ function note(patch: Partial<Note> = {}): Note {
 
 function entretien(notes: Note[], commentaireId = 'c1'): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '2025-01-01T10:00:00.000Z',
     corpsTexte: {
       type: 'doc',

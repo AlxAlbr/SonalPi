@@ -49,7 +49,7 @@ const CHEMIN_CORPUS = `${RACINE}/corpus.crp`
 
 function entretien(texte: string, reperes: string[] = [], lastModified = '2026-01-01T10:00:00.000Z') {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified,
     corpsTexte: {
       type: 'doc',
@@ -496,7 +496,7 @@ describe('tri par contenu', () => {
 
   test('un entretien illisible suspend le tri sans commit', async () => {
     const fichiers = corpusTri()
-    fichiers.set(`${RACINE}/entretiens/e2.json`, JSON.stringify({ formatVersion: 2 }))
+    fichiers.set(`${RACINE}/entretiens/e2.json`, JSON.stringify({ formatVersion: 99 }))
     const { transactions, depot } = banc(fichiers)
 
     await expect(transactions.trierEntretiens('modif', async () => {}))

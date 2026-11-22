@@ -24,7 +24,7 @@ function preparer() {
 }
 function entretien(): EntretienFichier {
   return {
-    formatVersion: 10, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
+    formatVersion: 2, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
     meta: { valeursGen: {}, audioRef: null },
     participations: [
       { id: 'l1', index: 0, nom: 'Marie', valeursLoc: { age: '29' }, locuteurRef: null },

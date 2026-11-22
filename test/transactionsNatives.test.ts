@@ -94,8 +94,8 @@ describe('écriture native par le journal de transactions existant', () => {
     injections.apresRenommage = undefined
     const journal = b.lire('.transaction-fichiers.json')
     expect(journal.formatVersion).toBe(1)
-    expect(journal.plan.corpusAvant.formatVersion).toBe(10)
-    expect(journal.plan.entretien.formatVersion).toBe(10)
+    expect(journal.plan.corpusAvant.formatVersion).toBe(2)
+    expect(journal.plan.entretien.formatVersion).toBe(2)
     expect(b.transactions().reprendre()).toBe(true)
     expect(b.transactions().reprendre()).toBe(false)
     expect(b.lire('corpus.crp')).toEqual(b.plan.corpusApres)
@@ -115,8 +115,8 @@ describe('écriture native par le journal de transactions existant', () => {
   test.each(['version-corpus', 'version-entretien', 'identite-absente', 'identite-dupliquee', 'note-globale'])(
     'refuse un plan incohérent avant tout journal ou écriture : %s', (cas) => {
       const b = preparer()
-      if (cas === 'version-corpus') Object.assign(b.plan.corpusAvant, { formatVersion: 9 })
-      if (cas === 'version-entretien') Object.assign(b.plan.entretien, { formatVersion: 9 })
+      if (cas === 'version-corpus') Object.assign(b.plan.corpusAvant, { formatVersion: 99 })
+      if (cas === 'version-entretien') Object.assign(b.plan.entretien, { formatVersion: 99 })
       if (cas === 'identite-absente') b.plan.entretien.participations[0].locuteurRef = 'absente'
       if (cas === 'identite-dupliquee') b.plan.entretien.participations[1].locuteurRef = b.plan.entretien.participations[0].locuteurRef
       if (cas === 'note-globale') b.plan.entretien.notes![0].participationIds = [b.plan.entretien.participations[0].locuteurRef!]
@@ -127,11 +127,23 @@ describe('écriture native par le journal de transactions existant', () => {
     },
   )
 
-  test('le mode natif ne rejoue pas une ancienne intention au seul motif que son journal est reconnu', () => {
+  test('un journal reconnu ne permet pas de reprendre un entretien V2 malformé', () => {
     const b = preparer()
-    const ancien = { operation: 'ajout', id: 'ancien', corpusAvant: squeletteCorpus(), corpusApres: squeletteCorpus(),
-      entretien: { formatVersion: 9, locuteurs: [] } }
-    writeFileSync(join(b.dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan: ancien }))
+    const incompatible = { operation: 'ajout', id: 'incompatible', corpusAvant: squeletteCorpus(), corpusApres: squeletteCorpus(),
+      entretien: { formatVersion: 2, locuteurs: [] } }
+    writeFileSync(join(b.dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan: incompatible }))
+    const avant = b.fichiers()
+    expect(() => b.transactions().reprendre()).toThrow('Participations de l’entretien invalides')
+    expect(b.fichiers()).toEqual(avant)
+  })
+
+  test.each(['corpus', 'entretien'] as const)('refuse une reprise du %s de version inconnue sans changer aucun fichier', (type) => {
+    const b = preparer()
+    if (type === 'corpus') {
+      b.plan.corpusAvant.formatVersion = 99
+      b.plan.corpusApres.formatVersion = 99
+    } else b.plan.entretien.formatVersion = 99
+    writeFileSync(join(b.dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan: b.plan }))
     const avant = b.fichiers()
     expect(() => b.transactions().reprendre()).toThrow('Version native non supportée')
     expect(b.fichiers()).toEqual(avant)

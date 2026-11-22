@@ -265,7 +265,7 @@ export class CorrespondancesWebDAV {
       const data = JSON.parse(contenu) as EntretienFichier
       if (data?.formatVersion !== FORMAT_VERSION) throw new Error()
       return data
-    } catch { throw new Error('Enregistrez cet entretien dans le format actuel avant l’import WebDAV.') }
+    } catch { throw new Error('Cet entretien n’est pas compatible. Recréez le corpus à partir de ses sources.') }
   }
   private serialiser(data: unknown, avant: string): string {
     const contenu = JSON.stringify(data, null, 2)

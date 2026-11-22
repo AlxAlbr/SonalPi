@@ -9,7 +9,7 @@ function payload(): PayloadEntretien {
       { id: 'b', index: 11, nom: 'Autre nom', locuteurRef: null, valeursLoc: {} },
     ], meta: { valeursGen: {}, audioRef: null }, notes: [], legacy: { notes: 'À conserver' } }
 }
-function fichier(p: PayloadEntretien): EntretienFichier { return { ...structuredClone(p), formatVersion: 10, lastModified: '2026-01-01T00:00:00Z' } }
+function fichier(p: PayloadEntretien): EntretienFichier { return { ...structuredClone(p), formatVersion: 2, lastModified: '2026-01-01T00:00:00Z' } }
 
 test('seuls les noms de l’identité ciblée changent, sans dépendre de l’ordre des propriétés JSON', () => {
   const avant = payload(), apres = fichier(avant)

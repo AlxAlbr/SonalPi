@@ -60,12 +60,12 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(enfants.every((c) => c.couleur === '#ffffff')).toBe(true) // soulignement invisible
   })
 
-  test('refuse le format 8 sans réécrire ses réglages Lexico', () => {
+  test('refuse une version inconnue sans réécrire ses réglages Lexico', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-lexico-v8-'))
     new CorpusStore(dir).ouvrir()
     const chemin = join(dir, 'corpus.crp')
     const ancien = JSON.parse(readFileSync(chemin, 'utf8'))
-    ancien.formatVersion = 8
+    ancien.formatVersion = 99
     delete ancien.lexico
     writeFileSync(chemin, JSON.stringify(ancien, null, 2))
 
@@ -245,7 +245,7 @@ describe('CorpusStore — version du format natif', () => {
     expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
   })
 
-  test.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('un entretien natif de développement %i est refusé sans conversion', (formatVersion) => {
+  test.each([1, 99])('un entretien de version native incompatible %i est refusé sans conversion', (formatVersion) => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const fichier = join(dir, 'entretiens/e1.json')
@@ -327,7 +327,7 @@ describe('CorpusStore — cycle de vie du membership', () => {
   })
 })
 
-describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
+describe('CorpusStore — audio par référence', () => {
   /** Crée un WAV factice (pas décodé — juste pour existsSync) hors du corpus. */
   function audioExterne(dir: string, nom = 'ent.wav'): string {
     const chemin = join(dir, 'sources', nom)
@@ -539,8 +539,8 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
   })
 })
 
-describe('CorpusStore — refus des corpus de développement', () => {
-  test.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('le format %i ne déplace ni audio ni forme d’onde et ne modifie aucun document', (formatVersion) => {
+describe('CorpusStore — refus des corpus incompatibles', () => {
+  test.each([1, 99])('une version native incompatible %i ne déplace ni média ni forme d’onde et ne modifie aucun document', (formatVersion) => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const chemin = join(dir, 'corpus.crp')

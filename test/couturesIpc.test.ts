@@ -13,7 +13,7 @@ function dossierTemporaire(prefixe: string): string {
 
 function corpusVide(nom: string): CorpusFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     nom,
     codebook: {},
     variables: {},

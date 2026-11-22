@@ -60,7 +60,7 @@ test('un seul nom, migration complète sans bilan, médias internes copiés et C
     expect(existsSync(source.cheminCrp)).toBe(false)
     expect(readFileSync(`${source.cheminCrp}.sauvegarde-v1`)).toEqual(source.original)
     const c = corpus(cible)
-    expect(c.formatVersion).toBe(10)
+    expect(c.formatVersion).toBe(2)
     expect(c.nom).toBe('MonCorpus')
     expect(c.meta).toEqual({ sourceV1: { cheminCrp: source.cheminCrp, dateCreation: null } })
     expect(Object.keys(c.codebook).sort()).toEqual(['cat_001', 'cat_002', 'cat_003', 'cat_005', 'cat_006'])

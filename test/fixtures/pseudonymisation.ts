@@ -1,4 +1,4 @@
-import type { EntretienFichier, RegleAnon } from '../../src/shared/format'
+import { FORMAT_VERSION, type EntretienFichier, type RegleAnon } from '../../src/shared/format'
 
 /** Corpus synthétique sans données personnelles réelles, partagé par les recettes. */
 export function fixturePseudonymisation(): { regles: RegleAnon[]; entretiens: { id: string; data: EntretienFichier }[] } {
@@ -11,7 +11,7 @@ export function fixturePseudonymisation(): { regles: RegleAnon[]; entretiens: { 
   ]
   const texte = 'Lyon. Lyons. Karine. Karine. Marseille. Rue de la Gare. Local.'
   const data: EntretienFichier = {
-    formatVersion: 10, lastModified: '2026-10-08T00:00:00.000Z',
+    formatVersion: FORMAT_VERSION, lastModified: '2026-10-08T00:00:00.000Z',
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: texte }] }] },
     annotations: [], ancres: [], meta: { valeursGen: {}, audioRef: null },
     participations: [{ id: "loc-0", index: 0, nom: 'Locuteur synthétique sans tour', pseudo: 'Voix témoin', pseudoEtat: 'confirme', valeursLoc: {}, locuteurRef: null }],

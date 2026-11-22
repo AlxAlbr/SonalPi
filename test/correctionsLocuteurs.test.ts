@@ -28,7 +28,7 @@ function preparer() {
     const ref = store.creerEntretienVide(`Entretien ${i + 1}`)
     const locuteurId = `loc-${i}`
     const data: EntretienFichier = {
-      formatVersion: 10, lastModified: '',
+      formatVersion: 2, lastModified: '',
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 0 }, content: [{ type: 'text', text: `Paroles ${i}` }] }] },
       ancres: [{ pos: 1, t: 0 }], annotations: [],
       meta: { valeursGen: {}, audioRef: null },
@@ -351,7 +351,7 @@ test('la dissociation vérifie tous les identifiants générés avant de modifie
   const entretiens = ['a', 'b', 'c'].map((id) => ({
     id, titre: id,
     data: {
-      formatVersion: 10, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
+      formatVersion: 2, lastModified: '', corpsTexte: {}, annotations: [], ancres: [],
       meta: { valeursGen: {}, audioRef: null },
       participations: [{ id, index: 0, nom: 'Même nom', locuteurRef: 'p', valeursLoc: {} }],
     } satisfies EntretienFichier,

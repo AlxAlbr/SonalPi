@@ -65,7 +65,7 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     if (!analyse.ok) return
     const { raw } = analyse.apercu
     expect(raw.tabEnt).toHaveLength(3)
-    // rtrPath relatif, audioPath ABSOLU (déjà au format v3)
+    // Le chemin de transcription est relatif, celui de l’audio est absolu.
     expect(raw.tabEnt![1].rtrPath).toBe('entretien2.sonal')
     expect(raw.tabEnt![1].audioPath).toBe('/home/user/Corpus/Source/audio/E1.mp3')
     expect(raw.tabEnt![1].imgPath).toBe('E1.png')
@@ -298,7 +298,7 @@ describe('mapperDefinitions + fusionnerImport', () => {
     expect(variables).toHaveLength(3)
 
     const corpus: CorpusFichier = {
-      formatVersion: 10,
+      formatVersion: 2,
       codebook: {},
       variables: {},
       reglesAnon: {},

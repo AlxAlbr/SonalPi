@@ -17,7 +17,7 @@ function banc() {
   const store = new CorpusStore(dir); store.ouvrir()
   const references = ['A', 'B', 'C'].map((titre) => {
     const { id } = store.creerEntretienVide(titre)
-    const fichier: EntretienFichier = { formatVersion: 10, lastModified: '',
+    const fichier: EntretienFichier = { formatVersion: 2, lastModified: '',
       corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: 7 }, content: [{ type: 'text', text: `Paroles ${titre}` }] }] },
       annotations: [], ancres: [{ pos: 1, t: 0 }], meta: { valeursGen: {}, audioRef: null },
       participations: [{ id: 'local', index: 7, nom: 'Enquêteur', pseudo: `Pseudo ${titre}`, interviewer: false, couleur: '#123456', valeursLoc: { v: 'm' }, locuteurRef: null }],

@@ -142,7 +142,7 @@ describe('transition de contexte préparée', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-transition-v2-'))
     const maintenant = '2024-01-01T00:00:00.000Z'
     const corpus: CorpusFichier = {
-      formatVersion: 10,
+      formatVersion: 2,
       codebook: {},
       variables: {},
       reglesAnon: {},
@@ -150,7 +150,7 @@ describe('transition de contexte préparée', () => {
       membership: { e1: { titre: 'E1', date: null, lastModified: maintenant } },
     }
     const entretien: EntretienFichier = {
-      formatVersion: 10,
+      formatVersion: 2,
       lastModified: maintenant,
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],
@@ -224,7 +224,7 @@ describe('transition de contexte préparée', () => {
     const store = new CorpusStore(dir)
     const preparation = store.preparerOuverture('Préparé')
     ecrireJson(join(dir, 'corpus.crp'), {
-      formatVersion: 10,
+      formatVersion: 2,
       codebook: {},
       variables: {},
       reglesAnon: {},

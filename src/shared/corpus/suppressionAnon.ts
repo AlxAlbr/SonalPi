@@ -36,7 +36,7 @@ export type SourceSuppressionAnon = SourceRenommageAnon
 /** Seul le lien explicite attribue une décision à la règle supprimée. */
 export function inventorierSuppressionAnon(corpus: CorpusFichier, sources: SourceSuppressionAnon[], demande: DemandeSuppressionAnon): InventaireSuppressionAnon {
   if (!demande || typeof demande.regleId !== 'string' || !Object.hasOwn(corpus.reglesAnon ?? {}, demande.regleId)) throw new Error('La règle à supprimer est absente ou la demande est invalide.')
-  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Enregistrez le corpus au format actuel avant une suppression globale.')
+  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Cette opération nécessite un corpus V2 compatible.')
   if (corpus.dissociationAnon !== undefined) throw new Error('Une dissociation est engagée. Aucun retrait de règle autorisé.')
   exigerAbsenceSuppressionAnon(corpus)
   const regle = structuredClone(corpus.reglesAnon[demande.regleId])

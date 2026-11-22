@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 
 /**
  *  Seed de DÉMO « Karine » — l'EX-amorçage produit, retiré du store (S8 rév. :
@@ -17,7 +17,7 @@ export function ecrireSeedDemo(dirCorpus: string, avecIdsStables = false): void 
   const now = new Date().toISOString()
   const blanc = '#ffffff'
   const corpus: CorpusFichier = {
-    formatVersion: 10,
+    formatVersion: FORMAT_VERSION,
     codebook: {
       cat_001: { id: 'cat_001', nom: 'Famille', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
       cat_002: { id: 'cat_002', nom: 'Travail', ordre: 1, parent: null, actif: true, codeExport: 'cat_002' },
@@ -33,7 +33,7 @@ export function ecrireSeedDemo(dirCorpus: string, avecIdsStables = false): void 
     membership: { e1: { titre: 'Entretien Karine', date: null, lastModified: now } },
   }
   const e1: EntretienFichier = {
-    formatVersion: 10,
+    formatVersion: FORMAT_VERSION,
     lastModified: now,
     corpsTexte: {
       type: 'doc',

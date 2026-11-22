@@ -69,5 +69,5 @@ lorsqu'il fonctionne. N'arrêtez pas un banc qui peut resservir pendant la sessi
   <branche>...origin/<branche>`. Détails : `docs/dev/outillage/git-remotes.md`.
 - Le dépôt est public. Ne pas pousser de secrets, données privées ou artefacts :
   `out/`, `dist/`, `release/`, `node_modules/` et les résultats de tests restent locaux.
-- La livraison stable V2 vise `2.0.0`, mais la version actuelle reste inchangée.
+- La version applicative V2 est `2.0.0` ; le format natif `2` évolue indépendamment.
   Ne créer aucun tag ni release V2 dans le circuit stable V1 sans validation explicite.

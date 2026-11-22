@@ -122,7 +122,7 @@ describe('journal de publication GitLab', () => {
   test('sépare les métadonnées du candidat et permet de le recharger', () => {
     const { root, journal } = creerJournal()
     try {
-      const action = actionCreate('{"formatVersion":10}')
+      const action = actionCreate('{"formatVersion":2}')
       journal.preparer({
         operationId: 'operation-journal-1',
         nature: 'session-entretien',
@@ -155,7 +155,7 @@ describe('journal de publication GitLab', () => {
     const depot = new DepotJournal()
     const gardeCommit = 'a'.repeat(40)
     depot.fichiers.set('entretiens/e1.json', {
-      contenu: '{"formatVersion":10}',
+      contenu: '{"formatVersion":2}',
       commitId: gardeCommit,
       executable: false,
     })
@@ -163,7 +163,7 @@ describe('journal de publication GitLab', () => {
       {
         action: 'create',
         file_path: 'corpus.crp',
-        content: '{"formatVersion":10}',
+        content: '{"formatVersion":2}',
       },
       {
         action: 'chmod',
@@ -193,7 +193,7 @@ describe('journal de publication GitLab', () => {
       await expect(new ReconciliateurPublicationGitLab(depot, journal).reconcilier(entree))
         .resolves.toEqual({ statut: 'confirme', commitId: commit.id })
       expect(depot.fichiers.get('entretiens/e1.json')).toMatchObject({
-        contenu: '{"formatVersion":10}',
+        contenu: '{"formatVersion":2}',
         commitId: gardeCommit,
         executable: false,
       })

@@ -57,7 +57,7 @@ function ecrireEntretienVide(dir: string, id: string): void {
     join(dir, 'corpus', 'entretiens', `${id}.json`),
     JSON.stringify(
       {
-        formatVersion: 10,
+        formatVersion: 2,
         lastModified: now,
         corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
         annotations: [],

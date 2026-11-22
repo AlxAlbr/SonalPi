@@ -38,7 +38,7 @@ export type SourceDissociationAnon = SourceRenommageAnon
 /** Retire le lien partagé sans changer les choix, positions, états ni identités des décisions. */
 export function inventorierDissociationAnon(corpus: CorpusFichier, sources: SourceDissociationAnon[], demande: DemandeDissociationAnon): InventaireDissociationAnon {
   if (!demande || typeof demande.regleId !== 'string' || !Object.hasOwn(corpus.reglesAnon ?? {}, demande.regleId)) throw new Error('La règle à dissocier est absente ou la demande est invalide.')
-  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Enregistrez le corpus au format actuel avant une dissociation globale.')
+  if (corpus.formatVersion !== FORMAT_VERSION) throw new Error('Cette opération nécessite un corpus V2 compatible.')
   const regle = structuredClone(corpus.reglesAnon[demande.regleId])
   const definition = validerDefinitionAnon(regle.entite, regle.pseudos, regle.categorie)
   if (regle.id !== demande.regleId || JSON.stringify(regle.entite) !== JSON.stringify(definition.entite)

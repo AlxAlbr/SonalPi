@@ -359,9 +359,9 @@ describe('parcours local du store', () => {
     expect(banc.lire('corpus.crp').codebook.source).toBeDefined()
   })
 
-  test('un entretien d’un ancien format bloque l’opération sans être converti', () => {
+  test('un entretien de version native inconnue bloque l’opération sans être modifié', () => {
     const banc = bancDisque()
-    const ancien = { ...entretien(), formatVersion: 2 }
+    const ancien = { ...entretien(), formatVersion: 99 }
     banc.ecrire('entretiens/e1.json', ancien)
     const avant = readFileSync(join(banc.dir, 'entretiens/e1.json'), 'utf8')
     const apercu = banc.store.analyserOperationTheme(transfert)

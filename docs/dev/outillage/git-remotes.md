@@ -80,7 +80,7 @@ son état actuel. `git status origin/main` ne compare pas deux branches : utilis
   Le `.gitignore` n'exclut pas les fichiers déjà suivis.
 - `out/`, `dist/`, `release/`, `node_modules/` et les résultats de tests restent
   locaux ; les artefacts de fabrication ne sont pas poussés avec le code.
-- La version stable V2 visée est `2.0.0`, pas une release à créer pendant l'import.
+- La version applicative V2 est `2.0.0` ; ce numéro ne constitue pas une release.
   Les tags de livraison et le remplacement futur de la V1 nécessitent une décision
   explicite, notamment pour ne pas diffuser une V2 expérimentale via l'updater V1.
 

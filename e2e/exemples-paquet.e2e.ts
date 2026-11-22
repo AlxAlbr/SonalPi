@@ -17,6 +17,7 @@ for (const exemple of [
     const app = await lancer(join(racine, 'profil'), { executablePath })
     try {
       expect(await app.evaluate(({ app }) => app.isPackaged)).toBe(true)
+      expect(await app.evaluate(({ app }) => app.getVersion())).toBe('2.0.0')
       const page = await app.firstWindow()
       await attendreAccueil(page)
       const sources = join(racine, 'sources'), corpus = join(racine, 'corpus')
@@ -31,10 +32,12 @@ for (const exemple of [
       await expect(installation).toHaveCount(0)
       await expect(page.locator(exemple.annote ? '.espace-analyse' : '.corpus-ecran')).toBeVisible()
       const c = JSON.parse(readFileSync(join(corpus, 'corpus.crp'), 'utf8'))
+      expect(c.formatVersion).toBe(2)
       expect(Object.keys(c.membership)).toHaveLength(4)
       let annotations = 0
       for (const id of Object.keys(c.membership)) {
         const entretien = JSON.parse(readFileSync(join(corpus, 'entretiens', `${id}.json`), 'utf8'))
+        expect(entretien.formatVersion).toBe(2)
         expect(entretien.meta.audioRef.startsWith(sources)).toBe(true)
         expect(existsSync(entretien.meta.audioRef)).toBe(true)
         annotations += entretien.annotations.length

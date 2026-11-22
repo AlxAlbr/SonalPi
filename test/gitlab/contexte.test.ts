@@ -211,7 +211,7 @@ describe('contexte GitLab en lecture seule', () => {
       modalites: [{ id: 'm1', lib: 'Oui', mExport: 1 }],
     }
     const entretien: EntretienFichier = {
-      formatVersion: 10,
+      formatVersion: 2,
       lastModified: '2026-01-01T00:00:00.000Z',
       corpsTexte: { type: 'doc', content: [] },
       annotations: [],

@@ -12,8 +12,8 @@ import { ClientWebDAV } from '../../src/main/webdav/client'
 const ID = 'ent-demo-multi'
 test('diagnostic du verrou natif avec le compte max', async () => {
   const c = new ClientWebDAV({ baseUrl: 'http://localhost:8080/remote.php/dav/files/max/MonCorpus', identifiants: { utilisateur: 'max', motDePasse: 'max-max-1234' } })
-  await c.putTexte('corpus.crp', JSON.stringify({ formatVersion: 10, nom: 'Démo', codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {}, membership: { [ID]: { titre: 'Entretien partagé', date: null, lastModified: '2026-01-01T00:00:00Z' } } }))
-  await c.putTexte(`entretiens/${ID}.json`, JSON.stringify({ formatVersion: 10, lastModified: '2026-01-01T00:00:00Z', corpsTexte: { type: 'doc', content: [] }, annotations: [], ancres: [], participations: [], brouillonsAnon: [], meta: { valeursGen: {}, audioRef: null } }))
+  await c.putTexte('corpus.crp', JSON.stringify({ formatVersion: 2, nom: 'Démo', codebook: {}, variables: {}, reglesAnon: {}, locuteurs: {}, membership: { [ID]: { titre: 'Entretien partagé', date: null, lastModified: '2026-01-01T00:00:00Z' } } }))
+  await c.putTexte(`entretiens/${ID}.json`, JSON.stringify({ formatVersion: 2, lastModified: '2026-01-01T00:00:00Z', corpsTexte: { type: 'doc', content: [] }, annotations: [], ancres: [], participations: [], brouillonsAnon: [], meta: { valeursGen: {}, audioRef: null } }))
 
   const app = await lancer(mkdtempSync(join(tmpdir(), 'diagV-')))
   try {

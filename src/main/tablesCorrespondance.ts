@@ -103,9 +103,9 @@ export class TablesCorrespondance {
       apercu.cibles = preparerCiblesCorrespondances(apercu, instantane.corpus, Object.fromEntries(instantane.entretiens.flatMap((e) => e.ok ? [[e.id, e.data]] : [])))
       const formats = new Map(instantane.entretiens.flatMap((e) => e.ok ? [[e.id, e.avant.formatVersion] as const] : []))
       for (const cible of apercu.cibles) {
-        if ((formats.get(cible.entretienId) ?? 0) < (publie ? FORMAT_VERSION : 3)) {
+        if (formats.get(cible.entretienId) !== FORMAT_VERSION) {
           cible.actionsPossibles = []
-          cible.motif = 'Enregistrez cet ancien entretien dans le format actuel avant d’importer des correspondances locales.'
+          cible.motif = 'Cet entretien n’est pas compatible. Recréez le corpus avant d’importer des correspondances locales.'
         }
       }
       if (apercu.cibles.length > 10_000) throw new Error('L’aperçu dépasse 10 000 cibles. Réduisez le nombre de correspondances.')

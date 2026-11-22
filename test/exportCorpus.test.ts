@@ -19,7 +19,7 @@ const OPTIONS: OptionsExport = {
 /** Corpus minimal : codebook et variables DÉSORDONNÉS pour vérifier le tri. */
 function corpusFichier(): CorpusFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     codebook: {
       c2: { id: 'c2', nom: 'B', couleur: '#00ff00', ordre: 1, parent: null, actif: true, codeExport: 'B' },
       c1: { id: 'c1', nom: 'A', couleur: '#ff0000', ordre: 0, parent: null, actif: true, codeExport: 'A' },
@@ -40,7 +40,7 @@ function corpusFichier(): CorpusFichier {
 /** Fichier entretien minimal, sans champs optionnels (défauts attendus). */
 function fichierEntretien(corps?: unknown): EntretienFichier {
   return {
-    formatVersion: 10,
+    formatVersion: 2,
     lastModified: '2024-06-01T10:00:00Z',
     corpsTexte:
       corps ?? { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] },
