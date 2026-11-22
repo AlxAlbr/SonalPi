@@ -78,7 +78,7 @@ decrire('dissociation GitLab — qualification du moteur à deux comptes', () =>
       await expect(p.transactions.importerEntretien('Import lié périmé', importe, [], [], [])).rejects.toThrow('dissociation')
       await cible.fermer()
       expect(await reprise()).toMatchObject({ statut: 'termine' })
-      expect((await lire('e3')).locuteurs[0].pseudo).toBe('Choix indépendant')
+      expect((await lire('e3')).participations[0].pseudo).toBe('Choix indépendant')
     } finally { await session.fermer(); await cible.fermer(); nettoyer(p, bob) }
   })
   it('nouveau lien direct pendant le transfert : règle gardée, nouvelle préparation explicitement confirmée', { timeout: 180_000 }, async () => {

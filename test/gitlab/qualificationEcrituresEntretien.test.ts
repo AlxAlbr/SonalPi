@@ -514,6 +514,8 @@ decrire.sequential('écritures d’entretien depuis les vues corpus — instance
   })
 })
 
-describe.skip('écritures d’entretien GitLab — configuration absente', () => {
-  it('charger le fichier qualification.env et NODE_TLS_REJECT_UNAUTHORIZED=0 pour activer le banc', () => {})
-})
+if (!configurationPresente) {
+  describe.skip('écritures d’entretien GitLab — configuration absente', () => {
+    it('charger qualification.env et approuver son certificat avec NODE_EXTRA_CA_CERTS', () => {})
+  })
+}

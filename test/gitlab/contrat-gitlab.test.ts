@@ -31,6 +31,13 @@ import { JournalSessionsGitLab } from '../../src/main/gitlab/journalSession'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { SessionGitLab } from '../../src/main/gitlab/session'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
+import { entretienDistantValide } from '../webdav/fixturesCorpusDistant'
+
+function entretienSession(texte: string): string {
+  return entretienDistantValide({
+    corpsTexte: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: texte }] }] },
+  })
+}
 
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
@@ -329,8 +336,8 @@ decrire('Contrat GitLab réel', () => {
     const projet = configuration.projetLfsId as string
     const token = configuration.token1 as string
     const chemin = `qualification/${idExecution}-session-cycle.json`
-    const contenuInitial = JSON.stringify({ formatVersion: 8, cycle: 'initial' })
-    const contenuModifie = JSON.stringify({ formatVersion: 8, cycle: 'modifie' })
+    const contenuInitial = entretienSession('Session initiale')
+    const contenuModifie = entretienSession('Session modifiée')
     const creation = await publierCommit(projet, token, `qualification ${idExecution}: session initiale`, [
       { action: 'create', file_path: chemin, content: contenuInitial },
     ])
@@ -846,7 +853,7 @@ decrire('Contrat GitLab réel', () => {
           body: JSON.stringify(objet),
           signal: AbortSignal.timeout(30_000),
         })
-        expect(verification.status, detail(verification)).toBe(200)
+        expect(verification.status, 'La vérification du transfert LFS doit réussir.').toBe(200)
       }
 
       const dossier = `qualification/${idExecution}/volumineux`
@@ -1085,6 +1092,7 @@ decrire('Contrat GitLab réel', () => {
     const publieurA = new PublieurGitLab({ branche: 'main', depot, coordination: posteA })
     await expect(publieurA.publierSousDroit({
       operationId: `${idExecution}-ancienne-generation-coordonnee`,
+      nature: 'transaction-entretien',
       actions: [{ action: 'create', chemin: marqueurAncien, contenu: 'interdit' }],
     }, ancien.droit)).resolves.toEqual({ statut: 'refuse', raison: 'droit-perdu' })
     expect((await lireFichier(projetId.toString(), marqueurAncien, configuration.token1 as string)).statut).toBe(404)
@@ -1093,6 +1101,7 @@ decrire('Contrat GitLab réel', () => {
     const publieurB = new PublieurGitLab({ branche: 'main', depot, coordination: posteB })
     await expect(publieurB.publierSousDroit({
       operationId: `${idExecution}-generation-courante-coordonnee`,
+      nature: 'transaction-entretien',
       actions: [{ action: 'create', chemin: marqueurCourant, contenu: 'accepté' }],
     }, reprise.droit)).resolves.toMatchObject({ statut: 'confirme', compteurBail: 2 })
     const contenu = await lireFichier(
@@ -1195,8 +1204,8 @@ decrire('Contrat GitLab réel', () => {
     const token2 = configuration.token2 as string
     const source = `qualification/${idExecution}-session-source.json`
     const corpus = `qualification/${idExecution}-session-corpus.crp`
-    const contenuSource = JSON.stringify({ formatVersion: 8, cycle: 'source' })
-    const contenuSourceModifie = JSON.stringify({ formatVersion: 8, cycle: 'source modifie' })
+    const contenuSource = entretienSession('Source initiale')
+    const contenuSourceModifie = entretienSession('Source modifiée')
     const contenuCorpus = JSON.stringify({ membership: {} })
 
     const creation = await publierCommit(projet, token1, `qualification ${idExecution}: source et corpus`, [

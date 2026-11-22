@@ -410,7 +410,7 @@ async function bancDissociation(suffixe: string) {
   ] }) })
   const second = await api<{ id: number }>('/user', configuration.token2 as string)
   await api(`/projects/${projet.id}/members`, configuration.token1 as string, { method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }) })
-  await expect.poll(async () => { try { return (await api<{ can_push: boolean }>(`/projects/${projet.id}/repository/branches/main`, configuration.token2 as string)).can_push } catch { return false } }, { timeout: 90_000, intervals: [500, 1_000, 2_000, 5_000] }).toBe(true)
+  await expect.poll(async () => { try { return (await api<{ can_push: boolean }>(`/projects/${projet.id}/repository/branches/main`, configuration.token2 as string)).can_push } catch (erreur) { return erreur instanceof Error ? erreur.message : 'Lecture des droits impossible.' } }, { timeout: 90_000, intervals: [500, 1_000, 2_000, 5_000] }).toBe(true)
   const depot = new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: configuration.url as string, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: configuration.token1 as string } }))
   const bob = new BailGitLab({ branche: 'main', depot: new DepotCommitsGitLabClient(new ClientGitLab({ urlInstance: configuration.url as string, projetId: projet.id, autorisation: { type: 'jeton-prive', jeton: configuration.token2 as string } })), identite: () => ({ userId: String(second.id), machineId: 'qualification-bob', sessionId: suffixe }) })
   return { projet, f, depot, bob }

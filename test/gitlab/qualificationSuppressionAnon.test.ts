@@ -74,7 +74,7 @@ decrire('suppression GitLab — qualification préparatoire du moteur à deux co
       const importe = structuredClone(candidat); importe.annotations = [structuredClone(f.sources[0].data.annotations[0])]
       await expect(p.transactions.importerEntretien('Import périmé', importe, [], [], [])).rejects.toThrow('suppression')
       await cible.fermer()
-      expect(await reprise()).toMatchObject({ statut: 'termine' }); expect((await lire('e3')).locuteurs[0].pseudo).toBe('Indépendant')
+      expect(await reprise()).toMatchObject({ statut: 'termine' }); expect((await lire('e3')).participations[0].pseudo).toBe('Indépendant')
     } finally { await session.fermer(); await cible.fermer(); nettoyer(p, bob) }
   })
   it('nouveau lien direct pendant le lot : aucune extension implicite, nouvelle confirmation', { timeout: 180_000 }, async () => {

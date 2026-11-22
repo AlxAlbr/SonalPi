@@ -84,7 +84,7 @@ decrire('retrait de variante GitLab, qualification moteur à deux comptes', () =
       await session.ecrire(JSON.stringify(candidat)); await session.marquerSale(); expect((await session.publier()).statut).toBe('confirme')
       const importe = structuredClone(candidat); importe.annotations = [structuredClone(b.f.sources[0].data.annotations[2])]
       await expect(b.p.transactions.importerEntretien('Import périmé', importe, [], [], [])).rejects.toThrow('retrait')
-      await cible.fermer(); expect(await b.reprise()).toMatchObject({ statut: 'termine' }); expect((await b.lire('e3')).locuteurs[0].pseudo).toBe('Indépendant')
+      await cible.fermer(); expect(await b.reprise()).toMatchObject({ statut: 'termine' }); expect((await b.lire('e3')).participations[0].pseudo).toBe('Indépendant')
     } finally { await session.fermer(); await cible.fermer(); nettoyer(b.p, bob) }
   })
   it('nouveau choix hors protocole : deux variantes maintenues, reprise examinée seulement', { timeout: 180_000 }, async () => {

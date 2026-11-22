@@ -84,6 +84,37 @@ sur GitLab. La migration dispose d’un chemin de copie spécialisé, pas d’un
 permission générale de téléversement. Voir [gestes.md](gestes.md) et
 [migration SonalPi1](../migration/README.md#gitlab--publication-et-reprise).
 
+## Charger le banc de qualification local
+
+Le banc existant fournit `~/TestGitlabLocal/qualification.env`, hors du dépôt.
+Le `.env` à la racine du projet utilise une ancienne configuration et ne suffit
+pas à activer les qualifications actuelles. Réutiliser les comptes, projets et
+jetons du banc ; ne pas les recréer et ne pas copier ses secrets dans le dépôt.
+
+Dans pi, préparer le service avec `preparer_bancs_docker` avant les tests réels.
+Charger ensuite sa configuration dans le terminal des tests :
+
+```sh
+set -a
+. "$HOME/TestGitlabLocal/qualification.env"
+set +a
+export NODE_EXTRA_CA_CERTS="$GITLAB_CA"
+
+npx vitest run test/gitlab/contrat-gitlab.test.ts
+npx vitest run test/gitlab/qualification*.test.ts
+npx playwright test e2e/gitlab-consultation.e2e.ts --project=local --workers=1
+```
+
+Le certificat du banc doit être explicitement approuvé ; ne pas désactiver la
+vérification TLS. Avec `node --env-file`, les références comme `${GITLAB_CA}`
+ne sont pas développées : fournir `NODE_EXTRA_CA_CERTS` avant le démarrage de Node.
+Les scénarios OAuth tournent avec un seul worker, car le port de callback est fixe.
+Exécuter les campagnes REST et Electron l’une après l’autre : leurs amorçages
+partagent les branches du banc, et les nouveaux droits dépendent aussi de ses
+tâches d’arrière-plan. Des campagnes simultanées peuvent fausser ces préconditions.
+La campagne longue des baux reste une qualification supplémentaire, activée par
+`GITLAB_BAIL_CAMPAIGN=1` ; elle n’est pas incluse dans la commande de contrat ordinaire.
+
 ## Où intervenir et vérifier
 
 Tout ce qui suit est sous `src/main/gitlab/` :

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { configuration, configurationPresente, contenuDe, creerRacine, definirPrefixeBanc, lireFichier, nettoyer, ouvrirSession, pile } from './qualificationBanc'
 import { fixtureLocuteursDistants } from '../fixtures/locuteursDistants'
+import { inventorierLocuteurs } from '../../src/shared/corpus/inventaireLocuteurs'
+import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
+
+/** Le miroir du banc est volontairement incomplet ; l’aperçu vient des données publiées. */
+async function attenduPublie(racine: string): Promise<string> {
+  const jeton = configuration.token1 as string
+  const corpus: CorpusFichier = JSON.parse(contenuDe(await lireFichier(`${racine}/corpus.crp`, jeton)))
+  const entretiens = await Promise.all(Object.entries(corpus.membership).map(async ([id, reference]) => ({
+    id, titre: reference.titre,
+    data: JSON.parse(contenuDe(await lireFichier(`${racine}/entretiens/${id}.json`, jeton))) as EntretienFichier,
+  })))
+  return JSON.stringify({ ...inventorierLocuteurs(corpus, entretiens), indisponibles: [] })
+}
 
 definirPrefixeBanc('corrections-locuteurs')
 const decrire = configurationPresente ? describe : describe.skip
@@ -39,8 +52,8 @@ decrire('corrections des locuteurs sur GitLab réel', () => {
       expect(alice.store.ouvrir().locuteurs.b).toBeUndefined()
       const avant = contenuDe(await lireFichier(`${racine}/entretiens/C.json`, configuration.token1 as string))
       expect(JSON.parse(avant).participations[0]).toEqual({ ...f.entretiens[2].data.participations[0], locuteurRef: 'a' })
-      await expect(alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'a', attendu: JSON.stringify(alice.store.inventaireIdentitesLocuteurs()) }, () => {})).rejects.toThrow('Déliez')
-      await alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: JSON.stringify(alice.store.inventaireIdentitesLocuteurs()) }, () => {})
+      await expect(alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'a', attendu: await attenduPublie(racine) }, () => {})).rejects.toThrow('Déliez')
+      await alice.transactions.corrigerLocuteurs({ type: 'supprimerVide', locuteurId: 'vide', attendu: await attenduPublie(racine) }, () => {})
       expect(alice.store.ouvrir().locuteurs.vide).toBeUndefined()
       expect(contenuDe(await lireFichier(`${racine}/entretiens/C.json`, configuration.token1 as string))).toBe(avant)
     } finally { nettoyer(alice) }
