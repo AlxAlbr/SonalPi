@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import JSZip from 'jszip'
 import type { CorpusFichier } from '../src/shared/format'
-import { lancer, coderTheme, entrerCorpus, entrerEntretien, fermerAiguillage, retourCorpus, selectionner } from './util'
+import { lancer, coderTheme, entrerCorpus, entrerEntretien, fermerAiguillage, retourCorpus, selectionner, ouvrirFormulaireNoteDansPanneau } from './util'
 
 async function clicDroitSelection(page: Page) {
   const centre = await page.evaluate(() => {
@@ -28,7 +28,7 @@ async function creerCommentaire(page: Page) {
 }
 
 async function creerNote(page: Page) {
-  await page.locator('[data-onglet="notes"]').click()
+  await ouvrirFormulaireNoteDansPanneau(page)
   const formulaire = page.locator('.nouvelle-note-inline')
   await formulaire.locator('.champ-titre-note input').fill('Note avant correction')
   await formulaire.locator('.zone-corps-note').fill('Cette note sert à vérifier le Journal du corpus.')
@@ -72,15 +72,19 @@ test('manuel : distinguer Ctrl+Z et le Journal de l’entretien', async () => {
     await selectionner(page, 'Karine')
     await coderTheme(page, 'Famille')
     await page.locator('[data-onglet="locuteurs"]').click()
+    await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await page.locator('.nom-loc').nth(1).fill('Karine D.')
     await page.locator('.nom-loc').nth(1).press('Tab')
+    await expect(page.locator('.nom-loc').nth(1)).toHaveValue('Karine D.')
+    await expect(page.locator('.nom-loc').nth(1)).toBeEnabled()
+    await page.getByRole('button', { name: 'Fermer la gestion des locuteurs', exact: true }).click()
     await creerCommentaire(page)
 
     await page.locator('[data-onglet="journal"]').click()
     const journal = page.locator('.panneau.journal')
-    await expect(journal.locator('.liste-journal li')).toHaveCount(3)
+    await expect(journal.locator('.liste-journal li')).toHaveCount(2)
     await expect(journal).toContainText('Commentaire posé')
-    await expect(journal).toContainText('Locuteur renommé : Karine → Karine D.')
+    await expect(journal).not.toContainText('Locuteur renommé')
     await expect(journal).toContainText('Codage posé : Famille')
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     if (process.env.SONAL_DOC_CAPTURES === '1') {

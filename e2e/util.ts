@@ -101,6 +101,7 @@ export async function ouvrirPreparation(
   onglet: 'tableau-bord' | 'docs-cadre' | 'documents-exemples' = 'tableau-bord',
 ): Promise<void> {
   if (!(await page.locator('.espace-preparation').isVisible())) {
+    if (await page.locator('.entretien-ecran').isVisible()) await retourCorpus(page)
     await page.locator('[data-tour="ouvrir-preparer"]').click()
   }
   await expect(page.locator('.espace-preparation')).toBeVisible({ timeout: 20_000 })
@@ -117,6 +118,7 @@ export async function ouvrirAnalyse(
   onglet: 'synthese' | 'lexico' | 'analyses-croisees' = 'synthese',
 ): Promise<void> {
   if (!(await page.locator('.espace-analyse').isVisible())) {
+    if (await page.locator('.entretien-ecran').isVisible()) await retourCorpus(page)
     await page.locator('[data-tour="ouvrir-analyser"]').click()
   }
   await expect(page.locator('.espace-analyse')).toBeVisible({ timeout: 20_000 })
@@ -341,6 +343,8 @@ export async function ouvrirSurCorpus(
 /** Ouvre une nouvelle note (« + Créer une note », fenêtre) puis la réduit dans le panneau Notes :
  *  le formulaire en ligne est alors visible, comme pour une saisie dans le panneau. */
 export async function ouvrirFormulaireNoteDansPanneau(page: Page): Promise<void> {
+  const notes = page.locator('.outils-editeur [data-onglet="notes"]')
+  if (await notes.getAttribute('aria-expanded') !== 'true') await notes.click()
   await page.locator('.ouvrir-nouvelle-note').click()
   await page.locator('.modale-note').getByRole('button', { name: 'Réduire', exact: true }).click()
   await expect(page.locator('.nouvelle-note-inline')).toBeVisible()

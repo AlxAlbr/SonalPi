@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { attendreAccueil, lancer, selectionner } from './util'
+import { attendreAccueil, lancer, selectionner, ouvrirOrganisation } from './util'
 import { preparerApprentissage } from './exemples-util'
 
 const lireCorpus = (dir: string) => JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
@@ -58,8 +58,7 @@ test('le parcours organise un cas, compose un recueil et exporte quatre entretie
     await dialogue.getByRole('button', { name: 'Ajouter le passage', exact: true }).click()
     await expect(page.locator('.fini-pp')).toContainText('Étayer le recueil')
     await suivante(page)
-    await page.locator('[data-tour="ouvrir-organiser"]').click()
-    await page.locator('[data-tour="ouvrir-organisation-export"]').click()
+    await ouvrirOrganisation(page, 'export')
     await app.evaluate(({ dialog }) => {
       dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' })
     })

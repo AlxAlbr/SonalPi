@@ -716,7 +716,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       majMenu()
       return { type: 'apprentissage' }
     }
-    if (contexteCharge && !contextesDistants.actuel && cheminCanonique(dossierCourant) === dirname(lecture.chemin)) return { type: 'deja-ouvert' }
+    if (contexteCharge && !contextesDistants.actuel && cheminCanonique(dossierCourant) === dirname(lecture.chemin)) {
+      ajouterRecent(dossierCourant)
+      return { type: 'deja-ouvert' }
+    }
     verifierCibleLocale(dirname(lecture.chemin))
     const cible = new CorpusStore(dirname(lecture.chemin), true)
     const preparation = cible.preparerOuverture()

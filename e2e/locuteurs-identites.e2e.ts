@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, lancer, ouvrirDetailsLocuteurs, retourCorpus, regulariserDansEntretien } from './util'
+import { entrerCorpus, lancer, ouvrirDetailsLocuteurs, retourCorpus, regulariserDansEntretien, ouvrirFormulaireNoteDansPanneau } from './util'
 
 test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissocier sans ancien répertoire', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-locuteurs-parcours-')), app = await lancer(dir)
@@ -38,7 +38,7 @@ test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissoc
     await details.getByRole('button', { name: 'Ouvrir les locuteurs de Entretien Karine', exact: true }).click()
     await expect(page.locator('.entretien-ecran')).toBeVisible()
     await expect(page.locator('.entretien-ecran button[data-onglet="locuteurs"].actif')).toHaveAttribute('title', /^Locuteurs(?: —|$)/)
-    await page.locator('.entretien-ecran button[data-onglet="notes"]').click()
+    await ouvrirFormulaireNoteDansPanneau(page)
     const formulaire = page.locator('.nouvelle-note-inline')
     await expect(formulaire.locator('.champ-titre-note input')).toHaveValue('')
     await expect(formulaire.locator('.champ-titre-note input')).not.toHaveAttribute('placeholder')
@@ -49,7 +49,7 @@ test('locuteurs : régulariser, renommer, réunir, consulter les notes et dissoc
     await choix.getByRole('checkbox', { name: 'K. Dupont', exact: true }).check(); await page.keyboard.press('Escape')
     await formulaire.getByRole('button', { name: '🔗 Lier à un locuteur', exact: true }).click()
     await expect(choix.getByRole('checkbox', { name: 'K. Dupont', exact: true })).toBeChecked(); await page.keyboard.press('Escape')
-    await formulaire.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await formulaire.getByRole('button', { name: 'Valider', exact: true }).click()
     await retourCorpus(page)
     await expect(details.getByRole('heading', { name: 'Identité vérifiée · Entretien Karine', exact: true })).toBeVisible()
     await details.getByRole('button', { name: 'Ouvrir les notes de Entretien Karine', exact: true }).click()

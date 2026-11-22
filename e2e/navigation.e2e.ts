@@ -72,7 +72,7 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   const onglets = page.locator('.onglets-corpus button')
   await expect(onglets).toHaveCount(7)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Actions récentes', exact: true })).toHaveCount(0)
-  await expect(onglets).toHaveText(['Entretiens', 'Personnes', 'Pseudonymisation', 'Thèmes', 'Commentaires', 'Notes', 'Données'])
+  await expect(onglets).toHaveText(['Entretiens', 'Locuteurs', 'Pseudonymisation', 'Thèmes', 'Commentaires', 'Notes', 'Données'])
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: /Cas|Recueils|Journal|Exporter/ })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveText('Entretiens')

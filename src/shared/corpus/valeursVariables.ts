@@ -74,8 +74,13 @@ export function effacerValeursVariable(entretien: EntretienValeurs, idVar: strin
 /** Le propriétaire est déjà résolu ; aucune donnée ne remonte dans l'identité corpus. */
 export function poserValeurProprietaire(valeurs: Record<string, string>, idVar: string, idMod: string): void {
   if (typeof idVar !== 'string' || !idVar.trim() || typeof idMod !== 'string') throw new Error('La valeur demandée est invalide.')
-  if (idMod) Object.defineProperty(valeurs, idVar, { value: idMod, enumerable: true, configurable: true, writable: true })
-  else delete valeurs[idVar]
+  if (!idMod) delete valeurs[idVar]
+  else if (idVar === '__proto__') {
+    Object.defineProperty(valeurs, idVar, { value: idMod, enumerable: true, configurable: true, writable: true })
+  } else {
+    // L’affectation ordinaire permet à l’interface de suivre la modification.
+    valeurs[idVar] = idMod
+  }
 }
 
 /** Les ids manquants ne sont pas complétés par la résolution d'une destination. */

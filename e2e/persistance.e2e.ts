@@ -92,13 +92,14 @@ test('un entretien de format inconnu est refusé poliment (bannière, pas d’é
   data.formatVersion = 999
   writeFileSync(f, JSON.stringify(data), 'utf8')
 
-  // 2e lancement : ENTRER dans l'entretien déclenche la lecture → refus affiché,
-  // on reste sur l'écran Corpus, éditeur non peuplé (aucune lecture partielle).
+  const contenuIncompatible = readFileSync(f, 'utf8')
   const app2 = await lancer(dir)
-  const page2 = await app2.firstWindow()
-  await entrerCorpus(page2)
-  await page2.locator('.carte-ent .crayon').first().click()
-  await expect(page2.locator('.banniere.refus')).toBeVisible({ timeout: 20_000 })
-  await expect(page2.locator('.editeur')).not.toContainText('Karine')
-  await app2.close()
+  try {
+    const page2 = await app2.firstWindow()
+    await page2.locator('.recents .recent').first().click()
+    await expect(page2.locator('.banniere.refus')).toBeVisible({ timeout: 20_000 })
+    await expect(page2.locator('.ecran.accueil')).toBeVisible()
+    await expect(page2.locator('.editeur')).not.toContainText('Karine')
+    expect(readFileSync(f, 'utf8')).toBe(contenuIncompatible)
+  } finally { await app2.close() }
 })

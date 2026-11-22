@@ -30,7 +30,7 @@ test('les panneaux du corpus reprennent le style de la préparation', async () =
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
 
     const onglets = [
-      { nom: 'Notes', panneau: '.filtres-notes', titre: '.corpus-tete h2' },
+      { nom: 'Notes', panneau: '.notes-corpus .filtres-notes', titre: '.corpus-tete h2' },
       { nom: 'Pseudonymisation', panneau: '.pseudo-gauche', titre: '.corpus-tete h3' },
       { nom: 'Thèmes', panneau: '.themes-corpus', titre: '.corpus-tete h3' },
       { nom: 'Données', panneau: '.donnees-gauche', titre: '.variables-tete h2' },

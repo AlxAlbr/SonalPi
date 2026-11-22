@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ouvrirAnalyse, ouvrirSurCorpus, selectionner } from './util'
+import { ouvrirAnalyse, ouvrirSurCorpus, selectionner, ouvrirOrganisation } from './util'
 
 test('Lexico → source → cas → source se dépile avec les sélections, filtres et défilements', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-retours-')
@@ -57,7 +57,7 @@ test('Lexico → source → cas → source se dépile avec les sélections, filt
     await lexico.getByRole('button', { name: 'Actualiser', exact: true }).click()
     await lexico.locator('.concordance').first().click()
     await expect(page.locator('.retour-contexte')).toBeVisible()
-    await page.getByRole('button', { name: 'Organiser & Exporter', exact: true }).click()
+    await ouvrirOrganisation(page)
     await expect(page.locator('.retour-contexte')).toHaveCount(0)
   } finally {
     await app.close()

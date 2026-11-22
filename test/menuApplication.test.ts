@@ -62,7 +62,7 @@ describe('menu applicatif des entretiens', () => {
   })
 })
 
-test('Édition reste visible après Entretiens et conserve les commandes natives', () => {
+test('Édition confie l’annulation au renderer et conserve les autres commandes natives', () => {
   appliquerMenu([], vi.fn())
   expect(electron.template.filter((item) => item.label).map((item) => item.label)).toEqual([
     'Corpus', 'Entretiens', 'Édition', 'Aide',
@@ -70,7 +70,14 @@ test('Édition reste visible après Entretiens et conserve les commandes natives
   const edition = electron.template.find((item) => item.label === 'Édition')!
   expect(edition.visible).not.toBe(false)
   expect(sousMenu(edition).map((item) => item.role).filter(Boolean)).toEqual([
-    'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+    'cut', 'copy', 'paste', 'selectAll',
+  ])
+  const commandes = sousMenu(edition).filter((item) => item.accelerator)
+  expect(commandes.map((item) => item.accelerator)).toEqual(['CmdOrCtrl+Z', 'CmdOrCtrl+Shift+Z', 'CmdOrCtrl+Y'])
+  electron.send.mockClear()
+  for (const commande of commandes) (commande.click as () => void)()
+  expect(electron.send.mock.calls).toEqual([
+    ['menu:action', 'annuler-frappe'], ['menu:action', 'retablir-frappe'], ['menu:action', 'retablir-frappe'],
   ])
 })
 

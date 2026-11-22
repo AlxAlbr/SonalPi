@@ -12,6 +12,7 @@ import { pluginCommentairesMarge } from '../editor/commentairesMarge'
 import { pluginReperage } from '../editor/reperage'
 import { pluginRecherche } from '../editor/recherche'
 import { pluginRemapJournal } from '../editor/journalRemap'
+import { reinitialiserHistoriqueFrappe, traiterRaccourciAnnulation } from '../editor/historiqueFrappe'
 import { creerDetectionDoubleAlt, estToucheAlt, SEUIL_DOUBLE_APPUI } from '../editor/raccourcisLecture'
 import { libelleGouttiere, nomDeLocuteur } from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
@@ -530,6 +531,7 @@ export function useEntretien(deps: {
       // Les raccourcis de lecture ne s'appliquent que dans le texte.
       // Pour le double Espace, la première espace insérée est retirée.
       handleKeyDown: (view, event) => {
+        if (traiterRaccourciAnnulation(view, event)) return true
         const decalage = doubleAlt.appui(event)
         if (estToucheAlt(event)) {
           derniereEspace = 0
@@ -1152,6 +1154,7 @@ export function useEntretien(deps: {
     locuteurs.value = res.data.participations
     locuteursEntretien.reinitialiser()
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
+    reinitialiserHistoriqueFrappe(ed)
     for (const a of res.data.annotations) entretien.annotations.push(a)
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     for (const repere of res.data.reperesPassages ?? []) entretien.reperesPassages.push(repere)
@@ -1203,7 +1206,10 @@ export function useEntretien(deps: {
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
     entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
-    editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
+    if (editor.value) {
+      editor.value.commands.setContent('<p></p>', { emitUpdate: false })
+      reinitialiserHistoriqueFrappe(editor.value)
+    }
     refusFormat.value = null
     eteindrePlageLue()
     anonymisationEntretien.reinitialiser()

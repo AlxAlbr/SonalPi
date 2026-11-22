@@ -30,11 +30,15 @@ test('Édition suit Entretiens et les raccourcis de sélection et d’annulation
       Menu.getApplicationMenu()!.items.filter((item) => item.visible).map((item) => item.label),
     )
     expect(menus.slice(-4)).toEqual(['Corpus', 'Entretiens', 'Édition', 'Aide'])
+    const editionNative = (libelle: string) => app.evaluate(({ Menu }, libelle) => {
+      const edition = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Édition')!
+      edition.submenu!.items.find((item) => item.label === libelle)!.click()
+    }, libelle)
     const ed = page.locator('.editeur')
     const texteInitial = await ed.textContent()
-    // Sépare la saisie de l’initialisation de l’entretien dans l’historique.
-    await page.waitForTimeout(600)
     await ed.click()
+    await ed.press('ControlOrMeta+z')
+    await expect(ed).toHaveText(texteInitial!)
     await ed.press('ControlOrMeta+a')
     const selection = await page.evaluate(() => window.getSelection()?.toString())
     expect(selection).toContain('Karine habite Lyon')
@@ -46,6 +50,17 @@ test('Édition suit Entretiens et les raccourcis de sélection et d’annulation
     await expect(ed).toHaveText(texteInitial!)
     await ed.press('ControlOrMeta+Shift+z')
     await expect(ed).toContainText('Vérification des raccourcis')
+    await editionNative('Annuler')
+    await expect(ed).toHaveText(texteInitial!)
+    await editionNative('Rétablir')
+    await expect(ed).toContainText('Vérification des raccourcis')
+    const texteEditeur = await ed.textContent()
+    await page.locator('.ouvrir-recherche').click()
+    const recherche = page.locator('#champ-recherche')
+    await recherche.fill('travail')
+    await editionNative('Annuler')
+    await expect(recherche).toHaveValue('')
+    await expect(ed).toHaveText(texteEditeur!)
   } finally {
     await app.close()
   }

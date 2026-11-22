@@ -1478,6 +1478,18 @@ export function creerSonal() {
     if (disponibles[action] === false) return
     try {
       switch (action) {
+        case 'annuler-frappe':
+        case 'retablir-frappe': {
+          const editeur = ent.editor.value
+          if (vue.value === 'entretien' && editeur?.view.hasFocus()) {
+            if (!editeur.isEditable) break
+            if (action === 'annuler-frappe') editeur.commands.undo()
+            else editeur.commands.redo()
+          } else {
+            document.execCommand(action === 'annuler-frappe' ? 'undo' : 'redo')
+          }
+          break
+        }
         case 'nouveau-corpus':
         case 'ouvrir-distant': {
           // Ces modales vivent sur l'Accueil : on y revient d'abord si besoin

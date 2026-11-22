@@ -3,7 +3,7 @@ import { computed, reactive, ref, type Ref } from 'vue'
 import { estOrpheline } from '../../../shared/entretien/annotation'
 import type { Entretien } from '../../../shared/entretien/entretien'
 import type { Inverse } from '../../../shared/entretien/journal'
-import { genIdNote, notesParRang, prochainRang, renumeroterRangs } from '../../../shared/entretien/notes'
+import { genIdNote, notesParRang, renumeroterRangs } from '../../../shared/entretien/notes'
 import type { ParticipationLocuteur } from '../../../shared/locuteurs'
 import type { Note } from "../../../shared/format"
 import { reperagePluginKey } from '../../editor/reperage'
@@ -88,7 +88,7 @@ export function useNotesEntretien(deps: {
       statut: 'prive',
       corps: '',
       participationIds: [],
-      rang: prochainRang(notes.value),
+      rang: 0,
     })
   }
 
@@ -148,7 +148,7 @@ export function useNotesEntretien(deps: {
         creeLe: new Date().toISOString(),
         modifieLe: null,
       }
-      notes.value.push(note)
+      notes.value = renumeroterRangs([note, ...notesParRang(notes.value)])
       deps.enregistrerAction(`Note créée : ${titre || '(sans titre)'}`, {
         type: 'retirerNote',
         note: { ...note, participationIds: [...participationIds] },

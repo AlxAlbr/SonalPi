@@ -10,6 +10,7 @@ import {
   surlignerHtml,
 } from '../../../notes/sanitiser'
 import { utiliserSonal } from '../../../composables/sonal'
+import { notesParRang } from '../../../../shared/entretien/notes'
 import MenuLiensNote from './MenuLiensNote.vue'
 import LierParticipationsNote from './LierParticipationsNote.vue'
 
@@ -141,9 +142,7 @@ async function validerCreationCategorie() {
   if (c.cible === 'edition' && brouillonEditionNote.value) brouillonEditionNote.value.categorieId = id
   creationCategorie.value = null
 }
-const notesTriees = computed(() =>
-  notes.value.slice().sort((a, b) => b.creeLe.localeCompare(a.creeLe) || b.rang - a.rang),
-)
+const notesTriees = computed(() => notesParRang(notes.value))
 function nomsLocuteursNote(note: { participationIds?: string[] }): string[] {
   const ids = new Set(note.participationIds ?? [])
   return locuteurs.value.filter((locuteur) => locuteur.id && ids.has(locuteur.id)).map((locuteur) => locuteur.nom)

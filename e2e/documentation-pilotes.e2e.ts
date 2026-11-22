@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, fermerAiguillage, selectionner } from './util'
+import { lancer, attendreAccueil, fermerAiguillage, selectionner, ouvrirPreparation } from './util'
 import { choisirDossierExemple, configurerSourcesExemples } from './exemples-util'
 
 /** Les captures du manuel ne sont renouvelées que sur demande explicite. */
@@ -52,7 +52,7 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await expect(page.locator('.carte-ent')).toHaveCount(0)
 
     await accueil(page)
-    await expect(page.locator('.recents .recent-nom')).toHaveText('Enquete-associations')
+    await expect(page.locator('.recents .recent-nom')).toHaveText('Enquête dans les associations')
     await page.locator('.recents .recent').click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await accueil(page)
@@ -68,10 +68,14 @@ test('manuel : créer, retrouver et rouvrir un corpus local sans le remplacer', 
     await page.locator('.oubli-recent').click()
     await expect(page.locator('.recents .recent')).toHaveCount(0)
     expect(existsSync(join(dossier, 'corpus.crp'))).toBe(true)
+    await app.evaluate(({ dialog }, chemin) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chemin] })
+    }, join(dossier, 'corpus.crp'))
     await page.locator('.ouvrir-corpus').click()
     await fermerAiguillage(page, 'entretiens', 10_000)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     expect(lireCorpus().nom).toBe('Enquête dans les associations')
+    expect((await page.evaluate(() => window.sonal.corpus.recents())).some((recent) => recent.type === 'local' && recent.dir === dossier)).toBe(true)
   } finally {
     await app.close()
   }
@@ -122,11 +126,9 @@ test('manuel : créer un thème et coder un passage sur sa copie du corpus exemp
     await expect(codage).toHaveCount(1)
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
 
-    await page.getByRole('button', { name: 'Préparer & Suivre', exact: true }).click()
+    await ouvrirPreparation(page)
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await page.getByRole('button', { name: 'Importer & Traiter', exact: true }).click()
-    await expect(codage).toHaveCount(1)
-    await page.locator('.fil').getByRole('button', { name: /^Corpus/ }).click()
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await carte.locator('.crayon').click()
     await expect(codage).toHaveCount(1)

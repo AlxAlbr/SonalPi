@@ -40,8 +40,8 @@
         <tbody>
           <tr><td>Une fenêtre est encore ouverte et vous n’avez pas validé.</td><td><strong>Annuler</strong>, <strong>Fermer</strong> ou <strong>Échap</strong>, selon la fenêtre.</td></tr>
           <tr><td>Vous venez de corriger les mots de la transcription.</td><td><strong>Ctrl+Z</strong> ou <strong>Cmd+Z</strong> dans l’éditeur ; <strong>Ctrl+Maj+Z</strong> ou <strong>Cmd+Maj+Z</strong> pour rétablir.</td></tr>
-          <tr><td>Vous avez codé, commenté, renommé ou attribué un locuteur, ou modifié une valeur dans l’entretien.</td><td>L’onglet <strong>Journal</strong> de l’entretien, si l’action y figure encore.</td></tr>
-          <tr><td>Vous avez modifié une note depuis la vue corpus ou certaines informations de Personnes.</td><td>Aucune annulation n’est proposée au niveau du corpus : vérifiez avant de valider, ou repartez d’une <strong>copie de sauvegarde ZIP</strong>.</td></tr>
+          <tr><td>Vous avez codé, commenté, attribué un locuteur ou modifié une valeur dans l’entretien.</td><td>L’onglet <strong>Journal</strong> de l’entretien, si l’action y figure encore.</td></tr>
+          <tr><td>Vous avez modifié une note depuis la vue corpus ou corrigé les locuteurs au niveau du corpus.</td><td>Aucune annulation n’est proposée au niveau du corpus : vérifiez avant de valider, ou repartez d’une <strong>copie de sauvegarde ZIP</strong>.</td></tr>
           <tr><td>Vous voulez retrouver un état datant d’une session précédente.</td><td>Une <strong>copie de sauvegarde ZIP</strong> créée avant les modifications.</td></tr>
         </tbody>
       </table>
@@ -51,11 +51,11 @@
     <p>Cliquez dans la transcription, puis utilisez <strong>Ctrl+Z</strong> sous Windows et Linux, ou <strong>Cmd+Z</strong> sous macOS. La commande <strong>Édition → Annuler</strong> du menu produit le même effet lorsque l’éditeur est actif.</p>
     <p>Pour réappliquer la correction annulée, utilisez <strong>Ctrl+Maj+Z</strong>, <strong>Cmd+Maj+Z</strong> ou <strong>Édition → Rétablir</strong>. Ces commandes suivent l’historique de l’éditeur : elles conviennent à la frappe, au collage, à une suppression de texte ou à un remplacement.</p>
     <p>L’annulation devient elle-même le nouvel état de l’entretien et est enregistrée automatiquement. Attendez l’indication <strong>à jour</strong> avant de fermer l’application.</p>
-    <p class="notice">Le raccourci de l’éditeur suit l’ordre des modifications et ne permet pas de choisir une ligne précise. Pour viser explicitement un codage, un commentaire ou le nom précédent d’un locuteur, utilisez la flèche correspondante du Journal.</p>
+    <p class="notice">Le raccourci de l’éditeur suit l’ordre des modifications et ne permet pas de choisir une ligne précise. Pour viser explicitement un codage, un commentaire ou une attribution de paroles, utilisez la flèche correspondante du Journal. Ouvrir un entretien commence un nouvel historique de frappe : son chargement ne peut pas être annulé.</p>
     <h2 id="journal-entretien">Utiliser le Journal de l’entretien</h2>
     <ol>
       <li>Ouvrez l’entretien concerné.</li>
-      <li>Dans les onglets de gauche, cliquez sur <strong>Journal</strong>, représenté par une horloge avec une flèche.</li>
+      <li>Dans la barre au-dessus de la transcription, cliquez sur <strong>Journal</strong>, représenté par une horloge avec une flèche.</li>
       <li>Repérez l’action grâce à son heure et son libellé.</li>
       <li>Cliquez sur la flèche <strong>↩</strong> de cette action.</li>
       <li>Vérifiez le résultat dans la transcription ou le panneau concerné, puis attendez l’état <strong>à jour</strong>.</li>
@@ -68,7 +68,7 @@
     <ul>
       <li>la pose ou le retrait d’un codage ;</li>
       <li>la création, la modification ou la suppression d’un commentaire ;</li>
-      <li>l’attribution d’un locuteur à un passage et le renommage d’un locuteur ;</li>
+      <li>l’attribution d’un locuteur à un passage ;</li>
       <li>la modification d’une valeur de variable pour l’entretien ou un locuteur.</li>
     </ul>
     <p>L’action annulée disparaît du Journal. Le Journal ne propose pas de commande pour la rétablir ensuite ; vérifiez donc la ligne choisie avant de cliquer.</p>
@@ -79,7 +79,7 @@
       <li>Une ligne grisée signifie que sa cible a disparu ou a changé : aucune annulation partielle n’est tentée.</li>
       <li>Une action absente du Journal n’est pas annulable par ce moyen.</li>
     </ul>
-    <p>La pseudonymisation du texte, l’ajout ou la suppression d’un locuteur, certains réglages de locuteur, les opérations globales sur les thèmes et les règles de pseudonymisation ne sont pas couverts par le Journal de l’entretien. Leurs dialogues indiquent les conséquences et les possibilités de reprise.</p>
+    <p>La pseudonymisation du texte, l’ajout, la suppression ou le renommage d’un locuteur, certains réglages de locuteur, les opérations globales sur les thèmes et les règles de pseudonymisation ne sont pas couverts par le Journal de l’entretien. Leurs dialogues indiquent les conséquences et les possibilités de reprise.</p>
     <p class="retenir"><strong>Fermer puis rouvrir ne fait pas réapparaître un Journal.</strong> L’enregistrement automatique conserve le résultat actuel, pas une suite de versions anciennes.</p>
     <h2 id="sauvegarder">Créer une copie de sauvegarde ZIP</h2>
     <p>La copie ZIP est disponible pour un <strong>corpus local</strong>. Elle rassemble son contenu dans un fichier indépendant, utilisable même après avoir fermé SonalPi.</p>

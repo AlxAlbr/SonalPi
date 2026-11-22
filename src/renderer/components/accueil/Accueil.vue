@@ -83,7 +83,8 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
       return
     }
   }
-  await ouvrirRecent(entree)
+  try { await ouvrirRecent(entree) }
+  catch (erreur) { afficherErreurGlobale(erreur, 'Ouverture du corpus refusée') }
 }
 </script>
 

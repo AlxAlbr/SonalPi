@@ -72,8 +72,9 @@ export function appliquerMenu(
   const menuEdition: MenuItemConstructorOptions = {
     label: 'Édition',
     submenu: [
-      { role: 'undo', label: 'Annuler' },
-      { role: 'redo', label: 'Rétablir' },
+      { label: 'Annuler', accelerator: 'CmdOrCtrl+Z', click: () => envoyer('menu:action', 'annuler-frappe') },
+      { label: 'Rétablir', accelerator: 'CmdOrCtrl+Shift+Z', click: () => envoyer('menu:action', 'retablir-frappe') },
+      { label: 'Rétablir', accelerator: 'CmdOrCtrl+Y', visible: false, click: () => envoyer('menu:action', 'retablir-frappe') },
       { type: 'separator' },
       { role: 'cut', label: 'Couper' },
       { role: 'copy', label: 'Copier' },

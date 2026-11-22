@@ -41,6 +41,19 @@ describe('notes de l’éditeur — propriétaires locaux', () => {
     expect('note' in inverse && inverse.note.participationIds).toEqual(['local-b', 'local-a'])
   })
 
+  test('les nouvelles notes arrivent en tête et leur réorganisation survit au rechargement', () => {
+    const outils = preparer()
+    const ancienne = creer(outils)
+    const recente = creer(outils)
+    expect(outils.notes.value.map((note) => [note.id, note.rang])).toEqual([[recente.id, 0], [ancienne.id, 1]])
+    outils.reordonnerNotes([ancienne.id, recente.id])
+    expect(outils.notes.value.map((note) => [note.id, note.rang])).toEqual([[ancienne.id, 0], [recente.id, 1]])
+    const sauvegarde = JSON.parse(JSON.stringify(outils.notes.value))
+    outils.reinitialiser()
+    outils.charger(sauvegarde)
+    expect(outils.notes.value.map((note) => [note.id, note.rang])).toEqual([[ancienne.id, 0], [recente.id, 1]])
+  })
+
   test('retirer une participation nettoie les notes et les deux brouillons, sans réattribution', () => {
     const outils = preparer()
     const note = creer(outils)

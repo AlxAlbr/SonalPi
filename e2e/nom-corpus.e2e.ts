@@ -13,7 +13,7 @@ test('renommer le projet change l’en-tête et les récents, sans modifier le d
     let page = await app.firstWindow()
     await entrerCorpus(page)
     const entretienAvant = readFileSync(join(dir, 'entretiens', 'e1.json'))
-    const corpusAvant = JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8'))
+    const corpusAvant = await page.evaluate(() => window.sonal.corpus.ouvrir())
     await page.locator('.renommer-corpus').click()
     const modale = page.locator('.modale-renommer-corpus')
     await expect(modale.locator('input')).toHaveValue(basename(dir))

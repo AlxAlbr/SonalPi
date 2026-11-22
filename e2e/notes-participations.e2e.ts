@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creerLocuteurFixture } from '../test/fixtures/identitesLocuteurs'
-import { entrerCorpus, entrerEntretien, lancer, retourCorpus } from './util'
+import { entrerCorpus, entrerEntretien, lancer, retourCorpus, ouvrirFormulaireNoteDansPanneau } from './util'
 
 test('les liens créés dans l’éditeur restent locaux après annulation, sauvegarde et réouverture', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-notes-editeur-participations-'))
@@ -18,7 +18,7 @@ test('les liens créés dans l’éditeur restent locaux après annulation, sauv
     })
     const participationId = avant.participations.find((p) => p.nom === 'Karine')!.id!
     await entrerEntretien(page)
-    await page.locator('.onglets button[data-onglet="notes"]').click()
+    await ouvrirFormulaireNoteDansPanneau(page)
     const panneau = page.locator('.panneau.notes')
     const creation = panneau.locator('.nouvelle-note-inline')
     await creation.locator('.champ-titre-note input').fill('Note de participation')
@@ -27,7 +27,7 @@ test('les liens créés dans l’éditeur restent locaux après annulation, sauv
     const choix = page.getByRole('dialog', { name: 'Lier à un locuteur', exact: true })
     await choix.getByRole('checkbox', { name: 'Karine', exact: true }).check()
     await page.keyboard.press('Escape')
-    await creation.getByRole('button', { name: 'Créer une note', exact: true }).click()
+    await creation.getByRole('button', { name: 'Valider', exact: true }).click()
     const carte = panneau.locator('.carte-note', { hasText: 'Note de participation' })
     await expect(carte).toContainText('Karine')
     await carte.getByTitle('Supprimer', { exact: true }).click()
@@ -49,7 +49,7 @@ test('les liens créés dans l’éditeur restent locaux après annulation, sauv
     expect(apres.data.participations).toEqual(avant.participations)
     expect(apres.data.corpsTexte).toEqual(avant.corpsTexte)
     await entrerEntretien(page)
-    await page.locator('.onglets button[data-onglet="notes"]').click()
+    await page.locator('.outils-editeur button[data-onglet="notes"]').click()
     await expect(carte).toContainText('Karine')
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }) }
 })

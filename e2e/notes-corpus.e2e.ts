@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { entrerCorpus, entrerEntretien, lancer } from './util'
+import { entrerCorpus, entrerEntretien, lancer, ouvrirFormulaireNoteDansPanneau } from './util'
 
-test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note locale', async () => {
+test('l’onglet Notes modifie, exporte et supprime une note locale', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-notes-corpus-'))
   const app = await lancer(dir)
   const page = await app.firstWindow()
@@ -14,15 +14,15 @@ test('l’onglet Notes suit Accueil, modifie, exporte et supprime une note local
     boutons.map((bouton) => bouton.textContent?.trim()),
   )
   expect(ordre).toEqual([
-    'Entretiens', 'Notes', 'Locuteurs', 'Pseudonymisation', 'Thèmes', 'Données',
+    'Entretiens', 'Locuteurs', 'Pseudonymisation', 'Thèmes', 'Commentaires', 'Notes', 'Données',
   ])
 
   await entrerEntretien(page)
-  await page.locator('.onglets button[data-onglet="notes"]').click()
+  await ouvrirFormulaireNoteDansPanneau(page)
   const creation = page.locator('.panneau.notes .nouvelle-note-inline')
   await creation.locator('.champ-titre-note input').fill('Note initiale')
   await creation.locator('.zone-corps-note').fill('Corps initial')
-  await creation.getByRole('button', { name: 'Créer une note', exact: true }).click()
+  await creation.getByRole('button', { name: 'Valider', exact: true }).click()
 
   // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()

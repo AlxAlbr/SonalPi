@@ -6,6 +6,8 @@ import { intercepterOuvertureUrl, pathAvecShim, sessionQualification } from './q
 import { attendreAccueil, lancer } from './util'
 
 test('debug consentement', async ({ browser }) => {
+  test.skip(!process.env.GITLAB_OAUTH_CLIENT_ID || !process.env.GITLAB_OAUTH_PASSWORD1,
+    'Le diagnostic OAuth nécessite un client et un compte de qualification configurés.')
   test.setTimeout(120_000)
   const shim = intercepterOuvertureUrl()
   const profil = mkdtempSync(join(tmpdir(), 'sonal-debug-'))

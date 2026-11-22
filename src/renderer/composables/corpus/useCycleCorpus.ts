@@ -151,7 +151,14 @@ export function useCycleCorpus(deps: {
   }
   async function ouvrirFichier(chemin: string): Promise<void> {
     const cible = await window.sonal.ouverture.preparer(chemin)
-    if (cible.type === 'deja-ouvert' || cible.type === 'apprentissage') return
+    if (cible.type === 'deja-ouvert') {
+      if (deps.vue.value === 'accueil') {
+        await deps.profil.rafraichirRecents()
+        deps.vue.value = 'corpus'
+      }
+      return
+    }
+    if (cible.type === 'apprentissage') return
     if (cible.type === 'migration') {
       await proposerModale(() => { migrationProposee.value = cible })
       return

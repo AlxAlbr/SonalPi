@@ -2,7 +2,7 @@ import { test, expect, type ElectronApplication } from '@playwright/test'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, entrerCorpus, entrerEntretien } from './util'
+import { lancer, attendreAccueil, entrerCorpus, entrerEntretien, retourCorpus } from './util'
 import { choisirDossierExemple } from './exemples-util'
 
 async function lireMenu(app: ElectronApplication) {
@@ -49,11 +49,12 @@ test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le
     })
     await entrerEntretien(page)
     await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: true })
+    await retourCorpus(page)
     for (const nom of ['Préparer & Suivre', 'Analyser & Interpréter', 'Organiser & Exporter', 'Importer & Traiter']) {
       await page.getByRole('button', { name: nom, exact: true }).click()
-      await expect.poll(() => lireMenu(app)).toMatchObject({ entretiens: true, enregistrer: true })
+      await expect.poll(() => lireMenu(app)).toMatchObject({ entretiens: true, enregistrer: false })
     }
-    await page.locator('.fil').getByRole('button', { name: /^Corpus/ }).click()
+    await expect(page.locator('.corpus-ecran')).toBeVisible()
     await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: false })
 
     await page.evaluate(() => window.sonal.corpus.creerEntretienVide('Deuxième entretien'))

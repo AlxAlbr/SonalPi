@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useValeursEntretien } from '../src/renderer/composables/entretien/useValeursEntretien'
 import { annuler, appliquerInverse, enregistrer, estApplicable, type CtxInverse, type Inverse, type Journal, type ParticipationJournal } from '../src/shared/entretien/journal'
 import type { ItemLotValeur } from '../src/shared/corpus/valeursVariables'
@@ -41,6 +41,25 @@ function differee() {
 }
 
 describe('valeurs de l’entretien et références de participation', () => {
+  test.each(['entretien', 'participation'] as const)('les vues suivent l’ajout, la correction et l’effacement d’une valeur %s', (type) => {
+    const b = banc()
+    const cible = type === 'entretien' ? { type } : { type, participationId: '7' }
+    const valeurs = type === 'entretien' ? b.meta.valeursGen : b.participations.value[1].valeursLoc
+    const cles = computed(() => Object.keys(valeurs))
+    const valeur = computed(() => valeurs.nouvelleVariable)
+    expect(cles.value).not.toContain('nouvelleVariable')
+    expect(valeur.value).toBeUndefined()
+    const item = { entretienId: 'e1', cible, idVar: 'nouvelleVariable', idMod: 'ville' }
+    expect(b.poserValeurEntretien(item)).toBe(true)
+    expect(cles.value).toContain('nouvelleVariable')
+    expect(valeur.value).toBe('ville')
+    expect(b.poserValeurEntretien({ ...item, idMod: 'autre' })).toBe(true)
+    expect(valeur.value).toBe('autre')
+    expect(b.poserValeurEntretien({ ...item, idMod: '' })).toBe(true)
+    expect(cles.value).not.toContain('nouvelleVariable')
+    expect(valeur.value).toBeUndefined()
+  })
+
   test('saisir puis annuler conserve les ids, les rôles, les notes et les paragraphes', () => {
     const b = banc(), avant = b.photo(), notes = structuredClone(b.data.notes), texte = structuredClone(b.data.corpsTexte)
     expect(b.poserValeurEntretien(b.item())).toBe(true)

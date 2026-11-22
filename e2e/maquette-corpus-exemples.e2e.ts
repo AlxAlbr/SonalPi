@@ -1,8 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const html = readFileSync(join(process.cwd(), 'plans/maquettes/corpus-exemples-interface.html'), 'utf8')
+const fichierMaquette = join(process.cwd(), 'plans/maquettes/corpus-exemples-interface.html')
+const maquetteDisponible = existsSync(fichierMaquette)
+const html = maquetteDisponible ? readFileSync(fichierMaquette, 'utf8') : ''
+test.skip(!maquetteDisponible, 'Cette maquette locale n’est pas fournie avec le dépôt.')
 const catalogue = (page: Page) => page.getByRole('dialog', { name: 'Choisir un parcours pas à pas' })
 const preparation = (page: Page) => page.locator('#preparation')
 
