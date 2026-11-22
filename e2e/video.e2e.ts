@@ -18,6 +18,7 @@ import { lancer, entrerCorpus, ajouterParModale, attendreAccueil, attendreCorpus
  */
 
 const VIDEO = join(__dirname, '..', 'TestVideo', 'seance.webm')
+const executablePath = process.env.VIDEO_E2E_EXECUTABLE
 
 /** SRT auto-écrit : 4 blocs de 2 s couvrant les 8 s de la vidéo. */
 const SRT = `1
@@ -59,7 +60,8 @@ test.skip(!existsSync(VIDEO), 'fixture vidéo absente (TestVideo/seance.webm)')
 test('vidéo : import SRT+webm → mode vidéo (zone média + panneau), synchro, double-espace, −/+, persistance', async () => {
   const { dir, srt, webm } = installerFixtures('sonal-video-')
 
-  const app = await lancer(dir)
+  const app = await lancer(dir, { executablePath })
+  if (executablePath) expect(await app.evaluate(({ app }) => app.isPackaged)).toBe(true)
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
@@ -145,7 +147,7 @@ test('vidéo : import SRT+webm → mode vidéo (zone média + panneau), synchro,
 
   // --- Persistance PAR CORPUS : relance sur le même profil (settings conservés),
   // rouvre l'entretien vidéo → la largeur réglée est retrouvée.
-  const app2 = await lancer(dir, { preserverSettings: true })
+  const app2 = await lancer(dir, { preserverSettings: true, executablePath })
   const page2 = await app2.firstWindow()
   await attendreAccueil(page2)
   await page2.locator('.recents .recent').first().click()
