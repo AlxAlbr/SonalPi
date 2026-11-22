@@ -288,8 +288,9 @@ même masqués : le compteur les signale. **Effacer la recherche** et **Effacer 
 sélection** sont deux actions distinctes.
 
 Les commandes sont regroupées en icônes en haut du panneau gauche ; leur infobulle
-indique leur fonction. La largeur de ce panneau se règle avec le séparateur, à la
-souris ou avec les flèches du clavier. Elle est mémorisée sur le poste.
+indique leur fonction. Le bouton en forme de clavier affiche le rappel pour les
+sélections multiples et par plage. La largeur de ce panneau se règle avec le
+séparateur, à la souris ou avec les flèches du clavier. Elle est mémorisée sur le poste.
 
 Les cartes reprennent la forme d’onde de l’onglet **Entretiens**, ou un fond neutre
 sans audio. Seuls les tours de parole sélectionnés sont colorés en superposition,
@@ -298,9 +299,10 @@ pas un temps audio exact. **Avec la sélection** limite les entretiens aux locut
 choisis ; **Tous les entretiens** conserve aussi les cartes sans intervention de
 la sélection. Sans sélection, toutes les cartes sont affichées sans calque.
 
-Un clic sur un tour coloré ou **Précédente / Suivante** ouvre le passage dans
-l’entretien. Cette consultation ne modifie ni les paroles ni les associations ;
-le retour au corpus conserve recherche, tags, sélection et réglage d’affichage.
+Un clic sur un tour coloré ouvre le passage dans l’entretien. Le nombre
+d’interventions de la sélection est indiqué à la suite de son titre. Cette
+consultation ne modifie ni les paroles ni les associations ; le retour au corpus
+conserve recherche, tags, sélection et réglage d’affichage.
 
 **Statistiques** affiche les mots, tours de parole et entretiens distincts de toute
 la sélection, y compris les locuteurs masqués par la recherche. La comparaison par

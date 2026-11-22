@@ -42,9 +42,10 @@ et 20 entretiens, avec accès explicite aux suivants.
 de `BarreInterventionsLocuteurs.vue` ne dessine que les tours sélectionnés,
 positionnés sur le texte complet, et se superpose à l’image `urlWaveform` existante.
 Ce calque n’est pas une synchronisation audio. Les zones non sélectionnées
-n’ouvrent pas d’intervention ; précédente/suivante fournit un accès clavier.
-Les commandes de sélection sont à gauche ; ouvrir et naviguer restent locaux
-à chaque carte. La largeur du panneau gauche est mémorisée sur le poste.
+n’ouvrent pas d’intervention. Chaque titre indique le nombre de tours de la
+sélection ; un clic sur une zone colorée ouvre le passage correspondant.
+Les commandes de sélection et leur rappel clavier sont à gauche. La largeur du
+panneau gauche est mémorisée sur le poste.
 
 `StatistiquesSelectionLocuteurs.vue` compare les locuteurs par mots, tours et
 entretiens distincts, puis détaille les entretiens associés. La part d’un locuteur
