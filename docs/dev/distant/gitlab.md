@@ -109,6 +109,12 @@ Le certificat du banc doit être explicitement approuvé ; ne pas désactiver la
 vérification TLS. Avec `node --env-file`, les références comme `${GITLAB_CA}`
 ne sont pas développées : fournir `NODE_EXTRA_CA_CERTS` avant le démarrage de Node.
 Les scénarios OAuth tournent avec un seul worker, car le port de callback est fixe.
+Les recettes d’ouverture utilisent un projet synthétique dédié à chaque corpus,
+avec `corpus.crp` à sa racine. L’interface courante ne demande plus de sous-dossier
+technique : adapter les fixtures plutôt que réintroduire ce réglage pour les tests.
+Les reprises de migration passent par « Reprendre un passage à SonalPi2 ».
+Sans coffre sécurisé, les recettes rétablissent d’abord la connexion après une
+relance forcée ; elles ne placent jamais les secrets dans les fichiers de suivi.
 Exécuter les campagnes REST et Electron l’une après l’autre : leurs amorçages
 partagent les branches du banc, et les nouveaux droits dépendent aussi de ses
 tâches d’arrière-plan. Des campagnes simultanées peuvent fausser ces préconditions.

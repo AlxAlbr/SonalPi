@@ -85,11 +85,7 @@ async function remplirAccesGitLab(
     await adresseProjet(jetonPourAdresse, projetId),
   )
   await page.locator('.client-id-gitlab').fill(configuration.clientId as string)
-  if (racineCourante) {
-    const options = page.locator('details.options-gitlab')
-    if (!await options.getAttribute('open')) await options.locator('summary').click()
-    await page.locator('.racine-gitlab').fill(racineCourante)
-  }
+  expect(racineCourante).toBe('')
 }
 
 /** Joue le consentement déclenché par l'unique bouton du formulaire. */

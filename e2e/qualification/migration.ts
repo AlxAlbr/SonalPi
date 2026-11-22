@@ -134,17 +134,24 @@ export async function connecterSource(page: Page, source: Projet) {
   await page.getByRole('tab', { name: 'GitLab', exact: true }).click()
   const connexion = page.locator('.modale-distant')
   await connexion.locator('.url-projet-gitlab').fill(adresse(source))
-  await connexion.locator('select').first().selectOption('jeton-personnel')
-  const secret = connexion.locator('input[type=password]').first()
-  if (await secret.isVisible()) await secret.fill(config.token!)
-  await connexion.locator('.action-gitlab').click()
+  const projet = connexion.locator('.nouveau-projet-gitlab')
+  await projet.getByRole('combobox').filter({ has: page.locator('option[value="jeton-personnel"]') }).selectOption('jeton-personnel')
+  await projet.locator('input[type=password]').fill(config.token!)
+  await projet.locator('.action-gitlab').click()
   const modal = page.getByRole('dialog', { name: 'Passer à SonalPi2 — GitLab' })
   await expect(modal.getByText('Corpus : terrain/corpus.crp', { exact: true })).toBeVisible({ timeout: 30_000 })
   return modal
 }
-export async function ouvrirReprise(page: Page) {
-  await attendreAccueil(page)
-  await page.locator('.distant-corpus').click()
+export async function ouvrirReprise(page: Page, source?: Projet) {
+  if (source) {
+    // Sans coffre sécurisé, la connexion doit être rétablie après la relance.
+    const initial = await connecterSource(page, source)
+    await initial.getByRole('button', { name: 'Fermer', exact: true }).click()
+  }
+  if (!await page.locator('.modale-distant').isVisible()) {
+    await attendreAccueil(page)
+    await page.locator('.distant-corpus').click()
+  }
   await page.getByRole('tab', { name: 'GitLab', exact: true }).click()
   await page.getByRole('button', { name: 'Reprendre un passage à SonalPi2…' }).click()
   return page.getByRole('dialog', { name: 'Reprendre un passage à SonalPi2', exact: true })

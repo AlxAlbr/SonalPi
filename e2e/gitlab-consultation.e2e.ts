@@ -1,9 +1,8 @@
 /**
  *  Consultation GitLab dans deux profils Electron isolés.
  *
- *  Le test est opt-in. Il amorce un corpus synthétique dans une racine unique,
- *  puis vérifie que deux comptes consultent le même contenu et peuvent ouvrir
- *  une session d'édition contrôlée.
+ *  Le test est opt-in. Chaque corpus utilise un projet synthétique dédié.
+ *  Deux profils consultent le même contenu et ouvrent une session contrôlée.
  *  La fixture distante est conservée pour examen.
  *
  *  L'application se connecte par OAuth : le banc intercepte l'ouverture de
@@ -42,10 +41,8 @@ import { BailGitLab, DepotCommitsGitLabClient, cleRessourceBailGitLab, cheminBai
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
   projetId: process.env.GITLAB_LFS_PROJECT_ID,
-  projetSansLfsId: process.env.GITLAB_NO_LFS_PROJECT_ID,
   projetInterditId: process.env.GITLAB_FORBIDDEN_PROJECT_ID,
   token1: process.env.GITLAB_USER1_TOKEN,
-  tokenSecondPoste: process.env.GITLAB_USER1_SECOND_TOKEN,
   token2: process.env.GITLAB_USER2_TOKEN,
   clientId: process.env.GITLAB_OAUTH_CLIENT_ID,
   utilisateur: process.env.GITLAB_OAUTH_USER1 ?? 'user1',
@@ -62,11 +59,8 @@ const configurationPresente = Boolean(
   configuration.clientId &&
   configuration.motDePasse,
 )
-const tokenSecondPoste = configuration.token2 ?? configuration.tokenSecondPoste
-const sansLfsConfigure = Boolean(configuration.projetSansLfsId && tokenSecondPoste)
 const branche = 'main'
 const idExecution = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-const racine = `consultation-e2e-${idExecution}`
 const idEntretien = 'entretien-consultation'
 const titreEntretien = `Entretien GitLab ${idExecution}`
 const texteEntretien = `Consultation GitLab de qualification ${idExecution}.`
@@ -114,12 +108,10 @@ async function remplirAccesGitLab(
   await page.locator('.url-projet-gitlab').fill(
     await adresseProjet(jetonPourAdresse, projetId),
   )
+  await page.locator('.url-projet-gitlab').press('Tab')
+  await page.getByRole('combobox').filter({ has: page.locator('option[value="oauth"]') }).selectOption('oauth')
   await page.locator('.client-id-gitlab').fill(configuration.clientId as string)
-  if (racineCourante) {
-    const options = page.locator('details.options-gitlab')
-    if (!await options.getAttribute('open')) await options.locator('summary').click()
-    await page.locator('.racine-gitlab').fill(racineCourante)
-  }
+  expect(racineCourante).toBe('')
 }
 
 /** Joue le consentement déclenché par l'unique bouton du formulaire. */
@@ -182,6 +174,31 @@ async function api<T>(
   return (await reponse.json()) as T
 }
 
+/** La consultation utilise un projet neuf, sans sous-dossier technique. */
+async function creerProjetConsultation(suffixe: string, avecLfs = true, secondCompte = false): Promise<string> {
+  const projet = await api<{ id: number; lfs_enabled: boolean }>('/projects', configuration.token1 as string, {
+    method: 'POST', body: JSON.stringify({
+      name: `Sonal consultation ${suffixe} ${idExecution}`,
+      path: `sonal-consultation-${suffixe}-${idExecution}`,
+      initialize_with_readme: true, default_branch: 'main', visibility: 'private', lfs_enabled: avecLfs,
+    }),
+  })
+  expect(projet.lfs_enabled).toBe(avecLfs)
+  if (secondCompte) {
+    const second = await api<{ id: number }>('/user', configuration.token2 as string)
+    await api(`/projects/${projet.id}/members`, configuration.token1 as string, {
+      method: 'POST', body: JSON.stringify({ user_id: second.id, access_level: 40 }),
+    })
+    await expect.poll(async () => {
+      try {
+        return (await api<{ can_push: boolean }>(`/projects/${projet.id}/repository/branches/main`, configuration.token2 as string)).can_push
+      } catch (erreur) { return erreur instanceof Error ? erreur.message : 'Lecture des droits impossible.' }
+    }, { timeout: 90_000, intervals: [500, 1_000, 2_000, 5_000] }).toBe(true)
+  }
+  configuration.projetId = String(projet.id)
+  return configuration.projetId
+}
+
 async function teteBranche(
   jeton: string,
   projetId = configuration.projetId as string,
@@ -207,7 +224,7 @@ async function adresseProjet(
 async function amorcerConsultation(
   jeton: string,
   projetId = configuration.projetId as string,
-  racineCourante = racine,
+  racineCourante = '',
   mediaDistant?: string,
 ): Promise<void> {
   const corpus = JSON.parse(corpusDistantValide([idEntretien])) as {
@@ -275,7 +292,7 @@ async function expirerBailE2E(
   racineCourante: string,
   projetId = configuration.projetId as string,
 ): Promise<void> {
-  const cheminEntretien = `${racineCourante}/entretiens/${idEntretien}.json`
+  const cheminEntretien = `${racineCourante ? `${racineCourante}/` : ''}entretiens/${idEntretien}.json`
   const resource = `branche:${branche}\u0000chemin:${cheminEntretien}`
   const resourceHash = createHash('sha256').update(resource).digest('hex')
   const cheminBail = `.sonal/verrous/${resourceHash}.json`
@@ -341,7 +358,7 @@ async function consulterDansProfil(
     interception,
     session,
     identifiantsDe(configuration.utilisateur as string),
-    racine,
+    '',
     projetId,
   )
 
@@ -623,7 +640,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       const frais = await ouvrirDissociation(page); await frais.getByRole('checkbox').check(); await frais.getByRole('button', { name: 'Confirmer la dissociation globale' }).click(); await expect(frais).toHaveCount(0, { timeout: 30_000 })
       await page.locator('.onglets-corpus').getByRole('button', { name: 'Entretiens', exact: true }).click(); await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click(); await page.locator('[data-onglet="anon"]').click()
       await expect(page.locator('.ligne-anon.etat-entretien', { hasText: 'Karine' }).first().locator('.pseudo-anon')).toHaveValue('Claire / Rebecca')
-      const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu); expect(actuel).toMatchObject({ corpsTexte: JSON.parse(avant).corpsTexte, locuteurs: b.f.sources[0].data.participations })
+      const actuel = JSON.parse((await b.depot.lireFichier('entretiens/e1.json', 'main'))!.contenu); expect(actuel).toMatchObject({ corpsTexte: JSON.parse(avant).corpsTexte, participations: b.f.sources[0].data.participations })
     } finally { await app.close(); await session.fermer(); shim.nettoyer(); rmSync(profil, { recursive: true, force: true }) }
   })
   test('dissociation GitLab OAuth : retrait accepté, réponse perdue et suivi sans rejeu', async ({ browser }, info) => {
@@ -774,7 +791,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       }
       commits = await api<Array<{ title: string }>>(`/projects/${projet.id}/repository/commits?ref_name=main&per_page=100`, configuration.token1 as string)
       expect(commits.filter((c) => c.title.startsWith('Sonal renommage-'))).toHaveLength(3)
-      await page.getByRole('navigation', { name: 'Navigation du corpus' }).getByRole('button', { name: 'Accueil', exact: true }).click()
+      await page.getByRole('navigation', { name: 'Navigation du corpus' }).getByRole('button', { name: 'Entretiens', exact: true }).click()
       await page.locator('.carte-ent', { hasText: 'Entretien e1' }).locator('.crayon').click()
       await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
       await expect(page.locator('.editeur')).toContainText('Rue Karine. Local.')
@@ -840,15 +857,15 @@ test.describe('Consultation GitLab à deux profils', () => {
     }).then((reponse) => reponse.ok).catch(() => false)
     test.skip(!serveurDisponible, 'pile Nextcloud absente')
 
+    await creerProjetConsultation('media')
     const cheminMedia = `audio-gitlab-${idExecution}.mp3`
-    const racineMedia = `${racine}-media`
     const clientMedia = new ClientWebDAV({ baseUrl: urlWebDAV, identifiants: identifiantsWebDAV })
     const octets = new Uint8Array(readFileSync(join(process.cwd(), 'CorpusTest/CorpusSynth/audio/1Coordinatrice.mp3')))
     await clientMedia.putBinaire(cheminMedia, octets, { contentType: 'audio/mpeg' })
     await amorcerConsultation(
       configuration.token1 as string,
       configuration.projetId as string,
-      racineMedia,
+      '',
       cheminMedia,
     )
 
@@ -865,7 +882,7 @@ test.describe('Consultation GitLab à deux profils', () => {
         shim,
         session,
         identifiantsDe(configuration.utilisateur as string),
-        racineMedia,
+        '',
       )
       await attendreCorpus(page)
 
@@ -873,7 +890,7 @@ test.describe('Consultation GitLab à deux profils', () => {
       await attendreAccueil(page)
       await page.locator('.carte-demo.distant-corpus').click()
       await page.getByRole('tab', { name: 'GitLab' }).click()
-      const destinationGitLab = page.locator('.comptes li', { hasText: racineMedia }).first()
+      const destinationGitLab = page.locator('.comptes li', { hasText: `Sonal consultation media ${idExecution}` }).first()
       await destinationGitLab.getByRole('button', { name: 'Médias…' }).click()
       const formulaire = destinationGitLab.locator('.base-media-form')
       await formulaire.locator('input[type=text]').nth(0).fill(urlWebDAV)
@@ -931,6 +948,7 @@ test.describe('Consultation GitLab à deux profils', () => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
+    await creerProjetConsultation('deux-postes')
     const jetonEcriture = configuration.token1 as string
     await amorcerConsultation(jetonEcriture)
     const teteInitiale = await teteBranche(jetonEcriture)
@@ -996,7 +1014,8 @@ test.describe('Consultation GitLab à deux profils', () => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
-    const racineCreation = `${racine}-creation-${Date.now().toString(36)}`
+    await creerProjetConsultation('creation')
+    const racineCreation = ''
     const nomCreation = `Corpus créé ${idExecution}`
     const projet = await api<{ path_with_namespace: string }>(
       `/projects/${configuration.projetId}`,
@@ -1025,9 +1044,10 @@ test.describe('Consultation GitLab à deux profils', () => {
         identifiantsDe(configuration.utilisateur as string),
         /^Créer le corpus et l’ouvrir$/,
       )
+      await fermerAiguillage(page, 'entretiens', 120_000)
       await attendreCorpus(page)
       const corpusCree = await api<{ content: string }>(
-        `/projects/${configuration.projetId}/repository/files/${encodeURIComponent(`${racineCreation}/corpus.crp`)}?ref=${branche}`,
+        `/projects/${configuration.projetId}/repository/files/${encodeURIComponent('corpus.crp')}?ref=${branche}`,
         configuration.token1 as string,
       )
       expect(Buffer.from(corpusCree.content, 'base64').toString('utf8')).toContain(
@@ -1045,7 +1065,8 @@ test.describe('Consultation GitLab à deux profils', () => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
-    const racineCrash = `${racine}-crash-${Date.now().toString(36)}`
+    await creerProjetConsultation('crash')
+    const racineCrash = ''
     const jeton = configuration.token1 as string
     await amorcerConsultation(jeton, configuration.projetId as string, racineCrash)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-crash-'))
@@ -1091,8 +1112,9 @@ test.describe('Consultation GitLab à deux profils', () => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
-    const racineReprise = `${racine}-reprise-${Date.now().toString(36)}`
-    test.skip(!configuration.motDePasse2, 'identifiants OAuth du second compte absents')
+    test.skip(!configuration.motDePasse2 || !configuration.token2, 'identifiants du second compte absents')
+    await creerProjetConsultation('reprise', true, true)
+    const racineReprise = ''
     const jetonA = configuration.token1 as string
     await amorcerConsultation(jetonA, configuration.projetId as string, racineReprise)
     const profilA = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-reprise-a-'))
@@ -1188,15 +1210,9 @@ test.describe('Consultation GitLab à deux profils', () => {
       await page.locator('.carte-demo.distant-corpus').click()
       // Connexion réelle, puis tentative sur un projet que le compte ne voit pas :
       // le refus porte sur le projet, jamais sur la connexion.
-      await ouvrirDepuisFormulaireGitLab(
-        page,
-        interception,
-        session,
-        identifiantsDe(configuration.utilisateur as string),
-        racine,
-        projetInterdit,
-        jetonAutorise,
-      )
+      await remplirAccesGitLab(page, projetInterdit, '', jetonAutorise)
+      await consentirApresAction(page, interception, session,
+        identifiantsDe(configuration.utilisateur as string), /^Ouvrir le corpus$/)
       await expect(page.locator('.modale-distant .msg')).toContainText(/introuvable|inaccessible/i)
       expect(existsSync(join(profil, 'miroirs'))).toBe(false)
       expect(await teteBranche(jetonAutorise, projetInterdit)).toBe(teteInitiale)
@@ -1209,12 +1225,11 @@ test.describe('Consultation GitLab à deux profils', () => {
   })
 
   test('un projet sans LFS reste consultable pour ses transcriptions', async ({ browser }) => {
-    test.skip(!sansLfsConfigure, 'aucun projet sans LFS configuré')
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
-    const projetSansLfs = configuration.projetSansLfsId as string
-    const jeton = tokenSecondPoste as string
+    const projetSansLfs = await creerProjetConsultation('sans-lfs', false)
+    const jeton = configuration.token1 as string
     await amorcerConsultation(jeton, projetSansLfs)
     const teteInitiale = await teteBranche(jeton, projetSansLfs)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-sans-lfs-'))
