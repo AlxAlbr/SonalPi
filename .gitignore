@@ -6,6 +6,8 @@ tests/
 !tests/
 tests/*
 !tests/anonymisation-remplacement-corpus.test.cjs
+!tests/import-transcriptions.test.cjs
+!tests/devtools.test.cjs
 .env
 plan-*.md
 modules/Anafac_lexico/

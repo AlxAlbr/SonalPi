@@ -291,7 +291,7 @@ ipcMain.handle('dialog:openTextFiles', async () => {
     title: 'Sélectionner un fichier',
     properties: ['openFile'],
     filters: [
-      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','txt','md','json','purge','docx','pdf'] }
+      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','vtt','txt','md','json','purge','docx','pdf'] }
           
     ],
   });
@@ -1413,7 +1413,9 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
 
     // chargement de la fenêtre edition_categories.html
     entWindow.loadFile('edition_entretien.html');
-    entWindow.webContents.openDevTools();
+    if (!app.isPackaged) {
+      entWindow.webContents.openDevTools();
+    }
     // Retirer le menu de la fenêtre modale
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
@@ -2941,7 +2943,9 @@ app.on('ready', () => {
     // Définir l'icône après le chargement de la fenêtre
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
-     mainWindow.webContents.openDevTools();
+      if (!app.isPackaged) {
+        mainWindow.webContents.openDevTools();
+      }
       mainWindow.show();
 
       // Vérification des mises à jour

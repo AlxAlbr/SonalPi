@@ -1,220 +1,38 @@
  
 
-   async function convertJSON(lignesFich) { // conversion de l'objet JSON en tableau
-    
-        var nbseg = lignesFich.length ;
-        let tabSeg = new Array(nbseg);
-    
-        for (s=0;s<nbseg;s++){
-            tabSeg[s]=  new Array(6);
+async function convertJSON(contenu) {
+    // Whisper fournit soit un tableau, soit un objet contenant « segments ».
+    const lignes = Array.isArray(contenu) ? contenu : contenu && contenu.segments;
+    if (!Array.isArray(lignes) || !lignes.length) throw new Error('Aucun segment JSON à importer.');
+    const tabSeg = lignes.map((ligne, i) => {
+        if (!ligne || typeof ligne.start !== 'number' || !Number.isFinite(ligne.start)
+            || typeof ligne.end !== 'number' || !Number.isFinite(ligne.end)
+            || ligne.start < 0 || ligne.end < ligne.start || typeof ligne.text !== 'string') {
+            throw new Error(`Segment JSON invalide au rang ${i + 1}.`);
         }
-      
-        
-        for (s=0;s<nbseg;s++){
-
-
-            tabSeg[s][1]= lignesFich[s].start.toFixed(2) ;
-            tabSeg[s][2]= lignesFich[s].end.toFixed(2);
-            tabSeg[s][3]= ""; // locuteur
-            tabSeg[s][4]= lignesFich[s].text;
-            tabSeg[s][5]= false ; // non sélectionné par défaut
-            tabSeg[s][6]= lignesFich[s].avg_logprob
-
-
-        }
-
-        // récupération des locuteurs
-        const postLocut = await convertSpeaker(tabSeg);
-        tabSeg = postLocut.tabSeg;
-        locut = postLocut.locut;
-
-        //console.log ("importation du fichier JSON \tabseg = ", tabSeg, "\n locut = ", locut);
-        return { tabSeg, locut } ;
-
-
-    };
+        return [null, ligne.start, ligne.end, 0, ligne.text.trim() + ' ', false, ligne.avg_logprob || 0];
+    });
+    const parseur = typeof window !== 'undefined' ? window.ImportSousTitres : require('./import_sous_titres');
+    const resultat = parseur.extraireLocuteurs(tabSeg);
+    for (const seg of tabSeg) if (seg[4].trim()) seg[4] = seg[4].trim() + ' ';
+    if (typeof window !== 'undefined') window.tabLocImport = resultat.locut;
+    return { ...resultat, formatSonal: tabSegToSonal(tabSeg, resultat.locut) };
+}
     
-    async function convertSRT(content) { // conversion du fichier SRT en tableau
-        
-        if (!content || content.length<1) {console.log("pas de contenu"); return;}
+async function convertirSousTitres(content, format) {
+    const parseur = typeof window !== 'undefined' ? window.ImportSousTitres : require('./import_sous_titres');
+    const resultat = parseur.parserSousTitres(content, format);
+    if (typeof window !== 'undefined') window.tabLocImport = resultat.locut;
+    return { ...resultat, formatSonal: tabSegToSonal(resultat.tabSeg, resultat.locut) };
+}
 
-        // split du texte par lignes \n
-        let lignesFich = content.split("\n");
-        var nblig = lignesFich.length  ;       
-        var locut = [""];
-
-        let rgSeg=0;
-        tabSeg = new Array (1);
-        tabSeg[rgSeg]=  new Array(6);
-
-
-        for (s=0;s<nblig;s++){
-             
-            let ligne = lignesFich[s].trim()     
-            
-            let posflèche= ligne.lastIndexOf("-->") // recherche d'un indicateur de coordonnées
-    
-            if (posflèche>-1) { // ajout d'un segment
-
-                tabSeg.push();
-                rgSeg++;
-
-                tabSeg[rgSeg]=  new Array(6);
-
-                let tps = ligne.split("-->") 
-                let deb = TimeToSec(tps[0])
-                let fin = TimeToSec(tps[1])
-
-                tabSeg[rgSeg][1]= deb  ;
-                tabSeg[rgSeg][2]= fin;
-                tabSeg[rgSeg][3]= ""; // locuteur
-                tabSeg[rgSeg][4]= "" //
-                tabSeg[rgSeg][5]= false ; // non sélectionné par défaut
-                tabSeg[rgSeg][6]= 0;
-
-            } else {
-            
-                if (ligne=="" || isNaN(ligne)==false) { // évitement des numéros de sous-titre et sauts de ligne
-    
-                    if (s<nblig-1) {
-    
-                        if (lignesFich[s+1].lastIndexOf("-->") > -1){ continue;}               
-                    
-                    }
-    
-                 
-                }
-    
-                let lignetxt = ligne.replace(/\r?\n|\r/,"") // retrait des sauts de ligne 
-                tabSeg[rgSeg][4]+= lignetxt // ajout du texte au segment courant
-
-            }
-
-        }
-    
-
-
-    
-
-            //"trimage" des portions de texte
-            for (s=0;s<tabSeg.length;s++){
-                if (!tabSeg[s][4] || tabSeg[s][4].trim() === ""){continue}
-                let txttrim = tabSeg[s][4].trim();
-                tabSeg[s][4]= txttrim + " " // ajout d'un espace final pour séparation entre segments;
-
-            }
-             
-
-            // suppression du rang 0
-            tabSeg.splice(0,1)
-
- 
-
-            // récupération des locuteurs
-            const postLocut = await convertSpeaker(tabSeg);
-            tabSeg = postLocut.tabSeg;
-            let locuteursTrouvés = postLocut.locut;
-
-            console.log ("importation du fichier Srt \tabseg = ", tabSeg, "\n locut = ", locuteursTrouvés);
-            window.tabLocImport = locuteursTrouvés; // stockage temporaire dans le window global pour récupération ultérieure
-            let formatSonal = tabSegToSonal (tabSeg,locuteursTrouvés)
-            //console.log("format sonal = \n", formatSonal);
-            return {formatSonal};
+async function convertSRT(content) {
+    return convertirSousTitres(content, 'srt');
 }
 
 
-async function convertVTT(content) { // conversion du fichier VTT (WebVTT) en tableau
-
-    if (!content || content.length < 1) { console.log("pas de contenu"); return; }
-
-    // split du texte par lignes
-    let lignesFich = content.split("\n");
-    var nblig = lignesFich.length;
-    let locut = [''];
-
-    let rgSeg = 0;
-    tabSeg = new Array(1);
-    tabSeg[rgSeg] = new Array(6);
-
-    let inBlock = false; // pour ignorer les blocs NOTE et STYLE
-
-    for (s = 0; s < nblig; s++) {
-
-        let ligne = lignesFich[s].trim();
-
-        // en-tête WEBVTT (et métadonnées éventuelles sur la même ligne)
-        if (ligne.startsWith("WEBVTT")) { continue; }
-
-        // blocs NOTE et STYLE : ignorer jusqu'à la prochaine ligne vide
-        if (ligne.startsWith("NOTE") || ligne.startsWith("STYLE")) { inBlock = true; continue; }
-        if (inBlock) { if (ligne === "") { inBlock = false; } continue; }
-
-        let posflèche = ligne.indexOf("-->"); // test d'une ligne de timestamps
-
-        if (posflèche > -1) { // nouveau segment
-
-            tabSeg.push();
-            rgSeg++;
-            tabSeg[rgSeg] = new Array(6);
-
-            // extraire les timestamps en ignorant les attributs de positionnement VTT (position:, line:, align:…)
-            let tpsBrut = ligne.split("-->");
-            let debStr = tpsBrut[0].trim();
-            let finStr = tpsBrut[1].trim().split(/\s+/)[0]; // premier token seulement
-
-            tabSeg[rgSeg][1] = TimeToSec(debStr);
-            tabSeg[rgSeg][2] = TimeToSec(finStr);
-            tabSeg[rgSeg][3] = 0;     // locuteur (indéfini par défaut)
-            tabSeg[rgSeg][4] = "";
-            tabSeg[rgSeg][5] = false;
-            tabSeg[rgSeg][6] = 0;
-
-        } else {
-
-            if (ligne === "") { continue; } // ligne vide → ignorer
-
-            // identifiant de cue (ligne directement suivie d'un timestamp) → ignorer
-            if (s < nblig - 1 && lignesFich[s + 1].indexOf("-->") > -1) { continue; }
-
-            let lignetxt = ligne.replace(/\r?\n|\r/, "");
-
-            // 1. balise <v Nom> : locuteur au format VTT natif
-            const vTagMatch = lignetxt.match(/^<v\s+([^>]+)>/);
-            if (vTagMatch) {
-                const nomLoc = vTagMatch[1].trim();
-                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
-                lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
-            }
-            // 2. préfixe "Speaker N" (format Whisper/diarisation)
-            else if (/^Speaker\s+\d+/.test(lignetxt)) {
-                let rg = Number(lignetxt.substr(8, 1)) + 1;
-                let nomLoc = "Speaker " + rg;
-                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
-                lignetxt = lignetxt.substr(11); // suppression du préfixe "Speaker N "
-            }
-
-            // suppression des balises VTT restantes (<b>, <i>, <c.class>, timestamps, etc.)
-            lignetxt = lignetxt.replace(/<[^>]+>/g, "");
-
-            tabSeg[rgSeg][4] += lignetxt;
-        }
-    }
-
-    // trimage des textes
-    for (s = 0; s < tabSeg.length; s++) {
-        if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
-        tabSeg[s][4] = tabSeg[s][4].trim() + " "; // espace final pour séparation entre segments
-    }
-
-    // suppression du rang 0
-    tabSeg.splice(0, 1);
-
-    console.log("importation du fichier VTT \tabseg = ", tabSeg, "\n locut = ", locut);
-    window.tabLocImport = locut;
-    let formatSonal = tabSegToSonal(tabSeg, locut);
-    return { formatSonal };
+async function convertVTT(content) {
+    return convertirSousTitres(content, 'vtt');
 }
 
 
@@ -768,77 +586,6 @@ function Phrasifier(tabSeg){ // petite fonction visant à regrouper les segments
 
 }
 
-async function convertSpeaker(tabSeg) { // fonction permettant de récupérer les "speakers n" dans le srt et de créer un tableau de locuteurs
-
-    let rgmax = 0;
-    locut = [''] // locut[0] n'existe pas
-
-    for (s = 0; s< tabSeg.length;s++){
-
-        let txt = tabSeg[s][4]
-
-        if (!txt || txt.trim() === ""){continue} // segment vide    
-
-        let spk = txt.indexOf("Speaker ") // recherche d'un speaker
-
-        if (spk == 0) { // récupération du rang
-
-            let rg = txt.substr(8,1)
-            rg = Number(rg)+1               
-
-            tabSeg[s][3] = rg  //affectation du locuteur
-
-            // faut-il ajouter un nouveau locuteur dans le tableau des locuteurs ?
-            // le nomLoc existe-til déjà dans le tableau des locuteurs ?
-            let nomLoc = "Speaker " + (rg);
-
-            if (!locut.includes(nomLoc)) {
-                locut.push(nomLoc);
-            }
-
-            /*
-            if (rgmax < rg+1) {
-                rgmax = rg+1 
-                locutTemp.push("Speaker " + (rg+1))
-            }; // mémorisation du speaker le plus élevé atteint
-            */
- 
-            //suppression du préfixe "speaker"
-            tabSeg[s][4] = txt.substr(11)
-            
-        } 
-
-        //suppression des "speaker 0 etc.", qui apparaissent de manière intempestive dans le corps du texte
-        // on ne garde que ceux qui figurent au début des segments
-        for (i=0;i<10;i++){
-            tabSeg[s][4] = tabSeg[s][4].replaceAll("Speaker " + i + ":","")
-        }     
- 
-    };
-
-    console.log("locuteurs identifiés dans convert speakers: ", locut);
-
-    /*
-    // stocker dans le main via preload API si disponible
-    if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
-        try {
-            await window.electronAPI.setTabLoc(locutTemp);
-        } catch (err) {
-            console.error('Erreur setTabLoc:', err);
-            // fallback to window global
-            window.tabLocImport = locutTemp;
-        }
-    } else {
-        window.tabLocImport = locutTemp; // fallback
-    }
-    */  
-
-    return { tabSeg, locut }
- 
-
-
-}
-
 function tabSegToSonal(tabSeg,locut,notes){
 
 let html =`
@@ -859,7 +606,7 @@ let html =`
 // ajour éventuel des locuteurs
 if (locut && locut.length>1){
 
-    const locJSON = JSON.stringify(locut, null);
+    const locJSON = JSON.stringify(locut, null).replace(/</g, '\\u003c');
 
     html += `
     <script id="loc-json" type="application/json">
@@ -877,7 +624,7 @@ html += `<div id="contenuText">
     var rkMax=1;
     var sgMax=1; 
 
-    for (s=0;s<tabSeg.length;s++){
+    for (let s=0;s<tabSeg.length;s++){
         
         
         // création des spans internes
@@ -897,7 +644,7 @@ html += `<div id="contenuText">
         var texte = tabSeg[s][4];
         const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
 
-        html += `<span data-rk="${rkMax}" data-sg="${sgMax}" data-len="${elements.length}">${texte}</span></span>`;
+        html += `<span data-rk="${rkMax}" data-sg="${sgMax}" data-len="${elements.length}">${texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span></span>`;
         rkMax += elements.length;
 
         sgMax++;
