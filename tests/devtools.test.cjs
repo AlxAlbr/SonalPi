@@ -12,7 +12,7 @@ function demarrer(isPackaged) {
         isPackaged,
         commandLine: { appendSwitch() {} },
         getPath: () => '/profil-test',
-        getVersion: () => '1.0.81',
+        getVersion: () => '1.0.82',
     });
     class BrowserWindow extends EventEmitter {
         constructor() {

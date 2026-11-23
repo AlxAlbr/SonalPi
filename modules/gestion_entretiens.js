@@ -745,6 +745,34 @@ let nbActifs = tabEnt.filter(ent => ent.actif !== 0).length;
     } else {
     document.getElementById('lbl-nb-ent').innerText = "(" + tabEnt.length + ")";
     }
+
+    await majToastExtraitsActifsCorpus();
+}
+
+async function majToastExtraitsActifsCorpus() {
+    const lbl = document.getElementById('lbl-nb-xtr-actifs');
+    if (!lbl) return;
+
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    const total = document.querySelectorAll('.xtr-graph').length;
+
+    let nbActifs = 0;
+    document.querySelectorAll('.xtr-graph').forEach(xtr => {
+        if (xtr.style.display === 'none') return;
+        const rkEnt = Number(xtr.dataset.e);
+        const ent = Number.isNaN(rkEnt) ? null : tabEnt[rkEnt];
+        if (!ent || ent.actif !== 0) nbActifs++;
+    });
+
+    const tousActifs = total > 0 && nbActifs === total;
+    if (tousActifs || total === 0) {
+        lbl.style.display = 'none';
+        lbl.innerText = '';
+        return;
+    }
+
+    lbl.style.display = 'inline';
+    lbl.innerText = 'Extraits : ' + nbActifs + ' / ' + total;
 }
  
 async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
@@ -2077,6 +2105,7 @@ if (typeof window !== 'undefined') {
     window.loadHtml = loadHtml;
     window.afficherWhisPurge = afficherWhisPurge;
     window.miseàjourEntretien = miseàjourEntretien;
+    window.majToastExtraitsActifsCorpus = majToastExtraitsActifsCorpus;
 }
 // ---------------------------------------------------------------
 // Export d'un entretien avec options (appele depuis dialogExportChoixOptions)
@@ -3147,8 +3176,16 @@ function _terminerProgressionExportCorpus() {
 
 /**
  * Ouvre la modale d'export du corpus (déclenchée par les menus Corpus/Entretiens).
+ * @param {boolean} actifsSeuls Si vrai, seuls les entretiens actifs sont exportés.
  */
-function ouvrirModaleExportCorpus() {
+let _exportCorpusActifsSeuls = false;
+
+function _exclureExportCorpus(ent, opts) {
+    return !!(opts && opts.actifsSeuls && ent && ent.actif === 0);
+}
+
+function ouvrirModaleExportCorpus(actifsSeuls = false) {
+    _exportCorpusActifsSeuls = actifsSeuls === true;
     const element = document.getElementById('dlg');
     if (!element) return;
     element.style.display = 'block';
@@ -3165,7 +3202,7 @@ function ouvrirModaleExportCorpus() {
         <div style="overflow:hidden; margin-left:-20px; margin-right:-20px; margin-bottom:-20px;">
             <div id="export-slider-corpus" style="display:flex; width:200%; transition:transform 0.35s cubic-bezier(.4,0,.2,1); transform:translateX(0);">
                 <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
-                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
+                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export${_exportCorpusActifsSeuls ? ' <span style="font-weight:normal;font-size:0.8em;color:#666;">(entretiens actifs uniquement)</span>' : ''}</h3>
                     <div style="display:flex;gap:16px;align-items:center;background:#f4f4f4;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
                         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                             <input type="radio" name="export-corpus-mode" id="export-corpus-mode-split" checked>
@@ -3269,10 +3306,18 @@ async function exporterCorpusAvecOptions(format) {
         thm: getChk('opt-thm'),
         time: getChk('opt-time'),
         entete: getChk('opt-entete'),
+        actifsSeuls: _exportCorpusActifsSeuls,
     };
     const modeUnique = getChk('export-corpus-mode-single');
 
     hidedlg();
+    if (opts.actifsSeuls) {
+        const tabEntVerif = (await window.electronAPI.getEnt()) || [];
+        if (!tabEntVerif.some(e => e && e.actif !== 0)) {
+            dialog('Message', 'Aucun entretien actif à exporter.');
+            return;
+        }
+    }
     try {
         if (format === 'sonal') {
             await exporterCorpusReouvrable(opts);
@@ -3320,6 +3365,7 @@ async function exporterCorpusTxtZip(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nom = _nomExportEntretien(ent, i, '.txt', nomsUtilises);
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3352,6 +3398,7 @@ async function exporterCorpusTxtUnique(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3359,7 +3406,7 @@ async function exporterCorpusTxtUnique(opts = {}) {
             });
             const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
             const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
-            contenu += (i > 0 ? '\n\n' : '') + '============================================================\n';
+            contenu += (contenu ? '\n\n' : '') + '============================================================\n';
             contenu += 'ENTRETIEN ' + (i + 1) + ' : ' + nomEnt + '\n';
             contenu += '============================================================\n\n';
             contenu += construireTxtEntretien(ent, opts, txtvars, html, locAff);
@@ -3463,6 +3510,7 @@ async function exporterCorpusSrtZip(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nom = _nomExportEntretien(ent, i, '.srt', nomsUtilises);
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3494,6 +3542,7 @@ async function exporterCorpusVttZip(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nom = _nomExportEntretien(ent, i, '.vtt', nomsUtilises);
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3525,6 +3574,7 @@ async function exporterCorpusPdfZip(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nom = _nomExportEntretien(ent, i, '.pdf', nomsUtilises);
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3564,6 +3614,7 @@ async function exporterCorpusPdfUnique(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3614,6 +3665,7 @@ async function exporterCorpusReouvrable(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const libelle = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
 
             let chemin;
@@ -3708,6 +3760,7 @@ async function exporterCorpusPartage(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
             const suffixeTitre = opts.anon ? ' (anonymisé)' : '';
             const nomFichier = _nomExportEntretien(ent, i, '.html', nomsUtilises);
@@ -3767,6 +3820,7 @@ async function exporterCorpusHtmlUnique(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
             const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3827,6 +3881,7 @@ async function exporterCorpusDocxZip(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomFichier = _nomExportEntretien(ent, i, '.docx', nomsUtilises);
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,
@@ -3868,6 +3923,7 @@ async function exporterCorpusDocxUnique(opts = {}) {
     try {
         for (let i = 0; i < tabEnt.length; i++) {
             const ent = tabEnt[i];
+            if (_exclureExportCorpus(ent, opts)) continue;
             const nomEnt = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
             const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
                 entretienIndex: i,

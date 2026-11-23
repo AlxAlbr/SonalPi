@@ -42,30 +42,43 @@ function traiterTexteExtrait(spans, { anonymise = true, tousLesSpans = null } = 
             throw new Error("Extraction anonymisée indisponible.");
         }
 
-        // L'extrait peut commencer ou finir au milieu d'un run `.anon`. On fournit donc à
-        // l'extracteur commun le document complet, puis on ne lui demande que les plages retenues.
-        // Les coupures servent aussi à replacer les changements de locuteur au bon endroit.
-        const contexte = Array.from(tousLesSpans || selection);
-        const indices = selection.map(mot => contexte.indexOf(mot));
-        if (indices.some(index => index < 0)) throw erreurExtractionAnonymisee('CONTEXTE_EXTRAIT_INCOHERENT');
+        try {
+            // L'extrait peut commencer ou finir au milieu d'un run `.anon`. On fournit donc à
+            // l'extracteur commun le document complet, puis on ne lui demande que les plages retenues.
+            // Les coupures servent aussi à replacer les changements de locuteur au bon endroit.
+            const contexte = Array.from(tousLesSpans || selection);
+            const indices = selection.map(mot => contexte.indexOf(mot));
+            if (indices.some(index => index < 0)) throw erreurExtractionAnonymisee('CONTEXTE_EXTRAIT_INCOHERENT');
 
-        let debutGroupe = 0;
-        const extraireGroupe = finGroupe => {
-            if (finGroupe < debutGroupe) return;
-            ajouterLocuteur(selection[debutGroupe]);
-            texte += extraireTexteAnonymiseDepuisSpans(
-                contexte,
-                indices[debutGroupe],
-                indices[finGroupe]
-            ).texte;
-        };
+            let debutGroupe = 0;
+            const extraireGroupe = finGroupe => {
+                if (finGroupe < debutGroupe) return;
+                ajouterLocuteur(selection[debutGroupe]);
+                texte += extraireTexteAnonymiseDepuisSpans(
+                    contexte,
+                    indices[debutGroupe],
+                    indices[finGroupe]
+                ).texte;
+            };
 
-        for (let i = 1; i <= selection.length; i++) {
-            const nouvelleIntervention = i < selection.length && selection[i].classList.contains('ligloc');
-            const plageDiscontinue = i < selection.length && indices[i] !== indices[i - 1] + 1;
-            if (i === selection.length || nouvelleIntervention || plageDiscontinue) {
-                extraireGroupe(i - 1);
-                debutGroupe = i;
+            for (let i = 1; i <= selection.length; i++) {
+                const nouvelleIntervention = i < selection.length && selection[i].classList.contains('ligloc');
+                const plageDiscontinue = i < selection.length && indices[i] !== indices[i - 1] + 1;
+                if (i === selection.length || nouvelleIntervention || plageDiscontinue) {
+                    extraireGroupe(i - 1);
+                    debutGroupe = i;
+                }
+            }
+        } catch (error) {
+            if (error && error.name === 'ErreurExtractionAnonymisee') {
+                console.warn('[synthese] marquage anonymisé incomplet : repli sur le texte brut.', error.code);
+                texte = '';
+                selection.forEach(mot => {
+                    ajouterLocuteur(mot);
+                    texte += mot.innerText !== undefined ? mot.innerText : (mot.textContent || '');
+                });
+            } else {
+                throw error;
             }
         }
     } else {
@@ -379,6 +392,41 @@ async function synthese(critereEt){ // fonction permettant de compiler toutes le
     divPlanSynth.classList.add("plansynth");
     divFondSynth.appendChild (divPlanSynth);
 
+    // Menu de tri (préparation des modes) fixé en haut du plan de synthèse.
+    const divTriSynthese = document.createElement('div');
+    divTriSynthese.classList.add('plansynth-tri');
+
+    const lblTriSynthese = document.createElement('label');
+    lblTriSynthese.classList.add('plansynth-tri-label');
+    lblTriSynthese.htmlFor = 'select-tri-synthese';
+    lblTriSynthese.innerText = 'Trier les extraits par';
+
+    const selectTriSynthese = document.createElement('select');
+    selectTriSynthese.id = 'select-tri-synthese';
+    selectTriSynthese.classList.add('plansynth-tri-select');
+    selectTriSynthese.innerHTML = `
+        <option value="entretiens">Entretiens</option>
+        <option value="longueur">Longueur</option>
+        <option value="nb-extraits-entretien">Nb d'extraits par entretien</option>
+    `;
+    selectTriSynthese.value = 'entretiens';
+
+    // Prépare le hook des futurs tris sans modifier le comportement actuel.
+    divSynthese.dataset.modeTriSynthese = 'entretiens';
+    selectTriSynthese.addEventListener('change', function() {
+        const modeTri = this.value || 'entretiens';
+        divSynthese.dataset.modeTriSynthese = modeTri;
+        console.log('[synthese] mode de tri sélectionné :', modeTri);
+        renderSynthese(modeTri).catch(err => {
+            console.error('Erreur lors du tri de la synthèse :', err);
+            notifErreur('Impossible d\'appliquer le tri de la synthèse.');
+        });
+    });
+
+    divTriSynthese.appendChild(lblTriSynthese);
+    divTriSynthese.appendChild(selectTriSynthese);
+    divPlanSynth.appendChild(divTriSynthese);
+
     // Fonction pour traiter un entretien
     async function traiterEntretien(i) {
         return new Promise((resolve) => {
@@ -568,131 +616,202 @@ async function synthese(critereEt){ // fonction permettant de compiler toutes le
         tempContainer.remove();
 
 
-        // affichage du tableau des extraits
+        // affichage du tableau des extraits (avec tri dynamique)
         const conteneur = divFondSynth;
 
-        //conteneur.innerHTML="";
-
-        // défilement des extraits
-        console.log("il y a " + tabExt.length + " extraits à afficher dans la synthèse");
-
-        for (let i=0; i<tabExt.length; i++){
-
-            if (i>0){
-                if (tabExt[i].entretien != tabExt[i-1].entretien){
-                    conteneur.appendChild(titreEnt(tabExt[i].entretien));
-                    conteneur.appendChild(await variablesEnt(tabExt[i].entretien));
-                    divPlanSynth.appendChild(titreEntPlan(tabExt[i].entretien));
-                }
-            }   else {conteneur.appendChild(titreEnt(tabExt[i].entretien));
-                    conteneur.appendChild(await variablesEnt(tabExt[i].entretien));
-                    divPlanSynth.appendChild(titreEntPlan(tabExt[i].entretien));
-            }
-
-            // création de la div de l'extrait
-            const div = document.createElement('div');
-            div.classList.add("extrait-synthese");
-            div.dataset.description = "Extrait " + (i+1) + " / " + tabExt.length;
-            div.draggable = true;
-            div.dataset.extIdx = i;
-            div.addEventListener('dragstart', e => {
-                e.dataTransfer.setData('application/sonal-extrait', String(i));
-                e.dataTransfer.effectAllowed = 'copy';
-                div.classList.add('extrait-synthese-dragging');
-            });
-            div.addEventListener('dragend', () => {
-                div.classList.remove('extrait-synthese-dragging');
-                div.draggable = true;
-            });
-
-            conteneur.appendChild(div);
-            
-            // boutton de copie de l'extrait
-            const btnCopy = document.createElement('div');
-            btnCopy.classList.add('btn-copy-extrait');
-            
-            btnCopy.title = "Copier l'extrait dans le presse-papiers";
-            btnCopy.addEventListener('click', async () => {
-                
-                // Utiliser le texte traité directement
-                let textCopié = "« " + (tabExt[i].texteTraite || "") + " »\n";
-                
-                // Ajout des infos sur l'entretien
-                // anon:true — cohérent avec le texte copié (texteTraite), déjà pseudonymisé.
-                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i], { anon: true }))[1] + "\n";
-
-                // HTML version (plus simpliste, basée sur le texte traité)
-                let htmlCopié = "<p>« " + (tabExt[i].texteTraite || "").replace(/\n/g, '<br>') + " »</p>";
-                htmlCopié += "<em>Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i], { anon: true }))[1] + "</em><br>";
-
-                const blobHtml = new Blob([htmlCopié], { type: 'text/html' });
-                const blobText = new Blob([textCopié], { type: 'text/plain' });
-                navigator.clipboard.write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]).then(() => {
-                   btnCopy.classList.add('btn-copied-extrait');
-                   setTimeout(() => {
-                    btnCopy.classList.remove('btn-copied-extrait');
-                   }, 1000);
-
-                }).catch(err => {
-                    notifErreur("Erreur lors de la copie : " + err);
-                });
-            });
-
-            locCur = -1;
-
-            // bouton de contexte de l'extrait
-            const btnContext = document.createElement('div');
-            btnContext.classList.add('btn-context-extrait');
-            btnContext.title = "Afficher le contexte de cet extrait";
-            btnContext.innerText = '⛶';
-            btnContext.addEventListener('click', () => {
-                afficherContexte(tabExt[i]);
-            });
-
-            div.appendChild(btnCopy);
-            div.appendChild(btnContext);
-
-            // Div interne non-draggable : contient le texte de l'extrait.
-            // Au mousedown dans cette zone, on désactive temporairement le drag
-            // du parent pour permettre la sélection de texte.
-            const contentDiv = document.createElement('div');
-            contentDiv.classList.add('extrait-synthese-content');
-            contentDiv.addEventListener('mousedown', () => {
-                div.draggable = false;
-                const re = () => {
-                    div.draggable = true;
-                    document.removeEventListener('mouseup', re);
-                };
-                document.addEventListener('mouseup', re);
-            });
-
-            for (m=0;m<tabExt[i].texte.length;m++){
-                 contentDiv.appendChild(tabExt[i].texte[m]);
-            }
-            div.appendChild(contentDiv);
-
-
-         
-
-
-
+        // Comptage identique à celui d'un traitement de texte : tokens séparés par des blancs.
+        function compterMotsTexte(texte) {
+            if (!texte) return 0;
+            const tokens = String(texte).split(/\s+/).filter(Boolean);
+            return tokens.length;
         }
 
+        function getLongueurExtrait(extrait) {
+            if (!extrait || !extrait.texte) return 0;
+            const selection = new Set(extrait.texte);
+            let total = 0;
+            let parentCourant = null;
+            let tampon = '';
 
-        
+            // Les spans d'un même segment sont concaténés tels quels (un mot peut être
+            // coupé en plusieurs spans) ; on compte à chaque changement de segment.
+            const vider = () => {
+                total += compterMotsTexte(tampon);
+                tampon = '';
+            };
 
-        nbXtrPlansynth();
+            for (const mot of extrait.texte) {
+                if (!mot) continue;
+                // span imbriqué dans un autre span sélectionné : déjà inclus dans son parent
+                if (mot.parentElement && selection.has(mot.parentElement)) continue;
 
-        multiThm("fondSynthese"); // affichage des thms multicouches
+                if (mot.parentNode !== parentCourant) {
+                    vider();
+                    parentCourant = mot.parentNode;
+                }
+                // NB : les spans .ligloc sont de vrais mots (le libellé du locuteur est
+                // ajouté en CSS / via data-nomloc), ils doivent donc être comptés.
+                tampon += mot.textContent || '';
+            }
+            vider();
+            return total;
+        }
 
-        console.log("fin de la synthèse");
+        function comparerBase(a, b) {
+            const nomA = (tabEnt[a.extrait.entretien] && tabEnt[a.extrait.entretien].nom) ? tabEnt[a.extrait.entretien].nom : '';
+            const nomB = (tabEnt[b.extrait.entretien] && tabEnt[b.extrait.entretien].nom) ? tabEnt[b.extrait.entretien].nom : '';
+            return (
+                nomA.localeCompare(nomB, 'fr', { sensitivity: 'base' }) ||
+                (a.extrait.debut || 0) - (b.extrait.debut || 0) ||
+                a.sourceIndex - b.sourceIndex
+            );
+        }
+
+        function preparerExtraitsTries(modeTri = 'entretiens') {
+            const nbParEntretien = tabExt.reduce((acc, extrait) => {
+                const rk = extrait.entretien;
+                acc[rk] = (acc[rk] || 0) + 1;
+                return acc;
+            }, {});
+
+            const enrichis = tabExt.map((extrait, sourceIndex) => ({
+                extrait,
+                sourceIndex,
+                longueur: getLongueurExtrait(extrait),
+                nbExtraitsEntretien: nbParEntretien[extrait.entretien] || 0
+            }));
+
+            switch (modeTri) {
+                case 'longueur':
+                    enrichis.sort((a, b) =>
+                        (b.longueur - a.longueur) || comparerBase(a, b)
+                    );
+                    break;
+                case 'nb-extraits-entretien':
+                    enrichis.sort((a, b) =>
+                        (b.nbExtraitsEntretien - a.nbExtraitsEntretien) || comparerBase(a, b)
+                    );
+                    break;
+                case 'entretiens':
+                default:
+                    enrichis.sort(comparerBase);
+                    break;
+            }
+
+            return enrichis;
+        }
+
+        async function renderSynthese(modeTri = 'entretiens') {
+            // Nettoyer le rendu précédent, garder uniquement le menu de tri dans le plan.
+            conteneur.querySelectorAll('.titreent, .ligne-variables-ent, .extrait-synthese').forEach(el => el.remove());
+            divPlanSynth.querySelectorAll('.titreplansynth').forEach(el => el.remove());
+
+            const tabExtTries = preparerExtraitsTries(modeTri);
+            const entretiensAjoutesAuPlan = new Set();
+
+            for (let i = 0; i < tabExtTries.length; i++) {
+                const item = tabExtTries[i];
+                const extrait = item.extrait;
+                const precedent = i > 0 ? tabExtTries[i - 1].extrait : null;
+
+                if (!precedent || extrait.entretien !== precedent.entretien) {
+                    conteneur.appendChild(titreEnt(extrait.entretien));
+                    conteneur.appendChild(await variablesEnt(extrait.entretien));
+                    if (!entretiensAjoutesAuPlan.has(extrait.entretien)) {
+                        divPlanSynth.appendChild(titreEntPlan(extrait.entretien));
+                        entretiensAjoutesAuPlan.add(extrait.entretien);
+                    }
+                }
+
+                const div = document.createElement('div');
+                div.classList.add('extrait-synthese');
+                if (modeTri === 'entretiens') {
+                    div.dataset.description = 'Extrait ' + (i + 1) + ' / ' + tabExtTries.length;
+                } else if (modeTri === 'longueur') {
+                    const nomEnt = (tabEnt[extrait.entretien] && tabEnt[extrait.entretien].nom) ? tabEnt[extrait.entretien].nom : '';
+                    div.dataset.description = nomEnt + ' - ' + item.longueur + ' mots - Extrait ' + (i + 1) + ' / ' + tabExtTries.length;
+                } else {
+                    const nomEnt = (tabEnt[extrait.entretien] && tabEnt[extrait.entretien].nom) ? tabEnt[extrait.entretien].nom : '';
+                    div.dataset.description = nomEnt + ' - Extrait ' + (i + 1) + ' / ' + tabExtTries.length;
+                }
+                div.draggable = true;
+                div.dataset.extIdx = item.sourceIndex;
+                div.addEventListener('dragstart', e => {
+                    e.dataTransfer.setData('application/sonal-extrait', String(item.sourceIndex));
+                    e.dataTransfer.effectAllowed = 'copy';
+                    div.classList.add('extrait-synthese-dragging');
+                });
+                div.addEventListener('dragend', () => {
+                    div.classList.remove('extrait-synthese-dragging');
+                    div.draggable = true;
+                });
+
+                conteneur.appendChild(div);
+
+                const btnCopy = document.createElement('div');
+                btnCopy.classList.add('btn-copy-extrait');
+                btnCopy.title = "Copier l'extrait dans le presse-papiers";
+                btnCopy.addEventListener('click', async () => {
+                    let textCopie = '« ' + (extrait.texteTraite || '') + ' »\n';
+                    textCopie += 'Entretien : ' + tabEnt[extrait.entretien].nom + ' ' + (await varsPubliquesXtr(extrait, { anon: true }))[1] + '\n';
+
+                    let htmlCopie = '<p>« ' + (extrait.texteTraite || '').replace(/\n/g, '<br>') + ' »</p>';
+                    htmlCopie += '<em>Entretien : ' + tabEnt[extrait.entretien].nom + ' ' + (await varsPubliquesXtr(extrait, { anon: true }))[1] + '</em><br>';
+
+                    const blobHtml = new Blob([htmlCopie], { type: 'text/html' });
+                    const blobText = new Blob([textCopie], { type: 'text/plain' });
+                    navigator.clipboard.write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]).then(() => {
+                        btnCopy.classList.add('btn-copied-extrait');
+                        setTimeout(() => {
+                            btnCopy.classList.remove('btn-copied-extrait');
+                        }, 1000);
+                    }).catch(err => {
+                        notifErreur('Erreur lors de la copie : ' + err);
+                    });
+                });
+
+                const btnContext = document.createElement('div');
+                btnContext.classList.add('btn-context-extrait');
+                btnContext.title = "Afficher le contexte de cet extrait";
+                btnContext.innerText = '⛶';
+                btnContext.addEventListener('click', () => {
+                    afficherContexte(extrait);
+                });
+
+                div.appendChild(btnCopy);
+                div.appendChild(btnContext);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.classList.add('extrait-synthese-content');
+                contentDiv.addEventListener('mousedown', () => {
+                    div.draggable = false;
+                    const re = () => {
+                        div.draggable = true;
+                        document.removeEventListener('mouseup', re);
+                    };
+                    document.addEventListener('mouseup', re);
+                });
+
+                for (let m = 0; m < extrait.texte.length; m++) {
+                    contentDiv.appendChild(extrait.texte[m]);
+                }
+                div.appendChild(contentDiv);
+            }
+
+            nbXtrPlansynth();
+            multiThm('fondSynthese'); // affichage des thms multicouches
+
+            console.log('fin de la synthèse (' + modeTri + ')');
+            document.getElementById('status-bar').innerText = 'Synthèse terminée. ' + tabExt.length + ' extraits compilés.';
+            document.getElementById('progress-bar').style.width = '0%';
+        }
+
+        console.log("il y a " + tabExt.length + " extraits à afficher dans la synthèse");
+        await renderSynthese(selectTriSynthese.value || 'entretiens');
 
         divSynthese.appendChild(conteneur);
 
         //document.getElementById('fenSynt').classList.remove("dnone");
-        document.getElementById('status-bar').innerText = "Synthèse terminée. " + tabExt.length + " extraits compilés.";
-        document.getElementById('progress-bar').style.width = "0%";
-
 }
 
 function hideSynthese(){

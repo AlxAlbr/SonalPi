@@ -185,6 +185,44 @@ test('les actions du conflit ajoutent, conservent ou annulent sans créer une tr
     assert.deepEqual(env.etat().regles[0], { entite: 'Alice', remplacement: 'A', remplacementAlt: 'B' });
 });
 
+test('la synthèse retombe sur le texte brut si le marquage anonymisé est incomplet', () => {
+    const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/' });
+    const w = dom.window;
+    const ctx = dom.getInternalVMContext();
+    ctx.window = w;
+    ctx.document = w.document;
+    ctx.console = console;
+    ctx.tabThm = [];
+    ctx.nomLocAffiche = () => 'Alice';
+    ctx.extraireTexteAnonymiseDepuisSpans = () => {
+        const error = new Error('marquage incomplet');
+        error.name = 'ErreurExtractionAnonymisee';
+        error.code = 'PSEUDO_ABSENT';
+        throw error;
+    };
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'modules', 'synthese.js'), 'utf8'), ctx, { filename: 'modules/synthese.js' });
+
+    const locuteur = w.document.createElement('span');
+    locuteur.className = 'ligloc';
+    locuteur.dataset.nomloc = 'Alice';
+    locuteur.textContent = 'Alice';
+
+    const a = w.document.createElement('span');
+    a.className = 'mot';
+    a.textContent = 'Bonjour';
+
+    const b = w.document.createElement('span');
+    b.className = 'mot';
+    b.textContent = 'monde';
+
+    const selection = [locuteur, a, b];
+    const resultat = ctx.traiterTexteExtrait(selection, { anonymise: true, tousLesSpans: selection });
+    assert.equal(resultat.texte.includes('Alice'), true);
+    assert.equal(resultat.texte.includes('Bonjour'), true);
+    assert.equal(resultat.texte.includes('monde'), true);
+    dom.window.close();
+});
+
 for (const [nom, options] of [
     ['échec .Sonal', { echecSonal: true }],
     ['échec .crp', { echecCrp: true }],

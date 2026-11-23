@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, shell, clipboard } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -38,6 +38,9 @@ var tabLocImport = []; // locuteurs importés (stockage central dans le main)
 // utilisateur 
 var utilisateur="";
  
+
+// Lecture du texte du presse-papiers (bouton « Coller » des fenêtres de saisie, utile sous macOS)
+ipcMain.handle('clipboard:readText', () => clipboard.readText());
 
 // Handlers pour mettre à jour et récupérer le corpus
 ipcMain.handle('get-corpus', () => { return Corpus;});
@@ -1413,9 +1416,7 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
 
     // chargement de la fenêtre edition_categories.html
     entWindow.loadFile('edition_entretien.html');
-    if (!app.isPackaged) {
-      entWindow.webContents.openDevTools();
-    }
+   // entWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
@@ -2943,9 +2944,7 @@ app.on('ready', () => {
     // Définir l'icône après le chargement de la fenêtre
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
-      if (!app.isPackaged) {
-        mainWindow.webContents.openDevTools();
-      }
+     // mainWindow.webContents.openDevTools();
       mainWindow.show();
 
       // Vérification des mises à jour
@@ -3153,7 +3152,7 @@ app.on('ready', () => {
                 { type: 'separator' },
       
         { 
-          label: 'Exporter tous les entretiens',
+          label: 'Exporter tous les entretiens actifs',
           click: () => mainWindow.webContents.send('menu:exporter-tous-entretiens')
         }
  

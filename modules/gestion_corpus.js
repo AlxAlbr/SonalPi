@@ -1907,6 +1907,10 @@ async function affichageExtraitsCorpus(critereEt = false){
 
         }) 
 
+        if (typeof majToastExtraitsActifsCorpus === 'function') {
+            await majToastExtraitsActifsCorpus();
+        }
+
 }
 
 

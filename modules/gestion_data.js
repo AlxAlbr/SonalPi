@@ -1995,7 +1995,12 @@ async function changerModaliteFiltreTAP(codeVariable, codeModalite, isoler = fal
 function majSwitchesTAP(tabEntLocal) {
     document.querySelectorAll('.tap-row > .btn-onoff-ent[data-v][data-m]').forEach(btn => {
         const selectionnees = etatFiltresTAP.get(String(btn.dataset.v));
-        btn.classList.toggle('btn-onoff-ent--actif', !!selectionnees && selectionnees.has(String(btn.dataset.m)));
+        const estActive = !!selectionnees && selectionnees.has(String(btn.dataset.m));
+        btn.classList.toggle('btn-onoff-ent--actif', estActive);
+
+        // Harmoniser l'état visuel de toute la ligne (libellé + barre) avec le switch.
+        const row = btn.closest('.tap-row');
+        if (row) row.classList.toggle('tap-row--inactive', !estActive);
     });
 
     const globalSwitch = document.getElementById('tap-global-switch');

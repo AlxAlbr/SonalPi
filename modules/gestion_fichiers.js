@@ -1499,6 +1499,10 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
 var rgCherche = 0;
 var tabTrv = []
 
+function echapperRegex(texte) {
+    return String(texte).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function rechercher() { // fonction de recherche de texte dans les segments de la fenêtre d'édition
  
     console.log("lancement d'une recherche depuis? ")
@@ -1701,25 +1705,30 @@ async function remplacer() { // fonction de remplacement de texte dans les segme
     let tabMtsRech = chaine.split(" "); // Sépare la chaîne en mots
     let tabMtsRemp = remp.split(" "); // Sépare la chaîne en mots
 
-                    for(m2=0; m2<tabMtsRech.length; m2++) { // Pour chaque mot de la chaîne
+                    for (let m2 = 0; m2 < tabMtsRech.length; m2++) { // Pour chaque mot de la chaîne
 
                         const ssmot = getSpan(Number(rgmot+m2))// Texte du mot en minuscules
 
                         
                         if (ssmot){
-                         
-                            if (ssmot.textContent.trim().toLowerCase().includes(tabMtsRech[m2])) {
-                          
+                            const texteSpan = ssmot.textContent || "";
+                            const texteSpanTrim = texteSpan.trim();
+
+                            if (texteSpanTrim.toLowerCase().includes(tabMtsRech[m2])) {
+
                                 let motremp = tabMtsRemp[m2] || ""; // Si le mot de remplacement est vide, on le remplace par une chaîne vide
-                                ssmot.innerHTML = ssmot.innerHTML.replace(new RegExp(ssmot.textContent.trim(), 'g'), motremp);
+                                const motifSpan = new RegExp(echapperRegex(texteSpanTrim), 'g');
+                                ssmot.textContent = texteSpan.replace(motifSpan, motremp);
                             }
                         }
     }
 
 
  
-        if (mot.textContent.includes(chaine)) {
-            mot.innerHTML = mot.innerHTML.replace(new RegExp(chaine, 'g'), remp);
+        const texteMot = mot.textContent || "";
+        if (texteMot.toLowerCase().includes(chaine)) {
+            const motifChaine = new RegExp(echapperRegex(chaine), 'gi');
+            mot.textContent = texteMot.replace(motifChaine, remp);
             mot.classList.remove('highlight'); // Retire la classe highlight après le remplacement
             mot.classList.remove('contour');
         }
@@ -1744,12 +1753,13 @@ async function remplacerTout() { // fonction de remplacement de texte dans les s
     const segments = conteneur.querySelectorAll('.lblseg'); // Sélectionne tous les segments
 
     let nbMatchs =0
+    const motifChaine = new RegExp(echapperRegex(chaine), 'gi');
     segments.forEach(segment => { // Pour chaque segment
         let segmentText = segment.innerText.toLowerCase(); // Vérifie le texte du segment en minuscules
         
         if (segmentText.includes(chaine.toLowerCase())) { // Si le segment contient la chaîne recherchée
             
-            segment.innerText = segment.innerText.replace(new RegExp(chaine, 'gi'), remp); // Remplace la chaîne dans le segment
+            segment.textContent = (segment.textContent || "").replace(motifChaine, remp); // Remplace la chaîne dans le segment
             nbMatchs++; 
         }
     });

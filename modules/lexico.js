@@ -69,6 +69,13 @@ async function extraireLexico() {
 
         // Ensemble des spans à ignorer car déjà absorbés dans une entité pseudonymisée
         const skipSet = new Set();
+        // Identifiant de segment (tour de parole) par élément [data-loc]
+        const segIds = new Map();
+        const segDe = el => {
+            if (!el) return -1;
+            if (!segIds.has(el)) segIds.set(el, segIds.size);
+            return segIds.get(el);
+        };
 
         for (const span of spans) {
             if (skipSet.has(span)) continue;
@@ -105,7 +112,8 @@ async function extraireLexico() {
                     entretien:    i,
                     thematiques:  [...thematiques],
                     rk:           Number(span.dataset.rk),
-                    locuteur:     locuteur
+                    locuteur:     locuteur,
+                    seg:          segDe(segParent)
                 });
                 continue;
             }
@@ -129,7 +137,8 @@ async function extraireLexico() {
                     entretien:    i,
                     thematiques:  [...thematiques],
                     rk:           Number(span.dataset.rk),
-                    locuteur:     locuteur
+                    locuteur:     locuteur,
+                    seg:          segDe(segParent)
                 });
             });
         }
@@ -1577,9 +1586,33 @@ function _lxOuvrirOptions() {
     lblVrb.htmlFor = 'lx-opt-lemma-verbes';
     lblVrb.textContent = 'Lemmatiser verbes';
 
+    // Relancer la lemmatisation verbale automatique
+    const rowRelancerLem = document.createElement('div');
+    rowRelancerLem.className = 'lx-opt-row';
+    const btnRelancerLem = document.createElement('label');
+    btnRelancerLem.className = 'btnfonction';
+    btnRelancerLem.textContent = '🔄 Relancer la lemmatisation';
+    btnRelancerLem.title = 'Relancer la lemmatisation automatique des verbes';
+    btnRelancerLem.addEventListener('click', async () => {
+        const dejaLemmatise = Array.isArray(tabLexico) && tabLexico.some(item => item.typeForme === 'V');
+        overlay.remove();
+        if (dejaLemmatise) {
+            const rep = await question(
+                "Des verbes sont déjà lemmatisés pour ce corpus.\nLa lemmatisation automatique va être relancée et mettra à jour les substitutions de verbes existantes (les lemmatisations manuelles sont conservées). Continuer ?",
+                ["Oui", "Non"]
+            );
+            if (rep !== 'oui') return;
+        }
+        lxOptLemmatiserVerbes = true;
+        await _lxLemmatiserVerbesAuto();
+    });
+    rowRelancerLem.appendChild(btnRelancerLem);
+
     const majEtatAfficherVrb = () => {
         chkAfficherVrb.disabled = !chkVrb.checked;
         lblAfficherVrb.style.opacity = chkVrb.checked ? '1' : '0.55';
+        btnRelancerLem.style.pointerEvents = chkVrb.checked ? '' : 'none';
+        btnRelancerLem.style.opacity = chkVrb.checked ? '1' : '0.55';
     };
     chkVrb.addEventListener('change', majEtatAfficherVrb);
     majEtatAfficherVrb();
@@ -1587,6 +1620,7 @@ function _lxOuvrirOptions() {
     rowVrb.appendChild(chkVrb);
     rowVrb.appendChild(lblVrb);
     body.appendChild(rowVrb);
+    body.appendChild(rowRelancerLem);
 
 
 
@@ -5435,7 +5469,7 @@ function _lxInjecterStyles() {
         /* ---- Modal occurrences en contexte ---- */
         .lx-occ-ligne {
             padding: 8px 8px; border-bottom: 1px solid #efefef;
-            font-size: 13px;
+            font-size: 13px; cursor: pointer;
         }
         .lx-occ-ligne:hover { background: #f5f8ff; }
         .lx-occ-meta {
@@ -5484,8 +5518,48 @@ function _lxInjecterStyles() {
             color: var(--couleur-titre);
             background: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
             border-top: 1px solid #d0d0d0; border-bottom: 1px solid #d0d0d0;
-            position: sticky; top: 0; z-index: 1;
+            position: sticky; top: 38px; z-index: 1;
         }
+        .lx-occ-recherche {
+            position: sticky; top: 0; z-index: 2;
+            display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+            box-sizing: border-box; height: 38px; min-width: 516px; padding: 0 8px;
+            background: #fff; border-bottom: 1px solid #d0d0d0;
+        }
+        .lx-occ-rech-g { display: flex; justify-content: flex-end; padding-right: 8px; min-width: 0; }
+        .lx-occ-rech-d { display: flex; align-items: center; gap: 4px; padding-left: 8px; min-width: 0; }
+        .lx-occ-rech-lib { font-weight: bold; font-size: 13px; color: var(--couleur-titre); }
+        .lx-occ-recherche input {
+            box-sizing: border-box; min-width: 0; width: 100%; max-width: 260px;
+            padding: 3px 6px; font-size: 13px; border: 1px solid #bbb; border-radius: 4px;
+        }
+        .lx-occ-rech-g input { text-align: right; }
+        .lx-occ-recherche button {
+            flex: 0 0 auto; background: none; border: 1px solid #bbb; border-radius: 4px;
+            padding: 2px 7px; cursor: pointer; font-size: 13px;
+        }
+        .lx-occ-recherche button:hover { background: #eef4ff; }
+        .lx-occ-full-overlay {
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .lx-occ-full-modal {
+            background: #fff; border: 1px solid #ccc; border-radius: 6px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+            width: min(760px, 92vw); max-height: 80vh;
+            display: flex; flex-direction: column;
+        }
+        .lx-occ-full-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 14px; border-radius: 6px 6px 0 0;
+            border-bottom: 1px solid #d0d0d0; flex-shrink: 0;
+            background: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
+            font-weight: bold; color: var(--couleur-titre); font-size: 0.95rem;
+        }
+        .lx-occ-full-loc { font-weight: normal; font-style: italic; color: #666; margin-left: 8px; }
+        .lx-occ-full-body { padding: 14px 18px; overflow-y: auto; line-height: 1.8; font-size: 14px; color: #333; }
+        .lx-occ-full-body .lx-occ-mot { padding: 1px 4px; font-weight: bold; }
         .lx-occ-cloud-filter-badge {
             display: inline-block;
             margin-left: 10px;
@@ -6145,6 +6219,125 @@ function _lxContexteParRang(rang, entretien, Navant, Napres) {
     return { avant: avant.join(' '), apres: apres.join(' ') };
 }
 
+function _lxOccNorm(s) {
+    return ' ' + String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u2019'`]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+}
+
+/**
+ * Filtre les lignes du concordancier selon les termes saisis avant/après la forme.
+ */
+function _lxOccFiltrer() {
+    const inA = document.getElementById('lx-occ-rech-avant');
+    const inP = document.getElementById('lx-occ-rech-apres');
+    if (!inA || !inP) return;
+    const tA = _lxOccNorm(inA.value).trim();
+    const tP = _lxOccNorm(inP.value).trim();
+    const lignes = document.querySelectorAll('#ssdlg .lx-occ-ligne');
+    let visibles = 0;
+    let entete = null, enteteVisible = false;
+    const fermerEntete = () => { if (entete) entete.style.display = enteteVisible ? '' : 'none'; };
+    const parcours = document.querySelectorAll('#ssdlg .lx-occ-entete, #ssdlg .lx-occ-ligne');
+    parcours.forEach(el => {
+        if (el.classList.contains('lx-occ-entete')) {
+            fermerEntete();
+            entete = el; enteteVisible = false;
+            return;
+        }
+        const okA = !tA || _lxOccNorm(el.dataset.avant).includes(' ' + tA + ' ');
+        const okP = !tP || _lxOccNorm(el.dataset.apres).includes(' ' + tP + ' ');
+        const ok = okA && okP;
+        el.style.display = ok ? '' : 'none';
+        if (ok) { visibles++; enteteVisible = true; }
+    });
+    fermerEntete();
+    const compte = document.getElementById('lx-occ-compte');
+    if (compte) {
+        const total = Number(compte.dataset.total);
+        const base = Number(compte.dataset.base);
+        const nbVis = lignes.length ? visibles : total;
+        compte.textContent = `(${nbVis} occurrence${nbVis > 1 ? 's' : ''}${nbVis !== base ? ` / ${base}` : ''})`;
+    }
+}
+
+/**
+ * Affiche dans une fenêtre popup le contexte complet (tour de parole entier)
+ * de l'occurrence `rang`, avec la forme mise en évidence.
+ */
+function _lxOccContexteComplet(rang) {
+    const item = tabLexico[rang];
+    if (!item) return;
+
+    // Bornes du tour de parole (même entretien, même segment) ; repli sur ±80 mots si le segment est inconnu
+    const memeSeg = i => tabLexico[i].entretien === item.entretien && tabLexico[i].seg === item.seg;
+    const segConnu = item.seg !== undefined && item.seg >= 0;
+    const MAX = segConnu ? 1500 : 80;
+    let deb = rang, fin = rang;
+    while (deb > 0 && rang - deb < MAX && (segConnu ? memeSeg(deb - 1) : tabLexico[deb - 1].entretien === item.entretien)) deb--;
+    while (fin < tabLexico.length - 1 && fin - rang < MAX && (segConnu ? memeSeg(fin + 1) : tabLexico[fin + 1].entretien === item.entretien)) fin++;
+
+    const av = tabLexico.slice(deb, rang).map(t => t.forme).join(' ');
+    const ap = tabLexico.slice(rang + 1, fin + 1).map(t => t.forme).join(' ');
+    const avH = av ? _lxEchapHtml(_lxRestaurerElisions(av)) + ' ' : '';
+    const apH = ap ? ' ' + _lxEchapHtml(_lxRestaurerElisions(ap)) : '';
+    const classesMot = _lxClassesLemmeItem(item);
+    const entNom = (tabEnt[item.entretien] && tabEnt[item.entretien].nom) ? tabEnt[item.entretien].nom : `Entretien ${item.entretien + 1}`;
+
+    document.getElementById('lx-occ-full-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'lx-occ-full-overlay';
+    overlay.className = 'lx-occ-full-overlay';
+    overlay.innerHTML = `
+        <div class="lx-occ-full-modal">
+            <div class="lx-occ-full-head">
+                <span>${_lxEchapHtml(entNom)}${item.locuteur ? `<span class="lx-occ-full-loc">${_lxEchapHtml(item.locuteur)}</span>` : ''}</span>
+                <div class="close" style="cursor:pointer;">✖️</div>
+            </div>
+            <div class="lx-occ-full-body">${avH}<strong class="lx-occ-mot ${classesMot || ''}">${_lxEchapHtml(item.forme)}</strong>${apH}</div>
+        </div>`;
+    const fermer = () => {
+        overlay.remove();
+        document.removeEventListener('keydown', surEchap, true);
+    };
+    const surEchap = e => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
+    };
+    overlay.addEventListener('click', e => { if (e.target === overlay) fermer(); });
+    overlay.querySelector('.close').addEventListener('click', fermer);
+    document.addEventListener('keydown', surEchap, true);
+    document.body.appendChild(overlay);
+    const mot = overlay.querySelector('.lx-occ-mot');
+    if (mot) mot.scrollIntoView({ block: 'center' });
+}
+
+/**
+ * Copie dans le presse-papiers un tableau HTML des contextes actuellement affichés.
+ */
+async function _lxOccCopierTableau() {
+    const lignes = [...document.querySelectorAll('#ssdlg .lx-occ-ligne')].filter(l => l.style.display !== 'none');
+    if (!lignes.length) return;
+    const dec = document.createElement('textarea');
+    const txt = s => { dec.innerHTML = s || ''; return dec.value; };
+    const rows = lignes.map(l => [txt(l.dataset.ent), txt(l.dataset.loc), txt(l.dataset.avant), txt(l.dataset.forme), txt(l.dataset.apres)]);
+    const entetes = ['Entretien', 'Locuteur', 'Avant', 'Forme', 'Après'];
+    const align = ['left', 'left', 'right', 'center', 'left'];
+    const html = '<table border="1" cellspacing="0" cellpadding="3"><thead><tr>' +
+        entetes.map(h => `<th>${_lxEchapHtml(h)}</th>`).join('') + '</tr></thead><tbody>' +
+        rows.map(r => '<tr>' + r.map((c, i) => `<td style="text-align:${align[i]}">${i === 3 ? '<b>' + _lxEchapHtml(c) + '</b>' : _lxEchapHtml(c)}</td>`).join('') + '</tr>').join('') +
+        '</tbody></table>';
+    const texte = [entetes, ...rows].map(r => r.join('\t')).join('\n');
+    try {
+        await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([texte], { type: 'text/plain' })
+        })]);
+        const sb = document.getElementById('status-bar');
+        if (sb) sb.innerText = `${rows.length} contexte(s) copié(s) dans le presse-papiers.`;
+    } catch (e) {
+        console.warn('[Lexico] Copie du tableau impossible :', e);
+    }
+}
+
 /**
  * Ouvre la fenêtre modale globale (dlg/ssdlg) avec toutes les occurrences
  * actives de `forme`, avec leur contexte avant/après.
@@ -6177,12 +6370,18 @@ function _lxOuvrirModalOccurrences(forme, cloudFilterKey = '', cloudTypeFiltre =
                     background:linear-gradient(to top,#e1e1e1c9,var(--couleur-block)); border-radius:5px 5px 0 0;">
             <div style="font-weight:bold; font-size:1rem; color:var(--couleur-titre);">
                 Occurrences de <em>${formeEch}</em>
-                <span style="font-size:0.85rem; font-weight:normal; color:#666; margin-left:10px;">
+                <span id="lx-occ-compte" data-total="${occurrences.length}" data-base="${occurrencesBase.length}" style="font-size:0.85rem; font-weight:normal; color:#666; margin-left:10px;">
                     (${occurrences.length} occurrence${occurrences.length > 1 ? 's' : ''}${occurrences.length !== occurrencesBase.length ? ` / ${occurrencesBase.length}` : ''})
                 </span>
                 ${filtreCatActif ? `<span class="lx-occ-cloud-filter-badge">Filtre : ${_lxEchapHtml(filtreCatActif.label)}</span>` : ''}
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
+                <button onclick="_lxOccCopierTableau()" title="Copier les contextes affichés (tableau HTML)"
+                    style="background:none; border:1px solid #bbb; border-radius:4px; padding:3px 9px;
+                           cursor:pointer; font-size:0.85rem; color:var(--couleur-titre);
+                           display:${occurrences.length > 0 ? 'inline-block' : 'none'}">
+                    📋 Copier
+                </button>
                 <button onclick="_lxArbreOuvrir()" title="Afficher l'arborescence de contexte"
                     style="background:none; border:1px solid #bbb; border-radius:4px; padding:3px 9px;
                            cursor:pointer; font-size:0.85rem; color:var(--couleur-titre);
@@ -6193,6 +6392,14 @@ function _lxOuvrirModalOccurrences(forme, cloudFilterKey = '', cloudTypeFiltre =
             </div>
         </div>
         <div style="flex:1; overflow-y:auto; overflow-x:auto; padding:0;">
+        <div class="lx-occ-recherche">
+            <div class="lx-occ-rech-g"><input type="text" id="lx-occ-rech-avant" placeholder="avant" onkeydown="if(event.key==='Enter'){_lxOccFiltrer();}"></div>
+            <span class="lx-occ-rech-lib">chercher</span>
+            <div class="lx-occ-rech-d">
+                <input type="text" id="lx-occ-rech-apres" placeholder="après" onkeydown="if(event.key==='Enter'){_lxOccFiltrer();}">
+                <button type="button" title="Filtrer les contextes" onclick="_lxOccFiltrer()">🔍</button>
+            </div>
+        </div>
     `;
 
     if (occurrences.length === 0) {
@@ -6222,14 +6429,14 @@ function _lxOuvrirModalOccurrences(forme, cloudFilterKey = '', cloudTypeFiltre =
             if (showLoc) dernierLocuteur = locNom;
 
             // Contexte via l'index rang dans tabLexico
-            const ctx   = _lxContexteParRang(item.rang, item.entretien, 8, 15);
+            const ctx   = _lxContexteParRang(item.rang, item.entretien, 14, 15);
             const avant = ctx.avant ? _lxEchapHtml(_lxRestaurerElisions(ctx.avant)) : '';
             const apres = ctx.apres ? _lxEchapHtml(_lxRestaurerElisions(ctx.apres)) : '';
             const classesMot = _lxClassesLemmeItem(item);
             const classAttrMot = classesMot ? ' lx-occ-mot ' + classesMot : ' lx-occ-mot';
 
             html += `
-                <div class="lx-occ-ligne">
+                <div class="lx-occ-ligne" data-rang="${item.rang}" title="Cliquer pour afficher le contexte complet" onclick="_lxOccContexteComplet(${item.rang})" data-avant="${avant}" data-apres="${apres}" data-forme="${_lxEchapHtml(item.forme)}" data-loc="${item.locuteur ? _lxEchapHtml(item.locuteur) : ''}" data-ent="${_lxEchapHtml((tabEnt[item.entretien] && tabEnt[item.entretien].nom) ? tabEnt[item.entretien].nom : 'Entretien ' + (item.entretien + 1))}">
                     ${showLoc ? `<div class="lx-occ-meta"><span class="lx-occ-loc">${locNom}</span></div>` : ''}
                     <div class="lx-occ-ctx">
                         <span class="lx-occ-avant">${avant ? avant + '\u202f' : ''}</span><strong class="${classAttrMot.trim()}">${_lxEchapHtml(item.forme)}</strong><span class="lx-occ-apres">${apres ? '\u202f' + apres : ''}</span>

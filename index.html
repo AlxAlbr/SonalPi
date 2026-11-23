@@ -41,7 +41,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.81";
+    const version = "1.0.82";
   </script>
 
 <body>
@@ -230,7 +230,7 @@
               <h2 style="margin:0;display:flex;align-items:center;justify-content:space-between;">
                 <span style="display:flex;align-items:center;gap:6px;">
                   <button id="tap-global-switch" class="btn-onoff-ent btn-onoff-ent--actif" title="(dés)activer tous les entretiens"></button>
-                  Tris à plat
+                  Métadonnées 
                 </span>
                 <span id="tap-compact-all" class="tap-collapse-btn" title="Tout compacter / décompacter" style="font-size:1rem;margin-right:4px;cursor:pointer;">▲</span>
               </h2>
@@ -306,6 +306,13 @@
                            <label id="activeAllEnt" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer tous les entretiens"></label>
                             <label>Entretiens</label>
                             <label id = "lbl-nb-ent" class = "nb-elements"></label>
+                            <label id="lbl-nb-xtr-actifs" class="nb-elements" style="
+    float:right;
+    margin-right: 12px;
+    display: inline;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 5px;
+    color: white;"></label>
 
            <!--  <label id="add-ent" class="btnbleu" style = "margin-right: 10px;" title="trier les entretiens" onclick="triEntCorpusAlpha()"> trier </label> -->
 
@@ -504,10 +511,10 @@ function hidepanG(){
       });
   }
 
-    // Menu Entretiens -> Exporter tous les entretiens : réutiliser la même modale d'export corpus
+    // Menu Entretiens -> Exporter tous les entretiens actifs : même modale d'export corpus, restreinte aux actifs
     if (window.electronAPI && window.electronAPI.onMenuExporterTousEntretiens) {
       window.electronAPI.onMenuExporterTousEntretiens(() => {
-        if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
+        if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus(true);
       });
     }
 

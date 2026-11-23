@@ -2851,7 +2851,7 @@ SYNTHESE
   overflow-y: auto;
   background-color: var(--couleur-fond);
   box-sizing: border-box;
-  padding: 10px;
+  
 }
 
 .plansynth {
@@ -2866,7 +2866,35 @@ SYNTHESE
     z-index: 10;
     top: 0px;
     overflow-y: auto;
+    padding-left: 3px;
 }
+
+  .plansynth-tri {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background-color: var(--couleur-block);
+    border-bottom: 1px solid #d3d3d3;
+    padding: 8px 8px 10px 8px;
+  }
+
+  .plansynth-tri-label {
+    display: block;
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .plansynth-tri-select {
+    width: 100%;
+    height: 32px;
+    border: 1px solid #c5c5c5;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #333;
+    padding: 4px 8px;
+    font-size: 0.95em;
+  }
 
 
 
@@ -3147,7 +3175,7 @@ SYNTHESE
 .titreplansynth{
  
     cursor: pointer;
-    font-size: 20px;
+    font-size: 18px;
     color: var(--couleur-titre);
     margin-bottom: -1px;
     border-bottom: 1px solid #c5c5c5;
@@ -4937,6 +4965,15 @@ tr.p-brouillon .input-remplacement { font-style: italic; color: #777; }
     gap: 6px;
     margin: 2px 0;
     padding: 1px 2px;
+}
+
+.tap-row--inactive .tap-mod-lbl {
+  color: #8f97a2;
+  opacity: 0.25;
+}
+
+.tap-row--inactive .tap-bar-fill {
+  opacity: 0.35;
 }
 
 .tap-mod-lbl {

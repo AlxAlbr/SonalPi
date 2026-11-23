@@ -7,6 +7,9 @@ const { webUtils } = require('electron');
 // exposition des fonctions du Main
 contextBridge.exposeInMainWorld('electronAPI', {
 
+  // presse-papiers
+  readClipboardText: () => ipcRenderer.invoke('clipboard:readText'),
+
   // sélection de fichiers et dossiers
   openFileCorpus: () => ipcRenderer.invoke('dialog:openCorpus'),
   ouvrirCorpusLocal: (filePath) => ipcRenderer.invoke('ouvrir-corpus-local', filePath),
