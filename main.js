@@ -1416,7 +1416,7 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
 
     // chargement de la fenêtre edition_categories.html
     entWindow.loadFile('edition_entretien.html');
-   // entWindow.webContents.openDevTools();
+    if (!app.isPackaged) entWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
@@ -2944,7 +2944,7 @@ app.on('ready', () => {
     // Définir l'icône après le chargement de la fenêtre
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
-     // mainWindow.webContents.openDevTools();
+      if (!app.isPackaged) mainWindow.webContents.openDevTools();
       mainWindow.show();
 
       // Vérification des mises à jour
@@ -4217,4 +4217,3 @@ app.on('open-file', async (event, path) => {
 });
 
 // Windows/Linux
-

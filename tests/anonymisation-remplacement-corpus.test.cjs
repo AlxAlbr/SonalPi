@@ -186,7 +186,9 @@ test('les actions du conflit ajoutent, conservent ou annulent sans créer une tr
 });
 
 test('la synthèse retombe sur le texte brut si le marquage anonymisé est incomplet', () => {
-    const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/' });
+    const dom = new JSDOM('<!doctype html><body></body>', {
+        url: 'http://localhost/', runScripts: 'outside-only',
+    });
     const w = dom.window;
     const ctx = dom.getInternalVMContext();
     ctx.window = w;
