@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import type { ParticipationLocuteur } from '../../../../shared/format'
-import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
+import { couleurPourLocuteur, libelleRole, roleParticipation } from '../../../../shared/entretien/locuteurs'
 import { utiliserSonal } from '../../../composables/sonal'
 import RapprochementNommage from './RapprochementNommage.vue'
 import RenommageLocuteurOuvert from './RenommageLocuteurOuvert.vue'
@@ -46,9 +46,16 @@ function regulariser(locuteur: ParticipationLocuteur) {
   regulariserLocuteur({ entretienId: ouvertId.value ?? '', participationId: locuteur.id })
 }
 
+const VALEURS_ROLE = { interviewer: true, repondant: false, indefini: undefined } as const
+
+function choisirRole(locuteur: ParticipationLocuteur, event: Event) {
+  const role = (event.target as HTMLSelectElement).value as keyof typeof VALEURS_ROLE
+  setInterviewer({ entretienId: ouvertId.value ?? '', participationId: locuteur.id ?? '' }, VALEURS_ROLE[role])
+}
+
 function detailsLocuteur(locuteur: ParticipationLocuteur): string {
   const pseudo = locuteur.pseudo?.trim()
-  const role = locuteur.interviewer ? 'Pose les questions' : 'Répond aux questions'
+  const role = libelleRole(locuteur)
   return pseudo && pseudo !== locuteur.nom.trim() ? `${pseudo} · ${role}` : role
 }
 
@@ -247,7 +254,7 @@ watch(
               <span title="Couleur du nom — cliquer pour choisir"></span>
               <span>Nom</span>
               <span>Pseudo (optionnel)</span>
-              <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
+              <span>Rôle</span>
             </div>
             <RapprochementNommage
               v-if="rapprochementNommage"
@@ -298,16 +305,19 @@ watch(
                     @change="setPseudoLoc({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).value)"
                   />
                 </div>
-                <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
-                  <input
-                    type="checkbox"
-                    :checked="l.interviewer ?? false"
-                    :disabled="editionIndisponible"
-                    @change="setInterviewer({ entretienId: ouvertId ?? '', participationId: l.id ?? '' }, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span class="glisseur"></span>
-                  <span class="q">?</span>
-                </label>
+                <select
+                  class="role-loc"
+                  :class="{ 'role-a-preciser': roleParticipation(l) === 'indefini' }"
+                  :value="roleParticipation(l)"
+                  :aria-label="`Rôle de ${l.nom}`"
+                  :title="`${libelleRole(l)}. Les tours de la personne qui pose les questions sont en italique.`"
+                  :disabled="editionIndisponible"
+                  @change="choisirRole(l, $event)"
+                >
+                  <option value="indefini">À préciser</option>
+                  <option value="interviewer">Interroge</option>
+                  <option value="repondant">Répond</option>
+                </select>
                 <button
                   v-if="!lectureSeule"
                   class="x-loc"
@@ -358,7 +368,7 @@ watch(
 .tableau-loc-tetes,
 .liste-loc li {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 2.25rem;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 8rem 2.25rem;
   align-items: center;
   gap: 0.4rem;
 }
@@ -437,54 +447,26 @@ watch(
   color: #777;
   font-style: italic;
 }
-.interv,
 .x-loc {
   justify-self: center;
 }
-.interv {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  cursor: pointer;
-  flex: none;
-}
-.interv input {
-  display: none;
-}
-.glisseur {
-  width: 32px;
-  height: 20px;
-  border-radius: 10px;
-  background: #d5d5dd;
-  position: relative;
-  transition: background 0.15s;
-}
-.glisseur::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: left 0.15s;
-}
-.interv input:checked + .glisseur {
-  background: #2e73d8;
-}
-.interv input:checked + .glisseur::after {
-  left: 14px;
-}
-.interv .q {
+.role-loc {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #e2e2ea;
+  border-radius: 4px;
+  padding: 0.45rem 1.6rem 0.45rem 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
-  font-weight: 600;
-  color: #777;
-  font-style: italic;
+  color: #333;
+  background: #fff;
 }
-.interv input:checked ~ .q {
-  color: #1565c0;
+.role-loc.role-a-preciser {
+  border-color: #d89b2e;
+  color: #6b4a00;
+  font-style: italic;
 }
 .x-loc {
   border: none;
@@ -650,7 +632,7 @@ watch(
 @media (max-width: 600px) {
   .tableau-loc-tetes,
   .liste-loc li {
-    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 2.25rem;
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 7.5rem 2.25rem;
     gap: 0.25rem;
   }
   .modale-locuteurs {

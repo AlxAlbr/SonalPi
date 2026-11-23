@@ -340,11 +340,14 @@ export function importerSonal(domDoc: Document): ResultatImport {
   // 4) Locuteurs depuis tabLoc (position dans le tableau = index du locuteur).
   //    Un « ? » dans le nom (convention SonalPi1) = INTERVIEWER → drapeau au
   //    modèle, nom nettoyé ; le « ? » est réintroduit à l'export seulement.
+  //    Sans aucun « ? » dans le fichier, les rôles n'ont pas été définis :
+  //    ils restent à préciser plutôt que d'être tous marqués comme répondants.
+  const rolesDefinis = tabLoc.some((nom) => nom.includes('?'))
   const locuteurs: ParticipationImport[] = tabLoc
     .map((nom, index) => ({
       index,
       nom: nom.replaceAll('?', '').trim(),
-      interviewer: nom.includes('?'),
+      ...(rolesDefinis ? { interviewer: nom.includes('?') } : {}),
       valeursLoc: {},
       locuteurRef: null,
     }))

@@ -6,6 +6,8 @@ import {
   ajouterLocuteur,
   genIdLocuteur,
   libelleGouttiere,
+  libelleRole,
+  roleParticipation,
   couleurPourLocuteur,
   nomDeCouleur,
   PALETTE_PASTILLES_LOCUTEURS,
@@ -27,6 +29,14 @@ describe('modèle locuteurs (pur)', () => {
     expect(nomDeLocuteur(l, 2)).toBe('Karine')
     expect(nomDeLocuteur(l, null)).toBe('')
     expect(nomDeLocuteur(l, 9)).toBe('loc 9')
+  })
+
+  test('le rôle reste à préciser tant que l’utilisateur ne l’a pas choisi', () => {
+    expect(roleParticipation({})).toBe('indefini')
+    expect(roleParticipation({ interviewer: true })).toBe('interviewer')
+    expect(roleParticipation({ interviewer: false })).toBe('repondant')
+    expect(libelleRole({})).toBe('Rôle à préciser')
+    expect(ajouterLocuteur(locs(), 'Nouveau')).not.toHaveProperty('interviewer')
   })
 
   test('prochainIndex : max + 1', () => {

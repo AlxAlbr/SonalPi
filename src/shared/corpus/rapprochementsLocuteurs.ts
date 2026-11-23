@@ -176,7 +176,9 @@ export function reprendreDonneesParticipation(
     cible.pseudo = source.pseudo
     cible.pseudoEtat = 'confirme'
   }
-  if (choix.interviewer && (choix.remplacer || cible.interviewer === undefined)) cible.interviewer = source.interviewer === true
+  if (choix.interviewer && source.interviewer !== undefined && (choix.remplacer || cible.interviewer === undefined)) {
+    cible.interviewer = source.interviewer
+  }
   for (const id of choix.variables) {
     const valeur = source.valeursLoc[id]
     if (valeur && (choix.remplacer || !cible.valeursLoc[id])) cible.valeursLoc[id] = valeur

@@ -70,7 +70,7 @@ test('chaque ajout apparaît immédiatement au corpus et son nom se valide sans 
       const vue = await inventaire(page), nouvelles = vue.locuteurs.filter((l) => !identitesAvant.some((a) => a.id === l.id))
       expect(nouvelles).toHaveLength(1); expect(nouvelles[0].nom).toBe(nom)
       const p = vue.participations.find((p) => p.entretienId === 'e1' && p.locuteurRef === nouvelles[0].id)!
-      expect(p.nom).toBe(nom); expect(p.locuteurRef).toBeTruthy(); expect(p.interviewer).toBe(false)
+      expect(p.nom).toBe(nom); expect(p.locuteurRef).toBeTruthy(); expect(p.interviewer).toBeUndefined()
       expect(vue.participations.filter((autre) => autre.locuteurRef === p.locuteurRef)).toHaveLength(1)
     }
     await modal.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()

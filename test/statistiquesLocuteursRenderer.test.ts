@@ -99,6 +99,10 @@ test('les boutons présentent le nom, le pseudo distinct et un rôle sans accord
   const choix = b.host.querySelectorAll('.choix-loc')
   expect(choix[0].querySelector('.nom-attribution')?.textContent).toBe('Enquêteur')
   expect(choix[0].querySelector('.details-attribution')?.textContent).toBe('Pose les questions')
+  expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Rôle à préciser')
+
+  b.locuteurs.value[1].interviewer = false
+  await nextTick()
   expect(choix[1].querySelector('.details-attribution')?.textContent).toBe('Répond aux questions')
 
   b.locuteurs.value[1].pseudo = '  Fati  '

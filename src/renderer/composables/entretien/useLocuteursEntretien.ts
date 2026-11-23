@@ -364,10 +364,12 @@ export function useLocuteursEntretien(deps: {
     enregistrerLocuteur({ entretienId: deps.ouvertId.value, participationId: participation.id })
   }
 
-  function setInterviewer(reference: ReferenceParticipation, actif: boolean) {
+  /** `undefined` remet le rôle à préciser. */
+  function setInterviewer(reference: ReferenceParticipation, actif: boolean | undefined) {
     const locuteur = participationCourante(reference)
-    if (!locuteur || (locuteur.interviewer ?? false) === actif) return
-    locuteur.interviewer = actif
+    if (!locuteur || locuteur.interviewer === actif) return
+    if (actif === undefined) delete locuteur.interviewer
+    else locuteur.interviewer = actif
     deps.effets.rafraichirGouttiere()
     deps.effets.planifierSauvegarde()
   }

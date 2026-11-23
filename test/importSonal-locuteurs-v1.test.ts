@@ -91,6 +91,12 @@ describe('locuteurs V1 — données à conserver pendant l’unification', () =>
     expect(payload.participations.every((locuteur) => locuteur.locuteurRef === null)).toBe(true)
   })
 
+  test('sans « ? » dans le fichier, les rôles restent à préciser', () => {
+    const payload = importer(['', 'Speaker 0', 'Speaker 1'], [1, 2])
+    expect(payload.participations.map((p) => p.nom)).toEqual(['Speaker 0', 'Speaker 1'])
+    expect(payload.participations.every((p) => !('interviewer' in p))).toBe(true)
+  })
+
   test('un locuteur sans intervention reste présent avec ses valeurs locales', () => {
     const payload = importer(['', 'Alice', 'Bob'], [1], [{ v: 1, l: 2, m: 3 }])
     expect(payload.participations.map((locuteur) => locuteur.nom)).toEqual(['Alice', 'Bob'])

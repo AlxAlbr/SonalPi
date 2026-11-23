@@ -44,20 +44,20 @@ test('la gouttière affiche le nom du locuteur devant chaque tour', async () => 
   await app.close()
 })
 
-test('interrupteur « ? » : un interviewer a ses tours en italique et son label « Nom ? »', async () => {
+test('rôle « Interroge » : un interviewer a ses tours en italique et son label « Nom ? »', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
   await ongletLocuteurs(page)
   await ouvrirGestionLocuteurs(page)
 
   // Déclarer « Enquêteur » (index 1) interviewer → son tour passe en italique
   // (classe bloc-interviewer) et la gouttière reprend la convention « Nom ? ».
-  await page.locator('.liste-loc .interv').first().click()
+  await page.locator('.liste-loc .role-loc').first().selectOption('interviewer')
   await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(1)
   await expect(page.locator('.editeur .bloc-interviewer')).toContainText('Karine habite Lyon')
   await expect(page.locator(gouttiere('Enquêteur ?'))).toHaveCount(1)
 
-  // Re-clic = retour à la normale (l'inverse est le même interrupteur).
-  await page.locator('.liste-loc .interv').first().click()
+  // Choisir « Répond » rétablit l'affichage normal.
+  await page.locator('.liste-loc .role-loc').first().selectOption('repondant')
   await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(0)
   await expect(page.locator(gouttiere('Enquêteur'))).toHaveCount(1)
   await app.close()

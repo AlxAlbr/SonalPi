@@ -5,7 +5,6 @@ export interface VueParticipationLocuteur extends Omit<ParticipationLocuteur, 'i
   entretienId: string
   entretienTitre: string
   participationId: string
-  interviewer: boolean
 }
 
 export interface VueNoteParticipation extends Pick<Note, 'id' | 'categorieId' | 'titre' | 'date' | 'statut' | 'corps' | 'rang'> {
@@ -27,8 +26,8 @@ export function inventorierLocuteurs(corpus: CorpusFichier, entretiens: EntreeMa
     locuteurs: Object.values(corpus.locuteurs).sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.id.localeCompare(b.id)),
     participations: entretiens.flatMap((e) => e.data.participations.map((p) => ({
       entretienId: e.id, entretienTitre: e.titre, participationId: p.id,
-      index: p.index, nom: p.nom, interviewer: p.interviewer === true,
-      locuteurRef: p.locuteurRef,
+      index: p.index, nom: p.nom, locuteurRef: p.locuteurRef,
+      ...(p.interviewer === undefined ? {} : { interviewer: p.interviewer }),
       ...(p.associationRetiree === undefined ? {} : { associationRetiree: p.associationRetiree }),
       valeursLoc: { ...p.valeursLoc }, pseudo: p.pseudo, pseudoEtat: p.pseudoEtat,
       rapprochementsRefuses: structuredClone(p.rapprochementsRefuses ?? []),

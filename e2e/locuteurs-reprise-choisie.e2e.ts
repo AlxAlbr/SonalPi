@@ -42,6 +42,6 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     expect(cible.locuteurRef).toBe(avant.locuteurs[0].id)
     expect(cible.locuteurRef).toBe(source.locuteurRef)
     expect(cible.pseudo).not.toBe('Alice')
-    expect(cible.interviewer).toBe(false)
+    expect(cible.interviewer).toBeUndefined()
   } finally { await app.close() }
 })

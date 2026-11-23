@@ -10,6 +10,28 @@ export function nomDeLocuteur(locuteurs: ParticipationLocuteur[], index: number 
   return locuteurs.find((l) => l.index === index)?.nom ?? `loc ${index}`
 }
 
+/** Rôle d'un locuteur dans l'entretien.
+ *  Sans choix de l'utilisateur, le rôle reste à préciser ;
+ *  les analyses le traitent alors comme une personne interrogée.
+ */
+export type RoleParticipation = 'interviewer' | 'repondant' | 'indefini'
+
+export function roleParticipation(locuteur: Pick<ParticipationLocuteur, 'interviewer'>): RoleParticipation {
+  if (locuteur.interviewer === true) return 'interviewer'
+  if (locuteur.interviewer === false) return 'repondant'
+  return 'indefini'
+}
+
+export const LIBELLES_ROLE: Record<RoleParticipation, string> = {
+  interviewer: 'Pose les questions',
+  repondant: 'Répond aux questions',
+  indefini: 'Rôle à préciser',
+}
+
+export function libelleRole(locuteur: Pick<ParticipationLocuteur, 'interviewer'>): string {
+  return LIBELLES_ROLE[roleParticipation(locuteur)]
+}
+
 /** Prochain index libre (max + 1 ; 1 si vide). */
 export function prochainIndex(locuteurs: ParticipationLocuteur[]): number {
   return locuteurs.reduce((m, l) => Math.max(m, l.index), 0) + 1

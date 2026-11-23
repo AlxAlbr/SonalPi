@@ -51,14 +51,14 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     const texteInitial = await texteTranscription(page)
 
     await nommer(page, liste.nth(0).locator('.nom-loc'), 'Enquêteur')
-    await expect(liste.nth(0).locator('.interv input')).not.toBeChecked()
-    await liste.nth(0).locator('.interv').click()
-    await expect(liste.nth(0).locator('.interv input')).toBeChecked()
+    await expect(liste.nth(0).locator('.role-loc')).toHaveValue('indefini')
+    await liste.nth(0).locator('.role-loc').selectOption('interviewer')
+    await expect(liste.nth(0).locator('.role-loc')).toHaveValue('interviewer')
     await expect(page.locator('.editeur .bloc-interviewer').first()).toContainText('merci beaucoup de me recevoir')
     await expect(page.locator('.editeur .loc-nom').first()).toHaveText('Enquêteur ?')
-    await liste.nth(0).locator('.interv').click()
+    await liste.nth(0).locator('.role-loc').selectOption('repondant')
     await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(0)
-    await liste.nth(0).locator('.interv').click()
+    await liste.nth(0).locator('.role-loc').selectOption('interviewer')
 
     await nommer(page, liste.nth(1).locator('.nom-loc'), 'Fatima')
     const pseudo = liste.nth(1).locator('.pseudo-loc')
@@ -137,7 +137,7 @@ test('manuel : identifier les voix, attribuer une sélection puis supprimer sans
     await expect(attribue).toContainText(phrase)
     await page.getByRole('button', { name: 'Modifier les locuteurs', exact: true }).click()
     await expect(liste.nth(0).locator('.nom-loc')).toHaveValue('Enquêteur')
-    await expect(liste.nth(0).locator('.interv input')).toBeChecked()
+    await expect(liste.nth(0).locator('.role-loc')).toHaveValue('interviewer')
     await expect(liste.nth(1).locator('.pseudo-loc')).toHaveValue('Nadia')
     await expect(liste.nth(1).locator('.carre-couleur')).toHaveValue('#21805a')
 

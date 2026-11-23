@@ -89,6 +89,15 @@ describe('Rapprochements et reprise sélective', () => {
     expect([source, a, b]).toEqual(avant)
   })
 
+  test('un rôle à préciser dans la source ne remplace pas celui de la cible', () => {
+    const cible = { ...loc('b', 'Mme Dupont'), interviewer: true }
+    reprendreDonneesParticipation(cible, loc('a', 'Marie'), { interviewer: true, variables: [], remplacer: true })
+    expect(cible.interviewer).toBe(true)
+    const vide = loc('c', 'Paul')
+    reprendreDonneesParticipation(vide, loc('a', 'Marie'), { interviewer: true, variables: [] })
+    expect(vide).not.toHaveProperty('interviewer')
+  })
+
   test('la reprise ne modifie que les champs sélectionnés et protège les valeurs existantes', () => {
     const source = { ...loc('a', 'Marie'), pseudo: 'Alice', interviewer: true, valeursLoc: { age: '40', ville: 'Paris' } }
     const cible = { ...loc('b', 'Mme Dupont'), pseudo: 'Lou', interviewer: false, valeursLoc: { age: '30' } }

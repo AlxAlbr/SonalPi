@@ -9,6 +9,7 @@ import type { CommandeCorrectionLocuteurs } from '../../../../shared/corpus/cont
 import { examinerLocuteurs, notesSelectionLocuteurs } from '../../../../shared/corpus/detailsLocuteurs'
 import { cleParticipationCorrection } from '../../../../shared/corpus/apercusCorrectionsLocuteurs'
 import { corpsNoteEnTexte } from '../../../../shared/export/notesTexte'
+import { libelleRole } from '../../../../shared/entretien/locuteurs'
 
 const props = defineProps<{ actif: boolean; selection: LigneRepertoireLocuteurs[] }>()
 const emit = defineEmits<{ fermer: []; selectionner: [references: ReferenceParticipation[]]; termine: [references: ReferenceParticipation[]] }>()
@@ -136,7 +137,7 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
       <p v-if="!participations.length">Sélectionnez un ou plusieurs locuteurs dans la liste pour consulter leurs informations et notes.</p>
       <article v-for="p in participations.slice(0, limite)" :key="cleParticipationCorrection(p)">
         <h4>{{ p.nom || 'Locuteur sans nom' }} · {{ p.entretienTitre }}</h4>
-        <p>{{ p.interviewer ? 'Pose les questions' : 'Répond aux questions' }} · Pseudonyme : {{ p.pseudo || (p.pseudoEtat === 'refuse' ? 'non souhaité' : 'non renseigné') }}</p>
+        <p>{{ libelleRole(p) }} · Pseudonyme : {{ p.pseudo || (p.pseudoEtat === 'refuse' ? 'non souhaité' : 'non renseigné') }}</p>
         <p v-if="p.associationRetiree">Un lien a été retiré volontairement. Il ne sera pas restauré par un nouveau nom.</p>
         <p v-if="p.locuteurRef && !inventaire.locuteurs.some((l) => l.id === p.locuteurRef)">L’ancien locuteur associé n’existe plus. Vérifiez ce locuteur dans son entretien.</p>
         <dl v-if="Object.keys(p.valeursLoc).length"><template v-for="(mod, id) in p.valeursLoc" :key="id"><dt>{{ variable(String(id))?.lib ?? 'Ancienne donnée' }}</dt><dd>{{ valeur(String(id), mod) }}</dd></template></dl>
@@ -183,13 +184,13 @@ onBeforeUnmount(() => { contexte++; lectures++; preparations++; dialogue.value?.
       <h2 id="titre-details-correction">{{ confirmation.titre }}</h2><p>{{ confirmation.texte }}</p>
       <fieldset v-if="reprise" :disabled="enregistrement">
         <legend>Informations à reprendre</legend>
-        <label>Entretien source<select aria-label="Entretien source" :value="sourceReprise ? cleParticipationCorrection(reprise.source) : ''" @change="choisirSource"><option value="">Choisir un entretien</option><option v-for="p in sourcesReprise" :key="cleParticipationCorrection(p)" :value="cleParticipationCorrection(p)">{{ p.entretienTitre }} · {{ p.nom }} · {{ p.pseudo || 'sans pseudonyme' }} · {{ p.interviewer ? 'pose les questions' : 'répond aux questions' }}</option></select></label>
+        <label>Entretien source<select aria-label="Entretien source" :value="sourceReprise ? cleParticipationCorrection(reprise.source) : ''" @change="choisirSource"><option value="">Choisir un entretien</option><option v-for="p in sourcesReprise" :key="cleParticipationCorrection(p)" :value="cleParticipationCorrection(p)">{{ p.entretienTitre }} · {{ p.nom }} · {{ p.pseudo || 'sans pseudonyme' }} · {{ libelleRole(p).toLowerCase() }}</option></select></label>
         <label><input v-model="reprise.choix.pseudo" type="checkbox" /> Pseudonyme</label>
         <label><input v-model="reprise.choix.interviewer" type="checkbox" /> Rôle dans l’entretien</label>
         <label v-for="v in variables.filter((v) => v.portee === 'participation')" :key="v.id"><input v-model="reprise.choix.variables" type="checkbox" :value="v.id" /> {{ v.lib }}</label>
         <label><input v-model="reprise.choix.remplacer" type="checkbox" /> Remplacer aussi les informations déjà renseignées</label>
         <p>Sinon, seules les informations manquantes seront complétées.</p>
-        <p v-if="sourceReprise">Source choisie : {{ sourceReprise.entretienTitre }} · pseudonyme {{ sourceReprise.pseudo || 'non renseigné' }} · {{ sourceReprise.interviewer ? 'pose les questions' : 'répond aux questions' }}.</p>
+        <p v-if="sourceReprise">Source choisie : {{ sourceReprise.entretienTitre }} · pseudonyme {{ sourceReprise.pseudo || 'non renseigné' }} · {{ libelleRole(sourceReprise).toLowerCase() }}.</p>
         <ul v-if="sourceReprise"><li v-for="id in reprise.choix.variables" :key="id">{{ variable(id)?.lib }} : {{ sourceReprise.valeursLoc[id] ? valeur(id, sourceReprise.valeursLoc[id]) : 'non renseignée' }}</li></ul>
       </fieldset>
       <p v-if="erreur" role="alert">{{ erreur }} Fermez cet aperçu puis actualisez les détails avant de réessayer.</p>

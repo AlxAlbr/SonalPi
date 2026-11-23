@@ -55,6 +55,15 @@ describe('gestes locaux sur les participations de l’entretien', () => {
     expect(b.effets.enregistrerAction).not.toHaveBeenCalled()
   })
 
+  test('le rôle peut revenir à préciser', () => {
+    const b = banc(), avant = b.photo()
+    b.setInterviewer(reference, false)
+    expect(b.locuteurs.value[0].interviewer).toBe(false)
+    b.setInterviewer(reference, undefined)
+    expect(b.locuteurs.value[0]).not.toHaveProperty('interviewer')
+    expect(b.photo()).toEqual(avant)
+  })
+
   test.each(['autre entretien', 'droits retirés', 'id retiré'] as const)('%s : aucun geste ne modifie une autre participation', (cas) => {
     const b = banc()
     if (cas === 'autre entretien') b.ouvertId.value = 'e2'

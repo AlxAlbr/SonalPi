@@ -58,7 +58,7 @@ test('statistiques : tours, mots, silences exclus, navigation cyclique et actual
     await page.locator('[data-onglet="locuteurs"]').click()
     await page.getByRole('button', { name: 'Modifier les locuteurs' }).click()
     await expect(page.getByRole('dialog', { name: 'Gestion des locuteurs' })).toBeVisible()
-    await page.locator('.liste-loc .interv').first().click()
+    await page.locator('.liste-loc .role-loc').first().selectOption('interviewer')
     await page.getByRole('button', { name: 'Fermer la gestion des locuteurs' }).click()
     await expect(page.locator('.tete .etat')).toHaveText('à jour')
     const corpus = JSON.parse(readFileSync(join(profil, 'corpus/corpus.crp'), 'utf8')) as CorpusFichier

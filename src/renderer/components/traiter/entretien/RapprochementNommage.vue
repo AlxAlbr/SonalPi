@@ -29,7 +29,7 @@ const signatureInformations = (l: VueParticipationLocuteur) => JSON.stringify([l
 const informationsSourcesDifferentes = computed(() => new Set(sourcesDisponibles.value.map(signatureInformations)).size > 1)
 const source = computed(() => sourcesDisponibles.value.find(l => cle(l) === sourceCle.value))
 const pseudoAffiche = (l: VueParticipationLocuteur) => l.pseudo?.trim() || 'non renseigné'
-const statutAffiche = (l: VueParticipationLocuteur) => l.interviewer ? 'interviewer' : 'interviewé·e'
+const statutAffiche = (l: VueParticipationLocuteur) => l.interviewer === undefined ? 'à préciser' : l.interviewer ? 'interviewer' : 'interviewé·e'
 watch(selection, () => {
   reprendreInformations.value = true
   sourceCle.value = sourcesDisponibles.value.length && !informationsSourcesDifferentes.value
