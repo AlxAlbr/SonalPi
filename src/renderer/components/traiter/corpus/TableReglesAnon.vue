@@ -34,9 +34,9 @@ function ariaTri(colonne: TriAnon) {
     <colgroup><col class="col-entite" /><col class="col-pseudo" /><col class="col-etat" /><col class="col-actions" /></colgroup>
     <thead>
       <tr>
-        <th :aria-sort="ariaTri('entite')"><button @click="emit('trier', 'entite')">Entité originale {{ tri === 'entite' ? descendant ? '↓' : '↑' : '↕' }}</button></th>
-        <th :aria-sort="ariaTri('pseudo')"><button @click="emit('trier', 'pseudo')">Pseudonyme / remplacement {{ tri === 'pseudo' ? descendant ? '↓' : '↑' : '↕' }}</button></th>
-        <th>État corpus</th>
+        <th :aria-sort="ariaTri('entite')"><button title="Entité originale : trier" @click="emit('trier', 'entite')">Entité {{ tri === 'entite' ? descendant ? '↓' : '↑' : '↕' }}</button></th>
+        <th :aria-sort="ariaTri('pseudo')"><button title="Pseudonyme de remplacement : trier" @click="emit('trier', 'pseudo')">Pseudo {{ tri === 'pseudo' ? descendant ? '↓' : '↑' : '↕' }}</button></th>
+        <th title="État dans le corpus">État</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -63,25 +63,25 @@ function ariaTri(colonne: TriAnon) {
 </template>
 
 <style scoped>
-.pseudo-table { width: 100%; min-width: 400px; table-layout: fixed; border-collapse: collapse; font-size: .85rem; }
-.col-entite, .col-pseudo { width: 30%; }
-.col-etat { width: 24%; }
-.col-actions { width: 16%; }
-th, td { border: 1px solid #ddd; padding: .4rem .5rem; text-align: left; overflow-wrap: anywhere; }
+.pseudo-table { width: 100%; min-width: 320px; table-layout: fixed; border-collapse: collapse; font-size: .85rem; }
+/* Entité et pseudo se partagent la place ; état et actions gardent la largeur de leur contenu. */
+.col-etat { width: 4.5rem; }
+.col-actions { width: 7rem; }
+th, td { border: 1px solid #ddd; padding: .35rem .4rem; text-align: left; overflow-wrap: anywhere; }
 th { background: #f3f6fa; position: sticky; top: 0; z-index: 1; overflow-wrap: normal; }
 th button { border: 0; background: transparent; cursor: pointer; text-align: center; font: inherit; font-weight: bold; }
-th:nth-child(-n+3), td:nth-child(-n+3) { text-align: center; }
+th:nth-child(-n+4), td:nth-child(-n+3) { text-align: center; }
 .cell-etat :deep(.badges-anon) { justify-content: center; max-width: 100%; }
 .cell-entite { color: #626262; font-style: italic; }
-.cell-pseudo { color: #1565c0; font-weight: bold; min-width: 100px; white-space: pre-wrap; }
+.cell-pseudo { color: #1565c0; font-weight: bold; white-space: pre-wrap; }
 .variante { color: inherit; font: inherit; border: 0; border-bottom: 1px dashed currentColor; padding: 0; background: transparent; cursor: pointer; white-space: inherit; text-align: center; }
 .variante:disabled { cursor: default; border-bottom: 0; }
 .ok { background: #e8f5e9; }
 .todo { background: #fff3e0; }
 .sel { outline: 2px solid #1565c0; outline-offset: -2px; }
-.cell-actions { text-align: center; }
-.loupe { border: 0; background: transparent; cursor: pointer; padding: .25rem; }
-.supprimer-partout, .dissocier { display: inline-flex; align-items: center; justify-content: center; width: 33px; height: 33px; margin: .15rem; padding: 0; font-size: 1rem; vertical-align: middle; cursor: pointer; }
+.cell-actions { text-align: center; white-space: nowrap; }
+.loupe { border: 0; background: transparent; cursor: pointer; padding: .15rem; }
+.supprimer-partout, .dissocier { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: .1rem; padding: 0; font-size: .9rem; vertical-align: middle; cursor: pointer; }
 .supprimer-partout { color: #b00020; }
 .supprimer-partout:disabled, .dissocier:disabled { cursor: default; opacity: .5; }
 .cat-select, .categorie { display: block; max-width: 100%; margin: .25rem auto 0; border: 1px solid #bbb; border-radius: 999px; padding: .1rem .3rem; font-size: .72rem; background: white; }

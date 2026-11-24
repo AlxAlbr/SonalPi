@@ -40,13 +40,43 @@ test('deux renommages à la fois, alias multiples et pseudo hérité contenant /
 })
 const apps: App[] = []
 afterEach(() => { apps.splice(0).forEach((app) => app.unmount()); document.body.replaceChildren() })
-test.each(['Claire / Rebecca', 'Claire / Rebecca / Marie', 'Claire /', 'Claire / claire'])('création : champ unique avec slash, validation sans perte : %s', async (texte) => {
+async function monterFormulaire() {
   const creer = vi.fn(), host = document.createElement('div'); document.body.append(host)
   const app = createApp(FormulaireRegleAnon, { categories: [], enCours: false, erreur: null, onCreer: creer }); apps.push(app); app.mount(host)
-  const inputs = host.querySelectorAll('input'); expect(inputs).toHaveLength(2)
-  inputs[0].value = 'Karine'; inputs[0].dispatchEvent(new Event('input', { bubbles: true }))
-  inputs[1].value = texte; inputs[1].dispatchEvent(new Event('input', { bubbles: true })); await nextTick()
-  host.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await nextTick()
-  if (texte === 'Claire / Rebecca') expect(creer).toHaveBeenCalledExactlyOnceWith({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] })
-  else { expect(creer).not.toHaveBeenCalled(); expect(host.querySelector('[role=alert]')).not.toBeNull() }
+  const champ = (nom: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${nom}"]`)
+  const bouton = (texte: string) => [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === texte)
+  const saisir = async (nom: string, valeur: string) => { const c = champ(nom)!; c.value = valeur; c.dispatchEvent(new Event('input', { bubbles: true })); await nextTick() }
+  const soumettre = async () => { host.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await nextTick() }
+  return { creer, host, champ, bouton, saisir, soumettre }
+}
+test('création : un champ par variante, sans alias possible', async () => {
+  const f = await monterFormulaire()
+  expect(f.host.querySelectorAll('input')).toHaveLength(2)
+  await f.saisir('Entité originale', 'Karine'); await f.saisir('Pseudonyme', 'Claire')
+  f.bouton('+ Ajouter une variante')!.click(); await nextTick()
+  expect(f.bouton('+ Ajouter un alias')!.disabled).toBe(true)
+  expect(f.bouton('+ Ajouter une variante')).toBeUndefined()
+  await f.saisir('Variante 2', 'Rebecca'); await f.soumettre()
+  expect(f.creer).toHaveBeenCalledExactlyOnceWith({ entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] })
 })
+test('création : un champ par alias avec un seul pseudonyme, champ retiré', async () => {
+  const f = await monterFormulaire()
+  await f.saisir('Entité originale', 'Lyon')
+  f.bouton('+ Ajouter un alias')!.click(); await nextTick()
+  expect(f.bouton('+ Ajouter une variante')!.disabled).toBe(true)
+  await f.saisir('Alias 2', 'Lyons')
+  f.bouton('+ Ajouter un alias')!.click(); await nextTick()
+  f.host.querySelector<HTMLButtonElement>('button[aria-label="Retirer l’alias 3"]')!.click(); await nextTick()
+  expect(f.champ('Alias 3')).toBeNull()
+  await f.saisir('Pseudonyme', 'Ville'); await f.soumettre()
+  expect(f.creer).toHaveBeenCalledExactlyOnceWith({ entite: ['Lyon', 'Lyons'], pseudos: ['Ville'] })
+})
+test.each([['Karine / Karin', 'Claire', ''], ['Karine', 'Claire / Rebecca', ''], ['Karine', 'Claire', 'claire'], ['Karine', '', '']])(
+  'création refusée sans perte : %s → %s %s', async (entite, pseudo, variante) => {
+    const f = await monterFormulaire()
+    await f.saisir('Entité originale', entite); await f.saisir('Pseudonyme', pseudo)
+    if (variante) { f.bouton('+ Ajouter une variante')!.click(); await nextTick(); await f.saisir('Variante 2', variante) }
+    await f.soumettre()
+    expect(f.creer).not.toHaveBeenCalled(); expect(f.host.querySelector('[role=alert]')).not.toBeNull()
+    expect(f.champ('Entité originale')!.value).toBe(entite)
+  })

@@ -487,7 +487,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         titre="Thèmes"
         aide="Le codebook du corpus. Le codage se fait dans les entretiens ; ici, on réorganise les codages."
       >
-        <button v-if="!lectureSeule" class="crayon editer-themes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️ Éditer les thèmes</button>
+        <button v-if="!lectureSeule" class="editer-themes" :disabled="operationGlobaleEnCours" @click="editerThemes = true">✏️ Éditer les thèmes</button>
       </BarreOngletCorpus>
 
       <BarreOngletCorpus
@@ -509,7 +509,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </label>
         <!-- La recherche remplace la fiche dans le panneau gauche, le temps de la consulter. -->
         <button
-          class="mini ouvrir-recherche-corpus"
+          class="ouvrir-recherche-corpus"
           :class="{ actif: ongletCorpus === 'recherche' }"
           :aria-pressed="ongletCorpus === 'recherche'"
           title="Rechercher dans tous les entretiens (Ctrl+F)"
@@ -1012,24 +1012,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding-top: 0.7rem;
 }
 /* --- Onglet Recherche : recherche plein texte du corpus --- */
-.ouvrir-recherche-corpus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  /* Même gabarit que « + Ajouter un entretien », en graisse normale. */
-  font-size: 0.88rem;
-  padding: 0.28rem 0.65rem;
-}
-.ouvrir-recherche-corpus img {
-  width: 1rem;
-  height: 1rem;
-}
-.ouvrir-recherche-corpus:hover,
-.ouvrir-recherche-corpus.actif {
-  border-color: #2e73d8;
-  background: #f0f6ff;
-}
 .barre-recherche {
   display: flex;
   gap: 0.35rem;

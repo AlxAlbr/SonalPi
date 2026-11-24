@@ -227,7 +227,7 @@ async function valider() {
 </script>
 
 <template>
-  <button class="mini ajout-ent" data-tour="ajouter-entretien" @click="ouvrir">+ Ajouter un entretien</button>
+  <button class="ajout-ent" data-tour="ajouter-entretien" @click="ouvrir">+ Ajouter un entretien</button>
 
   <Teleport to="body">
     <div v-if="ouverte" class="voile-modale" @click.self="fermer">
@@ -474,16 +474,5 @@ async function valider() {
   background: #e6e6e6;
   color: #999;
   cursor: not-allowed;
-}
-/* Point d'entrée principal de la vue Corpus : plus visible que les
-   boutons .mini génériques (gras, un peu plus grand). */
-.ajout-ent {
-  font-weight: 700;
-  font-size: 0.88rem;
-  padding: 0.28rem 0.65rem;
-}
-.ajout-ent:hover {
-  border-color: #2e73d8;
-  background: #f0f6ff;
 }
 </style>

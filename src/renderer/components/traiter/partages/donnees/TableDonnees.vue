@@ -280,11 +280,11 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   >
     <button
       v-if="!lectureSeule"
-      class="crayon editer-variables"
+      class="editer-variables"
       title="Éditer les variables (nom, statut, modalités)"
       @click="editerVariables = true"
     >✏️ Éditer les variables</button>
-    <button class="mini export-csv" :disabled="!matriceChargee || matriceEnCours || !variablesVisibles.length" @click="ouvrirExport">Exporter CSV…</button>
+    <button class="export-csv" :disabled="!matriceChargee || matriceEnCours || !variablesVisibles.length" @click="ouvrirExport">Exporter CSV…</button>
   </BarreOngletCorpus>
   <section
     ref="panneau"

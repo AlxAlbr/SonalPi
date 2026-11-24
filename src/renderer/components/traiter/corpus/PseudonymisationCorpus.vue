@@ -14,6 +14,7 @@ import EchangesCorrespondances from './EchangesCorrespondances.vue'
 import RenommageVarianteAnon from './RenommageVarianteAnon.vue'
 import DissociationRegleAnon from './DissociationRegleAnon.vue'
 import LegendeAnon from './LegendeAnon.vue'
+import BoutonInfo from '../../app/BoutonInfo.vue'
 import SuppressionRegleAnon from './SuppressionRegleAnon.vue'
 import type { BilanSuppressionAnon, SuiviSuppressionAnon } from '../../../../shared/corpus/suppressionAnon'
 import { suspendreTirageAutomatique } from '../../../tirageAutomatique'
@@ -184,6 +185,7 @@ function entToutTraite(anon: number, exc: number, incl: number, non: number): bo
 
 // Paramètres de pseudonymisation propres au corpus.
 const parametresOuverts = ref(false)
+const legendeOuverte = ref(false)
 const prioriteLocale = ref<'corpus' | 'entretien'>(paramsAnon.value.prioriteValidation)
 const motsLiaisonActif = ref(paramsAnon.value.motsLiaison?.actif ?? true)
 const motsLiaisonListe = ref((paramsAnon.value.motsLiaison?.liste ?? []).join(', '))
@@ -530,13 +532,13 @@ function trier(colonne: TriAnon) {
 // Le séparateur conserve une largeur en pixels, bornée à l’espace disponible.
 const RACCOURCI_LARGEUR = 'sonalpi.pseudonymisationCorpus.largeurGauche'
 const panneau = ref<HTMLElement | null>(null)
-const largeurGauche = ref(520)
+const largeurGauche = ref(440)
 const dispositionVerticale = ref(false)
 let redimensionnement = false
 function largeurDisponible() { return panneau.value?.clientWidth ?? 0 }
 /** Largeur du panneau gauche bornée : au moins `minGauche`,
  *  sans rogner le panneau droit en dessous de `minDroite`. */
-function bornerLargeurPanneau(valeur: number, disponible: number, minGauche = 420, minDroite = 320): number {
+function bornerLargeurPanneau(valeur: number, disponible: number, minGauche = 340, minDroite = 320): number {
   if (!Number.isFinite(valeur)) valeur = minGauche
   return Math.max(minGauche, Math.min(valeur, Math.max(minGauche, disponible - minDroite)))
 }
@@ -787,11 +789,13 @@ onUnmounted(() => {
       >
           <button class="actualiser-pseudo" :disabled="scanAnonEnCours" @click="actualiserPanneau">{{ scanAnonEnCours ? 'Actualisation…' : '⟳ Actualiser' }}</button>
           <div class="pseudo-outils-regles">
-            <button class="ajouter-regle" aria-label="Import règles" title="Importer des règles ou des pseudonymes depuis un fichier" @click="ouvrirEchanges('import')">Import règles <span aria-hidden="true">📥</span></button>
-            <button class="ajouter-regle" aria-label="Export règles" title="Exporter une table de règles et de pseudonymes" @click="ouvrirEchanges('export')">Export règles <span aria-hidden="true">📤</span></button>
-            <button class="ajouter-regle" aria-label="Paramètres de pseudonymisation" :aria-expanded="parametresOuverts" aria-controls="parametres-pseudonymisation" title="Paramètres de pseudonymisation" @click="parametresOuverts = !parametresOuverts">Paramètres <span aria-hidden="true">⚙</span></button>
+            <button aria-label="Import règles" title="Importer des règles ou des pseudonymes depuis un fichier" @click="ouvrirEchanges('import')">Import règles <span aria-hidden="true">📥</span></button>
+            <button aria-label="Export règles" title="Exporter une table de règles et de pseudonymes" @click="ouvrirEchanges('export')">Export règles <span aria-hidden="true">📤</span></button>
+            <button aria-label="Paramètres de pseudonymisation" :aria-expanded="parametresOuverts" aria-controls="parametres-pseudonymisation" title="Paramètres de pseudonymisation" @click="parametresOuverts = !parametresOuverts">Paramètres <span aria-hidden="true">⚙</span></button>
           </div>
+          <BoutonInfo v-model="legendeOuverte" libelle="Légende et aide" />
       </BarreOngletCorpus>
+      <LegendeAnon v-if="legendeOuverte" />
       <section ref="panneau" v-hauteur-disponible class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }" :aria-busy="scanAnonEnCours">
         <div class="pseudo-haut">
           <p v-if="messagePseudo && !scanPourRegle" class="pseudo-message" role="status">{{ messagePseudo }}</p>
@@ -838,14 +842,12 @@ onUnmounted(() => {
               </template>
             </div>
           </div>
-          <LegendeAnon />
           <div v-if="!reglesAnon.length" class="pseudo-filtres">
             <select aria-label="Filtre d’état" disabled><option>Toutes les règles</option></select>
             <button class="ajouter-regle" :disabled="!creationDisponible || creationEnCours" @click="ouvrirCreation">Ajouter une règle</button>
           </div>
           <p v-if="scanAnonPerime && scanAnonCharge" class="pseudo-hint" role="status">Résultat périmé : actualisez avant de vous fier aux compteurs.</p>
           <p v-if="scanAnonErreur && scanAnonCharge" class="pseudo-erreur" role="alert">{{ scanAnonErreur }} Le dernier résultat lisible reste affiché et peut ne plus être à jour.</p>
-        </div>
           <section v-if="suiviRetraitVariante || erreurSuiviRetraitVariante" class="pseudo-hint" role="status">
             <strong>Retrait de variante {{ libelleFournisseurRetrait }} à reprendre</strong>
             <p v-if="suiviRetraitVariante">{{ suiviRetraitVariante.annotations }} choix remplacé(s) dans {{ suiviRetraitVariante.entretiens }} entretien(s). {{ suiviRetraitVariante.varianteRetiree || suiviRetraitVariante.miroirIncomplet ? 'Les remplacements sont enregistrés ; il reste à actualiser votre copie du corpus.' : 'Le retrait de la variante n’est pas encore terminé.' }}</p>
@@ -870,6 +872,7 @@ onUnmounted(() => {
             <button :disabled="dissociationEnCours || !!dissociation" @click="relireSuiviDissociation">Relire le suivi {{ fournisseurDissociation }}</button>
             <button v-if="suiviDissociation" :disabled="!dissociationDisponible || dissociationEnCours || !!dissociation || !!erreurSuiviDissociation || suiviDissociation.statut === 'indetermine' || suiviDissociation.regleRetiree" @click="ouvrirRepriseDissociation">Recalculer la reprise</button>
           </section>
+        </div>
           <div v-if="scanAnonEnCours && !scanAnonCharge && !reglesAnon.length" class="pseudo-vide" role="status">Analyse du corpus…</div>
           <div v-else-if="scanAnonErreur && !scanAnonCharge && !reglesAnon.length" class="pseudo-vide pseudo-premiere-erreur">
             <p role="alert">{{ scanAnonErreur }}</p>
@@ -883,10 +886,9 @@ onUnmounted(() => {
           </div>
 
           <template v-else>
-            <!-- Partie GAUCHE : recherche + table des règles, loupe par ligne. -->
-            <div class="panneau pseudo-gauche">
-              <div class="corpus-tete"><h3 class="titre-panneau">Pseudonymisation</h3></div>
-              <p class="accueil-intro pseudo-intro">Règles d’anonymisation du corpus.</p>
+            <!-- Panneau latéral : filtres, recherche et table des règles. -->
+            <aside class="panneau pseudo-gauche" aria-label="Règles de pseudonymisation">
+              <div class="corpus-tete"><h3 class="titre-panneau">Règles</h3></div>
               <div class="pseudo-filtres">
                 <select v-model="filtreEtat" aria-label="Filtre d’état">
                   <option value="toutes">Toutes les règles</option>
@@ -919,11 +921,11 @@ onUnmounted(() => {
               <div ref="tableWrap" class="pseudo-table-wrap">
               <TableReglesAnon :lignes="scanFiltre" :selection="selectedRegleId" :tri="tri" :descendant="descendant" :frais="scanFrais" :collisions="collisions" :categories="thematiquesListe" :lecture-seule="lectureSeule || validationEnCours" :ajout-variante-disponible="ajoutVarianteDisponible" :retrait-variante-disponible="retraitVarianteDisponible" @modifier-pseudos="ouvrirEditionPseudos" :renommage-disponible="renommageDisponible" :dissociation-disponible="dissociationDisponible" :suppression-disponible="suppressionDisponible && !suiviSuppression && !erreurSuiviSuppression" @supprimer-partout="ouvrirSuppression" @dissocier="ouvrirDissociation" @selectionner="selectionnerRegle" @trier="trier" @categoriser="categoriser" />
               </div>
-            </div>
+            </aside>
             <div v-if="!dispositionVerticale" class="pseudo-separateur" role="separator" aria-label="Largeur de la table" aria-orientation="vertical" tabindex="0" :aria-valuenow="largeurGauche" @pointerdown="commencerRedimensionnement" @pointermove="redimensionner" @pointerup="finirRedimensionnement" @pointercancel="finirRedimensionnement" @keydown="ajusterSeparateurClavier"></div>
 
-            <!-- Partie DROITE : drill-down d'une règle (entretiens + masque). -->
-            <div ref="detailWrap" class="pseudo-droite">
+            <!-- Contenu principal : entretiens et occurrences de la règle choisie. -->
+            <section ref="detailWrap" class="pseudo-droite" aria-label="Détail de la règle">
               <div v-if="!scanPourRegle" class="pseudo-droite-vide">
                 Clique sur la loupe 🔍 d'une règle pour voir les entretiens concernés et valider les occurrences.
               </div>
@@ -1027,7 +1029,7 @@ onUnmounted(() => {
                   <button :disabled="validationEnCours || !aDesChangements" @click="abandonner">Abandonner</button>
                 </div>
               </template>
-            </div>
+            </section>
           </template>
       </section>
       <SuppressionRegleAnon v-if="suppression" :regle="suppression" :disponible="suppressionDisponible && !erreurSuiviSuppression" :contexte="revisionCorpus" :fournisseur="fournisseurCourant" :suivi="suiviSuppression" @fermer="suppression = null" @activite="suppressionEnCours = $event" @partiel="memoriserSuiviSuppression" @termine="apresSuppression" />
@@ -1052,23 +1054,20 @@ onUnmounted(() => {
 
 <style scoped>
 .pseudo-panneau {
-  background: #fff;
-  border-radius: 8px;
-  padding: 1rem 1.2rem;
-  /* Les colonnes défilent séparément ; le cadre grandit si l’aide réduit trop leur espace. */
+  /* Les deux zones défilent séparément ; l’ensemble grandit si les messages réduisent trop leur espace. */
   box-sizing: border-box;
   width: 100%;
   height: var(--hauteur-disponible, calc(100dvh - 270px));
   min-height: 22rem;
-  border: 1px solid #e0e0ea;
 }
-/* L’aide occupe la première ligne, les deux colonnes la suivante.
+/* Les messages occupent la première ligne, le panneau latéral et le contenu principal la suivante.
  *  Leur hauteur minimale conserve une table utilisable dans une fenêtre réduite.
  */
 .pseudo-deux-col {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: var(--pseudo-gauche-w, 520px) 8px minmax(0, 1fr);
+  grid-template-columns: var(--pseudo-gauche-w, 440px) 6px minmax(0, 1fr);
+  column-gap: 12px;
   /* La table garde de la place sous les filtres, même lorsque l’aide est dépliée. */
   grid-template-rows: auto minmax(24rem, 1fr);
   min-height: min-content;
@@ -1095,7 +1094,6 @@ onUnmounted(() => {
 .pseudo-droite {
   box-sizing: border-box;
   min-width: 0;
-  padding-left: 1rem;
   min-height: 0;
   overflow-y: auto;
   grid-column: 3;
@@ -1398,7 +1396,6 @@ onUnmounted(() => {
   border-radius: 6px;
   font-size: 0.82rem;
 }
-.pseudo-intro { margin-bottom: .7rem; }
 .pseudo-vide { color: #666; font-size: 0.9rem; }
 .pseudo-hint { color: #999; font-size: 0.78rem; margin-top: 0.4rem; }
 .pseudo-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -1434,7 +1431,6 @@ onUnmounted(() => {
 .pseudo-tete { flex-wrap: wrap; gap: .5rem; }
 .ajouter-regle { border: 1px solid #1565c0; border-radius: 5px; background: white; padding: .3rem .55rem; cursor: pointer; }
 .ajouter-regle:disabled { border-color: #bbb; color: #888; cursor: not-allowed; }
-.actualiser-pseudo { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .3rem .55rem; cursor: pointer; }
 .pseudo-erreur { color: #b3261e; font-size: .82rem; }
 .pseudo-premiere-erreur { text-align: center; }
 .pseudo-premiere-erreur p { color: #b3261e; }

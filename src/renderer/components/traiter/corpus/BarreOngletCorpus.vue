@@ -61,3 +61,72 @@ defineProps<{ titre: string; aide?: string }>()
   }
 }
 </style>
+
+<style>
+/* Boutons de la barre d'onglet : un seul style pour tous les onglets du corpus.
+ *  Le style n'est pas restreint au composant, car les boutons viennent des onglets eux-mêmes.
+ *  Le sélecteur est volontairement précis pour l'emporter sur les styles locaux.
+ */
+.corpus-tete.barre-onglet .actions-barre-onglet button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  box-sizing: border-box;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0 0.65rem;
+  border: 1px solid #c9d0da;
+  border-radius: 6px;
+  background: #fff;
+  color: #2b3d55;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet button img {
+  width: 1rem;
+  height: 1rem;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet button:hover:not(:disabled),
+.corpus-tete.barre-onglet .actions-barre-onglet button[aria-pressed='true'],
+.corpus-tete.barre-onglet .actions-barre-onglet button[aria-expanded='true'] {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+  color: #1565c0;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet button:focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 2px;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* Le bouton « i » reste carré. */
+.corpus-tete.barre-onglet .actions-barre-onglet button.bouton-info {
+  width: 2rem;
+  padding: 0;
+}
+/* Un groupe de choix (Tableau / Feuille) accole ses boutons. */
+.corpus-tete.barre-onglet .actions-barre-onglet [role='group'] {
+  display: flex;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet [role='group'] button + button {
+  margin-left: -1px;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet [role='group'] button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet [role='group'] button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.corpus-tete.barre-onglet .actions-barre-onglet [role='group'] button[aria-pressed='true'] {
+  position: relative;
+}
+</style>

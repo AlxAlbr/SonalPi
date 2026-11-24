@@ -475,12 +475,6 @@ onBeforeUnmount(() => observateur?.disconnect())
 
 <style scoped>
 .notes-corpus { min-width: 0; }
-.modes-notes { display: flex; }
-.modes-notes button { border: 1px solid #b8c3cf; background: #fff; }
-.modes-notes button + button { margin-left: -1px; }
-.modes-notes button:first-child { border-radius: 5px 0 0 5px; }
-.modes-notes button:last-child { border-radius: 0 5px 5px 0; }
-.modes-notes button[aria-pressed="true"] { position: relative; color: #0d4f91; background: #e8f2fc; border-color: #4385c5; }
 button { cursor: pointer; padding: 6px 10px; }
 button:disabled { cursor: default; }
 .deux-colonnes-notes { display: grid; grid-template-columns: var(--largeur-notes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
