@@ -27,12 +27,12 @@ export function pmVersTranches(
   to: number,
 ): Array<{ bloc: number; debut: number; fin: number }> {
   const tranches: Array<{ bloc: number; debut: number; fin: number }> = []
-  for (let k = 0; k < longueurs.length; k++) {
-    const start = debutBloc(longueurs, k)
+  for (let k = 0, start = debutBloc(longueurs, 0); k < longueurs.length; start += 2 + longueurs[k], k++) {
     const end = start + longueurs[k]
     const d = Math.max(from, start)
     const f = Math.min(to, end)
     if (d < f) tranches.push({ bloc: k, debut: d - start, fin: f - start })
+    else if (start >= to) break
   }
   return tranches
 }

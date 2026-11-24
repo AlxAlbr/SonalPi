@@ -81,7 +81,7 @@ export function construireLibelleGouttiere(lib: LibelleGouttiere, vide: boolean)
  */
 function elementGouttiere(
   view: EditorView,
-  pos: number,
+  getPos: () => number | undefined,
   lib: LibelleGouttiere,
   vide: boolean,
   onClicTour?: (posBloc: number) => void,
@@ -90,6 +90,9 @@ function elementGouttiere(
   el.addEventListener('mousedown', (e) => {
     e.preventDefault()
     e.stopPropagation() // le clic-tour ne doit pas AUSSI déclencher le clic-texte (seek précis)
+    // Position lue au clic : le libellé reste en place quand le texte qui le précède change.
+    const pos = getPos()
+    if (pos === undefined) return
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos))
     view.dispatch(tr.scrollIntoView())
     view.focus()
@@ -123,10 +126,11 @@ function construire(state: EditorState, locuteurs: ParticipationLocuteur[], onCl
       decos.push(
         Decoration.widget(
           contentStart,
-          (view) => elementGouttiere(view, contentStart, bordereau.lib, bordereau.vide, onClicTour),
+          (view, getPos) => elementGouttiere(view, getPos, bordereau.lib, bordereau.vide, onClicTour),
           {
             side: -1,
-            key: `g:${offset}:${loc}:${bordereau.lib.nom}:${bordereau.lib.pseudo ?? ''}:${bordereau.lib.couleur}`,
+            // Sans la position dans la clé : une frappe ne recrée pas les libellés des tours suivants.
+            key: `g:${loc}:${bordereau.lib.nom}:${bordereau.lib.pseudo ?? ''}:${bordereau.lib.couleur}`,
           },
         ),
       )

@@ -1,4 +1,4 @@
-import { ref, shallowRef, reactive, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, reactive, onBeforeUnmount, toRaw } from 'vue'
 import { Extension } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -619,7 +619,8 @@ export function useEntretien(deps: {
       blocs.push({ pos: offset + 1, longueur: node.content.size, loc: (node.attrs.loc ?? null) as number | null })
       offsets.push(offset)
     })
-    const ancres = entretien.ancres
+    // Lecture hors réactivité : recalculé à chaque frappe, sur des milliers d'ancres.
+    const ancres = toRaw(entretien.ancres)
     const tours: TourBarre[] = toursHorodates(blocs, ancres).map((t) => ({
       posBloc: offsets[t.premierBloc],
       loc: blocs[t.premierBloc].loc,
@@ -693,9 +694,14 @@ export function useEntretien(deps: {
     rafraichirJournal() // l'annulabilité dépend du doc et des annotations
     anonymisationEntretien.rafraichirLignesAnon()
     const ed = editor.value
-    resumeOuvert.value = ed
-      ? resumeThematique({ corpsTexte: ed.getJSON(), annotations: entretien.annotations })
-      : []
+    // Le résumé ne lit que le texte des blocs : inutile de sérialiser tout le document.
+    const corpsTexte = { content: [] as Array<{ content: Array<{ text?: string }> }> }
+    ed?.state.doc.forEach((noeud) => {
+      const enfants: Array<{ text?: string }> = []
+      noeud.forEach((enfant) => enfants.push({ text: enfant.text }))
+      corpsTexte.content.push({ content: enfants })
+    })
+    resumeOuvert.value = ed ? resumeThematique({ corpsTexte, annotations: toRaw(entretien.annotations) }) : []
     const blocs: BlocParole[] = []
     ed?.state.doc.forEach((noeud, offset) => {
       if (noeud.type.name === 'paragraph') {

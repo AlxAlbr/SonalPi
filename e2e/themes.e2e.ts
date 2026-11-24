@@ -138,7 +138,11 @@ test('coder → la carte Corpus porte le résumé thématique (calque, clic = ro
   await expect(seg).toHaveCount(1)
   await expect(seg).toHaveAttribute('title', 'Famille')
   await expect(seg).toHaveAttribute('style', /left:\s*0%/)
-  await expect(seg).toHaveAttribute('style', /linear-gradient/)
+  // La couleur du thème est dessinée dans l'image de la bande, sous le segment.
+  await expect.poll(() => page.locator('.carte-ent .bande-themes').evaluate((toile: HTMLCanvasElement) => {
+    const pixel = toile.getContext('2d')!.getImageData(1, Math.floor(toile.height / 2), 1, 1).data
+    return pixel[3]
+  })).toBeGreaterThan(0)
 
   // Clic sur le segment → rouvre l'entretien (le texte codé est là).
   await seg.click()

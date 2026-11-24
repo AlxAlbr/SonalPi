@@ -48,6 +48,8 @@ const verticale = ref(false)
 const replie = ref(false)
 const cleLargeur = 'sonalpi.commentairesCorpus.largeurGauche'
 let observateur: ResizeObserver | undefined
+/** Largeur maximale des filtres, relevée quand le panneau change de taille. */
+const largeurMax = ref(240)
 
 function borner(valeur: number): number {
   return Math.max(240, Math.min(valeur, Math.max(240, (panneau.value?.clientWidth ?? 800) - 420)))
@@ -84,6 +86,7 @@ onMounted(() => {
   observateur = new ResizeObserver(() => {
     const disponible = panneau.value?.clientWidth ?? 0
     if (!disponible) return
+    largeurMax.value = borner(Infinity)
     verticale.value = disponible < 760
     if (!verticale.value) largeur.value = borner(largeur.value)
   })
@@ -214,7 +217,7 @@ onBeforeUnmount(() => observateur?.disconnect())
         tabindex="0"
         :aria-valuenow="largeur"
         :aria-valuemin="240"
-        :aria-valuemax="borner(Infinity)"
+        :aria-valuemax="largeurMax"
         @pointerdown="($event.currentTarget as HTMLElement).setPointerCapture($event.pointerId)"
         @pointermove="redimensionner"
         @pointerup="terminer"

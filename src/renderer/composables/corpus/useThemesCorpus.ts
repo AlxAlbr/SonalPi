@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { ordreThemes } from '../../../shared/corpus'
 import type { Categorie, PatchCategorie, SegmentThematique } from '../../../shared/format'
 import { couleurPourCode, couleurHexPourCode } from '../../editor/decorations'
@@ -8,11 +8,22 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
   const codebook = ref<Categorie[]>([])
   const codeCourant = ref('')
   const usages = ref<Record<string, number>>({})
-  const resumes = ref<Record<string, SegmentThematique[]>>({})
+  // Résumés des cartes, remplacés en bloc : ils ne sont jamais modifiés en place.
+  const resumes = shallowRef<Record<string, SegmentThematique[]>>({})
   const messageTheme = ref<string | null>(null)
 
+  // Accès direct aux thèmes par identifiant :
+  // les cartes et l'éditeur interrogent le codebook des milliers de fois.
+  const themesParId = computed(() => new Map(codebook.value.map((categorie) => [categorie.id, categorie])))
+  // Peinture déjà calculée pour chaque combinaison de thèmes ;
+  // la table repart à vide dès que le codebook change.
+  const peintures = computed(() => {
+    void themesParId.value
+    return new Map<string, ReturnType<typeof calculerPeinture>>()
+  })
+
   function couleurTrait(code: string): string {
-    const categorie = codebook.value.find((item) => item.id === code)
+    const categorie = themesParId.value.get(code)
     return categorie?.couleur || couleurPourCode(categorie?.codeExport ?? code).trait
   }
 
@@ -21,16 +32,30 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   function tailleTheme(code: string): number | undefined {
-    return codebook.value.find((categorie) => categorie.id === code)?.taille
+    return themesParId.value.get(code)?.taille
   }
 
   function estCodeActif(code: string): boolean {
-    return codebook.value.find((categorie) => categorie.id === code)?.actif ?? true
+    return themesParId.value.get(code)?.actif ?? true
   }
 
-  function peintureSegment(codes: string[]): {
+  function peintureSegment(codes: string[]): ReturnType<typeof calculerPeinture> {
+    const cle = codes.join(' ')
+    const cache = peintures.value
+    let peinture = cache.get(cle)
+    if (!peinture) {
+      peinture = calculerPeinture(codes)
+      cache.set(cle, peinture)
+    }
+    return peinture
+  }
+
+  /** Couleurs d'un passage codé (de haut en bas), soulignement épais et dégradé CSS équivalent. */
+  function calculerPeinture(codes: string[]): {
     background?: string
     borderBottom?: string
+    couleurs: string[]
+    ponderation: boolean
     masque: boolean
   } {
     const actifs = codes.filter((code) => estCodeActif(code))
@@ -45,12 +70,14 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
     return {
       background: stops.length ? `linear-gradient(to bottom, ${stops.join(', ')})` : undefined,
       borderBottom: ponderation ? '3px solid #000' : undefined,
+      couleurs,
+      ponderation,
       masque: !stops.length && !ponderation,
     }
   }
 
   function nomTheme(id: string): string {
-    return codebook.value.find((categorie) => categorie.id === id)?.nom ?? id
+    return themesParId.value.get(id)?.nom ?? id
   }
 
   function arbreThemes() {
@@ -72,7 +99,13 @@ export function useThemesCorpus(opts: { flush: () => Promise<void> }) {
 
   async function rafraichirUsages() {
     usages.value = await window.sonal.corpus.usagesParCategorie()
-    resumes.value = await window.sonal.corpus.resumesThematiques()
+    const nouveaux = await window.sonal.corpus.resumesThematiques()
+    // Un entretien inchangé garde son tableau : sa bande n'est pas redessinée.
+    const anciens = resumes.value
+    for (const [id, segments] of Object.entries(nouveaux)) {
+      if (anciens[id] && JSON.stringify(anciens[id]) === JSON.stringify(segments)) nouveaux[id] = anciens[id]
+    }
+    resumes.value = nouveaux
   }
 
   async function ajouterTheme(): Promise<string> {

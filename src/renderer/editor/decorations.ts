@@ -1,6 +1,7 @@
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { toRaw } from 'vue'
 import { estOrpheline } from '../../shared/entretien/annotation'
 import type { Entretien } from '../../shared/entretien/entretien'
 import type { Annotation } from '../../shared/entretien/annotation'
@@ -96,17 +97,38 @@ function traitDe(a: { type: string; code?: string }, resoudre: ResolveurCouleur)
  *  `box-shadow` décalés). La composition devient visible sans dépendre de la
  *  fusion de ProseMirror.
  */
+/** Mémorise les réponses d'un résolveur le temps d'une construction. */
+function memoriser<T>(resoudre: (code: string) => T): (code: string) => T {
+  const cache = new Map<string, T>()
+  return (code) => {
+    if (!cache.has(code)) cache.set(code, resoudre(code))
+    return cache.get(code)!
+  }
+}
+
+/** Range une annotation avec sa position dans la liste d'origine, pour en garder l'ordre. */
+interface Rangee {
+  a: Annotation
+  rang: number
+}
+
 function construireDecorations(
   state: EditorState,
   entretien: Entretien,
-  resoudre: ResolveurCouleur,
-  tailleDe?: ResolveurTaille,
-  estCodeActif: (code: string) => boolean = () => true,
-  nomDe?: ResolveurNom,
+  resoudreBrut: ResolveurCouleur,
+  tailleBrute?: ResolveurTaille,
+  estCodeActifBrut: (code: string) => boolean = () => true,
+  nomBrut?: ResolveurNom,
 ): DecorationSet {
+  // Les résolveurs lisent le codebook : une seule lecture par code suffit.
+  const resoudre = memoriser(resoudreBrut)
+  const tailleDe = tailleBrute && memoriser(tailleBrute)
+  const estCodeActif = memoriser(estCodeActifBrut)
+  const nomDe = nomBrut && memoriser(nomBrut)
+  // Lecture hors réactivité : l'entretien ouvert peut compter des milliers d'annotations.
   // Un codage d'un thème INACTIF est masqué du marquage (ni souligné, ni barre de chevauchement,
   // ni taille, ni compte) — comme s'il n'existait pas pour l'œil.
-  const actives = entretien.annotations.filter(
+  const actives = toRaw(entretien.annotations).filter(
     (a) => !estOrpheline(a) && (a.type !== 'codage' || estCodeActif(a.code ?? '')),
   )
   if (actives.length === 0) return DecorationSet.empty
@@ -116,18 +138,24 @@ function construireDecorations(
   // Le rendu ne voit que la plus large (pas de barré ni de [pseudo] pour l'interne).
   // Elle reste dans le modèle ; au retrait de l'englobante, elle réapparaît telle quelle.
   // (Restauration gratuite.)
+  // Englobante : elle commence avant et finit au même endroit ou après,
+  // ou commence au même endroit et finit strictement après.
   const masquee = new Set<string>()
-  for (const x of actives) {
-    if (x.type !== 'anon') continue
-    const englobee = actives.some(
-      (y) =>
-        y.type === 'anon' &&
-        y.id !== x.id &&
-        y.from <= x.from &&
-        x.to <= y.to &&
-        y.to - y.from > x.to - x.from,
-    )
-    if (englobee) masquee.add(x.id)
+  const anonsTriees = actives.filter((a) => a.type === 'anon').sort((x, y) => x.from - y.from)
+  let finMaxAvant = -Infinity
+  for (let i = 0; i < anonsTriees.length; ) {
+    let j = i
+    let finMaxIci = -Infinity
+    while (j < anonsTriees.length && anonsTriees[j].from === anonsTriees[i].from) {
+      finMaxIci = Math.max(finMaxIci, anonsTriees[j].to)
+      j++
+    }
+    for (let k = i; k < j; k++) {
+      const x = anonsTriees[k]
+      if (finMaxAvant >= x.to || finMaxIci > x.to) masquee.add(x.id)
+    }
+    finMaxAvant = Math.max(finMaxAvant, finMaxIci)
+    i = j
   }
 
   // Bornes élémentaires : toutes les extrémités d'annotations, plus les bornes de contenu des paragraphes.
@@ -144,23 +172,32 @@ function construireDecorations(
   // Étage de chaque codage dans un paragraphe (0 = le plus près du texte).
   // Les plus longs passent au-dessus, et un codage garde le même étage sur tout le paragraphe.
   const etages: Map<string, number>[] = []
+  // Les paragraphes arrivent dans l'ordre du texte.
+  // On tient à jour les codages qui peuvent encore les toucher, sans tout relire pour chacun.
+  const codagesParDebut = codages.map((a, rang) => ({ a, rang })).sort((x, y) => x.a.from - y.a.from)
+  let prochainCodage = 0
+  let codagesEnCours: Rangee[] = []
   state.doc.forEach((node, offset) => {
     if (node.type.name !== 'paragraph') return
     const debut = offset + 1
     const fin = offset + node.nodeSize
+    while (prochainCodage < codagesParDebut.length && codagesParDebut[prochainCodage].a.from < fin) {
+      codagesEnCours.push(codagesParDebut[prochainCodage++])
+    }
+    codagesEnCours = codagesEnCours.filter((c) => c.a.to > debut)
+    // Seuls les codages qui touchent le paragraphe comptent ici, dans leur ordre d'origine.
+    const touches = [...codagesEnCours].sort((x, y) => x.rang - y.rang).map((c) => c.a)
     const points = new Set<number>([debut])
-    for (const c of codages) {
+    for (const c of touches) {
       if (c.from > debut && c.from < fin) points.add(c.from)
       if (c.to > debut && c.to < fin) points.add(c.to)
     }
     let max = 0
     for (const p of points) {
-      const n = codages.filter((c) => c.from <= p && p < c.to).length
+      const n = touches.filter((c) => c.from <= p && p < c.to).length
       if (n > max) max = n
     }
-    const ici = codages
-      .filter((c) => c.from < fin && c.to > debut)
-      .sort((x, y) => y.to - y.from - (x.to - x.from) || x.from - y.from)
+    const ici = touches.sort((x, y) => y.to - y.from - (x.to - x.from) || x.from - y.from)
     const etage = new Map<string, number>()
     for (const c of ici) {
       const pris = new Set(
@@ -180,12 +217,25 @@ function construireDecorations(
 
   const decos: Decoration[] = []
   let iparagraphe = 0
+  // Même balayage pour les segments.
+  // Un segment est couvert par les annotations commencées avant lui et finies après son début.
+  const activesParDebut = actives.map((a, rang) => ({ a, rang })).sort((x, y) => x.a.from - y.a.from)
+  let prochaineActive = 0
+  let activesEnCours: Rangee[] = []
   for (let i = 0; i < bornes.length - 1; i++) {
     const segFrom = bornes[i]
     const segTo = bornes[i + 1]
     while (iparagraphe < paragraphes.length && paragraphes[iparagraphe].fin <= segFrom) iparagraphe++
     const paragraphe = paragraphes[iparagraphe]
-    const couvrant = actives.filter((a) => a.from <= segFrom && a.to >= segTo)
+    let ajout = false
+    while (prochaineActive < activesParDebut.length && activesParDebut[prochaineActive].a.from <= segFrom) {
+      activesEnCours.push(activesParDebut[prochaineActive++])
+      ajout = true
+    }
+    if (ajout || activesEnCours.some((c) => c.a.to <= segFrom)) {
+      activesEnCours = activesEnCours.filter((c) => c.a.to > segFrom).sort((x, y) => x.rang - y.rang)
+    }
+    const couvrant = activesEnCours.map((c) => c.a)
     if (couvrant.length === 0) continue
 
     // Soulignement des CODAGES seuls (l'anon a son propre marqueur).

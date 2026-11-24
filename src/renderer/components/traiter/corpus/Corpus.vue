@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, watchEffect, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from '../partages/themes/EditionThemes.vue'
 import MenuTheme from '../partages/themes/MenuTheme.vue'
@@ -8,6 +8,8 @@ import ThemesOpsCorpus from './ThemesOpsCorpus.vue'
 import { operationGlobaleEnCours } from '../../../operationGlobaleCorpus'
 import LocuteursCorpus from './LocuteursCorpus.vue'
 import CadreOndeCorpus from './CadreOndeCorpus.vue'
+import BandeResumeThematique from './BandeResumeThematique.vue'
+import CurseurZoomListe from './CurseurZoomListe.vue'
 import NotesCorpus from './NotesCorpus.vue'
 import CommentairesCorpus from './CommentairesCorpus.vue'
 import BarreOngletCorpus from './BarreOngletCorpus.vue'
@@ -20,7 +22,6 @@ import { rechercherDansCorpsTexte, transcriptAvecOccurrences } from '../../../ed
 import { visiblesThemes } from '../../../../shared/corpus/categories'
 import type { EtatVerrouPublic } from '../../../../shared/distant'
 import type { OccurenceRecherche, ResultatRecherche, SegmentTranscript } from '../../../editor/rechercheCorpus'
-import type { SegmentThematique } from '../../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
 import icoThemes from '../../../assets/icones/themes.png'
 import icoDonnees from '../../../assets/icones/tableau.svg'
@@ -46,8 +47,6 @@ const {
   codebook,
   usages,
   couleurHex,
-  peintureSegment,
-  nomTheme,
   arbreThemes,
   modifierTheme,
   resumes,
@@ -110,8 +109,10 @@ const ECARTS_CARTES = [2, 5, 8]
 const ZOOM_MAX = DENSITES.length - 1
 /** Le réglage est gardé dans le profil de l'utilisateur et repris au prochain démarrage. */
 const zoom = ref(ZOOM_MAX)
+/** Position donnée au curseur : le réglage repris du profil, pas chaque pas du glissement. */
+const zoomInitial = ref(ZOOM_MAX)
 window.sonal.profil.zoomEntretiens().then(
-  (z) => { if (z !== null) zoom.value = z },
+  (z) => { if (z !== null) zoom.value = zoomInitial.value = z },
   () => { /* Réglage facultatif : on garde l'affichage aéré. */ }
 )
 /** Enregistré au relâchement du curseur, pas à chaque pas du glissement. */
@@ -126,10 +127,15 @@ function interpoler(valeurs: number[]): number {
   const t = zoom.value - bas
   return valeurs[bas] + (valeurs[bas + 1] - valeurs[bas]) * t
 }
-const styleListe = computed(() => ({
-  '--h-carte': interpoler(HAUTEURS_CARTE) + 'px',
-  '--ecart-cartes': interpoler(ECARTS_CARTES) + 'px'
-}))
+// La hauteur des cartes suit le curseur directement sur la liste.
+// Seul un changement de disposition redessine l'écran Corpus.
+const listeCartes = ref<HTMLElement | null>(null)
+watchEffect(() => {
+  const liste = listeCartes.value
+  if (!liste) return
+  liste.style.setProperty('--h-carte', interpoler(HAUTEURS_CARTE) + 'px')
+  liste.style.setProperty('--ecart-cartes', interpoler(ECARTS_CARTES) + 'px')
+}, { flush: 'post' })
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
@@ -434,19 +440,6 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'donnees', libelle: 'Données', icone: icoDonnees },
 ]
 
-/** Style d'un segment du calque des cartes : position/largeur en % du TEXTE,
- *  peinture partagée `peintureSegment` (useCorpus). */
-function styleSegment(s: SegmentThematique): Record<string, string> {
-  const p = peintureSegment(s.codes)
-  const style: Record<string, string> = {
-    left: s.deb + '%',
-    width: s.fin - s.deb + '%',
-  }
-  if (p.background) style.background = p.background
-  if (p.borderBottom) style.borderBottom = p.borderBottom
-  if (p.masque) style.display = 'none'
-  return style
-}
 </script>
 
 <template>
@@ -496,15 +489,13 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       >
         <label class="mini densite-liste" :title="'Densité de la liste : ' + LIBELLES_DENSITE[indiceDensite]">
           <span class="densite-libelle">Zoom</span>
-          <input
-            v-model.number="zoom"
-            type="range"
-            min="0"
+          <CurseurZoomListe
+            :valeur="zoomInitial"
             :max="ZOOM_MAX"
-            step="0.01"
-            @change="memoriserZoom"
             aria-label="Densité de la liste des entretiens"
             :aria-valuetext="LIBELLES_DENSITE[indiceDensite]"
+            @glisser="(valeur) => (zoom = valeur)"
+            @relacher="memoriserZoom"
           />
         </label>
         <!-- La recherche remplace la fiche dans le panneau gauche, le temps de la consulter. -->
@@ -773,7 +764,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
 
             <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
-            <ul class="cartes-ent" :class="'densite-' + densite" :style="styleListe" aria-label="Entretiens du corpus">
+            <ul class="cartes-ent" ref="listeCartes" :class="'densite-' + densite" aria-label="Entretiens du corpus">
               <template v-for="e in listeEntretiens()" :key="e.id">
               <li
                 class="carte-ent"
@@ -824,14 +815,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                        TEXTE ; clic = ouvrir l'entretien à cet endroit.
                        Les ondes empilées sur toute la largeur forment le « mur » d'ondes. -->
                   <CadreOndeCorpus :source="urlWaveform(e.id)">
-                    <span
-                      v-for="(s, i) in resumes[e.id] ?? []"
-                      :key="i"
-                      class="xtr-graph"
-                      :style="styleSegment(s)"
-                      :title="s.codes.map(nomTheme).join(' + ')"
-                      @click.stop="ouvrirAuSegment(e.id, s.pos)"
-                    ></span>
+                    <BandeResumeThematique
+                      v-if="resumes[e.id]"
+                      :entretien-id="e.id"
+                      :segments="resumes[e.id]"
+                      @ouvrir="ouvrirAuSegment"
+                    />
                     <!-- Marqueurs de recherche : une pastille par occurrence, à sa place dans le texte.
                          Le clic déplie le transcript sous la carte, sans ouvrir l'entretien. -->
                     <span
@@ -1320,6 +1309,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding: 0.3rem 0.5rem;
   background: #fff;
   cursor: pointer;
+  /* Les cartes hors de l'écran ne sont ni mises en page ni dessinées :
+     un gros corpus s'affiche sans attendre ses dizaines de bandes de thèmes. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5rem;
 }
 .carte-ent:hover {
   border-color: #b9c7bb;
@@ -1356,19 +1349,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-radius: 8px;
   background: #e2ecff;
   color: #1d4fa1;
-}
-.xtr-graph {
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  opacity: 0.55; /* la couleur reste celle du thème, l'onde reste lisible dessous */
-  cursor: pointer;
-  box-sizing: border-box;
-  border-radius: 2px;
-}
-.xtr-graph:hover {
-  opacity: 0.8; /* au survol, le segment s'affirme (clic = rouvrir au texte) */
-  border: 1px solid #030303;
 }
 /* Marqueur de RECHERCHE sur le « mur » d'ondes : barre JAUNE vif, tour ROUGE
    gras, qui dépasse un peu du cadre, bien visible. Centrée sur la position %
