@@ -14,7 +14,7 @@ vi.mock('node:fs', async (original) => {
   return { ...fs, renameSync: (...args: Parameters<typeof fs.renameSync>) => {
     if (injection.destination && String(args[1]) === injection.destination) throw new Error('Interruption synthétique.')
     fs.renameSync(...args)
-    if (injection.apresPremier && String(args[1]).endsWith('/entretiens/e1.json')) {
+    if (injection.apresPremier && String(args[1]).replaceAll('\\', '/').endsWith('/entretiens/e1.json')) {
       const action = injection.apresPremier; injection.apresPremier = null; action()
     }
   } }
@@ -125,7 +125,7 @@ describe('dissociation locale scellée et journalée', () => {
     const acquis = b.lire(), journal = join(b.dir, '.transaction-fichiers.json')
     expect(acquis.definitionsAnonLocales!.at(-1)!.entite).toEqual(['Karine'])
     expect(b.corpus().reglesAnon.personne).toBeDefined()
-    expect(statSync(journal).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(journal).mode & 0o777).toBe(0o600)
     expect(() => b.store.exigerDissociationAnonGlobale()).toThrow()
     injection.destination = ''
     new CorpusStore(b.dir).ouvrir()

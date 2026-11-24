@@ -11,6 +11,40 @@ body {
   color: #1a1a1a;
 }
 
+/* Apparence par défaut des boutons et champs qui n'ont pas de style propre.
+   « :where » leur donne une priorité nulle : tout style de composant l'emporte. */
+:where(button, input, select, textarea) {
+  font-family: inherit;
+  color: inherit;
+}
+:where(button) {
+  border: 1px solid #c9cdd8;
+  border-radius: 5px;
+  background: #fff;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+:where(button:hover:not(:disabled)) {
+  background: #f3f5fa;
+  border-color: #a9b0c2;
+}
+:where(button:disabled) {
+  color: #9a9eab;
+  cursor: default;
+}
+:where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea) {
+  border: 1px solid #c9cdd8;
+  border-radius: 4px;
+  background-color: #fff;
+}
+:where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), textarea) {
+  padding: 0.15rem 0.35rem;
+}
+:where(button, input, select, textarea):focus-visible {
+  outline: 2px solid #2e73d8;
+  outline-offset: 1px;
+}
+
 /* Placeholder « rien à afficher » — les 4 vues s'en servent. */
 .vide {
   color: #aaa;

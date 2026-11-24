@@ -10,16 +10,15 @@ function monter() {
   const app = createApp(LegendeAnon); apps.push(app); app.mount(host)
   return host
 }
-test('encart ouvert, repliable nativement et accompagné de libellés, pas seulement de couleurs', () => {
-  const host = monter(), details = host.querySelector('details')!
-  expect(details.open).toBe(true)
-  expect(details.querySelector('summary')!.textContent).toContain('Légende et aide')
+test('encart d’aide nommé et accompagné de libellés, pas seulement de couleurs', () => {
+  const host = monter(), note = host.querySelector('[role="note"]')!
+  expect(note.getAttribute('aria-label')).toBe('Légende et aide')
   expect(host.textContent).toContain('Pseudonymisés')
   expect(host.textContent).toContain('Laissés en clair')
   expect(host.textContent).toContain('À traiter')
   expect(host.querySelectorAll('.legende-badge')).toHaveLength(3)
   expect(host.querySelectorAll('.legende-ligne')).toHaveLength(2)
-  for (const indicateur of host.querySelectorAll('.legende-badge, .legende-ligne, .legende-toggle')) {
+  for (const indicateur of host.querySelectorAll('.legende-badge, .legende-ligne')) {
     expect(indicateur.getAttribute('aria-hidden')).toBe('true')
   }
 })

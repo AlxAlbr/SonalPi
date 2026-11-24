@@ -19,6 +19,7 @@ import { normaliserOrdreEntretiens } from '../shared/corpus/ordreEntretiens'
 import { verifierVersionNative } from '../shared/versionsNatives'
 import { validerCorpusNatif, validerEntretienNatif } from '../shared/natif/validation'
 import { objet } from '../shared/natif/validationCommune'
+import { synchroniserDossier } from './synchronisationDossier'
 
 export interface PlanAjoutEntretien<C = CorpusFichier, E = EntretienFichier> {
   readonly operation: 'ajout'
@@ -288,18 +289,6 @@ function ecrireAtomiquement(fichier: string, contenu: string, mode?: number): vo
   }
   renameSync(temporaire, fichier)
   synchroniserDossier(dossier)
-}
-
-function synchroniserDossier(dossier: string): void {
-  let descripteur: number | null = null
-  try {
-    descripteur = openSync(dossier, 'r')
-    fsyncSync(descripteur)
-  } catch {
-    // Certains systèmes ne permettent pas de synchroniser un descripteur de dossier.
-  } finally {
-    if (descripteur !== null) closeSync(descripteur)
-  }
 }
 
 /** Coordonne les mutations locales qui touchent `corpus.crp` et les entretiens.

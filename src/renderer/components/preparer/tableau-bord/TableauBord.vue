@@ -498,7 +498,8 @@ function afficherDate(iso: string): string {
 .outils-colonne, .outils-ligne { display: inline-flex; gap: 0.1rem; visibility: hidden; }
 .entete-colonne { position: relative; }
 .entete-colonne:hover .outils-colonne, .entete-ligne:hover .outils-ligne { visibility: visible; }
-.outils-colonne { position: absolute; right: 0.1rem; top: 0.1rem; background: #eef1f6; z-index: 2; }
+/* Les outils laissent libre la poignée de largeur, collée au bord droit. */
+.outils-colonne { position: absolute; right: calc(7px + 0.1rem); top: 0.1rem; background: #eef1f6; z-index: 2; }
 .outils-ligne { position: absolute; right: 0.1rem; top: 0.1rem; background: #eef1f6; z-index: 2; }
 .mini { border: none; background: transparent; cursor: pointer; font-size: 0.6rem; padding: 0 0.1rem; color: #8a8f9c; }
 .mini:hover { color: #333; }

@@ -7,6 +7,7 @@ import { CorpusStore } from '../src/main/corpusStore'
 import { creerTransitionsLocales } from '../src/main/transitionContexte'
 import type { EntretienFichier } from '../src/shared/format'
 import type { MemoireExemples } from '../src/shared/exemples'
+import { liensSymboliquesDisponibles } from './liensSymboliques'
 
 let racine: string, sources: string, memoire: MemoireExemples | undefined, service: ExemplesLocaux
 beforeEach(() => {
@@ -262,6 +263,7 @@ describe('installation et reprise des corpus exemples', () => {
   test('refuse les collisions avec les sources et leurs liens symboliques', () => {
     mkdirSync(sources)
     expect(() => installer(join(sources, 'corpus'))).toThrow('déjà utilisé')
+    if (!liensSymboliquesDisponibles) return
     const lien = join(racine, 'lien-sources')
     symlinkSync(sources, lien)
     expect(() => installer(join(lien, 'corpus'))).toThrow('déjà utilisé')

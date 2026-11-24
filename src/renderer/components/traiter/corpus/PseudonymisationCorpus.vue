@@ -549,9 +549,14 @@ function bornerLargeur() {
   if (!dispositionVerticale.value) largeurGauche.value = bornerLargeurPanneau(largeurGauche.value, disponible)
 }
 function restaurerLargeur() {
-  const memorisee = Number(localStorage.getItem(RACCOURCI_LARGEUR))
-  if (Number.isFinite(memorisee) && memorisee > 0) largeurGauche.value = memorisee
+  try {
+    const memorisee = Number(localStorage.getItem(RACCOURCI_LARGEUR))
+    if (Number.isFinite(memorisee) && memorisee > 0) largeurGauche.value = memorisee
+  } catch { /* Stockage facultatif. */ }
   bornerLargeur()
+}
+function memoriserLargeur() {
+  try { localStorage.setItem(RACCOURCI_LARGEUR, String(largeurGauche.value)) } catch { /* Stockage facultatif. */ }
 }
 function commencerRedimensionnement(e: PointerEvent) {
   redimensionnement = true
@@ -564,13 +569,13 @@ function redimensionner(e: PointerEvent) {
 function finirRedimensionnement() {
   if (!redimensionnement) return
   redimensionnement = false
-  localStorage.setItem(RACCOURCI_LARGEUR, String(largeurGauche.value))
+  memoriserLargeur()
 }
 function ajusterSeparateurClavier(e: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
   e.preventDefault()
   largeurGauche.value = bornerLargeurPanneau(largeurGauche.value + (e.key === 'ArrowLeft' ? -20 : 20), largeurDisponible())
-  localStorage.setItem(RACCOURCI_LARGEUR, String(largeurGauche.value))
+  memoriserLargeur()
 }
 const validationEnCours = ref(false)
 /** Publie le diff par entretien et conserve les intentions des entretiens en échec. */
@@ -879,9 +884,9 @@ onUnmounted(() => {
             <button type="button" :disabled="scanAnonEnCours" @click="charger(true)">Réessayer</button>
           </div>
           <div v-else-if="reglesAnon.length === 0" class="pseudo-vide">
-            Aucune règle d'anonymisation corpus pour l'instant.
+            Aucune règle de pseudonymisation dans ce corpus pour l’instant.
             <div class="pseudo-hint">
-              Ajoutez une définition ici, ou depuis l’onglet Anon d’un entretien. La création au corpus ne pseudonymise aucun texte.
+              Ajoutez une règle ici, ou depuis l’onglet Pseudo. d’un entretien. Créer une règle ne modifie encore aucun texte.
             </div>
           </div>
 

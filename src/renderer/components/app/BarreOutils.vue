@@ -128,8 +128,11 @@ const traitementActif = computed(() => vue.value === 'corpus' || vue.value === '
   filter: brightness(0) invert(1);
 }
 .libelle-espace {
+  /* Largeur bornée : chaque libellé se répartit sur deux lignes, avec une marge. */
+  max-width: 4.75rem;
   font-size: 0.68rem;
   line-height: 1.2;
+  text-align: center;
   overflow-wrap: anywhere;
 }
 .outil.espace.actif,

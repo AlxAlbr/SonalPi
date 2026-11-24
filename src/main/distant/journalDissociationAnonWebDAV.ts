@@ -6,6 +6,7 @@ import { preparerDissociationAnon, type BilanDissociationAnon, type DemandeDisso
 import { lireBarriereDissociationWebDAV, type BarriereDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
 import { etagImportWebDAVFort, idImportWebDAVSain } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleDissociationWebDAV {
   id: string; avant: string; apres: string; bilan: BilanDissociationAnon
@@ -49,8 +50,7 @@ export class JournalDissociationAnonWebDAV {
       const fd = openSync(temporaire, 'wx', 0o600)
       try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
       renameSync(temporaire, this.chemin)
-      const parent = openSync(dirname(this.chemin), 'r')
-      try { fsyncSync(parent) } finally { closeSync(parent) }
+      synchroniserDossier(dirname(this.chemin))
     } finally { if (existsSync(temporaire)) unlinkSync(temporaire) }
   }
   private valider(j: LotDissociationWebDAV): void {

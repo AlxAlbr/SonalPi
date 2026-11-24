@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../shared/format'
 import { preparerRetraitVarianteAnon, type BilanRetraitVarianteAnon, type DemandeRetraitVarianteAnon } from '../../shared/corpus/retraitVarianteAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleRetraitVarianteGitLab {
   id: string; avant: EntretienFichier; apres: EntretienFichier; bilan: BilanRetraitVarianteAnon
@@ -47,8 +48,7 @@ export class JournalRetraitVarianteAnonGitLab {
     const temporaire = `${this.fichier}.${randomUUID()}.tmp`, fd = openSync(temporaire, 'wx', 0o600)
     try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
     renameSync(temporaire, this.fichier)
-    const parent = openSync(dirname(this.fichier), 'r')
-    try { fsyncSync(parent) } finally { closeSync(parent) }
+    synchroniserDossier(dirname(this.fichier))
   }
   private valider(j: LotRetraitVarianteGitLab): void {
     if (!j || j.version !== 1 || j.destination !== this.destination || !operationSaine(j.operationId)

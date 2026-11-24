@@ -71,7 +71,7 @@ for (const natif of [false, true]) describe(`retrait WebDAV : ${natif ? 'natif' 
       attendu.lastModified = actuel.lastModified; expect(actuel).toEqual(attendu)
     }
     expect(b.corpus().reglesAnon.personne.pseudos).toEqual(['Rebecca']); expect(b.corpus().retraitVarianteAnon).toBeUndefined()
-    expect(statSync(join(b.dir, '.retrait-variante-anon-webdav.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.retrait-variante-anon-webdav.json')).mode & 0o777).toBe(0o600)
     expect(b.service.lireSuivi()).toBeNull()
   })
   it('inventaire long : renouvellement à l’approche de l’échéance, pas à chaque membre', async () => {

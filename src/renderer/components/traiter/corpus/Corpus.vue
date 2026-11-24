@@ -548,7 +548,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbParticipations }}</b></li>
               <li><span>Valeurs saisies</span><b>{{ corpusSelMeta.nbValeurs }}</b></li>
               <li><span>Audio</span><b>{{ corpusSelMeta.audio ? 'lié' : '—' }}</b></li>
-              <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
+              <li><span>SRT</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
             </ul>
             <p v-else class="vide">Lecture…</p>
             <div v-if="corpusSelMeta?.audio" class="audio-actions">
@@ -567,7 +567,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               :disabled="!metaEditables(corpusSelId)"
               :title="titreChampMeta(corpusSelId)"
               @click="demanderSrt"
-            >Assigner un srt…</button>
+            >Assigner un SRT…</button>
             <p v-if="srtMessage" class="srt-err">{{ srtMessage }}</p>
             <div v-if="srtASurEcrire" class="confirm-suppr srt-confirm">
               L'éditeur contient déjà du texte : assigner un SRT remplacera le contenu existant.
@@ -1430,7 +1430,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #b3261e;
   font-size: 0.78rem;
 }
-/* Bouton « Assigner un srt… » : même gabarit que l'audio, monté de 0.6rem
+/* Bouton « Assigner un SRT… » : même gabarit que l'audio, monté de 0.6rem
    comme les autres gestes du panneau. */
 .assigner-srt {
   margin-top: 0.6rem;

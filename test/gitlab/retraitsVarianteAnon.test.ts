@@ -33,7 +33,7 @@ describe('retrait de variante GitLab, moteur séparé du parcours produit', () =
     }
     expect(b.lire('e3')).toEqual(b.sources[2].data); expect(commits(b).flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toContain('miroir-périmé')
-    expect(statSync(fichier(b)).mode & 0o777).toBe(0o600); expect(b.service.lireSuivi()).toBeNull()
+    if (process.platform !== 'win32') expect(statSync(fichier(b)).mode & 0o777).toBe(0o600); expect(b.service.lireSuivi()).toBeNull()
   })
   test('300 membres, deux cibles : inventaire distinct des seuls baux corpus/cible', async () => {
     const b = banc(300); b.sessions.push('e3')

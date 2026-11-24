@@ -77,7 +77,7 @@ for (const natif of [false, true]) describe(`correspondances WebDAV — ${natif 
     b.pieges.avant = async (chemin, init) => { if (chemin === 'entretiens/e2.json' && init?.method === 'PUT') throw new Error('coupure') }
     await expect(b.service.appliquer(p)).rejects.toThrow('incomplet')
     expect(b.service.lireSuivi()).toMatchObject({ confirmes: 1, restants: 1, indeterminee: true })
-    expect(statSync(join(b.dir, '.correspondances-webdav.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.correspondances-webdav.json')).mode & 0o777).toBe(0o600)
     const suivi = b.service.lireSuivi()!
     expect(JSON.stringify(suivi)).not.toContain('Alias sans occurrence')
     expect(JSON.stringify(suivi)).not.toContain('personne-synthetique')

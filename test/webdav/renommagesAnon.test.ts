@@ -72,7 +72,7 @@ for (const natif of [false, true]) describe(`renommage WebDAV ciblé — ${natif
     const suivi = b.service.lireSuivi()!
     expect(suivi.cibles).toContainEqual(expect.objectContaining({ id: 'e2', etat: 'a-faire' }))
     expect(JSON.stringify(suivi)).not.toContain('Rue Karine')
-    expect(statSync(join(b.dir, '.renommage-anon-webdav.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.renommage-anon-webdav.json')).mode & 0o777).toBe(0o600)
     suivi.cibles[0].id = 'faux'; suivi.bilan.annotations = 100
     expect(b.service.lireSuivi()!.bilan.annotations).toBe(2)
     await expect(b.service.instantane()).rejects.toThrow('reste à reprendre')

@@ -6,6 +6,7 @@ import { FORMAT_VERSION } from '../../shared/format'
 import { preparerRenommageAnon, type DemandeRenommageAnon } from '../../shared/corpus/renommageAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
 import { idImportWebDAVSain, etagImportWebDAVFort } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleRenommageWebDAV {
   id: string; avant: string; apres: string; annotations: number; incluses: number
@@ -49,8 +50,7 @@ export class JournalRenommageAnonWebDAV {
       const fd = openSync(temporaire, 'wx', 0o600)
       try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
       renameSync(temporaire, this.chemin)
-      const dossier = openSync(dirname(this.chemin), 'r')
-      try { fsyncSync(dossier) } finally { closeSync(dossier) }
+      synchroniserDossier(dirname(this.chemin))
     } finally { if (existsSync(temporaire)) unlinkSync(temporaire) }
   }
   private valider(j: LotRenommageWebDAV): void {

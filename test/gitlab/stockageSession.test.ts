@@ -12,7 +12,7 @@ describe('stockage local de session GitLab', () => {
       await stockage.ecrire('{"formatVersion":2}')
       await expect(stockage.lire()).resolves.toBe('{"formatVersion":2}')
       expect(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).toBe('{"formatVersion":2}')
-      expect(statSync(join(dir, 'entretiens/e1.json')).mode & 0o777).toBe(0o600)
+      if (process.platform !== 'win32') expect(statSync(join(dir, 'entretiens/e1.json')).mode & 0o777).toBe(0o600)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

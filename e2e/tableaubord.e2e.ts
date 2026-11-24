@@ -219,9 +219,9 @@ test('largeurs des colonnes et hauteurs des lignes réglables et mémorisées', 
   // Le glisser à la souris règle aussi les deux dimensions.
   const poigneeColonne = premiereColonne.locator('.poignee-colonne')
   const boiteColonne = (await poigneeColonne.boundingBox())!
-  await page.mouse.move(boiteColonne.x + 3, boiteColonne.y + 20)
+  await page.mouse.move(boiteColonne.x + 3, boiteColonne.y + boiteColonne.height / 2)
   await page.mouse.down()
-  await page.mouse.move(boiteColonne.x + 43, boiteColonne.y + 20, { steps: 5 })
+  await page.mouse.move(boiteColonne.x + 43, boiteColonne.y + boiteColonne.height / 2, { steps: 5 })
   await page.mouse.up()
   const largeurReglee = Math.round((await premiereColonne.boundingBox())!.width)
   expect(largeurReglee).toBeGreaterThanOrEqual(175)

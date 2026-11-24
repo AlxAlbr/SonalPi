@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { FORMAT_VERSION, type CorpusFichier } from '../../shared/format'
 import { ajouterVarianteAnon, type DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon'
 import { etagImportWebDAVFort } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface EnvoiAjoutVarianteWebDAV {
   version: 1; destination: string; operationId: string; demande: DemandeAjoutVarianteAnon
@@ -55,8 +56,7 @@ export class JournalAjoutVarianteAnonWebDAV {
   }
   effacer() { if (existsSync(this.chemin)) { unlinkSync(this.chemin); this.synchroniser() } }
   private synchroniser() {
-    const fd = openSync(dirname(this.chemin), 'r')
-    try { fsyncSync(fd) } finally { closeSync(fd) }
+    synchroniserDossier(dirname(this.chemin))
   }
   private valider(j: EnvoiAjoutVarianteWebDAV) {
     if (!j || j.version !== 1 || j.destination !== this.destination || !/^ajout-variante-[a-zA-Z0-9_-]{1,160}$/.test(j.operationId)

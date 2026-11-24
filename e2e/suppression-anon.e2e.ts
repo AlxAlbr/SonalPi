@@ -110,7 +110,7 @@ test('suppression locale interrompue : journal v4, relance et acquis non réécr
     const cible = join(dir, 'entretiens', `${ids[0]}.json`), acquis = readFileSync(cible, 'utf8'), mtime = statSync(cible).mtimeMs
     expect(JSON.parse(acquis).annotations.some((a: { regle?: string }) => a.regle === regle.id)).toBe(false)
     const journal = join(dir, '.transaction-fichiers.json')
-    expect(JSON.parse(readFileSync(journal, 'utf8')).formatVersion).toBe(4); expect(statSync(journal).mode & 0o777).toBe(0o600)
+    expect(JSON.parse(readFileSync(journal, 'utf8')).formatVersion).toBe(4); if (process.platform !== 'win32') expect(statSync(journal).mode & 0o777).toBe(0o600)
     expect(JSON.parse(readFileSync(join(dir, 'corpus.crp'), 'utf8')).reglesAnon[regle.id]).toBeDefined()
     await app.close(); app = await lancer(profil, { preserverSettings: true }); page = await app.firstWindow()
     await page.getByRole('button', { name: 'corpus', exact: true }).click()

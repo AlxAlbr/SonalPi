@@ -7,6 +7,7 @@ import { construireTableCorrespondance, OPTIONS_TABLE_DEFAUT, aplatirTableV1, ta
 import { decoderCorrespondances, preparerImportCorrespondances, appliquerImportCorrespondances } from '../src/shared/corpus/importCorrespondances'
 import { TablesCorrespondance } from '../src/main/tablesCorrespondance'
 import { CorpusStore } from '../src/main/corpusStore'
+import { liensSymboliquesDisponibles } from './liensSymboliques'
 const dossiers: string[] = []
 afterEach(() => { for (const dir of dossiers.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 const doc = (lignes: unknown[]) => [{ nom: 'synthetique.json', texte: JSON.stringify(lignes) }]
@@ -137,10 +138,12 @@ describe('cache et persistance du main', () => {
     expect(readFileSync(fichier, 'utf8')).toBe(avant)
     expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'corpus.crp'))).toThrow('destination JSON')
     expect(() => service.verifierDestination(apercu.token, join(store.repertoire, 'export.json'))).toThrow('hors du corpus')
-    symlinkSync(store.repertoire, join(dir, 'lien'), 'dir')
-    expect(() => service.verifierDestination(apercu.token, join(dir, 'lien', 'export.json'))).toThrow('hors du corpus')
-    symlinkSync(join(store.repertoire, 'corpus.crp'), join(dir, 'corpus-lie.json'))
-    expect(() => service.verifierDestination(apercu.token, join(dir, 'corpus-lie.json'))).toThrow('hors du corpus')
+    if (liensSymboliquesDisponibles) {
+      symlinkSync(store.repertoire, join(dir, 'lien'), 'dir')
+      expect(() => service.verifierDestination(apercu.token, join(dir, 'lien', 'export.json'))).toThrow('hors du corpus')
+      symlinkSync(join(store.repertoire, 'corpus.crp'), join(dir, 'corpus-lie.json'))
+      expect(() => service.verifierDestination(apercu.token, join(dir, 'corpus-lie.json'))).toThrow('hors du corpus')
+    }
     expect(() => service.verifierDestination(apercu.token, join(dir, 'export.json'))).not.toThrow()
   })
   test('les membres absents ne sont pas des usages nuls silencieux', () => {

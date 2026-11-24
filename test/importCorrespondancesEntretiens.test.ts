@@ -196,7 +196,7 @@ describe('import ciblé des correspondances dans des entretiens locaux', () => {
     expect(b.lire('e2')).toEqual(avant)
     const journal = join(b.dir, '.transaction-fichiers.json')
     expect(existsSync(journal)).toBe(true)
-    expect(statSync(journal).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(journal).mode & 0o777).toBe(0o600)
     expect(() => b.store.ouvrirEntretienPourEdition('e2')).toThrow('transaction reste à reprendre')
     injection.destination = ''
     if (concurrence) {

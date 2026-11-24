@@ -38,7 +38,7 @@ describe('suppression GitLab — moteur non activé dans l’application', () =>
     expect(b.lire('e3')).toEqual(b.sources[2].data)
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toContain('miroir-périmé')
     expect(commits(b).flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
-    expect(statSync(fichierJournal(b)).mode & 0o777).toBe(0o600); expect(b.service.lireSuivi()).toBeNull()
+    if (process.platform !== 'win32') expect(statSync(fichierJournal(b)).mode & 0o777).toBe(0o600); expect(b.service.lireSuivi()).toBeNull()
   })
   test('choix indépendant inclus révélé sans être recréé ni modifié', async () => {
     const b = banc()

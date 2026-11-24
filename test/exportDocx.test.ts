@@ -9,6 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import JSZip from 'jszip'
 import { CorpusStore } from '../src/main/corpusStore'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
@@ -115,7 +116,7 @@ describe('résolution audio vérifiée par le main', () => {
       expect(typeof url).toBe('string')
       expect(url).toMatch(/^file:\/\//)
       // L'URL re-décode vers le chemin exact (pas de concaténation manuelle).
-      expect(decodeURIComponent(url ?? '')).toContain(wav)
+      expect(fileURLToPath(url ?? '')).toBe(wav)
       // Une ref non enregistrée dans le corpus n'est JAMAIS résolue.
       expect(urlAudioLocal(store, join(dir, 'autre.wav'))).toBeNull()
     } finally {

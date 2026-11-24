@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../shared/format'
 import { preparerSuppressionAnon, type BilanSuppressionAnon, type DemandeSuppressionAnon } from '../../shared/corpus/suppressionAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleSuppressionGitLab {
   id: string; avant: EntretienFichier; apres: EntretienFichier; bilan: BilanSuppressionAnon
@@ -48,8 +49,7 @@ export class JournalSuppressionAnonGitLab {
     const temporaire = `${this.fichier}.${randomUUID()}.tmp`, fd = openSync(temporaire, 'wx', 0o600)
     try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
     renameSync(temporaire, this.fichier)
-    const parent = openSync(dirname(this.fichier), 'r')
-    try { fsyncSync(parent) } finally { closeSync(parent) }
+    synchroniserDossier(dirname(this.fichier))
   }
   private valider(j: LotSuppressionGitLab): void {
     if (!j || j.version !== 1 || j.destination !== this.destination || !operationSaine(j.operationId)

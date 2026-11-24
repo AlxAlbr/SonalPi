@@ -81,7 +81,7 @@ for (const natif of [false, true]) describe(`dissociation WebDAV : verrous ${nat
       expect(apres).toEqual(attendu)
     }
     const j = JSON.parse(readFileSync(join(b.dir, '.dissociation-anon-webdav.json'), 'utf8'))
-    expect(statSync(join(b.dir, '.dissociation-anon-webdav.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.dissociation-anon-webdav.json')).mode & 0o777).toBe(0o600)
     expect(j.envoi).toBeUndefined(); expect(j.regleRetiree).toBe(true); expect(b.service.lireSuivi()).toBeNull()
     await rendre()
   })

@@ -192,7 +192,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   // --- Étape 3 : Lier la transcription (SRT) (lancée AU CLIC) ---
   // La transcription de « 2RetraiteAnticipee » (créé audio seul à l'étape 2)
   // arrive : le trou guide la sélection de la carte → panneau métadonnées →
-  // « Assigner un srt… » ; le dialogue est stubé sur srt/2RetraiteAnticipee.srt.
+  // « Assigner un SRT… » ; le dialogue est stubé sur srt/2RetraiteAnticipee.srt.
   await page.locator('.liste-pp li').nth(2).locator('.ligne-pp').click()
   await spotlightSur(page, '[data-tour="carte-2RetraiteAnticipee"]')
   await page.locator('[data-tour="carte-2RetraiteAnticipee"]').click()

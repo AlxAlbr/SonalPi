@@ -6,6 +6,7 @@ import { preparerRetraitVarianteAnon, type BilanRetraitVarianteAnon, type Demand
 import { lireBarriereRetraitVarianteAnon, type BarriereRetraitVarianteAnon } from '../../shared/corpus/barriereRetraitVarianteAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
 import { etagImportWebDAVFort, idImportWebDAVSain } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleRetraitVarianteWebDAV {
   id: string; avant: string; apres: string; bilan: BilanRetraitVarianteAnon
@@ -48,8 +49,7 @@ export class JournalRetraitVarianteAnonWebDAV {
       const fd = openSync(temporaire, 'wx', 0o600)
       try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
       renameSync(temporaire, this.chemin)
-      const parent = openSync(dirname(this.chemin), 'r')
-      try { fsyncSync(parent) } finally { closeSync(parent) }
+      synchroniserDossier(dirname(this.chemin))
     } finally { if (existsSync(temporaire)) unlinkSync(temporaire) }
   }
   private valider(j: LotRetraitVarianteWebDAV): void {

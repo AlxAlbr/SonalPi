@@ -721,7 +721,7 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     const brut = readFileSync(fichier, 'utf8')
     expect(brut).not.toContain('secret-app')
     expect(brut).toContain(Buffer.from('chiffré(secret-app)').toString('base64'))
-    expect(statSync(fichier).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(fichier).mode & 0o777).toBe(0o600)
     expect(existsSync(`${fichier}.tmp`)).toBe(false)
     coffre.oublier(config.id)
     expect(coffre.lister()).toEqual([])
@@ -789,7 +789,7 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
 
     expect(coffre.motDePasse(id)).toBe('ancien-secret')
     expect(readFileSync(fichier, 'utf8')).not.toContain('motDePasseChiffre')
-    expect(statSync(fichier).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(fichier).mode & 0o777).toBe(0o600)
   })
 
   it('un secret indéchiffrable (trousseau perdu) renvoie null, jamais une exception', () => {

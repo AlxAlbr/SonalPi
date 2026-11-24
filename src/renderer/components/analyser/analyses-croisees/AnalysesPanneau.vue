@@ -152,7 +152,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 </template>
 
 <style scoped>
-.panneau-analyses { display: flex; flex-direction: column; min-height: 0; height: 100%; background: #fff; border-radius: 8px; overflow: hidden; }
+.panneau-analyses { display: flex; flex-direction: column; min-height: 0; height: 100%; background: #fff; border-radius: 8px; overflow: auto; }
 .entete, .bilan, .commandes { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid #dce2ea; flex-wrap: wrap; }
 .entete-info { display: flex; align-items: center; gap: 0.6rem; }
 .actions, .commandes, .actions-liste { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; }
@@ -165,7 +165,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', touche))
 .avertissement { background: #fff0d2; }
 .aide-analyse { margin: 0.5rem 0.85rem 0; }
 .aide-analyse p + p { margin-top: 0.3rem; }
-.travail { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+/* Dans une fenêtre basse, la matrice garde une hauteur lisible et le panneau défile. */
+.travail { flex: 1 1 0; min-height: 14rem; display: grid; grid-template-columns: minmax(0, 1fr); }
 .travail:has(.detail) { grid-template-columns: minmax(0, 1fr) auto; }
 .resultats { min-width: 0; min-height: 0; padding: 0.7rem; overflow: hidden; }
 .vide { color: #687485; }

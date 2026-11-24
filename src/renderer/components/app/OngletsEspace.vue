@@ -22,7 +22,7 @@ const emit = defineEmits<{ choisir: [id: T] }>()
       :title="onglet.libelle"
       :data-tour="onglet.tour"
       @click="emit('choisir', onglet.id)"
-    ><img class="ico-onglet" :src="onglet.icone" alt="" /><span class="libelle-onglet">{{ onglet.libelle }}</span></button>
+    ><img class="ico-onglet" :src="onglet.icone" alt="" /><span class="libelle-onglet" :data-libelle="onglet.libelle">{{ onglet.libelle }}</span></button>
   </nav>
 </template>
 
@@ -74,6 +74,22 @@ const emit = defineEmits<{ choisir: [id: T] }>()
 }
 .onglet.actif .ico-onglet {
   opacity: 1;
+}
+/* Une copie invisible du libellé en gras réserve sa largeur :
+   la barre ne se décale plus quand l'onglet actif change. */
+.libelle-onglet {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.libelle-onglet::after {
+  content: attr(data-libelle);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
 }
 /* En fenêtre étroite, les onglets reviennent aux icônes seules ;
    le libellé reste lu par les lecteurs d'écran et affiché au survol. */

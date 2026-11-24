@@ -20,7 +20,12 @@ async function ouvrirCopieExemple(page: Page, dossier: string, app: Awaited<Retu
 
 async function clicDroit(page: Page, cible: ReturnType<Page['locator']>) {
   await cible.scrollIntoViewIfNeeded()
-  const boite = await cible.boundingBox()
+  // Une occurrence coupée en fin de ligne occupe deux rectangles :
+  // on vise le premier, celui qui porte réellement le texte.
+  const boite = await cible.evaluate((e) => {
+    const r = e.getClientRects()[0]
+    return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null
+  })
   if (!boite) throw new Error('Occurrence sans position visible.')
   // Le pseudo est rendu après le texte par CSS ; viser le début garde le clic
   // sur les caractères réellement couverts par l’annotation.

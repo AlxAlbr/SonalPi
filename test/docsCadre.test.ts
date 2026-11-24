@@ -35,6 +35,7 @@ import {
   trierEntreesDocsCadre,
   type ResumeDocumentCadre,
 } from '../src/shared/docsCadre'
+import { liensSymboliquesDisponibles } from './liensSymboliques'
 
 function corpusTemporaire(): string {
   return mkdtempSync(join(tmpdir(), 'sonal-docs-cadre-'))
@@ -234,6 +235,7 @@ describe('dépôt par glisser-déposer (local)', () => {
       ok: false,
       raison: 'source',
     })
+    if (!liensSymboliquesDisponibles) return
     const lienSrc = join(corpusTemporaire(), 'cible.txt')
     writeFileSync(lienSrc, 'cible')
     const lien = join(dossier, 'lien.txt')
@@ -338,7 +340,7 @@ describe('sécurité des chemins', () => {
     expect([...readFileSync(destination)]).toEqual([...PNG_VALIDE])
   })
 
-  it('ignore les liens symboliques et refuse un dossier DocsPrepaProjet symbolique', () => {
+  it.skipIf(!liensSymboliquesDisponibles)('ignore les liens symboliques et refuse un dossier DocsPrepaProjet symbolique', () => {
     const racine = corpusTemporaire()
     const dir = join(racine, 'DocsPrepaProjet')
     const exterieur = join(corpusTemporaire(), 'secret.txt')
@@ -395,7 +397,7 @@ describe('navigation et mutations imbriquées', () => {
     expect(() => resoudreDossierLocal(racine, 'DPO/absent')).toThrow()
   })
 
-  it('refuse les liens intermédiaires pour toute lecture et mutation', () => {
+  it.skipIf(!liensSymboliquesDisponibles)('refuse les liens intermédiaires pour toute lecture et mutation', () => {
     const racine = corpusTemporaire()
     const exterieur = corpusTemporaire()
     writeFileSync(join(exterieur, 'secret.txt'), 'secret')

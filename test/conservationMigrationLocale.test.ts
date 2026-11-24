@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConservationMigrationLocale } from '../src/main/conservationMigrationLocale'
 import { executerTransitionPreparee } from '../src/main/transitionContexte'
 import type { DemandeMigration } from '../src/shared/corpus/migrationCrp'
+import { liensSymboliquesDisponibles } from './liensSymboliques'
 
 const dossiers: string[] = []
 afterEach(() => dossiers.splice(0).forEach((p) => rmSync(p, { recursive: true, force: true })))
@@ -64,7 +65,7 @@ describe('conservation locale des documents de migration', () => {
     expect(existsSync(join(f.cible, 'Autres'))).toBe(false)
   })
 
-  it('écarte les liens, y compris les dossiers pointant hors du corpus', async () => {
+  it.skipIf(!liensSymboliquesDisponibles)('écarte les liens, y compris les dossiers pointant hors du corpus', async () => {
     const f = fixture()
     symlinkSync(f.cible, join(f.source, 'lien'), 'dir')
     symlinkSync(join(f.source, 'premier.Sonal'), join(f.source, 'copie-liee.Sonal'))

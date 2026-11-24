@@ -131,7 +131,7 @@ describe('ajout de variante WebDAV : issue durable sans répétition', () => {
     const b = await banc()
     b.pieges.apres = async (p, init, r) => { if (p === 'corpus.crp' && init?.method === 'PUT' && r.ok) throw new Error('Réponse perdue'); return r }
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('perdue')
-    expect(b.journal.lire()?.etat).toBe('envoi'); expect(statSync(b.journal.chemin).mode & 0o777).toBe(0o600)
+    expect(b.journal.lire()?.etat).toBe('envoi'); if (process.platform !== 'win32') expect(statSync(b.journal.chemin).mode & 0o777).toBe(0o600)
     expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeTruthy()
     await expect(b.moteur.appliquer(b.demande)).rejects.toThrow('vérifier')
     await b.moteur.reconcilier(); expect(b.publies()).toHaveLength(1); expect(b.journal.lire()).toBeNull()

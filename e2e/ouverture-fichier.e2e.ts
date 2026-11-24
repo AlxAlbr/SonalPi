@@ -168,7 +168,9 @@ test('une seconde instance du même profil transmet un chemin relatif à la prem
     const env = { ...process.env }
     delete env.ELECTRON_RUN_AS_NODE
     const cwdEmetteur = dirname(dir)
-    const enfant = spawn(app.process().spawnfile, [process.cwd(), '--no-sandbox', `--user-data-dir=${profil}`, relative(cwdEmetteur, chemin)], { cwd: cwdEmetteur, env, stdio: 'ignore' })
+    // Sous Windows, le processus lancé par Playwright est un shell : on vise l'exécutable Electron.
+    const executable = await app.evaluate(() => process.execPath)
+    const enfant = spawn(executable, [process.cwd(), '--no-sandbox', `--user-data-dir=${profil}`, relative(cwdEmetteur, chemin)], { cwd: cwdEmetteur, env, stdio: 'ignore' })
     const [code] = await once(enfant, 'exit')
     expect(code).toBe(0)
     await attendreCorpus(page)

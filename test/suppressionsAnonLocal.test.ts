@@ -14,7 +14,7 @@ vi.mock('node:fs', async (original) => {
   return { ...fs, renameSync: (...args: Parameters<typeof fs.renameSync>) => {
     if (injection.destination && String(args[1]) === injection.destination) throw new Error('Interruption synthétique.')
     fs.renameSync(...args)
-    if (injection.apresPremier && String(args[1]).endsWith('/entretiens/e1.json')) {
+    if (injection.apresPremier && String(args[1]).replaceAll('\\', '/').endsWith('/entretiens/e1.json')) {
       const action = injection.apresPremier; injection.apresPremier = null; action()
     }
   } }
@@ -95,7 +95,7 @@ describe('suppression locale privée et journal version 4', () => {
     injection.destination = join(b.dir, etape === 'entretien' ? 'entretiens/e2.json' : 'corpus.crp')
     expect(() => b.cache.appliquer(p.token, true)).toThrow('Interruption')
     expect(JSON.parse(readFileSync(b.fichier, 'utf8')).formatVersion).toBe(4)
-    expect(statSync(b.fichier).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(b.fichier).mode & 0o777).toBe(0o600)
     const acquis = readFileSync(join(b.dir, 'entretiens/e1.json'), 'utf8'), date = statSync(join(b.dir, 'entretiens/e1.json')).mtimeMs
     expect(b.corpus().reglesAnon.personne).toBeDefined()
     expect(() => b.store.exigerSuppressionAnonGlobale()).toThrow('transaction')

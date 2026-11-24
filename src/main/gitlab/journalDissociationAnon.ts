@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../shared/format'
 import { preparerDissociationAnon, type BilanDissociationAnon, type DemandeDissociationAnon } from '../../shared/corpus/dissociationAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleDissociationGitLab {
   id: string; avant: EntretienFichier; apres: EntretienFichier; bilan: BilanDissociationAnon
@@ -49,8 +50,7 @@ export class JournalDissociationAnonGitLab {
     const fd = openSync(temporaire, 'wx', 0o600)
     try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
     renameSync(temporaire, this.fichier)
-    const parent = openSync(dirname(this.fichier), 'r')
-    try { fsyncSync(parent) } finally { closeSync(parent) }
+    synchroniserDossier(dirname(this.fichier))
   }
   private valider(j: LotDissociationGitLab): void {
     if (!j || j.version !== 1 || j.destination !== this.destination || !operationSaine(j.operationId)

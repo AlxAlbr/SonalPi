@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { validerEntretienNatif } from '../../shared/natif/validation'
 import { idImportWebDAVSain } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface EnvoiGardePseudosWebDAV {
   version: 1; destination: string; chemin: string; contenu: string
@@ -33,8 +34,7 @@ export class JournalGardePseudosWebDAV {
   }
   effacer() { if (existsSync(this.chemin)) { unlinkSync(this.chemin); this.synchroniser() } }
   private synchroniser() {
-    const fd = openSync(dirname(this.chemin), 'r')
-    try { fsyncSync(fd) } finally { closeSync(fd) }
+    synchroniserDossier(dirname(this.chemin))
   }
   private valider(j: EnvoiGardePseudosWebDAV) {
     const id = /^entretiens\/([^/]+)\.json$/.exec(j?.chemin)?.[1]

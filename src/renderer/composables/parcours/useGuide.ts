@@ -49,7 +49,7 @@ export interface DepsGuide {
   audiosCorpus: Ref<Record<string, { audio: string | null; waveform: string | null }>>
   /** Panneau métadonnées de l'entretien SÉLECTIONNÉ au Corpus (sonal.ts) :
    *  l'étape « Lier la transcription (SRT) » y lit `srt` —
-   *  vrai dès que la transcription est importée (« Assigner un srt… »). */
+   *  vrai dès que la transcription est importée (« Assigner un SRT… »). */
   corpusSelId: Ref<string | null>
   corpusSelMeta: Ref<{ srt: boolean } | null>
   tableaubord: Ref<TableauBord | null>
@@ -149,7 +149,7 @@ export function useGuide(deps: DepsGuide) {
       // le trou guide l'onglet Notes puis « + Note », puis détaille la modale de création (titre, corps,
       // Valider) sans bulle qui la masquerait ; le texte vit dans le panneau.
       // La garde `verifierChargementEtape2` n'autorise qu'audio/2RetraiteAnticipee.mp3 tant qu'elle n'est pas validée.
-      // Lier le SRT plus tard se raconte (« Assigner un srt… ») :
+      // Lier le SRT plus tard se raconte (« Assigner un SRT… ») :
       // le bouton n'existe que pour un entretien sans transcription.
       cible: () => {
         if (deps.vue.value !== 'entretien') {
@@ -266,7 +266,7 @@ export function useGuide(deps: DepsGuide) {
       // La transcription de « 2RetraiteAnticipee » (chargé audio seul à l'étape précédente)
       // arrive maintenant : on revient au Corpus,
       // on sélectionne la carte pour ouvrir son panneau métadonnées, puis on importe le SRT —
-      // « Assigner un srt… » remplace le contenu d'éditeur (ici vide)
+      // « Assigner un SRT… » remplace le contenu d'éditeur (ici vide)
       // sans toucher aux notes ni aux données.
       // L'étape se coche quand le panneau de l'entretien sélectionné signale « Srt : lié ».
       cible: () => {
@@ -304,7 +304,7 @@ export function useGuide(deps: DepsGuide) {
         if (deps.corpusSelId.value !== id2) {
           return "Sélectionnez la carte « 2RetraiteAnticipee » pour ouvrir son panneau de métadonnées."
         }
-        return "Cliquez sur « Assigner un srt… », puis choisissez srt/2RetraiteAnticipee.srt."
+        return "Cliquez sur « Assigner un SRT… », puis choisissez srt/2RetraiteAnticipee.srt."
       },
       explication: () =>
         "La transcription et son découpage horodaté seront ajoutés sans modifier les notes ni les données de l'entretien.",
@@ -653,7 +653,7 @@ export function useGuide(deps: DepsGuide) {
    *  tant que l'étape 2 n'est PAS validée (après l'étape 1),
    *  la modale d'ajout n'accepte que l'AUDIO SEUL `audio/2RetraiteAnticipee.mp3`,
    *  aucun fichier de texte — le scénario du retour d'entretien :
-   *  la transcription n'est pas encore prête, elle se liera plus tard (« Assigner un srt… »).
+   *  la transcription n'est pas encore prête, elle se liera plus tard (« Assigner un SRT… »).
    *  Retourne un message d'erreur à afficher dans la modale, ou null si le choix est le bon.
    *  Une fois l'étape validée, la garde se lève ; on charge librement. */
   function verifierChargementEtape2(nomTexte: string | null, cheminAudio: string | null): string | null {

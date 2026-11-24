@@ -24,7 +24,8 @@ test('sélectionner du texte ne fait pas apparaître de barre flottante', async 
   const { app, page } = await ouvrir('sonal-selection-sans-barre-')
   try {
     await selectionnerMot(page, 'Lyon')
-    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('Lyon')
+    // Sous Windows, le double-clic inclut l'espace qui suit le mot.
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().trimEnd() ?? '')).toBe('Lyon')
     await expect(page.getByRole('toolbar', { name: 'Actions sur la sélection' })).toHaveCount(0)
     await expect(page.locator('.barre-selection, .voile-selection')).toHaveCount(0)
 

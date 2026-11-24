@@ -282,7 +282,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         </span>
       </div>
       <input v-model="recherche" class="recherche" type="search" placeholder="Rechercher un cas" aria-label="Rechercher un cas" />
-      <label>Famille<select v-model="filtreFamille" aria-label="Filtrer les familles"><option value="">Toutes les familles et cas</option><option v-for="f in famillesCas" :key="f.id" :value="f.id">{{ f.nom }}</option></select></label>
+      <label class="filtre-famille">Famille <select v-model="filtreFamille" aria-label="Filtrer les familles"><option value="">Toutes les familles et cas</option><option v-for="f in famillesCas" :key="f.id" :value="f.id">{{ f.nom }}</option></select></label>
       <div v-if="filtreFamille && famillesCas[filtreFamille]" class="fiche-famille">
         <b>{{ famillesCas[filtreFamille].nom }}</b>
         <p>{{ variablesCas.find((v) => v.id === famillesCas[filtreFamille].origine.variableId)?.lib ?? 'Variable absente' }} — {{ famillesCas[filtreFamille].origine.portee }}</p>
@@ -525,6 +525,8 @@ h2, h3 { margin: 0; }
 .tete-repertoire { flex-wrap: wrap; }
 .tete-repertoire h3 { font-size: .95rem; }
 .recherche { width: 100%; box-sizing: border-box; margin: .7rem 0; padding: .4rem; }
+.filtre-famille { display: flex; align-items: center; gap: .4rem; font-size: .85rem; }
+.filtre-famille select { flex: 1; min-width: 0; padding: .2rem .3rem; }
 .carte-cas { width: 100%; display: flex; flex-direction: column; align-items: flex-start; margin: .3rem 0; padding: .55rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; }
 .carte-cas.actif { border-color: #2e73d8; background: #f0f6ff; }
 .carte-cas span, .carte-cas small { color: #777; }

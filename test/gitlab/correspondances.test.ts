@@ -147,7 +147,7 @@ describe('import ciblé GitLab gardé', () => {
     expect(b.journal.lister()).toHaveLength(1)
     const entree = b.journal.lister()[0]
     expect(entree.version).toBe(5); expect(entree.droits).toHaveLength(3)
-    expect(statSync(join(b.dir, 'operations', 'candidates', entree.candidat)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, 'operations', 'candidates', entree.candidat)).mode & 0o777).toBe(0o600)
     await expect(b.service.appliquer(preparation)).rejects.toThrow('reste à réconcilier')
     const contexte = new ContexteGitLab('destination', b.store, { dirLocal: b.dir } as never, vi.fn(), new TransactionsGitLab(b.options))
     await expect(contexte.ouvrirSessionEntretien('e1')).rejects.toThrow('reste à réconcilier')

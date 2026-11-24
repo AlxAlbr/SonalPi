@@ -566,7 +566,7 @@ contextBridge.exposeInMainWorld('sonal', {
      *  natif s'ouvre au bon endroit. */
     choisirTexte: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirTexte', defaultPath),
-    /** Choisir une transcription chronométrée (SRT/VTT) — « Assigner un srt… ». */
+    /** Choisir une transcription chronométrée (SRT/VTT) — « Assigner un SRT… ». */
     choisirSrt: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirSrt', defaultPath),
     /** Choisir un fichier audio (chemin référencé, jamais copié). */

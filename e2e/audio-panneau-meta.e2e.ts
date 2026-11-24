@@ -8,7 +8,7 @@ import { lancer, entrerCorpus, ecrireSeedDemo } from './util'
  *  Panneau métadonnées — gestes AUDIO de la vue Corpus :
  *  - avec un audio : DEUX boutons côte à côte — « Effacer l'audio » (rouge,
  *  détache le média, le texte reste) et « Remplacer l'audio » ;
- *  - sans SRT : bouton « Assigner un srt… » — si l'éditeur porte déjà du
+ *  - sans SRT : bouton « Assigner un SRT… » — si l'éditeur porte déjà du
  *  texte, une bannière demande confirmation (jamais d'écrasement silencieux).
  */
 
@@ -121,7 +121,7 @@ test('audio : « Effacer l’audio » (rouge) détache le média — le texte re
   await app.close()
 })
 
-test('« Assigner un srt… » : bannière si du texte existe, import direct sur un entretien vide', async () => {
+test('« Assigner un SRT… » : bannière si du texte existe, import direct sur un entretien vide', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-meta-srt-'))
   const srt = join(dir, 'transcription.srt')
   writeFileSync(srt, SRT)
@@ -139,7 +139,7 @@ test('« Assigner un srt… » : bannière si du texte existe, import direct sur
   await page.locator('.carte-ent', { hasText: 'Entretien Karine' }).click()
   await expect(page.locator('.meta-ent')).toBeVisible()
   // Sans SRT chargé : la ligne méta « Srt » marque « non lié ».
-  await expect(page.locator('.meta-infos li', { hasText: 'Srt' })).toContainText('—')
+  await expect(page.locator('.meta-infos li', { hasText: 'SRT' })).toContainText('—')
   const boutonSrt = page.locator('.meta-ent .assigner-srt')
   await expect(boutonSrt).toBeVisible()
   await boutonSrt.click()
@@ -156,7 +156,7 @@ test('« Assigner un srt… » : bannière si du texte existe, import direct sur
   await page.locator('.meta-ent .srt-confirm button', { hasText: 'Remplacer le contenu' }).click()
   // La transcription remplace le texte existant ; l'entretien a maintenant des
   // ancres → la ligne méta passe à « lié » et le bouton disparaît.
-  await expect(page.locator('.meta-infos li', { hasText: 'Srt' })).toContainText('lié', { timeout: 10_000 })
+  await expect(page.locator('.meta-infos li', { hasText: 'SRT' })).toContainText('lié', { timeout: 10_000 })
   await expect(boutonSrt).toHaveCount(0, { timeout: 10_000 })
 
   // — Entretien VIDE : import DIRECT, sans bannière.
@@ -169,7 +169,7 @@ test('« Assigner un srt… » : bannière si du texte existe, import direct sur
   }, { srt })
   await boutonSrtVide.click()
   await expect(page.locator('.meta-ent .srt-confirm')).toHaveCount(0) // pas de contenu → pas de garde
-  await expect(page.locator('.meta-infos li', { hasText: 'Srt' })).toContainText('lié', { timeout: 10_000 })
+  await expect(page.locator('.meta-infos li', { hasText: 'SRT' })).toContainText('lié', { timeout: 10_000 })
   await expect(boutonSrtVide).toHaveCount(0, { timeout: 10_000 })
 
   // Ouvrir l'entretien : le contenu du SRT est bien dans l'éditeur.

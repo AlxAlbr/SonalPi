@@ -304,9 +304,9 @@ test('entretien sans fichier : création immédiate pour prendre des notes', asy
   await retourCorpus(page)
   await page.locator('.carte-ent', { hasText: 'Notes avant collecte' }).click()
   await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('—')
-  await expect(page.locator('.meta-infos li', { hasText: 'Srt' })).toContainText('—')
+  await expect(page.locator('.meta-infos li', { hasText: 'SRT' })).toContainText('—')
   await expect(page.getByRole('button', { name: 'Assigner un audio…', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Assigner un srt…', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Assigner un SRT…', exact: true })).toBeVisible()
 
   await app.close()
 })

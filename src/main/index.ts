@@ -2937,7 +2937,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('fichier:extraireTexteEntretien', (_e, nom: string, octets: Uint8Array) =>
     extraireTexteEntretien(nom, octets),
   )
-  // « Assigner un srt… » (vue Corpus) : le dialogue n'accepte QUE des transcriptions chronométrées (SRT/VTT) ;
+  // « Assigner un SRT… » (vue Corpus) : le dialogue n'accepte QUE des transcriptions chronométrées (SRT/VTT) ;
   //  l'entretien recevra texte + ancres.
   ipcMain.handle('dialog:choisirSrt', async (e, defaultPath?: string) => {
     const r = await montrerOuvrir(e, {

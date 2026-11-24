@@ -1,0 +1,3 @@
+# Les fixtures de test sont comparées octet par octet :
+# Git ne doit jamais convertir leurs fins de ligne (Windows, core.autocrlf).
+test/fixtures/** -text

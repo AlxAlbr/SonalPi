@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import { TransactionsFichiersCorpus, type PlanTransactionFichiers, type PlanRemplacementEntretiens } from '../src/main/transactionsFichiers'
 import { CorpusStore } from '../src/main/corpusStore'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
@@ -166,7 +166,7 @@ describe('TransactionsFichiersCorpus', () => {
     for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
     const ecritures: string[] = []
     injections.apresRenommage = (destination) => {
-      const chemin = relative(dir, destination)
+      const chemin = relative(dir, destination).split(sep).join('/')
       if (chemin === '.transaction-fichiers.json') {
         if (arret === 0) throw new Error('arrêt simulé')
         return
@@ -202,7 +202,7 @@ describe('TransactionsFichiersCorpus', () => {
     ecrireJson(join(dir, 'corpus.crp'), plan.corpusAvant)
     for (const e of plan.entretiens) ecrireJson(join(dir, `entretiens/${e.id}.json`), e.avant)
     injections.apresRenommage = (destination) => {
-      const chemin = relative(dir, destination)
+      const chemin = relative(dir, destination).split(sep).join('/')
       if (chemin !== '.transaction-fichiers.json') ecritures.push(chemin)
     }
     new TransactionsFichiersCorpus(dir).executer({ ...plan, ordre })

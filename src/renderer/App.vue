@@ -60,7 +60,7 @@ const {
     <header :inert="exportCorpusEnCours">
       <div class="tete">
         <h1>
-          SonalPi2 —
+          SonalPi2
           <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
             {{ etatSauvegarde }}
           </span>

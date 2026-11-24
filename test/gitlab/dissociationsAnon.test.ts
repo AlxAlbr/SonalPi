@@ -61,7 +61,7 @@ describe('moteur technique de dissociation GitLab', () => {
     }
     expect(commits(b).flatMap((c) => c.actions).some((a) => a.file_path.includes('e3.json'))).toBe(false)
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toContain('miroir-périmé')
-    expect(statSync(join(b.dir, '.dissociation-anon-gitlab.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.dissociation-anon-gitlab.json')).mode & 0o777).toBe(0o600)
     expect(b.service.lireSuivi()).toBeNull()
   })
   test('300 membres, deux cibles seulement ; aucune limite de nombre total de membres', async () => {

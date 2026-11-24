@@ -94,7 +94,7 @@ describe('renommage GitLab par lot ciblé', () => {
     }
     expect(readFileSync(join(b.dir, 'entretiens/e3.json'), 'utf8')).toContain('miroir-périmé')
     expect(b.service.lireSuivi()).toBeNull(); expect(b.journal.lister()).toEqual([])
-    expect(statSync(join(b.dir, '.renommage-anon-gitlab.json')).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, '.renommage-anon-gitlab.json')).mode & 0o777).toBe(0o600)
   })
   test('150 membres et seulement deux cibles : accepté, bornes par publication', async () => {
     const b = banc(150), p = (await b.preparer()).preparation
@@ -262,7 +262,7 @@ describe('renommage GitLab par lot ciblé', () => {
     b.depot.avantCommit = (actions) => { if (phase === 'definition' ? actions.some((a) => a.file_path === 'racine/corpus.crp') && !actions.some((a) => a.file_path.includes('/entretiens/')) : actions.some((a) => a.file_path === 'racine/entretiens/e1.json')) { b.depot.echouerApresAccepter(new Error('réponse perdue')); b.depot.rendreCommitsIllisibles() } }
     expect((await b.service.appliquer(p)).statut).toBe('indetermine')
     const entree = b.journal.lister()[0]; expect(entree.droits).toHaveLength(1)
-    expect(statSync(join(b.dir, 'operations/candidates', entree.candidat)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(join(b.dir, 'operations/candidates', entree.candidat)).mode & 0o777).toBe(0o600)
     await expect(b.reprise()).rejects.toThrow('indéterminée')
     b.depot.rendreCommits(); b.depot.avantCommit = () => {}
     const coordination = new BailGitLab({ branche: 'main', depot: b.depot, identite: () => ({ userId: 'alice', machineId: 'poste', sessionId: 'relance' }) })

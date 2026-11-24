@@ -121,7 +121,7 @@ describe('renommage global local avec inventaire privé', () => {
     expect(b.lire().annotations[0].pseudo).toBe('Nouvelle')
     expect(b.corpus().reglesAnon.personne.pseudos[0]).toBe('Claire')
     const journal = join(b.dir, '.transaction-fichiers.json')
-    expect(statSync(journal).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(journal).mode & 0o777).toBe(0o600)
     expect(() => b.store.ouvrirEntretienPourEdition('e2')).toThrow('transaction reste à reprendre')
     expect(b.preparer().applicationDisponible).toBe(false)
     injection.destination = ''

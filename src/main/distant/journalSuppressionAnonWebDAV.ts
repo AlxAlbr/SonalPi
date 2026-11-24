@@ -6,6 +6,7 @@ import { preparerSuppressionAnon, type BilanSuppressionAnon, type DemandeSuppres
 import { lireBarriereSuppressionAnon, type BarriereSuppressionAnon } from '../../shared/corpus/barriereSuppressionAnon'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
 import { etagImportWebDAVFort, idImportWebDAVSain } from './journalCorrespondancesWebDAV'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface CibleSuppressionWebDAV {
   id: string; avant: string; apres: string; bilan: BilanSuppressionAnon
@@ -46,8 +47,7 @@ export class JournalSuppressionAnonWebDAV {
       const fd = openSync(temporaire, 'wx', 0o600)
       try { writeFileSync(fd, contenu, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
       renameSync(temporaire, this.chemin)
-      const parent = openSync(dirname(this.chemin), 'r')
-      try { fsyncSync(parent) } finally { closeSync(parent) }
+      synchroniserDossier(dirname(this.chemin))
     } finally { if (existsSync(temporaire)) unlinkSync(temporaire) }
   }
   private valider(j: LotSuppressionWebDAV): void {

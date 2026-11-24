@@ -55,7 +55,7 @@ test('une identité déjà rapprochée est présentée sur une seule ligne avec 
     await expect(propositions).toHaveCount(1)
     await expect(propositions).toContainText('Locuteur déjà associé à 2 entretiens : Source A, Source B.')
     await propositions.getByRole('radio').check()
-    await expect(dialogue).toContainText('Les informations disponibles sont identiques dans ces entretiens : pseudonyme « non renseigné » et statut interviewé·e.')
+    await expect(dialogue).toContainText('Les informations disponibles sont identiques dans ces entretiens : pseudonyme « non renseigné » et statut à préciser.')
     await expect(dialogue.getByRole('group', { name: /Les informations diffèrent/ })).toHaveCount(0)
     await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toBeEnabled()
     await dialogue.getByRole('button', { name: 'Plus tard' }).click()

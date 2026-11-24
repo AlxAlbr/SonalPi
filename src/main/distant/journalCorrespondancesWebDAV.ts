@@ -2,6 +2,7 @@ import { chmodSync, closeSync, existsSync, fsyncSync, openSync, readFileSync, re
 import { dirname, join } from 'node:path'
 import { validerCorpusNatif, validerEntretienNatif } from '../../shared/natif/validation'
 import type { BilanImportCorrespondance } from '../../shared/corpus/importCorrespondances'
+import { synchroniserDossier } from '../synchronisationDossier'
 
 export interface FichierImportWebDAV {
   chemin: string
@@ -46,8 +47,7 @@ export class JournalCorrespondancesWebDAV {
       writeFileSync(temporaire, contenu, { encoding: 'utf8', mode: 0o600, flush: true })
       chmodSync(temporaire, 0o600)
       renameSync(temporaire, this.chemin)
-      const fd = openSync(dirname(this.chemin), 'r')
-      try { fsyncSync(fd) } finally { closeSync(fd) }
+      synchroniserDossier(dirname(this.chemin))
     } catch (e) {
       if (existsSync(temporaire)) unlinkSync(temporaire)
       throw e

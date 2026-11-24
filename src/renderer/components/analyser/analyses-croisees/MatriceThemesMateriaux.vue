@@ -74,7 +74,8 @@ function nomAccessible(theme: Categorie, entretien: { id: string; titre: string 
 </template>
 
 <style scoped>
-.conteneur { max-width: 100%; max-height: 100%; overflow: auto; border: 1px solid #cfd6e0; border-radius: 6px; }
+/* La marge de défilement évite qu’une cellule atteinte au clavier passe sous les en-têtes figés. */
+.conteneur { max-width: 100%; max-height: 100%; overflow: auto; border: 1px solid #cfd6e0; border-radius: 6px; scroll-padding: 5.1rem 0 0 13rem; }
 table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: .78rem; }
 th, td { min-width: 7rem; padding: 0; border-right: 1px solid #dfe4eb; border-bottom: 1px solid #dfe4eb; text-align: center; }
 thead th { position: sticky; top: 0; z-index: 3; height: 4.3rem; padding: .35rem; background: #eef3f9; vertical-align: bottom; overflow-wrap: anywhere; }
