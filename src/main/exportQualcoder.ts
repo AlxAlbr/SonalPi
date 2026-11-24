@@ -33,8 +33,23 @@ const SCHEMA = [
   'CREATE TABLE files_filter (filterid integer primary key, name text, filter text, owner text)',
 ]
 
+/** Date au format attendu par QualCoder (« 2026-11-24 10:00:00 »). */
+function formaterDate(valeur: Date): string {
+  const deuxChiffres = (n: number): string => String(n).padStart(2, '0')
+  const jour = `${valeur.getFullYear()}-${deuxChiffres(valeur.getMonth() + 1)}-${deuxChiffres(valeur.getDate())}`
+  const heure = `${deuxChiffres(valeur.getHours())}:${deuxChiffres(valeur.getMinutes())}:${deuxChiffres(valeur.getSeconds())}`
+  return `${jour} ${heure}`
+}
+
 function maintenant(): string {
-  return new Date().toISOString()
+  return formaterDate(new Date())
+}
+
+/** Date d'une source, ou la date de l'export quand elle est absente ou illisible. */
+function dateSource(valeur: string | null, parDefaut: string): string {
+  if (!valeur) return parDefaut
+  const lue = new Date(valeur)
+  return Number.isNaN(lue.getTime()) ? parDefaut : formaterDate(lue)
 }
 
 function invalide<T>(bases: Map<string, T>, id: string, kind: string): T {
@@ -97,7 +112,7 @@ export function ecrireProjetQualcoder(modele: QualcoderExportModel, dossier: str
       let suffixe = 2
       while (sourceNames.has(nom)) nom = `${source.titre} (${suffixe++}).txt`
       sourceNames.add(nom)
-      insereSource.run(id, nom, source.fulltext, null, source.memo, source.owner, source.date, null, null)
+      insereSource.run(id, nom, source.fulltext, null, source.memo, source.owner, dateSource(source.date, date), null, null)
     })
 
     const categorieIds = new Map<string, number>()
