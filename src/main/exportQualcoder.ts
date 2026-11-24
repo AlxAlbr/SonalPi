@@ -37,10 +37,35 @@ function maintenant(): string {
   return new Date().toISOString()
 }
 
-function invalide(bases: Map<string, number>, id: string, kind: string): number {
+function invalide<T>(bases: Map<string, T>, id: string, kind: string): T {
   const valeur = bases.get(id)
   if (valeur === undefined) throw new Error(`La correspondance ${kind} est absente : ${id}.`)
   return valeur
+}
+
+/** Rend un nom unique en ajoutant un numéro, car QualCoder refuse les doublons. */
+function nomUnique(utilises: Set<string>, nom: string): string {
+  let candidat = nom
+  let suffixe = 2
+  while (utilises.has(candidat)) candidat = `${nom} (${suffixe++})`
+  utilises.add(candidat)
+  return candidat
+}
+
+/** Noms à exporter : quand plusieurs éléments portent le même nom,
+ *  le nom du thème parent est ajouté, par exemple « Autre (Rencontre) ».
+ *  Si cela ne suffit pas, un numéro est ajouté en dernier recours. */
+function nomsDistincts(elements: Array<{ id: string; nom: string; parentNom: string | null }>): Map<string, string> {
+  const occurrences = new Map<string, number>()
+  for (const element of elements) occurrences.set(element.nom, (occurrences.get(element.nom) ?? 0) + 1)
+  const utilises = new Set<string>()
+  const resultat = new Map<string, string>()
+  for (const element of elements) {
+    const doublon = (occurrences.get(element.nom) ?? 0) > 1
+    const souhaite = doublon && element.parentNom ? `${element.nom} (${element.parentNom})` : element.nom
+    resultat.set(element.id, nomUnique(utilises, souhaite))
+  }
+  return resultat
 }
 
 /** Écrit un projet QualCoder natif dans un dossier vide. */
@@ -92,10 +117,15 @@ export function ecrireProjetQualcoder(modele: QualcoderExportModel, dossier: str
         courant = courant.parent
       }
     }
+    const nomsCategories = nomsDistincts([...categories.values()].map((categorie) => ({
+      id: categorie.id,
+      nom: categorie.nom,
+      parentNom: categorie.parent ? categories.get(categorie.parent)?.nom ?? null : null,
+    })))
     for (const categorie of categories.values()) {
       const id = categorieIds.size + 1
       categorieIds.set(categorie.id, id)
-      insereCategorie.run(id, categorie.nom, 'SonalPi', date, '', null)
+      insereCategorie.run(id, invalide(nomsCategories, categorie.id, 'nom de catégorie'), 'SonalPi', date, '', null)
     }
     for (const categorie of categories.values()) {
       const parent = categorie.parent ? invalide(categorieIds, categorie.parent, 'catégorie') : null
@@ -104,14 +134,19 @@ export function ecrireProjetQualcoder(modele: QualcoderExportModel, dossier: str
 
     const codeIds = new Map<string, number>()
     const insereCode = base.prepare('INSERT INTO code_name (cid, name, memo, catid, owner, date, color, supercid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    const nomsCodes = nomsDistincts(modele.codebook.map((code) => ({
+      id: code.id,
+      nom: code.nom,
+      parentNom: code.categorie?.parent?.nom ?? null,
+    })))
     modele.codebook.forEach((code, index) => {
       const cid = index + 1
       codeIds.set(code.id, cid)
       const catid = code.categorie ? invalide(categorieIds, code.categorie.id, 'catégorie') : null
-      insereCode.run(cid, code.nom, code.memo, catid, 'SonalPi', date, code.couleur, null)
+      insereCode.run(cid, invalide(nomsCodes, code.id, 'nom de code'), code.memo, catid, 'SonalPi', date, code.couleur, null)
     })
-    const insereCodage = base.prepare('INSERT INTO code_text (ctid, cid, fid, seltext, pos0, pos1, owner, date, memo, avid, important) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    const insereAnnotation = base.prepare('INSERT INTO annotation (anid, fid, pos0, pos1, memo, owner, date) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    const insereCodage = base.prepare('INSERT OR IGNORE INTO code_text (ctid, cid, fid, seltext, pos0, pos1, owner, date, memo, avid, important) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const insereAnnotation = base.prepare('INSERT OR IGNORE INTO annotation (anid, fid, pos0, pos1, memo, owner, date) VALUES (?, ?, ?, ?, ?, ?, ?)')
     let ctid = 0
     let anid = 0
     for (const source of modele.sources) {
@@ -129,11 +164,11 @@ export function ecrireProjetQualcoder(modele: QualcoderExportModel, dossier: str
       }
     }
 
-    const insereAttributType = base.prepare('INSERT INTO attribute_type (name, date, owner, memo, caseOrFile, valuetype) VALUES (?, ?, ?, ?, ?, ?)')
+    const insereAttributType = base.prepare('INSERT OR IGNORE INTO attribute_type (name, date, owner, memo, caseOrFile, valuetype) VALUES (?, ?, ?, ?, ?, ?)')
     for (const definition of modele.attributs) {
       insereAttributType.run(definition.nom, date, 'SonalPi', definition.memo ?? '', definition.type === 'cas' ? 'case' : 'file', 'character')
     }
-    const insereAttribut = base.prepare('INSERT INTO attribute (attrid, name, attr_type, value, id, date, owner) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    const insereAttribut = base.prepare('INSERT OR IGNORE INTO attribute(attrid, name, attr_type, value, id, date, owner) VALUES (?, ?, ?, ?, ?, ?, ?)')
     let attrid = 0
     for (const source of modele.sources) {
       const fid = invalide(sourceIds, source.id, 'source')
@@ -152,10 +187,11 @@ export function ecrireProjetQualcoder(modele: QualcoderExportModel, dossier: str
     const insereCase = base.prepare('INSERT INTO cases (caseid, name, memo, owner, date) VALUES (?, ?, ?, ?, ?)')
     const insereCaseText = base.prepare('INSERT INTO case_text (caseid, fid, pos0, pos1, owner, date, memo) VALUES (?, ?, ?, ?, ?, ?, ?)')
     const caseIds = new Map<string, number>()
+    const nomsCas = new Set<string>()
     modele.cases.forEach((cas, index) => {
       const caseid = index + 1
       caseIds.set(cas.id, caseid)
-      insereCase.run(caseid, cas.nom, cas.memo, cas.owner, date)
+      insereCase.run(caseid, nomUnique(nomsCas, cas.nom), cas.memo, cas.owner, date)
     })
     for (const cas of modele.cases) {
       const caseid = invalide(caseIds, cas.id, 'cas')
