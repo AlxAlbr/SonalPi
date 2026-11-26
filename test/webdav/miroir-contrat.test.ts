@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
@@ -80,17 +80,20 @@ describe('miroir distant — protection du travail local', () => {
     expect(readFileSync(join(b.dir, 'entretiens/e2.json'), 'utf8')).toBe(DISTANT)
   })
 
-  test('une copie locale remplie de zéros est remplacée par la version du serveur, même exclue', async () => {
+  test('une copie endommagée exclue reste protégée, avec sa version initiale', async () => {
     const b = banc()
     await b.miroir.tirer()
-    writeFileSync(b.fichier, Buffer.alloc(BASE.length))
+    const octets = Buffer.alloc(BASE.length)
+    writeFileSync(b.fichier, octets)
+    const versionInitiale = b.miroir.etagDistant(CHEMIN)
     b.serveur.poser(CHEMIN, DISTANT)
 
     const tirage = await b.miroir.tirer([CHEMIN])
 
-    expect(tirage.telecharges).toEqual([CHEMIN])
-    expect(readFileSync(b.fichier, 'utf8')).toBe(DISTANT)
-    expect(b.miroir.etagDistant(CHEMIN)).toBe(b.serveur.etagDe(CHEMIN))
+    expect(tirage.telecharges).toEqual([])
+    expect(readFileSync(b.fichier)).toEqual(octets)
+    expect(b.miroir.etagDistant(CHEMIN)).toBe(versionInitiale)
+    expect(existsSync(join(b.dir, 'recuperation-miroir'))).toBe(false)
   })
 
   test('une copie locale remplie de zéros est reprise même si le serveur n’a pas changé', async () => {
@@ -100,6 +103,34 @@ describe('miroir distant — protection du travail local', () => {
 
     expect((await b.miroir.tirer()).telecharges).toEqual([CHEMIN])
     expect(readFileSync(b.fichier, 'utf8')).toBe(BASE)
+  })
+
+  test.each([Buffer.alloc(0), Buffer.alloc(50), Buffer.from(`${LOCAL}\0`)])(
+    'une copie endommagée est conservée octet pour octet avant remplacement (%#)', async (octets) => {
+      const b = banc()
+      await b.miroir.tirer()
+      for (let i = 0; i < 2; i++) {
+        writeFileSync(b.fichier, octets)
+        expect((await b.miroir.tirer()).telecharges).toEqual([CHEMIN])
+        expect(readFileSync(b.fichier, 'utf8')).toBe(BASE)
+      }
+      const dossier = join(b.dir, 'recuperation-miroir', 'entretiens')
+      const sauvegardes = readdirSync(dossier)
+      expect(sauvegardes).toHaveLength(2)
+      for (const nom of sauvegardes) expect(readFileSync(join(dossier, nom))).toEqual(octets)
+    },
+  )
+
+  test('une sauvegarde impossible empêche de remplacer la copie endommagée', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    const manifeste = readFileSync(b.manifeste)
+    const octets = Buffer.from(`${LOCAL}\0`)
+    writeFileSync(b.fichier, octets)
+    writeFileSync(join(b.dir, 'recuperation-miroir'), 'obstacle')
+    await expect(b.miroir.tirer()).rejects.toThrow()
+    expect(readFileSync(b.fichier)).toEqual(octets)
+    expect(readFileSync(b.manifeste)).toEqual(manifeste)
   })
 
   test('un fichier exclu dès le premier tirage ne reçoit ni contenu ni version', async () => {

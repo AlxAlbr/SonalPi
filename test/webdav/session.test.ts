@@ -41,6 +41,7 @@ function banc(options: { maintenant?: () => number } = {}) {
     /** Imite un serveur qui refuse encore la création d'un verrou qu'il vient de supprimer. */
     creationsVerrouRefusees: 0,
     suppressionVerrouEnPanne: false,
+    avantSuppressionVerrou: null as (() => void) | null,
     /** Imite un serveur qui change la version d'un verrou juste après l'avoir écrit
      *  et refuse quelques relectures. */
     verrouInstable: false,
@@ -66,6 +67,7 @@ function banc(options: { maintenant?: () => number } = {}) {
         throw new TypeError('réponse perdue')
       }
     }
+    if (requete.method === 'DELETE' && chemin.includes('/verrous/')) panne.avantSuppressionVerrou?.()
     if (requete.method === 'DELETE' && chemin.includes('/verrous/') && panne.suppressionVerrouEnPanne) {
       return new Response('panne', { status: 503 })
     }
@@ -887,6 +889,34 @@ describe('Reprise après crash', () => {
     expect(readFileSync(b.fichierLocal, 'utf8')).toContain('jamais-publié')
   })
 
+  it('un abandon refusé conserve le journal et peut être retenté sans publication', async () => {
+    const b = banc()
+    await crash(b)
+    const chemin = `verrous/${ID}.lock.json`
+    const journal = join(b.dirMiroir, 'sessions', '.verrous-natifs.json')
+    const avant = readFileSync(journal, 'utf8')
+    b.panne.suppressionConditionnelleRefusee = true
+    await expect(b.sessions.abandonnerOrphelin(chemin)).rejects.toThrow('Rien n’a été supprimé')
+    expect(readFileSync(journal, 'utf8')).toBe(avant)
+    expect(b.verrou()).toBeTruthy()
+    expect(readFileSync(b.fichierLocal, 'utf8')).toContain('jamais-publié')
+    b.panne.suppressionConditionnelleRefusee = false
+    await b.sessions.abandonnerOrphelin(chemin)
+    expect(b.verrou()).toBeUndefined()
+    expect(JSON.parse(readFileSync(journal, 'utf8'))).not.toHaveProperty(ID)
+  })
+
+  it('un abandon ne supprime pas la réservation reprise juste après sa lecture', async () => {
+    const b = banc()
+    await crash(b)
+    const chemin = `verrous/${ID}.lock.json`
+    const concurrent = JSON.stringify({ userId: 'julie', machineId: 'poste-2', sessionId: 'autre' })
+    b.panne.avantSuppressionVerrou = () => { b.serveur.poser(chemin, concurrent) }
+    await expect(b.sessions.abandonnerOrphelin(chemin)).rejects.toThrow('Rien n’a été supprimé')
+    expect(b.verrou()).toBe(concurrent)
+    expect(readFileSync(b.fichierLocal, 'utf8')).toContain('jamais-publié')
+  })
+
   it('reprise avec contournement (412) : on ne publie PAS, le verrou reste', async () => {
     const b = banc()
     await crash(b)
@@ -953,32 +983,42 @@ describe('Verrou des définitions laissé par un crash', () => {
     expect(b.serveur.contenuDe(CHEMIN)).toBeTruthy()
   })
 
-  it('serveur refusant la suppression conditionnelle : le verrou périmé part quand même', async () => {
+  it('le nettoyage conserve une réservation reprise entre lecture et suppression', async () => {
     const b = banc()
-    b.panne.suppressionConditionnelleRefusee = true
     b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
-    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(true)
-    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+    const concurrent = verrouCorpus('poste-2', new Date().toISOString())
+    b.panne.avantSuppressionVerrou = () => { b.serveur.poser(CHEMIN, concurrent) }
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toBe(concurrent)
   })
 
-  it('serveur refusant la suppression conditionnelle : une transaction libère quand même son verrou', async () => {
+  it('serveur refusant la suppression conditionnelle : le verrou périmé est conservé', async () => {
+    const b = banc()
+    b.panne.suppressionConditionnelleRefusee = true
+    const contenu = verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z')
+    b.serveur.poser(CHEMIN, contenu)
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toBe(contenu)
+  })
+
+  it('serveur refusant la suppression conditionnelle : la libération échoue sans forçage', async () => {
     const b = banc()
     b.panne.suppressionConditionnelleRefusee = true
     const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 's-1' }))
     expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
-    await provider.liberer(CHEMIN)
-    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+    await expect(provider.liberer(CHEMIN)).rejects.toMatchObject({ statut: 412 })
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('s-1')
   })
 
-  it('serveur refusant toute écriture conditionnelle : le battement aboutit tant que le verrou est à nous', async () => {
+  it('serveur refusant toute écriture conditionnelle : le battement échoue sans écriture directe', async () => {
     const b = banc()
     b.panne.ecritureConditionnelleVerrouRefusee = true
     const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-m' }))
     expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
     const avant = JSON.parse(b.serveur.contenuDe(CHEMIN)!).refreshedAt
     await new Promise((r) => setTimeout(r, 5))
-    expect((await provider.battre(CHEMIN)).ok).toBe(true)
-    expect(JSON.parse(b.serveur.contenuDe(CHEMIN)!).refreshedAt).not.toBe(avant)
+    expect((await provider.battre(CHEMIN)).ok).toBe(false)
+    expect(JSON.parse(b.serveur.contenuDe(CHEMIN)!).refreshedAt).toBe(avant)
     b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
     expect((await provider.battre(CHEMIN)).ok).toBe(false)
     expect(b.serveur.contenuDe(CHEMIN)).toContain('poste-2')
@@ -1037,6 +1077,7 @@ describe('Verrou des définitions laissé par un crash', () => {
     b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
     await premiere.liberer(CHEMIN)
     b.serveur.poser(CHEMIN, notre)
+    b.panne.suppressionConditionnelleRefusee = false
     const seconde = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-v' }))
     expect((await seconde.acquerir(CHEMIN)).ok).toBe(true)
     expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-v')
@@ -1137,12 +1178,13 @@ describe('Verrou des définitions laissé par un crash', () => {
       autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
     })
 
-    it('retirée même si le serveur refuse la suppression conditionnelle', async () => {
+    it('conservée si le serveur refuse la suppression conditionnelle', async () => {
       const b = banc()
       b.panne.suppressionConditionnelleRefusee = true
       b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
       autoriser(b, true)
-      expect((await garde(b, 'garde-k').acquerir(CHEMIN)).ok).toBe(true)
+      expect((await garde(b, 'garde-k').acquerir(CHEMIN)).ok).toBe(false)
+      expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-ancien')
       autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
     })
   })

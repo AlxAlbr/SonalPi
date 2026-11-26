@@ -1,29 +1,8 @@
 /**
- * Variante B du verrou — PUT conditionnel.
- * Marche sur TOUT serveur WebDAV honorant les préconditions (vérifié par sonde
- * à l'ouverture du corpus) : le test-and-set est le serveur, pas nous — deux
- * demandes simultanées, exactement une reçoit 201.
- *
- * Opérations :
- *   Acquérir : PUT verrous/<id>.lock.json + If-None-Match:* → 201 obtenu / 412 tenu
- *   Battre   : même fichier, contenu rafraîchi + If-Match <NOTRE etag mémorisé>
- *              → le battement est à la fois preuve de vie ET détection de
- *              forçage (412 = quelqu'un nous a repris le verrou → rétrogradation)
- *   Libérer  : DELETE + If-Match (idempotent côté app)
- *   Forcer   : DELETE If-Match <etag observé> puis PUT If-None-Match:* — chaque
- *              étape atomique ; deux forçages simultanés → un seul gagne.
- *   Acquérir : PUT verrous/<id>.lock.json + If-None-Match:* → 201 obtenu / 412 tenu
- *   Battre   : même fichier, contenu rafraîchi + If-Match <NOTRE etag mémorisé>
- *              → le battement est à la fois preuve de vie ET détection de
- *              forçage (412 = quelqu'un nous a repris le verrou → rétrogradation)
- *   Libérer  : DELETE + If-Match (idempotent côté app)
- *   Forcer   : DELETE If-Match <etag observé> puis PUT If-None-Match:* — chaque
- *              étape atomique ; deux forçages simultanés → un seul gagne.
- *
- * L'ETag obtenu à l'acquisition est MÉMORISÉ par le provider (par chemin) :
- * toute écriture conditionnelle ultérieure porte CETTE garde — la version que
- * NOUS avons lue, pas une version ré-observée qui masquerait une prise en main
- * concurrente.
+ *  Réservations par fichiers WebDAV : le serveur arbitre les demandes concurrentes.
+ *  La création exige l'absence du fichier ; chaque renouvellement ou suppression vise une version précise.
+ *  Après un refus, une relecture peut fournir une nouvelle version seulement avec la signature attendue.
+ *  Aucune relecture ne justifie une écriture ou une suppression sans condition.
  */
 
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
@@ -197,34 +176,20 @@ export class ProviderPutConditionnel implements VerrouProvider {
     }
   }
 
-  /** Rafraîchit le verrou tant qu'il porte notre signature.
-   *  Certains serveurs refusent l'écriture conditionnelle alors que le verrou n'a pas bougé :
-   *  s'il est relu inchangé, personne d'autre n'a pu le prendre et on l'écrit directement. */
+  /** Réessaie le battement sur la version correspondant à notre signature.
+   *  La condition reste obligatoire, même après une relecture. */
   private async rafraichirSiToujoursNotre(cheminVerrou: string, lu: ContenuVerrou): Promise<string | null> {
     const estNotre = (v: ContenuVerrou | null): v is ContenuVerrou =>
       !!v && v.sessionId === lu.sessionId && v.acquiredAt === lu.acquiredAt
-    const actuel = await this.etat(cheminVerrou)
-    if (!estNotre(actuel)) {
-      console.warn('[verrou] battement refusé, verrou repris ou disparu :', cheminVerrou, JSON.stringify(actuel))
-      return null
+    const version = await this.lireVersion(cheminVerrou)
+    if (!version?.etag || !estNotre(version.contenu)) return null
+    const rafraichi = JSON.stringify({ ...version.contenu, refreshedAt: new Date().toISOString() }, null, 2)
+    try {
+      return await this.putTexteAvecEtagFiable(cheminVerrou, rafraichi, { ifMatch: version.etag })
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 412) return null
+      throw e
     }
-    const rafraichi = JSON.stringify({ ...actuel, refreshedAt: new Date().toISOString() }, null, 2)
-    const etagActuel = await avecReessais(() => this.etatEtag(cheminVerrou))
-    if (etagActuel) {
-      console.warn('[verrou] version annoncée par le serveur périmée, battement sur la version actuelle :', cheminVerrou)
-      try {
-        return await this.putTexteAvecEtagFiable(cheminVerrou, rafraichi, { ifMatch: etagActuel })
-      } catch (e) {
-        if (!(e instanceof ErreurHttp && e.statut === 412)) throw e
-      }
-    }
-    const relu = await this.etat(cheminVerrou)
-    if (!estNotre(relu)) {
-      console.warn('[verrou] battement refusé, verrou repris ou disparu :', cheminVerrou, JSON.stringify(relu))
-      return null
-    }
-    console.warn('[verrou] écriture conditionnelle refusée par le serveur, verrou toujours à nous : rafraîchissement direct', cheminVerrou)
-    return await this.putTexteAvecEtagFiable(cheminVerrou, rafraichi, {})
   }
 
   async liberer(cheminVerrou: string): Promise<void> {
@@ -264,8 +229,8 @@ export class ProviderPutConditionnel implements VerrouProvider {
       return true
     } catch (e) {
       if (!(e instanceof ErreurHttp && (e.statut === 412 || e.statut === 404))) throw e
-      // Certains serveurs refusent la suppression conditionnelle alors que le verrou n'a pas bougé.
-      // S'il porte encore notre signature, personne d'autre n'a pu le prendre : on le supprime directement.
+      // Une version annoncée trop tôt peut être périmée.
+      // Le nouvel essai lie notre signature à la version de la même réponse.
       if (e.statut === 412 && pose) return await this.supprimerSiToujoursNotre(cheminVerrou, pose)
       return true
     }
@@ -277,7 +242,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
     const enAttente = liberationsEnAttente.get(this.cle(cheminVerrou))
     if (!enAttente || !tenuPar || tenuPar.sessionId !== enAttente.sessionId || tenuPar.acquiredAt !== enAttente.acquiredAt) return false
     try {
-      await this.client.supprimer(cheminVerrou)
+      if (!(await this.supprimerSiToujoursNotre(cheminVerrou, enAttente))) return false
     } catch (e) {
       if (!(e instanceof ErreurHttp && e.statut === 404)) {
         console.warn('[verrou] retrait du verrou non libéré impossible :', cheminVerrou, e)
@@ -290,27 +255,14 @@ export class ProviderPutConditionnel implements VerrouProvider {
 
   /** Un verrou abandonné par une autre session de ce poste est retiré si le corpus ouvert l'autorise.
    *  Abandonné : expiré, ou posé avant le lancement actuel de SonalPi.
-   *  La suppression vise la version observée ; si le serveur la refuse, le verrou doit être relu inchangé. */
+   *  La suppression vise uniquement la version portant encore la signature observée. */
   private async retirerPerimeDeCePoste(cheminVerrou: string, tenuPar: ContenuVerrou | null): Promise<boolean> {
     const moi = this.identite()
     if (!tenuPar || tenuPar.machineId !== moi.machineId || tenuPar.sessionId === moi.sessionId) return false
     if (!abandonneParCePoste(tenuPar)) return false
     if (!autorisationsReprise.get(this.client.config.baseUrl)?.(cheminVerrou)) return false
     try {
-      const etag = await this.etatEtag(cheminVerrou)
-      try {
-        await this.client.supprimer(cheminVerrou, etag ?? undefined)
-      } catch (e) {
-        if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
-        if (e.statut === 412) {
-          const relu = await this.etat(cheminVerrou)
-          if (!relu || relu.sessionId !== tenuPar.sessionId || relu.acquiredAt !== tenuPar.acquiredAt
-            || relu.refreshedAt !== tenuPar.refreshedAt) return false
-          await this.client.supprimer(cheminVerrou).catch((e2) => {
-            if (!(e2 instanceof ErreurHttp && e2.statut === 404)) throw e2
-          })
-        }
-      }
+      if (!(await this.supprimerSiToujoursNotre(cheminVerrou, tenuPar))) return false
     } catch (e) {
       console.warn('[verrou] retrait de la réservation abandonnée par ce poste impossible :', cheminVerrou, e)
       return false
@@ -324,32 +276,43 @@ export class ProviderPutConditionnel implements VerrouProvider {
   }
 
   /** Supprime le verrou s'il porte encore notre signature ; vrai s'il a été supprimé. */
-  private async supprimerSiToujoursNotre(cheminVerrou: string, pose: { sessionId: string; acquiredAt: string }): Promise<boolean> {
-    // Une relecture impossible remonte : le verrou est alors retenu pour la demande suivante.
-    const actuel = await this.etat(cheminVerrou)
-    if (!actuel || actuel.sessionId !== pose.sessionId || actuel.acquiredAt !== pose.acquiredAt) return false
-    console.warn('[verrou] verrou toujours à nous : suppression directe', cheminVerrou)
+  private async supprimerSiToujoursNotre(cheminVerrou: string, pose: { sessionId: string; acquiredAt: string; refreshedAt?: string }): Promise<boolean> {
+    const version = await this.lireVersion(cheminVerrou)
+    const actuel = version?.contenu
+    if (!actuel || actuel.sessionId !== pose.sessionId || actuel.acquiredAt !== pose.acquiredAt
+      || (pose.refreshedAt !== undefined && actuel.refreshedAt !== pose.refreshedAt)) return false
+    if (!version.etag) throw new Error('Impossible de vérifier la réservation. Elle est conservée ; réessayez plus tard.')
     try {
-      await this.client.supprimer(cheminVerrou)
+      await this.client.supprimer(cheminVerrou, version.etag)
     } catch (e) {
       if (!(e instanceof ErreurHttp && e.statut === 404)) throw e
     }
     return true
   }
 
+  /** Lit ensemble la signature et la version, sans laisser une observation séparée viser un autre détenteur. */
+  private async lireVersion(chemin: string): Promise<{ contenu: ContenuVerrou | null; etag: string | null } | null> {
+    try {
+      const lu = await avecReessais(() => this.client.getTexteAvecEtag(chemin))
+      return { contenu: analyserContenu(lu.contenu), etag: lu.etag }
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 404) return null
+      throw e
+    }
+  }
+
   /** Forçage d'un verrou PÉRIMÉ (l'appelant a vérifié `estPerime`, UI confirmée).
    *  DELETE If-Match <etag observé> PUIS PUT If-None-Match:* — chaque étape
    *  atomique ; si quelqu'un force en même temps, un seul gagne chaque étape. */
   async forcer(cheminVerrou: string): Promise<ResultatAcquisition> {
-    const ancien = await this.etat(cheminVerrou)
-    if (ancien) {
+    const version = await this.lireVersion(cheminVerrou)
+    if (version?.contenu) {
       // Course de forçage : l'étape DELETE peut perdre (404 = un autre forçeur
       // a déjà supprimé ; 412 = le verrou a bougé entre observation et garde).
       // Dans les deux cas on POURSUIT vers l'acquisition, seule arbitre finale.
-      const etag = await this.etatEtag(cheminVerrou)
-      if (etag) {
+      if (version.etag) {
         try {
-          await this.client.supprimer(cheminVerrou, etag)
+          await this.client.supprimer(cheminVerrou, version.etag)
         } catch (e) {
           if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
         }
@@ -373,9 +336,8 @@ export class ProviderPutConditionnel implements VerrouProvider {
 
   /* ── Aides internes ─────────────────────────────────────────────────────── */
 
-  /** PUT renvoyant TOUJOURS un ETag fiable : si le serveur n'en expose pas dans
-   *  la réponse du PUT (cas rare), il est relu par PROPFIND immédiatement —
-   *  la suite du protocole exige une garde non nulle. */
+  /** Retient la version écrite, ou celle d'une relecture au contenu identique.
+   *  Une reprise concurrente ne doit jamais nous donner la garde d'un autre détenteur. */
   private async putTexteAvecEtagFiable(
     chemin: string,
     contenu: string,
@@ -383,18 +345,9 @@ export class ProviderPutConditionnel implements VerrouProvider {
   ): Promise<string> {
     const etagReponse = await this.client.putTexte(chemin, contenu, options)
     if (etagReponse) return etagReponse
-    const relu = await this.etatEtag(chemin)
-    if (!relu) throw new ErreurHttp(500, 'Verrou écrit sans ETag récupérable')
-    return relu
-  }
-
-  /** ETag ACTUEL d'une ressource, observé par PROPFIND (sans télécharger).
-   *  NB : les entrées renvoyées sont relatives au dossier interrogé. */
-  private async etatEtag(chemin: string): Promise<string | null> {
-    const dossier = dossierDe(chemin)
-    const nom = nomDe(chemin)
-    const entree = (await this.client.propfind(dossier)).find((e) => e.chemin === nom)
-    return entree?.etag ?? null
+    const relu = await avecReessais(() => this.client.getTexteAvecEtag(chemin))
+    if (!relu.etag || relu.contenu !== contenu) throw new ErreurHttp(500, 'Réservation écrite sans version vérifiable')
+    return relu.etag
   }
 }
 
@@ -423,12 +376,4 @@ function analyserContenu(brut: string): ContenuVerrou | null {
   } catch {
     return null
   }
-}
-
-function dossierDe(chemin: string): string {
-  return chemin.includes('/') ? chemin.slice(0, chemin.lastIndexOf('/')) : ''
-}
-
-function nomDe(chemin: string): string {
-  return chemin.slice(chemin.lastIndexOf('/') + 1)
 }

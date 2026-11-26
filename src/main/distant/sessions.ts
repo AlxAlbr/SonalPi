@@ -941,19 +941,8 @@ export class SessionsDEntretien {
     try {
       await this.client.supprimer(chemin, lu.etag)
     } catch (e) {
-      if (e instanceof ErreurHttp && e.statut === 404) return false
-      if (!(e instanceof ErreurHttp && e.statut === 412)) throw e
-      // Certains serveurs refusent la suppression conditionnelle d'un fichier inchangé.
-      // Si le verrou relu est toujours le même, on le supprime directement.
-      const relu = await this.client.getTexteAvecEtag(chemin).catch(() => null)
-      if (relu?.contenu !== lu.contenu) return false
-      console.warn('[verrou corpus] suppression conditionnelle refusée, verrou inchangé : suppression directe')
-      try {
-        await this.client.supprimer(chemin)
-      } catch (e2) {
-        if (e2 instanceof ErreurHttp && e2.statut === 404) return false
-        throw e2
-      }
+      if (e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412)) return false
+      throw e
     }
     return true
   }
@@ -1046,25 +1035,21 @@ export class SessionsDEntretien {
       if (id) this.journalRetirer(id)
       return
     }
-    // Variante B : DELETE d'un verrou dont nous ne détenons PAS l'ETag en mémoire —
-    // observation puis suppression conditionnelle (déjà parti ?).
-    const etag = await this.etagServeurDe(cheminVerrou)
+    // La signature et la condition proviennent de la même lecture.
+    // Un refus conserve le journal pour permettre une nouvelle tentative.
     try {
-      await this.client.supprimer(cheminVerrou, etag ?? undefined)
-    } catch (e) {
-      if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
-      // Suppression conditionnelle refusée : si le verrou relu vient toujours d'une ancienne session de ce poste,
-      // personne d'autre ne l'a repris et on le supprime directement.
-      if (e.statut === 412) {
-        // Une relecture impossible remonte : l'entretien reste alors dans le journal, et la libération pourra être retentée.
-        const actuel = await this.lireVerrou(cheminVerrou)
-        if (actuel && actuel.machineId === this.identite().machineId && actuel.sessionId !== this.identite().sessionId) {
-          console.warn('[verrou] suppression conditionnelle refusée, verrou orphelin inchangé : suppression directe', cheminVerrou)
-          await this.client.supprimer(cheminVerrou).catch((e2) => {
-            if (!(e2 instanceof ErreurHttp && e2.statut === 404)) throw e2
-          })
-        }
+      const lu = await this.client.getTexteAvecEtag(cheminVerrou)
+      const verrou = JSON.parse(lu.contenu) as Partial<ContenuVerrou>
+      if (!lu.etag || verrou.machineId !== this.identite().machineId
+        || typeof verrou.sessionId !== 'string' || verrou.sessionId === this.identite().sessionId) {
+        throw new Error('La réservation ne peut plus être libérée par ce poste. Actualisez le corpus pour vérifier sa situation.')
       }
+      await this.client.supprimer(cheminVerrou, lu.etag)
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 412) {
+        throw new Error('La réservation a changé ou le serveur refuse sa libération. Rien n’a été supprimé ; actualisez le corpus puis réessayez.')
+      }
+      if (!(e instanceof ErreurHttp && e.statut === 404)) throw e
     }
     const id = idDe(cheminVerrou)
     if (id) this.journalRetirer(id)

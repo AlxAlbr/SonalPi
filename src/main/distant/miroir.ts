@@ -17,7 +17,9 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { dirname, join } from 'node:path'
+import { synchroniserDossier } from '../synchronisationDossier'
 import type { ProgressionTransfert } from '../../shared/distant'
 import type {
   EmpreinteLectureDistante,
@@ -172,6 +174,7 @@ export class MiroirDistant {
     const preparation = this.installationLocale.nouvellePreparation()
     const installations: { chemin: string; fichierPrepare: string }[] = []
     const contenusPrepares = new Map<string, string>()
+    const endommages: string[] = []
     const telecharges: string[] = []
     const inaccessibles: ResultatTirage['inaccessibles'] = []
     const manifesteFinal: ManifesteMiroir = {
@@ -184,19 +187,16 @@ export class MiroirDistant {
       for (const entree of candidats) {
         signal?.throwIfAborted()
         if (!entree.empreinte) continue
-        // Une copie locale endommagée ne contient plus aucun travail à protéger : on reprend celle du serveur.
+        // Une session ouverte ou récupérable garde sa copie, même endommagée.
+        if (horsJeu.has(entree.chemin)) continue
         const endommagee = this.copieLocaleEndommagee(entree.chemin)
-        if (endommagee) {
-          console.warn('[miroir] copie locale endommagée, remplacée par la version du serveur :', entree.chemin)
-          horsJeu.delete(entree.chemin)
-        }
         if (
           !endommagee &&
           this.memeEmpreinte(manifeste.empreintes[entree.chemin], entree.empreinte) &&
           existsSync(join(this.dirLocal, entree.chemin))
         ) continue
-        if (horsJeu.has(entree.chemin)) continue
         const contenu = await lecture.lireTexte(entree.chemin)
+        if (endommagee) endommages.push(entree.chemin)
         const fichierPrepare = this.installationLocale.cheminFichierPrepare(
           preparation,
           numeroPreparation++,
@@ -265,6 +265,7 @@ export class MiroirDistant {
         corbeille.push(chemin)
       }
 
+      for (const chemin of endommages) this.conserverCopieEndommagee(chemin)
       this.installationLocale.appliquer(preparation, {
         installations,
         archives,
@@ -339,8 +340,18 @@ export class MiroirDistant {
     return !chemin.split('/').some((s) => s === '' || s === '.' || s === '..')
   }
 
-  /** Vrai si la copie locale existe mais est vide ou remplie de zéros.
-   *  C'est ce que laisse un arrêt brutal de Windows au milieu d'un enregistrement. */
+  /** Conserve les octets d'origine avant de remplacer une copie endommagée.
+   *  Un échec de sauvegarde empêche le remplacement. */
+  private conserverCopieEndommagee(chemin: string): void {
+    const destination = join(this.dirLocal, 'recuperation-miroir', `${chemin}.${randomUUID()}.bak`)
+    mkdirSync(dirname(destination), { recursive: true })
+    writeFileSync(destination, readFileSync(join(this.dirLocal, chemin)), { flag: 'wx', mode: 0o600, flush: true })
+    synchroniserDossier(dirname(destination))
+    console.warn('[miroir] copie endommagée conservée avant récupération depuis le serveur :', destination)
+  }
+
+  /** Repère une copie vide ou comportant un zéro à ses extrémités.
+   *  Ce signal ne signifie pas que tout son contenu est irrécupérable. */
   private copieLocaleEndommagee(chemin: string): boolean {
     const fichier = join(this.dirLocal, chemin)
     if (!existsSync(fichier)) return false

@@ -91,11 +91,12 @@ const heureDe = (iso: string) => new Date(iso).toLocaleString()
           </dd>
           <dt>Ne pas les envoyer</dt>
           <dd>
-            Le serveur garde la version précédente et vos dernières modifications sont perdues.
+            Le serveur garde la version précédente ; vos dernières modifications ne sont pas envoyées.
+            Une copie reste conservée sur ce poste.
             À choisir seulement si vous pensez qu’elles étaient erronées.
           </dd>
         </dl>
-        <p class="note">Dans les deux cas, l’entretien redevient ensuite disponible pour tout le monde.</p>
+        <p class="note">Après une libération réussie, l’entretien redevient disponible pour tout le monde.</p>
       </div>
     </div>
   </Teleport>

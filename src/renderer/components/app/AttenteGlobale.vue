@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onScopeDispose, ref, watch } from 'vue'
+import { onMounted, onScopeDispose, ref, watch } from 'vue'
 import { fermetureEnCours, messageAttente } from '../../attente'
 
 /**
@@ -9,6 +9,8 @@ import { fermetureEnCours, messageAttente } from '../../attente'
  *  Pendant la fermeture, un bouton permet de ne pas attendre un serveur trop lent.
  */
 const visible = ref(false)
+const voile = ref<HTMLElement | null>(null)
+let focusAvant: HTMLElement | null = null
 let minuterie: ReturnType<typeof setTimeout> | null = null
 const DELAI_BOUTON_FERMETURE_MS = 5_000
 const proposerFermetureImmediate = ref(false)
@@ -18,19 +20,30 @@ watch(fermetureEnCours, (enCours) => {
   if (enCours && !minuterieFermeture) {
     minuterieFermeture = setTimeout(() => { proposerFermetureImmediate.value = true }, DELAI_BOUTON_FERMETURE_MS)
   }
-})
+}, { immediate: true })
 
 function fermerSansAttendre() {
   window.sonal.application.fermerSansAttendre()
 }
 
 function bloquerClavier(evenement: KeyboardEvent) {
+  if (evenement.key === 'Tab') {
+    evenement.preventDefault()
+    evenement.stopPropagation()
+    const bouton = voile.value?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+    ;(bouton ?? voile.value)?.focus()
+    return
+  }
+  // Les commandes du voile restent accessibles, sans réactiver l'écran derrière.
+  if (evenement.target instanceof Node && voile.value?.contains(evenement.target)) return
   evenement.preventDefault()
   evenement.stopPropagation()
 }
 
 watch(messageAttente, (message, avant) => {
   if (message && !avant) {
+    focusAvant = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    voile.value?.focus()
     window.addEventListener('keydown', bloquerClavier, true)
     minuterie = setTimeout(() => { visible.value = true }, 150)
   } else if (!message && avant) {
@@ -38,19 +51,36 @@ watch(messageAttente, (message, avant) => {
     if (minuterie) clearTimeout(minuterie)
     minuterie = null
     visible.value = false
+    if (focusAvant?.isConnected) focusAvant.focus()
+    focusAvant = null
   }
-})
+}, { flush: 'post', immediate: true })
+
+onMounted(() => { if (messageAttente.value) voile.value?.focus() })
 
 onScopeDispose(() => {
   window.removeEventListener('keydown', bloquerClavier, true)
   if (minuterie) clearTimeout(minuterie)
   if (minuterieFermeture) clearTimeout(minuterieFermeture)
+  if (focusAvant?.isConnected) focusAvant.focus()
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="messageAttente" class="voile-attente" :class="{ visible }" aria-busy="true">
+    <div
+      v-if="messageAttente"
+      ref="voile"
+      class="voile-attente"
+      :class="{ visible }"
+      tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Opération en cours"
+      aria-busy="true"
+      @keydown.stop
+      @keyup.stop
+    >
       <div v-if="visible" class="boite-attente" role="status" aria-live="polite">
         <div class="ligne-attente">
           <span class="roue" aria-hidden="true"></span>
@@ -130,30 +160,6 @@ onScopeDispose(() => {
   to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ligne-attente {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-}
-.fermeture-immediate {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: #555;
-}
-.fermeture-immediate p {
-  margin: 0;
-}
-.fermeture-immediate button {
-  padding: 0.35rem 0.9rem;
-  border: 1px solid #4527a0;
-  border-radius: 6px;
-  background: #fff;
-  color: #4527a0;
-  cursor: pointer;
-}
-.roue { animation-duration: 2.4s; }
+  .roue { animation-duration: 2.4s; }
 }
 </style>
