@@ -3197,6 +3197,7 @@ app.on('before-quit', (evenement) => {
   void executerFermetureApplication({
     viderRenderers: viderRenderersAvantFermeture,
     nettoyerDistant: nettoyerAvantQuit,
+    abandon: new Promise<void>((resolve) => ipcMain.once('application:fermerSansAttendre', () => resolve())),
     quitter: () => {
       fermetureAutorisee = true
       app.quit()

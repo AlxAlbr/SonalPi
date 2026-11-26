@@ -109,6 +109,21 @@ for (const natif of [false, true]) describe(`garde des nouveaux choix WebDAV —
     expect((await provider.acquerir('verrous/corpus.lock.json')).ok).toBe(true)
     await provider.liberer('verrous/corpus.lock.json')
   })
+  test('deux envois simultanés de ce poste passent l’un après l’autre, sans se refuser', async () => {
+    const b = await banc(); const ordre: string[] = []
+    const contenu = JSON.stringify(b.f.sources[0].data)
+    let finirPremier!: () => void
+    const premierEnCours = new Promise<void>((resolve) => { finirPremier = resolve })
+    const premier = b.garde.publier(contenu, contenu, async () => { ordre.push('premier-debut'); await premierEnCours; ordre.push('premier-fin') }, 'entretiens/e1.json')
+    const second = b.garde.publier(contenu, contenu, async () => { ordre.push('second') }, 'entretiens/e1.json')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(ordre).toEqual(['premier-debut'])
+    finirPremier()
+    await expect(premier).resolves.toBeUndefined()
+    await expect(second).resolves.toBeUndefined()
+    expect(ordre).toEqual(['premier-debut', 'premier-fin', 'second'])
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeFalsy()
+  })
   test('contournement direct : changement de définition entre validation et garde finale refuse', async () => {
     const b = await banc(); let lectures = 0; let envois = 0
     const client = new ClientWebDAV(b.client.config, async (url, init) => {

@@ -37,7 +37,7 @@ creer_user() { # $1=login $2=motdepasse
     echo "── user $1 : création…"
     # --password-from-env lit OCC_PASS dans l'ENVIRONNEMENT du processus occ :
     # le préfixe d'affectation le transmet sans jamais l'écrire sur disque.
-    docker compose -f compose.yml exec -T -e OC_PASS="$2" -u www-data app php occ user:add --password-from-env --no-warnings "$1" >/dev/null \
+    docker compose -f "$FILE" exec -T -e OC_PASS="$2" -u www-data app php occ user:add --password-from-env --no-warnings "$1" >/dev/null \
       || { echo "échec création $1" >&2; exit 1; }
   fi
 }

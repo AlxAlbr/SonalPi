@@ -29,6 +29,7 @@ import {
 } from '../../../shared/corpus/tableaubord'
 import { afficherErreurGlobale, effacerErreurGlobaleSi, infoGlobale } from '../../erreurs'
 import { preparerFermetureEntretien, creerGardeOuverture, MESSAGE_OUVERTURE_EN_COURS } from '../../couturesApplication'
+import { avecAttente, pendantChoixUtilisateur } from '../../attente'
 import type { DemandeOuvertureExterne } from '../../../shared/ouvertureFichier'
 
 interface ProfilCycleCorpus {
@@ -88,6 +89,8 @@ interface MediasCycleCorpus {
 
 interface DistantCycleCorpus {
   idCourant: Ref<string | null>
+  /** Note qu'un échange avec le serveur vient de réussir (heure « dernière synchro »). */
+  noterSynchro?: () => void
   lectureSeule: Ref<boolean>
   entretienEditable: Ref<boolean>
   statutSession: Ref<EtatSessionPublic>
@@ -139,7 +142,7 @@ export function useCycleCorpus(deps: {
   const migrationGitLabProposee = ref<{ source?: SourceMigrationGitLab } | null>(null)
   let terminerModale: (() => void) | null = null
   async function proposerModale(ouvrir: () => void): Promise<void> {
-    await new Promise<void>((resolve) => { terminerModale = resolve; ouvrir() })
+    await pendantChoixUtilisateur(() => new Promise<void>((resolve) => { terminerModale = resolve; ouvrir() }))
   }
   function fermerModales(): void {
     migrationProposee.value = null
@@ -330,6 +333,10 @@ export function useCycleCorpus(deps: {
   }
 
   async function ouvrirRecent(entree: EntreeRecent): Promise<void> {
+    return avecAttente('Ouverture du corpus…', () => ouvrirRecentSansAttente(entree))
+  }
+
+  async function ouvrirRecentSansAttente(entree: EntreeRecent): Promise<void> {
     await preparerBascule()
     if (entree.type === 'distant') {
       if (entree.fournisseur === 'gitlab') await ouvrirDestinationGitLab(entree.id)
@@ -373,10 +380,12 @@ export function useCycleCorpus(deps: {
   }
 
   async function ouvrirCorpusWebDAV(id: string, motDePasse?: string): Promise<void> {
-    await preparerBascule()
-    await appliquerOuvertureDistante(
-      await window.sonal.webdav.ouvrir(id, motDePasse),
-    )
+    await avecAttente('Ouverture du corpus en ligne…', async () => {
+      await preparerBascule()
+      await appliquerOuvertureDistante(
+        await window.sonal.webdav.ouvrir(id, motDePasse),
+      )
+    })
   }
 
   async function proposerPassageGitLab(source?: SourceMigrationGitLab): Promise<void> {
@@ -398,8 +407,10 @@ export function useCycleCorpus(deps: {
   }
 
   async function ouvrirDestinationGitLab(id: string): Promise<boolean> {
-    await preparerBascule()
-    return appliquerResultatGitLab(await window.sonal.gitlab.ouvrir(id))
+    return avecAttente('Ouverture du corpus en ligne…', async () => {
+      await preparerBascule()
+      return appliquerResultatGitLab(await window.sonal.gitlab.ouvrir(id))
+    })
   }
 
   async function enregistrerEtOuvrirGitLab(demande: DemandeOuvertureGitLab): Promise<boolean> {
@@ -466,7 +477,7 @@ export function useCycleCorpus(deps: {
   let derniereErreurSortie: string | null = null
   async function fermerEntretienPourNavigation(): Promise<void> {
     try {
-      await fermerEntretien()
+      await avecAttente('Enregistrement et fermeture de l’entretien…', fermerEntretien)
       if (derniereErreurSortie) effacerErreurGlobaleSi(derniereErreurSortie)
       derniereErreurSortie = null
     } catch (erreur) {
@@ -495,7 +506,13 @@ export function useCycleCorpus(deps: {
   }
 
   async function ouvrirEntretien(id: string): Promise<void> {
+    await avecAttente('Ouverture de l’entretien…', () => ouvrirEntretienSansAttente(id))
+  }
+
+  async function ouvrirEntretienSansAttente(id: string): Promise<void> {
     if (!(await deps.entretien.ouvrir(id))) return
+    // Un verrou laissé par une session interrompue de ce poste doit proposer la reprise, pas la lecture seule.
+    if (deps.distant.idCourant.value && deps.entretien.verrouAutrui()) await deps.distant.rafraichirOrphelins().catch(() => {})
     if (deps.distant.idCourant.value) {
       void window.sonal.distant.noterEntretienOuvert(id)
     }
@@ -523,7 +540,10 @@ export function useCycleCorpus(deps: {
       const geste = resultat.raison === 'publication' ? 'publier les modifications' : 'libérer le verrou'
       throw new Error(resultat.message ?? `Impossible de ${geste}.`)
     }
-    if (deps.distant.idCourant.value) deps.distant.appliquerStatutSession({ etat: 'aucune' })
+    if (deps.distant.idCourant.value) {
+      deps.distant.appliquerStatutSession({ etat: 'aucune' })
+      deps.distant.noterSynchro?.()
+    }
     reprise.value = {
       id,
       positionAudio: deps.audio.position.value,

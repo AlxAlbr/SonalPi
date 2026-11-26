@@ -5,6 +5,7 @@ import Accueil from './components/accueil/Accueil.vue'
 import Corpus from './components/traiter/corpus/Corpus.vue'
 import Entretien from './components/traiter/entretien/Entretien.vue'
 import RepriseCrash from './components/distant/RepriseCrash.vue'
+import AttenteGlobale from './components/app/AttenteGlobale.vue'
 import DivergenceCopie from './components/distant/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
 import DialogueAjoutRecueil from './components/organiser/recueils/DialogueAjoutRecueil.vue'
@@ -152,6 +153,9 @@ const {
       <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
            téléporté, ne s'affiche QUE si la liste est non vide. -->
       <RepriseCrash />
+
+      <!-- Voile d'attente des opérations bloquantes (ouverture, fermeture, envoi). -->
+      <AttenteGlobale />
 
       <!-- Fusion assistée : copie de divergence proposée à la réouverture de l'entretien concerné. -->
       <DivergenceCopie />

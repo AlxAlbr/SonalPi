@@ -427,6 +427,8 @@ export function creerSonal() {
   const {
     idDistantCourant,
     dernierTirage,
+    derniereSynchro,
+    noterSynchro,
     tirageEnCours,
     progressionDistant,
     pourcentageProgression,
@@ -516,6 +518,7 @@ export function creerSonal() {
       rafraichirOrphelins,
       quitter: quitterDistant,
       appliquerStatutSession,
+      noterSynchro,
     },
     effets: {
       reinitialiserSelection: reinitialiserSelectionCorpus,
@@ -1685,6 +1688,7 @@ export function creerSonal() {
     revisionCorpus,
     demandeDissociationAnon,
     dernierTirage,
+    derniereSynchro,
     tirageEnCours,
     progressionDistant,
     pourcentageProgression,

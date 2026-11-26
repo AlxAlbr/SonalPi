@@ -253,6 +253,12 @@ export class ClientWebDAV {
         redirect: 'error',
         ...(options.duplex ? { duplex: options.duplex } : {}),
       })
+      // Trace des échanges sur les verrous, pour l'assistance : méthode, condition, réponse et version.
+      if (chemin.startsWith('verrous')) {
+        const condition = options.entetes?.['If-Match'] ? `If-Match ${options.entetes['If-Match']}`
+          : options.entetes?.['If-None-Match'] ? `If-None-Match ${options.entetes['If-None-Match']}` : ''
+        console.info('[webdav verrous]', methode, chemin, condition, '→', reponse.status, reponse.headers.get('etag') ?? '')
+      }
       const ok = options.statutsOk ?? [200, 201, 204]
       if (!ok.includes(reponse.status)) {
         throw new ErreurHttp(reponse.status, `${methode} ${chemin} → ${reponse.status}`)
@@ -278,6 +284,7 @@ export class ClientWebDAV {
     <d:getetag/>
     <d:resourcetype/>
     <d:getcontentlength/>
+    <d:getlastmodified/>
   </d:prop>
 </d:propfind>`
     const xml = await this.requete<string>('PROPFIND', dossierRelatif, {

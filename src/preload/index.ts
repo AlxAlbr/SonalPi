@@ -126,6 +126,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.on('application:preparerFermeture', ecouteur)
       return () => ipcRenderer.removeListener('application:preparerFermeture', ecouteur)
     },
+    /** Ferme sans attendre la fin de l'envoi au serveur ; le travail reste sur le poste. */
+    fermerSansAttendre: (): void => ipcRenderer.send('application:fermerSansAttendre'),
     surSuspensionSysteme: (cb: () => Promise<void>): (() => void) => {
       const ecouteur = (): void => { void cb() }
       ipcRenderer.on('application:systemeSuspendu', ecouteur)

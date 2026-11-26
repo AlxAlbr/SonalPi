@@ -9,6 +9,7 @@ import { verifierChoixPseudosAnon } from '../../shared/corpus/choixPseudosAnon'
 import { etagImportWebDAVFort } from './journalCorrespondancesWebDAV'
 import { JournalGardePseudosWebDAV, type EnvoiGardePseudosWebDAV } from './journalGardePseudosWebDAV'
 import { empreinteCorrespondance } from '../tablesCorrespondance'
+import { messageRefusDefinitions } from './messagesVerrou'
 
 export class RefusAvantEnvoiPseudos extends Error {}
 
@@ -27,6 +28,8 @@ export class GardePseudosWebDAV {
     this.journal = new JournalGardePseudosWebDAV(dirLocal, this.destination)
   }
   verrouIncertain(provider: ProviderPutConditionnel) { return droitsIncertains.has(provider) }
+  /** Vrai si une publication incertaine retient volontairement le verrou des définitions. */
+  get retientVerrou() { return !!this.retenu || this.enCours }
   lireEnvoi() { return this.journal.lire() }
   exigerDisponible() {
     if (this.journal.lire()) throw new Error('Une publication d’entretien WebDAV reste indéterminée. Actualisez le corpus pour relire son issue avant toute nouvelle mutation ; aucun rejeu ni forçage de verrou.')
@@ -59,19 +62,37 @@ export class GardePseudosWebDAV {
     const identite = { ...this.identite(), sessionId: `garde-${randomUUID()}` }
     return new ProviderPutConditionnel(this.client, () => identite)
   }
+  /** Les envois d'entretien de ce poste passent l'un après l'autre.
+   *  Sans cela, un envoi automatique encore en cours ferait refuser l'envoi demandé à la fermeture de l'entretien. */
   async publier<T>(contenu: string, contenuAvant: string, envoi: (garantir: () => void) => Promise<T>, chemin: string): Promise<T> {
+    const precedent = this.fileEnvois
+    let terminer!: () => void
+    this.fileEnvois = new Promise<void>((resolve) => { terminer = resolve })
+    await precedent
+    try { return await this.publierSeul(contenu, contenuAvant, envoi, chemin) }
+    finally { terminer() }
+  }
+  private fileEnvois: Promise<void> = Promise.resolve()
+  private async publierSeul<T>(contenu: string, contenuAvant: string, envoi: (garantir: () => void) => Promise<T>, chemin: string): Promise<T> {
     await this.reconcilier()
     const provider = this.provider()
-    if (!(await provider.acquerir(cheminCorpus)).ok) throw new Error('Les définitions sont temporairement verrouillées. La copie locale reste à publier.')
-    try { return await this.publierSousVerrou(contenu, contenuAvant, envoi, provider, chemin) }
+    const debut = Date.now()
+    const acquisition = await provider.acquerir(cheminCorpus)
+    if (!acquisition.ok) {
+      throw new Error(`${messageRefusDefinitions(acquisition.tenuPar, this.identite().machineId)} Votre travail est conservé sur ce poste.`)
+    }
+    // Le verrou vient d'être posé : sa durée garantie suffit, sans le relire tout de suite.
+    const droitFrais = { debut, dureeGarantieMs: acquisition.dureeGarantieMs }
+    try { return await this.publierSousVerrou(contenu, contenuAvant, envoi, provider, chemin, {}, {}, droitFrais) }
     finally { if (!this.verrouIncertain(provider)) await provider.liberer(cheminCorpus).catch(() => {}) }
   }
   /** Réutilise uniquement le provider déjà acquis par une transaction main. */
   async publierSousVerrou<T>(contenu: string, contenuAvant: string, envoi: (garantir: () => void) => Promise<T>, provider: ProviderPutConditionnel,
-    chemin: string, nouvellesRegles: Record<string, RegleAnon> = {}, nouvellesIdentites: Record<string, Locuteur> = {}): Promise<T> {
+    chemin: string, nouvellesRegles: Record<string, RegleAnon> = {}, nouvellesIdentites: Record<string, Locuteur> = {},
+    droitFrais?: { debut: number; dureeGarantieMs: number }): Promise<T> {
     this.exigerDisponible()
-    const debut = Date.now()
-    const preuve = await provider.battre(cheminCorpus)
+    const debut = droitFrais?.debut ?? Date.now()
+    const preuve = droitFrais ? { ok: true as const, dureeGarantieMs: droitFrais.dureeGarantieMs } : await provider.battre(cheminCorpus)
     if (!preuve.ok) throw new Error('Le verrou des définitions a été perdu. Aucun PUT envoyé.')
     const source = await this.client.getTexteAvecEtag('corpus.crp')
     if (!etagImportWebDAVFort(source.etag)) throw new Error('Le serveur ne fournit pas d’ETag fort. Aucun PUT envoyé.')

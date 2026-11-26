@@ -31,7 +31,7 @@ import type { MiroirWebDAV } from './miroirWebDAV'
 import type { CorpusStore } from '../corpusStore'
 import * as corpusModel from '../../shared/corpus'
 import type { IdentiteSession } from './sessions'
-import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
+import { autoriserRepriseVerrousPerimes, ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
 import { appliquerRegleAnonEntretienAvecBilan } from '../../shared/entretien/anon'
@@ -67,6 +67,7 @@ import { CorrespondancesWebDAV } from './correspondancesWebDAV'
 import type { TablesCorrespondance } from '../tablesCorrespondance'
 import { RenommagesAnonWebDAV } from './renommagesAnonWebDAV'
 import { GardePseudosWebDAV } from './gardePseudosWebDAV'
+import { messageRefusDefinitions } from './messagesVerrou'
 import { AjoutsVarianteAnonWebDAV } from './ajoutsVarianteAnonWebDAV'
 import type { DemandeAjoutVarianteAnon } from '../../shared/corpus/variantesAnon'
 import { exigerAbsenceDissociationWebDAV } from '../../shared/corpus/barriereDissociationWebDAV'
@@ -164,6 +165,9 @@ export class TransactionsCorpus {
         if (!sessions?.idsTenus().includes(id) && !sessions?.idsRecuperablesLocalement?.().includes(id)) this.ecrireEntretienLocal(chemin, contenu)
         miroir.noterEtagPublie(chemin, etag)
       })
+    // Une réservation expirée des définitions, laissée par ce poste, est retirée à la demande suivante.
+    autoriserRepriseVerrousPerimes(client.config.baseUrl,
+      (chemin) => chemin === CHEMIN_VERROU_CORPUS && this.repriseVerrouCorpusPerimeAutorisee())
     this.ajoutsVariante = new AjoutsVarianteAnonWebDAV({ client, dirLocal: miroir.dirLocal, identite,
       miroir: (contenu, etag) => { this.ecrireCorpusLocal(contenu); miroir.noterEtagPublie(CHEMIN_CORPUS, etag) },
     })
@@ -325,6 +329,29 @@ export class TransactionsCorpus {
   lireSuiviRenommageAnon() { return this.renommages.lireSuivi() }
   get renommageEnCours() { return this.renommages.occupe }
   get mutationEnCours() { return this.mutationsEnCours > 0 || this.correctionsLocuteurs.occupe }
+  /** Vrai si ce poste n’a aucune opération sur les définitions en cours ou à reprendre.
+   *  Un journal illisible compte comme une opération à reprendre. */
+  aucuneOperationDefinitionsEnSuspens(): boolean {
+    return !this.mutationEnCours && this.repriseVerrouCorpusPerimeAutorisee()
+  }
+  /** Vrai si aucune opération longue ne tourne et qu'aucune opération n'est à reprendre sur ce poste.
+   *  Les modifications courtes ne comptent pas : une réservation expirée ne peut pas être la leur. */
+  private repriseVerrouCorpusPerimeAutorisee(): boolean {
+    try {
+      return !this.correctionsLocuteurs.occupe && !this.renommageEnCours && !this.dissociationEnCours && !this.suppressionEnCours
+        && !this.retraitVarianteEnCours && !this.importCorrespondancesEnCours && !this.operationThemeEnCours
+        && !this.gardePseudos.retientVerrou
+        && !this.lirePublicationEntretien() && !this.lireAjoutVariante() && !this.lireSuiviRenommageAnon()
+        && !this.lireSuiviDissociationAnon() && !this.lireSuiviSuppressionAnon() && !this.lireSuiviRetraitVarianteAnon()
+        && !this.lireSuiviCorrectionLocuteurs() && !this.lireSuiviImportCorrespondances() && !this.lireSuiviOperationTheme()
+    } catch {
+      return false
+    }
+  }
+  /** Retire l'autorisation de reprise à la fermeture du corpus. */
+  arreterRepriseVerrousPerimes(): void {
+    autoriserRepriseVerrousPerimes(this.client.config.baseUrl, null)
+  }
   private exigerRenommageDisponible() {
     this.exigerSansDissociation()
     this.exigerPublicationDisponible()
@@ -548,7 +575,7 @@ export class TransactionsCorpus {
     let verrouTenu = false
     try {
       const acquisition = await provider.acquerir(CHEMIN_VERROU_CORPUS)
-      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar, this.identite().machineId))
       verrouTenu = true
 
       // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose que notre miroir,
@@ -621,7 +648,7 @@ export class TransactionsCorpus {
     let verrouTenu = false
     try {
       const acquisition = await provider.acquerir(CHEMIN_VERROU_CORPUS)
-      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar, this.identite().machineId))
       verrouTenu = true
 
       const etagServeur = await this.rafraichirCorpusLocal(true)
@@ -745,7 +772,7 @@ export class TransactionsCorpus {
     let verrouTenu = false
     try {
       const acquisition = await provider.acquerir(CHEMIN_VERROU_CORPUS)
-      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar, this.identite().machineId))
       verrouTenu = true
 
       const etagCorpus = await this.rafraichirCorpusLocal(true)
@@ -800,7 +827,7 @@ export class TransactionsCorpus {
     let verrouCorpusTenu = false
     try {
       const acqC = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
-      if (!acqC.ok) throw new ErreurTransaction(messageRefusDefinitions(acqC.tenuPar))
+      if (!acqC.ok) throw new ErreurTransaction(messageRefusDefinitions(acqC.tenuPar, this.identite().machineId))
       verrouCorpusTenu = true
       const etagServeur = await this.rafraichirCorpusLocal(true)
 
@@ -937,7 +964,7 @@ export class TransactionsCorpus {
     const etags = new Map<string, string>()
     try {
       const acquisitionCorpus = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
-      if (!acquisitionCorpus.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisitionCorpus.tenuPar))
+      if (!acquisitionCorpus.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisitionCorpus.tenuPar, this.identite().machineId))
       verrouCorpusTenu = true
       const etagCorpus = await this.rafraichirCorpusLocal(cibles.corpus)
       const cheminCorpus = join(this.miroir.dirLocal, CHEMIN_CORPUS)
@@ -1250,7 +1277,7 @@ export class TransactionsCorpus {
       let corpusTenu = false
       try {
         const acquisition = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
-        if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+        if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar, this.identite().machineId))
         corpusTenu = true
         const etagCorpus = await this.rafraichirCorpusLocal()
         if (!etagCorpus) throw new ErreurTransaction('Le corpus distant est introuvable. Aucun entretien n’a été modifié.')
@@ -1598,12 +1625,6 @@ export async function appliquerRegleLotLocal(
 }
 
 /* ── Classification des échecs en messages utilisateur ───────────────────────*/
-
-function messageRefusDefinitions(tenuPar: ContenuVerrou | null): string {
-  const qui = tenuPar?.userId ?? 'un autre utilisateur'
-  return `Le corpus est en cours de modification par ${qui}, qui a peut-être déjà terminé. ` +
-    'Actualisez le corpus, puis réessayez dans un instant.'
-}
 
 /** Traduit les échecs techniques en messages utilisateur ;
  *  laisse passer tels quels les refus de domaine (Error simple levée PAR la mutation)

@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import { NOM_FICHIER_CORPUS } from '../shared/fichiersCorpus'
 import { verifierVersionNative } from '../shared/versionsNatives'
+import { ecrireFichierDurable } from './synchronisationDossier'
 import { preparerCreationEntretienNatif } from './preparationsNatives'
 import { validerLotValeur } from '../shared/corpus/valeursVariables'
 import { validerCorpusV2 } from '../shared/ouvertureFichier'
@@ -423,9 +424,8 @@ export class CorpusStore {
   private ecrireJsonAtomique(fichier: string, obj: unknown): void {
     if (fichier === this.corpusFile) validerCorpusNatif(obj)
     else validerEntretienNatif(obj)
-    const tmp = fichier + '.tmp'
-    writeFileSync(tmp, JSON.stringify(obj, null, 2), 'utf8')
-    renameSync(tmp, fichier) // rename atomique : un crash laisse l'ancien fichier intact
+    // Un arrêt brutal laisse l'ancien fichier ou le nouveau, jamais un fichier vide ou rempli de zéros.
+    ecrireFichierDurable(fichier, JSON.stringify(obj, null, 2))
   }
 
   private verifierDossiersOuverture(): void {

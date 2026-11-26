@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import { afficherErreurGlobale } from '../../erreurs'
+import { avecAttente } from '../../attente'
 
 /**
- *  Dialogue de REPRISE APRÈS CRASH — listé à l'ouverture d'un corpus distant :
- *  verrous orphelins de NOTRE machine (crash sans libération). Trois choix par
- *  orphelin :
- *  « Reprendre et publier » : la copie locale (dernier autosave) est publiée,
- *  PUIS le verrou est libéré — cet ordre est un invariant ;
- *  « Abandonner » : déverrouille SANS publier (la copie locale reste dans le
- *  miroir et repartira en divergence si elle resurgit) ;
- *  « Plus tard » : rien — le verrou reste tenu, personne ne peut écraser
- *  entre-temps (c'est le scénario où ce modèle brille).
+ *  Dialogue affiché à l'ouverture d'un corpus distant quand SonalPi s'est fermé
+ *  alors que des entretiens étaient ouverts sur ce poste.
+ *  Ces entretiens restent réservés à l'utilisateur tant qu'il n'a pas choisi :
+ *  envoyer la version enregistrée sur ce poste, ou garder celle du serveur.
+ *  Dans les deux cas, l'entretien redevient ensuite disponible pour tous.
  */
 const { orphelinsDistants, membership, reprendreOrphelin, abandonnerOrphelin } = utiliserSonal()
 
-/** Orphelins dont l'entretien existe encore au corpus (sinon : renommé,
- *  supprimé par un collègue pendant notre absence — même affichage générique). */
+/** Un entretien renommé ou supprimé entre-temps s'affiche sous son identifiant. */
 const liste = computed(() =>
   orphelinsDistants.value.map((o) => ({
     ...o,
@@ -24,19 +21,34 @@ const liste = computed(() =>
   })),
 )
 
+const raisons: Record<string, string> = {
+  divergence:
+    'l’entretien a été modifié sur le serveur entre-temps. Rien n’a été envoyé ; vos modifications restent sur ce poste.',
+  'pas de copie locale': 'aucune version n’a été trouvée sur ce poste.',
+  'deja libere': 'l’entretien n’était plus réservé à votre nom. Rien n’a été envoyé : rouvrez-le pour vérifier son contenu.',
+}
+
 const enCours = ref<string | null>(null)
-async function reprendre(chemin: string) {
+async function reprendre(chemin: string, titre: string) {
   enCours.value = chemin
   try {
-    await reprendreOrphelin(chemin)
+    const resultat = await avecAttente(`Envoi de « ${titre} » au serveur…`, () => reprendreOrphelin(chemin))
+    if (!resultat.ok) {
+      afficherErreurGlobale(raisons[resultat.raison ?? ''] ?? resultat.raison ?? 'raison inconnue.',
+        `« ${titre} » n’a pas été envoyé`)
+    }
+  } catch (e) {
+    afficherErreurGlobale(e, `« ${titre} » n’a pas été envoyé`)
   } finally {
     enCours.value = null
   }
 }
-async function abandonner(chemin: string) {
+async function abandonner(chemin: string, titre: string) {
   enCours.value = chemin
   try {
-    await abandonnerOrphelin(chemin)
+    await avecAttente(`Libération de « ${titre} »…`, () => abandonnerOrphelin(chemin))
+  } catch (e) {
+    afficherErreurGlobale(e, `« ${titre} » n’a pas pu être libéré`)
   } finally {
     enCours.value = null
   }
@@ -48,37 +60,42 @@ const heureDe = (iso: string) => new Date(iso).toLocaleString()
 <template>
   <Teleport to="body">
     <div v-if="liste.length > 0" class="voile-reprise">
-      <div class="modale-reprise">
-        <h3>🔄 Session(s) interrompue(s)</h3>
+      <div class="modale-reprise" role="dialog" aria-label="Entretiens restés ouverts">
+        <h3>🔄 Entretiens restés ouverts</h3>
         <p class="intro">
-          L'application s'est fermée anormalement alors que des entretiens étaient
-          <b>ouverts sous verrou</b> sur ce poste. Personne n'a pu les modifier
-          entre-temps. Que faire de chaque session ?
+          SonalPi s’est fermé avant d’avoir pu envoyer vos dernières modifications au serveur.
+          Les entretiens ci-dessous restent <b>réservés à votre nom</b> :
+          personne d’autre ne peut les modifier tant que vous n’avez pas choisi.
         </p>
         <ul class="liste-orphelins">
           <li v-for="o in liste" :key="o.cheminVerrou" class="orphelin">
             <div class="orph-infos">
               <span class="orph-titre">« {{ o.titre }} »</span>
-              <span class="orph-detail">
-                verrou posé par {{ o.userId }} ({{ o.machineId }}) le {{ heureDe(o.acquiredAt) }}
-              </span>
+              <span class="orph-detail">ouvert le {{ heureDe(o.acquiredAt) }}</span>
             </div>
             <div class="orph-actions">
-              <button class="primaire" :disabled="enCours === o.cheminVerrou" @click="reprendre(o.cheminVerrou)">
-                Reprendre et publier
+              <button class="primaire" :disabled="enCours === o.cheminVerrou" @click="reprendre(o.cheminVerrou, o.titre)">
+                Envoyer mes modifications
               </button>
-              <button :disabled="enCours === o.cheminVerrou" @click="abandonner(o.cheminVerrou)">
-                Abandonner (déverrouille sans publier)
+              <button :disabled="enCours === o.cheminVerrou" @click="abandonner(o.cheminVerrou, o.titre)">
+                Ne pas les envoyer
               </button>
             </div>
           </li>
         </ul>
-        <p class="note">
-          « Reprendre et publier » restaure le travail local sur le serveur.
-          « Abandonner » garde le contenu local de côté mais libère le verrou pour
-          les autres — à choisir si vous ne faites pas confiance aux dernières
-          modifications locales.
-        </p>
+        <dl class="note">
+          <dt>Envoyer mes modifications <span class="conseil">(choix habituel)</span></dt>
+          <dd>
+            La version enregistrée sur ce poste juste avant la fermeture remplace celle du serveur.
+            Vous retrouvez votre travail tel que vous l’aviez laissé.
+          </dd>
+          <dt>Ne pas les envoyer</dt>
+          <dd>
+            Le serveur garde la version précédente et vos dernières modifications sont perdues.
+            À choisir seulement si vous pensez qu’elles étaient erronées.
+          </dd>
+        </dl>
+        <p class="note">Dans les deux cas, l’entretien redevient ensuite disponible pour tout le monde.</p>
       </div>
     </div>
   </Teleport>

@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { Editor } from '@tiptap/core'
+import { avecAttente } from '../../attente'
 import { reperagePluginKey } from '../../editor/reperage'
 import { snapToWord } from '../../editor/snap'
 import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../../shared/entretien/anon/anonymisation'
@@ -393,7 +394,7 @@ export function useAnonymisationEntretien(deps: {
       hintAnon.value = 'Le texte ou les décisions ont changé. Examinez à nouveau la couverture des exceptions.'
       return
     }
-    try { await suite() }
+    try { await avecAttente('Mise à jour des pseudonymes du corpus…', async () => { await suite() }) }
     catch { hintAnon.value = 'La promotion n’a pas pu aboutir. Vérifiez les règles du corpus avant de recommencer.' }
   }
 
@@ -609,7 +610,7 @@ export function useAnonymisationEntretien(deps: {
       return
     }
     if (cible === 'corpus') {
-      await promouvoirCorpus(ligne)
+      await avecAttente('Mise à jour des pseudonymes du corpus…', () => promouvoirCorpus(ligne))
       return
     }
     if (ligne.etat === 'corpus' && cible === 'entretien') {
@@ -800,7 +801,7 @@ export function useAnonymisationEntretien(deps: {
     const couverture = confirmation ?? d.couvertureConfirmee
     if (d.cas === 'brouillon' && !autoriserCouvertureCorpus(ligne, couverture, alignerCorpus)) return
     dialoguePorteeCorpus.value = null
-    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.reglePseudos[0], couverture)
+    await avecAttente('Mise à jour des pseudonymes du corpus…', () => appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.reglePseudos[0], couverture))
   }
   /** Dialogue : « Garder les deux » — ajoute les pseudos de l'entretien à la
    *  règle (si ≤2), puis pose/relie en gardant la variante de l'entretien. */
@@ -818,14 +819,16 @@ export function useAnonymisationEntretien(deps: {
     }
     dialoguePorteeCorpus.value = null
     hintAnon.value = null
-    try {
-      for (const p of d.pseudosCible) await window.sonal.corpus.regleAnonAjouterPseudo(d.regleExistanteId, p)
-    } catch (erreur) {
-      hintAnon.value = erreur instanceof Error ? erreur.message : 'L’ajout de variante a échoué.'
-      return
-    }
-    // La variante de l'entretien prime pour ses occurrences (garder les deux).
-    await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.cas === 'brouillon' ? d.pseudosCible[0] : undefined, couverture)
+    await avecAttente('Mise à jour des pseudonymes du corpus…', async () => {
+      try {
+        for (const p of d.pseudosCible) await window.sonal.corpus.regleAnonAjouterPseudo(d.regleExistanteId, p)
+      } catch (erreur) {
+        hintAnon.value = erreur instanceof Error ? erreur.message : 'L’ajout de variante a échoué.'
+        return
+      }
+      // La variante de l'entretien prime pour ses occurrences (garder les deux).
+      await appliquerCorpus(ligne, d.regleExistanteId, d.cas, d.cas === 'brouillon' ? d.pseudosCible[0] : undefined, couverture)
+    })
   }
   function annulerDialogueCorpus() {
     dialoguePorteeCorpus.value = null

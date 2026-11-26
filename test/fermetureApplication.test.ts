@@ -112,4 +112,21 @@ describe('fermeture de l’application', () => {
 
     expect(quitter).toHaveBeenCalledOnce()
   })
+
+  test('« Fermer sans attendre » quitte sans attendre la fin du nettoyage', async () => {
+    const abandon = differee<void>()
+    const quitter = vi.fn()
+    const execution = executerFermetureApplication({
+      viderRenderers: async () => true,
+      nettoyerDistant: () => new Promise<void>(() => {}),
+      quitter,
+      abandon: abandon.promesse,
+    })
+    await Promise.resolve()
+    expect(quitter).not.toHaveBeenCalled()
+    abandon.resoudre()
+
+    await expect(execution).resolves.toEqual({ renderersVides: true, nettoyage: 'abandonne' })
+    expect(quitter).toHaveBeenCalledOnce()
+  })
 })

@@ -98,6 +98,7 @@ declare global {
         ouvrirKitPedagogique: () => Promise<void>
         ouvrirDocumentation: (entree: 'guide' | 'faq' | 'pseudonymisation') => Promise<void>
         surPreparationFermeture: (cb: () => Promise<void>) => () => void
+        fermerSansAttendre: () => void
         surSuspensionSysteme: (cb: () => Promise<void>) => () => void
         surReveilSysteme: (cb: () => Promise<void>) => () => void
       }

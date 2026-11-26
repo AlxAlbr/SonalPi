@@ -184,7 +184,14 @@ export class MiroirDistant {
       for (const entree of candidats) {
         signal?.throwIfAborted()
         if (!entree.empreinte) continue
+        // Une copie locale endommagée ne contient plus aucun travail à protéger : on reprend celle du serveur.
+        const endommagee = this.copieLocaleEndommagee(entree.chemin)
+        if (endommagee) {
+          console.warn('[miroir] copie locale endommagée, remplacée par la version du serveur :', entree.chemin)
+          horsJeu.delete(entree.chemin)
+        }
         if (
+          !endommagee &&
           this.memeEmpreinte(manifeste.empreintes[entree.chemin], entree.empreinte) &&
           existsSync(join(this.dirLocal, entree.chemin))
         ) continue
@@ -330,6 +337,15 @@ export class MiroirDistant {
     if (!chemin || chemin.startsWith('/') || chemin.includes('\\')) return false
     if (/\.(json|crp)$/i.test(chemin)) return false // Les métadonnées passent par la lecture texte.
     return !chemin.split('/').some((s) => s === '' || s === '.' || s === '..')
+  }
+
+  /** Vrai si la copie locale existe mais est vide ou remplie de zéros.
+   *  C'est ce que laisse un arrêt brutal de Windows au milieu d'un enregistrement. */
+  private copieLocaleEndommagee(chemin: string): boolean {
+    const fichier = join(this.dirLocal, chemin)
+    if (!existsSync(fichier)) return false
+    const contenu = readFileSync(fichier)
+    return contenu.length === 0 || contenu[0] === 0 || contenu[contenu.length - 1] === 0
   }
 
   /** Cherche un fichier dans l'inventaire direct de son dossier parent.

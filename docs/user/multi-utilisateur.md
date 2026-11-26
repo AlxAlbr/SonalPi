@@ -112,9 +112,14 @@ C'est rare : cela arrive si quelqu'un a modifié le fichier **en contournant l'a
 
 ## Après un crash ou une fermeture brutale
 
-À la réouverture du corpus distant, l'application détecte les verrous restés coincés par VOTRE
-machine et propose : **Reprendre et publier** (votre dernière version part sur le serveur puis
-le verrou se libère) ou **Abandonner** (libérer sans publier).
+À la réouverture du corpus distant, l'application liste les entretiens restés ouverts sur VOTRE
+machine et propose : **Envoyer mes modifications** (votre dernière version part sur le serveur,
+c'est le choix habituel) ou **Ne pas les envoyer** (le serveur garde la version précédente et vos
+dernières modifications sont perdues). Dans les deux cas, l'entretien redevient disponible pour tous.
+
+Si la fermeture brutale a eu lieu pendant une modification des définitions du corpus (règles,
+thèmes…), la réservation correspondante est libérée automatiquement à la réouverture,
+une fois expirée, pourvu qu'aucune opération ne reste à reprendre sur ce poste.
 
 Si une modification des définitions a été envoyée au serveur sans que la réponse
 ne revienne, l'application ne la rejoue pas et ne l'annule pas non plus : elle

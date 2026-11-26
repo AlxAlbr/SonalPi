@@ -65,6 +65,19 @@ const {
   rafraichirCompteursAAAnonymiser,
   tourHorodatage,
 } = utiliserSonal()
+
+/** Le bouton indique l'envoi en cours, sans bloquer l'édition. */
+const publicationEnCours = ref(false)
+async function publierAMaDemande() {
+  if (publicationEnCours.value) return
+  publicationEnCours.value = true
+  try {
+    await publierMaintenant()
+  } finally {
+    publicationEnCours.value = false
+  }
+}
+
 type OngletLateral = 'notes' | 'donnees' | 'recherche' | 'journal'
 const enteteEditeur = ref<HTMLElement | null>(null)
 let animationNavigationTexte: number | null = null
@@ -458,7 +471,7 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
               ● modifications non publiées<template v-if="statutSession.dernierPubli"> depuis {{ heureDe(statutSession.dernierPubli) }}</template>
             </span>
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
-            <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
+            <button v-if="!roContenu" class="publier-maintenant" :disabled="publicationEnCours" :aria-busy="publicationEnCours" @click="publierAMaDemande">{{ publicationEnCours ? 'Publication…' : 'Publier maintenant' }}</button>
           </template>
           <div v-if="!estVideo" class="lecteur-barre">
             <LecteurAudio :afficher-locuteurs="afficherStatistiquesAudio" :intervention-active="interventionStatistique" />

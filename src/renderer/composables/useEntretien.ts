@@ -1179,7 +1179,7 @@ export function useEntretien(deps: {
       verrouAutrui.value =
         ouverture.acces === 'lecture-seule'
           ? (ouverture.verrouTenuParAutrui ?? {
-              userId: 'un autre utilisateur',
+              userId: 'un détenteur que le serveur n’a pas pu indiquer',
               machineId: '',
               acquiredAt: '',
             })

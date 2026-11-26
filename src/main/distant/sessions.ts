@@ -25,7 +25,8 @@ import {
   PERIODE_PUBLICATION_MS,
   type ContenuVerrou,
 } from '../verrous/types'
-import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
+import { ProviderPutConditionnel, abandonneParCePoste } from '../verrous/providerPutConditionnel'
+import { ecrireFichierDurable } from '../synchronisationDossier'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { GardePseudosWebDAV } from './gardePseudosWebDAV'
 import type { VerrouProvider } from '../verrous/types'
@@ -68,6 +69,8 @@ interface SessionInterne {
   /** Révisions monotones : une écriture arrivée pendant un PUT reste sale. */
   revision: number
   revisionPubliee: number
+  /** Vrai si la copie locale ne diffère du contenu publié que par sa date d'enregistrement. */
+  copieIdentique?: boolean
   dernierPubli: string | null
   /** Limite locale au-delà de laquelle une panne de renouvellement suspend l'édition. */
   droitValideJusqua: number
@@ -76,6 +79,12 @@ interface SessionInterne {
 }
 
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
+
+/** Âge au-delà duquel un verrou illisible est jugé abandonné.
+ *  Large devant le rafraîchissement d'un détenteur vivant et l'écart d'horloge avec le serveur. */
+const DELAI_VERROU_ILLISIBLE_MS = 30 * 60_000
+const dossierDe = (chemin: string) => chemin.slice(0, chemin.lastIndexOf('/'))
+const nomDe = (chemin: string) => chemin.slice(chemin.lastIndexOf('/') + 1)
 
 /** Id d'entretien porté par un chemin VERROUILLÉ — les deux conventions de
  *  variante (`entretiens/<id>.json` en A, `verrous/<id>.lock.json` en B). */
@@ -169,7 +178,7 @@ export class SessionsDEntretien {
       return {
         etat: 'a-nous',
         dernierPubli: existante.dernierPubli,
-        sale: existante.revision > existante.revisionPubliee,
+        sale: existante.revision > existante.revisionPubliee && !existante.copieIdentique,
       }
     }
 
@@ -239,8 +248,25 @@ export class SessionsDEntretien {
   noterSale(id: string): void {
     const s = this.sessions.get(id)
     if (!s || s.degrade) return
+    // Un enregistrement qui ne change rien au contenu publié, comme celui qui suit l'ouverture,
+    // garde sa vérification à la publication suivante, mais n'est pas présenté comme une modification.
+    const etaitAJour = s.revision <= s.revisionPubliee || s.copieIdentique === true
     s.revision += 1
+    s.copieIdentique = etaitAJour && !s.envoiIncertain && s.contenuPublie !== null && this.identiqueAuPublie(id, s.contenuPublie)
     if (!s.dernierPubli) s.dernierPubli = new Date().toISOString()
+  }
+
+  /** Vrai si la copie locale ne diffère du contenu publié que par sa date d'enregistrement. */
+  private identiqueAuPublie(id: string, publie: string): boolean {
+    try {
+      const contenu = (texte: string) => {
+        const { lastModified: _date, ...reste } = JSON.parse(texte) as Record<string, unknown>
+        return signaturePayloadEntretien(reste)
+      }
+      return contenu(readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8')) === contenu(publie)
+    } catch {
+      return false
+    }
   }
 
   async lireCandidatLocuteurs(id: string) {
@@ -508,7 +534,7 @@ export class SessionsDEntretien {
     return {
       etat: 'a-nous',
       dernierPubli: s.dernierPubli,
-      sale: s.revision > s.revisionPubliee,
+      sale: s.revision > s.revisionPubliee && !s.copieIdentique,
     }
   }
 
@@ -812,19 +838,36 @@ export class SessionsDEntretien {
       const liste = await this.client.propfind('verrous')
       for (const e of liste.filter((x) => !x.dossier && x.chemin.endsWith('.lock.json'))) {
         try {
-          const v = JSON.parse(await this.client.getTexte(`verrous/${e.chemin}`)) as ContenuVerrou
+          const v = await this.lireVerrou(`verrous/${e.chemin}`)
+          if (!v) {
+            console.warn('[verrou] illisible, ignoré dans la liste des sessions interrompues :', e.chemin)
+            continue
+          }
           if (v.machineId === this.identite().machineId && v.sessionId !== this.identite().sessionId) {
             const m = /^verrous\/(.+)\.lock\.json$/.exec(`verrous/${e.chemin}`)
             if (m) out.push({ cheminVerrou: `verrous/${e.chemin}`, id: m[1], verrou: v })
           }
-        } catch {
-          /* illisible : ignoré */
+        } catch (erreur) {
+          console.warn('[verrou] illisible, ignoré dans la liste des sessions interrompues :', e.chemin, erreur)
         }
       }
     } catch {
       /* pas de dossier verrous : aucun orphelin */
     }
     return out
+  }
+
+  /** Relit une seule réservation proposée dans le dialogue de reprise.
+   *  'absent' si elle a déjà été levée, null si elle n'est pas une session interrompue de ce poste.
+   *  Une panne du serveur remonte, au lieu de faire passer la réservation pour étrangère. */
+  async orphelin(cheminVerrou: string): Promise<{ cheminVerrou: string; id: string; verrou: ContenuVerrou } | 'absent' | null> {
+    if (this.options.verrouNatif) return (await this.orphelinsNatifs()).find((o) => o.cheminVerrou === cheminVerrou) ?? null
+    const id = /^verrous\/(.+)\.lock\.json$/.exec(cheminVerrou)?.[1]
+    if (!id || id === 'corpus') return null
+    const verrou = await this.lireVerrou(cheminVerrou)
+    if (!verrou) return 'absent'
+    if (verrou.machineId !== this.identite().machineId || verrou.sessionId === this.identite().sessionId) return null
+    return { cheminVerrou, id, verrou }
   }
 
   /** Orphelins VARIANTE A : entrées du journal local dont le fichier est
@@ -863,6 +906,74 @@ export class SessionsDEntretien {
       })
     }
     return out
+  }
+
+  /** Relit un verrou en réessayant sur panne passagère ; null s'il est absent ou mal formé. */
+  private lireVerrou(chemin: string): Promise<ContenuVerrou | null> {
+    return new ProviderPutConditionnel(this.client, this.identite).etat(chemin)
+  }
+
+  /** Supprime le verrou des définitions laissé par un plantage de ce poste.
+   *  Seulement s'il est périmé ou posé avant le lancement actuel : personne ne s'en sert alors plus.
+   *  La suppression est conditionnée à la version lue, pour ne jamais effacer un verrou repris entre-temps.
+   *  L'appelant vérifie au préalable qu'aucune opération locale n'est à reprendre.
+   */
+  async libererVerrouCorpusPerime(): Promise<boolean> {
+    const chemin = 'verrous/corpus.lock.json'
+    let lu: { contenu: string; etag: string | null }
+    try {
+      lu = await this.client.getTexteAvecEtag(chemin)
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 404) return false
+      if (e instanceof ErreurHttp && e.statut >= 500) return await this.libererVerrouCorpusIllisible(chemin)
+      throw e
+    }
+    let v: Partial<ContenuVerrou>
+    try {
+      v = JSON.parse(lu.contenu) as Partial<ContenuVerrou>
+    } catch {
+      return await this.libererVerrouCorpusIllisible(chemin)
+    }
+    console.info('[verrou corpus] observé à l’ouverture :', lu.contenu.replace(/\s+/g, ' '), 'etag', lu.etag)
+    if (!lu.etag || typeof v.refreshedAt !== 'string' || typeof v.ttl !== 'number'
+      || v.machineId !== this.identite().machineId || v.sessionId === this.identite().sessionId
+      || !abandonneParCePoste(v as ContenuVerrou)) return false
+    try {
+      await this.client.supprimer(chemin, lu.etag)
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 404) return false
+      if (!(e instanceof ErreurHttp && e.statut === 412)) throw e
+      // Certains serveurs refusent la suppression conditionnelle d'un fichier inchangé.
+      // Si le verrou relu est toujours le même, on le supprime directement.
+      const relu = await this.client.getTexteAvecEtag(chemin).catch(() => null)
+      if (relu?.contenu !== lu.contenu) return false
+      console.warn('[verrou corpus] suppression conditionnelle refusée, verrou inchangé : suppression directe')
+      try {
+        await this.client.supprimer(chemin)
+      } catch (e2) {
+        if (e2 instanceof ErreurHttp && e2.statut === 404) return false
+        throw e2
+      }
+    }
+    return true
+  }
+
+  /** Un verrou que le serveur ne sait plus relire (fichier abîmé par un plantage) ne dit pas qui le tient.
+   *  Son âge suffit : un détenteur vivant le réécrit au moins chaque minute.
+   *  Il est donc supprimé s'il n'a pas changé depuis longtemps, toujours sous condition de la version observée. */
+  private async libererVerrouCorpusIllisible(chemin: string): Promise<boolean> {
+    const entree = (await this.client.propfind(dossierDe(chemin))).find((e) => e.chemin === nomDe(chemin))
+    console.info('[verrou corpus] illisible, observé :', JSON.stringify(entree ?? null))
+    if (!entree?.etag || !entree.dernierModifie) return false
+    const age = Date.now() - Date.parse(entree.dernierModifie)
+    if (!(age > DELAI_VERROU_ILLISIBLE_MS)) return false
+    try {
+      await this.client.supprimer(chemin, entree.etag)
+    } catch (e) {
+      if (e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412)) return false
+      throw e
+    }
+    return true
   }
 
   /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue) :
@@ -942,6 +1053,18 @@ export class SessionsDEntretien {
       await this.client.supprimer(cheminVerrou, etag ?? undefined)
     } catch (e) {
       if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
+      // Suppression conditionnelle refusée : si le verrou relu vient toujours d'une ancienne session de ce poste,
+      // personne d'autre ne l'a repris et on le supprime directement.
+      if (e.statut === 412) {
+        // Une relecture impossible remonte : l'entretien reste alors dans le journal, et la libération pourra être retentée.
+        const actuel = await this.lireVerrou(cheminVerrou)
+        if (actuel && actuel.machineId === this.identite().machineId && actuel.sessionId !== this.identite().sessionId) {
+          console.warn('[verrou] suppression conditionnelle refusée, verrou orphelin inchangé : suppression directe', cheminVerrou)
+          await this.client.supprimer(cheminVerrou).catch((e2) => {
+            if (!(e2 instanceof ErreurHttp && e2.statut === 404)) throw e2
+          })
+        }
+      }
     }
     const id = idDe(cheminVerrou)
     if (id) this.journalRetirer(id)
@@ -1064,8 +1187,6 @@ export class SessionsDEntretien {
   /** Écriture locale atomique d'un contenu serveur fraîchement tiré. */
   private ecrireLocalFichier(abs: string, contenu: string): void {
     mkdirSync(dirname(abs), { recursive: true })
-    const tmp = `${abs}.tmp`
-    writeFileSync(tmp, contenu, 'utf8')
-    renameSync(tmp, abs)
+    ecrireFichierDurable(abs, contenu)
   }
 }

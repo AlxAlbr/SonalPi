@@ -9,7 +9,9 @@ import type {
   ProgressionTransfert,
 } from '../../../shared/distant'
 import { appliquerStatutSession as appliquerStatutSessionApplication } from '../../couturesApplication'
+import { nettoyerMessage } from '../../erreurs'
 import { tirageAutomatiqueSuspendu } from '../../tirageAutomatique'
+import { annoncerFermeture } from '../../attente'
 import type { VueApplication } from '../espaces'
 
 /** Un corpus local sait tout faire : c'est la référence des capacités. */
@@ -90,6 +92,11 @@ export function useDistantCorpus(deps: {
 }) {
   const idDistantCourant = ref<string | null>(null)
   const dernierTirage = ref<string | null>(null)
+  /** Heure affichée « dernière synchro » : dernière mise à jour depuis le serveur ou dernier envoi réussi. */
+  const derniereSynchro = ref<string | null>(null)
+  function noterSynchro(date = new Date().toISOString()): void {
+    if (!derniereSynchro.value || date > derniereSynchro.value) derniereSynchro.value = date
+  }
   const tirageEnCours = ref(false)
   const progressionDistant = ref<ProgressionTransfert | null>(null)
   const enLigne = ref(true)
@@ -181,6 +188,7 @@ export function useDistantCorpus(deps: {
     fournisseurCourant.value = fournisseur
     etatBaseMedia.value = baseMedia
     dernierTirage.value = new Date().toISOString()
+    derniereSynchro.value = dernierTirage.value
     verrousIndisponibles.value = observationIndisponible
     absorberVerrous(verrous)
     deps.effets.majAudiosInaccessibles(inaccessibles)
@@ -193,6 +201,7 @@ export function useDistantCorpus(deps: {
   function quitterDistant(): void {
     idDistantCourant.value = null
     dernierTirage.value = null
+    derniereSynchro.value = null
     badgesVerrous.value = {}
     verrousIndisponibles.value = false
     presences.value = []
@@ -265,6 +274,7 @@ export function useDistantCorpus(deps: {
         await deps.effets.rafraichirCorpusSansFermer()
       }
       dernierTirage.value = tirage.date
+      noterSynchro(tirage.date)
       return true
     } catch (erreur) {
       enLigne.value = false
@@ -354,10 +364,16 @@ export function useDistantCorpus(deps: {
         publiErreur.value = messages[resultat.raison ?? ''] ?? resultat.raison ??
           'La publication n’a pas abouti. Le travail local est conservé.'
       }
+      if (resultat.ok) noterSynchro()
       await rafraichirStatutSession()
       return resultat.ok
-    } catch {
-      publiErreur.value = 'Serveur injoignable — réessayez « Publier maintenant ».'
+    } catch (e) {
+      // Seule une vraie coupure réseau est présentée comme telle ;
+      // les autres refus gardent leur explication.
+      const detail = nettoyerMessage(e)
+      publiErreur.value = /fetch failed|ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|network/i.test(detail)
+        ? 'Serveur injoignable — réessayez « Publier maintenant ».'
+        : `La publication n’a pas abouti : ${detail}`
       await rafraichirStatutSession()
       return false
     }
@@ -368,6 +384,7 @@ export function useDistantCorpus(deps: {
   })
   const arreterPreparationFermeture = window.sonal.application.surPreparationFermeture(
     async () => {
+      if (idDistantCourant.value) annoncerFermeture()
       await deps.effets.annulerPreparation?.()
       if (!deps.entretien.ouvertId.value) return
       if (idDistantCourant.value && statutSession.value.etat === 'degrade') {
@@ -416,6 +433,10 @@ export function useDistantCorpus(deps: {
   const arreterEdition = watch(entretienEditable, (editable) => {
     deps.effets.rendreEditeurEditable(editable)
   })
+  // Au retour d'un entretien, la copie du corpus est mise à jour tout de suite, sans attendre la minuterie.
+  const arreterRetourCorpus = watch(() => deps.vue.value, (vue, avant) => {
+    if (vue === 'corpus' && avant === 'entretien' && idDistantCourant.value) void actualiserDistant(true)
+  })
   const minuteurTirage = setInterval(() => {
     if (deps.vue.value === 'corpus' && idDistantCourant.value) void actualiserDistant(true)
   }, 60_000)
@@ -435,11 +456,14 @@ export function useDistantCorpus(deps: {
     arreterSuspensionSysteme()
     arreterReveilSysteme()
     arreterEdition()
+    arreterRetourCorpus()
   })
 
   return {
     idDistantCourant,
     dernierTirage,
+    derniereSynchro,
+    noterSynchro,
     tirageEnCours,
     progressionDistant,
     pourcentageProgression,

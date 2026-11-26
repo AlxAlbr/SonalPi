@@ -80,6 +80,28 @@ describe('miroir distant — protection du travail local', () => {
     expect(readFileSync(join(b.dir, 'entretiens/e2.json'), 'utf8')).toBe(DISTANT)
   })
 
+  test('une copie locale remplie de zéros est remplacée par la version du serveur, même exclue', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    writeFileSync(b.fichier, Buffer.alloc(BASE.length))
+    b.serveur.poser(CHEMIN, DISTANT)
+
+    const tirage = await b.miroir.tirer([CHEMIN])
+
+    expect(tirage.telecharges).toEqual([CHEMIN])
+    expect(readFileSync(b.fichier, 'utf8')).toBe(DISTANT)
+    expect(b.miroir.etagDistant(CHEMIN)).toBe(b.serveur.etagDe(CHEMIN))
+  })
+
+  test('une copie locale remplie de zéros est reprise même si le serveur n’a pas changé', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    writeFileSync(b.fichier, Buffer.alloc(BASE.length))
+
+    expect((await b.miroir.tirer()).telecharges).toEqual([CHEMIN])
+    expect(readFileSync(b.fichier, 'utf8')).toBe(BASE)
+  })
+
   test('un fichier exclu dès le premier tirage ne reçoit ni contenu ni version', async () => {
     const b = banc()
 

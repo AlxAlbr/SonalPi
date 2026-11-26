@@ -583,6 +583,7 @@ export class ContexteCorpusDistant {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     // Un import incomplet se reprend depuis son propre journal, jamais comme une session.
     if (this.transactions.lireSuiviImportCorrespondances() || this.transactions.lirePublicationEntretien()) return []
+    await this.libererVerrouCorpusPerime()
     const suivi = this.transactions.lireSuiviRenommageAnon()
     const dissociation = this.transactions.lireSuiviDissociationAnon()
     const liste = await this.sessions.orphelins()
@@ -597,13 +598,30 @@ export class ContexteCorpusDistant {
     }))
   }
 
+  /** Un plantage pendant une modification des définitions laisse leur verrou posé.
+   *  Personne ne pourrait plus alors créer de règle ni publier d'entretien : on le libère,
+   *  s'il vient de ce poste, a expiré, et qu'aucune opération locale n'est à reprendre.
+   *  Un échec ici ne bloque jamais l'ouverture du corpus. */
+  private async libererVerrouCorpusPerime(): Promise<void> {
+    if (!this.transactions.aucuneOperationDefinitionsEnSuspens()) {
+      console.warn('[verrou corpus] non libéré : une opération locale reste à reprendre.')
+      return
+    }
+    try {
+      const libere = await this.avecSession(() => this.sessions.libererVerrouCorpusPerime())
+      console.info(`[verrou corpus] vérification à l’ouverture : ${libere ? 'réservation expirée libérée' : 'rien à libérer'}.`)
+    } catch (e) {
+      console.warn('[verrou corpus] vérification impossible, réessayée à la prochaine ouverture :', e)
+    }
+  }
+
   /** Reprend et publie une session récupérable. */
   async reprendreOrphelin(
     cheminVerrou: string,
   ): Promise<{ ok: boolean; raison?: string }> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     return this.avecSession(async () => {
-      await this.exigerOrphelinDeSession(cheminVerrou)
+      if (!(await this.exigerOrphelinDeSession(cheminVerrou))) return { ok: false, raison: 'deja libere' }
       return this.sessions.reprendreOrphelin(cheminVerrou)
     })
   }
@@ -612,19 +630,24 @@ export class ContexteCorpusDistant {
   async abandonnerOrphelin(cheminVerrou: string): Promise<void> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     await this.avecSession(async () => {
-      await this.exigerOrphelinDeSession(cheminVerrou)
+      // Une réservation déjà levée n'a plus rien à libérer.
+      if (!(await this.exigerOrphelinDeSession(cheminVerrou))) return
       await this.sessions.abandonnerOrphelin(cheminVerrou)
     })
   }
 
-  private async exigerOrphelinDeSession(cheminVerrou: string): Promise<void> {
+  /** Vérifie que la réservation vient bien d'une session interrompue de ce poste.
+   *  Faux si elle a déjà été levée ; une panne du serveur remonte telle quelle. */
+  private async exigerOrphelinDeSession(cheminVerrou: string): Promise<boolean> {
     this.transactions.exigerPublicationDisponible()
-    const orphelin = (await this.sessions.orphelins()).find((v) => v.cheminVerrou === cheminVerrou)
+    const orphelin = await this.sessions.orphelin(cheminVerrou)
+    if (orphelin === 'absent') return false
     if (!orphelin || this.transactions.cibleRetraitVarianteProtegee(orphelin.id) || orphelin.verrou.sessionId.startsWith('retrait-variante-') || orphelin.verrou.sessionId.startsWith('ajout-variante-') || orphelin.verrou.sessionId.startsWith('import-') || orphelin.verrou.sessionId.startsWith('rename-') || orphelin.verrou.sessionId.startsWith('garde-') || orphelin.verrou.sessionId.startsWith('dissociation-') || orphelin.verrou.sessionId.startsWith('suppression-anon-') || orphelin.id === 'corpus'
       || this.transactions.lireSuiviRenommageAnon()?.cibles.some((c) => c.id === orphelin.id)
       || this.transactions.cibleDissociationProtegee(orphelin.id) || this.transactions.cibleSuppressionProtegee(orphelin.id)) {
       throw new Error('Ce verrou ne correspond pas à une session locale récupérable. Aucune publication ni libération autorisée.')
     }
+    return true
   }
 
   /** Met à jour la présence informative du poste. */
@@ -663,6 +686,7 @@ export class ContexteCorpusDistant {
     this.transactions.viderApercusDissociationAnon()
     this.transactions.viderApercusSuppressionAnon()
     this.transactions.viderApercusRetraitVarianteAnon()
+    this.transactions.arreterRepriseVerrousPerimes()
     this.termine = true
   }
 

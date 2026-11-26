@@ -80,7 +80,7 @@ const {
   pasAPas,
   // Corpus distant : synchro (barre haute) + lecture seule (grisage)
   idDistantCourant,
-  dernierTirage,
+  derniereSynchro,
   tirageEnCours,
   actualiserDistant,
   lectureSeule,
@@ -449,7 +449,7 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
       <div v-if="idDistantCourant" class="corpus-barre">
         <span class="synchro-zone">
           <span class="dernier-tirage" title="Copie locale synchronisée avec le serveur">
-            ☁ dernière synchro {{ heureDe(dernierTirage) }}
+            ☁ dernière synchro {{ heureDe(derniereSynchro) }}
           </span>
           <!-- Aucun badge affiché ne signifie RIEN quand l'observation a échoué :
                l'interface le dit, et l'ouverture d'un entretien reste vérifiée

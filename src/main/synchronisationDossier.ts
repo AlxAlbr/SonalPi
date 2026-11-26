@@ -1,4 +1,5 @@
-import { closeSync, fsyncSync, openSync } from 'node:fs'
+import { closeSync, fsyncSync, openSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 /**
  *  Force l'écriture sur disque du contenu d'un dossier, après un renommage.
@@ -15,4 +16,22 @@ export function synchroniserDossier(dossier: string): void {
   } finally {
     if (descripteur !== null) closeSync(descripteur)
   }
+}
+
+/**
+ *  Remplace un fichier par un nouveau contenu, sans risque de le perdre.
+ *  Le contenu est forcé sur disque avant le renommage :
+ *  sans cela, un arrêt brutal de Windows peut laisser un fichier rempli de zéros.
+ */
+export function ecrireFichierDurable(fichier: string, contenu: string): void {
+  const temporaire = `${fichier}.tmp`
+  const descripteur = openSync(temporaire, 'w')
+  try {
+    writeFileSync(descripteur, contenu, 'utf8')
+    fsyncSync(descripteur)
+  } finally {
+    closeSync(descripteur)
+  }
+  renameSync(temporaire, fichier)
+  synchroniserDossier(dirname(fichier))
 }

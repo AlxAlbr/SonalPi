@@ -33,7 +33,51 @@ import type {
   ResultatBattement,
   VerrouProvider,
 } from './types'
-import { estLeNousMeme, MARGE_DERIVE_S } from './types'
+import { estLeNousMeme, estPerime, MARGE_DERIVE_S } from './types'
+
+/** Verrous posés par ce poste et dont la libération a échoué, par serveur et chemin.
+ *  Partagé entre instances : chaque opération crée son propre fournisseur. */
+const liberationsEnAttente = new Map<string, { sessionId: string; acquiredAt: string }>()
+
+/** Par serveur, décide si un verrou expiré laissé par ce poste peut être retiré avant une nouvelle demande.
+ *  Le corpus ouvert l'enregistre : lui seul sait si une opération locale est encore en cours ou à reprendre. */
+type AutorisationReprise = (cheminVerrou: string) => boolean
+const autorisationsReprise = new Map<string, AutorisationReprise>()
+
+/** Heure de lancement de ce processus.
+ *  Une seule instance de SonalPi tourne par profil, et l'identifiant de poste est rangé dans ce profil :
+ *  un verrou de ce poste posé avant cette heure vient donc d'un lancement terminé. */
+const LANCEMENT_MS = Date.now()
+
+/** Vrai si plus personne ne se sert de ce verrou posé par ce poste :
+ *  il a expiré, ou il a été posé par un lancement précédent (fermeture interrompue, plantage). */
+export function abandonneParCePoste(v: ContenuVerrou, maintenant = Date.now()): boolean {
+  if (estPerime(v, maintenant)) return true
+  const pose = Date.parse(v.acquiredAt)
+  return Number.isFinite(pose) && pose < LANCEMENT_MS
+}
+
+/** Enregistre, ou retire avec null, l'autorisation de reprise pour un serveur. */
+export function autoriserRepriseVerrousPerimes(baseUrl: string, autorisation: AutorisationReprise | null): void {
+  if (autorisation) autorisationsReprise.set(baseUrl, autorisation)
+  else autorisationsReprise.delete(baseUrl)
+}
+
+/** Délais entre les tentatives de lecture ou de libération d’un verrou ; modifiables par les tests. */
+export const DELAIS_REESSAI_VERROU_MS = [300, 1000, 2500]
+
+/** Réessaie une opération après une panne passagère du serveur ou du réseau. */
+async function avecReessais<T>(operation: () => Promise<T>): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await operation()
+    } catch (e) {
+      const passagere = e instanceof TypeError || (e instanceof ErreurHttp && (e.statut === 0 || e.statut === 423 || e.statut >= 500))
+      if (!passagere || i >= DELAIS_REESSAI_VERROU_MS.length) throw e
+      await new Promise((r) => setTimeout(r, DELAIS_REESSAI_VERROU_MS[i]))
+    }
+  }
+}
 
 /** Fabrique le contenu d'un verrou pour notre session. */
 export function contenuVerrou(
@@ -48,6 +92,8 @@ export function contenuVerrou(
 export class ProviderPutConditionnel implements VerrouProvider {
   /** cheminVerrou → ETag de LA version du verrou que nous détenons. */
   private readonly etags = new Map<string, string>()
+  /** cheminVerrou → signature du verrou que nous avons posé, pour le reconnaître à la relecture. */
+  private readonly poses = new Map<string, { sessionId: string; acquiredAt: string }>()
 
   constructor(
     private readonly client: ClientWebDAV,
@@ -57,7 +103,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
     private readonly ttlS = 300,
   ) {}
 
-  async acquerir(cheminVerrou: string): Promise<ResultatAcquisition> {
+  async acquerir(cheminVerrou: string, nouvelleTentative = false, absences = 0): Promise<ResultatAcquisition> {
     const contenu = contenuVerrou(this.identite(), this.ttlS)
     try {
       const etag = await this.putTexteAvecEtagFiable(cheminVerrou, JSON.stringify(contenu, null, 2), {
@@ -66,6 +112,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
       // MÉMORISER la garde : battement et libération porteront CET ETag —
       // la version que nous avons créée, preuve de notre détention.
       this.etags.set(cheminVerrou, etag)
+      this.poses.set(cheminVerrou, { sessionId: contenu.sessionId, acquiredAt: contenu.acquiredAt })
       return {
         ok: true,
         etag,
@@ -73,7 +120,22 @@ export class ProviderPutConditionnel implements VerrouProvider {
       }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
-        return { ok: false, tenuPar: await this.etat(cheminVerrou) }
+        // Le refus est acquis ; un verrou que le serveur ne sait pas relire laisse seulement le détenteur inconnu.
+        let lisible = true
+        const tenuPar = await this.etat(cheminVerrou).catch(() => { lisible = false; return null })
+        // Juste après la suppression d'un verrou, certains serveurs refusent encore sa création
+        // alors que le fichier n'existe plus : on redemande après une courte pause.
+        if (lisible && !tenuPar && absences < DELAIS_REESSAI_VERROU_MS.length) {
+          console.warn('[verrou] création refusée alors que le verrou est absent, nouvelle demande :', cheminVerrou)
+          await new Promise((r) => setTimeout(r, DELAIS_REESSAI_VERROU_MS[absences]))
+          return this.acquerir(cheminVerrou, nouvelleTentative, absences + 1)
+        }
+        if (!lisible) console.warn('[verrou] création refusée et verrou illisible :', cheminVerrou)
+        if (!nouvelleTentative && (await this.retirerLiberationEnAttente(cheminVerrou, tenuPar)
+          || await this.retirerPerimeDeCePoste(cheminVerrou, tenuPar))) {
+          return this.acquerir(cheminVerrou, true, absences)
+        }
+        return { ok: false, tenuPar }
       }
       throw e
     }
@@ -86,10 +148,12 @@ export class ProviderPutConditionnel implements VerrouProvider {
     if (!actuel) {
       // Verrou disparu sous nos pieds (nettoyage serveur ?) → rétrogradation ;
       // la RÉ-acquisition éventuelle est une décision de la couche session.
+      console.warn('[verrou] battement refusé, verrou disparu ou illisible :', cheminVerrou)
       this.etags.delete(cheminVerrou)
       return { ok: false }
     }
     if (!estLeNousMeme(actuel, this.identite().sessionId)) {
+      console.warn('[verrou] battement refusé, verrou tenu par une autre session :', cheminVerrou, JSON.stringify(actuel))
       this.etags.delete(cheminVerrou) // repris par autrui : notre garde ne sert plus
       return { ok: false }
     }
@@ -109,6 +173,13 @@ export class ProviderPutConditionnel implements VerrouProvider {
       }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
+        // Certains serveurs changent la version annoncée juste après l'écriture.
+        // Si le verrou porte toujours notre signature, on rafraîchit sur sa version actuelle.
+        const etag = await this.battreSurVersionActuelle(cheminVerrou, actuel)
+        if (etag) {
+          this.etags.set(cheminVerrou, etag)
+          return { ok: true, etag, dureeGarantieMs: (this.ttlS + MARGE_DERIVE_S) * 1000 }
+        }
         // Notre verrou a été FORCÉ entre-temps, détecté au battement suivant.
         this.etags.delete(cheminVerrou)
         return { ok: false }
@@ -117,19 +188,153 @@ export class ProviderPutConditionnel implements VerrouProvider {
     }
   }
 
+  private async battreSurVersionActuelle(cheminVerrou: string, lu: ContenuVerrou): Promise<string | null> {
+    try {
+      return await this.rafraichirSiToujoursNotre(cheminVerrou, lu)
+    } catch (e) {
+      console.warn('[verrou] battement impossible, le serveur n’a pas répondu :', cheminVerrou, e)
+      return null
+    }
+  }
+
+  /** Rafraîchit le verrou tant qu'il porte notre signature.
+   *  Certains serveurs refusent l'écriture conditionnelle alors que le verrou n'a pas bougé :
+   *  s'il est relu inchangé, personne d'autre n'a pu le prendre et on l'écrit directement. */
+  private async rafraichirSiToujoursNotre(cheminVerrou: string, lu: ContenuVerrou): Promise<string | null> {
+    const estNotre = (v: ContenuVerrou | null): v is ContenuVerrou =>
+      !!v && v.sessionId === lu.sessionId && v.acquiredAt === lu.acquiredAt
+    const actuel = await this.etat(cheminVerrou)
+    if (!estNotre(actuel)) {
+      console.warn('[verrou] battement refusé, verrou repris ou disparu :', cheminVerrou, JSON.stringify(actuel))
+      return null
+    }
+    const rafraichi = JSON.stringify({ ...actuel, refreshedAt: new Date().toISOString() }, null, 2)
+    const etagActuel = await avecReessais(() => this.etatEtag(cheminVerrou))
+    if (etagActuel) {
+      console.warn('[verrou] version annoncée par le serveur périmée, battement sur la version actuelle :', cheminVerrou)
+      try {
+        return await this.putTexteAvecEtagFiable(cheminVerrou, rafraichi, { ifMatch: etagActuel })
+      } catch (e) {
+        if (!(e instanceof ErreurHttp && e.statut === 412)) throw e
+      }
+    }
+    const relu = await this.etat(cheminVerrou)
+    if (!estNotre(relu)) {
+      console.warn('[verrou] battement refusé, verrou repris ou disparu :', cheminVerrou, JSON.stringify(relu))
+      return null
+    }
+    console.warn('[verrou] écriture conditionnelle refusée par le serveur, verrou toujours à nous : rafraîchissement direct', cheminVerrou)
+    return await this.putTexteAvecEtagFiable(cheminVerrou, rafraichi, {})
+  }
+
   async liberer(cheminVerrou: string): Promise<void> {
     const etag = this.etags.get(cheminVerrou)
-    if (!etag) return // jamais détenu / déjà libéré : idempotent
+    const pose = this.poses.get(cheminVerrou)
+    if (!etag && !pose) return // jamais détenu / déjà libéré : idempotent
     try {
-      await this.client.supprimer(cheminVerrou, etag)
-      this.etags.delete(cheminVerrou)
-    } catch (e) {
-      if (e instanceof ErreurHttp && (e.statut === 412 || e.statut === 404)) {
-        this.etags.delete(cheminVerrou) // déjà repris ou déjà parti : rien à faire
+      // Après un battement raté, le verrou peut encore porter notre signature :
+      // on le retire dans ce cas seulement, au lieu de le laisser bloquer jusqu'à son expiration.
+      const retire = etag
+        ? await avecReessais(() => this.supprimerNotreVerrou(cheminVerrou, etag, pose))
+        : await avecReessais(() => this.supprimerSiToujoursNotre(cheminVerrou, pose!))
+      if (!retire && pose) {
+        // Relu absent ou étranger alors que nous ne l'avons pas vu supprimé : la lecture peut être périmée.
+        // La prochaine demande de ce verrou vérifiera à nouveau sa signature avant de le retirer.
+        console.warn('[verrou] libération non confirmée par le serveur, vérification à la prochaine demande :', cheminVerrou)
+        liberationsEnAttente.set(this.cle(cheminVerrou), pose)
+        this.etags.delete(cheminVerrou)
+        this.poses.delete(cheminVerrou)
         return
       }
+    } catch (e) {
+      // Le verrou reste posé : on retient qu'il est à nous pour le retirer à la prochaine demande.
+      console.warn('[verrou] libération impossible, nouvelle tentative à la prochaine demande :', cheminVerrou, e)
+      if (pose) liberationsEnAttente.set(this.cle(cheminVerrou), pose)
       throw e
     }
+    liberationsEnAttente.delete(this.cle(cheminVerrou))
+    this.etags.delete(cheminVerrou)
+    this.poses.delete(cheminVerrou)
+  }
+
+  /** Vrai si le verrou est supprimé, ou n'est plus le nôtre selon une relecture. */
+  private async supprimerNotreVerrou(cheminVerrou: string, etag: string, pose?: { sessionId: string; acquiredAt: string }): Promise<boolean> {
+    try {
+      await this.client.supprimer(cheminVerrou, etag)
+      return true
+    } catch (e) {
+      if (!(e instanceof ErreurHttp && (e.statut === 412 || e.statut === 404))) throw e
+      // Certains serveurs refusent la suppression conditionnelle alors que le verrou n'a pas bougé.
+      // S'il porte encore notre signature, personne d'autre n'a pu le prendre : on le supprime directement.
+      if (e.statut === 412 && pose) return await this.supprimerSiToujoursNotre(cheminVerrou, pose)
+      return true
+    }
+  }
+
+  /** Un verrou que ce poste n'a pas réussi à libérer est retiré avant une nouvelle demande.
+   *  Seulement s'il porte encore exactement la signature retenue. */
+  private async retirerLiberationEnAttente(cheminVerrou: string, tenuPar: ContenuVerrou | null): Promise<boolean> {
+    const enAttente = liberationsEnAttente.get(this.cle(cheminVerrou))
+    if (!enAttente || !tenuPar || tenuPar.sessionId !== enAttente.sessionId || tenuPar.acquiredAt !== enAttente.acquiredAt) return false
+    try {
+      await this.client.supprimer(cheminVerrou)
+    } catch (e) {
+      if (!(e instanceof ErreurHttp && e.statut === 404)) {
+        console.warn('[verrou] retrait du verrou non libéré impossible :', cheminVerrou, e)
+        return false
+      }
+    }
+    liberationsEnAttente.delete(this.cle(cheminVerrou))
+    return true
+  }
+
+  /** Un verrou abandonné par une autre session de ce poste est retiré si le corpus ouvert l'autorise.
+   *  Abandonné : expiré, ou posé avant le lancement actuel de SonalPi.
+   *  La suppression vise la version observée ; si le serveur la refuse, le verrou doit être relu inchangé. */
+  private async retirerPerimeDeCePoste(cheminVerrou: string, tenuPar: ContenuVerrou | null): Promise<boolean> {
+    const moi = this.identite()
+    if (!tenuPar || tenuPar.machineId !== moi.machineId || tenuPar.sessionId === moi.sessionId) return false
+    if (!abandonneParCePoste(tenuPar)) return false
+    if (!autorisationsReprise.get(this.client.config.baseUrl)?.(cheminVerrou)) return false
+    try {
+      const etag = await this.etatEtag(cheminVerrou)
+      try {
+        await this.client.supprimer(cheminVerrou, etag ?? undefined)
+      } catch (e) {
+        if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
+        if (e.statut === 412) {
+          const relu = await this.etat(cheminVerrou)
+          if (!relu || relu.sessionId !== tenuPar.sessionId || relu.acquiredAt !== tenuPar.acquiredAt
+            || relu.refreshedAt !== tenuPar.refreshedAt) return false
+          await this.client.supprimer(cheminVerrou).catch((e2) => {
+            if (!(e2 instanceof ErreurHttp && e2.statut === 404)) throw e2
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('[verrou] retrait de la réservation abandonnée par ce poste impossible :', cheminVerrou, e)
+      return false
+    }
+    console.warn('[verrou] réservation abandonnée par ce poste retirée :', cheminVerrou, JSON.stringify(tenuPar))
+    return true
+  }
+
+  private cle(cheminVerrou: string) {
+    return `${this.client.config.baseUrl}|${cheminVerrou}`
+  }
+
+  /** Supprime le verrou s'il porte encore notre signature ; vrai s'il a été supprimé. */
+  private async supprimerSiToujoursNotre(cheminVerrou: string, pose: { sessionId: string; acquiredAt: string }): Promise<boolean> {
+    // Une relecture impossible remonte : le verrou est alors retenu pour la demande suivante.
+    const actuel = await this.etat(cheminVerrou)
+    if (!actuel || actuel.sessionId !== pose.sessionId || actuel.acquiredAt !== pose.acquiredAt) return false
+    console.warn('[verrou] verrou toujours à nous : suppression directe', cheminVerrou)
+    try {
+      await this.client.supprimer(cheminVerrou)
+    } catch (e) {
+      if (!(e instanceof ErreurHttp && e.statut === 404)) throw e
+    }
+    return true
   }
 
   /** Forçage d'un verrou PÉRIMÉ (l'appelant a vérifié `estPerime`, UI confirmée).
@@ -157,7 +362,8 @@ export class ProviderPutConditionnel implements VerrouProvider {
   async etat(cheminVerrou: string): Promise<ContenuVerrou | null> {
     let brut: string
     try {
-      brut = await this.client.getTexte(cheminVerrou)
+      // Certains serveurs ne servent pas un fichier qui vient d'être écrit : quelques nouvelles tentatives.
+      brut = await avecReessais(() => this.client.getTexte(cheminVerrou))
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 404) return null
       throw e

@@ -11,10 +11,13 @@ import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { SessionsDEntretien, type IdentiteSession } from '../../src/main/distant/sessions'
-import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
+import { autoriserRepriseVerrousPerimes, DELAIS_REESSAI_VERROU_MS, ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 import type { PayloadEntretien } from '../../src/shared/format'
 import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
+
+// Les réessais sur panne passagère n'attendent pas dans les tests.
+DELAIS_REESSAI_VERROU_MS.splice(0, DELAIS_REESSAI_VERROU_MS.length, 0, 0, 0)
 
 const ID = 'ent-abc'
 
@@ -33,6 +36,15 @@ function banc(options: { maintenant?: () => number } = {}) {
     attendrePublication: null as Promise<void> | null,
     publicationCommencee: null as (() => void) | null,
     battement: false,
+    suppressionConditionnelleRefusee: false,
+    ecritureConditionnelleVerrouRefusee: false,
+    /** Imite un serveur qui refuse encore la création d'un verrou qu'il vient de supprimer. */
+    creationsVerrouRefusees: 0,
+    suppressionVerrouEnPanne: false,
+    /** Imite un serveur qui change la version d'un verrou juste après l'avoir écrit
+     *  et refuse quelques relectures. */
+    verrouInstable: false,
+    lecturesVerrouRefusees: 0,
   }
   const fetch: typeof serveur.fetch = async (entree, init) => {
     const requete = new Request(entree, init)
@@ -54,8 +66,34 @@ function banc(options: { maintenant?: () => number } = {}) {
         throw new TypeError('réponse perdue')
       }
     }
+    if (requete.method === 'DELETE' && chemin.includes('/verrous/') && panne.suppressionVerrouEnPanne) {
+      return new Response('panne', { status: 503 })
+    }
+    if (requete.method === 'DELETE' && chemin.includes('/verrous/') && requete.headers.has('If-Match') && panne.suppressionConditionnelleRefusee) {
+      return new Response('refus', { status: 412 })
+    }
+    if (requete.method === 'PUT' && chemin.includes('/verrous/') && requete.headers.has('If-None-Match') && panne.creationsVerrouRefusees > 0) {
+      panne.creationsVerrouRefusees--
+      return new Response('refus', { status: 412 })
+    }
+    if (requete.method === 'PUT' && chemin.includes('/verrous/') && requete.headers.has('If-Match') && panne.ecritureConditionnelleVerrouRefusee) {
+      return new Response('refus', { status: 412 })
+    }
     if (requete.method === 'DELETE' && chemin.endsWith(`/verrous/${ID}.lock.json`)) {
       if (panne.liberation) return new Response('panne', { status: 503 })
+    }
+    if (panne.verrouInstable && chemin.includes('/verrous/')) {
+      const relatif = `verrous/${chemin.split('/verrous/')[1]}`
+      if (requete.method === 'GET' && panne.lecturesVerrouRefusees > 0) {
+        panne.lecturesVerrouRefusees--
+        return new Response('indisponible', { status: 503 })
+      }
+      const reponse = await serveur.fetch(entree, init)
+      if (requete.method === 'PUT' && reponse.ok) {
+        serveur.poser(relatif, serveur.contenuDe(relatif)!)
+        panne.lecturesVerrouRefusees = 2
+      }
+      return reponse
     }
     return serveur.fetch(entree, init)
   }
@@ -253,6 +291,19 @@ describe('Publication', () => {
     // Le manifeste connaît le NOUVEL ETag → un pull ne re-télécharge pas notre publication.
     const deuxiemeTirage = await b.miroir.tirer()
     expect(deuxiemeTirage.telecharges).toEqual([])
+  })
+
+  it('un enregistrement sans changement après l’ouverture ne laisse rien à publier', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    const publie = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!)
+    writeFileSync(b.fichierLocal, JSON.stringify({ ...publie, lastModified: new Date().toISOString() }, null, 2))
+    b.sessions.noterSale(ID)
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: false })
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'vraie modification' }))
+    b.sessions.noterSale(ID)
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: true })
   })
 
   it('une modification arrivée pendant le PUT reste sale', async () => {
@@ -848,5 +899,256 @@ describe('Reprise après crash', () => {
     // Ni écrasement serveur ni libération : l'utilisateur tranche ensuite.
     expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('derrière le verrou')
     expect(b.verrou()).toBeTruthy()
+  })
+})
+
+describe('Verrou des définitions laissé par un crash', () => {
+  const CHEMIN = 'verrous/corpus.lock.json'
+  const verrouCorpus = (machineId: string, refreshedAt: string) => JSON.stringify({
+    userId: 'max', machineId, sessionId: 'garde-ancien', acquiredAt: refreshedAt, refreshedAt, ttl: 300,
+  })
+
+  it('périmé et posé par ce poste : supprimé', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('encore frais : conservé, son détenteur peut être en train de travailler', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-1', new Date().toISOString()))
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeTruthy()
+  })
+
+  it('encore frais mais posé avant ce lancement (fermeture interrompue) : supprimé', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, JSON.stringify({
+      userId: 'max', machineId: 'poste-1', sessionId: 'garde-quitte',
+      acquiredAt: new Date(Date.now() - 3_600_000).toISOString(), refreshedAt: new Date().toISOString(), ttl: 300,
+    }))
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('posé par un autre poste : conservé, même périmé', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', '2020-01-01T00:00:00.000Z'))
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeTruthy()
+  })
+
+  it('illisible et inchangé depuis longtemps : supprimé', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, '{ abîmé', 'Tue, 15 Sep 2026 10:00:00 GMT')
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('illisible mais récent : conservé', async () => {
+    const b = banc()
+    b.serveur.poser(CHEMIN, '{ abîmé', new Date().toUTCString())
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeTruthy()
+  })
+
+  it('serveur refusant la suppression conditionnelle : le verrou périmé part quand même', async () => {
+    const b = banc()
+    b.panne.suppressionConditionnelleRefusee = true
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('serveur refusant la suppression conditionnelle : une transaction libère quand même son verrou', async () => {
+    const b = banc()
+    b.panne.suppressionConditionnelleRefusee = true
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 's-1' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    await provider.liberer(CHEMIN)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('serveur refusant toute écriture conditionnelle : le battement aboutit tant que le verrou est à nous', async () => {
+    const b = banc()
+    b.panne.ecritureConditionnelleVerrouRefusee = true
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-m' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    const avant = JSON.parse(b.serveur.contenuDe(CHEMIN)!).refreshedAt
+    await new Promise((r) => setTimeout(r, 5))
+    expect((await provider.battre(CHEMIN)).ok).toBe(true)
+    expect(JSON.parse(b.serveur.contenuDe(CHEMIN)!).refreshedAt).not.toBe(avant)
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    expect((await provider.battre(CHEMIN)).ok).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('poste-2')
+  })
+
+  it('création refusée juste après une suppression alors que le verrou est absent : obtenue à la demande suivante', async () => {
+    const b = banc()
+    b.panne.creationsVerrouRefusees = 2
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-s' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-s')
+    await provider.liberer(CHEMIN)
+  })
+
+  it('création toujours refusée avec un verrou absent : refus après quelques demandes', async () => {
+    const b = banc()
+    b.panne.creationsVerrouRefusees = 100
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-t' }))
+    expect(await provider.acquerir(CHEMIN)).toEqual({ ok: false, tenuPar: null })
+    expect(b.panne.creationsVerrouRefusees).toBe(96)
+  })
+
+  it('battement raté sur une lecture périmée : la libération retire quand même notre verrou', async () => {
+    const b = banc()
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-p' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    const notre = b.serveur.contenuDe(CHEMIN)!
+    // Le serveur sert brièvement une autre version : le battement conclut à la perte du verrou.
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    expect((await provider.battre(CHEMIN)).ok).toBe(false)
+    b.serveur.poser(CHEMIN, notre)
+    await provider.liberer(CHEMIN)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+  })
+
+  it('battement raté puis lecture encore périmée à la libération : retiré à la demande suivante', async () => {
+    const b = banc()
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-q' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    const notre = b.serveur.contenuDe(CHEMIN)!
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    expect((await provider.battre(CHEMIN)).ok).toBe(false)
+    await provider.liberer(CHEMIN)
+    b.serveur.poser(CHEMIN, notre)
+    const suivant = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-r' }))
+    expect((await suivant.acquerir(CHEMIN)).ok).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-r')
+  })
+
+  it('suppression refusée puis relecture périmée : notre verrou est retiré à la publication suivante', async () => {
+    const b = banc()
+    b.panne.suppressionConditionnelleRefusee = true
+    const premiere = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-u' }))
+    expect((await premiere.acquerir(CHEMIN)).ok).toBe(true)
+    const notre = b.serveur.contenuDe(CHEMIN)!
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    await premiere.liberer(CHEMIN)
+    b.serveur.poser(CHEMIN, notre)
+    const seconde = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-v' }))
+    expect((await seconde.acquerir(CHEMIN)).ok).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-v')
+  })
+
+  it('verrou repris par quelqu’un d’autre entre-temps : jamais supprimé', async () => {
+    const b = banc()
+    b.panne.suppressionConditionnelleRefusee = true
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 's-1' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    await provider.liberer(CHEMIN)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('poste-2')
+  })
+
+  it('libération en échec : le verrou retenu est retiré à la demande suivante de ce poste', async () => {
+    const b = banc()
+    const premier = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-a' }))
+    expect((await premier.acquerir(CHEMIN)).ok).toBe(true)
+    b.panne.suppressionVerrouEnPanne = true
+    await expect(premier.liberer(CHEMIN)).rejects.toThrow()
+    b.panne.suppressionVerrouEnPanne = false
+    const suivant = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-b' }))
+    expect((await suivant.acquerir(CHEMIN)).ok).toBe(true)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-b')
+  })
+
+  it('libération en échec puis verrou repris par un autre : jamais retiré', async () => {
+    const b = banc()
+    const premier = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-c' }))
+    expect((await premier.acquerir(CHEMIN)).ok).toBe(true)
+    b.panne.suppressionVerrouEnPanne = true
+    await expect(premier.liberer(CHEMIN)).rejects.toThrow()
+    b.panne.suppressionVerrouEnPanne = false
+    b.serveur.poser(CHEMIN, verrouCorpus('poste-2', new Date().toISOString()))
+    const suivant = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-d' }))
+    expect((await suivant.acquerir(CHEMIN)).ok).toBe(false)
+    expect(b.serveur.contenuDe(CHEMIN)).toContain('poste-2')
+  })
+
+  it('serveur qui change la version et refuse les relectures juste après écriture : réservation, battement et libération aboutissent', async () => {
+    const b = banc()
+    b.panne.verrouInstable = true
+    const provider = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-e' }))
+    expect((await provider.acquerir(CHEMIN)).ok).toBe(true)
+    expect((await provider.battre(CHEMIN)).ok).toBe(true)
+    expect((await provider.battre(CHEMIN)).ok).toBe(true)
+    await provider.liberer(CHEMIN)
+    expect(b.serveur.contenuDe(CHEMIN)).toBeUndefined()
+    const suivant = new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId: 'garde-f' }))
+    expect((await suivant.acquerir(CHEMIN)).ok).toBe(true)
+  })
+
+  describe('réservation expirée de ce poste, à la demande suivante', () => {
+    const garde = (b: ReturnType<typeof banc>, sessionId: string) =>
+      new ProviderPutConditionnel(b.client, () => ({ userId: 'max', machineId: 'poste-1', sessionId }))
+    const autoriser = (b: ReturnType<typeof banc>, oui: boolean) =>
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, (chemin) => oui && chemin === CHEMIN)
+
+    it('retirée puis reprise si le corpus l’autorise', async () => {
+      const b = banc()
+      b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
+      autoriser(b, true)
+      expect((await garde(b, 'garde-g').acquerir(CHEMIN)).ok).toBe(true)
+      expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-g')
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
+    })
+
+    it('conservée si une opération locale l’interdit', async () => {
+      const b = banc()
+      b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
+      autoriser(b, false)
+      expect((await garde(b, 'garde-h').acquerir(CHEMIN)).ok).toBe(false)
+      expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-ancien')
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
+    })
+
+    it('conservée si elle est encore active ou vient d’un autre poste', async () => {
+      const b = banc()
+      autoriser(b, true)
+      b.serveur.poser(CHEMIN, verrouCorpus('poste-1', new Date().toISOString()))
+      expect((await garde(b, 'garde-i').acquerir(CHEMIN)).ok).toBe(false)
+      b.serveur.poser(CHEMIN, verrouCorpus('poste-2', '2020-01-01T00:00:00.000Z'))
+      expect((await garde(b, 'garde-j').acquerir(CHEMIN)).ok).toBe(false)
+      expect(b.serveur.contenuDe(CHEMIN)).toContain('poste-2')
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
+    })
+
+    it('encore active mais posée par un lancement précédent : retirée tout de suite', async () => {
+      const b = banc()
+      const avantLancement = new Date(Date.now() - 3_600_000).toISOString()
+      b.serveur.poser(CHEMIN, JSON.stringify({
+        userId: 'max', machineId: 'poste-1', sessionId: 'garde-quitte', acquiredAt: avantLancement, refreshedAt: new Date().toISOString(), ttl: 300,
+      }))
+      autoriser(b, true)
+      expect((await garde(b, 'garde-l').acquerir(CHEMIN)).ok).toBe(true)
+      expect(b.serveur.contenuDe(CHEMIN)).toContain('garde-l')
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
+    })
+
+    it('retirée même si le serveur refuse la suppression conditionnelle', async () => {
+      const b = banc()
+      b.panne.suppressionConditionnelleRefusee = true
+      b.serveur.poser(CHEMIN, verrouCorpus('poste-1', '2020-01-01T00:00:00.000Z'))
+      autoriser(b, true)
+      expect((await garde(b, 'garde-k').acquerir(CHEMIN)).ok).toBe(true)
+      autoriserRepriseVerrousPerimes(b.serveur.baseUrl, null)
+    })
+  })
+
+  it('absent : rien à faire', async () => {
+    const b = banc()
+    expect(await b.sessions.libererVerrouCorpusPerime()).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../formatSonal/sas'
+import { avecAttente } from '../../attente'
 import type { VueApplication } from '../espaces'
 import {
   enregistrerRapportPseudonymisation,
@@ -467,7 +468,7 @@ export function useOperationsCorpus(deps: {
     const titre = (evenement.target as HTMLInputElement).value.trim()
     if (titre) {
       deps.corpus.membership.value = (
-        await window.sonal.corpus.renommerEntretien(id, titre)
+        await avecAttente('Renommage de l’entretien…', () => window.sonal.corpus.renommerEntretien(id, titre))
       ).membership
     }
   }
@@ -478,6 +479,13 @@ export function useOperationsCorpus(deps: {
   }
 
   async function supprimer(
+    id: string,
+    impact?: ImpactSuppressionEntretien,
+  ): Promise<void> {
+    await avecAttente('Suppression de l’entretien…', () => supprimerSansAttente(id, impact))
+  }
+
+  async function supprimerSansAttente(
     id: string,
     impact?: ImpactSuppressionEntretien,
   ): Promise<void> {

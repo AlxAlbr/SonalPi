@@ -82,9 +82,9 @@ export class ServeurWebDAVMemoire {
   }
 
   /** Amorce directe du contenu (état initial des scénarios de test). */
-  poser(cheminRelatif: string, contenu: string): void {
+  poser(cheminRelatif: string, contenu: string, modifieLe?: string): void {
     const etag = this.prochainEtag()
-    this.entrees.set(this.absolu(cheminRelatif), { contenu, etag })
+    this.entrees.set(this.absolu(cheminRelatif), { contenu, etag, ...(modifieLe ? { modifieLe } : {}) })
   }
 
   /** Amorce un média : octets bruts, type MIME et date de modification, comme
