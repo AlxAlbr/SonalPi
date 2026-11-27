@@ -49,6 +49,12 @@ export function appliquerMenu(
       },
       { type: 'separator' },
       {
+        label: 'Renommer le corpus…',
+        enabled: etat.renommer,
+        click: () => envoyer('menu:action', 'renommer-corpus'),
+      },
+      { type: 'separator' },
+      {
         label: 'Enregistrer',
         enabled: etat.enregistrer,
         click: () => envoyer('menu:action', 'enregistrer'),

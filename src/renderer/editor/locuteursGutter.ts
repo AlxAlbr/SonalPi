@@ -57,7 +57,14 @@ export function construireLibelleGouttiere(lib: LibelleGouttiere, vide: boolean)
       el.appendChild(document.createTextNode(' '))
       const pseudo = document.createElement('span')
       pseudo.className = 'loc-pseudo'
-      pseudo.textContent = `[${lib.pseudo}]`
+      // Les crochets sont à part : hors de l'onglet Pseudonymisation, le pseudo s'affiche seul.
+      const crochet = (texte: string) => {
+        const span = document.createElement('span')
+        span.className = 'loc-crochet'
+        span.textContent = texte
+        return span
+      }
+      pseudo.append(crochet('['), lib.pseudo, crochet(']'))
       // Le PSEUDO s'écrit AUSSI dans la couleur du locuteur (même identité visuelle que le nom) :
       // « Alain » barre vert + « [Paul] » vert.
       pseudo.style.color = lib.couleur

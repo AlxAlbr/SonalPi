@@ -9,7 +9,6 @@ const {
   selectionPassage,
   commenterPlage,
   allerAuCommentaire,
-  editerCommentaire,
 } = utiliserSonal()
 
 // Sans sélection, le clic se contente d'afficher un hint (l'aide permanente
@@ -76,7 +75,8 @@ function basculerRecherche() {
     <div v-if="aideOuverte" class="gabarit-aide">
       <p>
         Sélectionnez un passage du texte, puis cliquez sur « + Commentaire » pour y écrire une remarque.
-        Cliquez sur un commentaire de la liste pour le modifier ; le passage est aussi retrouvé dans le texte.
+        Cliquez sur un commentaire de la liste pour retrouver son passage dans le texte.
+        Pour le modifier, cliquez sur sa carte en marge du texte.
       </p>
     </div>
     <div v-if="rechercheOuverte" class="recherche-commentaires">
@@ -98,8 +98,8 @@ function basculerRecherche() {
         <button
           type="button"
           class="gabarit-ligne aller-commentaire"
-          :title="lectureSeule ? 'Aller à ce commentaire' : 'Modifier ce commentaire'"
-          @click="allerAuCommentaire(commentaire.id); !lectureSeule && editerCommentaire(commentaire.id)"
+          title="Retrouver ce passage dans le texte"
+          @click="allerAuCommentaire(commentaire.id)"
         >
           <span class="gabarit-ligne-texte">
             <span class="gabarit-ligne-titre">{{ commentaire.auteur || 'Sans auteur' }}</span>

@@ -134,7 +134,7 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
 
   // Le bouton ferme l’entretien et revient au corpus.
   await expect(page.getByRole('button', { name: 'Exporter cet entretien', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Retour au niveau Corpus', exact: true }).click()
+  await page.getByRole('button', { name: 'Revenir au corpus', exact: true }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 

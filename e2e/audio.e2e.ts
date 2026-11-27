@@ -355,6 +355,18 @@ test('J3 : audio référencé supprimé après assignation → bandeau d’inté
   await page.keyboard.type('La transcription reste utilisable.')
   await expect(page.locator('.editeur')).toContainText('La transcription reste utilisable.')
 
+  // Le message se ferme : la bande colorée reprend sa place, avec le bouton d'ajout.
+  await page.getByRole('button', { name: 'Fermer le message sur l’audio', exact: true }).click()
+  await expect(page.locator('.lecteur-erreur')).toHaveCount(0)
+  await expect(page.locator('.lecteur-audio.sans-audio .bande')).toBeVisible()
+  await expect(page.locator('.lecteur-audio.sans-audio').getByRole('button', { name: 'Ajouter un audio…', exact: true })).toBeEnabled()
+
+  // Le bandeau du corpus se ferme aussi.
+  await retourCorpus(page)
+  await expect(page.locator('.bandeau-audio')).toBeVisible()
+  await page.getByRole('button', { name: 'Fermer le message sur les médias introuvables', exact: true }).click()
+  await expect(page.locator('.bandeau-audio')).toHaveCount(0)
+
   await app.close()
 })
 

@@ -199,6 +199,7 @@ export function useMediasCorpus(deps: {
     if (!audio) return
     await genererEtEcrireWaveform(id, audio.audioRef)
     await rafraichirAudios()
+    await rafraichirIntegriteAudios()
     if (deps.selection.corpusSelMeta.value) {
       deps.selection.corpusSelMeta.value = {
         ...deps.selection.corpusSelMeta.value,
@@ -289,6 +290,9 @@ export function useMediasCorpus(deps: {
       deps.entretien.meta.audioRef = audio.audioRef
       await majAudioEntretien(id)
     }
+    // Le bandeau des médias introuvables et les cartes du corpus suivent le nouvel audio.
+    await rafraichirAudios()
+    await rafraichirIntegriteAudios()
   }
 
   async function associerAudioEntretienOuvert(): Promise<void> {

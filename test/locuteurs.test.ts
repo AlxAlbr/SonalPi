@@ -183,6 +183,8 @@ describe('construireLibelleGouttiere — DOM du libellé (garde anti-régression
     )
     expect(el.classList.contains('loc-anon')).toBe(true)
     expect(el.textContent).toBe('Karine [Mme M.]')
+    // Crochets à part : le CSS les masque hors de l'onglet Pseudonymisation.
+    expect([...el.querySelectorAll('.loc-pseudo .loc-crochet')].map((c) => c.textContent)).toEqual(['[', ']'])
   })
 
   test('refus : pas de loc-anon, nom en clair + ⊘ (le refus prime sur le pseudo)', () => {

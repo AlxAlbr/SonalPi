@@ -24,7 +24,7 @@ import { appliquerMenu } from '../src/main/menuApplication'
 import { MENU_ACCUEIL } from '../src/shared/menuApplication'
 
 const MENU_TRAVAIL = {
-  travail: true, naviguer: true, enregistrer: true, sauvegarder: true,
+  travail: true, naviguer: true, enregistrer: true, sauvegarder: true, renommer: true,
   exporter: true, exporterEntretien: true, ajouter: true, trier: true, trierContenu: true,
 }
 
@@ -156,6 +156,18 @@ describe('menu applicatif du corpus', () => {
     const corpus = electron.template.find((item) => item.label === 'Corpus')!
     return sousMenu(corpus).find((item) => item.label?.startsWith(label))!
   }
+
+  test('le renommage du corpus est une entrée du menu, grisée hors contexte', () => {
+    appliquerMenu([], undefined, MENU_TRAVAIL)
+    const renommer = itemCorpus('Renommer le corpus')
+    expect(renommer.enabled).toBe(true)
+    ;(renommer.click as () => void)()
+    expect(electron.send).toHaveBeenCalledWith('menu:action', 'renommer-corpus')
+    appliquerMenu([], undefined, { ...MENU_TRAVAIL, renommer: false })
+    expect(itemCorpus('Renommer le corpus').enabled).toBe(false)
+    appliquerMenu([], undefined, MENU_ACCUEIL)
+    expect(itemCorpus('Renommer le corpus').enabled).toBe(false)
+  })
 
   test('la copie de sauvegarde ZIP et l’export du corpus sont proposés', () => {
     appliquerMenu([], undefined, MENU_TRAVAIL)

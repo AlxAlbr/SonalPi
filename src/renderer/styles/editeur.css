@@ -160,8 +160,13 @@
 .colonne-droite.noms-pseudonymise .editeur .anon.anon-suite::after {
   content: none;
 }
-.colonne-droite.noms-pseudonymise .editeur .gouttiere-loc.loc-anon .loc-nom {
+.colonne-droite.noms-pseudonymise .editeur .gouttiere-loc.loc-anon .loc-nom,
+.colonne-droite.noms-pseudonymise .editeur .gouttiere-loc .loc-crochet {
   display: none;
+}
+/* Le nom masqué, le pseudo prend sa place en début de libellé. */
+.colonne-droite.noms-pseudonymise .editeur .gouttiere-loc .loc-pseudo {
+  margin-left: 0;
 }
 /* Onglet Locuteurs inactif : libellés en gris, la couleur propre au locuteur
  * (posée en ligne sur le nom et le pseudo) ne revient qu'avec l'onglet. */

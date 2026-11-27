@@ -1451,17 +1451,22 @@ export function creerSonal() {
   const etatMenu = computed<EtatMenuApplication>(() => {
     const travail = vue.value !== 'accueil' && dossierCourantDir.value !== null
     const disponible = travail && !exportCorpusEnCours.value
+    // Pendant l'édition d'un entretien, les commandes qui portent sur tout le corpus sont grisées :
+    // on revient d'abord au corpus.
+    const horsEntretien = vue.value !== 'entretien'
+    const corpusDisponible = disponible && horsEntretien
     const nombreEntretiens = Object.keys(corpus.membership.value).length
-    const trier = disponible && !lectureSeule.value && nombreEntretiens > 1
+    const trier = corpusDisponible && !lectureSeule.value && nombreEntretiens > 1
     return {
       travail: disponible,
-      naviguer: !exportCorpusEnCours.value,
+      naviguer: !exportCorpusEnCours.value && horsEntretien,
       enregistrer: disponible && ent.ouvertId.value !== null
         && (!idDistantCourant.value || (!lectureSeule.value && entretienEditable.value)),
-      sauvegarder: disponible && idDistantCourant.value === null,
-      exporter: disponible && nombreEntretiens > 0,
+      sauvegarder: corpusDisponible && idDistantCourant.value === null,
+      renommer: corpusDisponible && !lectureSeule.value && !ouvertureEnCours.value,
+      exporter: corpusDisponible && nombreEntretiens > 0,
       exporterEntretien: disponible && vue.value === 'entretien' && ent.ouvertId.value !== null,
-      ajouter: disponible && ajoutEntretienPossible.value,
+      ajouter: corpusDisponible && ajoutEntretienPossible.value,
       trier,
       trierContenu: trier && gesteDisponible('triContenu')
         && (idDistantCourant.value === null || ent.ouvertId.value === null),
@@ -1481,6 +1486,10 @@ export function creerSonal() {
       'exporter-corpus': etatMenu.value.exporter,
       'exporter-entretien': etatMenu.value.exporterEntretien,
       'sauvegarde-zip': etatMenu.value.sauvegarder,
+      'renommer-corpus': etatMenu.value.renommer,
+      'nouveau-corpus': etatMenu.value.naviguer,
+      'ouvrir-corpus': etatMenu.value.naviguer,
+      'ouvrir-distant': etatMenu.value.naviguer,
     }
     if (disponibles[action] === false) return
     try {
@@ -1533,6 +1542,9 @@ export function creerSonal() {
           await ouvrirAjoutEntretien()
           break
         }
+        case 'renommer-corpus':
+          await ouvrirRenommage()
+          break
         case 'trier-entretiens': {
           const modes: readonly ModeTriEntretiens[] = ['alpha', 'ajout', 'modif', 'longueur']
           if (!modeTri || !modes.includes(modeTri)) throw new Error('Mode de tri inconnu.')
@@ -1578,7 +1590,7 @@ export function creerSonal() {
     }
   })
   window.sonal.menu.surOuvrirRecent((entree) => {
-    if (exportCorpusEnCours.value) return
+    if (!etatMenu.value.naviguer) return
     void ouvrirRecent(entree).catch((erreur) =>
       afficherErreurGlobale(erreur, 'L’ouverture du corpus récent a échoué'),
     )

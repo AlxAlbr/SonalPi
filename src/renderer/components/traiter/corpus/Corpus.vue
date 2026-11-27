@@ -35,8 +35,6 @@ import icoCommentaires from '../../../assets/icones/commentaires.svg'
 
 const {
   vue,
-  ouvrirRenommage,
-  ouvertureEnCours,
   ongletCorpus,
   enregistrerNavigationCorpus,
   revisionCorpus,
@@ -96,6 +94,16 @@ const {
   suppressionPossible,
   presencesSur,
 } = utiliserSonal()
+
+// Le bandeau des médias introuvables peut être fermé ;
+// il revient si la liste des fichiers manquants change.
+const bandeauAudioMasquePour = ref<string | null>(null)
+const cleAudiosManquants = computed(() => Object.keys(audiosManquants.value).sort().join('|'))
+const bandeauAudioVisible = computed(() =>
+  cleAudiosManquants.value !== '' && cleAudiosManquants.value !== bandeauAudioMasquePour.value)
+function masquerBandeauAudio() {
+  bandeauAudioMasquePour.value = cleAudiosManquants.value
+}
 
 /** Densité d'affichage de la liste des entretiens, mémorisée sur ce poste. */
 /** Le curseur « Zoom » est continu, du plus serré (0, à gauche) au plus aéré (2, à droite, par défaut).
@@ -433,11 +441,11 @@ function effacerRecherche() {
 const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   { id: 'accueil', libelle: 'Entretiens', icone: icoEntretiens },
   { id: 'locuteurs', libelle: 'Locuteurs', icone: icoPersonnes },
+  { id: 'donnees', libelle: 'Données', icone: icoDonnees },
   { id: 'anon', libelle: 'Pseudonymisation', icone: icoAnon },
   { id: 'themes', libelle: 'Thèmes', icone: icoThemes },
   { id: 'commentaires', libelle: 'Commentaires', icone: icoCommentaires },
   { id: 'notes', libelle: 'Notes', icone: icoNotes },
-  { id: 'donnees', libelle: 'Données', icone: icoDonnees },
 ]
 
 </script>
@@ -465,12 +473,10 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
         </span>
       </div>
 
-      <!-- Les onglets et le renommage du corpus partagent la même ligne. -->
+      <!-- Onglets du corpus ; le renommage se fait depuis le menu Corpus. -->
       <div class="ligne-onglets-corpus">
         <OngletsEspace class="onglets-corpus" aria-label="Navigation du corpus" :onglets="ONGLETS" :actif="ongletCorpus" @choisir="choisirOnglet" />
-        <span class="zone-renommer-corpus">
-          <button v-if="!lectureSeule" class="renommer-corpus" :disabled="ouvertureEnCours" @click="ouvrirRenommage">Renommer le corpus</button>
-        </span>
+        <span class="fin-ligne-onglets" aria-hidden="true"></span>
       </div>
       <!-- Les messages du parcours disposent toujours d'une cible dans la vue Corpus. -->
       <div v-if="pasAPas" data-tour="ancre-guide-corpus"></div>
@@ -750,7 +756,8 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
             <!-- Bandeau d'intégrité : des audios référencés sont introuvables,
                  fichier déplacé/supprimé. Calculé à l'ouverture du corpus ;
                  clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
-            <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
+            <div v-if="bandeauAudioVisible" class="bandeau-audio" data-tour="bandeau-audio">
+              <button class="bandeau-audio-fermer" title="Fermer ce message" aria-label="Fermer le message sur les médias introuvables" @click="masquerBandeauAudio">×</button>
               <span class="bandeau-audio-titre">
                 ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) média introuvable(s) — déplacé(s) ou supprimé(s) ?
               </span>
@@ -962,37 +969,10 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
   align-items: stretch;
   margin-bottom: 0.75rem;
 }
-/* Le bouton suit le dernier onglet ; la ligne des onglets se prolonge jusqu'au bord. */
-.zone-renommer-corpus {
-  display: flex;
-  align-items: center;
+/* La ligne des onglets se prolonge jusqu'au bord. */
+.fin-ligne-onglets {
   flex: 1;
-  padding: 0 0 6px 0.75rem;
   border-bottom: 1px solid #e2e4ec;
-}
-.renommer-corpus {
-  padding: 0.3rem 0.7rem;
-  border: 1px solid #d5d9e4;
-  border-radius: 6px;
-  background: #fff;
-  color: #4a5068;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.renommer-corpus:hover:not(:disabled) {
-  border-color: #2e73d8;
-  background: #f0f6ff;
-  color: #1565c0;
-}
-.renommer-corpus:focus-visible {
-  outline: 2px solid #2e73d8;
-  outline-offset: 2px;
-}
-.renommer-corpus:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 /* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les onglets
@@ -1271,6 +1251,16 @@ const ONGLETS: { id: OngletCorpus; libelle: string; icone: string }[] = [
 .bandeau-audio-titre {
   display: block;
   font-weight: 600;
+}
+.bandeau-audio-fermer {
+  float: right;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
 }
 .bandeau-audio-liste {
   list-style: none;

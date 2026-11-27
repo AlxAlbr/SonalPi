@@ -16,6 +16,8 @@ async function lireMenu(app: ElectronApplication) {
       trier: entretiens.submenu!.items[1].enabled,
       enregistrer: corpus.items.find((item) => item.label === 'Enregistrer')!.enabled,
       sauvegarder: corpus.items.find((item) => item.label.startsWith('Faire une copie'))!.enabled,
+      renommer: corpus.items.find((item) => item.label === 'Renommer le corpus…')!.enabled,
+      ouvrir: corpus.items.find((item) => item.label === 'Ouvrir corpus…')!.enabled,
       exporter: corpus.items.find((item) => item.label === 'Exporter le corpus…')!.enabled,
       exporterEntretien: entretiens.submenu!.items.find((item) => item.label === 'Exporter cet entretien…')!.enabled,
     }
@@ -24,7 +26,7 @@ async function lireMenu(app: ElectronApplication) {
 
 const MENU_INACTIF = {
   entretiens: false, ajouter: false, trier: false,
-  enregistrer: false, sauvegarder: false, exporter: false, exporterEntretien: false,
+  enregistrer: false, sauvegarder: false, renommer: false, ouvrir: true, exporter: false, exporterEntretien: false,
 }
 
 test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le contexte aux récents', async () => {
@@ -47,10 +49,14 @@ test('les menus suivent l’accueil, les espaces et l’entretien sans perdre le
     await entrerCorpus(page)
     await expect.poll(() => lireMenu(app)).toEqual({
       entretiens: true, ajouter: true, trier: false,
-      enregistrer: false, sauvegarder: true, exporter: true, exporterEntretien: false,
+      enregistrer: false, sauvegarder: true, renommer: true, ouvrir: true, exporter: true, exporterEntretien: false,
     })
+    // Pendant l'édition d'un entretien, les commandes qui portent sur le corpus sont grisées.
     await entrerEntretien(page)
-    await expect.poll(() => lireMenu(app)).toMatchObject({ enregistrer: true, exporterEntretien: true })
+    await expect.poll(() => lireMenu(app)).toEqual({
+      entretiens: true, ajouter: false, trier: false,
+      enregistrer: true, sauvegarder: false, renommer: false, ouvrir: false, exporter: false, exporterEntretien: true,
+    })
     await retourCorpus(page)
     for (const nom of ['Préparer & Suivre', 'Analyser & Interpréter', 'Organiser & Exporter', 'Importer & Traiter']) {
       await page.getByRole('button', { name: nom, exact: true }).click()
@@ -92,7 +98,7 @@ test('sans corpus puis avec un corpus vide, les commandes inutilisables restent 
     await expect(page.locator('.espace-preparation')).toBeVisible()
     await expect.poll(() => lireMenu(app)).toEqual({
       entretiens: true, ajouter: true, trier: false,
-      enregistrer: false, sauvegarder: true, exporter: false, exporterEntretien: false,
+      enregistrer: false, sauvegarder: true, renommer: true, ouvrir: true, exporter: false, exporterEntretien: false,
     })
   } finally {
     await app.close()

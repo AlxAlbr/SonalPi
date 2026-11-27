@@ -432,6 +432,13 @@ test('la sélection alimente une ligne et le brouillon survit au changement d’
   await expect(brouillon).toBeVisible()
   await expect(brouillon.locator('.pseudo-anon')).toHaveValue('Ville témoin')
 
+  // Un nom plus long que la case passe à la ligne : le champ grandit au lieu de masquer la fin.
+  const nom = page.locator('.ligne-anon.saisie-anon .nom-saisie').first()
+  const hauteurUneLigne = (await nom.boundingBox())!.height
+  await nom.fill('Association des habitants du quartier de la Croix-Rousse et des pentes')
+  await expect.poll(async () => (await nom.boundingBox())!.height).toBeGreaterThan(hauteurUneLigne * 1.5)
+  expect(await nom.evaluate((champ: HTMLTextAreaElement) => champ.scrollWidth <= champ.clientWidth)).toBe(true)
+
   await app.close()
 })
 

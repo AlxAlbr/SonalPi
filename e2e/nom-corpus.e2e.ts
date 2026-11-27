@@ -1,9 +1,19 @@
 import type {} from '../src/renderer/env'
-import { test, expect } from '@playwright/test'
+import { test, expect, type ElectronApplication } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { lancer, entrerCorpus, attendreAccueil } from './util'
+
+/** Clique « Renommer le corpus… » dans le menu Corpus de l'application. */
+async function renommerDepuisMenu(app: ElectronApplication) {
+  await app.evaluate(({ Menu }) => {
+    const corpus = Menu.getApplicationMenu()!.items.find((item) => item.label === 'Corpus')!.submenu!
+    const renommer = corpus.items.find((item) => item.label === 'Renommer le corpus…')!
+    if (!renommer.enabled) throw new Error('Renommer le corpus est grisé.')
+    renommer.click()
+  })
+}
 
 test('renommer le projet change l’en-tête et les récents, sans modifier le dossier ni les entretiens', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-nom-e2e-'))
@@ -14,7 +24,7 @@ test('renommer le projet change l’en-tête et les récents, sans modifier le d
     await entrerCorpus(page)
     const entretienAvant = readFileSync(join(dir, 'entretiens', 'e1.json'))
     const corpusAvant = await page.evaluate(() => window.sonal.corpus.ouvrir())
-    await page.locator('.renommer-corpus').click()
+    await renommerDepuisMenu(app)
     const modale = page.locator('.modale-renommer-corpus')
     await expect(modale.locator('input')).toHaveValue(basename(dir))
     await modale.locator('input').fill('   ')
@@ -45,7 +55,7 @@ test('annuler le renommage n’écrit rien et une demande externe n’est pas mi
     const page = await app.firstWindow()
     await entrerCorpus(page)
     const avant = readFileSync(join(profil, 'corpus', 'corpus.crp'))
-    await page.locator('.renommer-corpus').click()
+    await renommerDepuisMenu(app)
     const modale = page.locator('.modale-renommer-corpus')
     await modale.locator('input').fill('Non enregistré')
     await app.evaluate(({ app }, chemin) => { app.emit('open-file', { preventDefault() {} }, chemin) }, join(profil, 'inexistant.crp'))
@@ -54,7 +64,7 @@ test('annuler le renommage n’écrit rien et une demande externe n’est pas mi
     expect(readFileSync(join(profil, 'corpus', 'corpus.crp'))).toEqual(avant)
     await expect(page.locator('.corpus-ecran')).toBeVisible()
     await expect(page.locator('.banniere.refus')).toHaveCount(0)
-    await page.locator('.renommer-corpus').click()
+    await renommerDepuisMenu(app)
     await expect(modale.locator('input')).toHaveValue('corpus')
     await modale.getByRole('button', { name: 'Annuler' }).click()
   } finally { await app.close() }

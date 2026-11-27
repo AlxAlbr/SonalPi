@@ -8,7 +8,7 @@ const dialogue = ref<HTMLDialogElement | null>(null)
   <button
     type="button"
     class="aide-lecture"
-    title="Raccourcis clavier du lecteur"
+    title="Raccourcis clavier du lecteur (curseur dans le texte)"
     aria-label="Aide sur les raccourcis clavier du lecteur"
     aria-haspopup="dialog"
     @click="dialogue?.showModal()"
@@ -21,7 +21,10 @@ const dialogue = ref<HTMLDialogElement | null>(null)
   <Teleport to="body">
     <dialog ref="dialogue" class="dialogue-aide-lecture" aria-label="Raccourcis clavier du lecteur">
       <h2>Contrôler la lecture au clavier</h2>
-      <p>Dans le texte de l’entretien, appuyez deux fois rapidement sur la même touche :</p>
+      <p class="condition">
+        Ces raccourcis ne fonctionnent que lorsque le curseur est dans le texte de l’entretien.
+        Cliquez d’abord dans le texte, puis appuyez deux fois rapidement sur la même touche :
+      </p>
       <ul>
         <li><strong>Espace</strong> : lancer la lecture ou la mettre en pause.</li>
         <li><strong>Alt gauche</strong> : reculer de 5 secondes.</li>
@@ -73,6 +76,11 @@ const dialogue = ref<HTMLDialogElement | null>(null)
 .dialogue-aide-lecture p,
 .dialogue-aide-lecture li {
   line-height: 1.5;
+}
+.dialogue-aide-lecture .condition {
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid #2e73d8;
+  background: #eef3fb;
 }
 .dialogue-aide-lecture form {
   display: flex;

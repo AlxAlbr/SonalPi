@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { projeterAncres, tempsAuPoint } from '../../../../shared/entretien/audio'
 import { statistiquesLocuteurs } from '../../../../shared/entretien/statistiquesLocuteurs'
 import { couleurPourLocuteur } from '../../../../shared/entretien/locuteurs'
@@ -56,6 +56,14 @@ const {
 } = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
+
+// Entretiens dont l'erreur audio a été fermée pendant cette session :
+// la bande colorée reprend sa place, sans le message.
+const erreursMasquees = ref<string[]>([])
+const erreurMasquee = computed(() => !!ouvertId.value && erreursMasquees.value.includes(ouvertId.value))
+function masquerErreur() {
+  if (ouvertId.value && !erreurMasquee.value) erreursMasquees.value = [...erreursMasquees.value, ouvertId.value]
+}
 
 const interventionsBande = computed(() => {
   if (!props.afficherLocuteurs) return []
@@ -297,7 +305,7 @@ dès que les droits seront ouverts.
       Redésigner dans la base WebDAV…
     </button>
   </div>
-  <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
+  <div v-else-if="url && erreur && !erreurMasquee" class="lecteur-audio lecteur-erreur">
     <!-- En corpus distant, l'audioRef partagée pointe chez le poste qui a
          assigné — chaque poste associe SON fichier local (référence, jamais de
          copie, jamais d'écriture au JSON partagé). En local, le geste reste la
@@ -331,6 +339,7 @@ dès que les droits seront ouverts.
       <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
       <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
     </template>
+    <button class="fermer-erreur" title="Fermer ce message" aria-label="Fermer le message sur l’audio" @click="masquerErreur">×</button>
   </div>
   <div
     v-else-if="etatAudioOuvert.etat === 'hors-designation' && ouvertId && gesteDisponible('designationMedia')"
@@ -344,6 +353,49 @@ dès que les droits seront ouverts.
     >
       {{ fournisseurCourant === 'gitlab' ? 'Désigner dans la base WebDAV…' : 'Désigner dans le Nextcloud…' }}
     </button>
+  </div>
+  <!-- Sans audio, la bande garde le résumé thématique et les tours de parole,
+       placés selon leur position dans le texte. -->
+  <div v-else-if="ouvertId" class="lecteur-audio sans-audio" :class="{ empile: props.empile }">
+    <div class="bloc-commandes">
+      <div class="commandes">
+        <button
+          v-if="!idDistantCourant"
+          class="mini-lect ajouter-audio"
+          :disabled="!entretienEditable"
+          @click="reassignerAudioEntretienOuvert"
+        >
+          Ajouter un audio…
+        </button>
+        <span v-else class="msg-sans-audio">Pas d’audio sur ce poste</span>
+      </div>
+    </div>
+    <div class="bande">
+      <div class="onde onde-vide"></div>
+      <span
+        v-for="(s, i) in resumeOuvert"
+        v-show="!afficherLocuteurs"
+        :key="i"
+        class="xtr-bande"
+        :style="styleSegmentBande(s)"
+      ></span>
+      <span
+        v-for="tour in interventionsBande"
+        :key="tour.pos"
+        class="locuteur-bande"
+        :class="{ estompe: interventionActive && tour.loc !== interventionActive.loc, actif: interventionActive?.pos === tour.pos }"
+        :style="{ left: tour.gauche + '%', width: tour.largeur + '%', backgroundColor: tour.couleur }"
+      ></span>
+      <span
+        v-for="r in reperesRecherche"
+        :key="'r' + r.i"
+        class="occ-marqueur"
+        :class="{ courant: r.i === indexRecherche }"
+        :style="{ left: r.pourcent + '%' }"
+        :title="`Aller à l'occurrence ${r.i + 1} — « ${rechercheTexte.trim()} »`"
+        @click.stop="clicRepere(r.i)"
+      ></span>
+    </div>
   </div>
 </template>
 
@@ -389,7 +441,7 @@ dès que les droits seront ouverts.
 .groupe-vitesse > * {
   flex-shrink: 0;
 }
-/* Sur une seule ligne, un filet sépare les commandes de la forme d'onde. */
+/* Sur une seule ligne, un filet sépare les commandes de la forme d'onde (ou de la bande seule, sans audio). */
 .lecteur-audio:not(.empile):not(.lecteur-etat):not(.lecteur-erreur) .bloc-commandes {
   border-right: 1px solid #dce4ef;
   padding-right: 0.8rem;
@@ -447,10 +499,28 @@ dès que les droits seront ouverts.
   min-width: 3rem;
   font-family: monospace;
 }
+/* Sans audio, la bande n'est qu'un aperçu : aucun déplacement au clic. */
+.sans-audio .bande {
+  cursor: default;
+}
+.msg-sans-audio {
+  font-size: 0.78rem;
+  color: #666;
+}
 .lecteur-erreur {
   gap: 0.6rem;
   border-color: #f3b4ad;
   background: #fdecea;
+}
+.fermer-erreur {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: #b3261e;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.3rem;
 }
 /* État de l'audio désigné (distant / inaccessible) : informatif, pas une
    erreur — teinte neutre. */

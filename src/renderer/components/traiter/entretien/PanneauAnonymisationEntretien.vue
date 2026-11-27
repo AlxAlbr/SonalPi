@@ -814,8 +814,8 @@ td.col-pseudo {
   background: transparent;
   padding: 0.1rem 0.3rem;
 }
-/* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : toujours sur une ligne,
- * un texte plus long défile dans le champ.
+/* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : une ligne au départ,
+ * puis le texte passe à la ligne et le champ grandit quand il dépasse la largeur.
  * Encadrés comme les champs du tableau Locuteurs ;
  * le fond de la ligne continue de distinguer les états. */
 .nom-saisie,
@@ -824,10 +824,12 @@ td.col-pseudo {
   width: 100%;
   box-sizing: border-box;
   resize: none;
+  field-sizing: content;
   overflow: hidden;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.25;
-  height: calc(1.25em + 0.2rem * 2 + 2px);
+  min-height: calc(1.25em + 0.2rem * 2 + 2px);
   font-size: 0.9rem;
   color: #333;
   text-align: center;

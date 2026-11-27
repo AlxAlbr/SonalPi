@@ -135,7 +135,7 @@ La provenance `meta.sourceV1` n'est pas un registre de reprise.
 
 Une autre demande d'ouverture pendant une opération est refusée, pas mise en
 attente. Réessayez après sa fin ou son annulation. Renommer ensuite le projet
-avec **« Renommer le corpus »** change le libellé partagé, pas les chemins ni les URL.
+avec **Corpus › Renommer le corpus…** dans le menu change le libellé partagé, pas les chemins ni les URL.
 
 Les autres corpus distants V1, hors GitLab, et la conversion du contenu des archives
 ZIP ne sont pas pris en charge par ces parcours.

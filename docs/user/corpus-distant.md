@@ -43,7 +43,7 @@ l'icône 🌐.
 
 ## Renommer le corpus
 
-Dans l'écran Corpus, « Renommer le corpus » change le nom affiché dans l'application
+Dans le menu Corpus, « Renommer le corpus… » change le nom affiché dans l'application
 et les récents. Le dossier et son adresse serveur ne changent pas. Ce nom est
 partagé : les autres utilisateurs le verront après leur prochaine actualisation.
 Une connexion est nécessaire pour enregistrer le changement.
