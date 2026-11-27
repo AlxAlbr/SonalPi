@@ -630,6 +630,7 @@ export function creerSonal() {
       donneesExport: ent.donneesExport,
       fusionPossible: ent.fusionPossible,
       absorberFusion: ent.absorberFusion,
+      remplacerParCopie: ent.remplacerParCopie,
       allerAuTexte: ent.allerAuTexte,
     },
     cycle: {
@@ -666,6 +667,7 @@ export function creerSonal() {
     reinitialiserDivergence,
     confirmerFusion,
     jeterDivergence,
+    garderMaVersion,
     plusTardDivergence,
     ajouterEntretien,
     exportOuvert,
@@ -1730,6 +1732,7 @@ export function creerSonal() {
     divergenceProposee,
     confirmerFusion,
     jeterDivergence,
+    garderMaVersion,
     plusTardDivergence,
     ouvrirAuSegment,
     allerSaisieDonnees,

@@ -1,5 +1,5 @@
 import { ref, shallowRef, reactive, onBeforeUnmount, toRaw } from 'vue'
-import { Extension } from '@tiptap/core'
+import { Extension, type Editor } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { BlocAttributs } from '../editor/schema'
@@ -1151,26 +1151,7 @@ export function useEntretien(deps: {
     editionNomsSuspendue.value = false; renommageEnCours.value = false
     renommageOuvert.reinitialiser()
     recherche.reinitialiser()
-    // Ordre : vider le modèle AVANT de remplacer le doc (le remap ne mappe rien),
-    // puis recharger le doc, puis reposer les annotations (positions valides par
-    // construction contre ce doc), puis redessiner.
-    entretien.annotations.splice(0, entretien.annotations.length)
-    entretien.ancres.splice(0, entretien.ancres.length)
-    entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
-    locuteurs.value = res.data.participations
-    locuteursEntretien.reinitialiser()
-    ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
-    reinitialiserHistoriqueFrappe(ed)
-    for (const a of res.data.annotations) entretien.annotations.push(a)
-    for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
-    for (const repere of res.data.reperesPassages ?? []) entretien.reperesPassages.push(repere)
-    meta.valeursGen = { ...res.data.meta.valeursGen }
-    meta.audioRef = res.data.meta.audioRef
-    meta.audioDistant = res.data.meta.audioDistant ?? null
-    anonymisationEntretien.reinitialiser()
-    anonymisationEntretien.charger(res.data.brouillonsAnon, res.data.pseudosDeclares, res.data.definitionsAnonLocales)
-    notesEntretien.charger(res.data.notes)
-    legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
+    chargerContenu(ed, res.data)
     ouvertId.value = id
     chargement = false
     // Le statut d'accès est obligatoire ; l'absence d'identité du détenteur
@@ -1197,6 +1178,47 @@ export function useEntretien(deps: {
     selectionPassage.value = selectionPassageCourante()
     return true
   }
+  /** Place un contenu d'entretien dans l'éditeur et le modèle.
+   *  Ordre : vider le modèle AVANT de remplacer le doc (le remap ne mappe rien),
+   *  puis recharger le doc, puis reposer les annotations (positions valides par
+   *  construction contre ce doc). L'appelant redessine ensuite. */
+  function chargerContenu(ed: Editor, data: EntretienFichier) {
+    entretien.annotations.splice(0, entretien.annotations.length)
+    entretien.ancres.splice(0, entretien.ancres.length)
+    entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
+    locuteurs.value = data.participations
+    locuteursEntretien.reinitialiser()
+    ed.commands.setContent(data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
+    reinitialiserHistoriqueFrappe(ed)
+    for (const a of data.annotations) entretien.annotations.push(a)
+    for (const a of data.ancres ?? []) entretien.ancres.push(a)
+    for (const repere of data.reperesPassages ?? []) entretien.reperesPassages.push(repere)
+    meta.valeursGen = { ...data.meta.valeursGen }
+    meta.audioRef = data.meta.audioRef
+    meta.audioDistant = data.meta.audioDistant ?? null
+    anonymisationEntretien.reinitialiser()
+    anonymisationEntretien.charger(data.brouillonsAnon, data.pseudosDeclares, data.definitionsAnonLocales)
+    notesEntretien.charger(data.notes)
+    legacyCourant.value = (data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
+  }
+
+  /** Remplace l'entretien ouvert par une version gardée sur ce poste, puis l'enregistre.
+   *  Sert à garder sa propre version quand l'entretien a été modifié ailleurs entre-temps. */
+  async function remplacerParCopie(copie: EntretienFichier): Promise<void> {
+    const ed = editor.value
+    if (!ed || !ouvertId.value) return
+    annulerSaisiesValeurs()
+    chargement = true
+    try { chargerContenu(ed, copie) } finally { chargement = false }
+    eteindrePlageLue()
+    rafraichir()
+    rafraichirDecorations()
+    rafraichirGouttiere()
+    annotationsEntretien.reinitialiser()
+    selectionPassage.value = selectionPassageCourante()
+    planifierSauvegarde()
+  }
+
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
     annulerSaisiesValeurs()
@@ -1511,6 +1533,7 @@ export function useEntretien(deps: {
     detecterDivergencesPostTirage,
     fusionPossible,
     absorberFusion,
+    remplacerParCopie,
     entiteExisteDeja,
     // cycle de vie / persistance
     ouvrir,

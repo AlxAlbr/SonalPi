@@ -98,17 +98,29 @@ rien dire. Vous pouvez toujours ouvrir un entretien — c'est le serveur, à ce
 moment-là, qui vérifiera si vous êtes le second. Le message disparaît dès
 qu'une actualisation réussit.
 
-## Si le serveur refuse votre publication (« divergence »)
+## Si l'entretien est modifié ailleurs pendant que vous travaillez
 
-C'est rare : cela arrive si quelqu'un a modifié le fichier **en contournant l'application**
-(édition via l'interface web du serveur). Rien n'est perdu :
+Sans le verrouillage natif de Nextcloud, rien n'empêche de modifier un entretien ouvert dans
+SonalPi **en dehors de l'application**, par exemple dans l'éditeur du site Nextcloud.
+SonalPi le détecte dans la minute, et au plus tard à l'envoi suivant. Rien n'est perdu :
 
-- votre travail a été mis de côté localement ;
-- en rouvrant l'entretien, l'application propose de **fusionner** votre contribution (codes,
-  annotations, valeurs…) avec la version actuelle — automatiquement si le texte n'a pas changé
-  des deux côtés ;
-- sinon, vous choisissez : garder de côté (« Plus tard ») ou jeter la copie. Le texte lui-même
-  n'est jamais fusionné automatiquement.
+- l'édition s'arrête aussitôt et un bandeau l'explique ; vos modifications non envoyées
+  sont gardées sur ce poste ;
+- le bouton **Rouvrir pour choisir** affiche la version actuelle du serveur, puis une fenêtre
+  propose de :
+  - **Voir ma version** : son texte, avec les passages qui diffèrent signalés, et un bouton
+    pour le copier ;
+  - **Garder ma version** : elle remplace la version actuelle ; les modifications faites
+    ailleurs sont perdues ;
+  - **Ajouter mes annotations** (seulement si le texte est le même des deux côtés) :
+    vos thèmes, commentaires et valeurs rejoignent la version actuelle ;
+  - **Garder la version actuelle** : votre version est supprimée de ce poste ;
+  - **Décider plus tard** : votre version reste gardée et la question revient à la prochaine
+    ouverture.
+
+Le texte n'est jamais fusionné automatiquement. Pour empêcher ces modifications parallèles,
+l'administrateur du serveur peut activer l'application Nextcloud *files_lock* :
+SonalPi l'utilise alors de lui-même et Nextcloud bloque l'édition des entretiens ouverts.
 
 ## Après un crash ou une fermeture brutale
 

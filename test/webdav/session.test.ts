@@ -387,6 +387,7 @@ describe('Publication', () => {
     const b = banc()
     await b.miroir.tirer()
     await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'travail local' }))
     // Contournement : quelqu'un écrase le fichier via l'UI web (sans verrou).
     b.serveur.poser(`entretiens/${ID}.json`, '{ "contourné": true }')
     b.sessions.noterSale(ID)
@@ -398,7 +399,7 @@ describe('Publication', () => {
     expect(b.retrogrades).toContain(ID)
     // …et l'état reste dégradé jusqu'à la fermeture explicite de l'entretien.
     expect(b.sessions.etat(ID).etat).toBe('degrade')
-    expect(await b.sessions.ouvrir(ID)).toEqual({ etat: 'degrade' })
+    expect(await b.sessions.ouvrir(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
     expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     expect(b.sessions.etat(ID).etat).toBe('aucune')
   })
@@ -499,16 +500,60 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
     b.panne.liberation = true
 
     expect(await b.sessions.publier(ID)).toMatchObject({ ok: false, raison: 'divergence' })
-    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
     expect(await b.sessions.fermer(ID)).toMatchObject({
       fermee: false,
       raison: 'liberation',
     })
-    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
 
     b.panne.liberation = false
     expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     expect(b.sessions.etat(ID)).toEqual({ etat: 'aucune' })
+  })
+})
+
+describe('Entretien modifié ailleurs pendant son ouverture', () => {
+  it('détecté à la vérification suivante : édition arrêtée, travail local mis de côté', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'travail local' }))
+    b.sessions.noterSale(ID)
+    b.serveur.poser(`entretiens/${ID}.json`, entretienDistantValide({ lastModified: 'web', texte: 'modifié sur Nextcloud' }))
+    await b.sessions.tic()
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
+    expect(b.retrogrades).toContain(ID)
+    const copies = b.sessions.listerDivergences().map((c) => b.sessions.lireDivergence(c.chemin))
+    expect(copies).toContainEqual(expect.objectContaining({ texte: 'travail local' }))
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('modifié sur Nextcloud')
+  })
+
+  it('sans travail local à envoyer : aucune copie inutile', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.serveur.poser(`entretiens/${ID}.json`, entretienDistantValide({ lastModified: 'web', texte: 'modifié sur Nextcloud' }))
+    await b.sessions.tic()
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
+    expect(b.sessions.listerDivergences()).toHaveLength(0)
+  })
+
+  it('version renommée par le serveur sans changement de contenu : ni suspension ni conflit à la publication', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    const etagAvant = b.serveur.etagDe(`entretiens/${ID}.json`)
+    b.serveur.poser(`entretiens/${ID}.json`, b.serveur.contenuDe(`entretiens/${ID}.json`)!)
+    expect(b.serveur.etagDe(`entretiens/${ID}.json`)).not.toBe(etagAvant)
+    await b.sessions.tic()
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous' })
+    // Nouveau renommage juste avant la publication : le PUT conditionnel est refusé puis renvoyé.
+    b.serveur.poser(`entretiens/${ID}.json`, b.serveur.contenuDe(`entretiens/${ID}.json`)!)
+    writeFileSync(b.fichierLocal, entretienDistantValide({ lastModified: 'v2', texte: 'modification locale' }))
+    b.sessions.noterSale(ID)
+    expect(await b.sessions.publier(ID)).toEqual({ ok: true })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('modification locale')
   })
 })
 
@@ -619,7 +664,8 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
     expect(b.sessions.preserverRecuperation(ID, payload)).toBe(true)
     const copies = b.sessions.listerDivergences()
       .map((copie) => b.sessions.lireDivergence(copie.chemin))
-    expect(copies).toHaveLength(2)
+    // La copie du miroir, identique à la base publiée, n'avait aucun travail à garder.
+    expect(copies).toHaveLength(1)
     expect(copies).toContainEqual(expect.objectContaining({ corpsTexte: payload.corpsTexte }))
   })
 
@@ -630,6 +676,7 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
     // Édition locale : ce qui sera mis de côté doit être NOTRE version.
     const avantRetrogradation = JSON.parse(readFileSync(b.fichierLocal, 'utf8')) as Record<string, unknown>
     avantRetrogradation.lastModified = 'travail-local-max'
+    avantRetrogradation.travail = 'apport local de max'
     writeFileSync(b.fichierLocal, JSON.stringify(avantRetrogradation))
     // Oliviers force le verrou de max → tic de battement → rétrogradation.
     const clientOlivier = new ClientWebDAV(
@@ -692,7 +739,7 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
 
       // La rétrogradation libère le verrou, puis la fermeture acquitte son état.
       expect(b.serveur.etagDe(`verrous/${ID}.lock.json`)).toBeUndefined()
-      expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+      expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade', raison: 'conflit' })
       expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     }
 

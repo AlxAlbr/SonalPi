@@ -64,7 +64,20 @@ const {
   afficherRecueilsPourAssociation,
   rafraichirCompteursAAAnonymiser,
   tourHorodatage,
+  retourCorpus,
+  reprendre,
 } = utiliserSonal()
+
+/** Ferme puis rouvre l'entretien suspendu : on retrouve la version du serveur
+ *  et le choix à faire pour les modifications gardées sur ce poste. */
+async function rouvrirEntretienSuspendu() {
+  try {
+    await retourCorpus()
+  } catch {
+    return // l'échec de fermeture est déjà affiché
+  }
+  await reprendre()
+}
 
 /** Le bouton indique l'envoi en cours, sans bloquer l'édition. */
 const publicationEnCours = ref(false)
@@ -331,7 +344,8 @@ const roContenu = computed(
 const messageSessionSuspendue = computed(() => {
   if (statutSession.value.etat !== 'degrade') return ''
   const messages: Record<string, string> = {
-    conflit: 'Le serveur a changé — le travail local est conservé.',
+    conflit: 'Cet entretien a été modifié ailleurs pendant que vous travailliez dessus (par exemple sur le site Nextcloud). '
+      + 'L’édition est arrêtée pour ne rien écraser ; vos modifications non envoyées sont gardées sur ce poste.',
     'droit-perdu': 'Droit d’édition perdu — le travail local est conservé.',
     droits: 'Droits GitLab retirés — le travail local est conservé.',
     limite: 'Limite GitLab atteinte — le travail local est conservé.',
@@ -462,8 +476,9 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
-          <span v-if="statutSession.etat === 'degrade'" class="statut-session divergence">
+          <span v-if="statutSession.etat === 'degrade'" class="statut-session divergence suspendue">
             ⚠️ {{ messageSessionSuspendue }}
+            <button class="publier-maintenant" @click="rouvrirEntretienSuspendu">Rouvrir pour choisir</button>
           </span>
           <template v-else-if="statutSession.etat === 'a-nous'">
             <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
@@ -937,6 +952,12 @@ function ajusterLargeurNotesAuClavier(event: KeyboardEvent): void {
   font-size: 0.8rem;
   white-space: nowrap;
   color: #555;
+}
+.statut-session.suspendue {
+  white-space: normal;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 .statut-session.sale {
   color: #a05a00;

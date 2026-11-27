@@ -81,6 +81,7 @@ interface EntretienOperations {
   }
   fusionPossible: (copie: EntretienFichier) => boolean
   absorberFusion: (copie: EntretienFichier) => Promise<unknown>
+  remplacerParCopie: (copie: EntretienFichier) => Promise<void>
   allerAuTexte: (pos: number) => void
 }
 
@@ -217,6 +218,16 @@ export function useOperationsCorpus(deps: {
   async function jeterDivergence(): Promise<void> {
     const divergence = divergenceProposee.value
     if (!divergence) return
+    await window.sonal.distant.supprimerDivergence(divergence.chemin)
+    divergenceProposee.value = null
+  }
+
+  /** Garde la version mise de côté sur ce poste : elle remplace celle du serveur dans l'entretien ouvert,
+   *  puis sera envoyée comme une modification ordinaire. */
+  async function garderMaVersion(): Promise<void> {
+    const divergence = divergenceProposee.value
+    if (!divergence) return
+    await deps.entretien.remplacerParCopie(divergence.contenu as EntretienFichier)
     await window.sonal.distant.supprimerDivergence(divergence.chemin)
     divergenceProposee.value = null
   }
@@ -556,6 +567,7 @@ export function useOperationsCorpus(deps: {
     },
     confirmerFusion,
     jeterDivergence,
+    garderMaVersion,
     plusTardDivergence,
     ajouterEntretien,
     exportOuvert,

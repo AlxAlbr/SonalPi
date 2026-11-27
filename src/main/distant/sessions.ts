@@ -19,7 +19,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync, statSy
 import { randomUUID } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { MiroirWebDAV } from './miroirWebDAV'
-import { ClientWebDAV, ErreurHttp } from '../webdav/client'
+import { ClientWebDAV, ErreurHttp, retirerGuillemets } from '../webdav/client'
 import {
   PERIODE_BATTEMENT_MS,
   PERIODE_PUBLICATION_MS,
@@ -37,6 +37,7 @@ import type { ResultatObservationVerrous } from './coordination'
 import type {
   EntreeVerrouPublic,
   EtatSessionPublic,
+  RaisonDegradationSession,
   ResultatFermetureSession,
   ResultatFermetureToutes,
 } from '../../shared/distant'
@@ -114,6 +115,10 @@ export class SessionsDEntretien {
   private readonly sessions = new Map<string, SessionInterne>()
   /** Une rétrogradation reste visible jusqu'à la fermeture de l'entretien. */
   private readonly sessionsDegradees = new Set<string>()
+  /** Pourquoi une session a été suspendue, pour l'expliquer à l'utilisateur. */
+  private readonly raisonsDegradation = new Map<string, RaisonDegradationSession>()
+  /** Contenu publié au moment de la suspension : une copie identique n'a rien à garder. */
+  private readonly publiesALaSuspension = new Map<string, string>()
   /** File par entretien : acquisition, battement, publication et fermeture ne
    *  se chevauchent jamais. */
   private readonly operations = new Map<string, Promise<void>>()
@@ -171,7 +176,7 @@ export class SessionsDEntretien {
     if (this.termine || this.fermetureGlobale) {
       throw new Error('Le gestionnaire de sessions est en cours de fermeture.')
     }
-    if (this.sessionsDegradees.has(id)) return { etat: 'degrade' }
+    if (this.sessionsDegradees.has(id)) return this.etatDegrade(id)
     const existante = this.sessions.get(id)
     if (existante) {
       if (existante.degrade) return { etat: 'degrade' }
@@ -259,14 +264,65 @@ export class SessionsDEntretien {
   /** Vrai si la copie locale ne diffère du contenu publié que par sa date d'enregistrement. */
   private identiqueAuPublie(id: string, publie: string): boolean {
     try {
-      const contenu = (texte: string) => {
-        const { lastModified: _date, ...reste } = JSON.parse(texte) as Record<string, unknown>
-        return signaturePayloadEntretien(reste)
-      }
-      return contenu(readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8')) === contenu(publie)
+      return this.identiqueA(readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8'), publie)
     } catch {
       return false
     }
+  }
+
+  /** Vrai si deux versions d'un entretien ne diffèrent que par leur date d'enregistrement. */
+  private identiqueA(texte: string, reference: string | null): boolean {
+    if (reference === null) return false
+    try {
+      const contenu = (t: string) => {
+        const { lastModified: _date, ...reste } = JSON.parse(t) as Record<string, unknown>
+        return signaturePayloadEntretien(reste)
+      }
+      return contenu(texte) === contenu(reference)
+    } catch {
+      return false
+    }
+  }
+
+  /** État public d'une session suspendue, avec sa raison quand elle est connue. */
+  private etatDegrade(id: string): EtatSessionPublic {
+    const raison = this.raisonsDegradation.get(id)
+    return raison ? { etat: 'degrade', raison } : { etat: 'degrade' }
+  }
+
+  private oublierDegradation(id: string): void {
+    this.sessionsDegradees.delete(id)
+    this.raisonsDegradation.delete(id)
+    this.publiesALaSuspension.delete(id)
+  }
+
+  /** Vrai si l'entretien ouvert a été modifié ailleurs, par exemple sur le site Nextcloud.
+   *  Une simple requête sur la version suffit d'ordinaire ; le contenu n'est relu que si elle a changé. */
+  private async modifieAilleurs(id: string, s: SessionInterne): Promise<boolean> {
+    if (!s.etagServeur || s.contenuPublie === null || s.envoiIncertain) return false
+    let etag: string | null
+    try {
+      etag = (await this.client.informationFichier(CHEMIN_ENTRETIEN(id))).etag
+    } catch {
+      return false // serveur muet : la vérification reprendra au tic suivant
+    }
+    if (!etag || retirerGuillemets(etag) === retirerGuillemets(s.etagServeur)) return false
+    try {
+      if (await this.versionRenommeeSeulement(id, s)) return false
+    } catch {
+      return false
+    }
+    console.warn('[session] entretien modifié ailleurs pendant son ouverture :', id)
+    return true
+  }
+
+  /** Relit l'entretien sur le serveur : s'il porte toujours notre dernière publication,
+   *  seule sa version a changé ; on retient la nouvelle et on renvoie vrai. */
+  private async versionRenommeeSeulement(id: string, s: SessionInterne): Promise<boolean> {
+    const source = await this.client.getTexteAvecEtag(CHEMIN_ENTRETIEN(id))
+    if (!source.etag || source.contenu !== s.contenuPublie) return false
+    s.etagServeur = source.etag
+    return true
   }
 
   async lireCandidatLocuteurs(id: string) {
@@ -372,10 +428,12 @@ export class SessionsDEntretien {
     // Revenir exactement à la base publiée ne remet aucun ancien lien sur le serveur.
     if (contenu === s.contenuPublie) {
       const source = await this.client.getTexteAvecEtag(cheminFichier)
-      if (!source.etag || source.etag !== s.etagServeur || source.contenu !== contenu) {
-        await this.degraderInterne(id)
+      if (!source.etag || source.contenu !== contenu) {
+        await this.degraderInterne(id, false, 'conflit')
         return { ok: false, raison: 'divergence' }
       }
+      // Même contenu sous une autre version : le serveur a seulement renommé sa version.
+      s.etagServeur = source.etag
       if (s.degrade || this.maintenant() > s.droitValideJusqua) return { ok: false, raison: 'droit-expire' }
       s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
       return { ok: true }
@@ -391,7 +449,8 @@ export class SessionsDEntretien {
     return envoi(() => {})
   }
 
-  private async publierContenu(id: string, s: SessionInterne, contenu: string, revisionPubliee: number, garantir: () => void): Promise<{ ok: boolean; raison?: string }> {
+  private async publierContenu(id: string, s: SessionInterne, contenu: string, revisionPubliee: number, garantir: () => void,
+    nouvelleVersion = false): Promise<{ ok: boolean; raison?: string }> {
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     if (this.maintenant() > s.droitValideJusqua) {
       await this.degraderInterne(id)
@@ -420,7 +479,12 @@ export class SessionsDEntretien {
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
         delete s.envoiIncertain
-        await this.degraderInterne(id)
+        // Certains serveurs changent la version annoncée sans que le contenu change :
+        // si le serveur porte toujours notre dernière publication, on renvoie sur sa version actuelle.
+        if (!nouvelleVersion && await this.versionRenommeeSeulement(id, s).catch(() => false)) {
+          return this.publierContenu(id, s, contenu, revisionPubliee, garantir, true)
+        }
+        await this.degraderInterne(id, false, 'conflit')
         return { ok: false, raison: 'divergence' }
       }
       if (e instanceof ErreurHttp) throw e
@@ -464,7 +528,7 @@ export class SessionsDEntretien {
   private async fermerInterne(id: string): Promise<ResultatFermetureSession> {
     const s = this.sessions.get(id)
     if (!s) {
-      this.sessionsDegradees.delete(id)
+      this.oublierDegradation(id)
       return { fermee: true }
     }
     while (!s.correctionLocuteurs && !s.degrade && s.revision > s.revisionPubliee) {
@@ -491,7 +555,7 @@ export class SessionsDEntretien {
       }
     }
     this.retirerSession(id)
-    this.sessionsDegradees.delete(id)
+    this.oublierDegradation(id)
     return { fermee: true }
   }
 
@@ -527,7 +591,7 @@ export class SessionsDEntretien {
 
   /** État consultable par l'UI. */
   etat(id: string): EtatSessionPublic {
-    if (this.sessionsDegradees.has(id)) return { etat: 'degrade' }
+    if (this.sessionsDegradees.has(id)) return this.etatDegrade(id)
     const s = this.sessions.get(id)
     if (!s) return { etat: 'aucune' }
     if (s.degrade) return { etat: 'degrade' }
@@ -684,6 +748,10 @@ export class SessionsDEntretien {
           }
           return
         }
+        if (await this.modifieAilleurs(id, s)) {
+          await this.degraderInterne(id, false, 'conflit')
+          return
+        }
         if (
           s.revision > s.revisionPubliee &&
           s.dernierPubli !== null &&
@@ -697,16 +765,19 @@ export class SessionsDEntretien {
 
   /** Rétrogradation : retire le droit d'écrire, conserve une copie locale,
    *  puis tente de libérer. L'état reste visible jusqu'à sa fermeture. */
-  private async degraderInterne(id: string, verrouPerdu = false): Promise<void> {
+  private async degraderInterne(id: string, verrouPerdu = false, raison?: RaisonDegradationSession): Promise<void> {
     const s = this.sessions.get(id)
     if (!s || s.degrade) return
     s.degrade = true
     this.sessionsDegradees.add(id)
+    if (raison) this.raisonsDegradation.set(id, raison)
+    if (s.contenuPublie !== null) this.publiesALaSuspension.set(id, s.contenuPublie)
     this.revoquerEcriture?.(id)
     this.onRetrogradation?.(id)
     try {
       const brut = readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8')
-      this.ecrireCopieRecuperation(id, brut)
+      // Une copie identique à la dernière publication ne contient aucun travail à garder.
+      if (!this.identiqueA(brut, s.contenuPublie)) this.ecrireCopieRecuperation(id, brut)
     } catch {
       /* Rien à mettre de côté. */
     }
@@ -735,7 +806,9 @@ export class SessionsDEntretien {
       formatVersion: FORMAT_VERSION,
       lastModified: new Date(this.maintenant()).toISOString(),
     }
-    return this.ecrireCopieRecuperation(id, JSON.stringify(fichier, null, 2))
+    const brut = JSON.stringify(fichier, null, 2)
+    if (this.identiqueA(brut, this.publiesALaSuspension.get(id) ?? null)) return true
+    return this.ecrireCopieRecuperation(id, brut)
   }
 
   private ecrireCopieRecuperation(id: string, brut: string): boolean {
